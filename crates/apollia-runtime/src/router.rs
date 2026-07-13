@@ -230,6 +230,9 @@ impl<B: ExecutionBackend> TaskRouter<B> {
     /// 2. Generate a TaskId (UUID v4)
     /// 3. Build the AIPTask
     /// 4. Dispatch to the coordinator
+    // Submit path threads several independent request fields; a struct would
+    // just move the argument list.
+    #[allow(clippy::too_many_arguments)]
     async fn handle_submit(
         &mut self,
         agent_id: AgentId,
@@ -833,12 +836,7 @@ mod tests {
             .expect("register coordinator failed");
 
         // Drain events from agent registration/state transitions
-        loop {
-            match event_rx.try_recv() {
-                Ok(_) => {}
-                Err(_) => break,
-            }
-        }
+        while event_rx.try_recv().is_ok() {}
 
         // WHEN submitting a task
         let result = router.submit(agent_id.as_str(), AIPInput::default()).await;

@@ -261,6 +261,12 @@ pub struct HfModelTypeCache {
 
 const MODEL_TYPE_CACHE_TTL_SECS: u64 = 86_400;
 
+impl Default for HfModelTypeCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HfModelTypeCache {
     pub fn new() -> Self {
         Self {

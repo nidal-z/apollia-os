@@ -396,7 +396,7 @@ pub async fn list_sessions(root: &Path) -> Result<Vec<String>, JournalError> {
     }
 
     // Newest-first
-    sessions.sort_by(|a, b| b.0.cmp(&a.0));
+    sessions.sort_by_key(|b| std::cmp::Reverse(b.0));
     Ok(sessions.into_iter().map(|(_, n)| n).collect())
 }
 

@@ -259,6 +259,9 @@ fn read_token(input: &str) -> Option<(Token, usize)> {
 }
 
 /// Byte-length of the UTF-8 character beginning at `lead`.
+// ASCII (< 0x80) and stray continuation bytes (< 0xC0) both count as one byte,
+// kept as separate arms to document the byte ranges explicitly.
+#[allow(clippy::if_same_then_else)]
 fn utf8_char_len(lead: u8) -> usize {
     if lead < 0x80 {
         1

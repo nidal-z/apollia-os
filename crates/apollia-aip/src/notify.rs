@@ -40,6 +40,8 @@ impl PyNotifyInterface {
     /// severity: "debug" | "info" | "warn" | "warning" | "error" | "critical"
     /// Raises ValueError for any other severity value.
     #[pyo3(signature = (message, severity = "info", title = None, channel = None))]
+    // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    #[allow(clippy::too_many_arguments)]
     fn publish<'py>(
         &self,
         py: Python<'py>,

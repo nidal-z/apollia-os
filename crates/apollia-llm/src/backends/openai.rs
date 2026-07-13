@@ -558,9 +558,7 @@ fn accumulate_tool_calls(
     tc_chunks: Vec<async_openai::types::ChatCompletionMessageToolCallChunk>,
 ) {
     for tc in tc_chunks {
-        let entry = pending
-            .entry(tc.index)
-            .or_insert_with(PartialToolCall::default);
+        let entry = pending.entry(tc.index).or_default();
         if let Some(id) = tc.id {
             entry.id = id;
         }

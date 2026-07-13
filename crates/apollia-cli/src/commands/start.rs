@@ -2295,8 +2295,8 @@ agent = A()
 }
 
 #[cfg(test)]
-mod adr038_master_proof {
-    //! End-to-end proof for the orchestrated step-argument contract (ADR-038).
+mod orchestrated_step_args_master_proof {
+    //! End-to-end proof for the orchestrated step-argument contract.
     //!
     //! Drives the orchestrated `ActorLoop` through the production `OriaToolProxy`
     //! over a real governed `ToolProxy`, executing a native tool that requires
@@ -2388,7 +2388,7 @@ mod adr038_master_proof {
     async fn test_orchestrated_native_tool_with_structured_args_executes_and_audits() {
         // GIVEN a real governed ToolProxy exposing a structured-args native tool
         let tmp = std::env::temp_dir().join(format!(
-            "apollia_adr038_{}_{}.txt",
+            "apollia_stepargs_{}_{}.txt",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -2399,8 +2399,10 @@ mod adr038_master_proof {
             .register(write_note_descriptor())
             .await
             .expect("register descriptor");
-        let audit_db =
-            std::env::temp_dir().join(format!("apollia_adr038_audit_{}.db", uuid::Uuid::new_v4()));
+        let audit_db = std::env::temp_dir().join(format!(
+            "apollia_stepargs_audit_{}.db",
+            uuid::Uuid::new_v4()
+        ));
         let audit = apollia_tools::AuditTrailHandle::open(&audit_db)
             .await
             .expect("open audit trail");
@@ -2411,7 +2413,7 @@ mod adr038_master_proof {
             executor: Arc::new(DispatcherExecutor::new(dispatcher)),
             allowed_tools: vec!["write_note".to_string()],
             agent_id: "orchestrated-agent".to_string(),
-            task_id: "task-adr038".to_string(),
+            task_id: "task-stepargs".to_string(),
             run_id: None,
         });
         let oria_proxy = OriaToolProxy { proxy };
@@ -2425,8 +2427,8 @@ mod adr038_master_proof {
             "content": "hello orchestrated"
         }));
         let plan = ExecutionPlan {
-            plan_id: "p-adr038".to_string(),
-            task_id: "task-adr038".to_string(),
+            plan_id: "p-stepargs".to_string(),
+            task_id: "task-stepargs".to_string(),
             steps: vec![step],
         };
 

@@ -1,8 +1,9 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Tests d'intégration end-to-end de la gouvernance des outils natifs.
 //!
 //! Ces tests exercent les APIs publiques de `apollia-tools` (registry,
 //! credential store, dispatcher factory et `WebSearch::from_config`) en
-//! validant les invariants critiques du sprint 43 :
+//! validant les invariants critiques :
 //!
 //! - un outil désactivé via `ToolRegistry` est strictement absent du
 //!   dispatcher natif et toute invocation retourne `UnknownTool` ;
@@ -107,8 +108,10 @@ async fn test_credential_roundtrip_survives_db_reload() {
 
 #[tokio::test]
 async fn test_web_search_uses_ddg_when_no_brave_key() {
-    let mut cfg = WebSearchConfig::default();
-    cfg.backend = WebSearchBackend::Auto;
+    let mut cfg = WebSearchConfig {
+        backend: WebSearchBackend::Auto,
+        ..Default::default()
+    };
     cfg.brave.api_key_env_var = "APOLLIA_TEST_BRAVE_KEY_NEVER_SET_INTEGRATION_DDG_ONLY".to_string();
 
     let tool = WebSearch::from_config(&cfg, None).expect("build web_search");
@@ -133,9 +136,11 @@ async fn test_web_search_uses_ddg_when_no_brave_key() {
 
 #[tokio::test]
 async fn test_web_search_brave_401_falls_back_to_ddg() {
-    let mut cfg = WebSearchConfig::default();
-    cfg.backend = WebSearchBackend::Brave;
-    cfg.require_configured = false;
+    let mut cfg = WebSearchConfig {
+        backend: WebSearchBackend::Brave,
+        require_configured: false,
+        ..Default::default()
+    };
     cfg.brave.api_key_env_var = "APOLLIA_TEST_BRAVE_KEY_NEVER_SET_INTEGRATION_FALLBACK".to_string();
 
     let tool = WebSearch::from_config(&cfg, None).expect("fallback to ddg when brave unkeyed");

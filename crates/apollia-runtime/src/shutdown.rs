@@ -323,6 +323,10 @@ pub async fn wait_for_shutdown_signal() -> &'static str {
         loop {
             tokio::signal::ctrl_c().await.ok();
             if armed_clone.load(Ordering::SeqCst) {
+                // REASON: direct stderr, not tracing. On a forced double Ctrl+C
+                // exit the tracing subscriber may already be torn down, so
+                // stderr is the only reliable channel for this last line before
+                // process::exit.
                 eprintln!("\nForced shutdown (double Ctrl+C)");
                 std::process::exit(1);
             }
@@ -605,12 +609,7 @@ mod tests {
         let mut rx = event_sender.subscribe();
 
         // Drain any pre-existing events
-        loop {
-            match rx.try_recv() {
-                Ok(_) => {}
-                Err(_) => break,
-            }
-        }
+        while rx.try_recv().is_ok() {}
 
         // WHEN shutdown() is called
         let _ = controller.shutdown().await;
@@ -1015,12 +1014,7 @@ mod tests {
             .unwrap();
 
         // Drain pre-existing events
-        loop {
-            match rx.try_recv() {
-                Ok(_) => {}
-                Err(_) => break,
-            }
-        }
+        while rx.try_recv().is_ok() {}
 
         // WHEN stop_all() is called via shutdown()
         let _ = controller.shutdown().await;

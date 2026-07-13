@@ -306,7 +306,7 @@ mod tests {
             .await;
 
         // THEN the row has status = "completed"
-        let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
+        let rows = logger.list_by_parent(parent.as_ref()).await.unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].status, "completed");
     }
@@ -326,7 +326,7 @@ mod tests {
             .await;
 
         // THEN the row has status = "failed"
-        let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
+        let rows = logger.list_by_parent(parent.as_ref()).await.unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].status, "failed");
     }
@@ -341,7 +341,7 @@ mod tests {
         logger.complete(&parent, 0, "output", "completed").await;
 
         // THEN no row is inserted
-        let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
+        let rows = logger.list_by_parent(parent.as_ref()).await.unwrap();
         assert!(rows.is_empty());
     }
 
@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(n, 1);
 
         // THEN input_summary is truncated to 500 chars
-        let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
+        let rows = logger.list_by_parent(parent.as_ref()).await.unwrap();
         assert_eq!(rows.len(), 1);
         if let Some(summary) = &rows[0].input_summary {
             assert!(summary.chars().count() <= 500);

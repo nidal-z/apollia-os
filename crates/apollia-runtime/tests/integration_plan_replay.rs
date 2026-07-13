@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Cross-crate integration: plan-construction capture round-trips through the
 //! replay harness using only the public API.
 //!

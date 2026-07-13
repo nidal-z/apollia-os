@@ -69,6 +69,8 @@ impl MemoryInterface {
     /// metadata: Python dict of arbitrary metadata (optional)
     /// expires_in: lifetime in seconds; `None` = no expiration
     #[pyo3(signature = (content, importance=None, task_id=None, metadata=None, expires_in=None))]
+    // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    #[allow(clippy::too_many_arguments)]
     fn record<'py>(
         &self,
         py: Python<'py>,
@@ -112,6 +114,8 @@ impl MemoryInterface {
     ///     When provided, an existing entry with strictly higher confidence
     ///     is preserved (no overwrite).
     #[pyo3(signature = (key, value, source=None, confidence=None))]
+    // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    #[allow(clippy::too_many_arguments)]
     fn remember<'py>(
         &self,
         py: Python<'py>,

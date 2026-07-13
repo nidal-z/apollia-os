@@ -347,7 +347,7 @@ mod tests {
         // WHEN versions are compared
         // THEN remote is NOT greater than local
         let v = semver::Version::parse("0.1.0").expect("valid semver");
-        assert!(!(v.clone() > v));
+        assert!((v.clone() <= v));
     }
 
     #[tokio::test]

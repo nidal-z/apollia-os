@@ -747,7 +747,7 @@ impl ActorLoop {
         }
     }
 
-    /// Resolves the JSON payload passed to a tool step, per ADR-038.
+    /// Resolves the JSON payload passed to a tool step.
     ///
     /// Resolution order:
     /// 1. **Plan-time args (path A)**: if the step carries `args` and they
@@ -1935,7 +1935,7 @@ mod tests {
         assert_eq!(cb.failure_count(), 1);
     }
 
-    // ── ADR-038 argument resolution (paths A and B) ───────────────────────────
+    // ── argument resolution (paths A and B) ───────────────────────────────────
 
     /// Tool proxy that exposes a fixed schema and captures the payload it is
     /// invoked with, so a test can assert which arguments the ActorLoop resolved.
@@ -2811,16 +2811,11 @@ mod tests {
             let mut found_input_required = false;
             let mut found_step_id = false;
             let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
-            loop {
-                match tokio::time::timeout_at(deadline, bus_rx.recv()).await {
-                    Ok(Ok(event)) => {
-                        if let RuntimeEvent::TaskInputRequired { ref step_id, .. } = event {
-                            found_input_required = true;
-                            found_step_id = step_id.as_deref() == Some("s3");
-                            break;
-                        }
-                    }
-                    _ => break,
+            while let Ok(Ok(event)) = tokio::time::timeout_at(deadline, bus_rx.recv()).await {
+                if let RuntimeEvent::TaskInputRequired { ref step_id, .. } = event {
+                    found_input_required = true;
+                    found_step_id = step_id.as_deref() == Some("s3");
+                    break;
                 }
             }
 
@@ -2934,7 +2929,6 @@ mod tests {
             ),
             resolve_fut
         );
-        let result = result;
 
         // THEN: the plan completes successfully
         assert_eq!(
@@ -3041,7 +3035,6 @@ mod tests {
             ),
             resolve_fut
         );
-        let result = result;
 
         // THEN: plan returns Failed with code REJECTED
         assert_eq!(result.status, TaskStatus::Failed);

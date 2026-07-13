@@ -674,7 +674,7 @@ mod tests {
             [],
         )
         .expect("insert episodic");
-        drop(ep);
+        let _ = ep;
 
         sem.remember(RememberInput {
             namespace: "ns",
@@ -690,8 +690,8 @@ mod tests {
             .expect("learn procedural");
 
         // Release the owned memory handles before purging.
-        drop(sem);
-        drop(proc);
+        let _ = sem;
+        let _ = proc;
 
         // WHEN -- purge episodic older than 7 days, leave semantic and procedural alone
         let report = mgr
@@ -814,7 +814,7 @@ mod tests {
             expires_at: None,
         })
         .expect("semantic");
-        drop(sem);
+        let _ = sem;
 
         // Force the semantic entry to an old created_at
         let conn = store.conn();

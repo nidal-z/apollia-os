@@ -321,8 +321,7 @@ fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {
         println!(
-            "  * {}.{} = {} (written to {})",
-            "config",
+            "  * config.{} = {} (written to {})",
             key,
             value_str,
             path.display()
@@ -742,7 +741,7 @@ mod tests {
 
     #[test]
     fn parse_scalar_recognises_floats() {
-        assert_eq!(parse_scalar("3.14").as_float(), Some(3.14));
+        assert_eq!(parse_scalar("2.5").as_float(), Some(2.5));
     }
 
     #[test]

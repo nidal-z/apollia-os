@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS: Agent Interface Protocol (AIP) bridge.
 //!
 //! The PyO3-based bridge enabling Python agents to run inside the Rust runtime.

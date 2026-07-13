@@ -800,7 +800,7 @@ fn run_chat_export(
 
     let body = match format {
         "json" => format_export_json(&session, &messages),
-        "markdown" | _ => format_export_markdown(&session, &messages),
+        _ => format_export_markdown(&session, &messages),
     };
 
     match output {

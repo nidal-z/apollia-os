@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Cross-crate integration: load a full `apollia.toml` with a `[hooks]` section,
 //! validate it, build the registry, and assert the handler indexing. No daemon
 //! is required.

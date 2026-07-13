@@ -7,6 +7,9 @@ impl BuiltInChatAgent {
     /// Updates `consecutive_tool_failures` per call: incremented on a failed
     /// call (execution error, non-zero exit code, or operator refusal), reset to
     /// 0 on the first success, so the loop can derive an escalation signal.
+    // Records one tool turn from its independent signals; grouping them into a
+    // struct would obscure the call site.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::chat::builtin_agent) async fn record_tool_turn(
         &self,
         input: RecordTurnInput<'_>,

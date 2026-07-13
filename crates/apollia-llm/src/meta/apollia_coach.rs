@@ -77,19 +77,15 @@ const MAX_HISTORY_TURNS: usize = 12;
 /// receives technical vocabulary (manifest, tool, pipeline, trigger).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CoachMode {
     /// Non-technical operator (sidebar "Apollia" entry in operator mode).
+    #[default]
     Operator,
     /// Developer / builder (sidebar "Apollia" entry in builder mode).
     Builder,
     /// Contextual onboarding widget: short replies, stage-aware.
     Onboarding,
-}
-
-impl Default for CoachMode {
-    fn default() -> Self {
-        Self::Operator
-    }
 }
 
 /// Optional extra context passed to the coach (onboarding stage, current route…).

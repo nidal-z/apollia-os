@@ -170,7 +170,7 @@ impl MailInterface {
         let run_id = self.run_id.clone();
         let directory = self.directory.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            // Fail-fast on an unknown recipient (ADR-041 addressing), when a
+            // Fail-fast on an unknown recipient, when a
             // registry-backed directory is available.
             if let Some(dir) = &directory {
                 if !dir.agent_exists(&to).await {

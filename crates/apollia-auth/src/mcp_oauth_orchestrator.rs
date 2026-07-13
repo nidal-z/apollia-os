@@ -1053,9 +1053,8 @@ mod tests {
     fn parse_param(url: &str, key: &str) -> Option<String> {
         let qs_start = url.find('?')?;
         for pair in url[qs_start + 1..].split('&') {
-            let mut it = pair.splitn(2, '=');
-            let k = it.next()?;
-            let v = it.next()?;
+            let (k, v) = pair.split_once('=')?;
+
             if k == key {
                 return Some(v.to_string());
             }

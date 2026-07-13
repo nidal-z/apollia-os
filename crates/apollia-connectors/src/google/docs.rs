@@ -79,7 +79,7 @@ impl DocsClient {
         Ok(meta
             .body
             .as_ref()
-            .and_then(|b| flatten_body(b))
+            .and_then(flatten_body)
             .unwrap_or_default())
     }
 

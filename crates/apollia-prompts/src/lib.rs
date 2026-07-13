@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Single source of truth for Apollia OS system-prompt text and composition.
 //!
 //! Every instruction the platform sends to an LLM, the chat base prompts, the

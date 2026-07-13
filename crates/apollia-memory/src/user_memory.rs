@@ -328,7 +328,7 @@ impl UserMemoryRepository {
                 .collect();
             Self::append_injection_section(
                 &mut output,
-                &section.tag(),
+                section.tag(),
                 &in_section,
                 &mut total,
                 max_entries,

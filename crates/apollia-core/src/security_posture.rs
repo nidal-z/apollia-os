@@ -7,7 +7,7 @@
 //! (`doctor`, `status`) and the desktop shell can surface it honestly rather than
 //! implying isolation that is not there.
 //!
-//! See ADR-003 for the trust model this posture reflects.
+//! The posture reflects the project's in-process trust model for agent code.
 
 use serde::{Deserialize, Serialize};
 

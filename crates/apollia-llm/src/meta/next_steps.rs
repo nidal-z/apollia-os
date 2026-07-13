@@ -69,35 +69,27 @@ const ALLOWED_COMMANDS: &[&str] = &[
 /// "last few days" context and a "this session" context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum NextStepsContext {
     /// Operator Dashboard: rolling context of the last few days.
+    #[default]
     GlobalContext,
     /// End of a chat session: contextualised to the session that just closed.
     SessionEnd,
-}
-
-impl Default for NextStepsContext {
-    fn default() -> Self {
-        Self::GlobalContext
-    }
 }
 
 /// UX persona the panel is rendered for. Controls prompt tone and the type
 /// of suggestions the LLM focuses on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum NextStepsMode {
     /// Non-technical operator: pragmatic, outcome-oriented suggestions.
+    #[default]
     Operator,
     /// Builder/developer: technical vocabulary and observability-flavoured
     /// suggestions ("see logs", "export session").
     Builder,
-}
-
-impl Default for NextStepsMode {
-    fn default() -> Self {
-        Self::Operator
-    }
 }
 
 /// Facts the frontend already computed; the LLM only narrates, it never
@@ -371,12 +363,12 @@ fn payload_is_allowed(action: &NextStepAction, payload: &serde_json::Value) -> b
         NextStepAction::Navigate => payload
             .get("route")
             .and_then(|v| v.as_str())
-            .map(|r| ALLOWED_ROUTES.iter().any(|&allowed| r == allowed))
+            .map(|r| ALLOWED_ROUTES.contains(&r))
             .unwrap_or(false),
         NextStepAction::Invoke => payload
             .get("command")
             .and_then(|v| v.as_str())
-            .map(|c| ALLOWED_COMMANDS.iter().any(|&allowed| c == allowed))
+            .map(|c| ALLOWED_COMMANDS.contains(&c))
             .unwrap_or(false),
     }
 }

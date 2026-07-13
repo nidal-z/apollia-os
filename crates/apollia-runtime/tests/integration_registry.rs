@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use apollia_core::{AgentManifest, ProcessState, RuntimeEvent};
 use apollia_runtime::{AgentRegistry, EventBus};
 use tokio::time::{timeout, Duration};

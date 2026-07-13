@@ -423,12 +423,10 @@ mod tests {
         // to guarantee the channel is empty.
         let file = dir.path().join("existing.txt");
         std::fs::write(&file, b"data").unwrap();
-        loop {
-            match tokio::time::timeout(std::time::Duration::from_millis(300), rx.recv()).await {
-                Ok(Some(_)) => {} // drain the write events
-                _ => break,       // 300ms without an event means the channel is stable
-            }
-        }
+        // Drain the write events; 300ms without an event means the channel is stable.
+        while let Ok(Some(_)) =
+            tokio::time::timeout(std::time::Duration::from_millis(300), rx.recv()).await
+        {}
 
         // WHEN deleting the file (must be ignored since filter = ["create"])
         std::fs::remove_file(&file).unwrap();

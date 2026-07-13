@@ -229,9 +229,9 @@ fn profile_get(
     let entry = sem
         .recall(USER_NAMESPACE, &flat_key)
         .map_err(|e| format!("recall failed: {e}"))?;
-    Ok(entry.and_then(|e| match e.value {
-        serde_json::Value::String(s) => Some(s),
-        other => Some(other.to_string()),
+    Ok(entry.map(|e| match e.value {
+        serde_json::Value::String(s) => s,
+        other => other.to_string(),
     }))
 }
 

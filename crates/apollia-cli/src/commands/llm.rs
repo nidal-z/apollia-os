@@ -980,6 +980,7 @@ fn canonicalize_provider(p: &str) -> &str {
 /// - `llama-cpp`: `{model_path, device, quantization?, timeout_sec}`
 /// - `anthropic` / `openai` / `mistral`: `{api_key?, api_key_env?, base_url?, timeout_sec}`
 /// - `ollama`: `{base_url, timeout_sec}`
+///
 /// Inputs for [`build_config_json`], grouped to keep the signature small.
 struct BuildConfigArgs<'a> {
     provider: &'a str,

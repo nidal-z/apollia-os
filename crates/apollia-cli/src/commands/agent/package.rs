@@ -31,7 +31,7 @@ pub(in crate::commands::agent) fn run_package_list(json: bool) -> i32 {
     } else if pkgs.is_empty() {
         println!("No agent packages installed.");
     } else {
-        println!("{:<24} {:<12} {}", "NAME", "VERSION", "INSTALLED");
+        println!("{:<24} {:<12} INSTALLED", "NAME", "VERSION");
         for p in &pkgs {
             println!("{:<24} {:<12} {}", p.name, p.version, p.installed_at);
         }

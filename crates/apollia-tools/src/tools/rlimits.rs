@@ -21,7 +21,7 @@
 //!   `EAGAIN`, so it ships disabled (`None`) in v0.1.0.
 //!
 //! On non-Unix platforms these functions are honest no-ops (Windows is out of
-//! scope, see ADR-003).
+//! scope).
 
 /// Per-process resource limits applied to a sandboxed child process.
 #[derive(Debug, Clone, Copy)]
@@ -90,7 +90,7 @@ pub fn apply_rlimits(cmd: &mut std::process::Command, limits: ResourceLimits) {
 }
 
 /// No-op on non-Unix platforms: POSIX `setrlimit` is not available and Windows
-/// is out of scope (ADR-003).
+/// is out of scope.
 #[cfg(not(unix))]
 pub fn apply_rlimits(_cmd: &mut std::process::Command, _limits: ResourceLimits) {}
 

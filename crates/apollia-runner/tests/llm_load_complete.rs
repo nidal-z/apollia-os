@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Test d'intégration : spawn le runner, charge un modèle GGUF si disponible
 //! (`APOLLIA_TEST_GGUF`), envoie /llm/complete et vérifie la forme de la
 //! réponse. Vérifie aussi la validation BAD_REQUEST sur paramètre invalide.

@@ -197,7 +197,7 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
 ///
 /// Restates the v0.1.0 trust model: agent Python runs in-process with the full
 /// rights of the current user and there is no OS sandbox around agent code, so
-/// only audited agents should be installed. See ADR-003.
+/// only audited agents should be installed.
 pub(in crate::commands::agent) fn trust_banner_text() -> &'static str {
     "This agent runs Python in-process with the full rights of your user account: \
      filesystem, network, and credentials in your keyring. There is no OS sandbox \

@@ -340,8 +340,8 @@ fn run_permissions_list(db: Option<&Path>, json: bool) -> i32 {
     } else {
         println!("  Chat permission rules (agent_id = {APOLLIA_CHAT_AGENT_ID}):");
         println!(
-            "  {:<6} {:<24} {:<8} {:<20} {}",
-            "ID", "TOOL", "ACTION", "ARGUMENT", "EXPIRES"
+            "  {:<6} {:<24} {:<8} {:<20} EXPIRES",
+            "ID", "TOOL", "ACTION", "ARGUMENT"
         );
         for r in &rules {
             let action = format!("{:?}", r.action).to_lowercase();

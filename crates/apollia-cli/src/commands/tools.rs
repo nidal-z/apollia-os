@@ -244,10 +244,7 @@ fn print_pending_human(v: &serde_json::Value) {
         println!("  (no pending approvals)");
         return;
     }
-    println!(
-        "  {:<24} {:<24} {:<24} {}",
-        "TASK", "TOOL", "AGENT", "REQUESTED"
-    );
+    println!("  {:<24} {:<24} {:<24} REQUESTED", "TASK", "TOOL", "AGENT");
     for item in &arr {
         let task_id = item.get("task_id").and_then(|x| x.as_str()).unwrap_or("?");
         let tool = item
@@ -281,8 +278,8 @@ fn print_resolved_human(v: &serde_json::Value) {
         return;
     }
     println!(
-        "  {:<24} {:<10} {:<24} {}",
-        "TASK", "DECISION", "TOOL", "RESOLVED"
+        "  {:<24} {:<10} {:<24} RESOLVED",
+        "TASK", "DECISION", "TOOL"
     );
     for item in &arr {
         let task_id = item.get("task_id").and_then(|x| x.as_str()).unwrap_or("?");

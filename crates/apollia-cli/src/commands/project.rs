@@ -418,7 +418,7 @@ fn run_list(db: Option<&Path>, json: bool) -> i32 {
     } else if projects.is_empty() {
         println!("  (no projects)");
     } else {
-        println!("  {:<38} {:<24} {}", "ID", "NAME", "WORKSPACE");
+        println!("  {:<38} {:<24} WORKSPACE", "ID", "NAME");
         for p in &projects {
             let ws = p.workspace_path.as_deref().unwrap_or("-");
             println!("  {:<38} {:<24} {}", p.id, p.name, ws);
@@ -698,7 +698,7 @@ fn run_templates_list(db: Option<&Path>, json: bool) -> i32 {
             } else if templates.is_empty() {
                 println!("  (no templates - run `apollia-os project templates seed-builtins`)");
             } else {
-                println!("  {:<24} {:<10} {}", "ID", "KIND", "NAME");
+                println!("  {:<24} {:<10} NAME", "ID", "KIND");
                 for t in &templates {
                     let kind = if t.is_builtin { "builtin" } else { "custom" };
                     println!("  {:<24} {:<10} {}", t.id, kind, t.name);

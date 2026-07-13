@@ -5,7 +5,7 @@
 //!   zero LLM cost.
 //! - [`hallucination_detector`], heuristic + schema-driven detector for
 //!   suspicious tool outputs (null, empty, malformed JSON). Always-on,
-//! (session-level meta-layer).
+//!   (session-level meta-layer).
 //!
 //! When the static classifier returns [`apollia_core::ErrorCategory::Unknown`]
 //! and the user has opted in to `routines.error_explanation`, the runtime

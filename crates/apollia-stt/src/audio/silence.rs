@@ -80,9 +80,7 @@ mod tests {
         let window = 160;
         let mut audio = vec![0.0f32; window * 10];
         // Windows 3..7 contain voice
-        for i in (3 * window)..(7 * window) {
-            audio[i] = 0.5;
-        }
+        audio[(3 * window)..(7 * window)].fill(0.5);
         let trimmed = trim_silence(&audio, -40.0);
         assert_eq!(trimmed.len(), 4 * window);
         assert!(trimmed.iter().all(|&s| s == 0.5));

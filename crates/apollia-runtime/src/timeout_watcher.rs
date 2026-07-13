@@ -191,9 +191,9 @@ mod tests {
     }
 
     /// Insert an `input_required` task and backdate `input_required_at` by `hours_ago`.
-    async fn insert_expired_task(db_path: &PathBuf, task_id: &str, hours_ago: i64) {
+    async fn insert_expired_task(db_path: &std::path::Path, task_id: &str, hours_ago: i64) {
         let task_id = task_id.to_string();
-        let path = db_path.clone();
+        let path = db_path.to_path_buf();
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&path).unwrap();
             conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
@@ -210,8 +210,8 @@ mod tests {
     }
 
     /// Read a task's status from the DB.
-    async fn get_task_status(db_path: &PathBuf, task_id: &str) -> Option<String> {
-        let path = db_path.clone();
+    async fn get_task_status(db_path: &std::path::Path, task_id: &str) -> Option<String> {
+        let path = db_path.to_path_buf();
         let task_id = task_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&path).unwrap();

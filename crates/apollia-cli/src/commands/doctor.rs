@@ -290,7 +290,7 @@ fn check_python() -> CheckResult {
 /// Report the active isolation level for native tools and agent code.
 ///
 /// This is a `Warn`, never an `Error`: the absence of an OS sandbox on macOS is
-/// the documented development posture (ADR-003), not a failure, so it must not
+/// the documented development posture, not a failure, so it must not
 /// turn a healthy mac into a non-zero `doctor` exit.
 fn check_sandbox_posture() -> CheckResult {
     use apollia_core::{SecurityPosture, ToolSandbox};
@@ -319,7 +319,7 @@ fn check_sandbox_posture() -> CheckResult {
                  agent code runs in-process (trusted)",
                 posture.platform
             ),
-            "Agent Python is trusted code with your full rights (ADR-003): only \
+            "Agent Python is trusted code with your full rights: only \
              run agents you have audited. Production tool isolation requires Linux.",
         ),
     }

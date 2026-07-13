@@ -206,7 +206,7 @@ fn glob_files(
     }
 
     // Sort by mtime descending (most recent first).
-    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     let matches = entries
         .into_iter()

@@ -483,7 +483,7 @@ pub fn parse_automation(
 }
 
 fn humanize_interval_fr(seconds: u64) -> String {
-    if seconds % 86400 == 0 {
+    if seconds.is_multiple_of(86400) {
         let n = seconds / 86400;
         return if n == 1 {
             "jour".into()
@@ -491,7 +491,7 @@ fn humanize_interval_fr(seconds: u64) -> String {
             format!("{} jours", n)
         };
     }
-    if seconds % 3600 == 0 {
+    if seconds.is_multiple_of(3600) {
         let n = seconds / 3600;
         return if n == 1 {
             "heure".into()
@@ -499,7 +499,7 @@ fn humanize_interval_fr(seconds: u64) -> String {
             format!("{} heures", n)
         };
     }
-    if seconds % 60 == 0 {
+    if seconds.is_multiple_of(60) {
         let n = seconds / 60;
         return if n == 1 {
             "minute".into()
@@ -511,7 +511,7 @@ fn humanize_interval_fr(seconds: u64) -> String {
 }
 
 fn humanize_interval_en(seconds: u64) -> String {
-    if seconds % 86400 == 0 {
+    if seconds.is_multiple_of(86400) {
         let n = seconds / 86400;
         return if n == 1 {
             "day".into()
@@ -519,7 +519,7 @@ fn humanize_interval_en(seconds: u64) -> String {
             format!("{} days", n)
         };
     }
-    if seconds % 3600 == 0 {
+    if seconds.is_multiple_of(3600) {
         let n = seconds / 3600;
         return if n == 1 {
             "hour".into()
@@ -527,7 +527,7 @@ fn humanize_interval_en(seconds: u64) -> String {
             format!("{} hours", n)
         };
     }
-    if seconds % 60 == 0 {
+    if seconds.is_multiple_of(60) {
         let n = seconds / 60;
         return if n == 1 {
             "minute".into()

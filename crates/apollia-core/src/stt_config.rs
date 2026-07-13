@@ -291,9 +291,11 @@ mod tests {
     #[test]
     fn test_upsert_and_read_back() {
         let (repo, _dir) = make_repo();
-        let mut config = SttConfigRow::default();
-        config.enabled = true;
-        config.model_path = "/path/model.gguf".to_string();
+        let config = SttConfigRow {
+            enabled: true,
+            model_path: "/path/model.gguf".to_string(),
+            ..Default::default()
+        };
         repo.upsert(&config).unwrap();
         let read = repo.get_or_default().unwrap();
         assert!(read.enabled);
@@ -306,8 +308,10 @@ mod tests {
     #[test]
     fn test_upsert_replaces_existing() {
         let (repo, _dir) = make_repo();
-        let mut config = SttConfigRow::default();
-        config.hotkey = "ctrl+alt+s".to_owned();
+        let mut config = SttConfigRow {
+            hotkey: "ctrl+alt+s".to_owned(),
+            ..Default::default()
+        };
         repo.upsert(&config).unwrap();
 
         config.hotkey = "ctrl+shift+r".to_owned();
@@ -323,8 +327,10 @@ mod tests {
     #[test]
     fn test_language_roundtrip() {
         let (repo, _dir) = make_repo();
-        let mut config = SttConfigRow::default();
-        config.language = Some("fr".to_owned());
+        let config = SttConfigRow {
+            language: Some("fr".to_owned()),
+            ..Default::default()
+        };
         repo.upsert(&config).unwrap();
         let read = repo.get_or_default().unwrap();
         assert_eq!(read.language, Some("fr".to_owned()));

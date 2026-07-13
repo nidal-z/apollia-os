@@ -162,23 +162,19 @@ impl ChatSessionManagerHandle {
             let pending = pending_user_inputs.clone();
             let cmd_tx = tx.clone();
             tokio::spawn(async move {
-                loop {
-                    match pending.next_pending().await {
-                        Some((request_id, pending_input)) => {
-                            let questions_json = serde_json::to_string(&pending_input.questions)
-                                .unwrap_or_else(|_| "[]".to_string());
-                            let _ = cmd_tx
-                                .send(ChatCommand::RegisterUserInputReply {
-                                    request_id,
-                                    session_id: pending_input.session_id.unwrap_or_default(),
-                                    questions_json,
-                                    context: pending_input.context,
-                                    reply_tx: pending_input.reply_tx,
-                                })
-                                .await;
-                        }
-                        None => break, // Channel closed, manager shutting down.
-                    }
+                // Exits when the channel closes and the manager shuts down.
+                while let Some((request_id, pending_input)) = pending.next_pending().await {
+                    let questions_json = serde_json::to_string(&pending_input.questions)
+                        .unwrap_or_else(|_| "[]".to_string());
+                    let _ = cmd_tx
+                        .send(ChatCommand::RegisterUserInputReply {
+                            request_id,
+                            session_id: pending_input.session_id.unwrap_or_default(),
+                            questions_json,
+                            context: pending_input.context,
+                            reply_tx: pending_input.reply_tx,
+                        })
+                        .await;
                 }
             });
         }

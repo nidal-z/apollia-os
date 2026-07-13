@@ -1,11 +1,11 @@
-"""RSE classification director — deterministic pipelines over the workers.
+"""RSE classification director: deterministic pipelines over the workers.
 
 Two modes, one director (chosen by the incoming message ``mode``):
 
   * ``entity``   : 1 action -> N criteria.  (propose -> verify -> threshold)
   * ``criterion``: 1 criterion -> N actions. (match  -> verify -> threshold)
 
-IMPORTANT — the AI NEVER writes to Yumni's data. It only READS (action context,
+IMPORTANT: the AI NEVER writes to Yumni's data. It only READS (action context,
 criteria, actions) and produces PROPOSALS. The accepted proposals are handed back
 to Yumni via ``complete_classification`` and stored on the classification *job*
 for human review. A real mapping is created only when a human validates in the UI.
@@ -30,11 +30,11 @@ from apollia.utils import a2a_result_data
 
 # Keep a candidate only if the verifier's confidence clears this bar.
 THRESHOLD = 0.6
-# Mode B is O(K) LLM calls — bound the number of candidate actions scanned.
+# Mode B is O(K) LLM calls, bound the number of candidate actions scanned.
 MAX_ACTIONS = 12
 
 # Yumni MCP connector tools (server "yumni" registered in mcp.toml).
-# NOTE: no create_mapping — the director does not write mappings.
+# NOTE: no create_mapping, the director does not write mappings.
 TOOL_GET_CONTEXT = "mcp:yumni/get_action_context"
 TOOL_LIST_CRITERIA = "mcp:yumni/list_criteria"
 TOOL_LIST_ACTIONS = "mcp:yumni/list_actions"
@@ -284,7 +284,7 @@ class RseClassificationDirector:
             if error:
                 body["error"] = error
             await ctx.tools.call(TOOL_COMPLETE, body)
-        except Exception as exc:  # noqa: BLE001 — completion is best-effort
+        except Exception as exc:  # noqa: BLE001, completion is best-effort
             ctx.logger.error("complete_classification failed", job_id=job_id, error=str(exc))
 
 

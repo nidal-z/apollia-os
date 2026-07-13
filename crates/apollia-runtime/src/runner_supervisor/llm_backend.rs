@@ -68,6 +68,9 @@ fn expand_home(path: &str) -> String {
 }
 
 impl RunnerLlmBackend {
+    // Constructor takes each collaborator explicitly; bundling them would only
+    // move the argument list into a struct literal at every call site.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         proxy: RunnerProxy,
         backend_name: String,

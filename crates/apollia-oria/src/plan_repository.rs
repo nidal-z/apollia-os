@@ -905,7 +905,7 @@ mod tests {
         assert!(s1
             .input_rendered
             .as_ref()
-            .map_or(false, |t| t.contains("200 octets total")));
+            .is_some_and(|t| t.contains("200 octets total")));
     }
 
     // provenance and rationale

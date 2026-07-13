@@ -3119,14 +3119,16 @@ async fn test_posttooluse_injection_reaches_next_turn() {
 
     // THEN the injected context appears as a system message on the next turn
     result.expect("final response");
-    let msgs = captured.lock().expect("captured lock");
-    let injected = msgs.iter().any(|m| {
-        matches!(m.role, apollia_llm::types::Role::System)
-            && matches!(
-                &m.content,
-                apollia_llm::types::MessageContent::Text(t) if t.contains("INJECTED-CTX")
-            )
-    });
+    let injected = {
+        let msgs = captured.lock().expect("captured lock");
+        msgs.iter().any(|m| {
+            matches!(m.role, apollia_llm::types::Role::System)
+                && matches!(
+                    &m.content,
+                    apollia_llm::types::MessageContent::Text(t) if t.contains("INJECTED-CTX")
+                )
+        })
+    };
     assert!(
         injected,
         "the PostToolUse injection must be visible to the next LLM turn"

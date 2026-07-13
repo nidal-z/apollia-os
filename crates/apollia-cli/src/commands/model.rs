@@ -158,6 +158,9 @@ async fn run_search(socket: Option<PathBuf>, query: &str, limit: u32, json: bool
     let uri = format!("/api/v1/llm/registry/search?q={q}&limit={limit}");
     match client.get(&uri).await {
         Ok(resp) if resp.status < 400 => {
+            // Both modes print the raw JSON body returned by the registry API;
+            // the branch is kept explicit pending a human-formatted view.
+            #[allow(clippy::if_same_then_else)]
             if json {
                 println!("{}", resp.body);
             } else {

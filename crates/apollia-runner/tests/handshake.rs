@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Test d'intégration : spawn le binaire, parse READY <port>, curl /handshake.
 
 use std::io::{BufRead, BufReader};

@@ -6,6 +6,9 @@ use tracing::instrument;
 use crate::descriptor::{ToolDescriptor, ToolDescriptorError};
 
 /// Internal messages processed by the [`ToolRegistry`] actor.
+// Variants differ in size; boxing the large ones would churn every call site
+// of a rarely-constructed, short-lived actor message.
+#[allow(clippy::large_enum_variant)]
 enum ToolRegistryMessage {
     Register {
         descriptor: ToolDescriptor,

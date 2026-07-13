@@ -164,7 +164,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
             .ok()
             .and_then(|v| {
                 v.get("agents")
-                    .or_else(|| Some(&v))
+                    .or(Some(&v))
                     .and_then(|x| x.as_array())
                     .cloned()
             })

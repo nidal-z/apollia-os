@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! End-to-end proof that an MCP tool actually executes through the agent
 //! dispatch path, not merely resolves.
 //!

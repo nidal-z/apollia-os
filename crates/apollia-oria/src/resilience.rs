@@ -343,12 +343,12 @@ impl ResilienceLayer {
             .filter_map(|name| {
                 let cb = map.get(name)?;
                 let cooldown_remaining_secs = match cb.state {
-                    CircuitState::Open => cb.last_failure_at.and_then(|t| {
+                    CircuitState::Open => cb.last_failure_at.map(|t| {
                         let elapsed = t.elapsed();
                         if elapsed >= cb.cooldown {
-                            Some(0)
+                            0
                         } else {
-                            Some((cb.cooldown - elapsed).as_secs())
+                            (cb.cooldown - elapsed).as_secs()
                         }
                     }),
                     _ => None,

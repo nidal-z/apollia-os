@@ -162,7 +162,7 @@ impl UserOverrides {
     pub fn default_path() -> PathBuf {
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::temp_dir());
+            .unwrap_or_else(std::env::temp_dir);
         home.join(".apollia")
             .join("models")
             .join("sampling-defaults.json")

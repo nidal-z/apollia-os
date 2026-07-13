@@ -987,7 +987,7 @@ mod tests {
         let events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut task_found = false;
         let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
-        if let Some(_) = read_task_data(&conn, "nonexistent") {
+        if read_task_data(&conn, "nonexistent").is_some() {
             task_found = true;
         }
 

@@ -349,6 +349,7 @@ impl EmbeddedConfig {
 /// - [`EmbeddedError::SupervisorFailed`] if the Supervisor fails to start.
 /// - [`EmbeddedError::StartupTimeout`] if `AllReady` is not received in time.
 /// - [`EmbeddedError::RuntimeThreadPanicked`] if the runtime thread panics.
+///
 /// Process-global handle to the apollia-worker Tokio runtime.
 ///
 /// Stored so the PyO3 async bridge (`apollia-aip`) can pin

@@ -767,7 +767,7 @@ mod tests {
     #[test]
     fn test_all_ok_no_error_flag() {
         // GIVEN
-        let results = vec![
+        let results = [
             serde_json::json!({"channel_id": "desktop", "type": "desktop", "status": "ok", "error": null, "latency_ms": 12}),
             serde_json::json!({"channel_id": "slack",   "type": "webhook", "status": "ok", "error": null, "latency_ms": 88}),
         ];
@@ -790,7 +790,7 @@ mod tests {
     #[test]
     fn test_one_error_sets_flag() {
         // GIVEN
-        let results = vec![
+        let results = [
             serde_json::json!({"channel_id": "desktop", "type": "desktop", "status": "ok",    "error": null,                  "latency_ms": 12}),
             serde_json::json!({"channel_id": "slack",   "type": "webhook", "status": "error", "error": "connexion refusée",  "latency_ms": 5001}),
         ];

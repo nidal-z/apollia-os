@@ -546,6 +546,7 @@ impl ORIAEngine {
     /// 5. Create `StepBudget::from_capped(manifest, runtime)`
     /// 6. Execute via `ActorLoop`
     /// 7. Concatenate outputs (or stub `on_plan_complete`)
+    ///
     /// Whether the plan gate is active for the current run.
     ///
     /// A per-run override (`--plan`) wins when present: `Some(true)` gates,
@@ -694,8 +695,8 @@ impl ORIAEngine {
         };
 
         // Resolve each tool step's structured arguments so the persisted plan is
-        // fully specified before it is cached, audited and executed (ADR-038
-        // path A). Best-effort: unresolved steps are handled just in time.
+        // fully specified before it is cached, audited and executed. Best-effort:
+        // unresolved steps are handled just in time.
         self.enrich_plan_with_args(&mut plan).await;
 
         // Store in cache
@@ -1108,7 +1109,7 @@ impl ORIAEngine {
     }
 
     /// Fills each tool step's structured arguments before the plan is cached,
-    /// persisted and executed (ADR-038 path A).
+    /// persisted and executed.
     ///
     /// For every tool step whose `args` are absent or invalid against the
     /// target tool's input schema, resolves them with a schema-guided model
@@ -1169,6 +1170,9 @@ impl ORIAEngine {
     /// Mirrors the post-Reasoner path of [`execute_orchestrated_plan`]: emit
     /// PlanGenerated for the cached plan, then delegate execution, verification,
     /// and replan to [`run_plan_with_verification`](Self::run_plan_with_verification).
+    // Explicit dependency list for the cached-plan execution path; bundling
+    // these into a struct would only relocate the argument list.
+    #[allow(clippy::too_many_arguments)]
     async fn execute_cached_plan(
         &self,
         plan: ExecutionPlan,
@@ -1980,7 +1984,7 @@ mod orchestrated_tests {
         }
     }
 
-    // ── Mock ToolProxy exposing a fixed tool schema (ADR-038 path A) ────────
+    // ── Mock ToolProxy exposing a fixed tool schema (path A) ───────────────
 
     struct SchemaToolProxy {
         schema: serde_json::Value,
@@ -3108,6 +3112,8 @@ mod orchestrated_tests {
 
     /// Build an orchestrated engine whose single mock backend serves both planning
     /// and the critic, wired for the given tier and replan bound.
+    // Test builder wiring many independent knobs; a struct adds no clarity here.
+    #[allow(clippy::too_many_arguments)]
     fn make_engine_with_critic(
         plan: String,
         critic_queue: Vec<String>,

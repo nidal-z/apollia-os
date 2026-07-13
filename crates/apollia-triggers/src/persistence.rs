@@ -832,7 +832,7 @@ mod tests {
         // WHEN
         let counters = persistence.load_counters().unwrap();
         // THEN the unknown trigger is not in the map (counters at zero on the engine side)
-        assert!(counters.get("non-existant").is_none());
+        assert!(!counters.contains_key("non-existant"));
     }
 
     #[test]

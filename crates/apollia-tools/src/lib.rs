@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS tool registry and native tools.
 //!
 //! Provides the tooling infrastructure for agents:

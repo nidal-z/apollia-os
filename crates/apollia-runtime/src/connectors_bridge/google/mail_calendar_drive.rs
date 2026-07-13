@@ -204,7 +204,7 @@ pub(crate) async fn gdrive_list_my_files(
     } else {
         match connector
             .drive()
-            .find_path_folder_id(&root_path, &token, || refresh())
+            .find_path_folder_id(&root_path, &token, &mut refresh)
             .await
         {
             Ok(Some(id)) => {
@@ -227,7 +227,7 @@ pub(crate) async fn gdrive_list_my_files(
 
     let files = connector
         .drive()
-        .list_visible_files(scope.as_deref(), page_size, &token, || refresh())
+        .list_visible_files(scope.as_deref(), page_size, &token, refresh)
         .await
         .map_err(|e| e.to_string())?;
     let note = format!(

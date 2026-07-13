@@ -902,7 +902,7 @@ mod tests {
         .await;
 
         // THEN it is a 404
-        let err = resp.err().expect("should fail");
+        let err = resp.expect_err("should fail");
         assert_eq!(err.0, StatusCode::NOT_FOUND);
     }
 

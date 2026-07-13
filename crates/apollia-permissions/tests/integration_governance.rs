@@ -1,8 +1,9 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Tests d'intégration end-to-end des flux de gouvernance des permissions.
 //!
 //! Ces tests exercent le `PermissionEngine` complet (les trois couches)
 //! et le `PrefixRuleEngine` scope-aware via leurs APIs publiques, en
-//! validant les invariants critiques du sprint 43 :
+//! validant les invariants critiques :
 //!
 //! - les règles `Session` ne sont jamais persistées en SQLite ;
 //! - les règles `Project` ne s'appliquent qu'au projet courant ;

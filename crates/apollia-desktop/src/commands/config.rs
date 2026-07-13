@@ -536,7 +536,7 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
 ///
 /// Surfaces the isolation level of native tools and the agent-code trust model
 /// so the operator can see, without reading logs, what confinement is active on
-/// their platform. See ADR-003.
+/// their platform.
 #[tauri::command]
 pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, String> {
     Ok(apollia_core::SecurityPosture::detect())

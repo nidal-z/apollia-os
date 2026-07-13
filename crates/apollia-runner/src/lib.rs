@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS sidecar runner for local LLM and STT inference.
 //!
 //! This crate produces a binary `apollia-runner` (renamed to
