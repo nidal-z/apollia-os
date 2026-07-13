@@ -276,9 +276,10 @@ impl MailInterface {
     fn nack<'py>(&self, py: Python<'py>, message_id: String) -> PyResult<Bound<'py, PyAny>> {
         let mailbox = self.require_handle()?;
         let agent = self.caller_agent_name.clone();
+        let run_id = self.run_id.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             mailbox
-                .nack(&agent, &message_id)
+                .nack(&agent, &message_id, run_id)
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("mailbox nack failed: {e}")))
         })

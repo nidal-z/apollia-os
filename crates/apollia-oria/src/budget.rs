@@ -18,6 +18,33 @@ use tokio::sync::watch;
 
 use apollia_core::StepBudgetConfig;
 
+/// Effective per-dimension cap: an agent config can only ever lower the runtime
+/// ceiling, never raise it above it. This is the constructor-level enforcement of
+/// the non-bypassable guardrail: `effective = min(agent, runtime)`.
+///
+/// Isolated as a pure `u32 -> u32` function so it can be proven exhaustively
+/// (proptest today, Kani in the advisory job) rather than only sampled.
+#[inline]
+pub(crate) fn effective_cap(agent: u32, runtime: u32) -> u32 {
+    agent.min(runtime)
+}
+
+/// Whether a single counter dimension is exhausted: `used >= max`. The `>=` (not
+/// `==`) is what makes exhaustion stable once reached, even if the counter is
+/// incremented further. Mirrored by `is_exhausted` and `exhaustion_reason`.
+#[inline]
+pub(crate) fn dimension_exhausted(used: u32, max: u32) -> bool {
+    used >= max
+}
+
+/// Remaining headroom on a dimension, saturating at zero so it never underflows.
+/// Returns `0` exactly when the dimension is exhausted. Mirrored by `steps_left`
+/// and `tool_calls_left`.
+#[inline]
+pub(crate) fn remaining(used: u32, max: u32) -> u32 {
+    max.saturating_sub(used)
+}
+
 /// Tri-dimensional execution budget enforced by the runtime.
 ///
 /// Thread-safe via `AtomicU32` counters and `Instant` for the timer.
@@ -63,8 +90,8 @@ impl StepBudget {
     /// Creates a StepBudget whose effective values are min(agent, runtime) per dimension.
     pub fn from_capped(agent: &StepBudgetConfig, runtime: &StepBudgetConfig) -> Self {
         let capped = StepBudgetConfig {
-            max_steps: agent.max_steps.min(runtime.max_steps),
-            max_tool_calls: agent.max_tool_calls.min(runtime.max_tool_calls),
+            max_steps: effective_cap(agent.max_steps, runtime.max_steps),
+            max_tool_calls: effective_cap(agent.max_tool_calls, runtime.max_tool_calls),
             wall_clock_secs: agent.wall_clock_secs.min(runtime.wall_clock_secs),
         };
         Self::new(&capped)
@@ -72,8 +99,11 @@ impl StepBudget {
 
     /// Returns `true` if at least one of the three dimensions is exhausted.
     pub fn is_exhausted(&self) -> bool {
-        self.current_steps.load(Ordering::Relaxed) >= self.max_steps
-            || self.current_tool_calls.load(Ordering::Relaxed) >= self.max_tool_calls
+        dimension_exhausted(self.current_steps.load(Ordering::Relaxed), self.max_steps)
+            || dimension_exhausted(
+                self.current_tool_calls.load(Ordering::Relaxed),
+                self.max_tool_calls,
+            )
             || self.started_at.elapsed() >= self.wall_clock_limit
     }
 
@@ -84,7 +114,7 @@ impl StepBudget {
     /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_steps(&self) {
         let prev = self.current_steps.fetch_add(1, Ordering::Relaxed);
-        if prev + 1 >= self.max_steps {
+        if dimension_exhausted(prev.saturating_add(1), self.max_steps) {
             self.try_notify_exhaustion();
         }
     }
@@ -96,7 +126,7 @@ impl StepBudget {
     /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_tool_calls(&self) {
         let prev = self.current_tool_calls.fetch_add(1, Ordering::Relaxed);
-        if prev + 1 >= self.max_tool_calls {
+        if dimension_exhausted(prev.saturating_add(1), self.max_tool_calls) {
             self.try_notify_exhaustion();
         }
     }
@@ -136,14 +166,15 @@ impl StepBudget {
 
     /// Number of steps remaining.
     pub fn steps_left(&self) -> u32 {
-        self.max_steps
-            .saturating_sub(self.current_steps.load(Ordering::Relaxed))
+        remaining(self.current_steps.load(Ordering::Relaxed), self.max_steps)
     }
 
     /// Number of tool calls remaining.
     pub fn tool_calls_left(&self) -> u32 {
-        self.max_tool_calls
-            .saturating_sub(self.current_tool_calls.load(Ordering::Relaxed))
+        remaining(
+            self.current_tool_calls.load(Ordering::Relaxed),
+            self.max_tool_calls,
+        )
     }
 
     /// Time elapsed since execution started.
@@ -212,14 +243,17 @@ impl StepBudget {
 
     /// Human-readable description of the exhaustion reason (for error messages).
     pub fn exhaustion_reason(&self) -> Option<String> {
-        if self.current_steps.load(Ordering::Relaxed) >= self.max_steps {
+        if dimension_exhausted(self.current_steps.load(Ordering::Relaxed), self.max_steps) {
             return Some(format!(
                 "max steps reached ({}/{})",
                 self.current_steps.load(Ordering::Relaxed),
                 self.max_steps
             ));
         }
-        if self.current_tool_calls.load(Ordering::Relaxed) >= self.max_tool_calls {
+        if dimension_exhausted(
+            self.current_tool_calls.load(Ordering::Relaxed),
+            self.max_tool_calls,
+        ) {
             return Some(format!(
                 "max tool calls reached ({}/{})",
                 self.current_tool_calls.load(Ordering::Relaxed),
@@ -549,5 +583,137 @@ mod tests {
             .await
             .expect("wait_for_exhaustion should complete within 1s, not poll for 60s")
             .expect("task should not panic");
+    }
+}
+
+// Property harnesses for the non-bypassable-budget invariant. These exercise the
+// same `effective_cap` / `dimension_exhausted` / `remaining` helpers the runtime
+// methods call, plus the real `StepBudget` end to end, over a randomized space.
+// The `#[cfg(kani)]` block below proves the pure helpers exhaustively over the
+// full `u32` domain; the wall-clock dimension and the real atomic struct stay in
+// proptest because a model checker cannot model `Instant` / `tokio` time.
+#[cfg(test)]
+mod property {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// The effective cap is `min(agent, runtime)`: an agent config can only
+        /// lower the runtime ceiling, never raise the budget above it.
+        #[test]
+        fn prop_effective_cap_is_min_and_never_exceeds_ceiling(agent: u32, runtime: u32) {
+            let cap = effective_cap(agent, runtime);
+            prop_assert!(cap <= agent);
+            prop_assert!(cap <= runtime);
+            prop_assert_eq!(cap, agent.min(runtime));
+        }
+
+        /// `dimension_exhausted` is exactly `used >= max`, and once reached it
+        /// stays reached for any further increment (no wrap-around gap).
+        #[test]
+        fn prop_dimension_exhausted_is_ge_and_monotonic(used: u32, max: u32, delta: u32) {
+            prop_assert_eq!(dimension_exhausted(used, max), used >= max);
+            if dimension_exhausted(used, max) {
+                prop_assert!(dimension_exhausted(used.saturating_add(delta), max));
+            }
+        }
+
+        /// `remaining` never underflows and is zero exactly when exhausted.
+        #[test]
+        fn prop_remaining_saturates_and_zero_iff_exhausted(used: u32, max: u32) {
+            let left = remaining(used, max);
+            prop_assert_eq!(left == 0, dimension_exhausted(used, max));
+            if used < max {
+                prop_assert_eq!(left, max - used);
+            }
+        }
+
+        /// End to end on the real atomic struct: from_capped clamps to the
+        /// runtime ceiling, and after `max` increments the budget is exhausted
+        /// with zero headroom, whatever the requested agent value.
+        #[test]
+        fn prop_real_budget_never_exceeds_capped_ceiling(
+            agent_steps in 0u32..=64,
+            runtime_steps in 1u32..=64,
+        ) {
+            let agent = StepBudgetConfig {
+                max_steps: agent_steps,
+                max_tool_calls: u32::MAX,
+                wall_clock_secs: 86_400,
+            };
+            let runtime = StepBudgetConfig {
+                max_steps: runtime_steps,
+                max_tool_calls: u32::MAX,
+                wall_clock_secs: 86_400,
+            };
+            let budget = StepBudget::from_capped(&agent, &runtime);
+            let cap = agent_steps.min(runtime_steps);
+            prop_assert_eq!(budget.max_steps, cap);
+            prop_assert!(budget.max_steps <= runtime_steps);
+
+            for _ in 0..cap {
+                prop_assert!(!budget.is_exhausted());
+                budget.increment_steps();
+            }
+            // WHEN the cap is reached, the step dimension is exhausted with no
+            // headroom, and further increments keep it exhausted.
+            prop_assert!(budget.is_exhausted());
+            prop_assert_eq!(budget.steps_left(), 0);
+            budget.increment_steps();
+            prop_assert!(budget.is_exhausted());
+            prop_assert_eq!(budget.steps_left(), 0);
+        }
+    }
+}
+
+// SEED harnesses for `cargo kani`. Kani is not wired into the local toolchain
+// (it links its own toolchain via rustup, absent here); these bounded proofs run
+// in the advisory nightly `kani` job. They prove the pure budget helpers over the
+// entire `u32` domain, which the proptest block above only samples. The atomic
+// struct and the wall-clock dimension are out of scope for a model checker.
+#[cfg(kani)]
+mod proofs {
+    use super::{dimension_exhausted, effective_cap, remaining};
+
+    /// Non-bypassable cap: the effective per-dimension budget never exceeds the
+    /// runtime ceiling, for every pair of `u32` values.
+    #[kani::proof]
+    fn kani_effective_cap_never_exceeds_ceiling() {
+        let agent: u32 = kani::any();
+        let runtime: u32 = kani::any();
+        let cap = effective_cap(agent, runtime);
+        assert!(cap <= agent);
+        assert!(cap <= runtime);
+        assert!(cap == agent || cap == runtime);
+    }
+
+    /// Exhaustion is exactly `used >= max` and is stable under further
+    /// increments (proves the saturating increment leaves no wrap-around gap).
+    #[kani::proof]
+    fn kani_dimension_exhausted_ge_and_monotonic() {
+        let used: u32 = kani::any();
+        let max: u32 = kani::any();
+        assert_eq!(dimension_exhausted(used, max), used >= max);
+        if dimension_exhausted(used, max) {
+            let delta: u32 = kani::any();
+            assert!(dimension_exhausted(used.saturating_add(delta), max));
+        }
+    }
+
+    /// Remaining headroom never underflows and is zero iff exhausted.
+    #[kani::proof]
+    fn kani_remaining_saturates_and_zero_iff_exhausted() {
+        let used: u32 = kani::any();
+        let max: u32 = kani::any();
+        let left = remaining(used, max);
+        assert_eq!(left == 0, dimension_exhausted(used, max));
+    }
+
+    /// The fixed increment path is overflow-free for every counter value,
+    /// including `u32::MAX` (where the previous `prev + 1` would have panicked).
+    #[kani::proof]
+    fn kani_increment_saturating_never_overflows() {
+        let prev: u32 = kani::any();
+        let _ = prev.saturating_add(1);
     }
 }

@@ -569,6 +569,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "proptest",
  "rand 0.9.4",
  "rusqlite",
  "serde",

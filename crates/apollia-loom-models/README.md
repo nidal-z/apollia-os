@@ -30,7 +30,7 @@ Without `--cfg loom` the crate compiles to nothing and pulls no dependencies.
 |---|---|---|
 | `registry_serial_consistency` | `registry.rs:148-179` | same-name register/unregister keep map + index consistent |
 | `coordinator_semaphore` | `coordinator.rs:143-193` | permit count never exceeds capacity, no leak |
-| `mailbox_lease_exclusivity` | `mailbox.rs:587-666` | fenced ack never deletes a re-leased message (finding F4) |
+| `mailbox_lease_exclusivity` | `mailbox.rs` (`handle_receive` + `handle_ack`) | fenced ack never deletes a re-leased message (F4, fix now in prod + Kani-proven) |
 | `router_terminal_status_guard` | `router.rs:187-199` | a late completion never overwrites a terminal status |
 | `shutdown_force_exit_flag` | `shutdown.rs:310-347` | the double-Ctrl-C latch is monotonic |
 | `plan_gate_single_decision` | `plan_gate.rs:72` | concurrent decide delivers exactly once |

@@ -14,12 +14,27 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
   undefined-behavior suite over the FFI-adjacent pure helpers in `apollia-aip`.
   Both are dev-only (no runtime dependency) and run as advisory nightly CI jobs.
   See ADR-043.
+- Formal verification: bounded Kani symbolic proofs of the two cardinal
+  invariants, the non-bypassable `StepBudget` (`apollia-oria`) and the mailbox
+  lease/ack fence (`apollia-runtime`), each with an in-tree proptest mirror that
+  runs under `cargo test`. Dev-only; an advisory nightly `kani` CI job runs the
+  proofs (Kani links its own toolchain via rustup, so it is CI-only). See
+  ADR-046.
 
 ### Changed
 
 - Timing-dependent runtime tests (registry actor-death, router degraded-agent
   event, router cancel-vs-late-completion) now use event-driven awaits and
   bounded poll-until-condition instead of fixed sleeps, removing flakiness.
+
+### Fixed
+
+- Mailbox lease exclusivity (C9-F4): `ack`/`nack` are now fenced on the leasing
+  `run_id` via a new `lease_owner` column, so a stale consumer whose lease was
+  re-leased to another run can no longer delete or requeue the message the new
+  owner is processing. See ADR-046.
+- `StepBudget` step/tool-call increment used a checked `+` that could panic in
+  debug at `u32::MAX`; it now saturates.
 
 ## [0.1.0-preview] - 2026-06-03
 

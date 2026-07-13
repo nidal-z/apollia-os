@@ -11,6 +11,7 @@
 #   - deep-audit       : cargo audit avec advisory DB rechargée
 #   - loom             : modeles Loom d'entrelacement des actors (advisory)
 #   - miri             : detection UB sur les helpers purs proches du FFI (advisory)
+#   - kani             : preuves symboliques bornees des invariants cardinaux (advisory)
 #
 # Si un job échoue : alerte mail GH, mais main reste vert (pas de PR bloquée).
 
@@ -35,6 +36,7 @@ on:
           - "deep-audit"
           - "loom"
           - "miri"
+          - "kani"
           - "fuzz-deep"
 
 env:
@@ -441,6 +443,41 @@ jobs:
           key: miri
       - name: Run Miri on FFI-adjacent pure helpers
         run: cargo +nightly miri test -p apollia-aip --lib miri_pure
+
+  # ── Kani bounded symbolic proofs (advisory) ────────────────────────────────
+  # Bit-precise model checking of the cardinal runtime invariants: the
+  # non-bypassable StepBudget (apollia-oria) and the mailbox lease/ack fence
+  # (apollia-runtime). Kani links its own toolchain via rustup, so it cannot run
+  # on the Homebrew dev machines; it lives here, advisory, never gating a PR. The
+  # `#[cfg(kani)]` harnesses prove the pure decision helpers over their whole
+  # bounded domain, which the in-tree proptest mirrors only sample.
+  kani:
+    name: Kani Proofs (advisory)
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'kani'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: kani
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: Prove StepBudget invariants
+        run: cargo kani -p apollia-oria
+      # Scoped to the mailbox harnesses: the crate also carries the audit-journal
+      # SHA harness, which is CBMC-pathological (does not terminate in a sane
+      # budget) and is tracked separately. Widen this once that seed is optimized.
+      - name: Prove mailbox lease/ack invariants
+        run: cargo kani -p apollia-runtime --harness 'mailbox::proofs::'
 
   # ── Deep fuzz ──────────────────────────────────────────────────────────────
   # Long-running libFuzzer session over the untrusted-input parsers. Any crash

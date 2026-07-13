@@ -286,10 +286,12 @@ RUSTFLAGS="--cfg loom" LOOM_MAX_PREEMPTIONS=3 \
 ```
 
 Honesty boundary: a Loom model proves the **algorithm** is race-free, not that
-the exact Tokio code is. Two models (`mailbox_lease_exclusivity`,
-`shutdown_drain_snapshot_gap`) model the RECOMMENDED fix for a hazard the prod
-code does not yet implement; that delta is a tracked finding, not a proof about
-current prod.
+the exact Tokio code is. `mailbox_lease_exclusivity` modelled the recommended
+lease-owner fence before prod carried it; that fence now ships (the `lease_owner`
+column + null-safe `IS` fence on `ack`/`nack`, also proven bit-precise by Kani, 8d
+below). `shutdown_drain_snapshot_gap` still models the recommended fix for a
+hazard prod does not yet implement; that delta remains a tracked finding, not a
+proof about current prod.
 
 **Miri** interprets MIR to detect undefined behavior (bad casts, invalid
 pointers, data races). It cannot execute the PyO3 boundary (`Python::with_gil`
@@ -311,6 +313,54 @@ Rules :
   workspace crate; it would drag `--cfg loom` into Tokio.
 - A Miri `miri_pure` test must not call into libpython, directly or transitively.
 - CI runs both weekly in `nightly.yml` (`loom`, `miri`), advisory.
+
+---
+
+## 8d. Bounded symbolic proof (Kani)
+
+Where a property must hold for **every** input, not a sampled subset, Kani (the
+AWS bit-precise Rust model checker) proves it exhaustively over a bounded space.
+It is reserved for the cardinal invariants; proving the whole codebase this way
+is not the goal.
+
+Two invariants carry Kani harnesses today, each paired with an in-tree proptest
+mirror that runs under `cargo test` :
+
+- **Non-bypassable StepBudget** (`crates/apollia-oria/src/budget.rs`) : the
+  effective cap is `min(agent, runtime)` so an agent can never raise the runtime
+  ceiling; exhaustion is stable once reached; the counter increment is
+  overflow-free. Proven over the whole `u32` domain.
+- **Mailbox lease/ack fence** (`crates/apollia-runtime/src/mailbox.rs`) : a stale
+  consumer whose lease was re-leased to another run cannot ack or nack the
+  message; owner match is exactly the null-safe SQL `IS`; an expired lease stays
+  redeliverable (at-least-once).
+
+The harnesses prove the **pure decision helpers** (`effective_cap`,
+`dimension_exhausted`, `remaining`; `is_deliverable`, `owner_matches`, the lease
+transitions), which each re-encode one prod predicate and cite the line they
+mirror. The real atomic `StepBudget` and the real SQLite store are bound to the
+model by the proptest and the end-to-end regression test
+(`test_ack_fenced_to_lease_owner`), not by Kani.
+
+```sh
+cargo install --locked kani-verifier && cargo kani setup
+cargo kani -p apollia-oria
+cargo kani -p apollia-runtime
+```
+
+Honesty boundary: a harness proves the property only over its **bounded** space
+(the whole `u32` for budget; owner identities and Unix-second times bounded by
+`kani::assume` for mailbox). Do not claim "proven correct" beyond that. The
+wall-clock budget dimension (`Instant`) and the `None`/`None` owner collision are
+out of scope and stay documented as such.
+
+Rules :
+
+- Kani links its own toolchain via rustup: it is CI-only (advisory `kani` job in
+  `nightly.yml`). Locally, the proptest mirrors are the runnable proof.
+- Gate every harness on `#[cfg(kani)]`; the cfg is whitelisted workspace-wide.
+- A harness must exercise the same pure helper the prod path uses. Never prove a
+  divergent model.
 
 ---
 

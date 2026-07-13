@@ -7,6 +7,12 @@
 //! deletes it; an unacked lease expires and the message becomes deliverable
 //! again. A sweeper evicts messages past their TTL. The actor follows the Tokio
 //! `mpsc` + clonable handle pattern used across the runtime.
+//!
+//! Lease exclusivity: each lease records its owner (the receiving `run_id`) in
+//! `lease_owner`, and `ack` / `nack` are fenced on it. A stale consumer whose
+//! lease has expired and been re-leased to another run can no longer delete or
+//! requeue the message it lost. Two owner-less leases (`run_id` is `None`) share
+//! a `NULL` owner and are not mutually fenced, the one residual race.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -32,6 +38,7 @@ const SCHEMA: &str = "
         created_unix     INTEGER NOT NULL,
         state            TEXT    NOT NULL,
         lease_until_unix INTEGER,
+        lease_owner      TEXT,
         seq              INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_mailbox_to_seq
@@ -150,6 +157,7 @@ enum MailboxMessage {
     Nack {
         agent_name: String,
         message_id: String,
+        run_id: Option<RunId>,
         reply: oneshot::Sender<Result<(), MailboxError>>,
     },
     PendingCount {
@@ -288,12 +296,18 @@ impl AgentMailboxHandle {
     }
 
     /// Refuses a leased message, making it immediately deliverable again.
-    pub async fn nack(&self, agent_name: &str, message_id: &str) -> Result<(), MailboxError> {
+    pub async fn nack(
+        &self,
+        agent_name: &str,
+        message_id: &str,
+        run_id: Option<RunId>,
+    ) -> Result<(), MailboxError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(MailboxMessage::Nack {
                 agent_name: agent_name.to_owned(),
                 message_id: message_id.to_owned(),
+                run_id,
                 reply: reply_tx,
             })
             .await
@@ -384,6 +398,19 @@ fn open_and_init(db_path: Option<&std::path::Path>) -> Option<Connection> {
         warn!(error = %e, "mailbox: schema init failed");
         return None;
     }
+    // Migrate stores created before the lease-owner fence. SQLite has no
+    // `ADD COLUMN IF NOT EXISTS`, so the duplicate-column error on an already
+    // migrated store is expected and swallowed; any other error is surfaced.
+    if let Err(e) = conn.execute(
+        "ALTER TABLE mailbox_messages ADD COLUMN lease_owner TEXT",
+        [],
+    ) {
+        let already_present = e.to_string().contains("duplicate column name");
+        if !already_present {
+            warn!(error = %e, "mailbox: lease_owner migration failed");
+            return None;
+        }
+    }
     Some(conn)
 }
 
@@ -460,9 +487,10 @@ impl MailboxActor {
                 MailboxMessage::Nack {
                     agent_name,
                     message_id,
+                    run_id,
                     reply,
                 } => {
-                    let _ = reply.send(self.handle_nack(&agent_name, &message_id));
+                    let _ = reply.send(self.handle_nack(&agent_name, &message_id, run_id));
                 }
                 MailboxMessage::PendingCount { agent_name, reply } => {
                     let _ = reply.send(self.handle_pending_count(&agent_name));
@@ -613,12 +641,16 @@ impl MailboxActor {
 
         let (message_id, from, to, payload_str, sent_at) = row;
         let lease_until = now + self.config.visibility_timeout_secs as i64;
+        // Record the leasing run as the lease owner so a later ack/nack from a
+        // stale consumer (whose lease has since expired and been re-leased) is
+        // fenced out. A re-lease overwrites the owner with the new run.
+        let lease_owner = run_id.as_ref().map(|r| r.as_str());
         if self
             .conn
             .execute(
-                "UPDATE mailbox_messages SET state = 'in_flight', lease_until_unix = ?1 \
-                 WHERE message_id = ?2",
-                params![lease_until, message_id],
+                "UPDATE mailbox_messages SET state = 'in_flight', lease_until_unix = ?1, \
+                 lease_owner = ?2 WHERE message_id = ?3",
+                params![lease_until, lease_owner, message_id],
             )
             .is_err()
         {
@@ -648,11 +680,17 @@ impl MailboxActor {
         message_id: &str,
         run_id: Option<RunId>,
     ) -> Result<(), MailboxError> {
+        // Fence on the lease owner: `IS` is null-safe, so an ack whose run_id
+        // differs from the current lease owner deletes zero rows and is a no-op.
+        // This is what stops a stale consumer from deleting a message that has
+        // since been re-leased to another run (finding C9-F4).
+        let owner = run_id.as_ref().map(|r| r.as_str());
         let changed = self
             .conn
             .execute(
-                "DELETE FROM mailbox_messages WHERE message_id = ?1 AND to_agent = ?2",
-                params![message_id, agent],
+                "DELETE FROM mailbox_messages \
+                 WHERE message_id = ?1 AND to_agent = ?2 AND lease_owner IS ?3",
+                params![message_id, agent, owner],
             )
             .map_err(|e| MailboxError::Storage(e.to_string()))?;
         if changed > 0 {
@@ -665,12 +703,22 @@ impl MailboxActor {
         Ok(())
     }
 
-    fn handle_nack(&mut self, agent: &str, message_id: &str) -> Result<(), MailboxError> {
+    fn handle_nack(
+        &mut self,
+        agent: &str,
+        message_id: &str,
+        run_id: Option<RunId>,
+    ) -> Result<(), MailboxError> {
+        // Same null-safe owner fence as `handle_ack`: a stale consumer cannot
+        // requeue a message that has been re-leased to another run. Clearing the
+        // owner alongside the lease keeps a nacked (pending) row owner-less.
+        let owner = run_id.as_ref().map(|r| r.as_str());
         self.conn
             .execute(
-                "UPDATE mailbox_messages SET state = 'pending', lease_until_unix = NULL \
-                 WHERE message_id = ?1 AND to_agent = ?2",
-                params![message_id, agent],
+                "UPDATE mailbox_messages SET state = 'pending', lease_until_unix = NULL, \
+                 lease_owner = NULL \
+                 WHERE message_id = ?1 AND to_agent = ?2 AND lease_owner IS ?3",
+                params![message_id, agent, owner],
             )
             .map_err(|e| MailboxError::Storage(e.to_string()))?;
         Ok(())
@@ -826,6 +874,195 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
+/// Pure lease/ack state logic, extracted so the fence invariants can be proven
+/// independently of SQLite (a model checker cannot see the database). Each
+/// function re-encodes exactly one prod SQL predicate and cites the line it
+/// mirrors; the end-to-end `test_ack_fenced_to_lease_owner` binds this model to
+/// the real store. Owner identity is abstracted to an integer because only its
+/// equality matters, exactly as the null-safe SQL `IS` fence compares it.
+#[cfg(any(test, kani))]
+pub(crate) mod lease_model {
+    /// Lifecycle state, mirroring the `state` column (`'pending'` / `'in_flight'`).
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum LeaseState {
+        /// Deliverable, not currently leased.
+        Pending,
+        /// Leased to `lease_owner` until `lease_until`.
+        InFlight,
+    }
+
+    /// Lease owner identity. `None` mirrors a `NULL` `lease_owner` (a run-less
+    /// receive); `Some(id)` a specific run. Equality here is the null-safe `IS`.
+    pub(crate) type Owner = Option<u64>;
+
+    /// The fence-relevant projection of a `mailbox_messages` row.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Row {
+        /// Lifecycle state.
+        pub state: LeaseState,
+        /// `created_unix + message_ttl_secs`, the TTL horizon.
+        pub created_plus_ttl: i64,
+        /// Absolute lease expiry; meaningful only while `InFlight`.
+        pub lease_until: i64,
+        /// Current lease owner.
+        pub lease_owner: Owner,
+    }
+
+    impl Row {
+        /// A freshly inserted, pending, owner-less message (INSERT at l.578-585).
+        pub(crate) fn pending(created_plus_ttl: i64) -> Self {
+            Self {
+                state: LeaseState::Pending,
+                created_plus_ttl,
+                lease_until: 0,
+                lease_owner: None,
+            }
+        }
+
+        /// Lease (or re-lease) to `owner` at `now` for `visibility` seconds,
+        /// mirroring the receive UPDATE (l.628-641). A re-lease overwrites the
+        /// owner, which is what fences the previous holder out.
+        pub(crate) fn lease(&mut self, now: i64, visibility: i64, owner: Owner) {
+            self.state = LeaseState::InFlight;
+            self.lease_until = now + visibility;
+            self.lease_owner = owner;
+        }
+    }
+
+    /// Whether the receive SELECT would pick this row (l.606-611): within TTL,
+    /// and either pending or an in-flight lease that has already expired.
+    pub(crate) fn is_deliverable(row: &Row, now: i64) -> bool {
+        row.created_plus_ttl > now
+            && (row.state == LeaseState::Pending
+                || (row.state == LeaseState::InFlight && row.lease_until <= now))
+    }
+
+    /// Whether an ack/nack by `actor` may act on a row owned by `owner`,
+    /// mirroring the null-safe `lease_owner IS ?` fence (ack, nack). `Option`
+    /// equality is exactly SQLite `IS`: `None`/`None` matches, distinct owners
+    /// never do.
+    pub(crate) fn owner_matches(owner: Owner, actor: Owner) -> bool {
+        owner == actor
+    }
+}
+
+// Property harnesses for the mailbox lease/ack invariants over the pure model
+// above. The `#[cfg(kani)]` block proves them symbolically over a bounded space;
+// this proptest block samples them and runs under `cargo test`.
+#[cfg(test)]
+mod property {
+    use super::lease_model::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Exclusivity (C9-F4): once a message leased to A is re-leased to B, a
+        /// stale ack/nack by A (with `a != b`) is fenced out, while B still acts.
+        #[test]
+        fn prop_fenced_ack_rejects_stale_owner(
+            a in 0u64..8, b in 0u64..8,
+            t0 in 0i64..1_000, vis in 1i64..1_000, ttl_extra in 2i64..100_000,
+        ) {
+            prop_assume!(a != b);
+            let created_plus_ttl = t0 + vis + ttl_extra;
+            let mut row = Row::pending(created_plus_ttl);
+            row.lease(t0, vis, Some(a));
+            let now2 = row.lease_until; // lease expired (<= now)
+            prop_assert!(is_deliverable(&row, now2));
+            row.lease(now2, vis, Some(b));
+            prop_assert_eq!(row.lease_owner, Some(b));
+            prop_assert!(!owner_matches(row.lease_owner, Some(a)));
+            prop_assert!(owner_matches(row.lease_owner, Some(b)));
+        }
+
+        /// Owner match is exactly null-safe equality: the current owner (and a
+        /// matching run-less `None`/`None`) passes, everything else is fenced.
+        #[test]
+        fn prop_owner_matches_is_null_safe_eq(
+            owner in prop::option::of(0u64..8),
+            actor in prop::option::of(0u64..8),
+        ) {
+            prop_assert_eq!(owner_matches(owner, actor), owner == actor);
+        }
+
+        /// At-least-once: an expired in-flight lease is redeliverable within TTL.
+        #[test]
+        fn prop_expired_lease_redeliverable(
+            t0 in 0i64..1_000, vis in 1i64..1_000, ttl_extra in 2i64..100_000, owner in 0u64..8,
+        ) {
+            let created_plus_ttl = t0 + vis + ttl_extra;
+            let mut row = Row::pending(created_plus_ttl);
+            row.lease(t0, vis, Some(owner));
+            prop_assert!(is_deliverable(&row, row.lease_until));
+        }
+
+        /// A live lease is not redeliverable before it expires.
+        #[test]
+        fn prop_live_lease_not_redeliverable(
+            t0 in 0i64..1_000, vis in 2i64..1_000, ttl_extra in 2i64..100_000, owner in 0u64..8,
+        ) {
+            let created_plus_ttl = t0 + vis + ttl_extra;
+            let mut row = Row::pending(created_plus_ttl);
+            row.lease(t0, vis, Some(owner));
+            prop_assert!(!is_deliverable(&row, row.lease_until - 1));
+        }
+    }
+}
+
+// SEED harnesses for `cargo kani`. Kani is not wired into the local toolchain
+// (it links its own toolchain via rustup, absent here); these bounded proofs run
+// in the advisory nightly `kani` job. Times are bounded via `kani::assume` to
+// keep the `now + visibility` arithmetic in range, exactly as the prod handlers
+// operate on realistic Unix seconds.
+#[cfg(kani)]
+mod proofs {
+    use super::lease_model::*;
+
+    /// Exclusivity (C9-F4): a stale owner can never act on a re-leased message,
+    /// while the current owner always can.
+    #[kani::proof]
+    fn kani_fenced_ack_rejects_stale_owner() {
+        let a: u64 = kani::any();
+        let b: u64 = kani::any();
+        kani::assume(a != b);
+        let t0: i64 = kani::any();
+        let vis: i64 = kani::any();
+        kani::assume(t0 >= 0 && t0 < 1_000_000);
+        kani::assume(vis > 0 && vis < 1_000_000);
+        let created_plus_ttl = t0 + 2 * vis + 1;
+        let mut row = Row::pending(created_plus_ttl);
+        row.lease(t0, vis, Some(a));
+        let now2 = row.lease_until; // lease expired at the boundary
+        assert!(is_deliverable(&row, now2));
+        row.lease(now2, vis, Some(b));
+        assert!(!owner_matches(row.lease_owner, Some(a)));
+        assert!(owner_matches(row.lease_owner, Some(b)));
+    }
+
+    /// Owner match is exactly null-safe equality over the whole `Option<u64>`
+    /// domain, including the `None`/`None` residual that lets run-less delivery
+    /// still be acked.
+    #[kani::proof]
+    fn kani_owner_matches_is_null_safe_eq() {
+        let owner: Option<u64> = kani::any();
+        let actor: Option<u64> = kani::any();
+        assert_eq!(owner_matches(owner, actor), owner == actor);
+        assert!(owner_matches(None, None));
+    }
+
+    /// At-least-once: an expired in-flight lease is redeliverable within TTL.
+    #[kani::proof]
+    fn kani_expired_lease_redeliverable() {
+        let t0: i64 = kani::any();
+        let vis: i64 = kani::any();
+        kani::assume(t0 >= 0 && t0 < 1_000_000);
+        kani::assume(vis > 0 && vis < 1_000_000);
+        let created_plus_ttl = t0 + vis + 1;
+        let mut row = Row::pending(created_plus_ttl);
+        row.lease(t0, vis, Some(7));
+        assert!(is_deliverable(&row, row.lease_until));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -915,6 +1152,58 @@ mod tests {
         // THEN the same message is redelivered (at-least-once)
         assert_eq!(first.message_id, id);
         assert_eq!(second.message_id, id);
+
+        handle.shutdown().await;
+    }
+
+    /// C9-F4 regression, binding the pure lease model to the real store: a stale
+    /// ack from the run whose lease has been re-leased to another run must not
+    /// delete the message the new owner is processing.
+    #[tokio::test]
+    async fn test_ack_fenced_to_lease_owner() {
+        use apollia_core::RunId;
+
+        // GIVEN a zero-visibility mailbox, so a lease is immediately re-leasable
+        // (an expired lease without sleeping), and two distinct runs.
+        let (event_tx, _event_rx) = EventBus::new();
+        let config = MailboxConfig {
+            visibility_timeout_secs: 0,
+            ..MailboxConfig::default()
+        };
+        let handle = AgentMailboxHandle::spawn(None, event_tx, config).await;
+        let run_a = RunId::new();
+        let run_b = RunId::new();
+        let id = handle
+            .send("a", "b", serde_json::json!({"n": 1}), Some(run_a.clone()))
+            .await
+            .expect("send");
+
+        // WHEN run A leases it, then run B re-leases the now-expired lease
+        let m1 = handle
+            .receive("b", Some(run_a.clone()), Duration::from_secs(1))
+            .await
+            .expect("A receives");
+        assert_eq!(m1.message_id, id);
+        let m2 = handle
+            .receive("b", Some(run_b.clone()), Duration::from_secs(1))
+            .await
+            .expect("B re-leases");
+        assert_eq!(m2.message_id, id);
+
+        // THEN a stale ack by A does not delete B's message
+        handle
+            .ack("b", &id, Some(run_a))
+            .await
+            .expect("stale ack returns ok");
+        assert_eq!(
+            handle.pending_count("b").await,
+            1,
+            "stale ack must not delete the re-leased message"
+        );
+
+        // ...and the current owner B can still ack it.
+        handle.ack("b", &id, Some(run_b)).await.expect("owner ack");
+        assert_eq!(handle.pending_count("b").await, 0);
 
         handle.shutdown().await;
     }

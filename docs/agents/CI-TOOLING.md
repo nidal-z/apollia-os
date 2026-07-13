@@ -333,7 +333,7 @@ Actual structure :
 ├── ci.yml            # PR gate (see jobs below)
 ├── codeql.yml        # CodeQL: rust + python + javascript-typescript
 ├── nightly.yml       # heavy / advisory: e2e, feature-matrix, coverage HTML,
-│                     #   deep-audit, geiger (unsafe surface), loom, miri, fuzz-deep
+│                     #   deep-audit, geiger (unsafe surface), loom, miri, kani, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
 └── auto-close-prs.yml
 ```
@@ -371,6 +371,13 @@ Nightly-only advisory jobs (in `nightly.yml`) :
   `miri` component and runs `cargo +nightly miri test -p apollia-aip --lib
   miri_pure` to check the FFI-adjacent pure helpers for UB. See
   `docs/agents/TESTING.md` 8c.
+- `kani` : bit-precise symbolic proof of the cardinal invariants. Installs
+  `kani-verifier` (`cargo install --locked kani-verifier && cargo kani setup`)
+  and runs `cargo kani -p apollia-oria` (non-bypassable StepBudget) and
+  `cargo kani -p apollia-runtime` (mailbox lease/ack fence). Kani links its own
+  toolchain via rustup, so it is CI-only (the Homebrew dev machines have no
+  rustup); the in-tree proptest mirrors are the runnable local proof. See
+  `docs/agents/TESTING.md` 8d.
 
 Caching : `Swatinem/rust-cache@v2` (keyed on `Cargo.lock`).
 

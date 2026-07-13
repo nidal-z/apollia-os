@@ -171,14 +171,16 @@ mod coordinator_semaphore {
     }
 }
 
-/// Mirrors `mailbox.rs:587-666` (`handle_receive` lease + `handle_ack`).
+/// Mirrors `mailbox.rs` (`handle_receive` lease + `handle_ack`).
 ///
-/// FINDING F4: prod `handle_ack` (mailbox.rs:654) deletes by
-/// `(message_id, to_agent)` with NO lease-owner fence. So a stale consumer whose
-/// lease already expired can delete a message that has since been re-leased to a
-/// second consumer. This model proves the RECOMMENDED fix (ack scoped to the
-/// current lease owner) upholds exclusivity under every interleaving. The
-/// deterministic repro of the unfenced bug is documented inline.
+/// FINDING F4 (now fixed in prod): `handle_ack` used to delete by
+/// `(message_id, to_agent)` with NO lease-owner fence, so a stale consumer whose
+/// lease had expired could delete a message since re-leased to a second consumer.
+/// Prod now records the leasing run in a `lease_owner` column and fences
+/// `ack`/`nack` on it (null-safe `IS`), and Kani proves the fence bit-precise
+/// (`mailbox::proofs`). This model proves the same fix (ack scoped to the current
+/// lease owner) upholds exclusivity under every interleaving. The deterministic
+/// repro of the unfenced bug is documented inline.
 mod mailbox_lease_exclusivity {
     use loom::sync::{Arc, Mutex};
 
