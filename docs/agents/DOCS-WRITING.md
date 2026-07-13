@@ -96,8 +96,8 @@ Rules :
 Applies to every Markdown file in the repo (book, wiki, help, adr, agents,
 PR descriptions, ADRs, READMEs).
 
-**Never em-dash `—`.** It is the strongest fingerprint of AI-generated
-text. Use comma, parenthesis, colon, period, or hyphen `-` instead.
+**Never em-dash `—`.** House-style choice for typographic consistency.
+Use comma, parenthesis, colon, period, or hyphen `-` instead.
 
 **Never mix French and English in the same file.** Each file is one
 language. The corpus assignment in §1 governs which language each file

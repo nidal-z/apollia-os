@@ -122,24 +122,24 @@ Validation runs at `INITIALIZING`. Fail fast.
 
 ## 5. `RuntimeContext` exposure
 
-`Ctx` is the Python-side capability bundle. Source stubs :
-`sdk/apollia/stubs/`. Implementation in this crate must keep parity with
-the stubs.
+`Ctx` is the Python-side capability bundle. Source of truth for the type
+contract : the `Ctx` Protocol in `sdk/apollia/types.py` and the per-service
+interfaces in `sdk/apollia/context/*.py`. The implementation in this crate
+must keep parity with that contract.
 
-Methods exposed to Python :
-- `ctx.log(level: str, message: str, **fields)`
-- `ctx.memory.recall(query: str, limit: int = 10) -> list[Memory]`
-- `ctx.memory.write(...)`
-- `ctx.tool.invoke(name: str, **args) -> ToolResult`
-- `ctx.secrets.read(key: str) -> str | None` (read-only, ADR-024)
-- `ctx.config.workspace() -> dict`
-- `ctx.config.profile() -> Literal["local_only", "cloud_allowed"]`
+`Ctx` exposes 15 typed services (`ctx.llm`, `ctx.memory`, `ctx.tools`,
+`ctx.a2a`, `ctx.mail`, `ctx.datasources`, `ctx.templates`, `ctx.secrets`,
+`ctx.events`, `ctx.logger`, `ctx.profile`, `ctx.workspace`, `ctx.stt`,
+`ctx.notify`, `ctx.budget`). Read the exact method signatures from
+`sdk/apollia/context/<service>.py`. Note `ctx.logger` (structured logging),
+not a bare `ctx.log`, and `ctx.tools` (plural).
 
 When you add a method, update :
-1. The stub in `sdk/apollia/stubs/`.
+1. The Protocol in `sdk/apollia/types.py` and the service module in
+   `sdk/apollia/context/<service>.py`.
 2. The implementation here.
-3. The relevant ADR if the addition is non-trivial.
-4. The Wiki reference page for `Ctx`.
+3. The relevant ADR if the addition is non-trivial (ADR-024 for the
+   contract, ADR-041 for the mailbox).
 
 ---
 
@@ -199,8 +199,9 @@ Each step has a tracing span :
 
 ## 10. When the rules block you
 
-- New stub method needed : add it to `sdk/apollia/stubs/` first, then
-  implement here. The stub is the contract.
+- New context method needed : add it to `sdk/apollia/types.py` and
+  `sdk/apollia/context/<service>.py` first, then implement here. The
+  Python contract is authoritative.
 - pyo3 API surface changed (new release) : pin the version, update via
   one focused PR, never bundle pyo3 upgrade with feature work.
 - Manifest format change : open an ADR. Manifests are an API surface.

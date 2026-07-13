@@ -46,7 +46,7 @@ rewriting the agent, it generates as much work as it saves.
 
 **How.** Duck typing. `hasattr(agent, "manifest") and hasattr(agent, "run")`
 is enough. AgentKit decorators (`@agent`, `@skill`) are optional sugar over
-this contract. See `sdk/AGENTS.md` and ADRs 098-112.
+this contract. See `sdk/AGENTS.md` and ADR-023, ADR-024.
 
 ### 4. Fail fast
 
@@ -232,9 +232,10 @@ Source : `crates/apollia-runtime/src/chat/repository.rs`,
 ### PyO3 bridge
 
 `Bound<'py, T>` everywhere on the boundary. `pyo3-async-runtimes` for
-async interop. `RuntimeContext` exposed via stubs in `sdk/apollia/stubs/`.
+async interop. `RuntimeContext` type contract in `sdk/apollia/types.py`
+plus `sdk/apollia/context/*.py`.
 
-Source : `crates/apollia-aip/`, ADR-028.
+Source : `crates/apollia-aip/`, ADR-002.
 
 ---
 
@@ -272,34 +273,36 @@ Deprecated / Superseded.
 
 ---
 
-## Section F : ADR map (top 19, must-know)
+## Section F : ADR map (load-bearing, must-know)
 
-These ADRs are load-bearing. If you touch the area, read the ADR.
+These ADRs are load-bearing. If you touch the area, read the ADR. Titles
+here mirror the `#` heading of each file in `docs/adr/`.
 
 | ADR | Subject | Owner area |
 |---|---|---|
-| ADR-025 | TOML pipelines, declarative orchestration, HITL | apollia-oria, apollia-runtime |
-| ADR-012 | Observability, runtime events, SQLite timeline, TTL | apollia-runtime |
-| ADR-026 | Agent install, SQLite registry, venv per agent | apollia-workspace |
-| ADR-008 | Multi-backend LLM registry, LlmRouter | apollia-llm |
-| ADR-026 | Worker agent distribution, standalone | sdk, agents |
-| ADR-010 | Workspace context assembly, ContextProvider | apollia-core, apollia-workspace |
-| ADR-015 | Filesystem friction, reversible journal | apollia-tools |
-| ADR-006 | Web tools, search + read, pluggable backends | apollia-tools |
-| ADR-008 | GGUF multi-file loading | apollia-llm |
-| ADR-021 | Design tokens v2, elevation, warmth, rim lights | apollia-desktop |
-| ADR-015 | Permissions, 3-layer engine, single source SQLite | apollia-permissions |
-| ADR-018 | MCP OAuth orchestrator, end-to-end | apollia-auth, apollia-mcp |
-| ADR-023 | SDK decorator-first, manifest-last | sdk |
-| ADR-024 | SDK Ctx protocol, exhaustive surface | sdk |
-| ADR-024 | SDK datasources + templates, runtime exposure | sdk, apollia-workspace |
-| ADR-024 | SDK secrets read-only gating | sdk, apollia-auth |
-| ADR-004 | `apollia-inspect` CLI for diagnostics | apollia-cli |
-| ADR-024 | SDK vision, typing, memory I/O | sdk |
-| ADR-024 | SDK stream cleanup, rename | sdk |
-| ADR-007 | Multi-runner sidecar architecture | apollia-runner, apollia-runtime |
+| ADR-002 | PyO3 bridge and trait-based decoupling | apollia-aip |
+| ADR-003 | Sandbox, agent trust model and platform scope | apollia-permissions, security |
+| ADR-004 | CLI design | apollia-cli |
+| ADR-005 | ORIA execution model | apollia-oria |
+| ADR-006 | Tool subsystem and native tools | apollia-tools |
+| ADR-007 | Inference runtime, multi-runner sidecar | apollia-runner, apollia-runtime |
+| ADR-008 | LLM backends, model management and transparency | apollia-llm |
+| ADR-010 | Memory and context architecture | apollia-memory, apollia-core |
+| ADR-012 | Observability and plan feedback | apollia-runtime |
+| ADR-013 | Human-in-the-loop (HITL) | apollia-runtime, apollia-oria |
+| ADR-015 | Permission and tool governance | apollia-permissions |
+| ADR-016 | Secrets, keyring storage and local API auth | apollia-auth |
+| ADR-017 | MCP client, transport and server | apollia-mcp |
+| ADR-018 | MCP OAuth client and orchestration | apollia-auth, apollia-mcp |
+| ADR-021 | Frontend design system and internationalization | apollia-desktop |
+| ADR-023 | Python SDK / AgentKit design | sdk |
+| ADR-024 | SDK runtime contract (ctx) | sdk |
+| ADR-025 | Worker agents and A2A routing | sdk, agents |
+| ADR-026 | Agent install, bundle format and distribution | apollia-workspace |
+| ADR-041 | Inter-agent messaging (durable mailbox) | apollia-runtime, sdk |
+| ADR-042 | Audit-journal global anchor chain | apollia-runtime |
 
-Full index : `docs/wiki/Decisions-Log.md`.
+Full index : `docs/adr/`.
 
 ---
 

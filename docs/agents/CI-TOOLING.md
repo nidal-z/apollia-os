@@ -204,7 +204,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "D", "ANN"]
-"apollia/stubs/*.pyi" = ["D", "ANN"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

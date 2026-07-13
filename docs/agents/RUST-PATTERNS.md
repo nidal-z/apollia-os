@@ -210,7 +210,7 @@ Highlights :
   `dep = { workspace = true }`. Single source of truth.
 - `[workspace.lints.rust]` and `[workspace.lints.clippy]` apply globally,
   inherited per crate with `[lints] workspace = true`.
-- `[workspace.package]` shares `edition = "2024"`, `license`,
+- `[workspace.package]` shares `edition = "2021"`, `license`,
   `repository`, `rust-version`.
 - `rust-version = "1.89"` is the MSRV. Tested in CI.
 - Features are additive and kebab-case. `default = []` is documented when
@@ -222,33 +222,29 @@ Highlights :
 
 ## 7. Lints
 
-Baseline workspace lints (set in root `Cargo.toml`) :
+The workspace sets a deliberately small lint floor in the root `Cargo.toml` :
 
 ```toml
 [workspace.lints.rust]
-unsafe_code = "forbid"
-missing_docs = "warn"
-unreachable_pub = "warn"
+unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
 
 [workspace.lints.clippy]
-all = "deny"
-correctness = "deny"
 unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-todo = "deny"
-dbg_macro = "deny"
-missing_errors_doc = "warn"
-missing_panics_doc = "warn"
-pedantic = "warn"
 ```
 
-Allow-list for `pedantic` lints is per-crate, in the crate `Cargo.toml` or via
-`#[allow(clippy::...)]` with an inline justification.
+`unexpected_cfgs` whitelists the `fuzzing` and `kani` cfgs so `-D warnings`
+stays green on normal builds where neither is set.
 
-`unsafe_code = "forbid"` is workspace-wide. To use `unsafe`, the crate must
-override with `unsafe_code = "deny"` plus a top-of-crate explanation, and
-every `unsafe` block must carry a `// SAFETY:` comment.
+The rest of the NEVER list (`expect`, `panic!`, `todo!`, `println!`, `dbg!`,
+`anyhow`, ...) is enforced by `docs/agents/FORBIDDEN.md`, review, and the
+pre-commit hooks, not by a clippy lint line. CI runs
+`cargo clippy --workspace --all-targets -- -D warnings`, so any clippy default
+lint that fires is still a hard failure.
+
+`unsafe_code = "deny"` is workspace-wide. To use `unsafe`, the crate overrides
+with `unsafe_code = "allow"` plus a top-of-crate explanation, and every
+`unsafe` block carries a `// SAFETY:` comment.
 
 ---
 

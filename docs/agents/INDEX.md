@@ -13,8 +13,8 @@ authoritative companion to the root `AGENTS.md` router. Every rule here exists
 because following it has, at some point, prevented a regression or because
 violating it has caused one.
 
-The corpus assumes the Apollia codebase is 100% AI-generated. Each rule has an
-explicit reason so an LLM can judge edge cases instead of pattern-matching.
+Each rule has an explicit reason so a contributor can judge edge cases
+instead of pattern-matching.
 
 ---
 

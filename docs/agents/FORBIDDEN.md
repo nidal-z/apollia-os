@@ -70,7 +70,7 @@ stable Rust.
 threshold for review attention drops sharply past that size.
 
 **NEVER `unsafe` code without a SAFETY doc-comment** explaining the invariant being
-upheld. Workspace lint: `unsafe_code = "forbid"` unless explicitly allowed per crate.
+upheld. Workspace lint: `unsafe_code = "deny"` unless explicitly allowed per crate.
 
 **NEVER tests that depend on ordering.** Use `serial_test` if a global mutex is
 required.
@@ -101,8 +101,8 @@ from .schemas import EmailPayload
 from my_agent.schemas import EmailPayload
 ```
 
-**NEVER `print()` in agent or SDK code.** Use `ctx.log(...)` provided by the
-RuntimeContext, or the stdlib `logging` module routed to the runtime tracer.
+**NEVER `print()` in agent or SDK code.** Use `ctx.logger` (a stdlib
+`logging.Logger` routed to the runtime tracer), e.g. `ctx.logger.info(...)`.
 
 **NEVER Pydantic when TypedDict suffices.** Apollia agents are stdlib-only by default.
 Use Pydantic only when runtime validation of external API responses is unavoidable,
@@ -136,8 +136,8 @@ goes through `svelte-i18n` with parallel FR + EN entries.
 
 ## Documentation and prose
 
-**NEVER use em-dash `—` in any prose, comment, or documentation file.** It is the
-single strongest fingerprint of AI-generated text and we deliberately avoid it. Use
+**NEVER use em-dash `—` in any prose, comment, or documentation file.** It is a
+deliberate house-style choice for typographic consistency across the corpus. Use
 comma, parenthesis, colon, period, or hyphen `-` instead.
 
 **NEVER mix French and English in the same file.** Each file is one language.
@@ -179,8 +179,9 @@ hyperlinks will be activated post-launch.
 describe structure, wording, and intent only.
 
 **NEVER copy an existing agent in `agents/` as a reference template.** Confidence in
-those agents is low. Sources of truth: SDK stubs (`sdk/apollia/stubs/`), `@agent` /
-`@skill` decorator implementations, ADRs 098-112, and the wiki.
+those agents is low. Sources of truth: the SDK type contract
+(`sdk/apollia/types.py` + `sdk/apollia/context/*.py`), `@agent` / `@skill`
+decorator implementations, and ADR-023 / ADR-024.
 
 **NEVER references to internal artifacts in public-facing files.** Specifically, no
 `STORY-NNN`, `sprint-N`, `[Lot N]`, `[Bloc X]` tokens in code comments or in any

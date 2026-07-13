@@ -102,8 +102,8 @@ Rules :
 - Never share mutable state across skill invocations on `self`. Treat the
   agent as request-scoped.
 
-See `sdk/AGENTS.md` for full validation rules and references to ADRs
-098-112.
+See `sdk/AGENTS.md` for full validation rules and references to ADR-023
+and ADR-024.
 
 ---
 
@@ -178,9 +178,9 @@ deterministic.
 ## 6. Style
 
 - Docstrings : Google style exclusively. Never NumPy or Sphinx style.
-- `print()` is forbidden in agents and SDK. Use `ctx.log(...)` from the
-  RuntimeContext, or the stdlib `logging` module routed to the runtime
-  tracer.
+- `print()` is forbidden in agents and SDK. Use `ctx.logger` (a stdlib
+  `logging.Logger` routed to the runtime tracer), e.g.
+  `ctx.logger.info(...)`.
 - Format : Ruff format (replaces Black). `target-version = "py312"`,
   `line-length = 100`.
 - Lint : Ruff with `select = ["ALL"]` and an ignore-list documented in
@@ -213,8 +213,9 @@ Detailed conventions in `docs/agents/TESTING.md`.
   a separate binary, not bundled in the wheel).
 - `py.typed` marker present in `sdk/apollia/` for PEP 561 typed-package
   status.
-- Type stubs `.pyi` for the runtime-injected `Ctx` are committed in
-  `sdk/apollia/stubs/`.
+- The type contract for the runtime-injected `Ctx` is committed as plain
+  `.py` modules : the Protocol in `sdk/apollia/types.py` and the per-service
+  interfaces in `sdk/apollia/context/*.py` (no `.pyi` stubs).
 - Local install for development : `pip install -e .` (or
   `uv pip install -e .`) from the SDK directory.
 - Version bump : both `sdk/pyproject.toml` and the workspace `Cargo.toml`.

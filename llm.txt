@@ -45,10 +45,10 @@ apollia-v2/
 │   ├── apollia-triggers/   ← Trigger engine (cron, interval, filewatch, webhook, SQLite)
 │   └── apollia-workspace/  ← Workspace isolation, ContextProvider trait, project scoping
 │
-├── sdk/apollia/            ← Python SDK (pip-installable, stubs in sdk/apollia/stubs/)
-│   ├── stubs/context.py    ← RuntimeContext stub (StepBudgetView, ToolsProxy, MemoryProxy)
-│   ├── stubs/memory.py     ← MemoryProxy stub (remember, recall, recall_procedure, etc.)
-│   └── apollia/            ← Public package (exports, agent base classes)
+├── sdk/apollia/            ← Python SDK (pip-installable)
+│   ├── types.py            ← Ctx Protocol (15 typed services) - the type contract
+│   ├── context/            ← per-service interfaces (llm, memory, tools, mail, ...)
+│   └── agent.py, skills.py ← @agent / @skill decorators, errors, react
 │
 ├── docs/book/                   ← mdBook pedagogical documentation (ch01–ch19 + appendices A-F)
 │   ├── book.toml           ← Build config (output: target/book/)
@@ -109,7 +109,7 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
     return AIPResult(output="done")
 ```
 
-Key `RuntimeContext` fields (from `sdk/apollia/stubs/context.py`):
+Key `RuntimeContext` fields (from `sdk/apollia/types.py` + `sdk/apollia/context/`):
 - `ctx.tools` → ToolsProxy (call, list, tool_call_count)
 - `ctx.memory` → MemoryProxy (remember, recall, recall_procedure, learn_procedure)
 - `ctx.llm` → LlmProxy (complete, with_model)
@@ -168,7 +168,7 @@ No base class required. `manifest()` + `async run()` are the only contract.
 
 ### Python SDK
 
-- Stubs live in `sdk/apollia/stubs/` - these are the source of truth for Python API
+- The type contract lives in `sdk/apollia/types.py` + `sdk/apollia/context/` - source of truth for the Python API (no `.pyi` stubs)
 - `AIPTask` fields: `task_id`, `agent_id`, `input`, `project_id`, `message_id`, `timeout_seconds`
 - `AIPResult` fields: `output`, `success`, `error`, `metadata`, `step_count`, `tool_calls`
 - `recall_procedure()` returns `list[dict]` with keys `trigger`, `steps`, `created_at` - never `None`

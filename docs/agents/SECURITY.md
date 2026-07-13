@@ -75,14 +75,16 @@ Rules :
 ## 2. `SecretStore`
 
 ```rust
-#[async_trait]
 pub trait SecretStore: Send + Sync {
-    async fn read(&self, key: &SecretKey) -> Result<Option<Secret>, SecretError>;
-    async fn write(&self, key: &SecretKey, value: Secret) -> Result<(), SecretError>;
-    async fn delete(&self, key: &SecretKey) -> Result<(), SecretError>;
-    async fn list(&self) -> Result<Vec<SecretKey>, SecretError>;
+    fn set(&self, service: &str, user: &str, value: &str) -> Result<(), AuthError>;
+    fn get(&self, service: &str, user: &str) -> Result<Option<String>, AuthError>;
+    fn delete(&self, service: &str, user: &str) -> Result<(), AuthError>;
+    fn backend_id(&self) -> &'static str;
 }
 ```
+
+The trait is synchronous (the underlying keyring crate is sync). The key is
+the `(service, user)` pair. Errors are `AuthError`.
 
 Two backends :
 
@@ -91,14 +93,13 @@ Two backends :
 | `KeyringSecretStore` | default, OS keyring | implicit default |
 | `AgeFileSecretStore` | headless, CI, isolated `$HOME` | `APOLLIA_TOKEN_STORAGE=file` |
 
-Source : `crates/apollia-auth/src/secret_storage.rs`. Backend selection :
-`apollia_auth::select_secret_store()`.
+Source : `crates/apollia-auth/src/secret_storage.rs`.
 
 Rules :
 - Never read or write secrets outside the `SecretStore` trait.
-- Never log a `Secret`. The type does not implement `Display`, only
-  `Debug` (and `Debug` redacts).
-- Rotation : the `delete` + `write` pair is the atomic unit.
+- Never log a secret value. Values are plain strings on this boundary;
+  keep them out of tracing fields and error messages.
+- Rotation : the `delete` + `set` pair is the atomic unit.
 - `KeyringSecretStore` failures (locked keyring, container without
   D-Bus) fall back to `AgeFileSecretStore` only when explicitly
   selected. Never silently.
@@ -170,8 +171,9 @@ Decision outcomes :
 
 Scopes : `session`, `project`, `global`. The closest scope wins.
 
-Audit table is append-only. Never delete a row programmatically. The
-operator can prune by date via `apollia audit prune --before <date>`.
+Audit table is append-only. Never delete a row programmatically.
+Retention is time-based via `[audit].retention_days` in the config, not a
+manual purge command.
 
 ADR-015.
 
@@ -269,8 +271,8 @@ A more formal threat model lives in `docs/wiki/Security-Threat-Model.md`
   identifier and log that.
 - Need to call an external service from a new code path : route through
   `apollia-tools` HTTP wrapper or open an ADR for a new wrapper category.
-- Need to add a new secret kind : extend `SecretKey` in `apollia-auth`,
-  update the `SecretStore` doc-comment, document the key naming in this
-  file.
+- Need to add a new secret kind : define its `(service, user)` naming
+  convention, update the `SecretStore` doc-comment, and document the key
+  naming in this file.
 - Need to bypass profile gating for a legitimate reason : the answer is
   no. Open an ADR if you genuinely believe a bypass is required.

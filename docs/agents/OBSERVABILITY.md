@@ -200,16 +200,16 @@ Renaming a variant is a breaking change.
 
 ## 9. AuditTrail
 
-The `AuditTrail` actor persists events to SQLite. Append-only. Schema in
-`crates/apollia-runtime/src/audit.rs`. Retention controlled by
-`[audit].retention_days` in the config.
+The audit journal persists events to SQLite as a hash-chained,
+append-only ledger. Module : `crates/apollia-runtime/src/audit_journal/`.
+Retention controlled by `[audit].retention_days` in the config.
 
-Query via :
-- `apollia audit list --limit N --json`
-- `apollia audit query --kind task.completed --since 1h`
+CLI surface (`apollia audit ...`) : `list`, `stats`, `export`, `verify`,
+`anchor`, `replay`, `show`.
 
-Add a new audit-worthy event by extending the `AuditEntry::kind` enum,
-not by emitting a free-form string.
+Add a new audit-worthy event by extending the `JournalEntryKind` enum,
+not by emitting a free-form string. Inter-agent mailbox events are
+journaled as `MessageSent`, `MessageDelivered`, and `MessageDropped`.
 
 ---
 

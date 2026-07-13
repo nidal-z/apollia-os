@@ -10,13 +10,13 @@ others). It briefs you in ~120 lines and points you to the long-form rulebook.
 
 ---
 
-## This repo is 100% AI-coded
+## Why these invariants exist
 
-Every file here was authored or revised by an AI assistant. The invariants
-below exist to preserve coherence across thousands of such revisions. Follow
-them. When they conflict with your task, surface the conflict instead of
-silently bending the rule. See `docs/agents/INDEX.md` for the escalation
-process.
+Apollia is a large, fast-moving codebase revised by many hands. The
+invariants below exist to preserve coherence across a high volume of
+changes. Follow them. When they conflict with your task, surface the
+conflict instead of silently bending the rule. See `docs/agents/INDEX.md`
+for the escalation process.
 
 ---
 

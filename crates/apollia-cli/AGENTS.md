@@ -186,7 +186,7 @@ specific error type. `anyhow` is forbidden everywhere except `main`.
 
 ## 9. Adding a new command checklist
 
-1. Add the variant to `Commands` in `src/cli.rs`.
+1. Add the variant to `Commands` in `src/main.rs`.
 2. Implement in `src/commands/<noun>.rs`.
 3. Add parsing tests in the same file.
 4. Add the route call via `client::*` helpers.

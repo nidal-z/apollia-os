@@ -160,7 +160,7 @@ def image_from_url(url: str) -> ImageContent:
 class Ctx(Protocol):
     """Runtime context passed to every agent handler.
 
-    Exposes 100% of the Apollia backend through 14 typed services.
+    Exposes 100% of the Apollia backend through 15 typed services.
     Use type hints to get IDE autocomplete::
 
         @skill("foo.bar")

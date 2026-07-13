@@ -61,21 +61,27 @@ axum router. Routes split by domain in `src/api/routes_*.rs`.
 
 ```
 src/api/
-├── mod.rs              # router assembly
-├── routes_agent.rs     # /agent/*
-├── routes_task.rs      # /task/*
-├── routes_tool.rs      # /tool/*
-├── routes_trigger.rs   # /trigger/*
-├── routes_notify.rs    # /notify/*
-├── routes_auth.rs      # /auth/*
-├── routes_mcp.rs       # /mcp/*
-├── routes_audit.rs     # /audit/*
-└── routes_chat.rs      # /chat/*
+├── mod.rs                    # router assembly
+├── routes_agents.rs          # /api/v1/agents/*
+├── routes_tasks.rs           # /api/v1/tasks/*
+├── routes_tools.rs           # /api/v1/tools/*
+├── routes_triggers.rs        # /api/v1/triggers/*
+├── routes_notifications.rs   # /api/v1/notifications/*
+├── routes_messages.rs        # /api/v1/messages/*   (inter-agent mailbox)
+├── routes_mcp.rs             # /api/v1/mcp/*
+├── routes_audit.rs           # /api/v1/audit/*
+└── routes_chat.rs            # /api/v1/chat/*
 ```
 
+The module names are plural (`routes_agents.rs`, not `routes_agent.rs`).
+The list above is representative, not exhaustive : `src/api/` also holds
+`routes_a2a`, `routes_approvals`, `routes_llm`, `routes_review`,
+`routes_stt`, `routes_timeline`, `routes_webhooks`, and others. There is
+no `routes_auth.rs`; auth is enforced in middleware, not a route module.
+
 Rules :
-- Route style : `resource/verb`, singular, lowercase
-  (`/agent/list`, `/task/read`).
+- Route style : RESTful, plural resource, versioned under `/api/v1/`
+  (`/api/v1/agents`, `/api/v1/tasks/{id}`).
 - JSON wire : `camelCase` via `#[serde(rename_all = "camelCase")]`.
 - Bind targets : Unix socket (`~/.apollia/runtime.sock`) and TCP 7771.
   Both served by the same router.
@@ -138,8 +144,10 @@ Migration pattern : `CREATE TABLE IF NOT EXISTS` at first connection
 plus a `schema_version` table. Renaming a column requires a numbered
 migration step. Never `DROP COLUMN` without an explicit upgrade path.
 
-Connection pool : `r2d2` with `r2d2-sqlite`, sized at 8 connections per
-DB by default.
+Connections : no pool crate. Each SQLite-backed actor owns a single
+`rusqlite::Connection` on its own thread and serializes access through its
+message loop; one-shot handlers open a fresh `Connection` inside
+`tokio::task::spawn_blocking`. Never hold a connection across an `await`.
 
 FTS5 : used for chat session summaries and memory recall. The match
 syntax follows SQLite's FTS5 (`tag:value`, `+required`, `-excluded`).
@@ -149,8 +157,21 @@ syntax follows SQLite's FTS5 (`tag:value`, `+required`, `-excluded`).
 ## 6. Configuration
 
 Runtime config : `~/.apollia/config.toml`. Parsed via `serde` into the
-`RuntimeConfig` struct. Reloadable on SIGHUP (tracked) for a documented
-subset (tracing level, MCP servers, triggers).
+`RuntimeConfig` struct (`crates/apollia-core/src/config/runtime.rs`).
+Reloadable on SIGHUP (tracked) for a documented subset (tracing level,
+MCP servers, triggers).
+
+Inter-agent mailbox caps live on `RuntimeConfig` as `mailbox_*` fields,
+mapped to `MailboxConfig` at boot :
+
+| Field | Meaning | Default |
+|---|---|---|
+| `mailbox_capacity` | max queued messages per inbox | 100 |
+| `mailbox_visibility_timeout_secs` | lease before an unacked message is redelivered | 60 |
+| `mailbox_message_ttl_secs` | message time-to-live | 86400 |
+| `mailbox_send_quota_per_run` | max sends per agent run | 50 |
+| `mailbox_max_payload_bytes` | payload cap per message | 65536 |
+| `mailbox_audit_full_payload` | journal the full payload vs a redacted snapshot | false |
 
 Rules :
 - Never read `APOLLIA_*` env vars in production code for raw secrets.

@@ -7,7 +7,8 @@ The SDK is the contract every Apollia agent depends on. A change here
 propagates to every agent in the wild. Stability and clarity are
 non-negotiable.
 
-Authoritative ADRs : 098-112 (the 2026-05-19 SDK redesign).
+Authoritative ADRs : ADR-023, ADR-024, ADR-025 (the 2026-05-19 SDK redesign).
+The `ctx.mail` service follows ADR-041.
 
 ---
 
@@ -73,38 +74,84 @@ Mandatory shape :
 ## 3. `Ctx` protocol (ADR-024)
 
 `Ctx` is the capability bundle the runtime injects. The skill body
-interacts with the world only through `ctx`. The stubs in
-`sdk/apollia/stubs/` are the authoritative type contract.
+interacts with the world only through `ctx`. The authoritative type
+contract is the `Ctx` Protocol in `sdk/apollia/types.py` plus the
+per-service interface modules in `sdk/apollia/context/*.py`. There are no
+`.pyi` stubs.
+
+`Ctx` exposes the whole Apollia backend through 15 typed services :
 
 ```python
+@runtime_checkable
 class Ctx(Protocol):
-    def log(self, level: Literal["debug", "info", "warn", "error"], message: str, **fields: Any) -> None: ...
-
-    memory: MemoryCtx
-    tool: ToolCtx
-    secrets: SecretsCtx
-    config: ConfigCtx
-    input: InputCtx
+    llm: LlmProxy
+    memory: MemoryInterface
+    tools: ToolProxy
+    a2a: A2AInterface
+    mail: MailInterface
+    datasources: DatasourcesInterface
+    templates: TemplatesInterface
+    secrets: SecretsInterface
+    events: EventsInterface
+    logger: Logger
+    profile: ProfileInterface
+    workspace: WorkspaceContext
+    stt: SttInterface
+    notify: NotifyInterface
+    budget: BudgetView
 ```
 
-Sub-protocols :
+| Service | Interface (`apollia.context.*`) | Purpose |
+|---|---|---|
+| `llm` | `LlmProxy` | prompt, stream, `map` over items |
+| `memory` | `MemoryInterface` | agent-initiated recall and write |
+| `tools` | `ToolProxy` | invoke native and MCP tools |
+| `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
+| `mail` | `MailInterface` | durable, auditable inter-agent mailbox (ADR-041) |
+| `datasources` | `DatasourcesInterface` | read declared datasources |
+| `templates` | `TemplatesInterface` | render declared templates |
+| `secrets` | `SecretsInterface` | read-only secret access (ADR-024) |
+| `events` | `EventsInterface` | emit and observe runtime events |
+| `logger` | `Logger` | structured logging (`ctx.logger`, not `ctx.log`) |
+| `profile` | `ProfileInterface` | canonical user profile (ADR-011) |
+| `workspace` | `WorkspaceContext` | workspace paths and metadata |
+| `stt` | `SttInterface` | speech-to-text |
+| `notify` | `NotifyInterface` | desktop and webhook notifications |
+| `budget` | `BudgetView` | read the remaining step budget |
 
-| Sub-protocol | Methods |
-|---|---|
-| `MemoryCtx` | `recall(query, limit=10)`, `write(...)`, `forget(...)` |
-| `ToolCtx` | `invoke(name, **args)`, `list_available()` |
-| `SecretsCtx` | `read(key)` (read-only, ADR-024) |
-| `ConfigCtx` | `workspace()`, `profile()` |
-| `InputCtx` | `next()` (awaits operator response after `NeedHumanInput`) |
+`ReAct` is intentionally NOT on `Ctx`. It lives as a free function
+`apollia.react(ctx, ...)` so alternative reasoning loops compose without
+subclassing the runtime context.
 
-Adding a method to `Ctx` :
-1. Update the stub in `sdk/apollia/stubs/`.
+Adding a service or a method to `Ctx` :
+1. Update the Protocol in `sdk/apollia/types.py` and the interface module
+   in `sdk/apollia/context/<service>.py`.
 2. Implement in `crates/apollia-aip/`.
-3. Open or update the relevant ADR (101-104, 111).
-4. Update the Wiki reference for `Ctx`.
+3. Open or update the relevant ADR (ADR-024 for the contract, ADR-041 for
+   the mailbox).
 
-The stub is the contract. If implementation and stub diverge, the stub
-wins and the implementation is broken.
+`sdk/apollia/types.py` is the contract. If implementation and contract
+diverge, the contract wins and the implementation is broken.
+
+### `ctx.mail` semantics (ADR-041)
+
+`ctx.mail` is the durable, at-least-once inter-agent inbox, distinct from
+`ctx.a2a` (synchronous RPC). Backed by a SQLite mailbox with lease-based
+delivery. Interface in `sdk/apollia/context/mail.py` :
+
+| Method | Behavior |
+|---|---|
+| `send(to, payload) -> str` | enqueue a message, returns its id |
+| `receive(timeout_secs=None) -> MailMessage \| None` | lease the next message |
+| `poll() -> MailMessage \| None` | non-blocking lease |
+| `pending() -> int` | count of undelivered messages |
+| `list(limit=50) -> list[MailMessage]` | inspect without leasing |
+| `ack(message_id) -> None` | confirm processing, removes the lease |
+| `nack(message_id) -> None` | release the lease for redelivery |
+
+A leased message not `ack`-ed within the visibility timeout is
+redelivered. Runtime config caps live in `RuntimeConfig` (`mailbox_*`
+fields); see `crates/apollia-runtime/AGENTS.md` §6.
 
 ---
 
@@ -169,7 +216,7 @@ Rules :
 
 The runtime loads datasources and templates declared in the agent
 TOML (`[datasources]`, `[templates]`). They are exposed read-only via
-`ctx.config.workspace().datasources` and `.templates`.
+the `ctx.datasources` and `ctx.templates` services.
 
 Rules :
 - Agents never write to datasources. The runtime owns the lifecycle.
@@ -202,25 +249,26 @@ skill.
   the documented `pyo3` runtime bridge).
 - Decorator stacking that breaks the validation (multiple of
   `@skill` / `@on_message` / `@orchestrated` on one method).
-- `print()` (use `ctx.log(...)`).
+- `print()` (use `ctx.logger`).
 - Catching `CancelledError` without re-raising.
 
 ---
 
-## 9. Stubs synchronization
+## 9. Type-contract synchronization
 
-`sdk/apollia/stubs/` carries the type contract for the runtime-injected
-`Ctx` and related capabilities. The stubs are hand-maintained alongside
-the Rust implementation in `crates/apollia-aip/` and committed for
-reproducibility and IDE support.
+`sdk/apollia/types.py` (the `Ctx` Protocol) and `sdk/apollia/context/*.py`
+(the per-service interfaces) carry the type contract for the
+runtime-injected `Ctx`. They are hand-maintained alongside the Rust
+implementation in `crates/apollia-aip/` and committed for reproducibility
+and IDE support.
 
 Edit policy :
 - Allowed when adding a new method that does not exist on the Rust side
   yet (drafting).
-- When implementing the Rust side, update the stub in the same PR to
+- When implementing the Rust side, update the Protocol in the same PR to
   keep parity.
-- Stub and implementation must agree on signature and semantic.
-  Discrepancy : the stub is the contract, fix the implementation.
+- Contract and implementation must agree on signature and semantic.
+  Discrepancy : the Python contract wins, fix the implementation.
 
 ---
 
@@ -240,7 +288,7 @@ Edit policy :
 | Change | Update |
 |---|---|
 | New decorator | `sdk/README.md`, this file, Wiki reference, Book chapter |
-| New `Ctx` method | stub + Wiki reference + ADR (101-104, 111) |
+| New `Ctx` method | `types.py` + `context/<service>.py` + ADR-024 (ADR-041 for `mail`) |
 | New AgentError subclass | this file (§5), Wiki reference, `apollia-aip` dispatcher |
 | TypedDict schema convention change | this file (§4), book chapter, ADR if breaking |
 
