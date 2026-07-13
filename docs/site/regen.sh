@@ -30,9 +30,12 @@ mkdir -p "$(dirname "$CLI_OUT")"
   echo "title: CLI reference"
   echo "---"
   echo "$HEADER"
-  # Drop clap-markdown's own top-level H1; the frontmatter title stands in.
+  # Drop clap-markdown's own top-level H1 (the frontmatter title stands in) and
+  # rewrite its em-dash item separator to a hyphen (the house style bans em-dash).
   cargo run --quiet --manifest-path "$REPO_ROOT/Cargo.toml" \
-    -p apollia-cli --features gen-docs -- gen-cli-docs | tail -n +2
+    -p apollia-cli --features gen-docs -- gen-cli-docs \
+    | tail -n +2 \
+    | perl -C -pe 's/\x{2014}/-/g'
 } > "$CLI_OUT"
 echo "    wrote $CLI_OUT"
 

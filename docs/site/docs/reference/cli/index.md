@@ -268,63 +268,63 @@ Apollia OS CLI binary (apollia-os)
 
 ###### **Subcommands:**
 
-* `start` — Start the runtime in foreground
-* `stop` — Stop a running runtime
-* `status` — Display runtime and agent status
-* `run` — Submit a task to an agent and wait for the result
-* `auth` — OAuth2 PKCE authentication management (login, status, logout)
-* `agent` — Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair)
-* `a2a` — Agent-to-Agent skill discovery and direct invocation
-* `task` — Task management (list, status, cancel, inspect, resume, approvals)
-* `eval` — Evaluation harness (run a TOML suite against the runtime, report a JSONL)
-* `tools` — Native tool governance (list, enable, disable, config, reload, credentials, show, approvals)
-* `audit` — Audit trail (list, stats, export, verify, show, replay)
-* `hooks` — Lifecycle hooks (list)
-* `memory` — Memory management
-* `llm` — LLM backend diagnostics (status, ping, chat, costs, backends, reload)
-* `model` — Local model file management
-* `trigger` — Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
-* `notify` — Notification channel management (test, list, logs, create, update, delete, events)
-* `stt` — Speech-to-Text management (status, transcribe, transcriptions, model, config)
-* `onboard` — Launch onboarding or re-onboarding on a specific topic
-* `permissions` — Permission rule management (list, revoke, audit)
-* `chat` — Interactive chat REPL + persisted session hygiene (delete, rename, export)
-* `mcp` — MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
-* `update` — Check for and install updates from GitHub Releases
-* `workspace` — Workspace inspection and initialization (status, init)
-* `review` — Automated code or plan review via the apollia-review agent
-* `rollback` — Revert filesystem mutations recorded by the agent during a chat session
-* `resilience` — Circuit breaker inspection and reset (list, show, reset)
-* `plan` — Plan domain management (cache: stats, clear, evict)
-* `doctor` — Diagnose the local Apollia environment (no runtime required)
-* `inspect` — Statically inspect a Python agent file (no runtime required)
-* `logs` — Tail or follow the runtime log file
-* `version` — Print the binary version (use `--json` for machine-readable output)
-* `connector` — Native SaaS connector management (list, accounts, test, revoke)
-* `config` — Global apollia.toml management (get, set, validate, edit, show)
-* `profile` — User profile management (show, set, forget, reset, export, import)
-* `project` — Project management (list, create, show, update, delete, agents, templates)
-* `trace` — Print the event-sourced trace of a task
-* `digest` — Aggregated activity overview (tasks + LLM costs + audit stats)
-* `completions` — Generate a shell completion script (bash, zsh, fish, powershell, ...)
-* `guide` — Short, task-oriented help by theme (chat, governance, audit, ...)
-* `do` — Map a natural-language request to a command (local model), then run it
-* `explain` — Explain a command or an error message in plain language (local model)
+* `start` - Start the runtime in foreground
+* `stop` - Stop a running runtime
+* `status` - Display runtime and agent status
+* `run` - Submit a task to an agent and wait for the result
+* `auth` - OAuth2 PKCE authentication management (login, status, logout)
+* `agent` - Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair)
+* `a2a` - Agent-to-Agent skill discovery and direct invocation
+* `task` - Task management (list, status, cancel, inspect, resume, approvals)
+* `eval` - Evaluation harness (run a TOML suite against the runtime, report a JSONL)
+* `tools` - Native tool governance (list, enable, disable, config, reload, credentials, show, approvals)
+* `audit` - Audit trail (list, stats, export, verify, show, replay)
+* `hooks` - Lifecycle hooks (list)
+* `memory` - Memory management
+* `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
+* `model` - Local model file management
+* `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
+* `notify` - Notification channel management (test, list, logs, create, update, delete, events)
+* `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
+* `onboard` - Launch onboarding or re-onboarding on a specific topic
+* `permissions` - Permission rule management (list, revoke, audit)
+* `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
+* `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
+* `update` - Check for and install updates from GitHub Releases
+* `workspace` - Workspace inspection and initialization (status, init)
+* `review` - Automated code or plan review via the apollia-review agent
+* `rollback` - Revert filesystem mutations recorded by the agent during a chat session
+* `resilience` - Circuit breaker inspection and reset (list, show, reset)
+* `plan` - Plan domain management (cache: stats, clear, evict)
+* `doctor` - Diagnose the local Apollia environment (no runtime required)
+* `inspect` - Statically inspect a Python agent file (no runtime required)
+* `logs` - Tail or follow the runtime log file
+* `version` - Print the binary version (use `--json` for machine-readable output)
+* `connector` - Native SaaS connector management (list, accounts, test, revoke)
+* `config` - Global apollia.toml management (get, set, validate, edit, show)
+* `profile` - User profile management (show, set, forget, reset, export, import)
+* `project` - Project management (list, create, show, update, delete, agents, templates)
+* `trace` - Print the event-sourced trace of a task
+* `digest` - Aggregated activity overview (tasks + LLM costs + audit stats)
+* `completions` - Generate a shell completion script (bash, zsh, fish, powershell, ...)
+* `guide` - Short, task-oriented help by theme (chat, governance, audit, ...)
+* `do` - Map a natural-language request to a command (local model), then run it
+* `explain` - Explain a command or an error message in plain language (local model)
 
 ###### **Options:**
 
-* `--socket <PATH>` — Unix socket path (default: /tmp/apollia.sock)
-* `--json` — Output machine-readable JSON instead of human-readable text.
+* `--socket <PATH>` - Unix socket path (default: /tmp/apollia.sock)
+* `--json` - Output machine-readable JSON instead of human-readable text.
 
    Accepted at any position: before or after the subcommand and its arguments.
-* `-q`, `--quiet` — Suppress all non-essential output (only success/error shown).
+* `-q`, `--quiet` - Suppress all non-essential output (only success/error shown).
 
    When combined with `--json`, JSON output takes priority.
-* `-v`, `--verbose` — Show additional details such as durations and step counts
-* `--debug` — Enable internal debug logs and ORIA traces on stderr.
+* `-v`, `--verbose` - Show additional details such as durations and step counts
+* `--debug` - Enable internal debug logs and ORIA traces on stderr.
 
    Equivalent to setting `RUST_LOG=debug`.
-* `--no-color` — Disable ANSI color codes even when stdout is a TTY
+* `--no-color` - Disable ANSI color codes even when stdout is a TTY
 
 
 
@@ -336,7 +336,7 @@ Start the runtime in foreground
 
 ###### **Options:**
 
-* `--port <PORT>` — TCP port to listen on (default: 7771)
+* `--port <PORT>` - TCP port to listen on (default: 7771)
 
 
 
@@ -366,31 +366,31 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier
-* `<INPUT>` — Task input text (ignored when `--input-json` is provided)
+* `<AGENT_ID>` - Agent identifier
+* `<INPUT>` - Task input text (ignored when `--input-json` is provided)
 
   Default value: ``
 
 ###### **Options:**
 
-* `--input-json <JSON>` — Raw JSON payload that bypasses the `parts:[text]` wrapper.
+* `--input-json <JSON>` - Raw JSON payload that bypasses the `parts:[text]` wrapper.
 
    Use this when the target agent expects a structured input shape (e.g. an AIPInput with `data` parts, a worker skill envelope, or any custom contract).
-* `--stream` — Stream task progress in real-time via SSE
-* `--detach` — Submit the task and return immediately without waiting for the result.
+* `--stream` - Stream task progress in real-time via SSE
+* `--detach` - Submit the task and return immediately without waiting for the result.
 
    The task ID is printed so it can be tracked with `apollia-os task status <id>`.
-* `--alternatives` — Display two alternative plans (conservative vs. exploratory) and choose which one to execute before submitting the task.
+* `--alternatives` - Display two alternative plans (conservative vs. exploratory) and choose which one to execute before submitting the task.
 
    Requires the runtime to support plan alternatives (ORIA engine with LLM).
-* `--plan` — Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
-* `--allowed-tools <TOOL>` — Restrict this session to the listed tools only (comma-separated).
+* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
+* `--allowed-tools <TOOL>` - Restrict this session to the listed tools only (comma-separated).
 
    When specified, only the named tools can be invoked. All other tools are blocked regardless of the global configuration.
-* `--disallowed-tools <TOOL>` — Explicitly block the listed tools for this session (comma-separated).
+* `--disallowed-tools <TOOL>` - Explicitly block the listed tools for this session (comma-separated).
 
    Takes priority over `--allowed-tools` when the same tool appears in both.
-* `--autonomy <LEVEL>` — Autonomy tier for this run (default: assisted).
+* `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
 
@@ -404,9 +404,9 @@ OAuth2 PKCE authentication management (login, status, logout)
 
 ###### **Subcommands:**
 
-* `login` — Authenticate with a provider via OAuth2 PKCE and store the token in the OS keyring
-* `status` — Display the authentication status for all supported providers
-* `logout` — Remove the stored token for the given provider
+* `login` - Authenticate with a provider via OAuth2 PKCE and store the token in the OS keyring
+* `status` - Display the authentication status for all supported providers
+* `logout` - Remove the stored token for the given provider
 
 
 
@@ -420,7 +420,7 @@ Opens the browser to the provider authorization page. After the user grants acce
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider name: `anthropic`, `openai`, or `vertex`
+* `<PROVIDER>` - Provider name: `anthropic`, `openai`, or `vertex`
 
 
 
@@ -442,7 +442,7 @@ Remove the stored token for the given provider
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider name: `anthropic`, `openai`, or `vertex`
+* `<PROVIDER>` - Provider name: `anthropic`, `openai`, or `vertex`
 
 
 
@@ -454,22 +454,22 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 
 ###### **Subcommands:**
 
-* `list` — List all agents (installed and/or runtime)
-* `start` — Start (register) a new agent from a Python module path
-* `stop` — Stop (shutdown) a running agent
-* `show` — Display detailed information about an agent
-* `status` — Show a compact runtime-status snapshot for `<agent_id>`
-* `messages` — List in-memory A2A messages for `<agent_id>` (oldest-first within window)
-* `install` — Install an agent permanently from a local path or a Git URL
-* `uninstall` — Uninstall a permanently installed agent
-* `enable` — Enable an installed agent (will auto-start on boot)
-* `disable` — Disable an installed agent (will not auto-start on boot)
-* `update` — Update an installed agent with a new Python module
-* `create` — Create a new agent from an SDK template
-* `package` — Manage agent packages (multi-agent bundles described by agent.toml)
-* `logs` — Display recent log lines from a running agent
-* `validate` — Validate an agent manifest without installing or starting the agent
-* `repair` — Re-provision an installed agent's per-agent Python venv from its manifest
+* `list` - List all agents (installed and/or runtime)
+* `start` - Start (register) a new agent from a Python module path
+* `stop` - Stop (shutdown) a running agent
+* `show` - Display detailed information about an agent
+* `status` - Show a compact runtime-status snapshot for `<agent_id>`
+* `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
+* `install` - Install an agent permanently from a local path or a Git URL
+* `uninstall` - Uninstall a permanently installed agent
+* `enable` - Enable an installed agent (will auto-start on boot)
+* `disable` - Disable an installed agent (will not auto-start on boot)
+* `update` - Update an installed agent with a new Python module
+* `create` - Create a new agent from an SDK template
+* `package` - Manage agent packages (multi-agent bundles described by agent.toml)
+* `logs` - Display recent log lines from a running agent
+* `validate` - Validate an agent manifest without installing or starting the agent
+* `repair` - Re-provision an installed agent's per-agent Python venv from its manifest
 
 
 
@@ -481,7 +481,7 @@ List all agents (installed and/or runtime)
 
 ###### **Options:**
 
-* `--supports-a2a` — Show only A2A-capable agents with their skill descriptors
+* `--supports-a2a` - Show only A2A-capable agents with their skill descriptors
 
 
 
@@ -493,7 +493,7 @@ Start (register) a new agent from a Python module path
 
 ###### **Arguments:**
 
-* `<PATH>` — Path to the agent Python module
+* `<PATH>` - Path to the agent Python module
 
 
 
@@ -505,7 +505,7 @@ Stop (shutdown) a running agent
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier
+* `<AGENT_ID>` - Agent identifier
 
 
 
@@ -517,7 +517,7 @@ Display detailed information about an agent
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier
+* `<AGENT_ID>` - Agent identifier
 
 
 
@@ -531,7 +531,7 @@ Distilled view of `agent show` focused on online / idle / error state. Useful in
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier
+* `<AGENT_ID>` - Agent identifier
 
 
 
@@ -543,11 +543,11 @@ List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier (recipient)
+* `<AGENT_ID>` - Agent identifier (recipient)
 
 ###### **Options:**
 
-* `--limit <N>` — Maximum number of messages to display (server-clamped to 100)
+* `--limit <N>` - Maximum number of messages to display (server-clamped to 100)
 
   Default value: `20`
 
@@ -563,11 +563,11 @@ Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git remote UR
 
 ###### **Arguments:**
 
-* `<SOURCE>` — Local path to a Python module or a Git URL (with optional #tag)
+* `<SOURCE>` - Local path to a Python module or a Git URL (with optional #tag)
 
 ###### **Options:**
 
-* `--skip-tests` — Skip the agent test suite (not recommended, reduces validation coverage)
+* `--skip-tests` - Skip the agent test suite (not recommended, reduces validation coverage)
 
 
 
@@ -579,7 +579,7 @@ Uninstall a permanently installed agent
 
 ###### **Arguments:**
 
-* `<NAME>` — Agent name (as declared in manifest)
+* `<NAME>` - Agent name (as declared in manifest)
 
 
 
@@ -591,7 +591,7 @@ Enable an installed agent (will auto-start on boot)
 
 ###### **Arguments:**
 
-* `<NAME>` — Agent name
+* `<NAME>` - Agent name
 
 
 
@@ -603,7 +603,7 @@ Disable an installed agent (will not auto-start on boot)
 
 ###### **Arguments:**
 
-* `<NAME>` — Agent name
+* `<NAME>` - Agent name
 
 
 
@@ -615,8 +615,8 @@ Update an installed agent with a new Python module
 
 ###### **Arguments:**
 
-* `<NAME>` — Agent name
-* `<PATH>` — Path to the new Python module
+* `<NAME>` - Agent name
+* `<PATH>` - Path to the new Python module
 
 
 
@@ -628,11 +628,11 @@ Create a new agent from an SDK template
 
 ###### **Arguments:**
 
-* `<NAME>` — Agent name in kebab-case (e.g. my-agent)
+* `<NAME>` - Agent name in kebab-case (e.g. my-agent)
 
 ###### **Options:**
 
-* `--type <TYPE>` — Template type: react, conversational, or orchestrated
+* `--type <TYPE>` - Template type: react, conversational, or orchestrated
 
   Default value: `react`
 
@@ -646,9 +646,9 @@ Manage agent packages (multi-agent bundles described by agent.toml)
 
 ###### **Subcommands:**
 
-* `list` — List all installed agent packages
-* `show` — Show details for an installed package
-* `uninstall` — Uninstall a package and all its agents and triggers
+* `list` - List all installed agent packages
+* `show` - Show details for an installed package
+* `uninstall` - Uninstall a package and all its agents and triggers
 
 
 
@@ -668,7 +668,7 @@ Show details for an installed package
 
 ###### **Arguments:**
 
-* `<NAME>` — Package name
+* `<NAME>` - Package name
 
 
 
@@ -680,7 +680,7 @@ Uninstall a package and all its agents and triggers
 
 ###### **Arguments:**
 
-* `<NAME>` — Package name
+* `<NAME>` - Package name
 
 
 
@@ -692,14 +692,14 @@ Display recent log lines from a running agent
 
 ###### **Arguments:**
 
-* `<AGENT_ID>` — Agent identifier (name or UUID)
+* `<AGENT_ID>` - Agent identifier (name or UUID)
 
 ###### **Options:**
 
-* `--last <N>` — Number of recent log lines to display
+* `--last <N>` - Number of recent log lines to display
 
   Default value: `50`
-* `--follow` — Follow the live log stream until Ctrl+C (SSE)
+* `--follow` - Follow the live log stream until Ctrl+C (SSE)
 
 
 
@@ -711,7 +711,7 @@ Validate an agent manifest without installing or starting the agent
 
 ###### **Arguments:**
 
-* `<PATH>` — Path to the Python agent module
+* `<PATH>` - Path to the Python agent module
 
 
 
@@ -725,7 +725,7 @@ Reads `~/.apollia/agents/packages/<name>/agent.toml` (or the single-file agent's
 
 ###### **Arguments:**
 
-* `<NAME>` — Installed agent name (as declared in the manifest)
+* `<NAME>` - Installed agent name (as declared in the manifest)
 
 
 
@@ -739,8 +739,8 @@ Worker agents expose typed skills (not free-text prompts). Use these sub-command
 
 ###### **Subcommands:**
 
-* `skills` — List every skill exposed by active Worker Agents
-* `invoke` — Invoke a Worker skill by `skill_id` with a structured payload
+* `skills` - List every skill exposed by active Worker Agents
+* `invoke` - Invoke a Worker skill by `skill_id` with a structured payload
 
 
 
@@ -764,14 +764,14 @@ The payload comes from `--args '<JSON>'`, from `--args-file <PATH>` (use `-` for
 
 ###### **Arguments:**
 
-* `<SKILL_ID>` — Skill identifier (e.g. `pdf.read_text`)
+* `<SKILL_ID>` - Skill identifier (e.g. `pdf.read_text`)
 
 ###### **Options:**
 
-* `--args <JSON>` — Structured JSON payload (overrides `--args-file`)
-* `--args-file <PATH>` — Read the JSON payload from a file (use `-` for stdin)
-* `--timeout <SECS>` — Optional invocation timeout in seconds (default: 120)
-* `--caller <NAME>` — Caller label surfaced in observability (default: `cli`)
+* `--args <JSON>` - Structured JSON payload (overrides `--args-file`)
+* `--args-file <PATH>` - Read the JSON payload from a file (use `-` for stdin)
+* `--timeout <SECS>` - Optional invocation timeout in seconds (default: 120)
+* `--caller <NAME>` - Caller label surfaced in observability (default: `cli`)
 
 
 
@@ -783,12 +783,12 @@ Task management (list, status, cancel, inspect, resume, approvals)
 
 ###### **Subcommands:**
 
-* `list` — List recent tasks
-* `status` — Display the status of a specific task
-* `cancel` — Cancel a running task
-* `inspect` — Display the full execution plan of an orchestrated task
-* `resume` — Approve or reject a task pending HITL approval
-* `approvals` — List resolved HITL approvals (accepted or rejected)
+* `list` - List recent tasks
+* `status` - Display the status of a specific task
+* `cancel` - Cancel a running task
+* `inspect` - Display the full execution plan of an orchestrated task
+* `resume` - Approve or reject a task pending HITL approval
+* `approvals` - List resolved HITL approvals (accepted or rejected)
 
 
 
@@ -802,7 +802,7 @@ With `--pending-approval`, filters to tasks awaiting HITL approval.
 
 ###### **Options:**
 
-* `--pending-approval` — Show only tasks waiting for human approval (status = input_required)
+* `--pending-approval` - Show only tasks waiting for human approval (status = input_required)
 
 
 
@@ -814,7 +814,7 @@ Display the status of a specific task
 
 ###### **Arguments:**
 
-* `<TASK_ID>` — Task identifier (UUID)
+* `<TASK_ID>` - Task identifier (UUID)
 
 
 
@@ -826,7 +826,7 @@ Cancel a running task
 
 ###### **Arguments:**
 
-* `<TASK_ID>` — Task identifier (UUID)
+* `<TASK_ID>` - Task identifier (UUID)
 
 
 
@@ -840,7 +840,7 @@ Reads directly from `~/.apollia/plans.db`, no runtime connection required.
 
 ###### **Arguments:**
 
-* `<ID>` — Task identifier (UUID)
+* `<ID>` - Task identifier (UUID)
 
 
 
@@ -854,13 +854,13 @@ Exactly one of `--approve` or `--reject` must be supplied.
 
 ###### **Arguments:**
 
-* `<TASK_ID>` — Task identifier
+* `<TASK_ID>` - Task identifier
 
 ###### **Options:**
 
-* `--approve` — Approve the pending task, resumes agent execution
-* `--reject` — Reject the pending task, terminates the task with REJECTED status
-* `--reason <REASON>` — Human-readable reason for rejection (recommended with `--reject`)
+* `--approve` - Approve the pending task, resumes agent execution
+* `--reject` - Reject the pending task, terminates the task with REJECTED status
+* `--reason <REASON>` - Human-readable reason for rejection (recommended with `--reject`)
 
 
 
@@ -872,7 +872,7 @@ List resolved HITL approvals (accepted or rejected)
 
 ###### **Options:**
 
-* `--pending` — Also include pending approvals
+* `--pending` - Also include pending approvals
 
 
 
@@ -884,8 +884,8 @@ Evaluation harness (run a TOML suite against the runtime, report a JSONL)
 
 ###### **Subcommands:**
 
-* `run` — Run an eval suite against the running runtime
-* `report` — Re-print a previously written JSONL as a summary table
+* `run` - Run an eval suite against the running runtime
+* `report` - Re-print a previously written JSONL as a summary table
 
 
 
@@ -897,12 +897,12 @@ Run an eval suite against the running runtime
 
 ###### **Arguments:**
 
-* `<SUITE>` — Path to the TOML suite
+* `<SUITE>` - Path to the TOML suite
 
 ###### **Options:**
 
-* `--out <OUT>` — Write the per-run JSONL here (default: `<suite>.results.jsonl`)
-* `--agent <AGENT>` — Default agent for tasks that do not name one
+* `--out <OUT>` - Write the per-run JSONL here (default: `<suite>.results.jsonl`)
+* `--agent <AGENT>` - Default agent for tasks that do not name one
 
 
 
@@ -914,7 +914,7 @@ Re-print a previously written JSONL as a summary table
 
 ###### **Arguments:**
 
-* `<JSONL>` — Path to the JSONL produced by `eval run`
+* `<JSONL>` - Path to the JSONL produced by `eval run`
 
 
 
@@ -926,14 +926,14 @@ Native tool governance (list, enable, disable, config, reload, credentials, show
 
 ###### **Subcommands:**
 
-* `list` — Show the status of each native tool (active, backend, credentials)
-* `enable` — Enable the *name* tool (clears any disabled flag in `governance.db`)
-* `disable` — Disable the *name* tool (sets `enabled = FALSE` in `governance.db`)
-* `config` — Read or update the `[tools.<name>]` configuration in `apollia.toml`
-* `reload` — Reload the governance snapshot and print the effective state
-* `credentials` — Manage the encrypted credentials attached to a tool
-* `show` — Show the descriptor of a tool registered with the runtime
-* `approvals` — Inspect the HITL queue from the tool registry's side
+* `list` - Show the status of each native tool (active, backend, credentials)
+* `enable` - Enable the *name* tool (clears any disabled flag in `governance.db`)
+* `disable` - Disable the *name* tool (sets `enabled = FALSE` in `governance.db`)
+* `config` - Read or update the `[tools.<name>]` configuration in `apollia.toml`
+* `reload` - Reload the governance snapshot and print the effective state
+* `credentials` - Manage the encrypted credentials attached to a tool
+* `show` - Show the descriptor of a tool registered with the runtime
+* `approvals` - Inspect the HITL queue from the tool registry's side
 
 
 
@@ -953,7 +953,7 @@ Enable the *name* tool (clears any disabled flag in `governance.db`)
 
 ###### **Arguments:**
 
-* `<NAME>` — Canonical name of the native tool
+* `<NAME>` - Canonical name of the native tool
 
 
 
@@ -965,7 +965,7 @@ Disable the *name* tool (sets `enabled = FALSE` in `governance.db`)
 
 ###### **Arguments:**
 
-* `<NAME>` — Canonical name of the native tool
+* `<NAME>` - Canonical name of the native tool
 
 
 
@@ -977,8 +977,8 @@ Read or update the `[tools.<name>]` configuration in `apollia.toml`
 
 ###### **Subcommands:**
 
-* `get` — Show the effective configuration of *name*
-* `set` — Update a configuration key `<tool>.<path>` in `apollia.toml`
+* `get` - Show the effective configuration of *name*
+* `set` - Update a configuration key `<tool>.<path>` in `apollia.toml`
 
 
 
@@ -990,7 +990,7 @@ Show the effective configuration of *name*
 
 ###### **Arguments:**
 
-* `<NAME>` — Native tool name (`web_search`, `web_read`, …)
+* `<NAME>` - Native tool name (`web_search`, `web_read`, …)
 
 
 
@@ -1002,8 +1002,8 @@ Update a configuration key `<tool>.<path>` in `apollia.toml`
 
 ###### **Arguments:**
 
-* `<KEY_PATH>` — Dotted key path, e.g. `web_search.backend` or `web_search.brave.timeout_secs`
-* `<VALUE>` — New value (parsed according to the expected type)
+* `<KEY_PATH>` - Dotted key path, e.g. `web_search.backend` or `web_search.brave.timeout_secs`
+* `<VALUE>` - New value (parsed according to the expected type)
 
 
 
@@ -1023,10 +1023,10 @@ Manage the encrypted credentials attached to a tool
 
 ###### **Subcommands:**
 
-* `list` — List stored credentials (values masked)
-* `set` — Store a credential `(tool, key)` after an interactive masked prompt
-* `delete` — Delete the credential `(tool, key)`
-* `test` — Validate a credential with a live call against the backend it targets
+* `list` - List stored credentials (values masked)
+* `set` - Store a credential `(tool, key)` after an interactive masked prompt
+* `delete` - Delete the credential `(tool, key)`
+* `test` - Validate a credential with a live call against the backend it targets
 
 
 
@@ -1038,7 +1038,7 @@ List stored credentials (values masked)
 
 ###### **Arguments:**
 
-* `<TOOL>` — Optional filter on a tool name
+* `<TOOL>` - Optional filter on a tool name
 
 
 
@@ -1050,8 +1050,8 @@ Store a credential `(tool, key)` after an interactive masked prompt
 
 ###### **Arguments:**
 
-* `<TOOL>` — Owning tool name
-* `<KEY>` — Logical key name (e.g. `brave.api_key`)
+* `<TOOL>` - Owning tool name
+* `<KEY>` - Logical key name (e.g. `brave.api_key`)
 
 
 
@@ -1063,8 +1063,8 @@ Delete the credential `(tool, key)`
 
 ###### **Arguments:**
 
-* `<TOOL>` — Owning tool name
-* `<KEY>` — Logical key name
+* `<TOOL>` - Owning tool name
+* `<KEY>` - Logical key name
 
 
 
@@ -1076,7 +1076,7 @@ Validate a credential with a live call against the backend it targets
 
 ###### **Arguments:**
 
-* `<TOOL>` — Tool whose credentials should be checked
+* `<TOOL>` - Tool whose credentials should be checked
 
 
 
@@ -1088,7 +1088,7 @@ Show the descriptor of a tool registered with the runtime
 
 ###### **Arguments:**
 
-* `<TOOL_NAME>` — Tool name
+* `<TOOL_NAME>` - Tool name
 
 
 
@@ -1100,8 +1100,8 @@ Inspect the HITL queue from the tool registry's side
 
 ###### **Subcommands:**
 
-* `pending` — List approvals pending decision (tasks in `input_required`)
-* `resolved` — List approvals resolved within the `--days` window
+* `pending` - List approvals pending decision (tasks in `input_required`)
+* `resolved` - List approvals resolved within the `--days` window
 
 
 
@@ -1121,10 +1121,10 @@ List approvals resolved within the `--days` window
 
 ###### **Options:**
 
-* `--days <DAYS>` — Days of history to include (default: 7)
+* `--days <DAYS>` - Days of history to include (default: 7)
 
   Default value: `7`
-* `--limit <LIMIT>` — Maximum number of entries to return (default: 50)
+* `--limit <LIMIT>` - Maximum number of entries to return (default: 50)
 
   Default value: `50`
 
@@ -1138,13 +1138,13 @@ Audit trail (list, stats, export, verify, show, replay)
 
 ###### **Subcommands:**
 
-* `list` — List recent audit events (default)
-* `stats` — Display audit statistics
-* `export` — Export the full audit trail as JSON
-* `verify` — Verify the audit journal's hash chains and signatures
-* `anchor` — Print the exportable head anchor of the global chain
-* `replay` — Replay a captured run and detect divergences
-* `show` — Show a run's full journal, including the model's LLM completions
+* `list` - List recent audit events (default)
+* `stats` - Display audit statistics
+* `export` - Export the full audit trail as JSON
+* `verify` - Verify the audit journal's hash chains and signatures
+* `anchor` - Print the exportable head anchor of the global chain
+* `replay` - Replay a captured run and detect divergences
+* `show` - Show a run's full journal, including the model's LLM completions
 
 
 
@@ -1156,7 +1156,7 @@ List recent audit events (default)
 
 ###### **Options:**
 
-* `--limit <LIMIT>` — Maximum number of events to display
+* `--limit <LIMIT>` - Maximum number of events to display
 
   Default value: `20`
 
@@ -1178,8 +1178,8 @@ Export the full audit trail as JSON
 
 ###### **Options:**
 
-* `--output <PATH>` — Destination file (default: stdout)
-* `--limit <LIMIT>` — Maximum number of events to include (default: 10000)
+* `--output <PATH>` - Destination file (default: stdout)
+* `--limit <LIMIT>` - Maximum number of events to include (default: 10000)
 
   Default value: `10000`
 
@@ -1195,7 +1195,7 @@ With a RUN_ID, verifies that run's per-run chain. Without an argument, verifies 
 
 ###### **Arguments:**
 
-* `<RUN_ID>` — Identifier of the run to verify. Omit to verify the whole journal
+* `<RUN_ID>` - Identifier of the run to verify. Omit to verify the whole journal
 
 
 
@@ -1219,7 +1219,7 @@ Compares the replayed run against its captured trace across every category: LLM 
 
 ###### **Arguments:**
 
-* `<RUN>` — Run identifier or unambiguous prefix
+* `<RUN>` - Run identifier or unambiguous prefix
 
 
 
@@ -1233,7 +1233,7 @@ Unlike `audit list`/`export` (the tool-only audit trail), this reads the hash-ch
 
 ###### **Arguments:**
 
-* `<RUN_OR_TASK>` — Run identifier, or a task_id that maps to one
+* `<RUN_OR_TASK>` - Run identifier, or a task_id that maps to one
 
 
 
@@ -1245,7 +1245,7 @@ Lifecycle hooks (list)
 
 ###### **Subcommands:**
 
-* `list` — List the registered lifecycle hook handlers
+* `list` - List the registered lifecycle hook handlers
 
 
 
@@ -1257,7 +1257,7 @@ List the registered lifecycle hook handlers
 
 ###### **Options:**
 
-* `--dry-run` — Read configuration from `apollia.toml` and validate it without connecting to the runtime
+* `--dry-run` - Read configuration from `apollia.toml` and validate it without connecting to the runtime
 
 
 
@@ -1269,15 +1269,15 @@ Memory management
 
 ###### **Subcommands:**
 
-* `inspect` — Inspect the state of a memory namespace
-* `list` — List every memory namespace present on disk
-* `clear` — Wipe an agent's memory
-* `purge` — Purge memory entries older than a day threshold
-* `learn-procedure` — Record a procedure in a namespace's procedural memory
-* `export` — Export a namespace's memory to a JSON file
-* `import` — Import memory from a JSON file into a namespace
-* `forget` — Delete a single memory entry by its UUID
-* `search` — Full-text search across a namespace's episodic + semantic memory
+* `inspect` - Inspect the state of a memory namespace
+* `list` - List every memory namespace present on disk
+* `clear` - Wipe an agent's memory
+* `purge` - Purge memory entries older than a day threshold
+* `learn-procedure` - Record a procedure in a namespace's procedural memory
+* `export` - Export a namespace's memory to a JSON file
+* `import` - Import memory from a JSON file into a namespace
+* `forget` - Delete a single memory entry by its UUID
+* `search` - Full-text search across a namespace's episodic + semantic memory
 
 
 
@@ -1289,12 +1289,12 @@ Inspect the state of a memory namespace
 
 ###### **Arguments:**
 
-* `<NAMESPACE>` — Namespace name to inspect
+* `<NAMESPACE>` - Namespace name to inspect
 
 ###### **Options:**
 
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
-* `--json` — JSON output
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
+* `--json` - JSON output
 
 
 
@@ -1306,8 +1306,8 @@ List every memory namespace present on disk
 
 ###### **Options:**
 
-* `--agent <NAME>` — Filter by agent/namespace name
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--agent <NAME>` - Filter by agent/namespace name
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1319,8 +1319,8 @@ Wipe an agent's memory
 
 ###### **Options:**
 
-* `--agent <NAME>` — Namespace/agent name to wipe
-* `--type <TYPE>` — Memory type to wipe
+* `--agent <NAME>` - Namespace/agent name to wipe
+* `--type <TYPE>` - Memory type to wipe
 
   Default value: `all`
 
@@ -1334,8 +1334,8 @@ Wipe an agent's memory
   - `all`:
     All memory types
 
-* `--confirm` — Confirm without an interactive prompt
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--confirm` - Confirm without an interactive prompt
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1349,9 +1349,9 @@ Example: `apollia-os memory purge --namespace my-agent --older-than 30` Filtered
 
 ###### **Options:**
 
-* `--namespace <NAME>` — Target namespace
-* `--older-than <DAYS>` — Delete entries created more than N days ago
-* `--type <TYPE>` — Restrict the purge to a single type (default: all types)
+* `--namespace <NAME>` - Target namespace
+* `--older-than <DAYS>` - Delete entries created more than N days ago
+* `--type <TYPE>` - Restrict the purge to a single type (default: all types)
 
   Possible values:
   - `episodic`:
@@ -1363,7 +1363,7 @@ Example: `apollia-os memory purge --namespace my-agent --older-than 30` Filtered
   - `all`:
     All memory types
 
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1377,11 +1377,11 @@ Example: `apollia-os memory learn-procedure --namespace agent-x --trigger "analy
 
 ###### **Options:**
 
-* `--namespace <NAME>` — Target namespace
-* `--trigger <TEXT>` — Exact trigger phrase for the procedure
-* `--steps <STEPS>` — Procedure steps (comma- or semicolon-separated). Example: "Open the PDF, Extract revenue, Generate summary"
-* `--file <FILE>` — JSON file containing {"trigger": "...", "steps": [...]}
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--namespace <NAME>` - Target namespace
+* `--trigger <TEXT>` - Exact trigger phrase for the procedure
+* `--steps <STEPS>` - Procedure steps (comma- or semicolon-separated). Example: "Open the PDF, Extract revenue, Generate summary"
+* `--file <FILE>` - JSON file containing {"trigger": "...", "steps": [...]}
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1395,9 +1395,9 @@ Example: `apollia-os memory export --namespace agent-x --output ./backup.apollia
 
 ###### **Options:**
 
-* `--namespace <NAME>` — Namespace to export
-* `--output <FILE>` — Output file (default: `<namespace>.apollia-memory` in the current directory)
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--namespace <NAME>` - Namespace to export
+* `--output <FILE>` - Output file (default: `<namespace>.apollia-memory` in the current directory)
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1411,11 +1411,11 @@ Example: `apollia-os memory import --namespace agent-x --input ./backup.apollia-
 
 ###### **Options:**
 
-* `--namespace <NAME>` — Target namespace
-* `--input <FILE>` — Input file exported by `memory export`
-* `--replace` — Mode: replace the existing namespace (default: merge)
-* `--merge` — Mode: merge with the existing namespace (default)
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--namespace <NAME>` - Target namespace
+* `--input <FILE>` - Input file exported by `memory export`
+* `--replace` - Mode: replace the existing namespace (default: merge)
+* `--merge` - Mode: merge with the existing namespace (default)
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1429,12 +1429,12 @@ Searches `episodic_memories`, `semantic_memories`, and `procedural_memories` in 
 
 ###### **Arguments:**
 
-* `<NAMESPACE>` — Namespace containing the entry
-* `<ENTRY_ID>` — Entry UUID (matches `id` columns across the three tables)
+* `<NAMESPACE>` - Namespace containing the entry
+* `<ENTRY_ID>` - Entry UUID (matches `id` columns across the three tables)
 
 ###### **Options:**
 
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1448,19 +1448,19 @@ Returns BM25-ranked matches with their source table (episodic|semantic), content
 
 ###### **Arguments:**
 
-* `<NAMESPACE>` — Namespace to search
-* `<QUERY>` — FTS5 query (whitespace-separated keywords; quotes preserved)
+* `<NAMESPACE>` - Namespace to search
+* `<QUERY>` - FTS5 query (whitespace-separated keywords; quotes preserved)
 
 ###### **Options:**
 
-* `--limit <N>` — Maximum number of matches to return
+* `--limit <N>` - Maximum number of matches to return
 
   Default value: `20`
-* `--source <SOURCE>` — Restrict to a single source: `episodic` or `semantic`. Omit for both
+* `--source <SOURCE>` - Restrict to a single source: `episodic` or `semantic`. Omit for both
 
   Possible values: `episodic`, `semantic`
 
-* `--data-dir <DIR>` — Memory data directory (default: ~/.apollia/memory/)
+* `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
 
 
 
@@ -1472,13 +1472,13 @@ LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 
 ###### **Subcommands:**
 
-* `status` — Display the status of all configured LLM backends
-* `ping` — Measure the latency of a specific LLM backend
-* `chat` — Send a direct prompt to an LLM backend and print the response
-* `costs` — Display aggregated usage and costs (tokens and estimated cost per backend)
-* `backends` — Manage configured LLM backends (list, create, update, delete, set-default)
-* `reload` — Reload the LLM router from `system.db` without restarting the runtime
-* `setup` — First-run helper: configure a local LLM in one step
+* `status` - Display the status of all configured LLM backends
+* `ping` - Measure the latency of a specific LLM backend
+* `chat` - Send a direct prompt to an LLM backend and print the response
+* `costs` - Display aggregated usage and costs (tokens and estimated cost per backend)
+* `backends` - Manage configured LLM backends (list, create, update, delete, set-default)
+* `reload` - Reload the LLM router from `system.db` without restarting the runtime
+* `setup` - First-run helper: configure a local LLM in one step
 
 
 
@@ -1498,7 +1498,7 @@ Measure the latency of a specific LLM backend
 
 ###### **Arguments:**
 
-* `<BACKEND>` — Backend name (default: the router's configured default backend)
+* `<BACKEND>` - Backend name (default: the router's configured default backend)
 
 
 
@@ -1510,11 +1510,11 @@ Send a direct prompt to an LLM backend and print the response
 
 ###### **Arguments:**
 
-* `<PROMPT>` — The prompt text to send to the LLM
+* `<PROMPT>` - The prompt text to send to the LLM
 
 ###### **Options:**
 
-* `--backend <BACKEND>` — Backend to use (optional, uses the configured default if omitted)
+* `--backend <BACKEND>` - Backend to use (optional, uses the configured default if omitted)
 
 
 
@@ -1528,9 +1528,9 @@ Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost
 
 ###### **Options:**
 
-* `--get-threshold` — Read the cost alert threshold from `apollia.toml` instead of the cost table
-* `--threshold <USD>` — Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` — Optional config file path override (default: `~/.apollia/apollia.toml`)
+* `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
+* `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
+* `--config <PATH>` - Optional config file path override (default: `~/.apollia/apollia.toml`)
 
 
 
@@ -1542,12 +1542,12 @@ Manage configured LLM backends (list, create, update, delete, set-default)
 
 ###### **Subcommands:**
 
-* `list` — List all configured LLM backends
-* `show` — Show the full configuration of a backend (including config_json)
-* `create` — Create a new LLM backend
-* `update` — Update an existing LLM backend
-* `delete` — Delete an LLM backend
-* `set-default` — Set a backend as the default backend
+* `list` - List all configured LLM backends
+* `show` - Show the full configuration of a backend (including config_json)
+* `create` - Create a new LLM backend
+* `update` - Update an existing LLM backend
+* `delete` - Delete an LLM backend
+* `set-default` - Set a backend as the default backend
 
 
 
@@ -1567,7 +1567,7 @@ Show the full configuration of a backend (including config_json)
 
 ###### **Arguments:**
 
-* `<NAME>` — Backend name
+* `<NAME>` - Backend name
 
 
 
@@ -1581,25 +1581,25 @@ Create a new LLM backend.
 
 ###### **Arguments:**
 
-* `<NAME>` — Unique backend name (snake_case or kebab-case)
+* `<NAME>` - Unique backend name (snake_case or kebab-case)
 
 ###### **Options:**
 
-* `--provider <PROVIDER>` — Provider: `llama-cpp` (local GGUF), `anthropic`, `openai`, `mistral`, `ollama`. `--kind` is accepted as an alias for backward compatibility
-* `--model <MODEL>` — Model identifier or path (absolute path for `llama-cpp`)
-* `--api-key <KEY>` — API key (cloud providers only). Stored as-is in `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid persisting the key in system.db
-* `--api-key-env <VAR_NAME>` — Environment variable name holding the API key.
+* `--provider <PROVIDER>` - Provider: `llama-cpp` (local GGUF), `anthropic`, `openai`, `mistral`, `ollama`. `--kind` is accepted as an alias for backward compatibility
+* `--model <MODEL>` - Model identifier or path (absolute path for `llama-cpp`)
+* `--api-key <KEY>` - API key (cloud providers only). Stored as-is in `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid persisting the key in system.db
+* `--api-key-env <VAR_NAME>` - Environment variable name holding the API key.
 
    The runtime reads `std::env::var(NAME)` at boot. Recommended to keep the key out of system.db.
-* `--base-url <URL>` — Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...)
-* `--device <DEVICE>` — Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`
+* `--base-url <URL>` - Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...)
+* `--device <DEVICE>` - Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`
 
   Default value: `metal`
-* `--timeout-sec <SECS>` — Inference timeout in seconds (default: 60)
+* `--timeout-sec <SECS>` - Inference timeout in seconds (default: 60)
 
   Default value: `60`
-* `--disabled` — Create the backend disabled
-* `--default` — Mark this backend as the default (only one at a time)
+* `--disabled` - Create the backend disabled
+* `--default` - Mark this backend as the default (only one at a time)
 
 
 
@@ -1613,20 +1613,20 @@ Works in merge mode: flags that are not supplied keep their current value. The r
 
 ###### **Arguments:**
 
-* `<NAME>` — Backend name to update
+* `<NAME>` - Backend name to update
 
 ###### **Options:**
 
-* `--provider <PROVIDER>` — New provider (rarely useful, changes the backend implementation)
-* `--model <MODEL>` — New model (absolute path for `llama-cpp`)
-* `--api-key <KEY>` — New API key (cloud providers)
-* `--api-key-env <VAR_NAME>` — New environment variable name for the API key
-* `--base-url <URL>` — New base URL
-* `--device <DEVICE>` — New device for `llama-cpp`
-* `--timeout-sec <SECS>` — New inference timeout in seconds
-* `--enable` — Enable the backend
-* `--disable` — Disable the backend
-* `--default` — Mark as default
+* `--provider <PROVIDER>` - New provider (rarely useful, changes the backend implementation)
+* `--model <MODEL>` - New model (absolute path for `llama-cpp`)
+* `--api-key <KEY>` - New API key (cloud providers)
+* `--api-key-env <VAR_NAME>` - New environment variable name for the API key
+* `--base-url <URL>` - New base URL
+* `--device <DEVICE>` - New device for `llama-cpp`
+* `--timeout-sec <SECS>` - New inference timeout in seconds
+* `--enable` - Enable the backend
+* `--disable` - Disable the backend
+* `--default` - Mark as default
 
 
 
@@ -1638,11 +1638,11 @@ Delete an LLM backend
 
 ###### **Arguments:**
 
-* `<NAME>` — Backend name to delete
+* `<NAME>` - Backend name to delete
 
 ###### **Options:**
 
-* `--confirm` — Confirm deletion without an interactive prompt
+* `--confirm` - Confirm deletion without an interactive prompt
 
 
 
@@ -1654,7 +1654,7 @@ Set a backend as the default backend
 
 ###### **Arguments:**
 
-* `<NAME>` — Backend name to mark as default
+* `<NAME>` - Backend name to mark as default
 
 
 
@@ -1678,14 +1678,14 @@ First-run helper: configure a local LLM in one step.
 
 ###### **Options:**
 
-* `--local` — Use the local llama-cpp backend (required for v0.1.0; cloud providers go through `auth login` + `llm backends create`)
-* `--model <PATH>` — Path to the `.gguf` model file
-* `--name <NAME>` — Backend name (default: `local`). Overwrites the existing entry of the same name
+* `--local` - Use the local llama-cpp backend (required for v0.1.0; cloud providers go through `auth login` + `llm backends create`)
+* `--model <PATH>` - Path to the `.gguf` model file
+* `--name <NAME>` - Backend name (default: `local`). Overwrites the existing entry of the same name
 
   Default value: `local`
-* `--device <DEVICE>` — Device hint for llama-cpp: `metal` (macOS default), `cuda`, `cpu`. When omitted, picks `metal` on macOS and `cpu` elsewhere
-* `--system-db <PATH>` — Override the system database path (default: `~/.apollia/system.db`)
-* `--models-dir <DIR>` — Override the models directory (default: `~/.apollia/models/`)
+* `--device <DEVICE>` - Device hint for llama-cpp: `metal` (macOS default), `cuda`, `cpu`. When omitted, picks `metal` on macOS and `cpu` elsewhere
+* `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
+* `--models-dir <DIR>` - Override the models directory (default: `~/.apollia/models/`)
 
 
 
@@ -1697,11 +1697,11 @@ Local model file management
 
 ###### **Subcommands:**
 
-* `list` — List available .gguf model files in ~/.apollia/models/
-* `search` — Search the HuggingFace registry through the runtime
-* `show` — Fetch metadata + file list for a HuggingFace model
-* `hardware` — Report the runtime's detected hardware profile (RAM, CPU, GPU)
-* `delete` — Remove a local model file from `~/.apollia/models/`
+* `list` - List available .gguf model files in ~/.apollia/models/
+* `search` - Search the HuggingFace registry through the runtime
+* `show` - Fetch metadata + file list for a HuggingFace model
+* `hardware` - Report the runtime's detected hardware profile (RAM, CPU, GPU)
+* `delete` - Remove a local model file from `~/.apollia/models/`
 
 
 
@@ -1721,11 +1721,11 @@ Search the HuggingFace registry through the runtime
 
 ###### **Arguments:**
 
-* `<QUERY>` — Free-text query (matches model id, description, tags)
+* `<QUERY>` - Free-text query (matches model id, description, tags)
 
 ###### **Options:**
 
-* `--limit <LIMIT>` — Maximum number of hits to return (default: 20)
+* `--limit <LIMIT>` - Maximum number of hits to return (default: 20)
 
   Default value: `20`
 
@@ -1739,7 +1739,7 @@ Fetch metadata + file list for a HuggingFace model
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository identifier in `org/repo` form
+* `<REPO>` - Repository identifier in `org/repo` form
 
 
 
@@ -1759,11 +1759,11 @@ Remove a local model file from `~/.apollia/models/`
 
 ###### **Arguments:**
 
-* `<NAME>` — File name relative to the models directory
+* `<NAME>` - File name relative to the models directory
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt
+* `--confirm` - Skip the confirmation prompt
 
 
 
@@ -1775,16 +1775,16 @@ Trigger management (list, status, fire, enable, disable, logs, reload, create, u
 
 ###### **Subcommands:**
 
-* `list` — List all triggers with their status
-* `status` — Show the detailed status of a trigger
-* `fire` — Fire a trigger immediately (debug/test)
-* `enable` — Enable a disabled trigger
-* `disable` — Disable a trigger without editing apollia.toml
-* `logs` — Show the firing history from SQLite
-* `reload` — Reload trigger config from apollia.toml (hot reload)
-* `create` — Create a new trigger (CRUD, complements hot-reload via apollia.toml)
-* `update` — Update an existing trigger
-* `delete` — Delete a trigger
+* `list` - List all triggers with their status
+* `status` - Show the detailed status of a trigger
+* `fire` - Fire a trigger immediately (debug/test)
+* `enable` - Enable a disabled trigger
+* `disable` - Disable a trigger without editing apollia.toml
+* `logs` - Show the firing history from SQLite
+* `reload` - Reload trigger config from apollia.toml (hot reload)
+* `create` - Create a new trigger (CRUD, complements hot-reload via apollia.toml)
+* `update` - Update an existing trigger
+* `delete` - Delete a trigger
 
 
 
@@ -1804,7 +1804,7 @@ Show the detailed status of a trigger
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 
 
@@ -1816,7 +1816,7 @@ Fire a trigger immediately (debug/test)
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 
 
@@ -1828,7 +1828,7 @@ Enable a disabled trigger
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 
 
@@ -1840,7 +1840,7 @@ Disable a trigger without editing apollia.toml
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 
 
@@ -1852,11 +1852,11 @@ Show the firing history from SQLite
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 ###### **Options:**
 
-* `--last <LAST>` — Maximum number of entries to display
+* `--last <LAST>` - Maximum number of entries to display
 
   Default value: `20`
 
@@ -1880,20 +1880,20 @@ Create a new trigger (CRUD, complements hot-reload via apollia.toml)
 
 ###### **Arguments:**
 
-* `<ID>` — Unique trigger identifier
+* `<ID>` - Unique trigger identifier
 
 ###### **Options:**
 
-* `--agent <AGENT>` — Target agent
-* `--kind <TYPE>` — Source type: cron, interval, oneshot, filewatch, webhook
-* `--detail <DETAIL>` — Source-specific detail: cron      → cron expression (e.g. `"0 9 * * 1"`) interval  → duration string (`30m`, `1h`, `6h`, `1d`) oneshot   → RFC 3339 timestamp filewatch → path to a file or directory webhook   → shared HMAC-SHA256 secret of at least 32 chars
-* `--on-busy <ON_BUSY>` — Policy when the agent is busy when a fire arrives. `queue` enqueues the fire (default), `drop` discards it
+* `--agent <AGENT>` - Target agent
+* `--kind <TYPE>` - Source type: cron, interval, oneshot, filewatch, webhook
+* `--detail <DETAIL>` - Source-specific detail: cron      → cron expression (e.g. `"0 9 * * 1"`) interval  → duration string (`30m`, `1h`, `6h`, `1d`) oneshot   → RFC 3339 timestamp filewatch → path to a file or directory webhook   → shared HMAC-SHA256 secret of at least 32 chars
+* `--on-busy <ON_BUSY>` - Policy when the agent is busy when a fire arrives. `queue` enqueues the fire (default), `drop` discards it
 
   Default value: `queue`
 
   Possible values: `queue`, `drop`
 
-* `--input <INPUT>` — Input template sent to the agent when fired
+* `--input <INPUT>` - Input template sent to the agent when fired
 
 
 
@@ -1905,16 +1905,16 @@ Update an existing trigger
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 ###### **Options:**
 
-* `--detail <DETAIL>` — New source detail (kind is read from the existing definition)
-* `--on-busy <ON_BUSY>` — New on-busy policy (`queue` or `drop`)
+* `--detail <DETAIL>` - New source detail (kind is read from the existing definition)
+* `--on-busy <ON_BUSY>` - New on-busy policy (`queue` or `drop`)
 
   Possible values: `queue`, `drop`
 
-* `--input <INPUT>` — New input template
+* `--input <INPUT>` - New input template
 
 
 
@@ -1926,11 +1926,11 @@ Delete a trigger
 
 ###### **Arguments:**
 
-* `<ID>` — Trigger identifier
+* `<ID>` - Trigger identifier
 
 ###### **Options:**
 
-* `--confirm` — Confirm deletion without an interactive prompt
+* `--confirm` - Confirm deletion without an interactive prompt
 
 
 
@@ -1942,13 +1942,13 @@ Notification channel management (test, list, logs, create, update, delete, event
 
 ###### **Subcommands:**
 
-* `test` — Send a test notification to every active channel
-* `list` — List configured notification channels with their status
-* `logs` — Show the recent notification history from SQLite
-* `create` — Create a new notification channel
-* `update` — Update an existing notification channel
-* `delete` — Delete a notification channel
-* `events` — Show or modify the event types that trigger notifications
+* `test` - Send a test notification to every active channel
+* `list` - List configured notification channels with their status
+* `logs` - Show the recent notification history from SQLite
+* `create` - Create a new notification channel
+* `update` - Update an existing notification channel
+* `delete` - Delete a notification channel
+* `events` - Show or modify the event types that trigger notifications
 
 
 
@@ -1982,7 +1982,7 @@ Reads the `notification_logs` table in `~/.apollia/hitl.db`. Returns an empty li
 
 ###### **Options:**
 
-* `--last <LAST>` — Number of lines to display (default: 20)
+* `--last <LAST>` - Number of lines to display (default: 20)
 
   Default value: `20`
 
@@ -1996,14 +1996,14 @@ Create a new notification channel
 
 ###### **Options:**
 
-* `--kind <TYPE>` — Channel type: `desktop` or `webhook`
+* `--kind <TYPE>` - Channel type: `desktop` or `webhook`
 
   Possible values: `desktop`, `webhook`
 
-* `--url <URL>` — Target URL (required for `webhook`)
-* `--id <ID>` — Channel identifier. Auto-generated as `<kind>-<timestamp>` when omitted (operator-friendly default for ad-hoc creation)
-* `--label <TEXT>` — Human-readable label shown in the UI. Defaults to the id
-* `--disabled` — Create the channel disabled (default: enabled)
+* `--url <URL>` - Target URL (required for `webhook`)
+* `--id <ID>` - Channel identifier. Auto-generated as `<kind>-<timestamp>` when omitted (operator-friendly default for ad-hoc creation)
+* `--label <TEXT>` - Human-readable label shown in the UI. Defaults to the id
+* `--disabled` - Create the channel disabled (default: enabled)
 
 
 
@@ -2015,12 +2015,12 @@ Update an existing notification channel
 
 ###### **Arguments:**
 
-* `<ID>` — Channel identifier
+* `<ID>` - Channel identifier
 
 ###### **Options:**
 
-* `--url <URL>` — New URL (for webhook)
-* `--enabled <ENABLED>` — Enable or disable
+* `--url <URL>` - New URL (for webhook)
+* `--enabled <ENABLED>` - Enable or disable
 
   Possible values: `true`, `false`
 
@@ -2035,11 +2035,11 @@ Delete a notification channel
 
 ###### **Arguments:**
 
-* `<ID>` — Channel identifier
+* `<ID>` - Channel identifier
 
 ###### **Options:**
 
-* `--confirm` — Confirm without an interactive prompt
+* `--confirm` - Confirm without an interactive prompt
 
 
 
@@ -2051,8 +2051,8 @@ Show or modify the event types that trigger notifications
 
 ###### **Subcommands:**
 
-* `get` — Show the configured event types
-* `set` — Set the active event types (comma-separated list)
+* `get` - Show the configured event types
+* `set` - Set the active event types (comma-separated list)
 
 
 
@@ -2072,7 +2072,7 @@ Set the active event types (comma-separated list)
 
 ###### **Arguments:**
 
-* `<EVENT>` — Enabled event types (e.g. task_completed,task_failed,agent_error)
+* `<EVENT>` - Enabled event types (e.g. task_completed,task_failed,agent_error)
 
 
 
@@ -2084,11 +2084,11 @@ Speech-to-Text management (status, transcribe, transcriptions, model, config)
 
 ###### **Subcommands:**
 
-* `status` — Display the STT engine status (enabled, model, backend, acceleration)
-* `transcribe` — Transcribe an audio file and print the resulting text
-* `transcriptions` — List recent transcriptions from the local database
-* `model` — Manage local STT model files
-* `config` — Manage STT configuration (backend, model, language)
+* `status` - Display the STT engine status (enabled, model, backend, acceleration)
+* `transcribe` - Transcribe an audio file and print the resulting text
+* `transcriptions` - List recent transcriptions from the local database
+* `model` - Manage local STT model files
+* `config` - Manage STT configuration (backend, model, language)
 
 
 
@@ -2108,11 +2108,11 @@ Transcribe an audio file and print the resulting text
 
 ###### **Arguments:**
 
-* `<FILE>` — Path to the audio file (WAV format)
+* `<FILE>` - Path to the audio file (WAV format)
 
 ###### **Options:**
 
-* `--output <PATH>` — Save the full TranscriptResult to a JSON file instead of stdout
+* `--output <PATH>` - Save the full TranscriptResult to a JSON file instead of stdout
 
 
 
@@ -2124,8 +2124,8 @@ List recent transcriptions from the local database
 
 ###### **Subcommands:**
 
-* `list` — List recent transcriptions
-* `delete` — Delete a transcription by its ID
+* `list` - List recent transcriptions
+* `delete` - Delete a transcription by its ID
 
 
 
@@ -2137,7 +2137,7 @@ List recent transcriptions
 
 ###### **Options:**
 
-* `--limit <LIMIT>` — Maximum number of entries to display
+* `--limit <LIMIT>` - Maximum number of entries to display
 
   Default value: `20`
 
@@ -2151,7 +2151,7 @@ Delete a transcription by its ID
 
 ###### **Arguments:**
 
-* `<ID>` — Transcription identifier
+* `<ID>` - Transcription identifier
 
 
 
@@ -2163,8 +2163,8 @@ Manage local STT model files
 
 ###### **Subcommands:**
 
-* `list` — List `.bin` model files in ~/.apollia/models/
-* `download` — Download a model from HuggingFace
+* `list` - List `.bin` model files in ~/.apollia/models/
+* `download` - Download a model from HuggingFace
 
 
 
@@ -2184,7 +2184,7 @@ Download a model from HuggingFace
 
 ###### **Arguments:**
 
-* `<NAME>` — Model name (e.g. `whisper-large-v3-fr-q5_0`)
+* `<NAME>` - Model name (e.g. `whisper-large-v3-fr-q5_0`)
 
 
 
@@ -2196,8 +2196,8 @@ Manage STT configuration (backend, model, language)
 
 ###### **Subcommands:**
 
-* `get` — Show the current STT configuration
-* `update` — Update the STT configuration
+* `get` - Show the current STT configuration
+* `update` - Update the STT configuration
 
 
 
@@ -2217,9 +2217,9 @@ Update the STT configuration
 
 ###### **Options:**
 
-* `--backend <BACKEND>` — Backend to use (whisper, disabled)
-* `--model-path <MODEL_PATH>` — Path to the Whisper model
-* `--language <LANGUAGE>` — Language (fr, en, auto)
+* `--backend <BACKEND>` - Backend to use (whisper, disabled)
+* `--model-path <MODEL_PATH>` - Path to the Whisper model
+* `--language <LANGUAGE>` - Language (fr, en, auto)
 
 
 
@@ -2231,7 +2231,7 @@ Launch onboarding or re-onboarding on a specific topic
 
 ###### **Options:**
 
-* `--topic <TOPIC>` — Focus on a specific topic (identity, preferences, tools, domain, agents)
+* `--topic <TOPIC>` - Focus on a specific topic (identity, preferences, tools, domain, agents)
 
 
 
@@ -2243,10 +2243,10 @@ Permission rule management (list, revoke, audit)
 
 ###### **Subcommands:**
 
-* `list` — List persisted rules (project + global)
-* `revoke` — Revoke a rule by identifier, or every matching rule with `--all`
-* `audit` — Show the permission decision history
-* `add` — Add a persisted permission rule for a tool + optional argument prefix
+* `list` - List persisted rules (project + global)
+* `revoke` - Revoke a rule by identifier, or every matching rule with `--all`
+* `audit` - Show the permission decision history
+* `add` - Add a persisted permission rule for a tool + optional argument prefix
 
 
 
@@ -2258,8 +2258,8 @@ List persisted rules (project + global)
 
 ###### **Options:**
 
-* `--scope <SCOPE>` — Filter by scope: `global`, `project` or `session`
-* `--tool <TOOL>` — Filter by tool name
+* `--scope <SCOPE>` - Filter by scope: `global`, `project` or `session`
+* `--tool <TOOL>` - Filter by tool name
 
 
 
@@ -2271,15 +2271,15 @@ Revoke a rule by identifier, or every matching rule with `--all`
 
 ###### **Arguments:**
 
-* `<ID>` — Numeric identifier of a persisted rule.
+* `<ID>` - Numeric identifier of a persisted rule.
 
    IDs prefixed with `s` denote session-scoped rules; they are not revocable from the CLI (use the desktop app or restart the daemon).
 
 ###### **Options:**
 
-* `--all` — Revoke every rule matching `--scope`
-* `--scope <SCOPE>` — Scope targeted by `--all`: `global` (default) or `project`
-* `--yes` — Skip the interactive confirmation (useful for scripts)
+* `--all` - Revoke every rule matching `--scope`
+* `--scope <SCOPE>` - Scope targeted by `--all`: `global` (default) or `project`
+* `--yes` - Skip the interactive confirmation (useful for scripts)
 
 
 
@@ -2291,8 +2291,8 @@ Show the permission decision history
 
 ###### **Options:**
 
-* `--tool <TOOL>` — Filter by tool name
-* `--limit <LIMIT>` — Maximum number of entries to display
+* `--tool <TOOL>` - Filter by tool name
+* `--limit <LIMIT>` - Maximum number of entries to display
 
   Default value: `50`
 
@@ -2308,21 +2308,21 @@ Persists into `governance.db` directly (no runtime required). Session scope is n
 
 ###### **Options:**
 
-* `--tool <NAME>` — Tool name (e.g. `file_write`, `bash_executor`)
-* `--prefix <PREFIX>` — Optional argument prefix the rule applies to (e.g. a path). When omitted, the rule matches any invocation of `--tool`
-* `--action <ACTION>` — Rule action: `allow` or `deny`
+* `--tool <NAME>` - Tool name (e.g. `file_write`, `bash_executor`)
+* `--prefix <PREFIX>` - Optional argument prefix the rule applies to (e.g. a path). When omitted, the rule matches any invocation of `--tool`
+* `--action <ACTION>` - Rule action: `allow` or `deny`
 
   Default value: `allow`
 
   Possible values: `allow`, `deny`
 
-* `--scope <SCOPE>` — Rule scope: `project` or `global` (session is not persistable)
+* `--scope <SCOPE>` - Rule scope: `project` or `global` (session is not persistable)
 
   Default value: `global`
 
   Possible values: `project`, `global`
 
-* `--project-path <PATH>` — Project canonical path (required when `--scope project`)
+* `--project-path <PATH>` - Project canonical path (required when `--scope project`)
 
 
 
@@ -2336,15 +2336,15 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ###### **Subcommands:**
 
-* `delete` — Delete a persisted chat session and all of its messages
-* `rename` — Set the user-defined title of a persisted chat session
-* `export` — Export a persisted chat session to a file
-* `config` — Manage the Chat Libre configuration (system prompt, allowed tools, backend)
+* `delete` - Delete a persisted chat session and all of its messages
+* `rename` - Set the user-defined title of a persisted chat session
+* `export` - Export a persisted chat session to a file
+* `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
 
-* `--resume <SESSION_ID>` — Resume an existing session from its last message
-* `--list` — List the 10 most recent sessions
+* `--resume <SESSION_ID>` - Resume an existing session from its last message
+* `--list` - List the 10 most recent sessions
 
 
 
@@ -2356,12 +2356,12 @@ Delete a persisted chat session and all of its messages
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session id (8+ char ulid-like string returned by `chat --list`)
+* `<SESSION_ID>` - Session id (8+ char ulid-like string returned by `chat --list`)
 
 ###### **Options:**
 
-* `--confirm` — Skip the interactive confirmation prompt
-* `--db <PATH>` — Override the chat database path (default: `~/.apollia/chat.db`)
+* `--confirm` - Skip the interactive confirmation prompt
+* `--db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
 
 
 
@@ -2373,12 +2373,12 @@ Set the user-defined title of a persisted chat session
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session id
-* `<TITLE>` — New title (max 100 chars, leading/trailing whitespace trimmed)
+* `<SESSION_ID>` - Session id
+* `<TITLE>` - New title (max 100 chars, leading/trailing whitespace trimmed)
 
 ###### **Options:**
 
-* `--db <PATH>` — Override the chat database path
+* `--db <PATH>` - Override the chat database path
 
 
 
@@ -2390,18 +2390,18 @@ Export a persisted chat session to a file
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session id
+* `<SESSION_ID>` - Session id
 
 ###### **Options:**
 
-* `--output <PATH>` — Output file path. Defaults to stdout when omitted
-* `--format <FORMAT>` — Output format: `markdown` (default) or `json`
+* `--output <PATH>` - Output file path. Defaults to stdout when omitted
+* `--format <FORMAT>` - Output format: `markdown` (default) or `json`
 
   Default value: `markdown`
 
   Possible values: `markdown`, `json`
 
-* `--db <PATH>` — Override the chat database path
+* `--db <PATH>` - Override the chat database path
 
 
 
@@ -2413,11 +2413,11 @@ Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Subcommands:**
 
-* `get` — Print the current chat libre configuration
-* `set` — Update one field of the chat libre configuration
-* `reset` — Reset the configuration to the defaults (empty prompt, no tools)
-* `permissions` — Manage persisted permission rules scoped to the Apollia Chat agent
-* `authorizations` — Inspect or revoke in-memory session authorizations
+* `get` - Print the current chat libre configuration
+* `set` - Update one field of the chat libre configuration
+* `reset` - Reset the configuration to the defaults (empty prompt, no tools)
+* `permissions` - Manage persisted permission rules scoped to the Apollia Chat agent
+* `authorizations` - Inspect or revoke in-memory session authorizations
 
 
 
@@ -2441,8 +2441,8 @@ Update one field of the chat libre configuration
 
 ###### **Arguments:**
 
-* `<KEY>` — Field name: `system-prompt`, `allowed-tools`, or `llm-backend`
-* `<VALUE>` — New value. For `allowed-tools`, expects a comma-separated list. For `llm-backend`, the literal `none` clears the backend
+* `<KEY>` - Field name: `system-prompt`, `allowed-tools`, or `llm-backend`
+* `<VALUE>` - New value. For `allowed-tools`, expects a comma-separated list. For `llm-backend`, the literal `none` clears the backend
 
 ###### **Options:**
 
@@ -2473,8 +2473,8 @@ Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules 
 
 ###### **Subcommands:**
 
-* `list` — List every persisted rule scoped to the Apollia Chat agent
-* `delete` — Delete a chat-scoped permission rule by id
+* `list` - List every persisted rule scoped to the Apollia Chat agent
+* `delete` - Delete a chat-scoped permission rule by id
 
 
 
@@ -2486,7 +2486,7 @@ List every persisted rule scoped to the Apollia Chat agent
 
 ###### **Options:**
 
-* `--db <PATH>` — Override the `governance.db` path (default: `~/.apollia/governance.db`)
+* `--db <PATH>` - Override the `governance.db` path (default: `~/.apollia/governance.db`)
 
 
 
@@ -2498,12 +2498,12 @@ Delete a chat-scoped permission rule by id
 
 ###### **Arguments:**
 
-* `<ID>` — Rule id (as returned by `chat-config permissions list`)
+* `<ID>` - Rule id (as returned by `chat-config permissions list`)
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt (required for scripts)
-* `--db <PATH>` — Override the `governance.db` path
+* `--confirm` - Skip the confirmation prompt (required for scripts)
+* `--db <PATH>` - Override the `governance.db` path
 
 
 
@@ -2517,8 +2517,8 @@ These authorizations live only in the running daemon's `ChatSessionManager` (nev
 
 ###### **Subcommands:**
 
-* `list` — List active in-memory session authorizations (requires runtime route)
-* `revoke` — Revoke a single in-memory session authorization (requires runtime route)
+* `list` - List active in-memory session authorizations (requires runtime route)
+* `revoke` - Revoke a single in-memory session authorization (requires runtime route)
 
 
 
@@ -2538,8 +2538,8 @@ Revoke a single in-memory session authorization (requires runtime route)
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session id
-* `<TOOL>` — Tool name
+* `<SESSION_ID>` - Session id
+* `<TOOL>` - Tool name
 
 
 
@@ -2551,20 +2551,20 @@ MCP server management (list, add, remove, show, test, restart, update, raw-confi
 
 ###### **Subcommands:**
 
-* `list` — List configured and, optionally, discovered MCP servers
-* `set-approval` — Approve all calls to a tool on a server, persisted with the configured TTL
-* `list-pending` — List all pending HITL approval requests awaiting human decision
-* `revoke-approval` — Revoke a previously granted tool approval
-* `add` — Register a new MCP server with the runtime (persisted in the config)
-* `remove` — Remove an MCP server from the runtime
-* `show` — Show the details of an MCP server
-* `test` — Test the connection to an MCP server
-* `restart` — Restart an MCP server
-* `update` — Update the raw configuration of an existing MCP server
-* `raw-config` — Show the raw persisted configuration of an MCP server
-* `oauth` — Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers
-* `secret` — Manage MCP server secrets (env-var values) in the OS keychain
-* `server` — Launch Apollia as an MCP stdio server for external clients
+* `list` - List configured and, optionally, discovered MCP servers
+* `set-approval` - Approve all calls to a tool on a server, persisted with the configured TTL
+* `list-pending` - List all pending HITL approval requests awaiting human decision
+* `revoke-approval` - Revoke a previously granted tool approval
+* `add` - Register a new MCP server with the runtime (persisted in the config)
+* `remove` - Remove an MCP server from the runtime
+* `show` - Show the details of an MCP server
+* `test` - Test the connection to an MCP server
+* `restart` - Restart an MCP server
+* `update` - Update the raw configuration of an existing MCP server
+* `raw-config` - Show the raw persisted configuration of an MCP server
+* `oauth` - Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers
+* `secret` - Manage MCP server secrets (env-var values) in the OS keychain
+* `server` - Launch Apollia as an MCP stdio server for external clients
 
 
 
@@ -2576,11 +2576,11 @@ List configured and, optionally, discovered MCP servers
 
 ###### **Options:**
 
-* `--discover` — Scan the local network via mDNS and append discovered servers.
+* `--discover` - Scan the local network via mDNS and append discovered servers.
 
    Performs a 3-second broadcast scan for `_apollia-mcp._tcp.local.` in addition to listing servers from the configuration file.
-* `--config <PATH>` — Path to the MCP configuration file (default: `~/.apollia/mcp.toml`)
-* `--json` — Output machine-readable JSON
+* `--config <PATH>` - Path to the MCP configuration file (default: `~/.apollia/mcp.toml`)
+* `--json` - Output machine-readable JSON
 
 
 
@@ -2594,16 +2594,16 @@ After approval, calls to `<tool>` on `<server>` bypass the HITL suspension gate 
 
 ###### **Arguments:**
 
-* `<SERVER>` — MCP server name (as declared in mcp.toml)
-* `<TOOL>` — Tool name to approve
+* `<SERVER>` - MCP server name (as declared in mcp.toml)
+* `<TOOL>` - Tool name to approve
 
 ###### **Options:**
 
-* `--db <PATH>` — Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--ttl-hours <HOURS>` — Override the TTL for this approval, in hours (0 = never expires)
+* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
+* `--ttl-hours <HOURS>` - Override the TTL for this approval, in hours (0 = never expires)
 
   Default value: `24`
-* `--json` — Output machine-readable JSON
+* `--json` - Output machine-readable JSON
 
 
 
@@ -2615,8 +2615,8 @@ List all pending HITL approval requests awaiting human decision
 
 ###### **Options:**
 
-* `--db <PATH>` — Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` — Output machine-readable JSON
+* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
+* `--json` - Output machine-readable JSON
 
 
 
@@ -2630,13 +2630,13 @@ After revocation, calls to `<tool>` on `<server>` will be suspended again until 
 
 ###### **Arguments:**
 
-* `<SERVER>` — MCP server name (as declared in mcp.toml)
-* `<TOOL>` — Tool name to revoke
+* `<SERVER>` - MCP server name (as declared in mcp.toml)
+* `<TOOL>` - Tool name to revoke
 
 ###### **Options:**
 
-* `--db <PATH>` — Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` — Output machine-readable JSON
+* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
+* `--json` - Output machine-readable JSON
 
 
 
@@ -2648,13 +2648,13 @@ Register a new MCP server with the runtime (persisted in the config)
 
 ###### **Arguments:**
 
-* `<NAME>` — Unique server name
+* `<NAME>` - Unique server name
 
 ###### **Options:**
 
-* `--command <COMMAND>` — Command to launch (stdio transport) or URL (HTTP/SSE transport)
-* `--url <URL>` — HTTP/SSE connection URL
-* `--require-approval` — Require HITL approval for every tool call
+* `--command <COMMAND>` - Command to launch (stdio transport) or URL (HTTP/SSE transport)
+* `--url <URL>` - HTTP/SSE connection URL
+* `--require-approval` - Require HITL approval for every tool call
 
 
 
@@ -2666,11 +2666,11 @@ Remove an MCP server from the runtime
 
 ###### **Arguments:**
 
-* `<NAME>` — Server name
+* `<NAME>` - Server name
 
 ###### **Options:**
 
-* `--confirm` — Confirm without an interactive prompt
+* `--confirm` - Confirm without an interactive prompt
 
 
 
@@ -2682,7 +2682,7 @@ Show the details of an MCP server
 
 ###### **Arguments:**
 
-* `<NAME>` — Server name
+* `<NAME>` - Server name
 
 
 
@@ -2694,7 +2694,7 @@ Test the connection to an MCP server
 
 ###### **Arguments:**
 
-* `<TARGET>` — URL or command to test
+* `<TARGET>` - URL or command to test
 
 
 
@@ -2706,7 +2706,7 @@ Restart an MCP server
 
 ###### **Arguments:**
 
-* `<NAME>` — Server name
+* `<NAME>` - Server name
 
 
 
@@ -2720,13 +2720,13 @@ At least one of `--command`, `--url`, or `--require-approval` must be supplied. 
 
 ###### **Arguments:**
 
-* `<NAME>` — Server name
+* `<NAME>` - Server name
 
 ###### **Options:**
 
-* `--command <COMMAND>` — New stdio command (stdio transport)
-* `--url <URL>` — New HTTP/SSE URL
-* `--require-approval <BOOL>` — Enable / disable the HITL approval lock
+* `--command <COMMAND>` - New stdio command (stdio transport)
+* `--url <URL>` - New HTTP/SSE URL
+* `--require-approval <BOOL>` - Enable / disable the HITL approval lock
 
   Possible values: `true`, `false`
 
@@ -2743,7 +2743,7 @@ Reads `mcp.db` directly via the runtime and returns the original definition (use
 
 ###### **Arguments:**
 
-* `<NAME>` — Server name
+* `<NAME>` - Server name
 
 
 
@@ -2757,11 +2757,11 @@ Same keychain entries as the Desktop wizard (`apollia-mcp-oauth/<server>`), so o
 
 ###### **Subcommands:**
 
-* `login` — Run the interactive PKCE login flow for `<server>` and persist the token
-* `status` — Report the persisted-token status for one or every configured server
-* `logout` — Delete the persisted token for `<server>` from the OS keychain
-* `client-id` — Manage per-env-var OAuth client-id overrides stored in the OS keychain
-* `discover` — Run RFC 9728 + RFC 8414 OAuth discovery against `<server>` and print the resulting authorization server, scopes and endpoints
+* `login` - Run the interactive PKCE login flow for `<server>` and persist the token
+* `status` - Report the persisted-token status for one or every configured server
+* `logout` - Delete the persisted token for `<server>` from the OS keychain
+* `client-id` - Manage per-env-var OAuth client-id overrides stored in the OS keychain
+* `discover` - Run RFC 9728 + RFC 8414 OAuth discovery against `<server>` and print the resulting authorization server, scopes and endpoints
 
 
 
@@ -2775,13 +2775,13 @@ Opens the OAuth authorisation URL in the system browser, prints it on stdout (so
 
 ###### **Arguments:**
 
-* `<SERVER>` — Server name as declared in `mcp.db` (matches the Desktop wizard)
+* `<SERVER>` - Server name as declared in `mcp.db` (matches the Desktop wizard)
 
 ###### **Options:**
 
-* `--scopes <SCOPE>` — Optional comma-separated scope list. Omit to defer to the AS's `scopes_supported` (recommended)
-* `--client-id <ID>` — Override the OAuth client id resolution (for tenants running their own AS app, usually unnecessary)
-* `--db <PATH>` — Override the path to `mcp.db` (default: `~/.apollia/mcp.db`)
+* `--scopes <SCOPE>` - Optional comma-separated scope list. Omit to defer to the AS's `scopes_supported` (recommended)
+* `--client-id <ID>` - Override the OAuth client id resolution (for tenants running their own AS app, usually unnecessary)
+* `--db <PATH>` - Override the path to `mcp.db` (default: `~/.apollia/mcp.db`)
 
 
 
@@ -2795,7 +2795,7 @@ Surfaces token expiry, granted scopes, and identity claims (`sub`, `email`) with
 
 ###### **Arguments:**
 
-* `<SERVER>` — Optional server name. When omitted, lists every server with a stored token plus those declared in `mcp.db` but unauthenticated
+* `<SERVER>` - Optional server name. When omitted, lists every server with a stored token plus those declared in `mcp.db` but unauthenticated
 
 ###### **Options:**
 
@@ -2813,11 +2813,11 @@ The authorisation server is **not** notified: call the provider's revocation end
 
 ###### **Arguments:**
 
-* `<SERVER>` — Server name to forget
+* `<SERVER>` - Server name to forget
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt
+* `--confirm` - Skip the confirmation prompt
 
 
 
@@ -2831,8 +2831,8 @@ Mirrors the Desktop Settings → MCP → "OAuth client id" panel. Resolution cha
 
 ###### **Subcommands:**
 
-* `set` — Persist `<value>` as the OAuth client id for the env var `<env_var>`
-* `clear` — Remove the persisted client id stored under `<env_var>`
+* `set` - Persist `<value>` as the OAuth client id for the env var `<env_var>`
+* `clear` - Remove the persisted client id stored under `<env_var>`
 
 
 
@@ -2846,8 +2846,8 @@ The env var is the same one the connector wizard surfaces (e.g. `APOLLIA_FIGMA_C
 
 ###### **Arguments:**
 
-* `<ENV_VAR>` — Env var name (e.g. `APOLLIA_FIGMA_CLIENT_ID`)
-* `<VALUE>` — New client id value
+* `<ENV_VAR>` - Env var name (e.g. `APOLLIA_FIGMA_CLIENT_ID`)
+* `<VALUE>` - New client id value
 
 
 
@@ -2859,7 +2859,7 @@ Remove the persisted client id stored under `<env_var>`
 
 ###### **Arguments:**
 
-* `<ENV_VAR>` — Env var name
+* `<ENV_VAR>` - Env var name
 
 
 
@@ -2873,11 +2873,11 @@ Read-only: no token is exchanged and no secret is written. Useful to confirm an 
 
 ###### **Arguments:**
 
-* `<SERVER>` — Server name as declared in `mcp.db`
+* `<SERVER>` - Server name as declared in `mcp.db`
 
 ###### **Options:**
 
-* `--db <PATH>` — Override the path to `mcp.db` (default: `~/.apollia/mcp.db`)
+* `--db <PATH>` - Override the path to `mcp.db` (default: `~/.apollia/mcp.db`)
 
 
 
@@ -2891,8 +2891,8 @@ Mirrors the Desktop secret store: entries are keyed by `{server}:{env_var}` unde
 
 ###### **Subcommands:**
 
-* `set` — Persist `<value>` as the secret for `(<server>, <env_var>)`
-* `delete` — Delete the stored secret for `(<server>, <env_var>)`
+* `set` - Persist `<value>` as the secret for `(<server>, <env_var>)`
+* `delete` - Delete the stored secret for `(<server>, <env_var>)`
 
 
 
@@ -2906,9 +2906,9 @@ The value is written to the OS keychain under service `apollia-mcp` and composit
 
 ###### **Arguments:**
 
-* `<SERVER>` — MCP server name (matches the name in `mcp.db` / `mcp.toml`)
-* `<ENV_VAR>` — Environment variable name (e.g. `NOTION_API_KEY`)
-* `<VALUE>` — Secret value to store
+* `<SERVER>` - MCP server name (matches the name in `mcp.db` / `mcp.toml`)
+* `<ENV_VAR>` - Environment variable name (e.g. `NOTION_API_KEY`)
+* `<VALUE>` - Secret value to store
 
 
 
@@ -2920,8 +2920,8 @@ Delete the stored secret for `(<server>, <env_var>)`
 
 ###### **Arguments:**
 
-* `<SERVER>` — MCP server name
-* `<ENV_VAR>` — Environment variable name
+* `<SERVER>` - MCP server name
+* `<ENV_VAR>` - Environment variable name
 
 
 
@@ -2935,12 +2935,12 @@ Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor). Use `--wi
 
 ###### **Options:**
 
-* `--with-runtime` — Enable the `submit_task` tool by starting the full Apollia runtime.
+* `--with-runtime` - Enable the `submit_task` tool by starting the full Apollia runtime.
 
    Without this flag, only the 9 stateless native tools are exposed.
 
   Default value: `false`
-* `--sandbox-root <PATH>` — Sandbox root for file tools (default: user home directory).
+* `--sandbox-root <PATH>` - Sandbox root for file tools (default: user home directory).
 
    File operations are restricted to this directory tree.
 
@@ -2954,8 +2954,8 @@ Check for and install updates from GitHub Releases
 
 ###### **Options:**
 
-* `--check` — Only check for a newer version without downloading or installing
-* `--yes` — Install without asking for interactive confirmation
+* `--check` - Only check for a newer version without downloading or installing
+* `--yes` - Install without asking for interactive confirmation
 
 
 
@@ -2967,8 +2967,8 @@ Workspace inspection and initialization (status, init)
 
 ###### **Subcommands:**
 
-* `status` — Show the status of the current workspace
-* `init` — Initialise APOLLIA.md in the current directory
+* `status` - Show the status of the current workspace
+* `init` - Initialise APOLLIA.md in the current directory
 
 
 
@@ -2988,7 +2988,7 @@ Initialise APOLLIA.md in the current directory
 
 ###### **Options:**
 
-* `--force` — Overwrite APOLLIA.md if it already exists
+* `--force` - Overwrite APOLLIA.md if it already exists
 
   Default value: `false`
 
@@ -3002,9 +3002,9 @@ Automated code or plan review via the apollia-review agent
 
 ###### **Options:**
 
-* `--task <ID>` — Apollia task ID whose execution plan should be reviewed
-* `--pr <N>` — GitHub pull-request number to fetch via `gh pr diff`
-* `--diff <FILE>` — Local diff / patch file to analyse
+* `--task <ID>` - Apollia task ID whose execution plan should be reviewed
+* `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
+* `--diff <FILE>` - Local diff / patch file to analyse
 
 
 
@@ -3018,17 +3018,17 @@ Reads the reversible journal at `~/.apollia/journal/<session-id>/` and replays t
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session ID to roll back (from `apollia-os rollback --list`).
+* `<SESSION_ID>` - Session ID to roll back (from `apollia-os rollback --list`).
 
    Either `session_id` or `--last-n` must be provided.
 
 ###### **Options:**
 
-* `--last-n <N>` — Roll back the N most recent sessions instead of a specific one
-* `--list` — List recorded sessions without rolling anything back
-* `--dry-run` — Simulate the rollback: print what would be reverted without applying it
-* `--json` — Output machine-readable JSON instead of human text
-* `--journal-root <DIR>` — Override the journal root directory (default: `~/.apollia/journal`)
+* `--last-n <N>` - Roll back the N most recent sessions instead of a specific one
+* `--list` - List recorded sessions without rolling anything back
+* `--dry-run` - Simulate the rollback: print what would be reverted without applying it
+* `--json` - Output machine-readable JSON instead of human text
+* `--journal-root <DIR>` - Override the journal root directory (default: `~/.apollia/journal`)
 
 
 
@@ -3040,9 +3040,9 @@ Circuit breaker inspection and reset (list, show, reset)
 
 ###### **Subcommands:**
 
-* `list` — List all registered circuit breakers with their state and counters
-* `show` — Show the state of a single circuit breaker
-* `reset` — Reset a circuit breaker to CLOSED state immediately
+* `list` - List all registered circuit breakers with their state and counters
+* `show` - Show the state of a single circuit breaker
+* `reset` - Reset a circuit breaker to CLOSED state immediately
 
 
 
@@ -3062,7 +3062,7 @@ Show the state of a single circuit breaker
 
 ###### **Arguments:**
 
-* `<TOOL_NAME>` — Tool name as registered in the Tool Registry
+* `<TOOL_NAME>` - Tool name as registered in the Tool Registry
 
 
 
@@ -3074,7 +3074,7 @@ Reset a circuit breaker to CLOSED state immediately
 
 ###### **Arguments:**
 
-* `<TOOL_NAME>` — Tool name to reset
+* `<TOOL_NAME>` - Tool name to reset
 
 
 
@@ -3086,7 +3086,7 @@ Plan domain management (cache: stats, clear, evict)
 
 ###### **Subcommands:**
 
-* `cache` — Plan cache management (stats, clear, evict)
+* `cache` - Plan cache management (stats, clear, evict)
 
 
 
@@ -3098,9 +3098,9 @@ Plan cache management (stats, clear, evict)
 
 ###### **Subcommands:**
 
-* `stats` — Display cache statistics (total entries, hits, oldest/newest entry)
-* `clear` — Remove all cached plans
-* `evict` — Evict entries older than `--max-age-days` days (default: 7)
+* `stats` - Display cache statistics (total entries, hits, oldest/newest entry)
+* `clear` - Remove all cached plans
+* `evict` - Evict entries older than `--max-age-days` days (default: 7)
 
 
 
@@ -3122,7 +3122,7 @@ Prompts for confirmation unless `--force` is passed.
 
 ###### **Options:**
 
-* `--force` — Skip interactive confirmation (non-interactive / CI-friendly)
+* `--force` - Skip interactive confirmation (non-interactive / CI-friendly)
 
 
 
@@ -3134,7 +3134,7 @@ Evict entries older than `--max-age-days` days (default: 7)
 
 ###### **Options:**
 
-* `--max-age-days <DAYS>` — Maximum entry age in days before eviction
+* `--max-age-days <DAYS>` - Maximum entry age in days before eviction
 
   Default value: `7`
 
@@ -3160,7 +3160,7 @@ Loads the agent module in isolation, introspects its manifest, and checks declar
 
 ###### **Arguments:**
 
-* `<PATH>` — Path to the agent `.py` file
+* `<PATH>` - Path to the agent `.py` file
 
 
 
@@ -3174,11 +3174,11 @@ Defaults to `~/.apollia/logs/runtime.log`. When this file is absent the command 
 
 ###### **Options:**
 
-* `--file <PATH>` — Path to the log file (default: `~/.apollia/logs/runtime.log`)
-* `--last <N>` — Print only the last `N` lines (default: 50)
+* `--file <PATH>` - Path to the log file (default: `~/.apollia/logs/runtime.log`)
+* `--last <N>` - Print only the last `N` lines (default: 50)
 
   Default value: `50`
-* `-f`, `--follow` — Follow the file and stream new lines as they are appended
+* `-f`, `--follow` - Follow the file and stream new lines as they are appended
 
 
 
@@ -3200,14 +3200,14 @@ Operates on the multi-account keyring without requiring the runtime to be starte
 
 ###### **Subcommands:**
 
-* `list` — List all native SaaS connectors registered in this build
-* `accounts` — List OAuth-connected accounts for one or all providers
-* `test` — Probe the connector for an account by calling the userinfo endpoint
-* `revoke` — Revoke the stored token for `(provider, account)`
-* `client-id` — Manage OAuth client_id overrides in `~/.apollia/oauth-clients.toml`
-* `client-secret` — Manage OAuth client_secret overrides in `~/.apollia/oauth-clients.toml`
-* `api-key` — Manage API key overrides (Google Picker) in `~/.apollia/oauth-clients.toml`
-* `drive` — Manage per-account Google Drive folder preferences
+* `list` - List all native SaaS connectors registered in this build
+* `accounts` - List OAuth-connected accounts for one or all providers
+* `test` - Probe the connector for an account by calling the userinfo endpoint
+* `revoke` - Revoke the stored token for `(provider, account)`
+* `client-id` - Manage OAuth client_id overrides in `~/.apollia/oauth-clients.toml`
+* `client-secret` - Manage OAuth client_secret overrides in `~/.apollia/oauth-clients.toml`
+* `api-key` - Manage API key overrides (Google Picker) in `~/.apollia/oauth-clients.toml`
+* `drive` - Manage per-account Google Drive folder preferences
 
 
 
@@ -3229,7 +3229,7 @@ List OAuth-connected accounts for one or all providers
 
 ###### **Options:**
 
-* `--provider <PROVIDER>` — Filter by provider: `google` or `microsoft`. Omit to list both
+* `--provider <PROVIDER>` - Filter by provider: `google` or `microsoft`. Omit to list both
 
 
 
@@ -3243,8 +3243,8 @@ Returns the live identity claim and the scopes the upstream Authorization Server
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider id: `google` or `microsoft`
-* `<ACCOUNT>` — Account identifier (email when supplied during OAuth login)
+* `<PROVIDER>` - Provider id: `google` or `microsoft`
+* `<ACCOUNT>` - Account identifier (email when supplied during OAuth login)
 
 
 
@@ -3258,12 +3258,12 @@ Only the local keyring entry is cleared, the upstream Authorization Server is no
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider id
-* `<ACCOUNT>` — Account id to revoke
+* `<PROVIDER>` - Provider id
+* `<ACCOUNT>` - Account id to revoke
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt (required for scripts)
+* `--confirm` - Skip the confirmation prompt (required for scripts)
 
 
 
@@ -3277,8 +3277,8 @@ Power-user / Expert Mode: lets a CLI operator plug in their own Google or Micros
 
 ###### **Subcommands:**
 
-* `list` — List every provider's effective client_id + source + override
-* `set` — Set the client_id override for `<provider>`
+* `list` - List every provider's effective client_id + source + override
+* `set` - Set the client_id override for `<provider>`
 
 
 
@@ -3300,8 +3300,8 @@ Pass an empty string (`""`) to clear the override.
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider id: `google` or `microsoft`
-* `<CLIENT_ID>` — New client_id value. Empty string clears the override
+* `<PROVIDER>` - Provider id: `google` or `microsoft`
+* `<CLIENT_ID>` - New client_id value. Empty string clears the override
 
 
 
@@ -3315,7 +3315,7 @@ Required by Google (Installed App needs a secret) and a no-op for Microsoft (pub
 
 ###### **Subcommands:**
 
-* `set` — Set the client_secret override for `<provider>`
+* `set` - Set the client_secret override for `<provider>`
 
 
 
@@ -3329,8 +3329,8 @@ Pass an empty string (`""`) to clear the override. The CLI does not echo the sec
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider id: `google` or `microsoft`
-* `<CLIENT_SECRET>` — New client_secret value. Empty string clears the override
+* `<PROVIDER>` - Provider id: `google` or `microsoft`
+* `<CLIENT_SECRET>` - New client_secret value. Empty string clears the override
 
 
 
@@ -3344,7 +3344,7 @@ Google-only today. Microsoft slot is reserved for the OneDrive File Picker if ad
 
 ###### **Subcommands:**
 
-* `set` — Set the API key override for `<provider>`
+* `set` - Set the API key override for `<provider>`
 
 
 
@@ -3358,8 +3358,8 @@ Pass an empty string (`""`) to clear the override.
 
 ###### **Arguments:**
 
-* `<PROVIDER>` — Provider id: `google` or `microsoft`
-* `<API_KEY>` — New API key value. Empty string clears the override
+* `<PROVIDER>` - Provider id: `google` or `microsoft`
+* `<API_KEY>` - New API key value. Empty string clears the override
 
 
 
@@ -3373,7 +3373,7 @@ Operates on `~/.apollia/drive-prefs.toml` and is independent of the runtime. The
 
 ###### **Subcommands:**
 
-* `folder` — Manage the per-account Drive root folder path
+* `folder` - Manage the per-account Drive root folder path
 
 
 
@@ -3385,10 +3385,10 @@ Manage the per-account Drive root folder path
 
 ###### **Subcommands:**
 
-* `list` — List the folder override + effective path for every Google account
-* `set` — Set the folder path override for `<account>`
-* `reset` — Reset the folder override for `<account>` (falls back to the default)
-* `picked` — Manage the picked-folder list captured via the Desktop Drive Picker
+* `list` - List the folder override + effective path for every Google account
+* `set` - Set the folder path override for `<account>`
+* `reset` - Reset the folder override for `<account>` (falls back to the default)
+* `picked` - Manage the picked-folder list captured via the Desktop Drive Picker
 
 
 
@@ -3408,8 +3408,8 @@ Set the folder path override for `<account>`
 
 ###### **Arguments:**
 
-* `<ACCOUNT>` — Account id (typically the Google email)
-* `<PATH>` — New folder path (e.g. `Apollia/Workspace`)
+* `<ACCOUNT>` - Account id (typically the Google email)
+* `<PATH>` - New folder path (e.g. `Apollia/Workspace`)
 
 
 
@@ -3421,7 +3421,7 @@ Reset the folder override for `<account>` (falls back to the default)
 
 ###### **Arguments:**
 
-* `<ACCOUNT>` — Account id
+* `<ACCOUNT>` - Account id
 
 
 
@@ -3433,8 +3433,8 @@ Manage the picked-folder list captured via the Desktop Drive Picker
 
 ###### **Subcommands:**
 
-* `list` — List the picked Drive folders persisted for `<account>`
-* `remove` — Remove a picked folder from the persisted list
+* `list` - List the picked Drive folders persisted for `<account>`
+* `remove` - Remove a picked folder from the persisted list
 
 
 
@@ -3446,7 +3446,7 @@ List the picked Drive folders persisted for `<account>`
 
 ###### **Arguments:**
 
-* `<ACCOUNT>` — Account id
+* `<ACCOUNT>` - Account id
 
 
 
@@ -3458,8 +3458,8 @@ Remove a picked folder from the persisted list
 
 ###### **Arguments:**
 
-* `<ACCOUNT>` — Account id
-* `<FOLDER_ID>` — Drive folder id (the same id surfaced by `picked list`)
+* `<ACCOUNT>` - Account id
+* `<FOLDER_ID>` - Drive folder id (the same id surfaced by `picked list`)
 
 
 
@@ -3473,12 +3473,12 @@ Edits the on-disk config without touching the runtime. The section helpers `tool
 
 ###### **Subcommands:**
 
-* `get` — Print the on-disk apollia.toml (or a single value at `KEY_PATH`)
-* `set` — Write `VALUE` at `KEY_PATH`, preserving formatting and comments
-* `validate` — Parse the config file and report any error
-* `edit` — Open the config file in `$EDITOR`
-* `show` — Print the resolved configuration (parsed struct as JSON)
-* `reset` — Wipe `~/.apollia/`, an irreversible factory reset
+* `get` - Print the on-disk apollia.toml (or a single value at `KEY_PATH`)
+* `set` - Write `VALUE` at `KEY_PATH`, preserving formatting and comments
+* `validate` - Parse the config file and report any error
+* `edit` - Open the config file in `$EDITOR`
+* `show` - Print the resolved configuration (parsed struct as JSON)
+* `reset` - Wipe `~/.apollia/`, an irreversible factory reset
 
 
 
@@ -3492,11 +3492,11 @@ Print the on-disk apollia.toml (or a single value at `KEY_PATH`).
 
 ###### **Arguments:**
 
-* `<KEY>` — Optional dotted key path
+* `<KEY>` - Optional dotted key path
 
 ###### **Options:**
 
-* `--file <PATH>` — Optional config file path override
+* `--file <PATH>` - Optional config file path override
 
 
 
@@ -3510,12 +3510,12 @@ Write `VALUE` at `KEY_PATH`, preserving formatting and comments.
 
 ###### **Arguments:**
 
-* `<KEY>` — Dotted key path
-* `<VALUE>` — Value to write
+* `<KEY>` - Dotted key path
+* `<VALUE>` - Value to write
 
 ###### **Options:**
 
-* `--file <PATH>` — Optional config file path override
+* `--file <PATH>` - Optional config file path override
 
 
 
@@ -3529,7 +3529,7 @@ Exits 0 when the file is absent or valid, 1 otherwise.
 
 ###### **Options:**
 
-* `--file <PATH>` — Optional config file path override
+* `--file <PATH>` - Optional config file path override
 
 
 
@@ -3543,7 +3543,7 @@ Refuses to run when stdout is not a TTY or `--json` is set.
 
 ###### **Options:**
 
-* `--file <PATH>` — Optional config file path override
+* `--file <PATH>` - Optional config file path override
 
 
 
@@ -3557,7 +3557,7 @@ Cascades through file > defaults. Environment overlay is performed at runtime st
 
 ###### **Options:**
 
-* `--file <PATH>` — Optional config file path override
+* `--file <PATH>` - Optional config file path override
 
 
 
@@ -3571,9 +3571,9 @@ Deletes every SQLite database, log, journal, memory file, OAuth client override,
 
 ###### **Options:**
 
-* `--confirm` — Skip the interactive confirmation prompt (required for scripts)
-* `--dry-run` — Print the resolved Apollia home and the entries that would be removed, but do not delete anything
-* `--home <PATH>` — Override the Apollia home path (default: `~/.apollia`)
+* `--confirm` - Skip the interactive confirmation prompt (required for scripts)
+* `--dry-run` - Print the resolved Apollia home and the entries that would be removed, but do not delete anything
+* `--home <PATH>` - Override the Apollia home path (default: `~/.apollia`)
 
 
 
@@ -3587,13 +3587,13 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 ###### **Subcommands:**
 
-* `show` — Display every key currently stored in the global user profile
-* `set` — Insert or replace the value of `KEY`
-* `forget` — Remove the entry stored at `KEY`
-* `reset` — Reset the entire profile (deletes every entry)
-* `schema` — Print the canonical schema (the known structured fields)
-* `export` — Dump every entry as a JSON array on stdout (or to `--output`)
-* `import` — Import entries from a JSON file produced by `export`
+* `show` - Display every key currently stored in the global user profile
+* `set` - Insert or replace the value of `KEY`
+* `forget` - Remove the entry stored at `KEY`
+* `reset` - Reset the entire profile (deletes every entry)
+* `schema` - Print the canonical schema (the known structured fields)
+* `export` - Dump every entry as a JSON array on stdout (or to `--output`)
+* `import` - Import entries from a JSON file produced by `export`
 
 
 
@@ -3605,7 +3605,7 @@ Display every key currently stored in the global user profile
 
 ###### **Options:**
 
-* `--db <PATH>` — Optional override for the user_memory.db path
+* `--db <PATH>` - Optional override for the user_memory.db path
 
 
 
@@ -3617,8 +3617,8 @@ Insert or replace the value of `KEY`
 
 ###### **Arguments:**
 
-* `<KEY>` — Profile key (e.g. `name`, `email`, `preferences.tone`)
-* `<VALUE>` — Value to store
+* `<KEY>` - Profile key (e.g. `name`, `email`, `preferences.tone`)
+* `<VALUE>` - Value to store
 
 ###### **Options:**
 
@@ -3634,7 +3634,7 @@ Remove the entry stored at `KEY`
 
 ###### **Arguments:**
 
-* `<KEY>` — Profile key to remove
+* `<KEY>` - Profile key to remove
 
 ###### **Options:**
 
@@ -3650,7 +3650,7 @@ Reset the entire profile (deletes every entry)
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt
+* `--confirm` - Skip the confirmation prompt
 * `--db <PATH>`
 
 
@@ -3675,7 +3675,7 @@ Dump every entry as a JSON array on stdout (or to `--output`)
 
 ###### **Options:**
 
-* `--output <PATH>` — Optional destination file (default: stdout)
+* `--output <PATH>` - Optional destination file (default: stdout)
 * `--db <PATH>`
 
 
@@ -3688,8 +3688,8 @@ Import entries from a JSON file produced by `export`
 
 ###### **Options:**
 
-* `--input <PATH>` — Source file (JSON array of `ProfileEntry`)
-* `--overwrite` — Overwrite existing entries with the same key
+* `--input <PATH>` - Source file (JSON array of `ProfileEntry`)
+* `--overwrite` - Overwrite existing entries with the same key
 * `--db <PATH>`
 
 
@@ -3704,15 +3704,15 @@ Operates locally on `~/.apollia/projects.db`; the runtime does not need to be ru
 
 ###### **Subcommands:**
 
-* `list` — List every registered project (alphabetical)
-* `create` — Create a new project and print its id
-* `show` — Print the full detail of a project (documents, providers, agents)
-* `update` — Update one or more mutable fields on an existing project
-* `delete` — Delete a project and cascade its documents/providers
-* `agents` — List the agents linked to a project
-* `templates` — List or seed the available project templates
-* `link` — Link (or unlink) a chat session to a project
-* `chats` — List chat sessions linked to a project
+* `list` - List every registered project (alphabetical)
+* `create` - Create a new project and print its id
+* `show` - Print the full detail of a project (documents, providers, agents)
+* `update` - Update one or more mutable fields on an existing project
+* `delete` - Delete a project and cascade its documents/providers
+* `agents` - List the agents linked to a project
+* `templates` - List or seed the available project templates
+* `link` - Link (or unlink) a chat session to a project
+* `chats` - List chat sessions linked to a project
 
 
 
@@ -3736,13 +3736,13 @@ Create a new project and print its id
 
 ###### **Arguments:**
 
-* `<NAME>` — Project display name
+* `<NAME>` - Project display name
 
 ###### **Options:**
 
-* `--description <DESCRIPTION>` — Optional one-line description
-* `--instructions <INSTRUCTIONS>` — Optional initial instructions (Markdown)
-* `--workspace <DIR>` — Optional workspace directory used by context providers
+* `--description <DESCRIPTION>` - Optional one-line description
+* `--instructions <INSTRUCTIONS>` - Optional initial instructions (Markdown)
+* `--workspace <DIR>` - Optional workspace directory used by context providers
 * `--db <PATH>`
 
 
@@ -3755,7 +3755,7 @@ Print the full detail of a project (documents, providers, agents)
 
 ###### **Arguments:**
 
-* `<ID>` — Project id (UUID)
+* `<ID>` - Project id (UUID)
 
 ###### **Options:**
 
@@ -3771,7 +3771,7 @@ Update one or more mutable fields on an existing project
 
 ###### **Arguments:**
 
-* `<ID>` — Project id
+* `<ID>` - Project id
 
 ###### **Options:**
 
@@ -3791,11 +3791,11 @@ Delete a project and cascade its documents/providers
 
 ###### **Arguments:**
 
-* `<ID>` — Project id
+* `<ID>` - Project id
 
 ###### **Options:**
 
-* `--confirm` — Skip the confirmation prompt
+* `--confirm` - Skip the confirmation prompt
 * `--db <PATH>`
 
 
@@ -3808,9 +3808,9 @@ List the agents linked to a project
 
 ###### **Subcommands:**
 
-* `list` — List agent names linked to a project
-* `add` — Link an agent to a project
-* `remove` — Unlink an agent from a project
+* `list` - List agent names linked to a project
+* `add` - Link an agent to a project
+* `remove` - Unlink an agent from a project
 
 
 
@@ -3822,7 +3822,7 @@ List agent names linked to a project
 
 ###### **Arguments:**
 
-* `<PROJECT>` — Project id
+* `<PROJECT>` - Project id
 
 ###### **Options:**
 
@@ -3838,8 +3838,8 @@ Link an agent to a project
 
 ###### **Arguments:**
 
-* `<PROJECT>` — Project id
-* `<AGENT>` — Agent name
+* `<PROJECT>` - Project id
+* `<AGENT>` - Agent name
 
 ###### **Options:**
 
@@ -3855,8 +3855,8 @@ Unlink an agent from a project
 
 ###### **Arguments:**
 
-* `<PROJECT>` — Project id
-* `<AGENT>` — Agent name
+* `<PROJECT>` - Project id
+* `<AGENT>` - Agent name
 
 ###### **Options:**
 
@@ -3872,8 +3872,8 @@ List or seed the available project templates
 
 ###### **Subcommands:**
 
-* `list` — List the available templates (builtin + custom)
-* `seed-builtins` — Re-seed the builtin templates into the database
+* `list` - List the available templates (builtin + custom)
+* `seed-builtins` - Re-seed the builtin templates into the database
 
 
 
@@ -3911,13 +3911,13 @@ Writes `chat_sessions.project_id` directly via `apollia_runtime::chat::ChatSessi
 
 ###### **Arguments:**
 
-* `<PROJECT_ID>` — Project id (UUID returned by `project list`)
+* `<PROJECT_ID>` - Project id (UUID returned by `project list`)
 
 ###### **Options:**
 
-* `--session <ID>` — Chat session id (returned by `chat --list`)
-* `--unlink` — Clear the session's project_id instead of setting it
-* `--chat-db <PATH>` — Override the chat database path (default: `~/.apollia/chat.db`)
+* `--session <ID>` - Chat session id (returned by `chat --list`)
+* `--unlink` - Clear the session's project_id instead of setting it
+* `--chat-db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
 
 
 
@@ -3929,11 +3929,11 @@ List chat sessions linked to a project
 
 ###### **Arguments:**
 
-* `<PROJECT_ID>` — Project id (UUID)
+* `<PROJECT_ID>` - Project id (UUID)
 
 ###### **Options:**
 
-* `--chat-db <PATH>` — Override the chat database path
+* `--chat-db <PATH>` - Override the chat database path
 
 
 
@@ -3945,11 +3945,11 @@ Print the event-sourced trace of a task
 
 ###### **Arguments:**
 
-* `<TASK_ID>` — Task identifier
+* `<TASK_ID>` - Task identifier
 
 ###### **Options:**
 
-* `--format <FORMAT>` — Force JSON output even without global `--json`
+* `--format <FORMAT>` - Force JSON output even without global `--json`
 
   Default value: `human`
 
@@ -3966,7 +3966,7 @@ Aggregated activity overview (tasks + LLM costs + audit stats)
 
 ###### **Options:**
 
-* `--since <SINCE>` — Time window: 24h, 7d, or 30d
+* `--since <SINCE>` - Time window: 24h, 7d, or 30d
 
   Default value: `24h`
 
@@ -3989,7 +3989,7 @@ Generate a shell completion script (bash, zsh, fish, powershell, ...)
 
 ###### **Arguments:**
 
-* `<SHELL>` — Target shell
+* `<SHELL>` - Target shell
 
   Possible values: `bash`, `elvish`, `fish`, `powershell`, `zsh`
 
@@ -4006,7 +4006,7 @@ With no topic, lists the available topics.
 
 ###### **Arguments:**
 
-* `<TOPIC>` — Topic to display
+* `<TOPIC>` - Topic to display
 
 
 
@@ -4020,11 +4020,11 @@ Shows the mapped command as a dry-run and asks for confirmation unless -y.
 
 ###### **Arguments:**
 
-* `<REQUEST>` — The request, in natural language
+* `<REQUEST>` - The request, in natural language
 
 ###### **Options:**
 
-* `-y`, `--yes` — Skip the confirmation prompt (non-interactive use)
+* `-y`, `--yes` - Skip the confirmation prompt (non-interactive use)
 
 
 
@@ -4036,7 +4036,7 @@ Explain a command or an error message in plain language (local model)
 
 ###### **Arguments:**
 
-* `<TEXT>` — The command or error text to explain
+* `<TEXT>` - The command or error text to explain
 
 
 
