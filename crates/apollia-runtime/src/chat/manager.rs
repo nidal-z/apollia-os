@@ -5504,7 +5504,6 @@ mod tests {
         handle.shutdown().await;
 
         // THEN the actor stops, subsequent sends fail gracefully
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let result = handle.create_session(libre_session_params()).await;
         assert!(result.is_err());
     }
@@ -5839,7 +5838,6 @@ mod tests {
             .await
             .expect("enable");
         first.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // WHEN a brand-new manager reopens the same database and resumes it
         let second = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));

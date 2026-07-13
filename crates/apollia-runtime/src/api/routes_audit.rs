@@ -666,7 +666,6 @@ mod tests {
         let audit = open_temp_audit().await;
         audit.record(make_record("bash_executor", true));
         audit.record(make_record("file_io", false));
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let state = test_app_state_with_audit(Some(audit));
         let router = APIServer::build_router_for_test(state);
@@ -697,7 +696,6 @@ mod tests {
         r2.agent_id = "agent-beta".to_string();
         audit.record(r1);
         audit.record(r2);
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let state = test_app_state_with_audit(Some(audit));
         let router = APIServer::build_router_for_test(state);
@@ -782,7 +780,6 @@ mod tests {
                 payload: serde_json::json!({ "i": i }),
             });
         }
-        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
         let mut state = test_app_state_with_audit(None);
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
@@ -941,7 +938,6 @@ mod tests {
                 payload,
             });
         }
-        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
         let mut state = test_app_state_with_audit(None);
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);

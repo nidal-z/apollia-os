@@ -178,7 +178,15 @@ impl<B: ExecutionBackend> ShutdownController<B> {
     async fn drain_tasks(&self) -> Result<(), ShutdownError> {
         let timeout = Duration::from_secs(self.config.drain_timeout_secs);
 
-        // Get initial set of active tasks
+        // Subscribe to the EventBus BEFORE snapshotting the active-task set. A
+        // broadcast receiver only observes events published after it subscribes,
+        // so a completion landing in the window between the snapshot and the
+        // subscription would be missed, leaving a finished task in `remaining`
+        // until the drain timeout force-cancels it. Subscribing first closes that
+        // window, matching the ordering already used on the delegation path.
+        let mut rx = self.event_sender.subscribe();
+
+        // Snapshot the current set of active tasks.
         let mut remaining: std::collections::HashSet<TaskId> = self
             .router_handle
             .active_tasks()
@@ -194,8 +202,6 @@ impl<B: ExecutionBackend> ShutdownController<B> {
 
         info!(count = remaining.len(), "Draining active tasks");
 
-        // Subscribe to EventBus to watch for completions
-        let mut rx = self.event_sender.subscribe();
         let deadline = tokio::time::Instant::now() + timeout;
 
         loop {
@@ -361,21 +367,13 @@ mod tests {
     use std::path::PathBuf;
     use std::pin::Pin;
 
-    /// Backend mock that completes after a configurable delay.
+    /// Backend mock that completes immediately.
     #[derive(Clone)]
-    struct MockBackend {
-        delay: Duration,
-    }
+    struct MockBackend;
 
     impl MockBackend {
         fn instant() -> Self {
-            Self {
-                delay: Duration::ZERO,
-            }
-        }
-
-        fn slow(delay: Duration) -> Self {
-            Self { delay }
+            MockBackend
         }
     }
 
@@ -390,11 +388,50 @@ mod tests {
             &self,
             task: AIPTask,
         ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
-            let delay = self.delay;
             Box::pin(async move {
-                if !delay.is_zero() {
-                    tokio::time::sleep(delay).await;
-                }
+                Ok(AIPResult {
+                    task_id: task.task_id,
+                    status: TaskStatus::Completed,
+                    output: Vec::new(),
+                    error: None,
+                    artifacts: Vec::new(),
+                    input_required_data: None,
+                })
+            })
+        }
+    }
+
+    /// Backend that completes only once the test releases its gate. Lets a test
+    /// hold a task in-flight deterministically, with no wall-clock delay, then
+    /// release it so the completion event fires at a controlled moment.
+    #[derive(Clone)]
+    struct GatedBackend {
+        gate: tokio::sync::watch::Receiver<bool>,
+    }
+
+    impl GatedBackend {
+        /// A backend whose gate is already open (completes immediately). Used for
+        /// the unused `AppState::backend` slot, not for the drain assertion.
+        fn released() -> Self {
+            let (_tx, rx) = tokio::sync::watch::channel(true);
+            GatedBackend { gate: rx }
+        }
+    }
+
+    impl From<crate::coordinator::DynBackend> for GatedBackend {
+        fn from(_: crate::coordinator::DynBackend) -> Self {
+            GatedBackend::released()
+        }
+    }
+
+    impl ExecutionBackend for GatedBackend {
+        fn execute(
+            &self,
+            task: AIPTask,
+        ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+            let mut gate = self.gate.clone();
+            Box::pin(async move {
+                let _ = gate.wait_for(|released| *released).await;
                 Ok(AIPResult {
                     task_id: task.task_id,
                     status: TaskStatus::Completed,
@@ -536,9 +573,6 @@ mod tests {
         let api_server = APIServer::new(config, state);
         let api_handle = api_server.start().await.unwrap();
 
-        // Small delay for server to bind
-        tokio::time::sleep(Duration::from_millis(20)).await;
-
         let shutdown_config = ShutdownConfig {
             drain_timeout_secs: 1,
         };
@@ -603,10 +637,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_drain_waits_for_tasks() {
-        // GIVEN an in-progress task that finishes in 200ms
+        // GIVEN an in-progress task held in-flight until the test releases it
         let (event_sender, _rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
-        let router_handle: TaskRouterHandle<MockBackend> =
+        let router_handle: TaskRouterHandle<GatedBackend> =
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
 
         // Register an active agent
@@ -619,12 +653,14 @@ mod tests {
             .await
             .unwrap();
 
-        // Register a coordinator with a slow backend (200ms)
+        // Register a coordinator with a gated backend: the task stays in-flight
+        // until the test releases the gate
+        let (gate_tx, gate_rx) = tokio::sync::watch::channel(false);
         let coordinator = ExecutionCoordinator::new(
             agent_id.clone(),
             2,
             event_sender.clone(),
-            MockBackend::slow(Duration::from_millis(200)),
+            GatedBackend { gate: gate_rx },
         );
         router_handle
             .register_coordinator(agent_id.clone(), coordinator)
@@ -648,7 +684,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
-            backend: MockBackend::instant(),
+            backend: GatedBackend::released(),
             llm_router: crate::api::server::empty_shared_llm_router(),
             trigger_engine: None,
             config_path: None,
@@ -687,7 +723,6 @@ mod tests {
         };
         let api = crate::api::APIServer::new(api_config, state);
         let api_handle = api.start().await.unwrap();
-        tokio::time::sleep(Duration::from_millis(20)).await;
 
         let config = ShutdownConfig {
             drain_timeout_secs: 5,
@@ -702,11 +737,144 @@ mod tests {
             mcp_handle: None,
         });
 
-        // WHEN shutdown() is called
+        // WHEN shutdown() runs and the in-flight task is released so it completes
+        // during the drain
+        let releaser = tokio::spawn(async move {
+            for _ in 0..4 {
+                tokio::task::yield_now().await;
+            }
+            gate_tx.send(true).expect("release gate");
+        });
         let result = controller.shutdown().await;
+        releaser.await.unwrap();
 
         // THEN drain returns Ok (task completed within timeout)
         assert!(result.is_ok(), "drain should succeed, got: {result:?}");
+
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // Regression for the drain snapshot/subscribe gap (finding C9-F3): the drain
+    // subscribes to the EventBus BEFORE snapshotting the active-task set, so a
+    // completion emitted once the drain is running is observed and the drain
+    // returns Ok instead of force-canceling a finished task. The exact
+    // snapshot/subscribe interleaving cannot be forced from outside the function
+    // and is proven by the abstract Loom model
+    // (crates/apollia-loom-models, subscribe_before_snapshot_never_misses_a_completion);
+    // this test guards the reordering's happy path and no-regression.
+    #[tokio::test]
+    async fn test_drain_observes_completion_emitted_during_drain() {
+        // GIVEN an in-flight task on a gated backend, held until the test releases it
+        let (event_sender, _rx) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_sender.clone());
+        let router_handle: TaskRouterHandle<GatedBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
+
+        let agent_id = registry_handle
+            .register(test_manifest("agent-drain-gap"))
+            .await
+            .unwrap();
+        registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .unwrap();
+
+        let (gate_tx, gate_rx) = tokio::sync::watch::channel(false);
+        let coordinator = ExecutionCoordinator::new(
+            agent_id.clone(),
+            2,
+            event_sender.clone(),
+            GatedBackend { gate: gate_rx },
+        );
+        router_handle
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .unwrap();
+        router_handle
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .unwrap();
+
+        let socket_path = temp_socket_path();
+        let port = {
+            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let state = crate::api::AppState {
+            router_handle: router_handle.clone(),
+            registry_handle: registry_handle.clone(),
+            event_sender: event_sender.clone(),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: GatedBackend::released(),
+            llm_router: crate::api::server::empty_shared_llm_router(),
+            trigger_engine: None,
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            plan_gates: None,
+            notification_config: None,
+            backend_factory: None,
+            tool_registry_handle: None,
+            audit_trail: None,
+            audit_journal: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: None,
+            notification_repo: None,
+            notification_engine_handle: None,
+            chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
+            user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
+            mcp_handle: None,
+            mcp_server_repo: None,
+            llm_backend_repo: None,
+            stt_config_repo: None,
+            a2a_invoker: None,
+            resilience_layer: None,
+            runner_proxy: None,
+        };
+        let api_config = crate::api::APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: Some(port),
+            api_token: None,
+        };
+        let api = crate::api::APIServer::new(api_config, state);
+        let api_handle = api.start().await.unwrap();
+
+        let config = ShutdownConfig {
+            drain_timeout_secs: 5,
+        };
+        let controller = ShutdownController::new(ShutdownControllerDeps {
+            config,
+            event_sender,
+            api_handle,
+            router_handle,
+            registry_handle,
+            notification_engine: None,
+            mcp_handle: None,
+        });
+
+        // WHEN the drain runs and the task completes while it is in progress. The
+        // releaser yields first so the drain has already subscribed and snapshotted.
+        let releaser = tokio::spawn(async move {
+            for _ in 0..4 {
+                tokio::task::yield_now().await;
+            }
+            gate_tx.send(true).expect("release gate");
+        });
+        let result = controller.drain_tasks().await;
+        releaser.await.unwrap();
+
+        // THEN the drain observed the completion and returned Ok well within the
+        // 5s timeout, rather than force-canceling an already-finished task
+        assert!(
+            result.is_ok(),
+            "drain should observe the completion, got: {result:?}"
+        );
 
         let _ = std::fs::remove_file(&socket_path);
     }
@@ -794,7 +962,6 @@ mod tests {
             state,
         );
         let api_handle = api.start().await.unwrap();
-        tokio::time::sleep(Duration::from_millis(20)).await;
 
         // WHEN drain(1s) is called (short timeout for the test)
         let config = ShutdownConfig {
@@ -1005,7 +1172,6 @@ mod tests {
             state,
         );
         let api_handle = api.start().await.unwrap();
-        tokio::time::sleep(Duration::from_millis(20)).await;
 
         let config = ShutdownConfig {
             drain_timeout_secs: 1,
@@ -1022,9 +1188,6 @@ mod tests {
 
         // WHEN shutdown
         let _ = controller.shutdown().await;
-
-        // Small delay for actor message processing
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
         // THEN Active and Initializing agents should now be Stopped.
         // The registry might be dead after shutdown, so we verify via events.

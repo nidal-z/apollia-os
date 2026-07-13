@@ -1208,7 +1208,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_before_timeout_no_event() {
-        // GIVEN a registered approval with 5s timeout
+        // GIVEN a registered approval guarded by a long (5s) timeout
         let approvals = PendingChatApprovals::new();
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
@@ -1222,17 +1222,19 @@ mod tests {
             tool_name: "bash".to_string(),
         });
 
-        // WHEN resolve Accept before timeout
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        // WHEN the approval is resolved. Registration happened synchronously, so
+        // resolve succeeds at once, no delay needed to "let execute register".
         let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::Accept);
 
-        // THEN receiver gets Accept
+        // THEN the receiver gets Accept
         assert!(resolved);
         let decision = rx.await.expect("decision");
         assert_eq!(decision, ToolDecision::Accept);
 
-        // AND no timeout event is emitted (check with a short wait)
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // AND no timeout event is queued. The 5s timer is still parked (a fast
+        // test cannot span 5s of wall-clock), and even were it to fire it would
+        // find the approval already resolved and emit nothing, so the check is
+        // independent of timing.
         assert!(event_rx.try_recv().is_err());
     }
 

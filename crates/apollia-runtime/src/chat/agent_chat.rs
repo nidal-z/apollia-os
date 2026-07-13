@@ -507,8 +507,10 @@ fn now_rfc3339() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::poll_until;
     use apollia_core::task::AIPPart;
     use std::collections::HashSet;
+    use std::time::Duration;
 
     use super::super::types::ChatMessage;
 
@@ -893,9 +895,11 @@ mod tests {
         let sid = session.id.clone();
         let approvals_clone = approvals.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             let key = format!("{sid}::msg-hitl::agent_action");
-            approvals_clone.resolve(&key, ToolDecision::refuse());
+            poll_until(Duration::from_secs(5), || {
+                approvals_clone.resolve(&key, ToolDecision::refuse())
+            })
+            .await;
         });
 
         // WHEN execute is called
@@ -927,9 +931,11 @@ mod tests {
         let sid = session.id.clone();
         let approvals_clone = approvals.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             let key = format!("{sid}::msg-hitl2::agent_action");
-            approvals_clone.resolve(&key, ToolDecision::Accept);
+            poll_until(Duration::from_secs(5), || {
+                approvals_clone.resolve(&key, ToolDecision::Accept)
+            })
+            .await;
         });
 
         // WHEN execute is called
@@ -962,9 +968,11 @@ mod tests {
         let sid = session.id.clone();
         let approvals_clone = approvals.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             let key = format!("{sid}::msg-hitl3::agent_action");
-            approvals_clone.resolve(&key, ToolDecision::always_accept_default());
+            poll_until(Duration::from_secs(5), || {
+                approvals_clone.resolve(&key, ToolDecision::always_accept_default())
+            })
+            .await;
         });
 
         // WHEN execute is called

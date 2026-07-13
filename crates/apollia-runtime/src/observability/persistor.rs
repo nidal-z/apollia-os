@@ -544,7 +544,9 @@ mod tests {
     use super::*;
     use crate::eventbus::EventBus;
     use crate::observability::repository::RuntimeEventsRepository;
+    use crate::test_support::{poll_until, poll_until_async};
     use apollia_core::events::RuntimeEvent;
+    use std::time::Duration;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -580,7 +582,7 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let _join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
 
         // WHEN an agent emits a tool_call_started followed by the completed
         // event sharing the same event_id as parent_event_id
@@ -608,13 +610,22 @@ mod tests {
         })
         .expect("bus send completed");
 
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        // Close the bus so the subscriber drains every buffered event and
+        // exits, then stop the persistor. The drain is awaited, not slept on.
+        drop(bus);
+        join.await.expect("subscriber exits cleanly");
         handle.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN both events are persisted and chained via
         // parent_event_id == started.event_id
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let persisted = poll_until_async(Duration::from_secs(5), || async {
+            repo.list_for_task("task-pair", None, 10)
+                .map(|r| r.len() == 2)
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(persisted, "expected 2 persisted events");
         let rows = repo
             .list_for_task("task-pair", None, 10)
             .expect("list_for_task");
@@ -648,7 +659,7 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let _join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
 
         bus.send(RuntimeEvent::Thought {
             task_id: "T".into(),
@@ -674,11 +685,18 @@ mod tests {
         })
         .expect("send");
 
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        drop(bus);
+        join.await.expect("subscriber exits cleanly");
         handle.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let persisted = poll_until_async(Duration::from_secs(5), || async {
+            repo.list_for_task("T", None, 10)
+                .map(|r| r.len() == 3)
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(persisted, "expected 3 persisted events");
         let rows = repo.list_for_task("T", None, 10).expect("list");
 
         assert_eq!(rows.len(), 3);
@@ -708,7 +726,7 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let _join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
 
         // WHEN an agent emits ctx.log via RuntimeEvent::AgentLog
         bus.send(RuntimeEvent::AgentLog {
@@ -720,13 +738,19 @@ mod tests {
         })
         .expect("bus send");
 
-        // Give the subscriber and the persistence actor time to process.
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        drop(bus);
+        join.await.expect("subscriber exits cleanly");
         handle.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN the repository returns the event with the right kind and payload
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let persisted = poll_until_async(Duration::from_secs(5), || async {
+            repo.list_for_task("task-smoke", None, 10)
+                .map(|r| r.len() == 1)
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(persisted, "expected exactly one persisted event");
         let rows = repo
             .list_for_task("task-smoke", None, 10)
             .expect("list_for_task");
@@ -762,21 +786,22 @@ mod tests {
             });
         }
 
-        // Drain by shutting down, flushes the queue.
+        // shutdown() enqueues the stop after the two appends (FIFO) but returns
+        // before the actor consumes them, so poll the read until both rows land.
         handle.shutdown().await;
-        // Give the actor a moment to drain (shutdown() returns once the
-        // message is enqueued, but the actor still needs to consume it).
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN both rows are present.
         let conn = rusqlite::Connection::open(&db).expect("reopen");
-        let count: i64 = conn
-            .query_row(
+        let count_task_a = || {
+            conn.query_row(
                 "SELECT COUNT(*) FROM runtime_events WHERE task_id='task-A'",
                 [],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0),
             )
-            .expect("count");
-        assert_eq!(count, 2);
+            .unwrap_or(0)
+        };
+        let persisted = poll_until(Duration::from_secs(5), || count_task_a() == 2).await;
+        assert!(persisted, "expected 2 persisted rows");
+        assert_eq!(count_task_a(), 2);
     }
 }

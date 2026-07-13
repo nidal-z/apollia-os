@@ -283,19 +283,18 @@ mod tests {
 
         let registry = CommandRegistry::load_with_home(cwd.path(), None).await;
 
-        // WHEN a new file is added (touching the directory mtime)
-        // On most filesystems creating a file updates the parent directory mtime.
+        // WHEN a new file is added and the directory mtime is forced strictly
+        // forward, so the change is observed regardless of filesystem mtime
+        // resolution (no reliance on wall-clock elapsing between load and check).
         write_command(cwd.path(), ".apollia/commands/new.md", "body");
+        let forced = std::time::SystemTime::now() + std::time::Duration::from_secs(10);
+        std::fs::File::open(&commands_dir)
+            .expect("open commands dir")
+            .set_modified(forced)
+            .expect("bump commands dir mtime");
 
-        // Brief sleep to ensure the filesystem mtime differs.
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-
-        // Force mtime to differ by re-creating the directory entry, rely on the
-        // file write above having bumped the dir mtime on the target filesystem.
+        // THEN needs_reload detects the change
         let needs = registry.needs_reload(cwd.path()).await;
-
-        // THEN needs_reload returns true (or at least no panic, mtime behaviour
-        // may vary on in-memory/fast filesystems, so we only assert no crash).
-        let _ = needs;
+        assert!(needs, "a bumped commands-dir mtime must trigger a reload");
     }
 }

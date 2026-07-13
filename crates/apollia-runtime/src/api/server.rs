@@ -777,9 +777,11 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
+    use crate::test_support::poll_until_async;
     use apollia_core::{AIPResult, AIPTask, TaskStatus};
     use std::future::Future;
     use std::pin::Pin;
+    use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     /// Minimal ExecutionBackend for testing, never actually called.
@@ -959,13 +961,11 @@ mod tests {
         let handle = server.start().await.unwrap();
 
         // THEN the server responds over TCP
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_tcp(port).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
         // Cleanup
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -985,7 +985,6 @@ mod tests {
 
         // WHEN start() is called
         let handle = server.start().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN the Unix socket serves requests
         let resp = http_get_via_unix(&socket_path).await;
@@ -1000,7 +999,6 @@ mod tests {
 
         // Cleanup
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -1019,7 +1017,6 @@ mod tests {
         };
         let server = APIServer::new(config, state);
         let handle = server.start().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // WHEN a request omits the token THEN it is rejected with 401
         let (status_no, _) = http_get_health_status_via_tcp(port, None).await;
@@ -1032,7 +1029,6 @@ mod tests {
 
         // Cleanup
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -1054,13 +1050,11 @@ mod tests {
         let handle = server.start().await.unwrap();
 
         // THEN the server responds over the Unix socket
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_unix(&socket_path).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
         // Cleanup
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -1085,13 +1079,11 @@ mod tests {
         let handle = server.start().await.unwrap();
 
         // THEN the stale file is removed and the bind succeeds
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_unix(&socket_path).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
         // Cleanup
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -1109,7 +1101,6 @@ mod tests {
         };
         let server = APIServer::new(config, state);
         let handle = server.start().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // Verify it's serving
         let resp = http_get_via_tcp(port).await;
@@ -1117,14 +1108,16 @@ mod tests {
 
         // WHEN shutdown() is called
         handle.shutdown();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        // THEN the server no longer responds
-        let result = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await;
-        assert!(
-            result.is_err(),
-            "server should no longer accept connections"
-        );
+        // THEN the server stops accepting connections. Graceful shutdown is
+        // asynchronous (a watch channel drives the listener task), so poll the
+        // connect until it is refused rather than sleeping a fixed delay.
+        let addr = format!("127.0.0.1:{}", port);
+        let stopped = poll_until_async(Duration::from_secs(5), || async {
+            tokio::net::TcpStream::connect(&addr).await.is_err()
+        })
+        .await;
+        assert!(stopped, "server should no longer accept connections");
 
         let _ = std::fs::remove_file(&socket_path);
     }

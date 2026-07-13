@@ -595,7 +595,7 @@ mod tests {
     use super::*;
     use apollia_core::{AIPResult, AgentManifest};
     use std::sync::atomic::{AtomicBool, Ordering};
-    use tokio::sync::broadcast;
+    use tokio::sync::{broadcast, watch};
 
     use crate::coordinator::ExecutionBackend;
     use crate::registry::AgentRegistry;
@@ -996,20 +996,22 @@ mod tests {
         );
     }
 
-    /// Mock backend with a configurable delay, used to simulate a late completion.
-    struct DelayedMockBackend {
-        delay_ms: u64,
+    /// Mock backend that completes only once the test releases its gate, used to
+    /// simulate a late completion that lands after a cancel, with no wall-clock
+    /// delay to race against.
+    struct GatedMockBackend {
+        gate: watch::Receiver<bool>,
     }
 
-    impl ExecutionBackend for DelayedMockBackend {
+    impl ExecutionBackend for GatedMockBackend {
         fn execute(
             &self,
             task: AIPTask,
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
         {
-            let delay_ms = self.delay_ms;
+            let mut gate = self.gate.clone();
             Box::pin(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                let _ = gate.wait_for(|released| *released).await;
                 Ok(AIPResult {
                     task_id: task.task_id,
                     status: TaskStatus::Completed,
@@ -1024,25 +1026,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_canceled_status_not_overwritten_by_late_task_completed_event() {
-        // GIVEN an active agent with a backend that completes with a delay (100ms)
+        // GIVEN an active agent with a gated backend: it stays in-flight until the
+        // test releases it, so the completion is guaranteed to land after cancel
         let (event_tx, mut event_rx) = broadcast::channel::<RuntimeEvent>(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
 
         let agent_id =
             register_agent_in_state(&registry, "agent-cancel-race", ProcessState::Active).await;
+        let (gate_tx, gate_rx) = watch::channel(false);
         let coordinator = ExecutionCoordinator::new(
             agent_id.clone(),
             1,
             event_tx,
-            DelayedMockBackend { delay_ms: 100 },
+            GatedMockBackend { gate: gate_rx },
         );
         router
             .register_coordinator(agent_id.clone(), coordinator)
             .await
             .expect("register coordinator failed");
 
-        // WHEN submitting a task then cancelling it immediately
+        // WHEN submitting a task then cancelling it. The backend is parked on the
+        // gate, so the cancel deterministically wins the race.
         let task_id = router
             .submit(agent_id.as_str(), AIPInput::default())
             .await
@@ -1058,8 +1063,9 @@ mod tests {
             "cancel should return Canceled"
         );
 
-        // AND wait deterministically for the backend's late TaskCompleted event
-        // (proves the completion actually fired, instead of guessing a delay).
+        // AND once the gate is released the backend emits its late TaskCompleted;
+        // wait deterministically for it (proves the completion actually fired).
+        gate_tx.send(true).expect("release gate");
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
             tokio::select! {

@@ -2079,6 +2079,7 @@ fn seed_default_desktop_channel_if_needed(
 mod tests {
     use super::*;
     use crate::coordinator::ExecutionBackend;
+    use crate::test_support::poll_until_async;
     use apollia_core::{AIPResult, AIPTask, RuntimeEvent, TaskStatus};
     use std::future::Future;
     use std::path::PathBuf;
@@ -2270,7 +2271,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2312,7 +2312,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2378,20 +2377,19 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
     #[tokio::test]
     async fn test_startup_timeout_rollback() {
-        // GIVEN a port already in use (bind will fail, not timeout, but tests the error path)
-        let port = free_port().await;
+        // GIVEN a port already in use (bind will fail, not timeout, but tests the
+        // error path). Bind an OS-assigned port and KEEP the listener, so the
+        // supervisor's bind of the same port fails deterministically. Using
+        // free_port() here would release the port before the re-bind, letting a
+        // concurrent test win it under load.
+        let _listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = _listener.local_addr().unwrap().port();
         let socket_path = temp_socket_path();
-
-        // Occupy the port
-        let _listener = TcpListener::bind(format!("127.0.0.1:{}", port))
-            .await
-            .unwrap();
 
         let config = SupervisorConfig {
             api_config: APIServerConfig {
@@ -2457,15 +2455,18 @@ mod tests {
 
         let watch_handle = tokio::spawn(async move { watch(&sender_clone).await });
 
-        // WHEN ShutdownRequested is emitted
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        let _ = sender.send(RuntimeEvent::ShutdownRequested);
+        // WHEN ShutdownRequested is emitted. watch() subscribes inside its own
+        // task, so signal until it has subscribed and exited rather than sleeping
+        // a fixed delay and hoping the subscription already happened.
+        let exited = poll_until_async(Duration::from_secs(5), || async {
+            let _ = sender.send(RuntimeEvent::ShutdownRequested);
+            watch_handle.is_finished()
+        })
+        .await;
+        assert!(exited, "watch should exit after ShutdownRequested");
 
         // THEN watch() returns Ok(())
-        let result = tokio::time::timeout(Duration::from_secs(2), watch_handle)
-            .await
-            .expect("watch should exit within 2s")
-            .expect("join should succeed");
+        let result = watch_handle.await.expect("join should succeed");
         assert!(result.is_ok());
     }
 
@@ -2529,7 +2530,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2657,7 +2657,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2722,7 +2721,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2805,7 +2803,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -2845,7 +2842,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -3059,7 +3055,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
     }
 
@@ -3152,7 +3147,6 @@ mod tests {
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(socket_path);
     }
 

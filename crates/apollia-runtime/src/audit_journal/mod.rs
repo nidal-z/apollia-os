@@ -86,7 +86,6 @@ mod tests {
             kind: JournalEntryKind::ToolCallStarted,
             payload: serde_json::json!({"tool": "bash"}),
         });
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // THEN the persisted entry carries a signature and a key id
         let entries = handle.query_run("run-1").await;
@@ -119,7 +118,6 @@ mod tests {
             kind: JournalEntryKind::AgentStarted,
             payload: serde_json::json!({}),
         });
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // THEN the journal works and entries are unsigned
         let entries = handle.query_run("run-1").await;
@@ -179,7 +177,6 @@ mod tests {
                     payload: serde_json::json!({ "i": i }),
                 });
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
             // Sanity: an intact journal verifies before tampering
             let report = handle.verify_chain("run-1").await.expect("verify");
@@ -268,7 +265,6 @@ mod tests {
             JournalEntryKind::AgentStopped,
             serde_json::json!({"n": 2}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // WHEN reading the run back
         let entries = handle.query_run("run-1").await;
@@ -303,7 +299,6 @@ mod tests {
             JournalEntryKind::ToolCallCompleted,
             serde_json::json!({}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // WHEN each run is read
         let a = handle.query_run("run-a").await;
@@ -331,7 +326,6 @@ mod tests {
             JournalEntryKind::AgentStarted,
             serde_json::json!({}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
         handle.shutdown().await;
 
         // WHEN attempting a direct UPDATE then DELETE
@@ -368,7 +362,6 @@ mod tests {
             JournalEntryKind::AgentStarted,
             serde_json::json!({"i": 0}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
         handle.shutdown().await;
 
         // WHEN reopening and appending again
@@ -378,7 +371,6 @@ mod tests {
             JournalEntryKind::AgentStopped,
             serde_json::json!({"i": 1}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // THEN the new entry continues the chain from the persisted head
         let entries = handle2.query_run("run-1").await;
@@ -399,7 +391,6 @@ mod tests {
             JournalEntryKind::ToolCallStarted,
             serde_json::json!({"v": 1}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
         let entries = handle.query_run("run-1").await;
         let mut tampered = entries[0].clone();
 
@@ -464,7 +455,6 @@ mod tests {
             JournalEntryKind::ToolCallCompleted,
             serde_json::json!({}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
 
         // WHEN verifying the whole journal
         let report = handle.verify_journal().await.expect("verify journal");
@@ -491,7 +481,6 @@ mod tests {
                 serde_json::json!({ "i": i }),
             ));
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
         handle.shutdown().await;
 
         // WHEN an attacker deletes the middle global entry
@@ -543,7 +532,6 @@ mod tests {
             JournalEntryKind::ToolCallCompleted,
             serde_json::json!({}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
         handle.shutdown().await;
 
         // WHEN an attacker deletes every entry of run-b
@@ -581,7 +569,6 @@ mod tests {
                 serde_json::json!({ "i": i }),
             ));
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
         let exported = handle
             .journal_anchor()
             .await
@@ -631,7 +618,6 @@ mod tests {
                 serde_json::json!({ "i": i }),
             ));
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
         handle.shutdown().await;
 
         // WHEN an attacker rolls the state row back (no trigger guards it)
@@ -672,7 +658,6 @@ mod tests {
                 serde_json::json!({ "i": i }),
             ));
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
         handle.shutdown().await;
 
         // WHEN an attacker mutates a stored payload (leaving the hash stale)
@@ -710,7 +695,6 @@ mod tests {
             JournalEntryKind::AgentStarted,
             serde_json::json!({"i": 0}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
         handle.shutdown().await;
 
         // WHEN reopening and appending in a second run
@@ -728,7 +712,6 @@ mod tests {
             JournalEntryKind::AgentStarted,
             serde_json::json!({"i": 1}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // THEN the global chain spans both runs with no gap
         let report = handle.verify_journal().await.expect("verify");
@@ -754,7 +737,6 @@ mod tests {
             JournalEntryKind::ToolCallCompleted,
             serde_json::json!({}),
         ));
-        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         // WHEN verifying the whole journal
         let report = handle.verify_journal().await.expect("verify");

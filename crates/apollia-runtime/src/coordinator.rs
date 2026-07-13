@@ -504,34 +504,37 @@ mod tests {
     use super::*;
     use apollia_core::{AIPInput, TaskStatus};
     use std::sync::atomic::{AtomicBool, Ordering};
-    use tokio::sync::broadcast;
+    use tokio::sync::{broadcast, watch};
 
     /// Mock backend returning a configurable result.
     struct MockBackend {
         should_fail: AtomicBool,
-        /// Simulated wait before returning the result.
-        delay: std::time::Duration,
+        /// When set, `execute` blocks until the test flips the gate to `true`.
+        /// This holds the coordinator's concurrency permit in-flight with no
+        /// wall-clock delay, so concurrency-limit assertions are deterministic.
+        gate: Option<watch::Receiver<bool>>,
     }
 
     impl MockBackend {
         fn success() -> Self {
             Self {
                 should_fail: AtomicBool::new(false),
-                delay: std::time::Duration::ZERO,
+                gate: None,
             }
         }
 
-        fn success_with_delay(delay: std::time::Duration) -> Self {
+        /// Backend whose task stays in-flight until `gate` is released to `true`.
+        fn gated(gate: watch::Receiver<bool>) -> Self {
             Self {
                 should_fail: AtomicBool::new(false),
-                delay,
+                gate: Some(gate),
             }
         }
 
         fn failing() -> Self {
             Self {
                 should_fail: AtomicBool::new(true),
-                delay: std::time::Duration::ZERO,
+                gate: None,
             }
         }
     }
@@ -543,10 +546,10 @@ mod tests {
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
         {
             let fail = self.should_fail.load(Ordering::SeqCst);
-            let delay = self.delay;
+            let gate = self.gate.clone();
             Box::pin(async move {
-                if !delay.is_zero() {
-                    tokio::time::sleep(delay).await;
+                if let Some(mut gate) = gate {
+                    let _ = gate.wait_for(|released| *released).await;
                 }
                 if fail {
                     Err("mock execution failure".to_string())
@@ -593,17 +596,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrency_limit_sequential() {
-        // GIVEN a coordinator with max_concurrent=1
+        // GIVEN a coordinator with max_concurrent=1 and a gated backend
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
-        let coord = ExecutionCoordinator::new(
-            "agent-1".into(),
-            1,
-            tx,
-            MockBackend::success_with_delay(std::time::Duration::from_millis(200)),
-        );
+        let (gate_tx, gate_rx) = watch::channel(false);
+        let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::gated(gate_rx));
 
-        // AND a task already running
-        let _handle1 = coord
+        // AND a task already running, parked in-flight on the gate so it keeps
+        // holding the single permit
+        let h1 = coord
             .submit_task(make_task("task-1"))
             .expect("first submit should succeed");
 
@@ -617,20 +617,20 @@ mod tests {
             matches!(&err, CoordinatorError::ConcurrencyLimitReached(id) if id == "agent-1"),
             "expected ConcurrencyLimitReached, got: {err:?}"
         );
+
+        // Release the gate so the in-flight task finishes cleanly
+        gate_tx.send(true).expect("release gate");
+        h1.await.expect("join").expect("execution");
     }
 
     #[tokio::test]
     async fn test_concurrency_limit_parallel() {
-        // GIVEN a coordinator with max_concurrent=3
+        // GIVEN a coordinator with max_concurrent=3 and a gated backend
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
-        let coord = ExecutionCoordinator::new(
-            "agent-1".into(),
-            3,
-            tx,
-            MockBackend::success_with_delay(std::time::Duration::from_millis(200)),
-        );
+        let (gate_tx, gate_rx) = watch::channel(false);
+        let coord = ExecutionCoordinator::new("agent-1".into(), 3, tx, MockBackend::gated(gate_rx));
 
-        // WHEN 3 tasks are submitted at once
+        // WHEN 3 tasks are submitted at once, all parked in-flight on the gate
         let h1 = coord.submit_task(make_task("task-1"));
         let h2 = coord.submit_task(make_task("task-2"));
         let h3 = coord.submit_task(make_task("task-3"));
@@ -647,6 +647,15 @@ mod tests {
             h4.unwrap_err(),
             CoordinatorError::ConcurrencyLimitReached(_)
         ));
+
+        // Release the gate so the in-flight tasks finish cleanly
+        gate_tx.send(true).expect("release gate");
+        for h in [h1, h2, h3] {
+            h.expect("submit ok")
+                .await
+                .expect("join")
+                .expect("execution");
+        }
     }
 
     #[tokio::test]

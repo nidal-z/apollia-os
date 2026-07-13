@@ -137,6 +137,8 @@ impl RuntimeEventsRepository {
 mod tests {
     use super::*;
     use crate::observability::persistor::EventPersistorHandle;
+    use crate::test_support::poll_until_async;
+    use std::time::Duration;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -167,10 +169,16 @@ mod tests {
         }
 
         handle.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // WHEN we query the repository
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let persisted = poll_until_async(Duration::from_secs(5), || async {
+            repo.list_for_task("T1", None, 10)
+                .map(|r| r.len() == 3)
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(persisted, "expected 3 persisted rows");
         let rows = repo.list_for_task("T1", None, 10).expect("list");
 
         // THEN all three rows are returned, in insertion order
@@ -203,9 +211,15 @@ mod tests {
             });
         }
         handle.shutdown().await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let persisted = poll_until_async(Duration::from_secs(5), || async {
+            repo.list_for_task("T1", None, 10)
+                .map(|r| r.len() == 3)
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(persisted, "expected 3 persisted rows");
 
         // WHEN we paginate after the first row
         let cursor = "01900000-0000-7000-8000-000000000000";

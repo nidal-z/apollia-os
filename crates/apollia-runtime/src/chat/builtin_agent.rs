@@ -3662,6 +3662,7 @@ fn truncate_to(s: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::poll_until;
     use apollia_llm::types::{
         CompletionModel, CompletionRequest, CompletionResponse, FinishReason as LlmFinishReason,
         StreamChunk as LlmStreamChunk, ToolCall as LlmToolCall,
@@ -4532,8 +4533,10 @@ mod tests {
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                approvals.resolve(&key, ToolDecision::Accept);
+                poll_until(std::time::Duration::from_secs(5), || {
+                    approvals.resolve(&key, ToolDecision::Accept)
+                })
+                .await;
             }
         });
 
@@ -4605,8 +4608,10 @@ mod tests {
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                approvals.resolve(&key, ToolDecision::refuse());
+                poll_until(std::time::Duration::from_secs(5), || {
+                    approvals.resolve(&key, ToolDecision::refuse())
+                })
+                .await;
             }
         });
 
@@ -4681,8 +4686,10 @@ mod tests {
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                approvals.resolve(&key, ToolDecision::always_accept_default());
+                poll_until(std::time::Duration::from_secs(5), || {
+                    approvals.resolve(&key, ToolDecision::always_accept_default())
+                })
+                .await;
             }
         });
 
@@ -5752,20 +5759,46 @@ mod tests {
     }
 
     /// Tool invoker that tracks peak concurrency and echoes the tool name.
+    ///
+    /// When `gate` is set, each invocation blocks until at least two invocations
+    /// have overlapped (peak >= 2). This proves concurrent execution
+    /// deterministically without a wall-clock delay: `buffered()` starts a batch
+    /// of read-only calls together, so the second arrival releases everyone, and
+    /// because peak is monotonic the gate then stays open for later or lone
+    /// invocations. Left unset for turns that never run two read-only calls
+    /// concurrently, which would otherwise wait forever.
     struct ConcurrencyInvoker {
         concurrent: AtomicU32,
         peak: AtomicU32,
-        delay_ms: u64,
+        gate: Option<GateChannel>,
+    }
+
+    /// Shared watch carrying the running peak, used as the release signal.
+    struct GateChannel {
+        tx: tokio::sync::watch::Sender<u32>,
+        rx: tokio::sync::watch::Receiver<u32>,
     }
 
     impl ConcurrencyInvoker {
-        fn new(delay_ms: u64) -> Self {
+        /// Invoker with no gate: invocations complete immediately.
+        fn new() -> Self {
             Self {
                 concurrent: AtomicU32::new(0),
                 peak: AtomicU32::new(0),
-                delay_ms,
+                gate: None,
             }
         }
+
+        /// Invoker that holds each invocation until at least two overlap.
+        fn gated() -> Self {
+            let (tx, rx) = tokio::sync::watch::channel(0);
+            Self {
+                concurrent: AtomicU32::new(0),
+                peak: AtomicU32::new(0),
+                gate: Some(GateChannel { tx, rx }),
+            }
+        }
+
         fn peak(&self) -> u32 {
             self.peak.load(Ordering::SeqCst)
         }
@@ -5775,9 +5808,18 @@ mod tests {
     impl ToolInvoker for ConcurrencyInvoker {
         async fn invoke(&self, tool_name: &str, _: &serde_json::Value) -> Result<String, String> {
             let cur = self.concurrent.fetch_add(1, Ordering::SeqCst) + 1;
-            self.peak.fetch_max(cur, Ordering::SeqCst);
-            if self.delay_ms > 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+            let peak = self.peak.fetch_max(cur, Ordering::SeqCst).max(cur);
+            match &self.gate {
+                Some(gate) => {
+                    let _ = gate.tx.send(peak);
+                    let mut rx = gate.rx.clone();
+                    let _ = rx.wait_for(|&p| p >= 2).await;
+                }
+                None => {
+                    // Yield so a concurrently-scheduled invocation would be seen
+                    // by the peak counter, without a wall-clock delay.
+                    tokio::task::yield_now().await;
+                }
             }
             self.concurrent.fetch_sub(1, Ordering::SeqCst);
             Ok(tool_name.to_string())
@@ -5860,7 +5902,7 @@ mod tests {
         for n in ["ro_a", "ro_b", "ro_c", "ro_d"] {
             registry.register(ro_descriptor(n)).await.unwrap();
         }
-        let invoker = Arc::new(ConcurrencyInvoker::new(30));
+        let invoker = Arc::new(ConcurrencyInvoker::gated());
         let agent = agent_with(registry.clone(), invoker.clone());
         let calls = vec![
             tool_call(0, "ro_a"),
@@ -5892,7 +5934,7 @@ mod tests {
         registry.register(ro_descriptor("ro_a")).await.unwrap();
         registry.register(ro_descriptor("ro_b")).await.unwrap();
         // "w_y" is intentionally not registered: unknown status is treated as write.
-        let invoker = Arc::new(ConcurrencyInvoker::new(0));
+        let invoker = Arc::new(ConcurrencyInvoker::new());
         let agent = agent_with(registry.clone(), invoker.clone());
         let calls = vec![
             tool_call(0, "w_x"),
@@ -5921,7 +5963,7 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let invoker = Arc::new(ConcurrencyInvoker::new(30));
+        let invoker = Arc::new(ConcurrencyInvoker::gated());
         let agent = agent_with(registry.clone(), invoker.clone());
         let calls: Vec<ToolCall> = (0..15).map(|i| tool_call(i, &format!("ro_{i}"))).collect();
 
@@ -6088,12 +6130,12 @@ mod tests {
     #[tokio::test]
     async fn test_all_write_sequential_order() {
         // GIVEN three registered write tools (is_read_only = false) and a slow
-        //   invoker so any overlap would be observed by the concurrency counter
+        //   invoker whose yield point would surface any overlap in the counter
         let registry = ToolRegistryHandle::start();
         for n in ["w_a", "w_b", "w_c"] {
             registry.register(mcp_descriptor(n)).await.unwrap();
         }
-        let invoker = Arc::new(ConcurrencyInvoker::new(20));
+        let invoker = Arc::new(ConcurrencyInvoker::new());
         let agent = agent_with(registry.clone(), invoker.clone());
         let calls = vec![
             tool_call(0, "w_a"),
@@ -7665,7 +7707,9 @@ mod pause_tests {
             if let Some(token) = &self.cancel_on_invoke {
                 token.cancel();
             }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            // Yield once so the future is genuinely mid-flight when the loop next
+            // polls it, without a wall-clock delay.
+            tokio::task::yield_now().await;
             self.completed.store(true, Ordering::SeqCst);
             Ok(r#"{"exit_code": 0, "stdout": "ran"}"#.to_string())
         }
