@@ -78,13 +78,13 @@ mod tests {
         trait_def::HealthReport,
     };
     use apollia_auth::AccountId;
-    use async_trait::async_trait;
+    use std::future::Future;
+    use std::pin::Pin;
 
     struct Stub {
         id: &'static str,
     }
 
-    #[async_trait]
     impl Connector for Stub {
         fn id(&self) -> &'static str {
             self.id
@@ -105,11 +105,17 @@ mod tests {
             &[]
         }
 
-        async fn check(&self, _: &AccountId) -> Result<HealthReport, ConnectorError> {
-            Ok(HealthReport {
-                reachable: true,
-                granted_scopes: vec![],
-                detail: "ok".into(),
+        fn check<'a>(
+            &'a self,
+            _: &'a AccountId,
+        ) -> Pin<Box<dyn Future<Output = Result<HealthReport, ConnectorError>> + Send + 'a>>
+        {
+            Box::pin(async move {
+                Ok(HealthReport {
+                    reachable: true,
+                    granted_scopes: vec![],
+                    detail: "ok".into(),
+                })
             })
         }
     }

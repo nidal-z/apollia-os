@@ -74,15 +74,19 @@ mod tests {
     use super::*;
     use crate::executor::{ToolDispatcher, ToolExecutor};
     use serde_json::json;
+    use std::future::Future;
+    use std::pin::Pin;
 
     struct EchoExecutor;
-    #[async_trait]
     impl ToolExecutor for EchoExecutor {
         fn name(&self) -> &str {
             "echo"
         }
-        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-            Ok(input)
+        fn execute(
+            &self,
+            input: Value,
+        ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+            Box::pin(async move { Ok(input) })
         }
     }
 
@@ -111,13 +115,16 @@ mod tests {
     #[tokio::test]
     async fn pure_string_output_is_passed_through_unquoted() {
         struct PlainExecutor;
-        #[async_trait]
         impl ToolExecutor for PlainExecutor {
             fn name(&self) -> &str {
                 "plain"
             }
-            async fn execute(&self, _input: Value) -> Result<Value, ToolExecutionError> {
-                Ok(Value::String("hello".into()))
+            fn execute(
+                &self,
+                _input: Value,
+            ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>>
+            {
+                Box::pin(async move { Ok(Value::String("hello".into())) })
             }
         }
 

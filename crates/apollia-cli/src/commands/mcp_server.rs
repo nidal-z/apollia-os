@@ -6,7 +6,9 @@
 //! With `--with-runtime`, starts the full Apollia runtime first and adds the
 //! `submit_task` tool, allowing MCP clients to delegate tasks to local agents.
 
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_mcp::{McpServerError, McpStdioServer, SubmitTaskHandler};
@@ -117,19 +119,24 @@ struct RuntimeSubmitHandler {
     router: apollia_runtime::router::TaskRouterHandle<apollia_runtime::coordinator::DynBackend>,
 }
 
-#[async_trait::async_trait]
 impl SubmitTaskHandler for RuntimeSubmitHandler {
-    async fn submit(&self, task: String, agent_id: String) -> Result<String, String> {
-        let input = apollia_core::AIPInput {
-            parts: vec![apollia_core::AIPPart::Text(apollia_core::TextPart {
-                text: task,
-            })],
-        };
-        self.router
-            .submit(&agent_id, input)
-            .await
-            .map(|id| id.to_string())
-            .map_err(|e| e.to_string())
+    fn submit(
+        &self,
+        task: String,
+        agent_id: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
+        Box::pin(async move {
+            let input = apollia_core::AIPInput {
+                parts: vec![apollia_core::AIPPart::Text(apollia_core::TextPart {
+                    text: task,
+                })],
+            };
+            self.router
+                .submit(&agent_id, input)
+                .await
+                .map(|id| id.to_string())
+                .map_err(|e| e.to_string())
+        })
     }
 }
 
@@ -165,10 +172,13 @@ async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
 /// Fallback handler used when the runtime failed to start.
 struct NoopSubmitHandler;
 
-#[async_trait::async_trait]
 impl SubmitTaskHandler for NoopSubmitHandler {
-    async fn submit(&self, _task: String, _agent_id: String) -> Result<String, String> {
-        Err("Apollia runtime is not available".to_string())
+    fn submit(
+        &self,
+        _task: String,
+        _agent_id: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
+        Box::pin(async move { Err("Apollia runtime is not available".to_string()) })
     }
 }
 

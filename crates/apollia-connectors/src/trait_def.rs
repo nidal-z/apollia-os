@@ -1,6 +1,7 @@
 //! The `Connector` trait: abstraction implemented by every native SaaS connector.
 
-use async_trait::async_trait;
+use std::future::Future;
+use std::pin::Pin;
 
 use apollia_auth::AccountId;
 
@@ -26,7 +27,6 @@ pub struct HealthReport {
 /// The trait is intentionally minimal (4 methods). Anything beyond identity,
 /// manifest, health check, and operation enumeration belongs to the connector's
 /// own internal modules (per-service clients), not the trait surface.
-#[async_trait]
 pub trait Connector: Send + Sync + 'static {
     /// Stable connector identifier (e.g. `"google"`).
     fn id(&self) -> &'static str;
@@ -45,7 +45,10 @@ pub trait Connector: Send + Sync + 'static {
     /// userinfo / `/me` endpoint) and report the result. **Not** an exhaustive
     /// scope audit: surface `granted_scopes` from the token, not from a
     /// per-API probe.
-    async fn check(&self, account_id: &AccountId) -> Result<HealthReport, ConnectorError>;
+    fn check<'a>(
+        &'a self,
+        account_id: &'a AccountId,
+    ) -> Pin<Box<dyn Future<Output = Result<HealthReport, ConnectorError>> + Send + 'a>>;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -57,7 +60,6 @@ mod tests {
     /// A throwaway connector used solely to exercise the trait surface in tests.
     struct DummyConnector;
 
-    #[async_trait]
     impl Connector for DummyConnector {
         fn id(&self) -> &'static str {
             "dummy"
@@ -78,11 +80,17 @@ mod tests {
             &[]
         }
 
-        async fn check(&self, _account_id: &AccountId) -> Result<HealthReport, ConnectorError> {
-            Ok(HealthReport {
-                reachable: true,
-                granted_scopes: vec![],
-                detail: "always healthy".into(),
+        fn check<'a>(
+            &'a self,
+            _account_id: &'a AccountId,
+        ) -> Pin<Box<dyn Future<Output = Result<HealthReport, ConnectorError>> + Send + 'a>>
+        {
+            Box::pin(async move {
+                Ok(HealthReport {
+                    reachable: true,
+                    granted_scopes: vec![],
+                    detail: "always healthy".into(),
+                })
             })
         }
     }

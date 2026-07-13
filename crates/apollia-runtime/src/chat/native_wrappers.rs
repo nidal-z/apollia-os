@@ -17,7 +17,9 @@
 //! when it builds the per-session [`ToolDispatcher`], so the dispatcher
 //! owns every native tool uniformly, no fast path, no special cases.
 
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -27,7 +29,6 @@ use apollia_tools::tools::file_edit::FileEditInput;
 use apollia_tools::tools::file_write::FileWriteInput;
 use apollia_tools::tools::http_fetch::{HttpFetch, HttpFetchInput};
 use apollia_tools::{FilesystemOp, RiskClassifier, RiskLevel};
-use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::chat::types::{FsHitlDecision, PendingFilesystemApprovals};
@@ -214,7 +215,6 @@ impl HitlFilesystemGuard {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for HitlFilesystemGuard {
     fn name(&self) -> &str {
         self.inner.name()
@@ -225,11 +225,16 @@ impl ToolExecutor for HitlFilesystemGuard {
         false
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let resolved = self.resolved_path(&input);
-        let preview = self.build_preview(&input, &resolved).await;
-        self.await_decision(&resolved, preview).await?;
-        self.inner.execute(input).await
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let resolved = self.resolved_path(&input);
+            let preview = self.build_preview(&input, &resolved).await;
+            self.await_decision(&resolved, preview).await?;
+            self.inner.execute(input).await
+        })
     }
 }
 
@@ -263,7 +268,6 @@ impl DynamicAllowlistHttpFetch {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for DynamicAllowlistHttpFetch {
     fn name(&self) -> &str {
         "http_fetch"
@@ -275,27 +279,32 @@ impl ToolExecutor for DynamicAllowlistHttpFetch {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let parsed: HttpFetchInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: format!("http_fetch: invalid arguments: {e}"),
-            })?;
-        let hostname =
-            extract_hostname(&parsed.url).ok_or_else(|| ToolExecutionError::InvalidInput {
-                message: "http_fetch: cannot parse hostname from URL".into(),
-            })?;
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let parsed: HttpFetchInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: format!("http_fetch: invalid arguments: {e}"),
+                })?;
+            let hostname =
+                extract_hostname(&parsed.url).ok_or_else(|| ToolExecutionError::InvalidInput {
+                    message: "http_fetch: cannot parse hostname from URL".into(),
+                })?;
 
-        let tool = HttpFetch::new(Some(vec![hostname]));
-        let output = tool
-            .run(parsed)
-            .await
-            .map_err(|e| ToolExecutionError::ExecutionFailed {
-                code: "http_fetch".into(),
+            let tool = HttpFetch::new(Some(vec![hostname]));
+            let output =
+                tool.run(parsed)
+                    .await
+                    .map_err(|e| ToolExecutionError::ExecutionFailed {
+                        code: "http_fetch".into(),
+                        message: e.to_string(),
+                    })?;
+            serde_json::to_value(&output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialise".into(),
                 message: e.to_string(),
-            })?;
-        serde_json::to_value(&output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
+            })
         })
     }
 }

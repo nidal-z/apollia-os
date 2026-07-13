@@ -15,6 +15,8 @@
 //! When enabled, [`ToolExecutor::execute`] suspends before routing to the MCP session
 //! if either the server-level or agent-level approval flag is active.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
@@ -191,7 +193,6 @@ impl McpToolExecutor {
 
 // ─── ToolExecutor impl ───────────────────────────────────────────────────────
 
-#[async_trait::async_trait]
 impl ToolExecutor for McpToolExecutor {
     /// The fully-qualified MCP tool name: `"mcp:{server}/{tool}"`.
     fn name(&self) -> &str {
@@ -218,30 +219,35 @@ impl ToolExecutor for McpToolExecutor {
     ///
     /// [`with_hitl`]: McpToolExecutor::with_hitl
     /// [`ToolCallResult`]: crate::protocol::ToolCallResult
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        if let Some(pending) = &self.pending_approvals {
-            self.check_hitl_gate(pending).await?;
-        }
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            if let Some(pending) = &self.pending_approvals {
+                self.check_hitl_gate(pending).await?;
+            }
 
-        let result = self
-            .mcp_manager
-            .call_tool(&self.server_name, &self.tool_name, Some(input))
-            .await
-            .map_err(|e| ToolExecutionError::ExecutionFailed {
-                code: "mcp_session_error".to_string(),
-                message: e.to_string(),
-            })?;
+            let result = self
+                .mcp_manager
+                .call_tool(&self.server_name, &self.tool_name, Some(input))
+                .await
+                .map_err(|e| ToolExecutionError::ExecutionFailed {
+                    code: "mcp_session_error".to_string(),
+                    message: e.to_string(),
+                })?;
 
-        if result.is_error.unwrap_or(false) {
-            let error_text = extract_text_parts(&result.content);
-            return Err(ToolExecutionError::ExecutionFailed {
-                code: "mcp_tool_error".to_string(),
-                message: error_text,
-            });
-        }
+            if result.is_error.unwrap_or(false) {
+                let error_text = extract_text_parts(&result.content);
+                return Err(ToolExecutionError::ExecutionFailed {
+                    code: "mcp_tool_error".to_string(),
+                    message: error_text,
+                });
+            }
 
-        let content = extract_text_parts(&result.content);
-        Ok(serde_json::json!({ "content": content }))
+            let content = extract_text_parts(&result.content);
+            Ok(serde_json::json!({ "content": content }))
+        })
     }
 }
 
