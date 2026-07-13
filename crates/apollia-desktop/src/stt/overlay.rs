@@ -94,9 +94,9 @@ impl RecordingOverlay {
         .position(x, y)
         .visible(false);
 
-        // Transparent window requires the `macos-private-api` Tauri feature on macOS.
-        // When the feature is absent the window falls back to a fully opaque background.
-        #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
+        // Transparency relies on Tauri's `macos-private-api` feature and
+        // `macOSPrivateApi: true` (tauri.conf.json), both enabled unconditionally,
+        // so the overlay is transparent on every platform.
         let builder = builder.transparent(true);
 
         builder

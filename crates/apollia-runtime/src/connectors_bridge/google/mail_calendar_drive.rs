@@ -187,21 +187,20 @@ pub(crate) async fn gdrive_list_my_files(
     //   3. Default → scope the listing to the user's configured root folder.
     //      Empty configured path = literal My Drive root (`'root' in parents`).
     //      Non-empty path that doesn't exist yet on Drive → return [] with a hint.
-    let mut scope_note: Option<String> = None;
-    let scope: Option<String> = if let Some(id) = explicit_folder_id {
-        scope_note = Some(format!("Scoped to folder_id={id}."));
-        Some(id)
+    let (scope, scope_note): (Option<String>, String) = if let Some(id) = explicit_folder_id {
+        let note = format!("Scoped to folder_id={id}.");
+        (Some(id), note)
     } else if all {
-        scope_note = Some(
+        (
+            None,
             "all=true: listing every Drive file visible to Apollia (own + Picker grants), ignoring the configured root.".into(),
-        );
-        None
+        )
     } else if root_path.is_empty() {
-        scope_note = Some(
+        (
+            Some("root".to_string()),
             "Scoped to My Drive root (the user explicitly set the configured root to Drive root)."
                 .into(),
-        );
-        Some("root".to_string())
+        )
     } else {
         match connector
             .drive()
@@ -209,10 +208,10 @@ pub(crate) async fn gdrive_list_my_files(
             .await
         {
             Ok(Some(id)) => {
-                scope_note = Some(format!(
+                let note = format!(
                     "Scoped to the configured root `{root_path}`. Pass `all=true` to list every Drive file Apollia can see."
-                ));
-                Some(id)
+                );
+                (Some(id), note)
             }
             Ok(None) => {
                 return Ok(json!({
@@ -232,8 +231,7 @@ pub(crate) async fn gdrive_list_my_files(
         .await
         .map_err(|e| e.to_string())?;
     let note = format!(
-        "Drive `drive.file` scope: only files Apollia created or that the user explicitly granted via Picker are visible. {}",
-        scope_note.unwrap_or_default()
+        "Drive `drive.file` scope: only files Apollia created or that the user explicitly granted via Picker are visible. {scope_note}"
     );
     Ok(json!({"files": files, "note": note}))
 }

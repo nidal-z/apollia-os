@@ -182,6 +182,60 @@ def test_annotation_typed_dict_required_total_false() -> None:
     assert schema["required"] == ["name"]
 
 
+def test_annotation_typed_dict_total_false_no_required() -> None:
+    """A total=False TypedDict with no Required[] field yields an empty required set."""
+    # GIVEN a total=False TypedDict whose fields are all implicitly optional
+    from tests._typeddict_fixtures import TotalFalseNoRequiredTD
+
+    # WHEN the schema is derived
+    schema = annotation_to_schema(TotalFalseNoRequiredTD)
+
+    # THEN both fields are present but none is required
+    assert schema["properties"]["name"] == {"type": "string"}
+    assert schema["properties"]["size"] == {"type": "integer"}
+    assert "required" not in schema
+
+
+def test_typeddict_stringified_annotations_warn_and_recover() -> None:
+    """A payload TypedDict defined under PEP 563 warns yet still derives the
+    correct required split via get_type_hints (where __required_keys__ fails)."""
+    import typing
+    import warnings
+
+    # GIVEN a TypedDict whose module used ``from __future__ import annotations``
+    from tests._typeddict_future_fixtures import FutureAnnotatedTD
+
+    # its raw annotations are unresolved (str or ForwardRef, per Python version),
+    # so __required_keys__ wrongly keeps the NotRequired ``color`` field
+    assert all(
+        isinstance(v, (str, typing.ForwardRef)) for v in FutureAnnotatedTD.__annotations__.values()
+    )
+    assert "color" in FutureAnnotatedTD.__required_keys__
+
+    # WHEN the schema is derived
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        schema = annotation_to_schema(FutureAnnotatedTD)
+
+    # THEN a warning surfaces the stringified-annotation footgun
+    assert any("stringified" in str(w.message) for w in caught)
+    # AND the required split is recovered correctly (color is NotRequired)
+    assert set(schema["required"]) == {"name"}
+    assert "color" in schema["properties"]
+
+
+def test_typeddict_required_derivation_matches_required_keys() -> None:
+    """For a well-formed TypedDict, the derived required set matches __required_keys__."""
+    # GIVEN a TypedDict defined without PEP 563 (the worker convention)
+    from tests._typeddict_fixtures import NotRequiredTD
+
+    # WHEN the schema is derived
+    schema = annotation_to_schema(NotRequiredTD)
+
+    # THEN the derivation agrees with the interpreter's own __required_keys__
+    assert set(schema["required"]) == set(NotRequiredTD.__required_keys__)
+
+
 def test_annotation_namedtuple() -> None:
     class P(NamedTuple):
         x: int

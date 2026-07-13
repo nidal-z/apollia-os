@@ -1835,21 +1835,6 @@ mod trust_model_tests {
         (iface, dir)
     }
 
-    /// Stores a key directly in the given manager/namespace using recall_inner helpers.
-    fn seed_memory(mgr_arc: &Arc<Mutex<MemoryManager>>, namespace: &str, key: &str, value: &str) {
-        remember_inner(
-            mgr_arc,
-            namespace,
-            RememberArgs {
-                key,
-                value,
-                source: None,
-                confidence: None,
-            },
-        )
-        .expect("seed memory");
-    }
-
     // Agent invoked via A2A writes only into its own namespace
     #[test]
     fn test_a2a_context_writes_own_namespace_only() {

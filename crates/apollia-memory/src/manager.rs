@@ -689,9 +689,8 @@ mod tests {
         proc.learn("ns", "trig", &["step1".to_string()])
             .expect("learn procedural");
 
-        // Reopen store reference after mutating
+        // Release the owned memory handles before purging.
         drop(sem);
-        drop(conn);
         drop(proc);
 
         // WHEN -- purge episodic older than 7 days, leave semantic and procedural alone
@@ -804,7 +803,6 @@ mod tests {
             [],
         )
         .expect("ep2");
-        drop(conn);
 
         let sem = SemanticMemory::new(store);
         sem.remember(RememberInput {
@@ -825,7 +823,6 @@ mod tests {
             [],
         )
         .expect("backdate");
-        drop(conn);
 
         // WHEN -- purge both episodic and semantic older than 7 days
         let report = mgr

@@ -775,7 +775,7 @@ mod tests {
         let handle = coord
             .submit_task(make_task("task-agent-fail"))
             .expect("submit should succeed");
-        handle.await.expect("join should succeed");
+        let _ = handle.await.expect("join should succeed");
 
         // THEN TaskCompleted carries success=false
         let _started = rx.recv().await.expect("TaskStarted");

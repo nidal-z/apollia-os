@@ -18,16 +18,14 @@ use apollia_core::{
 };
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
-    ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
+    ObservabilityConfig, ToolCallHelper, ToolInvoker,
 };
 use apollia_memory::manager::MemoryManager;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_oria::PendingPlanGates;
-use apollia_runtime::a2a::{
-    make_delegate_fn, A2AInvoker, A2AToolsProvider, A2aDelegateFn, DEFAULT_A2A_MAX_HOPS,
-};
+use apollia_runtime::a2a::{A2AInvoker, A2AToolsProvider};
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
@@ -188,12 +186,6 @@ struct AIPProductionBackend {
     /// `McpToolExecutor` per active MCP tool and inject it into the agent's
     /// dispatcher.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// `manifest.supports_a2a`, propagated into the `RuntimeContext` so Python
-    /// agents can introspect their own A2A eligibility.
-    supports_a2a: bool,
-    /// Type-erased A2A delegate (Director to Worker). `None` when the runtime
-    /// registry/router were not available at factory construction time.
-    a2a_delegate: Option<A2aDelegateFn>,
     /// A2A orchestrator exposed both as virtual `a2a:*` tools (via `ToolProxy.with_a2a`
     /// and `allowed_tools` augmentation) and through `ctx.a2a_invoke()` for Python agents.
     a2a_invoker: Option<Arc<A2AInvoker>>,
@@ -237,8 +229,6 @@ impl Clone for AIPProductionBackend {
             task_repository: self.task_repository.clone(),
             user_memory_write: self.user_memory_write,
             mcp_handle: self.mcp_handle.clone(),
-            supports_a2a: self.supports_a2a,
-            a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
             tools_config: self.tools_config.clone(),
@@ -272,10 +262,6 @@ struct BridgeRunner {
     /// `McpToolExecutor` per registered MCP tool and inject it into the agent's
     /// `ToolDispatcher`. `None` when MCP is not configured.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// `manifest.supports_a2a`, exposed in `RuntimeContext`.
-    supports_a2a: bool,
-    /// Type-erased A2A delegate. `None` when registry/router were unavailable.
-    a2a_delegate: Option<A2aDelegateFn>,
     /// Shared A2A orchestrator. When `Some`, `allowed_tools` is augmented with
     /// virtual `a2a:*` descriptors and the `ToolProxy` gets `.with_a2a(...)`.
     a2a_invoker: Option<Arc<A2AInvoker>>,
@@ -322,7 +308,6 @@ impl AgentRunner for BridgeRunner {
         let user_memory_write = self.user_memory_write;
         let pending_user_inputs = self.pending_user_inputs.clone();
         let mcp_handle = self.mcp_handle.clone();
-        let supports_a2a = self.supports_a2a;
         let supports_mailbox = self.manifest.supports_mailbox;
         let mailbox_allowlist = self.manifest.mailbox_allowlist.clone();
         let mailbox_send_gated = self
@@ -330,7 +315,6 @@ impl AgentRunner for BridgeRunner {
             .tools_requiring_approval
             .iter()
             .any(|t| t == "mailbox:send");
-        let a2a_delegate = self.a2a_delegate.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let mailbox = self.mailbox.clone();
         let user_context = self.user_context.clone();
@@ -486,9 +470,7 @@ impl AgentRunner for BridgeRunner {
                     memory_interface,
                     mailbox,
                     agent_id,
-                    supports_a2a,
                     user_context,
-                    a2a_delegate,
                     a2a_invoker,
                     user_memory_write,
                 );
@@ -592,8 +574,6 @@ impl ExecutionBackend for AIPProductionBackend {
             // Task-mode backend: no chat UI to answer `ask_user` prompts.
             pending_user_inputs: None,
             mcp_handle: self.mcp_handle.clone(),
-            supports_a2a: self.supports_a2a,
-            a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
             // Task mode = trigger-fired/manual/API tasks. No user is "present"
@@ -721,33 +701,26 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let plan_gates = self.plan_gates.get().cloned();
         let backend_manifest = manifest.clone();
 
-        // Build A2A delegate + invoker when registry+router are available.
-        // Same shape as `apollia-cli/src/commands/start.rs:716-742`.
-        let (a2a_delegate, a2a_invoker) = match (
+        // Build the A2A invoker when registry+router are available.
+        let a2a_invoker = match (
             self.agent_registry.get().cloned(),
             self.task_router.get().cloned(),
         ) {
             (Some(registry), Some(router)) => {
-                let delegate = make_delegate_fn(
-                    registry.clone(),
-                    router.clone(),
-                    event_bus.clone(),
-                    DEFAULT_A2A_MAX_HOPS,
-                );
                 let invoker = Arc::new(A2AInvoker::new(
                     registry,
                     router,
                     event_bus.clone(),
                     apollia_core::A2AConfig::default(),
                 ));
-                (Some(delegate), Some(invoker))
+                Some(invoker)
             }
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A delegate/invoker not available - registry or router not yet initialized"
+                    "A2A invoker not available - registry or router not yet initialized"
                 );
-                (None, None)
+                None
             }
         };
 
@@ -762,7 +735,6 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let allowed_tools = validated.manifest.tools_required.clone();
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let user_memory_write = validated.manifest.user_memory_write;
-            let supports_a2a = validated.manifest.supports_a2a;
             // Capture the declarations and the agent directory to wire up
             // ctx.datasources / ctx.templates.
             let datasources_declared = validated.manifest.datasources.clone();
@@ -785,8 +757,6 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 task_repository,
                 user_memory_write,
                 mcp_handle,
-                supports_a2a,
-                a2a_delegate,
                 a2a_invoker,
                 mailbox,
                 tools_config,
@@ -975,7 +945,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .collect();
         let memory_namespace = validated.manifest.memory_namespace.clone();
         let user_memory_write = validated.manifest.user_memory_write;
-        let supports_a2a = validated.manifest.supports_a2a;
         // Capture datasources/templates and the agent directory.
         let datasources_declared = validated.manifest.datasources.clone();
         let templates_declared = validated.manifest.templates.clone();
@@ -1009,34 +978,28 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .cloned()
             .unwrap_or_else(ToolsConfig::default);
 
-        // Build A2A delegate + invoker when registry+router are available.
+        // Build the A2A invoker when registry+router are available.
         // Gives chat-agent Python agents the same A2A capabilities as task-mode
         // and Chat Libre.
-        let (a2a_delegate, a2a_invoker) = match (
+        let a2a_invoker = match (
             self.agent_registry.get().cloned(),
             self.task_router.get().cloned(),
         ) {
             (Some(registry), Some(router)) => {
-                let delegate = make_delegate_fn(
-                    registry.clone(),
-                    router.clone(),
-                    event_bus.clone(),
-                    DEFAULT_A2A_MAX_HOPS,
-                );
                 let invoker = Arc::new(A2AInvoker::new(
                     registry,
                     router,
                     event_bus.clone(),
                     apollia_core::A2AConfig::default(),
                 ));
-                (Some(delegate), Some(invoker))
+                Some(invoker)
             }
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A delegate/invoker not available for chat-agent runner - registry or router not yet initialized"
+                    "A2A invoker not available for chat-agent runner - registry or router not yet initialized"
                 );
-                (None, None)
+                None
             }
         };
 
@@ -1062,8 +1025,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             user_memory_write,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
             mcp_handle: self.mcp_handle.get().cloned(),
-            supports_a2a,
-            a2a_delegate,
             a2a_invoker,
             mailbox,
             user_context,

@@ -24,7 +24,6 @@ use apollia_llm::{
 use apollia_memory::manager::MemoryManager;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
-use apollia_runtime::a2a::make_delegate_fn;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::api::APIServerConfig;
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend, ExecutionCoordinator};
@@ -235,31 +234,25 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
         // with task-mode (triggers/API). Fixes the previous "not available in
         // chat mode" gap.
-        let (a2a_delegate, a2a_invoker) = match (
+        let a2a_invoker = match (
             self.agent_registry.get().cloned(),
             self.task_router.get().cloned(),
         ) {
             (Some(registry), Some(router)) => {
-                let delegate = apollia_runtime::a2a::make_delegate_fn(
-                    registry.clone(),
-                    router.clone(),
-                    event_bus.clone(),
-                    apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
-                );
                 let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
                     registry,
                     router,
                     event_bus.clone(),
                     apollia_core::A2AConfig::default(),
                 ));
-                (Some(delegate), Some(invoker))
+                Some(invoker)
             }
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A delegate/invoker not available for chat-agent runner - registry or router not yet initialized"
+                    "A2A invoker not available for chat-agent runner - registry or router not yet initialized"
                 );
-                (None, None)
+                None
             }
         };
 
@@ -309,8 +302,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 Some(iface)
             });
 
-        let supports_a2a = manifest.supports_a2a;
-
         // Build user_context from UserMemoryRepository (chat mode only).
         let user_context = self
             .user_memory
@@ -353,9 +344,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 memory_interface,
                 None, // mailbox: not available in chat runner context
                 agent_name.to_string(),
-                supports_a2a,
                 user_context,
-                a2a_delegate,
                 a2a_invoker,
                 manifest.user_memory_write, // user_memory_writable: manifest-controlled
             )
@@ -652,12 +641,8 @@ struct AIPProductionBackend {
     memory_namespace: Option<String>,
     /// Root directory of the memory files (e.g. `~/.apollia/memory/`).
     memory_base_dir: PathBuf,
-    /// Whether the agent supports the A2A protocol (from the manifest).
-    supports_a2a: bool,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     user_memory_write: bool,
-    /// Type-erased A2A delegation function, `None` when not available.
-    a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
     /// High-level A2A orchestrator, `None` when registry or router are not initialized.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
@@ -696,11 +681,9 @@ impl Clone for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
-            supports_a2a: self.supports_a2a,
             pending_approvals: self.pending_approvals.clone(),
             plan_gates: self.plan_gates.clone(),
             task_repository: self.task_repository.clone(),
-            a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
             user_memory_write: self.user_memory_write,
@@ -736,10 +719,6 @@ struct BridgeRunner {
     audit_trail: Option<AuditTrailHandle>,
     memory_namespace: Option<String>,
     memory_base_dir: PathBuf,
-    /// Whether the agent declared A2A support in its manifest.
-    supports_a2a: bool,
-    /// Type-erased delegation function, `None` if not available at runner level.
-    a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
     /// High-level A2A invoker, `None` if not available.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
@@ -870,8 +849,6 @@ impl AgentRunner for BridgeRunner {
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_base_dir = self.memory_base_dir.clone();
-        let supports_a2a = self.supports_a2a;
-        let a2a_delegate = self.a2a_delegate.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
         let user_memory_write = self.user_memory_write;
@@ -1006,9 +983,7 @@ impl AgentRunner for BridgeRunner {
                     memory_interface,
                     None, // mailbox: not wired in task mode
                     agent_id,
-                    supports_a2a,
                     None, // user_context: task mode, not chat
-                    a2a_delegate,
                     a2a_invoker,
                     user_memory_write, // user_memory_writable: manifest-controlled
                 )
@@ -1071,8 +1046,6 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
                     None,
                     None,
                     agent_id.clone(),
-                    false,
-                    None,
                     None,
                     None,
                     false,
@@ -1114,8 +1087,6 @@ impl ExecutionBackend for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
-            supports_a2a: self.supports_a2a,
-            a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
             user_memory_write: self.user_memory_write,
@@ -1265,32 +1236,23 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let task_repository = self.task_repository.get().cloned();
         let mcp_handle = self.mcp_handle.get().cloned().flatten();
 
-        // Build A2A delegate and invoker if registry + router are available.
-        let (a2a_delegate, a2a_invoker) = match (
-            self.registry.get().cloned(),
-            self.router.get().cloned(),
-        ) {
+        // Build the A2A invoker if registry + router are available.
+        let a2a_invoker = match (self.registry.get().cloned(), self.router.get().cloned()) {
             (Some(registry), Some(router)) => {
-                let delegate = make_delegate_fn(
-                    registry.clone(),
-                    router.clone(),
-                    event_bus.clone(),
-                    apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
-                );
                 let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
                     registry,
                     router,
                     event_bus.clone(),
                     apollia_core::A2AConfig::default(),
                 ));
-                (Some(delegate), Some(invoker))
+                Some(invoker)
             }
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A delegate/invoker not available - registry or router not yet initialized"
+                    "A2A invoker not available - registry or router not yet initialized"
                 );
-                (None, None)
+                None
             }
         };
 
@@ -1304,7 +1266,6 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
             let memory_namespace = validated.manifest.memory_namespace.clone();
-            let supports_a2a = validated.manifest.supports_a2a;
             let user_memory_write = validated.manifest.user_memory_write;
             // Capture datasources/templates declarations + the agent's package
             // directory so the BridgeRunner can build ctx.datasources /
@@ -1329,8 +1290,6 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 pending_approvals,
                 plan_gates,
                 task_repository,
-                supports_a2a,
-                a2a_delegate,
                 a2a_invoker,
                 tools_config: self.tools_config.clone(),
                 user_memory_write,
@@ -2205,9 +2164,7 @@ agent = A()
             audit_trail: None,
             memory_namespace: None,
             memory_base_dir: tmp.clone(),
-            supports_a2a: false,
             user_memory_write: false,
-            a2a_delegate: None,
             a2a_invoker: None,
             tools_config: apollia_core::ToolsConfig::default(),
             datasources_declared: vec![],

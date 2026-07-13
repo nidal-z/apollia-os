@@ -110,8 +110,12 @@ pub(crate) enum JournalMessage {
     ListRunIds {
         reply: tokio::sync::oneshot::Sender<Vec<String>>,
     },
-    /// Stop the actor after draining the queue.
-    Shutdown,
+    /// Stop the actor after draining the queue. The actor acks once every
+    /// message enqueued before this one has been processed (FIFO), letting the
+    /// caller await a deterministic drain instead of sleeping.
+    Shutdown {
+        ack: tokio::sync::oneshot::Sender<()>,
+    },
 }
 
 /// In-memory chain head for a run: last used `seq` and last `hash`.
@@ -181,7 +185,10 @@ impl JournalActor {
                 JournalMessage::ListRunIds { reply } => {
                     let _ = reply.send(self.list_run_ids().unwrap_or_default());
                 }
-                JournalMessage::Shutdown => break,
+                JournalMessage::Shutdown { ack } => {
+                    let _ = ack.send(());
+                    break;
+                }
             }
         }
     }

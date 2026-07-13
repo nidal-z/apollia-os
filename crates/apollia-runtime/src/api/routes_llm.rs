@@ -1459,7 +1459,7 @@ mod tests {
     #[tokio::test]
     async fn test_complete_unknown_role_returns_400() {
         // GIVEN
-        let mut state = test_app_state_no_llm();
+        let state = test_app_state_no_llm();
         *state.llm_router.write().await = Some(Arc::new(LlmRouter::empty()));
         let app_router = llm_routes::<MockBackend>().with_state(state);
 
@@ -1491,7 +1491,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_llm_status_with_router_returns_backends_field() {
         // GIVEN
-        let mut state = test_app_state_no_llm();
+        let state = test_app_state_no_llm();
         *state.llm_router.write().await = Some(Arc::new(LlmRouter::empty()));
         let app_router = llm_routes::<MockBackend>().with_state(state);
 

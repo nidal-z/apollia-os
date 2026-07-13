@@ -853,7 +853,6 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::api::server::{APIServer, AppState};
     use crate::chat::manager::ChatSessionManagerHandle;
     use crate::coordinator::{DynBackend, ExecutionBackend};

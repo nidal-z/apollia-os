@@ -1081,7 +1081,7 @@ use std::collections::HashMap;
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_core::AIPPart;
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
-use apollia_runtime::a2a::{A2AInvoker, A2aDelegateFn};
+use apollia_runtime::a2a::A2AInvoker;
 use apollia_runtime::mailbox::AgentMailboxHandle;
 #[cfg(test)]
 use apollia_runtime::mailbox::MailboxConfig;
@@ -1156,19 +1156,11 @@ pub struct RuntimeContext {
     mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
-    /// Whether the agent supports the A2A protocol (from manifest).
-    supports_a2a: bool,
     /// User memory injected in chat mode; `None` in task mode.
     ///
     /// Structure: `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
     /// The agent decides what to do with it; this is never deterministic.
     user_context: Option<HashMap<String, Vec<(String, String)>>>,
-    /// Type-erased A2A delegation function; `None` if A2A routing is unavailable.
-    ///
-    /// Injected from `make_delegate_fn(registry, router, event_bus)` in production.
-    /// Lets a Director Agent call `ctx.delegate(skill_id, payload)` without
-    /// knowing the underlying execution backend.
-    a2a_delegate: Option<A2aDelegateFn>,
     /// High-level A2A orchestrator; `None` if unavailable in this context.
     ///
     /// Exposes `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` to Python agents.
@@ -1181,17 +1173,6 @@ pub struct RuntimeContext {
     /// True only for agents whose manifest declares `user_memory_write = true`
     /// (e.g. `onboarding-agent`).
     user_memory_writable: bool,
-    /// Current depth in the A2A chain (0 = direct invocation, not via A2A).
-    ///
-    /// Incremented by 1 at each inter-agent invocation level.
-    /// Passed to [`A2AInvoker::invoke`] to apply the recursion guard.
-    a2a_depth: u32,
-    /// Cumulative deadline of the current A2A chain.
-    ///
-    /// `None` before the first A2A invocation from this agent.
-    /// Initialized by the `A2AInvoker` on the first invocation and propagated
-    /// through subsequent invocations to bound the chain's total time.
-    chain_deadline: Option<Instant>,
     /// Workspace context collected at task startup.
     ///
     /// Populated by [`with_workspace_snapshot`](RuntimeContext::with_workspace_snapshot) or via the bridge
@@ -1227,16 +1208,7 @@ pub struct RuntimeContext {
     /// by `user_memory_writable`.
     profile: Option<pyo3::Py<crate::profile::ProfileInterface>>,
     /// ID of the agent owning this context (stable UUID).
-    ///
-    /// Propagated in the A2A chain (`AIPTask::delegation_chain`) when this agent
-    /// delegates via `ctx.delegate()`.
     agent_id: AgentId,
-    /// A2A delegation chain inherited from the running task.
-    ///
-    /// Empty for a root task. Extended on each delegation by
-    /// [`crate::context::RuntimeContext::delegate`] before being passed to the
-    /// runtime (`a2a::validate_chain`).
-    delegation_chain: Vec<AgentId>,
     /// Current task id, injected by the backend at the start of a `call_run`
     /// via [`with_task_id`](RuntimeContext::with_task_id).
     ///
@@ -1309,9 +1281,7 @@ impl RuntimeContext {
         memory_interface: Option<crate::memory::MemoryInterface>,
         mailbox: Option<AgentMailboxHandle>,
         agent_name: String,
-        supports_a2a: bool,
         user_context: Option<HashMap<String, Vec<(String, String)>>>,
-        a2a_delegate: Option<A2aDelegateFn>,
         a2a_invoker: Option<Arc<A2AInvoker>>,
         user_memory_writable: bool,
     ) -> Self {
@@ -1393,13 +1363,9 @@ impl RuntimeContext {
             mailbox_allowlist: None,
             mailbox_send_requires_approval: false,
             agent_name,
-            supports_a2a,
             user_context,
-            a2a_delegate,
             a2a_invoker,
             user_memory_writable,
-            a2a_depth: 0,
-            chain_deadline: None,
             workspace: None,
             event_bus: Some(bus_for_token),
             chat_session_id: None,
@@ -1409,7 +1375,6 @@ impl RuntimeContext {
             stt: None,
             profile: None,
             agent_id: agent_id_stored,
-            delegation_chain: Vec::new(),
             task_id: None,
             a2a_iface,
             events_iface,
@@ -1457,13 +1422,9 @@ impl RuntimeContext {
             mailbox_allowlist: None,
             mailbox_send_requires_approval: false,
             agent_name: "test-agent".to_string(),
-            supports_a2a: false,
             user_context: None,
-            a2a_delegate: None,
             a2a_invoker: None,
             user_memory_writable: false,
-            a2a_depth: 0,
-            chain_deadline: None,
             workspace: None,
             event_bus: None,
             chat_session_id: None,
@@ -1473,7 +1434,6 @@ impl RuntimeContext {
             stt: None,
             profile: None,
             agent_id: test_agent_id,
-            delegation_chain: Vec::new(),
             task_id: None,
             a2a_iface,
             events_iface,
@@ -2090,9 +2050,7 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            false,         // supports_a2a
             None,          // user_context
-            None,          // a2a_delegate
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -2119,9 +2077,7 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            false,         // supports_a2a
             None,          // user_context
-            None,          // a2a_delegate
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -2154,9 +2110,7 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            false,         // supports_a2a
             None,          // user_context
-            None,          // a2a_delegate
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -2994,17 +2948,6 @@ mod a2a_tests {
         assert!(result.is_none());
 
         handle.shutdown().await;
-    }
-
-    /// the gate check rejects the call if supports_a2a is false.
-    #[tokio::test]
-    async fn test_gate_check_rejects_without_a2a() {
-        // GIVEN a RuntimeContext with supports_a2a = false
-        let ctx = RuntimeContext::for_test();
-
-        // THEN the internal checks fail
-        assert!(!ctx.supports_a2a);
-        assert!(ctx.mailbox.is_none());
     }
 
     #[tokio::test]

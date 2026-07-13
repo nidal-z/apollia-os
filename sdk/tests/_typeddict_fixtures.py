@@ -19,3 +19,8 @@ class NotRequiredTD(TypedDict):
 class RequiredTotalFalseTD(TypedDict, total=False):
     name: Required[str]
     size: int
+
+
+class TotalFalseNoRequiredTD(TypedDict, total=False):
+    name: str
+    size: int

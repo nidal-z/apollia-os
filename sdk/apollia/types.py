@@ -10,8 +10,6 @@ agents should not depend on it directly: handlers return plain values
 and the dispatch boundary builds the canonical AIPResult dict.
 """
 
-from __future__ import annotations
-
 import base64
 import mimetypes
 from dataclasses import dataclass, field
@@ -220,17 +218,17 @@ class AIPResult:
     data: dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
-    def completed(text: str, data: dict[str, Any] | None = None) -> AIPResult:
+    def completed(text: str, data: dict[str, Any] | None = None) -> "AIPResult":
         """Create a successful result."""
         return AIPResult(status="completed", text=text, data=data or {})
 
     @staticmethod
-    def failed(code: str, message: str) -> AIPResult:
+    def failed(code: str, message: str) -> "AIPResult":
         """Create a failure result."""
         return AIPResult(status="failed", error_code=code, error_message=message)
 
     @staticmethod
-    def input_required(prompt: str, context: dict[str, Any] | None = None) -> AIPResult:
+    def input_required(prompt: str, context: dict[str, Any] | None = None) -> "AIPResult":
         """Create an input-required result (HITL)."""
         return AIPResult(status="input_required", input_prompt=prompt, input_context=context)
 

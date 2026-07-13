@@ -259,10 +259,22 @@ impl AuditJournalHandle {
             .map_err(|_| AuditJournalError::ActorUnavailable)
     }
 
-    /// Send the shutdown signal and let the actor drain its queue.
+    /// Send the shutdown signal and await the actor's drain acknowledgement.
+    ///
+    /// The actor processes its mailbox in FIFO order, so by the time it dequeues
+    /// `Shutdown` every append enqueued earlier is already committed. It then
+    /// acks and exits, which makes shutdown deterministic (no fixed-duration
+    /// sleep to "wait for propagation").
     pub async fn shutdown(self) {
-        let _ = self.sender.send(JournalMessage::Shutdown).await;
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(JournalMessage::Shutdown { ack: ack_tx })
+            .await
+            .is_ok()
+        {
+            let _ = ack_rx.await;
+        }
     }
 }
 

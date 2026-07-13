@@ -228,8 +228,11 @@ impl SttEngine {
                         model_path: self.config.model_path.clone(),
                         model_name: self.model_name.clone(),
                         backend_name: self.backend.name().to_owned(),
-                        metal_enabled: cfg!(feature = "stt-metal"),
-                        cuda_enabled: cfg!(feature = "stt-cuda"),
+                        // Local STT acceleration is selected inside the apollia-runner
+                        // sidecar, not by daemon compile-time features, so the daemon
+                        // never reports an in-process GPU backend.
+                        metal_enabled: false,
+                        cuda_enabled: false,
                     });
                 }
                 SttCommand::Shutdown => {

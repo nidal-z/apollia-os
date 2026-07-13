@@ -96,6 +96,39 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
+    // shutdown() drains the queue before returning (deterministic, no sleep).
+    #[tokio::test]
+    async fn test_shutdown_drains_before_returning() {
+        // GIVEN a journal with many appends enqueued fire-and-forget
+        let path = temp_db();
+        let handle = AuditJournalHandle::open(&path).await.expect("open");
+        const N: usize = 64;
+        for i in 0..N {
+            handle.append(JournalEntryDraft {
+                run_id: "run-drain".to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind: JournalEntryKind::ToolCallStarted,
+                payload: serde_json::json!({ "i": i }),
+            });
+        }
+
+        // WHEN shutdown is awaited: it must block until the actor has drained the
+        // whole queue (the Shutdown message is processed FIFO, after every append)
+        handle.shutdown().await;
+
+        // THEN reopening the persisted journal shows every appended entry, proving
+        // the queue was fully drained before shutdown returned (no lost tail).
+        let reopened = AuditJournalHandle::open(&path).await.expect("reopen");
+        let entries = reopened.query_run("run-drain").await;
+        assert_eq!(
+            entries.len(),
+            N,
+            "all appends must be persisted before shutdown returns"
+        );
+        reopened.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
     // AC-2 warn-and-continue: a missing key opens an unsigned journal
     #[tokio::test]
     async fn test_ac2_warn_and_continue_on_missing_key() {

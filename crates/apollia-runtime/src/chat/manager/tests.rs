@@ -1,6 +1,5 @@
 use super::*;
 use apollia_core::AgentManifest;
-use std::path::PathBuf;
 
 /// Stub AgentLoader that always succeeds.
 struct AlwaysOkLoader;

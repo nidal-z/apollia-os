@@ -27,13 +27,12 @@ Strictness:
   hand-crafted schemas working.
 """
 
-from __future__ import annotations
-
 import dataclasses
 import difflib
 import inspect
 import logging
 import typing
+import warnings
 from collections.abc import Callable
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
@@ -147,21 +146,65 @@ def _dataclass_schema(tp: type) -> dict[str, Any]:
 
 
 def _typeddict_schema(tp: type) -> dict[str, Any]:
-    properties: dict[str, Any] = {}
+    # A payload TypedDict defined in a module that used
+    # ``from __future__ import annotations`` (PEP 563) exposes unresolved
+    # annotations (plain strings or ``ForwardRef`` wrappers, depending on the
+    # Python version). That silently corrupts ``__required_keys__`` (Python
+    # cannot see through ``NotRequired[...]`` when it is a string) and therefore
+    # the generated skill schema. Surface it loudly rather than mis-deriving.
+    raw_annotations = getattr(tp, "__annotations__", {})
+    if any(isinstance(ann, (str, typing.ForwardRef)) for ann in raw_annotations.values()):
+        warnings.warn(
+            f"TypedDict {getattr(tp, '__name__', tp)!r} exposes stringified "
+            "annotations, most likely from 'from __future__ import annotations'. "
+            "Remove that import from the defining module: it breaks "
+            "required/optional field derivation for agent skill schemas.",
+            stacklevel=2,
+        )
+
     try:
         hints = typing.get_type_hints(tp, include_extras=True)
+        hints_resolved = True
     except Exception:
-        hints = dict(getattr(tp, "__annotations__", {}))
+        # Annotations could not be resolved (forward refs, missing names). Fall
+        # back to the raw annotations for the property schemas and to
+        # ``__required_keys__`` for the required set below.
+        hints = dict(raw_annotations)
+        hints_resolved = False
+
+    # ``__total__`` is the class-level default: total TypedDicts (the default)
+    # make every key required unless wrapped in ``NotRequired``; ``total=False``
+    # flips the default to optional unless wrapped in ``Required``.
+    total = bool(getattr(tp, "__total__", True))
+    properties: dict[str, Any] = {}
+    derived_required: set[str] = set()
     for name, ann in hints.items():
-        # Unwrap typing.NotRequired[T] / typing.Required[T] - the required-ness
-        # is tracked separately via ``__required_keys__`` / ``__optional_keys__``;
-        # the underlying T is what defines the field's schema.
-        if get_origin(ann) in (_NotRequired, _Required):
+        origin = get_origin(ann)
+        if origin is _Required:
+            required = True
             inner_args = get_args(ann)
             if inner_args:
                 ann = inner_args[0]
+        elif origin is _NotRequired:
+            required = False
+            inner_args = get_args(ann)
+            if inner_args:
+                ann = inner_args[0]
+        else:
+            required = total
+        if required:
+            derived_required.add(name)
         properties[name] = annotation_to_schema(ann)
-    required_keys = getattr(tp, "__required_keys__", frozenset(hints.keys()))
+
+    # Prefer the per-field derivation above (it honors ``NotRequired`` /
+    # ``Required`` and ``__total__``, and stays correct even when the annotations
+    # had to be recovered from strings). Only when ``get_type_hints`` failed
+    # entirely do we defer to ``__required_keys__``.
+    if hints_resolved:
+        required_keys: set[str] = derived_required
+    else:
+        required_keys = set(getattr(tp, "__required_keys__", frozenset(hints.keys())))
+
     schema: dict[str, Any] = {
         "type": "object",
         "properties": properties,
@@ -520,7 +563,7 @@ def _validate_anyof(value: Any, schema: dict[str, Any], path: str) -> None:
 def _validate_type_decl(value: Any, type_decl: Any, path: str) -> None:
     actual_type = _python_type_name(value)
     raise PayloadError(
-        f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, " f"got {actual_type}",
+        f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, got {actual_type}",
         field=path or None,
         details={
             "field": path or None,

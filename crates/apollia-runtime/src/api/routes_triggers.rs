@@ -894,11 +894,10 @@ mod tests {
     use apollia_triggers::{TaskSubmitter, TriggerDefinitionRepository, TriggerEngineHandle};
     use axum::body::Body;
     use axum::http::Request;
-    use axum::routing::{delete, get, post, put};
+    use axum::routing::{get, post};
     use axum::Router;
     use http_body_util::BodyExt;
     use std::future::Future;
-    use std::path::PathBuf;
     use std::pin::Pin;
     use std::sync::Arc;
     use tower::ServiceExt;
