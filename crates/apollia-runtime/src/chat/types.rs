@@ -670,6 +670,35 @@ impl PendingChatApprovals {
         self.resolve(key, ToolDecision::refuse())
     }
 
+    /// Refuse and drop every pending approval belonging to a session.
+    ///
+    /// Keys follow `"session_id::message_id::tool_name"`, so every entry whose
+    /// key starts with `"{session_id}::"` is removed and its waiting receiver
+    /// gets a plain [`ToolDecision::refuse()`]. Used when a session closes so an
+    /// in-flight ReAct loop blocked on approval unblocks instead of leaking.
+    ///
+    /// Returns the number of approvals refused.
+    pub fn refuse_session(&self, session_id: &str) -> usize {
+        let prefix = format!("{session_id}::");
+        let mut map = self
+            .inner
+            .lock()
+            .expect("PendingChatApprovals lock poisoned");
+        let keys: Vec<String> = map
+            .keys()
+            .filter(|k| k.starts_with(&prefix))
+            .cloned()
+            .collect();
+        let mut refused = 0;
+        for key in keys {
+            if let Some(tx) = map.remove(&key) {
+                let _ = tx.send(ToolDecision::refuse());
+                refused += 1;
+            }
+        }
+        refused
+    }
+
     /// Start a background timeout task that auto-refuses after `duration`.
     ///
     /// If the approval is still pending when the timer fires, it is resolved

@@ -14,6 +14,8 @@
 //! the history read ([`PlanHandle::plan_with_tombstones`]) re-includes them with
 //! their removal provenance (origin, reason, timestamp).
 
+use std::collections::HashSet;
+
 use apollia_core::plan::{
     validate_plan, Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
     PlanValidationError, StepOrigin, StepProvenance, StepStatus,
@@ -593,10 +595,21 @@ impl PlanActor {
         let mutation = build_mutation(&mut steps, op, now_unix())?;
         validate_plan(&steps)?;
 
+        // A mutation on a plan awaiting approval invalidates that pending
+        // approval: revert it to draft so the operator cannot approve a plan
+        // that was silently edited after submission. Other statuses (draft,
+        // executing) keep the step-status updates the agent makes while running.
         let tx = self.conn.transaction()?;
         tx.execute(
-            "UPDATE session_plans SET updated_at = datetime('now') WHERE session_id = ?1",
-            params![session_id],
+            "UPDATE session_plans
+             SET updated_at = datetime('now'),
+                 status = CASE WHEN status = ?2 THEN ?3 ELSE status END
+             WHERE session_id = ?1",
+            params![
+                session_id,
+                status_as_sql(PlanStatus::AwaitingApproval),
+                status_as_sql(PlanStatus::Draft)
+            ],
         )?;
         write_steps(&tx, session_id, &steps)?;
         write_mutation(&tx, session_id, &mutation)?;
@@ -752,10 +765,16 @@ impl PlanActor {
         let Some(mut plan) = self.load_plan(session_id)? else {
             return Ok(None);
         };
+        // A removed step id can re-enter the live set (remove then re-add, or a
+        // fresh propose that reuses it): skip any tombstone whose id is already
+        // present so the reconstructed plan never carries a duplicate step id.
+        let mut seen: HashSet<String> = plan.steps.iter().map(|s| s.step_id.clone()).collect();
         for mutation in self.load_mutations(session_id)? {
             if mutation.kind == PlanMutationKind::RemoveStep {
                 if let Some(tombstone) = mutation.before {
-                    plan.steps.push(tombstone);
+                    if seen.insert(tombstone.step_id.clone()) {
+                        plan.steps.push(tombstone);
+                    }
                 }
             }
         }
@@ -1548,5 +1567,56 @@ mod tests {
 
         // THEN the call reports the actor is gone (graceful, no panic)
         assert!(matches!(result, Err(PlanStoreError::ActorGone)));
+    }
+
+    #[tokio::test]
+    async fn test_mutation_on_awaiting_approval_reverts_to_draft() {
+        // GIVEN a plan submitted for approval
+        let h = handle();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        h.submit("s1").await.expect("submit");
+        let submitted = h.get_plan("s1").await.expect("get").expect("plan");
+        assert_eq!(submitted.status, PlanStatus::AwaitingApproval);
+
+        // WHEN a structural mutation is applied while awaiting approval
+        h.add_step("s1", step("b", &[]), None)
+            .await
+            .expect("add_step");
+
+        // THEN the plan reverts to Draft so the stale approval is invalidated
+        let plan = h.get_plan("s1").await.expect("get").expect("plan");
+        assert_eq!(plan.status, PlanStatus::Draft);
+        assert!(plan.steps.iter().any(|s| s.step_id == "b"));
+    }
+
+    #[tokio::test]
+    async fn test_load_with_tombstones_skips_duplicate_step_id() {
+        // GIVEN a plan where a removed step id is later re-added
+        let h = handle();
+        h.propose("s1", vec![step("a", &[]), step("b", &[])], None)
+            .await
+            .expect("propose");
+        h.remove_step("s1", "b", Some("retrait".into()))
+            .await
+            .expect("remove");
+        h.add_step("s1", step("b", &[]), None)
+            .await
+            .expect("re-add");
+
+        // WHEN loading the plan including tombstones
+        let plan = h
+            .plan_with_tombstones("s1")
+            .await
+            .expect("load")
+            .expect("plan");
+
+        // THEN no step id appears twice (the tombstone for the re-added id is skipped)
+        let mut ids: Vec<&str> = plan.steps.iter().map(|s| s.step_id.as_str()).collect();
+        ids.sort_unstable();
+        let unique = ids.len();
+        ids.dedup();
+        assert_eq!(unique, ids.len(), "duplicate step id in reconstructed plan");
     }
 }

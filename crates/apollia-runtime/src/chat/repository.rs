@@ -417,35 +417,46 @@ impl ChatSessionRepository {
     ///
     /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
     pub fn delete_session(&self, id: &str) -> Result<(), ChatError> {
-        // Delete related data first (foreign-key-like cleanup).
-        self.conn
-            .execute(
-                "DELETE FROM chat_messages WHERE session_id = ?1",
-                params![id],
-            )
-            .map_err(|e| ChatError::InternalError(format!("delete_session messages: {e}")))?;
+        // SAFETY: the repository is the single writer behind an
+        // `Arc<Mutex<ChatSessionRepository>>` (see the struct doc), so the
+        // compile-time `&mut` borrow that `transaction()` requires is
+        // unnecessary; `unchecked_transaction` gives the same atomicity over the
+        // shared `&self` connection. Any early `?` rolls the whole delete back.
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| ChatError::InternalError(format!("delete_session begin: {e}")))?;
 
-        self.conn
-            .execute(
-                "DELETE FROM chat_tool_authorizations WHERE session_id = ?1",
-                params![id],
-            )
-            .map_err(|e| ChatError::InternalError(format!("delete_session authorizations: {e}")))?;
+        // Delete related data first (foreign-key-like cleanup).
+        tx.execute(
+            "DELETE FROM chat_messages WHERE session_id = ?1",
+            params![id],
+        )
+        .map_err(|e| ChatError::InternalError(format!("delete_session messages: {e}")))?;
+
+        tx.execute(
+            "DELETE FROM chat_tool_authorizations WHERE session_id = ?1",
+            params![id],
+        )
+        .map_err(|e| ChatError::InternalError(format!("delete_session authorizations: {e}")))?;
 
         // Clean up FTS5 index.
-        let _ = self.conn.execute(
+        let _ = tx.execute(
             "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
             params![id],
         );
 
-        let deleted = self
-            .conn
+        let deleted = tx
             .execute("DELETE FROM chat_sessions WHERE id = ?1", params![id])
             .map_err(|e| ChatError::InternalError(format!("delete_session: {e}")))?;
 
         if deleted == 0 {
+            // Dropping `tx` here rolls back the child deletions above.
             return Err(ChatError::SessionNotFound(id.to_string()));
         }
+
+        tx.commit()
+            .map_err(|e| ChatError::InternalError(format!("delete_session commit: {e}")))?;
         Ok(())
     }
 
@@ -733,8 +744,15 @@ impl ChatSessionRepository {
     /// Also updates the FTS5 index used for cross-session recall.
     /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
     pub fn update_summary(&self, session_id: &str, summary: &str) -> Result<(), ChatError> {
-        let updated = self
+        // SAFETY: single writer behind `Arc<Mutex<ChatSessionRepository>>`, so
+        // `unchecked_transaction` over `&self` is sound and keeps the main-table
+        // update and the FTS delete+insert atomic (no divergent index on crash).
+        let tx = self
             .conn
+            .unchecked_transaction()
+            .map_err(|e| ChatError::InternalError(format!("update_summary begin: {e}")))?;
+
+        let updated = tx
             .execute(
                 "UPDATE chat_sessions SET summary = ?1 WHERE id = ?2",
                 params![summary, session_id],
@@ -746,8 +764,7 @@ impl ChatSessionRepository {
         }
 
         // Fetch created_at for the FTS5 index
-        let created_at: String = self
-            .conn
+        let created_at: String = tx
             .query_row(
                 "SELECT created_at FROM chat_sessions WHERE id = ?1",
                 params![session_id],
@@ -756,19 +773,19 @@ impl ChatSessionRepository {
             .map_err(|e| ChatError::InternalError(format!("update_summary created_at: {e}")))?;
 
         // Replace FTS5 entry (delete then insert, since FTS5 doesn't support REPLACE natively)
-        self.conn
-            .execute(
-                "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
-                params![session_id],
-            )
-            .map_err(|e| ChatError::InternalError(format!("update_summary fts delete: {e}")))?;
-        self.conn
-            .execute(
-                "INSERT INTO chat_sessions_fts (session_id, created_at, summary) VALUES (?1, ?2, ?3)",
-                params![session_id, created_at, summary],
-            )
-            .map_err(|e| ChatError::InternalError(format!("update_summary fts insert: {e}")))?;
+        tx.execute(
+            "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
+            params![session_id],
+        )
+        .map_err(|e| ChatError::InternalError(format!("update_summary fts delete: {e}")))?;
+        tx.execute(
+            "INSERT INTO chat_sessions_fts (session_id, created_at, summary) VALUES (?1, ?2, ?3)",
+            params![session_id, created_at, summary],
+        )
+        .map_err(|e| ChatError::InternalError(format!("update_summary fts insert: {e}")))?;
 
+        tx.commit()
+            .map_err(|e| ChatError::InternalError(format!("update_summary commit: {e}")))?;
         Ok(())
     }
 
@@ -966,29 +983,8 @@ impl ChatSessionRepository {
         let child_fork_depth = parent_row.fork_depth + 1;
         let tools_json = &parent_row.available_tools;
 
-        // Persist child session row (inherits parent's project_id).
-        self.conn
-            .execute(
-                "INSERT INTO chat_sessions
-                    (id, mode, agent_name, system_prompt, available_tools, created_at,
-                     llm_backend, parent_session_id, fork_depth, project_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![
-                    child_id,
-                    parent_row.mode,
-                    parent_row.agent_name,
-                    parent_row.system_prompt,
-                    tools_json,
-                    created_at,
-                    parent_row.llm_backend,
-                    parent_id,
-                    child_fork_depth,
-                    parent_row.project_id,
-                ],
-            )
-            .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;
-
-        // Copy messages from parent to child with fresh IDs and sequential seq.
+        // Read the parent messages before opening the transaction: the copy must
+        // be all-or-nothing so a crash cannot leave a half-forked child.
         let parent_messages = self.get_messages(parent_id, None)?;
         let message_slice: &[MessageRow] = match up_to_count {
             Some(n) => {
@@ -998,11 +994,40 @@ impl ChatSessionRepository {
             None => &parent_messages,
         };
 
+        // SAFETY: single writer behind `Arc<Mutex<ChatSessionRepository>>`, so
+        // `unchecked_transaction` over `&self` is sound; the child row and every
+        // copied message commit together or not at all.
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| ChatError::InternalError(format!("create_fork_session begin: {e}")))?;
+
+        // Persist child session row (inherits parent's project_id).
+        tx.execute(
+            "INSERT INTO chat_sessions
+                    (id, mode, agent_name, system_prompt, available_tools, created_at,
+                     llm_backend, parent_session_id, fork_depth, project_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                child_id,
+                parent_row.mode,
+                parent_row.agent_name,
+                parent_row.system_prompt,
+                tools_json,
+                created_at,
+                parent_row.llm_backend,
+                parent_id,
+                child_fork_depth,
+                parent_row.project_id,
+            ],
+        )
+        .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;
+
+        // Copy messages from parent to child with fresh IDs and sequential seq.
         for (idx, msg) in message_slice.iter().enumerate() {
             let new_msg_id = uuid::Uuid::new_v4().to_string();
             let seq = (idx + 1) as u32;
-            self.conn
-                .execute(
+            tx.execute(
                     "INSERT INTO chat_messages
                         (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -1023,7 +1048,11 @@ impl ChatSessionRepository {
                 })?;
         }
 
-        // Reload the child with full history.
+        tx.commit()
+            .map_err(|e| ChatError::InternalError(format!("create_fork_session commit: {e}")))?;
+
+        // Reload the child with full history (after commit, so it reflects the
+        // persisted state).
         self.load_session_with_history(child_id)
     }
 
@@ -2010,5 +2039,80 @@ mod tests {
         for child in &children {
             assert_eq!(child.parent_session_id.as_deref(), Some("parent"));
         }
+    }
+
+    #[test]
+    fn test_delete_session_rolls_back_child_deletes_on_failure() {
+        // GIVEN a parent session with messages that is still referenced by a
+        // forked child (the parent_session_id foreign key blocks its deletion)
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 3);
+        repo.create_fork_session("child", "parent", None, "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // WHEN deleting the parent, whose final session-row delete violates the
+        // foreign key and fails after the child rows would have been deleted
+        let result = repo.delete_session("parent");
+
+        // THEN the whole delete rolls back: the error surfaces and the parent's
+        // messages are still present (atomic all-or-nothing, not a partial wipe).
+        assert!(result.is_err(), "delete must fail on the FK violation");
+        let remaining = repo.get_messages("parent", None).expect("get messages");
+        assert_eq!(remaining.len(), 3, "child deletes must roll back on error");
+    }
+
+    #[test]
+    fn test_delete_session_removes_all_related_rows() {
+        // GIVEN a session with messages and a summary (FTS index populated)
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "s1", 3);
+        repo.update_summary("s1", "a searchable summary")
+            .expect("summary");
+
+        // WHEN the session is deleted
+        repo.delete_session("s1").expect("delete");
+
+        // THEN the session row and its messages are gone together, and the
+        // summary is no longer reachable (session no longer exists).
+        assert!(repo.get_session("s1").expect("get").is_none());
+        assert!(repo.get_messages("s1", None).expect("msgs").is_empty());
+        assert!(matches!(
+            repo.get_summary("s1"),
+            Err(ChatError::SessionNotFound(_))
+        ));
+    }
+
+    #[test]
+    fn test_update_summary_replaces_previous_value() {
+        // GIVEN a session summarized once
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "s1", 1);
+        repo.update_summary("s1", "first").expect("first");
+
+        // WHEN a second summary replaces the first (main-table update plus the
+        // atomic FTS delete+insert)
+        repo.update_summary("s1", "second").expect("second");
+
+        // THEN the stored summary is the latest, single, coherent value
+        assert_eq!(
+            repo.get_summary("s1").expect("get").as_deref(),
+            Some("second")
+        );
+    }
+
+    #[test]
+    fn test_create_fork_session_copies_all_messages_atomically() {
+        // GIVEN a parent session with 3 messages
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 3);
+
+        // WHEN it is forked in full
+        let child = repo
+            .create_fork_session("child", "parent", None, "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // THEN the child row exists and carries exactly the 3 copied messages
+        assert_eq!(child.parent_session_id.as_deref(), Some("parent"));
+        assert_eq!(repo.get_messages("child", None).expect("msgs").len(), 3);
     }
 }

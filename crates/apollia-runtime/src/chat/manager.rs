@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use apollia_core::plan::{Plan, PlanMutation};
 use apollia_core::todo::TodoItem;
@@ -1886,8 +1886,10 @@ impl ChatSessionManager {
             }
         }
 
-        // Libre mode requires an LLM
-        if mode == ChatMode::Libre && !llm_configured {
+        // Libre and Companion modes both dispatch through the Libre exchange,
+        // which needs a configured LLM; validate both up front rather than
+        // letting a Companion session get stuck on its first message.
+        if (mode == ChatMode::Libre || mode == ChatMode::Companion) && !llm_configured {
             return Err(ChatError::NoLlmConfigured);
         }
 
@@ -2126,10 +2128,27 @@ impl ChatSessionManager {
 
         // The agent path clones the full session, which already carries `run_id`
         // in `active_exchange`; only the Libre path needs it threaded explicitly.
-        if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
-            self.dispatch_libre_exchange(session_id, &message_id, content, &run_id)?;
+        let dispatch = if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
+            self.dispatch_libre_exchange(session_id, &message_id, content, &run_id)
         } else {
-            self.dispatch_agent_exchange(session_id, &message_id, content)?;
+            self.dispatch_agent_exchange(session_id, &message_id, content)
+        };
+
+        // A dispatch failure (e.g. no LLM configured) must not leave the session
+        // stuck in Processing forever: reset it to Active, clear the exchange and
+        // persist before surfacing the error, so the next send is accepted.
+        if let Err(e) = dispatch {
+            if let Some(session) = self.sessions.get_mut(session_id) {
+                session.status = SessionStatus::Active;
+                session.active_exchange = None;
+            }
+            if let Err(persist_err) = self
+                .repository
+                .update_status(session_id, &SessionStatus::Active)
+            {
+                warn!(error = %persist_err, "Failed to reset session status to Active after dispatch error");
+            }
+            return Err(e);
         }
 
         Ok(message_id)
@@ -2415,6 +2434,13 @@ impl ChatSessionManager {
             }
         };
 
+        // A closed session must never be resurrected by a late in-flight event.
+        // The exchange spawned before close can still deliver here; drop it.
+        if session.status == SessionStatus::Closed {
+            warn!(session_id = %session_id, "ExchangeComplete delivered to closed session, ignoring");
+            return;
+        }
+
         let now = now_rfc3339();
         let assistant_msg_id = uuid::Uuid::new_v4().to_string();
         let tokens_used = response.tokens_used.clone();
@@ -2539,6 +2565,17 @@ impl ChatSessionManager {
 
     /// Handle a failed ReAct exchange.
     fn handle_exchange_error(&mut self, session_id: &str, message_id: &str, error: &str) {
+        // A closed session must never be flipped back to Active by a late error
+        // from an exchange that was in flight when the session closed. Drop it.
+        if self
+            .sessions
+            .get(session_id)
+            .is_some_and(|s| s.status == SessionStatus::Closed)
+        {
+            warn!(session_id = %session_id, "ExchangeError delivered to closed session, ignoring");
+            return;
+        }
+
         error!(
             session_id = %session_id,
             message_id = %message_id,
@@ -2893,6 +2930,29 @@ impl ChatSessionManager {
     }
 
     /// Close a session.
+    /// Drop every piece of in-memory runtime state tied to a session.
+    ///
+    /// Cancels the cooperative pause token so an in-flight ReAct loop stops at
+    /// its next checkpoint, then clears the pause token, pause state, queued
+    /// injection, and refuses any pending tool approval (so a loop blocked on
+    /// approval unblocks). Called when a session closes or is deleted; without
+    /// it these maps leak entries for the lifetime of the actor.
+    fn purge_session_runtime_state(&mut self, session_id: &str) {
+        if let Some(token) = self.pause_tokens.remove(session_id) {
+            token.cancel();
+        }
+        self.pause_states.remove(session_id);
+        self.pending_injections.remove(session_id);
+        let refused = self.pending_chat_approvals.refuse_session(session_id);
+        if refused > 0 {
+            debug!(
+                session_id = %session_id,
+                refused,
+                "chat.session.purge.approvals_refused"
+            );
+        }
+    }
+
     fn handle_close_session(&mut self, session_id: &str) -> Result<(), ChatError> {
         let session = self
             .sessions
@@ -2914,6 +2974,10 @@ impl ChatSessionManager {
 
         self.repository.close_session(session_id, &now)?;
 
+        // Drop pause tokens, pause state, queued injections and pending
+        // approvals so a closed session cannot be resurrected by a late event.
+        self.purge_session_runtime_state(session_id);
+
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionClosed {
             session_id: session_id.to_string(),
         });
@@ -2930,6 +2994,9 @@ impl ChatSessionManager {
     fn handle_delete_session(&mut self, session_id: &str) -> Result<(), ChatError> {
         // Remove from SQLite (messages, authorizations, FTS, session row).
         self.repository.delete_session(session_id)?;
+
+        // Drop any in-memory runtime state before dropping the session itself.
+        self.purge_session_runtime_state(session_id);
 
         // Remove from in-memory cache.
         self.sessions.remove(session_id);
@@ -2978,6 +3045,13 @@ impl ChatSessionManager {
             session.plan_phase = phase;
         }
 
+        // Surface the phase transition so the desktop tracks it without waiting
+        // for the next agent turn (which is the only other emitter).
+        let _ = self.event_bus.send(RuntimeEvent::ChatPlanPhaseChanged {
+            session_id: session_id.to_string(),
+            phase: phase.as_sql().to_string(),
+        });
+
         tracing::info!(
             session_id = %session_id,
             plan_mode = enabled,
@@ -3015,6 +3089,12 @@ impl ChatSessionManager {
 
         let _ = self.event_bus.send(RuntimeEvent::ChatPlanApproved {
             session_id: session_id.to_string(),
+        });
+        // Also surface the phase move so a listener tracking phase transitions
+        // sees Executing, not only the distinct approval event.
+        let _ = self.event_bus.send(RuntimeEvent::ChatPlanPhaseChanged {
+            session_id: session_id.to_string(),
+            phase: PlanPhase::Executing.as_sql().to_string(),
         });
         tracing::info!(session_id = %session_id, decision = "approve", "plan.action");
 
@@ -6222,5 +6302,156 @@ mod tests {
         assert!(matches!(result, Err(ChatError::AgentNotFound(_))));
 
         handle.shutdown().await;
+    }
+
+    fn make_response(paused: bool) -> ChatAgentResponse {
+        ChatAgentResponse {
+            content: "done".into(),
+            tool_calls: vec![],
+            newly_authorized: vec![],
+            tokens_used: apollia_llm::types::TokenUsage::default(),
+            thinking_trace: None,
+            verification_report: None,
+            frontier_ceiling_reached: false,
+            final_plan_phase: None,
+            paused,
+        }
+    }
+
+    /// Drain the bus for the first `ChatPlanPhaseChanged` and return its phase.
+    fn next_phase_event(rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>) -> Option<String> {
+        loop {
+            match rx.try_recv() {
+                Ok(RuntimeEvent::ChatPlanPhaseChanged { phase, .. }) => return Some(phase),
+                Ok(_) => continue,
+                Err(_) => return None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_closed_session_not_resurrected_by_late_exchange_complete() {
+        // GIVEN a closed session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+        manager.handle_close_session("sess-1").expect("close");
+
+        // WHEN a late ExchangeComplete from an in-flight turn is delivered
+        manager.handle_exchange_complete("sess-1", "msg-1", make_response(false));
+
+        // THEN the session stays Closed, never flipped back to Active
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Closed
+        );
+        let persisted = manager
+            .repository
+            .get_session("sess-1")
+            .expect("get")
+            .expect("row");
+        assert_eq!(persisted.status, "closed");
+    }
+
+    #[tokio::test]
+    async fn test_close_session_purges_runtime_state_and_refuses_approvals() {
+        // GIVEN an active session carrying pause tokens, state, an injection, and
+        // a pending tool approval
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+        manager
+            .pause_tokens
+            .insert("sess-1".into(), CancellationToken::new());
+        manager
+            .pause_states
+            .insert("sess-1".into(), PauseState::Paused);
+        manager.pending_injections.insert(
+            "sess-1".into(),
+            InjectedInstruction {
+                session_id: "sess-1".into(),
+                text: "queued".into(),
+            },
+        );
+        let mut approval_rx = manager
+            .pending_chat_approvals
+            .register("sess-1::msg-1::bash".into());
+
+        // WHEN the session is closed
+        manager.handle_close_session("sess-1").expect("close");
+
+        // THEN every per-session map is purged and the waiting approval is refused
+        assert!(manager.pause_tokens.is_empty());
+        assert!(manager.pause_states.is_empty());
+        assert!(manager.pending_injections.is_empty());
+        assert!(matches!(
+            approval_rx.try_recv(),
+            Ok(ToolDecision::Refuse { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_companion_send_without_llm_resets_status_to_active() {
+        // GIVEN a Companion session on a manager with no LLM configured
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+        manager.llm_router = None;
+        if let Some(s) = manager.sessions.get_mut("sess-1") {
+            s.mode = ChatMode::Companion;
+        }
+
+        // WHEN a message is sent and the dispatch fails
+        let result = manager.handle_send_message("sess-1", "hello");
+
+        // THEN the error surfaces AND the session is reset to Active (not stuck
+        // Processing), with the active exchange cleared
+        assert!(matches!(result, Err(ChatError::NoLlmConfigured)));
+        let session = manager.sessions.get("sess-1").unwrap();
+        assert_eq!(session.status, SessionStatus::Active);
+        assert!(session.active_exchange.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_validate_create_request_companion_requires_llm() {
+        // GIVEN a Companion create request with no LLM configured
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+
+        // WHEN the request is validated
+        let result = ChatSessionManager::validate_create_request(
+            &manager.registry_handle,
+            false,
+            ChatMode::Companion,
+            None,
+        )
+        .await;
+
+        // THEN it fails fast with NoLlmConfigured, like Libre mode
+        assert!(matches!(result, Err(ChatError::NoLlmConfigured)));
+    }
+
+    #[tokio::test]
+    async fn test_set_plan_mode_emits_phase_changed() {
+        // GIVEN a session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, mut rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+
+        // WHEN plan mode is enabled at the manager level
+        manager.handle_set_plan_mode("sess-1", true).expect("set");
+
+        // THEN a phase-changed event announces the Discovery phase
+        assert_eq!(next_phase_event(&mut rx).as_deref(), Some("discovery"));
+    }
+
+    #[tokio::test]
+    async fn test_approve_plan_emits_executing_phase_changed() {
+        // GIVEN a session awaiting approval
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, mut rx) =
+            manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
+
+        // WHEN the plan is approved
+        manager.handle_approve_plan("sess-1").expect("approve");
+
+        // THEN a phase-changed event announces the Executing phase
+        assert_eq!(next_phase_event(&mut rx).as_deref(), Some("executing"));
     }
 }
