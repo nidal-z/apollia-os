@@ -6,42 +6,32 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.api_error_body import ApiErrorBody
-from ...models.events_response import EventsResponse
-from ...models.set_events_request import SetEventsRequest
+from ...models.journal_anchor import JournalAnchor
 from ...types import Response
 
 
-def _get_kwargs(
-    *,
-    body: SetEventsRequest,
-) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
+def _get_kwargs() -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
-        "method": "put",
-        "url": "/api/v1/notifications/events",
+        "method": "get",
+        "url": "/api/v1/audit/anchor",
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ApiErrorBody | EventsResponse | None:
+) -> ApiErrorBody | JournalAnchor | None:
     if response.status_code == 200:
-        response_200 = EventsResponse.from_dict(response.json())
+        response_200 = JournalAnchor.from_dict(response.json())
 
         return response_200
 
-    if response.status_code == 422:
-        response_422 = ApiErrorBody.from_dict(response.json())
+    if response.status_code == 404:
+        response_404 = ApiErrorBody.from_dict(response.json())
 
-        return response_422
+        return response_404
 
     if response.status_code == 500:
         response_500 = ApiErrorBody.from_dict(response.json())
@@ -61,7 +51,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ApiErrorBody | EventsResponse]:
+) -> Response[ApiErrorBody | JournalAnchor]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -73,28 +63,22 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: SetEventsRequest,
-) -> Response[ApiErrorBody | EventsResponse]:
-    """`PUT /api/v1/notifications/events`, replace the global events.
+) -> Response[ApiErrorBody | JournalAnchor]:
+    """`GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
 
-     Validates each event against the known event set (`KNOWN_EVENTS`),
-    then replaces the list in `notifications.db` and reloads the
-    notification engine.
-
-    Args:
-        body (SetEventsRequest): Request body for `PUT /api/v1/notifications/events`.
+     Storing this off-machine is the only defense against truncation of the
+    global tail once the signing key can be compromised. Returns 404 when the
+    journal has no entries yet, 503 when the journal is not configured.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | EventsResponse]
+        Response[ApiErrorBody | JournalAnchor]
     """
 
-    kwargs = _get_kwargs(
-        body=body,
-    )
+    kwargs = _get_kwargs()
 
     response = client.get_httpx_client().request(
         **kwargs,
@@ -106,56 +90,45 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: SetEventsRequest,
-) -> ApiErrorBody | EventsResponse | None:
-    """`PUT /api/v1/notifications/events`, replace the global events.
+) -> ApiErrorBody | JournalAnchor | None:
+    """`GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
 
-     Validates each event against the known event set (`KNOWN_EVENTS`),
-    then replaces the list in `notifications.db` and reloads the
-    notification engine.
-
-    Args:
-        body (SetEventsRequest): Request body for `PUT /api/v1/notifications/events`.
+     Storing this off-machine is the only defense against truncation of the
+    global tail once the signing key can be compromised. Returns 404 when the
+    journal has no entries yet, 503 when the journal is not configured.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | EventsResponse
+        ApiErrorBody | JournalAnchor
     """
 
     return sync_detailed(
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: SetEventsRequest,
-) -> Response[ApiErrorBody | EventsResponse]:
-    """`PUT /api/v1/notifications/events`, replace the global events.
+) -> Response[ApiErrorBody | JournalAnchor]:
+    """`GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
 
-     Validates each event against the known event set (`KNOWN_EVENTS`),
-    then replaces the list in `notifications.db` and reloads the
-    notification engine.
-
-    Args:
-        body (SetEventsRequest): Request body for `PUT /api/v1/notifications/events`.
+     Storing this off-machine is the only defense against truncation of the
+    global tail once the signing key can be compromised. Returns 404 when the
+    journal has no entries yet, 503 when the journal is not configured.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | EventsResponse]
+        Response[ApiErrorBody | JournalAnchor]
     """
 
-    kwargs = _get_kwargs(
-        body=body,
-    )
+    kwargs = _get_kwargs()
 
     response = await client.get_async_httpx_client().request(**kwargs)
 
@@ -165,28 +138,23 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: SetEventsRequest,
-) -> ApiErrorBody | EventsResponse | None:
-    """`PUT /api/v1/notifications/events`, replace the global events.
+) -> ApiErrorBody | JournalAnchor | None:
+    """`GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
 
-     Validates each event against the known event set (`KNOWN_EVENTS`),
-    then replaces the list in `notifications.db` and reloads the
-    notification engine.
-
-    Args:
-        body (SetEventsRequest): Request body for `PUT /api/v1/notifications/events`.
+     Storing this off-machine is the only defense against truncation of the
+    global tail once the signing key can be compromised. Returns 404 when the
+    journal has no entries yet, 503 when the journal is not configured.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | EventsResponse
+        ApiErrorBody | JournalAnchor
     """
 
     return (
         await asyncio_detailed(
             client=client,
-            body=body,
         )
     ).parsed

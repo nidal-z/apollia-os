@@ -180,7 +180,14 @@ export interface paths {
          */
         get: operations["list_agent_messages"];
         put?: never;
-        post?: never;
+        /**
+         * `POST /api/v1/agents/:name/messages`, inject a message from the host.
+         * @description The host deposits a message into an agent's durable inbox. The recipient is
+         *     validated against the registry (`404` if unknown). A synthetic host-scoped
+         *     `run_id` is allocated so the injected message is journaled like any other.
+         *     Returns `503` when the mailbox is not available.
+         */
+        post: operations["inject_agent_message"];
         delete?: never;
         options?: never;
         head?: never;
@@ -238,6 +245,28 @@ export interface paths {
         };
         /** `GET /api/v1/audit?limit=N`, list the most recent tool invocations. */
         get: operations["list_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/anchor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
+         * @description Storing this off-machine is the only defense against truncation of the
+         *     global tail once the signing key can be compromised. Returns 404 when the
+         *     journal has no entries yet, 503 when the journal is not configured.
+         */
+        get: operations["get_audit_anchor"];
         put?: never;
         post?: never;
         delete?: never;
@@ -304,6 +333,30 @@ export interface paths {
         };
         /** `GET /api/v1/audit/stats`, aggregate counts for the audit trail. */
         get: operations["get_audit_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/verify`, verify the whole journal across all runs.
+         * @description Unlike the per-run route, this walks the global chain (detecting interior
+         *     deletion and whole-run deletion) and compares the terminal head to the
+         *     persisted anchor (detecting global-tail truncation). An empty journal is a
+         *     valid 200 `ok:true`, not a 404. Returns 503 when the journal is not
+         *     configured and 500 on an internal error.
+         */
+        get: operations["verify_audit_journal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -641,6 +694,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mailbox/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/mailbox/stream`, observe all mailbox traffic as SSE.
+         * @description Streams every mailbox event (sent, delivered, acked, dropped, guard) so the
+         *     host can watch inter-agent messaging live. The stream stays open until the
+         *     client disconnects.
+         */
+        get: operations["stream_mailbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/resources": {
         parameters: {
             query?: never;
@@ -948,9 +1023,9 @@ export interface paths {
         get: operations["get_events"];
         /**
          * `PUT /api/v1/notifications/events`, replace the global events.
-         * @description Validates each event against [`KNOWN_EVENTS`](apollia_notifications::KNOWN_EVENTS),
+         * @description Validates each event against the known event set (`KNOWN_EVENTS`),
          *     then replaces the list in `notifications.db` and reloads the
-         *     [`NotificationEngine`].
+         *     notification engine.
          */
         put: operations["set_events"];
         post?: never;
@@ -1408,7 +1483,7 @@ export interface paths {
          *     - `audio` (required): WAV audio file
          *     - `language` (optional): language hint (ISO 639-1 code)
          *
-         *     Returns `200 OK` with the persisted [`TranscriptRow`](apollia_stt::TranscriptRow).
+         *     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
          *     Returns `400 Bad Request` on missing or invalid audio.
          *     Returns `503 Service Unavailable` when the engine is absent.
          */
@@ -2319,6 +2394,21 @@ export interface components {
         HealthResponse: {
             status: string;
         };
+        /** @description Request body for `POST /api/v1/agents/:name/messages`. */
+        InjectMessageBody: {
+            /**
+             * @description Optional host identifier; the sender is recorded as `host:<id>` (or
+             *     `host` when absent), so injected traffic is distinguishable in the audit.
+             */
+            from?: string | null;
+            /** @description Arbitrary JSON payload to deliver to the agent's inbox. */
+            payload: Record<string, never>;
+        };
+        /** @description Response body for a successful injection. */
+        InjectMessageResponse: {
+            /** @description Identifier assigned to the injected message. */
+            message_id: string;
+        };
         /** @description Request body for `POST /api/v1/a2a/invoke`. */
         InvokeRequest: {
             /** @description Caller name (Director Agent), used for observability. */
@@ -2333,6 +2423,42 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /**
+         * @description The exportable head anchor of the global chain.
+         *
+         *     Printing and storing this off-machine is the only defense against truncation
+         *     of the global tail once the signing key can be compromised.
+         */
+        JournalAnchor: {
+            /** @description Global hash at that position: the head of the chain. */
+            global_hash: string;
+            /**
+             * Format: int64
+             * @description Highest committed global sequence number.
+             */
+            global_seq: number;
+            /** @description Signing key id in force, when the journal is signed. */
+            key_id?: string | null;
+            /** @description When the anchor was last advanced (RFC3339). */
+            updated_ts: string;
+        };
+        /** @description The first broken link found while walking the global chain. */
+        JournalBreak: {
+            /**
+             * Format: int64
+             * @description Global sequence number of the offending entry.
+             */
+            global_seq: number;
+            /** @description Why the link is considered broken. */
+            reason: components["schemas"]["JournalBreakReason"];
+            /** @description Run the offending entry belongs to. */
+            run_id: string;
+        };
+        /**
+         * @description Reason a global-chain link failed whole-journal verification.
+         * @enum {string}
+         */
+        JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
             /** @description Provider-specific configuration. */
@@ -2620,6 +2746,11 @@ export interface components {
             skill_id: string;
             /** @description Human-readable skill name. */
             skill_name: string;
+        };
+        /** @description SSE frame emitted by the mailbox observation stream. */
+        SseMailboxEvent: Record<string, never> & {
+            /** @description Event kind: `sent`, `delivered`, `acked`, `dropped`, or `guard`. */
+            event: string;
         };
         /**
          * @description SSE event sent to the client.
@@ -2982,6 +3113,32 @@ export interface components {
             /** @description Run that was verified. */
             run_id: string;
         };
+        /** @description Outcome of verifying the whole journal across all runs. */
+        VerifyJournalReport: {
+            /**
+             * Format: int64
+             * @description Number of globally-chained entries inspected.
+             */
+            entries_checked: number;
+            first_break?: null | components["schemas"]["JournalBreak"];
+            /**
+             * @description Whether the terminal global head matches the persisted state anchor. A
+             *     `false` here with no `first_break` signals global-tail truncation or a
+             *     rolled-back state row (detectable in-database only until the key is
+             *     compromised; export the anchor off-machine for a durable guarantee).
+             */
+            head_matches_state: boolean;
+            /**
+             * @description `true` when the global chain, every per-run chain, and the head anchor
+             *     all verified.
+             */
+            ok: boolean;
+            /**
+             * Format: int64
+             * @description Number of distinct runs covered by the global chain.
+             */
+            runs_checked: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -3333,6 +3490,60 @@ export interface operations {
             };
         };
     };
+    inject_agent_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipient agent name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InjectMessageBody"];
+            };
+        };
+        responses: {
+            /** @description Message injected */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InjectMessageResponse"];
+                };
+            };
+            /** @description Unknown recipient */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Payload too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Mailbox not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_pending_approvals: {
         parameters: {
             query?: never;
@@ -3409,6 +3620,53 @@ export interface operations {
                 };
             };
             /** @description Audit trail not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_audit_anchor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exportable head anchor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalAnchor"];
+                };
+            };
+            /** @description Journal has no entries */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -3536,6 +3794,44 @@ export interface operations {
                 };
             };
             /** @description Audit trail not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    verify_audit_journal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whole-journal verification report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyJournalReport"];
+                };
+            };
+            /** @description Internal verification error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -4219,6 +4515,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LlmStatusResponse"];
                 };
+            };
+        };
+    };
+    stream_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of mailbox events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -1,0 +1,173 @@
+{
+  "n_samples": 10,
+  "micro": {
+    "tp": 9,
+    "fp": 1,
+    "fn": 2,
+    "precision": 0.9,
+    "recall": 0.818,
+    "f1": 0.857
+  },
+  "macro": {
+    "precision": 0.9,
+    "recall": 0.85,
+    "f1": 0.867
+  },
+  "calibration": {
+    "avg_confidence_correct": null,
+    "avg_confidence_wrong": null
+  },
+  "per_sample": [
+    {
+      "id": "act-001",
+      "expected": [
+        "E1-1",
+        "E1-3"
+      ],
+      "predicted": [
+        "E1-3"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.667
+    },
+    {
+      "id": "act-002",
+      "expected": [
+        "E1-3"
+      ],
+      "predicted": [
+        "E1-3"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-003",
+      "expected": [
+        "E2-1"
+      ],
+      "predicted": [
+        "E2-1"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-004",
+      "expected": [
+        "E3-1"
+      ],
+      "predicted": [
+        "E3-1"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-005",
+      "expected": [
+        "E5-1"
+      ],
+      "predicted": [
+        "E5-1"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-006",
+      "expected": [
+        "S1-1"
+      ],
+      "predicted": [
+        "S1-13"
+      ],
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "id": "act-007",
+      "expected": [
+        "S1-9"
+      ],
+      "predicted": [
+        "S1-9"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-008",
+      "expected": [
+        "S1-13"
+      ],
+      "predicted": [
+        "S1-13"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-009",
+      "expected": [
+        "S2-1"
+      ],
+      "predicted": [
+        "S2-1"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "id": "act-010",
+      "expected": [
+        "G1-1"
+      ],
+      "predicted": [
+        "G1-1"
+      ],
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  ]
+}
