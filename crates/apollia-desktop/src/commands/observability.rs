@@ -304,6 +304,9 @@ fn scan_hitl_tasks(
 /// Emit one task-timeline event for a single `{ status, ts }` transition entry.
 ///
 /// Entries older than `cutoff_str` are skipped.
+// Timeline builder helper: the row plus cutoff, ids, duration and the events
+// accumulator exceed 5 by design; a struct would not clarify this internal call.
+#[allow(clippy::too_many_arguments)]
 fn push_transition_event(
     tr: &serde_json::Value,
     cutoff_str: &str,
@@ -374,7 +377,7 @@ fn scan_hitl_approvals(
     let Ok(iter) = rows else { return };
     for r in iter.flatten() {
         let (task_id, prompt, suspended_at, resolved_at, decision, reason) = r;
-        if suspended_at >= cutoff_str.to_string() {
+        if suspended_at.as_str() >= cutoff_str {
             let preview = trim_for_summary(prompt.as_deref().unwrap_or(""), 80);
             events.push(GlobalTimelineEvent {
                 event_type: "hitl".to_string(),
@@ -388,7 +391,7 @@ fn scan_hitl_approvals(
             });
         }
         if let Some(ts) = resolved_at {
-            if ts >= cutoff_str.to_string() {
+            if ts.as_str() >= cutoff_str {
                 let verdict = decision.as_deref().unwrap_or("résolu");
                 events.push(GlobalTimelineEvent {
                     event_type: "hitl".to_string(),
@@ -443,7 +446,7 @@ fn scan_chat_sessions(
             .as_deref()
             .map(|t| trim_for_summary(t, 60))
             .unwrap_or_else(|| "(sans titre)".to_string());
-        if created_at >= cutoff_str.to_string() {
+        if created_at.as_str() >= cutoff_str {
             events.push(GlobalTimelineEvent {
                 event_type: "task".to_string(),
                 timestamp: created_at.clone(),
@@ -459,7 +462,7 @@ fn scan_chat_sessions(
             });
         }
         if let Some(ts) = closed_at {
-            if ts >= cutoff_str.to_string() {
+            if ts.as_str() >= cutoff_str {
                 events.push(GlobalTimelineEvent {
                     event_type: "task".to_string(),
                     timestamp: ts,

@@ -389,12 +389,10 @@ async fn gcal_list_events(
         .list_events(&cal, &filter, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&events).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&events).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gcal_get_event(
@@ -413,12 +411,10 @@ async fn gcal_get_event(
         .get_event(&cal, &event_id, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gcal_create_event(
@@ -437,12 +433,10 @@ async fn gcal_create_event(
         .create_event(&cal, &draft, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gcal_update_event(
@@ -470,12 +464,10 @@ async fn gcal_update_event(
         )
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gcal_delete_event(
@@ -515,12 +507,10 @@ async fn gdrive_list(exec: &GoogleToolExecutor, input: Value) -> Result<Value, T
         .workspace_list(&root_path, &agent_slug, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&files).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&files).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gdrive_read(exec: &GoogleToolExecutor, input: Value) -> Result<Value, ToolExecutionError> {
@@ -575,12 +565,10 @@ async fn gdrive_write(
         )
         .await
         .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&file).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
+    serde_json::to_value(&file).map_err(|e| ToolExecutionError::ExecutionFailed {
+        code: "serialise".into(),
+        message: e.to_string(),
+    })
 }
 
 async fn gdrive_delete(

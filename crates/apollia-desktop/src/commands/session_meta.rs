@@ -33,10 +33,7 @@ fn get_or_create_log(session_id: &str) -> SessionEventLog {
     let mut guard = session_event_logs()
         .lock()
         .expect("session_event_logs poisoned");
-    guard
-        .entry(session_id.to_owned())
-        .or_insert_with(SessionEventLog::new)
-        .clone()
+    guard.entry(session_id.to_owned()).or_default().clone()
 }
 
 /// Aggregated response from the session meta-layer.
@@ -134,7 +131,6 @@ mod tests {
             assertion_citation_gaps: 3,
             total_assertions: 6,
             thinking_contradictions: 1,
-            ..Default::default()
         };
         let resp = compute_session_meta("s-signals".into(), inputs)
             .await

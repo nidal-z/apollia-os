@@ -221,6 +221,9 @@ pub(crate) fn canonical_project_path(raw: &str) -> Result<PathBuf, String> {
 }
 
 /// Persists a scope-aware rule in `governance.db`.
+// Rule persistence: the tool name, arg prefix, action, scope, project path and
+// agent id exceed 5 by design; they are the full scope-key of a governance rule.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn persist_scoped_rule(
     base_dir: &Path,
     tool_name: String,

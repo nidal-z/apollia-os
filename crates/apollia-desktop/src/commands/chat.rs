@@ -470,6 +470,9 @@ pub async fn send_chat_message(
 /// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] - the
 /// safest sticky option (cf. `ApprovalCardV2`).
 #[tauri::command]
+// Tauri command: the session/message/tool identifiers plus the decision, reason
+// and scope exceed 5 by design; they map one-to-one onto the IPC call.
+#[allow(clippy::too_many_arguments)]
 pub async fn authorize_chat_tool(
     state: State<'_, RuntimeHandle>,
     session_id: String,

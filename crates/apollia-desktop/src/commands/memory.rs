@@ -232,7 +232,8 @@ pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Res
                 .clear_procedural(&namespace)
                 .map_err(|e| format!("clear_procedural failed: {e}"))?;
         }
-        "all" | _ => {
+        // "all" or any unrecognized scope: clear everything.
+        _ => {
             total += store
                 .clear_episodic(&namespace)
                 .map_err(|e| format!("clear_episodic failed: {e}"))?;
@@ -288,7 +289,8 @@ pub async fn purge_memory(
                 .purge_older_than(&namespace, older_than_days)
                 .map_err(|e| format!("purge_procedural failed: {e}"))?;
         }
-        "all" | _ => {
+        // "all" or any unrecognized scope: purge everything.
+        _ => {
             let ep = EpisodicMemory::new(&store);
             total += ep
                 .purge_older_than(&namespace, older_than_days)
@@ -441,7 +443,7 @@ mod tests {
             value: "15000".to_string(),
             created_at: "2026-03-13T10:00:00Z".to_string(),
             expires_at: Some("2026-06-13T10:00:00Z".to_string()),
-            score: Some(3.14),
+            score: Some(2.5),
         };
 
         // WHEN serialized to JSON
@@ -449,7 +451,7 @@ mod tests {
 
         // THEN TTL and score are present
         assert_eq!(json["expires_at"], "2026-06-13T10:00:00Z");
-        assert_eq!(json["score"], 3.14);
+        assert_eq!(json["score"], 2.5);
     }
 
     #[test]
@@ -505,6 +507,10 @@ mod tests {
     }
 
     #[tokio::test]
+    // The tracker lock serializes tests touching the global injected-memory
+    // tracker; it is deliberately held across the command await so a concurrent
+    // test cannot clear or record between this test's setup and assertion.
+    #[allow(clippy::await_holding_lock)]
     async fn test_get_injected_memory_entries_returns_tracked_entries() {
         let _guard = tracker_lock().lock().unwrap();
         // GIVEN a turn with two injected entries recorded in the global tracker
@@ -554,6 +560,8 @@ mod tests {
     }
 
     #[tokio::test]
+    // Held across the await to keep global-tracker tests serial (see above).
+    #[allow(clippy::await_holding_lock)]
     async fn test_get_injected_memory_entries_unknown_turn_is_empty() {
         let _guard = tracker_lock().lock().unwrap();
         // GIVEN a cleared tracker

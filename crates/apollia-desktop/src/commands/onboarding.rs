@@ -1492,7 +1492,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
             }
         }
 
-        models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+        models.sort_by_key(|b| std::cmp::Reverse(b.size_bytes));
         models
     })
     .await
@@ -2709,7 +2709,7 @@ mod tests {
     #[test]
     fn test_all_sequential_transitions_valid() {
         // GIVEN the full transition chain
-        let phases = vec![
+        let phases = [
             OnboardingPhase::Welcome,
             OnboardingPhase::ProfileChoice,
             OnboardingPhase::AiSetup,
@@ -2721,8 +2721,10 @@ mod tests {
         // WHEN checking each consecutive pair
         // THEN all are valid transitions
         for window in phases.windows(2) {
-            let mut state = OnboardingState::default();
-            state.phase = window[0].clone();
+            let state = OnboardingState {
+                phase: window[0].clone(),
+                ..Default::default()
+            };
             assert!(
                 state.can_advance_to(&window[1]),
                 "Transition {:?} -> {:?} should be valid",

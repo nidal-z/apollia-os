@@ -31,10 +31,7 @@ use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, ht
 /// activated when the registry entry omits the `headers` field for a remote that
 /// the enrichment knows about. Keeps curated connectors installable even when the
 /// registry is incomplete, without preventing future registry-sourced improvements.
-fn apply_remote_header_fallback(
-    remotes: &mut Vec<RegistryRemote>,
-    enrichment: &ConnectorEnrichment,
-) {
+fn apply_remote_header_fallback(remotes: &mut [RegistryRemote], enrichment: &ConnectorEnrichment) {
     if enrichment.remote_headers.is_empty() {
         return;
     }
@@ -1409,6 +1406,9 @@ fn compile_time_known_client_id(env_var: &str) -> Option<&'static str> {
 /// Idempotent: calling this for the same `server_name` overwrites any
 /// previously-stored token (useful for the "Reconnect" button in settings).
 #[tauri::command]
+// Tauri command: the server name/url plus the OAuth discovery inputs exceed 5
+// by design; they mirror the front-end reconnect payload one-to-one.
+#[allow(clippy::too_many_arguments)]
 pub async fn mcp_oauth_login(
     app: tauri::AppHandle,
     server_name: String,

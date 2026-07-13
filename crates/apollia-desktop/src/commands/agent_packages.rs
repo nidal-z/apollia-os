@@ -248,6 +248,9 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
 ///    every created venv).
 /// 6. Save to DB + inject triggers (unchanged).
 #[tauri::command]
+// Tauri command: the State<'_, _> injections plus the user-facing args push the
+// count past 5 by design; grouping them into a struct would only obscure the IPC signature.
+#[allow(clippy::too_many_arguments)]
 pub async fn install_agent_package(
     path: String,
     trigger_configs: Vec<TriggerConfigOverride>,
@@ -669,8 +672,8 @@ pub async fn uninstall_agent_package(
     // the frontend. Otherwise the operation is treated as a success even when
     // partial; the user must be able to reinstall afterwards.
     let anything_purged = !agent_names.is_empty()
-        || root_path.exists() == false  // a remove_dir_all succeeded
-        || install_root_default.exists() == false;
+        || !root_path.exists()  // a remove_dir_all succeeded
+        || !install_root_default.exists();
     if !anything_purged && errors.iter().any(|e| e.contains("pkg_repo.delete")) {
         return Err(format!("Package '{name}' not found in any registry"));
     }
@@ -702,6 +705,9 @@ async fn unregister_runtime_agents(
 
 /// Step 5: purge the package install root and per-agent / package venvs from
 /// disk. Non-fatal `remove_dir_all` failures are aggregated into `errors`.
+// Purge helper: the several disk roots plus the name/list/errors accumulator
+// exceed 5 args by design; a struct here would not clarify the call site.
+#[allow(clippy::too_many_arguments)]
 fn purge_uninstall_filesystem(
     root_path: &Path,
     install_root_default: &Path,
@@ -839,14 +845,12 @@ fn inject_package_triggers(
             .or_else(|| t.source.secret.clone());
 
         // Validate webhook secret.
-        if t.source.kind == "webhook" {
-            if secret.as_deref().unwrap_or("").is_empty() {
-                errors.push(format!(
-                    "trigger '{}': webhook secret is required but not provided",
-                    t.id
-                ));
-                continue;
-            }
+        if t.source.kind == "webhook" && secret.as_deref().unwrap_or("").is_empty() {
+            errors.push(format!(
+                "trigger '{}': webhook secret is required but not provided",
+                t.id
+            ));
+            continue;
         }
 
         let row = build_trigger_row(t, secret);
