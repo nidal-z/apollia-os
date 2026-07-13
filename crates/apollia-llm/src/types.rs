@@ -194,6 +194,16 @@ impl TokenUsage {
             (None, None) => None,
         };
     }
+
+    /// Returns the sum of prompt and completion tokens.
+    ///
+    /// Widens each `u32` field to `u64` before adding, so the sum cannot wrap
+    /// (or panic on overflow in debug) even when both counters are near
+    /// `u32::MAX`.
+    #[must_use]
+    pub fn total_tokens(&self) -> u64 {
+        u64::from(self.prompt_tokens) + u64::from(self.completion_tokens)
+    }
 }
 
 /// Why the model stopped generating.
@@ -626,6 +636,19 @@ mod tests {
     fn test_count_tokens_empty_messages() {
         let model = ProxyOnlyModel;
         assert_eq!(model.count_tokens(&[]), 0);
+    }
+
+    // GIVEN a TokenUsage whose prompt and completion counters are both near u32::MAX
+    // WHEN total_tokens sums them
+    // THEN the result is the exact u64 sum, with no u32 overflow wrap or panic
+    #[test]
+    fn test_total_tokens_widens_before_adding() {
+        let usage = TokenUsage {
+            prompt_tokens: u32::MAX,
+            completion_tokens: u32::MAX,
+            ..Default::default()
+        };
+        assert_eq!(usage.total_tokens(), u64::from(u32::MAX) * 2);
     }
 
     // GIVEN a CompletionRequest built with only `messages`

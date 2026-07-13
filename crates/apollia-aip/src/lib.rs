@@ -35,6 +35,7 @@ pub mod package_loader;
 #[allow(clippy::useless_conversion)]
 pub mod profile;
 pub mod python_provider;
+pub mod runtime_pin;
 pub mod secrets;
 pub mod stt;
 pub mod templates;
@@ -48,5 +49,6 @@ pub use budget::BudgetView;
 pub use datasources::DatasourcesInterface;
 pub use events::EventsInterface;
 pub use mail::MailInterface;
+pub use runtime_pin::pin_async_runtime;
 pub use secrets::SecretsInterface;
 pub use templates::TemplatesInterface;

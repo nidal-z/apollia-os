@@ -49,7 +49,7 @@ pub use supervisor::{Supervisor, SupervisorConfig, SupervisorError, SupervisorHa
 pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
 
 // Embedded runtime.
-pub use embedded::{init_embedded, EmbeddedConfig, EmbeddedError, RuntimeHandle};
+pub use embedded::{init_embedded, worker_runtime, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;

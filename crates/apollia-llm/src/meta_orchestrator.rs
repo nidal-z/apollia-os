@@ -668,8 +668,7 @@ impl MetaLlmOrchestrator {
         };
 
         // Update budget + emit MetaLlmBudgetExceeded once per session.
-        let tokens_this_call =
-            u64::from(response.usage.prompt_tokens + response.usage.completion_tokens);
+        let tokens_this_call = response.usage.total_tokens();
         let total = counter
             .tokens_used
             .fetch_add(tokens_this_call, Ordering::Relaxed)

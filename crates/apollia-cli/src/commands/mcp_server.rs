@@ -146,9 +146,14 @@ async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
     let config = EmbeddedConfig::default();
 
     match init_embedded(config) {
-        Ok(handle) => Arc::new(RuntimeSubmitHandler {
-            router: handle.router_handle,
-        }),
+        Ok(handle) => {
+            // Pin the PyO3 async bridge onto the worker runtime now that it is up,
+            // before any Python agent runs a coroutine.
+            apollia_aip::pin_async_runtime();
+            Arc::new(RuntimeSubmitHandler {
+                router: handle.router_handle,
+            })
+        }
         Err(e) => {
             tracing::error!(error = %e, "runtime failed to start - submit_task will be unavailable");
             // Return a handler that always fails gracefully.

@@ -267,16 +267,14 @@ pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
     })
 }
 
-/// Truncates a string to `max` bytes, respecting char boundaries.
+/// Truncates a string to at most `max` bytes, respecting char boundaries, and
+/// appends an ellipsis when truncation occurred.
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         return s.to_owned();
     }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}…", &s[..end.saturating_sub(1)])
+    let cut = apollia_core::floor_char_boundary(s, max);
+    format!("{}…", &s[..cut])
 }
 
 #[async_trait]
@@ -385,6 +383,35 @@ mod tests {
 
     use super::*;
     use crate::config::{NotificationConfig, Severity};
+
+    // GIVEN a message of multibyte chars whose byte length exceeds `max` and
+    // whose `max`-th byte boundary sits right after a multibyte char
+    // WHEN truncating it
+    // THEN it does not panic and yields a valid UTF-8 prefix plus an ellipsis
+    #[test]
+    fn test_truncate_multibyte_does_not_panic() {
+        // "é" is 2 bytes; 10 of them = 20 bytes. max = 5 lands mid/adjacent to a char.
+        let msg = "é".repeat(10);
+        let out = truncate(&msg, 5);
+        assert!(
+            out.ends_with('…'),
+            "truncated output must carry the ellipsis"
+        );
+        assert!(
+            out.trim_end_matches('…').chars().all(|c| c == 'é'),
+            "prefix must be a valid run of whole chars"
+        );
+        // The kept prefix stays within the byte budget.
+        assert!(out.trim_end_matches('…').len() <= 5);
+    }
+
+    // GIVEN a short ASCII message within the byte budget
+    // WHEN truncating it
+    // THEN it is returned unchanged (no ellipsis)
+    #[test]
+    fn test_truncate_short_string_unchanged() {
+        assert_eq!(truncate("hello", 256), "hello");
+    }
 
     fn make_config(events: Vec<&str>) -> NotificationConfig {
         NotificationConfig {

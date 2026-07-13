@@ -548,11 +548,7 @@ fn print_status_table(report: &[serde_json::Value]) {
             .and_then(|v| v.get("email").or_else(|| v.get("sub")))
             .and_then(|v| v.as_str())
             .unwrap_or("-");
-        let scopes_truncated = if scopes.len() > 28 {
-            format!("{}…", &scopes[..27])
-        } else {
-            scopes
-        };
+        let scopes_truncated = crate::commands::truncate_for_display(&scopes, 28, 27, "…");
         println!("  {s:<24} {stored_glyph:<10} {scopes_truncated:<30} {identity}");
     }
 }

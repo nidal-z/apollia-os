@@ -186,11 +186,7 @@ async fn run_list(client: &RuntimeClient) -> i32 {
         let mode = item["mode"].as_str().unwrap_or("-");
         let status = item["status"].as_str().unwrap_or("-");
         let first_msg = item["first_message"].as_str().unwrap_or("");
-        let first_msg_short = if first_msg.len() > 50 {
-            &first_msg[..50]
-        } else {
-            first_msg
-        };
+        let first_msg_short = crate::commands::truncate_for_display(first_msg, 50, 50, "");
         let date = item["created_at"].as_str().unwrap_or("-");
         println!(
             "{:<8}  {:<8}  {:<12}  {:<50}  {}",

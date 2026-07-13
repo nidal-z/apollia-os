@@ -61,33 +61,36 @@ struct ToolRule {
 /// Generates a GBNF grammar string constraining model output to valid tool calls
 /// for the given tool set.
 ///
-/// The grammar enforces a top-level object `{"name": <one of the tool names>,
-/// "arguments": <the matching tool's argument object>}`. Each argument property
-/// is typed from its JSON Schema. Unsupported constructs degrade to a free JSON
-/// value with a `tracing::warn` event. An empty slice returns an empty string,
-/// meaning "no grammar applied".
+/// The grammar enforces a top-level object `{"name": <a tool name>,
+/// "arguments": <that same tool's argument object>}`. Each tool gets its own
+/// `root` alternative binding its name to its own argument rule, so a model
+/// cannot pair one tool's name with another tool's arguments. Each argument
+/// property is typed from its JSON Schema. Unsupported constructs degrade to a
+/// free JSON value with a `tracing::warn` event. An empty slice returns an
+/// empty string, meaning "no grammar applied".
 pub fn tool_specs_to_gbnf(specs: &[ToolSpec]) -> String {
     if specs.is_empty() {
         return String::new();
     }
 
     let rules: Vec<ToolRule> = specs.iter().map(parse_tool).collect();
-    let names: Vec<String> = rules.iter().map(|r| r.name.clone()).collect();
-    let arg_rule_names: Vec<String> = (0..rules.len()).map(|i| format!("tool-{i}-args")).collect();
+    let tool_rule_names: Vec<String> = (0..rules.len()).map(|i| format!("tool-{i}")).collect();
 
     let mut out = String::new();
-    out.push_str(&format!(
-        "root ::= {} ws {} ws {} ws tool-name ws {} ws {} ws {} ws tool-args ws {}\n",
-        lit("{"),
-        json_key("name"),
-        lit(":"),
-        lit(","),
-        json_key("arguments"),
-        lit(":"),
-        lit("}"),
-    ));
-    out.push_str(&format!("tool-name ::= {}\n", json_string_oneof(&names)));
-    out.push_str(&format!("tool-args ::= {}\n", arg_rule_names.join(" | ")));
+    out.push_str(&format!("root ::= {}\n", tool_rule_names.join(" | ")));
+    for (i, rule) in rules.iter().enumerate() {
+        out.push_str(&format!(
+            "tool-{i} ::= {} ws {} ws {} ws {} ws {} ws {} ws {} ws tool-{i}-args ws {}\n",
+            lit("{"),
+            json_key("name"),
+            lit(":"),
+            json_key(&rule.name),
+            lit(","),
+            json_key("arguments"),
+            lit(":"),
+            lit("}"),
+        ));
+    }
     for (i, rule) in rules.iter().enumerate() {
         out.push_str(&format!("tool-{i}-args ::= {}\n", render_args_rule(rule)));
     }
@@ -226,8 +229,12 @@ fn json_string_oneof(values: &[String]) -> String {
 
 /// Renders `s` as a GBNF double-quoted literal matching those exact characters.
 ///
-/// Escapes the two characters that are significant inside a GBNF literal, the
-/// backslash and the double quote, and leaves everything else verbatim.
+/// Escapes every character that is significant inside a GBNF literal: the
+/// backslash, the double quote, and the whitespace/control characters that
+/// would otherwise be emitted verbatim. A raw newline is the important case,
+/// since it terminates a GBNF rule and would corrupt the whole grammar when a
+/// tool name or enum value happens to contain one. `\n`/`\r`/`\t` use their
+/// named escapes; any other C0 control or DEL uses a `\xNN` hex escape.
 fn lit(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
@@ -235,6 +242,12 @@ fn lit(s: &str) -> String {
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+                out.push_str(&format!("\\x{:02X}", c as u32));
+            }
             _ => out.push(c),
         }
     }
@@ -275,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_two_tools_both_names_in_root() {
+    fn test_two_tools_both_names_present() {
         // GIVEN two tools
         let specs = vec![
             make_spec("search_web", json!({ "type": "object", "properties": {} })),
@@ -283,9 +296,94 @@ mod tests {
         ];
         // WHEN generating the grammar
         let gbnf = tool_specs_to_gbnf(&specs);
-        // THEN both quoted names appear in the tool-name alternation
+        // THEN both quoted names appear, each in its own per-tool alternative
         assert!(gbnf.contains("\"search_web\""), "search_web missing");
         assert!(gbnf.contains("\"read_file\""), "read_file missing");
+        assert!(
+            gbnf.contains("root ::= tool-0 | tool-1"),
+            "root must alternate per-tool rules"
+        );
+    }
+
+    #[test]
+    fn test_name_bound_to_own_args() {
+        // GIVEN two tools with DISTINCT argument shapes
+        let specs = vec![
+            make_spec(
+                "alpha",
+                json!({ "type": "object", "properties": { "a": { "type": "string" } } }),
+            ),
+            make_spec(
+                "beta",
+                json!({ "type": "object", "properties": { "b": { "type": "integer" } } }),
+            ),
+        ];
+        // WHEN generating the grammar
+        let gbnf = tool_specs_to_gbnf(&specs);
+        // THEN the old independent name/args alternations are gone
+        assert!(
+            !gbnf.contains("tool-name ::="),
+            "independent tool-name rule must be gone"
+        );
+        assert!(
+            !gbnf.contains("tool-args ::="),
+            "independent tool-args rule must be gone"
+        );
+        // AND each tool alternative fixes its own name and references only its own args
+        let tool0 = gbnf
+            .lines()
+            .find(|l| l.starts_with("tool-0 ::="))
+            .expect("tool-0 rule present");
+        assert!(
+            tool0.contains("\"alpha\""),
+            "tool-0 must fix the alpha name"
+        );
+        assert!(
+            tool0.contains("tool-0-args"),
+            "tool-0 must reference its own args rule"
+        );
+        assert!(
+            !tool0.contains("tool-1-args"),
+            "tool-0 must NOT be able to use beta's args"
+        );
+    }
+
+    #[test]
+    fn test_lit_escapes_control_characters() {
+        // GIVEN a string carrying a quote, backslash, newline, tab, CR and a raw control char
+        // WHEN rendering it as a GBNF literal
+        let out = lit("a\"b\\c\nd\te\rf\u{07}");
+        // THEN no raw control byte leaks into the literal (a raw newline would break the rule)
+        assert!(!out.contains('\n'), "raw newline must not appear");
+        assert!(!out.contains('\t'), "raw tab must not appear");
+        assert!(!out.contains('\r'), "raw CR must not appear");
+        // AND each significant character is represented by its GBNF escape
+        assert!(out.contains("\\\""), "quote escape missing");
+        assert!(out.contains("\\\\"), "backslash escape missing");
+        assert!(out.contains("\\n"), "newline escape missing");
+        assert!(out.contains("\\t"), "tab escape missing");
+        assert!(out.contains("\\r"), "CR escape missing");
+        assert!(out.contains("\\x07"), "control char hex escape missing");
+    }
+
+    #[test]
+    fn test_tool_name_with_newline_stays_single_line() {
+        // GIVEN a (pathological) tool name containing a newline
+        let specs = vec![make_spec(
+            "bad\nname",
+            json!({ "type": "object", "properties": {} }),
+        )];
+        // WHEN generating the grammar
+        let gbnf = tool_specs_to_gbnf(&specs);
+        // THEN every grammar rule line is intact: no rule body is split by a raw newline
+        for line in gbnf.lines() {
+            if line.starts_with("tool-0 ::=") {
+                assert!(
+                    line.contains("bad\\nname"),
+                    "the newline in the tool name must be escaped inside the rule"
+                );
+            }
+        }
     }
 
     #[test]

@@ -819,13 +819,9 @@ pub fn elapsed_seconds(input_required_at: &str) -> u64 {
     Utc::now().signed_duration_since(dt).num_seconds().max(0) as u64
 }
 
-/// Truncate a prompt string to [`MAX_PROMPT_LEN`] characters, appending `"..."`.
+/// Truncate a prompt string to [`MAX_PROMPT_LEN`] bytes, appending `"..."`.
 pub fn truncate_prompt(prompt: &str) -> String {
-    if prompt.len() > MAX_PROMPT_LEN {
-        format!("{}...", &prompt[..MAX_PROMPT_LEN])
-    } else {
-        prompt.to_string()
-    }
+    crate::commands::truncate_for_display(prompt, MAX_PROMPT_LEN, MAX_PROMPT_LEN, "...")
 }
 
 /// Return the Unicode status icon for a step status string.
@@ -848,13 +844,9 @@ fn step_duration(step: &StepRecord) -> &'static str {
     }
 }
 
-/// Truncate `output` to [`MAX_OUTPUT_LEN`] chars, appending `"..."` if truncated.
+/// Truncate `output` to [`MAX_OUTPUT_LEN`] bytes, appending `"..."` if truncated.
 fn truncate_output(output: &str) -> String {
-    if output.len() > MAX_OUTPUT_LEN {
-        format!("{}...", &output[..MAX_OUTPUT_LEN])
-    } else {
-        output.to_string()
-    }
+    crate::commands::truncate_for_display(output, MAX_OUTPUT_LEN, MAX_OUTPUT_LEN, "...")
 }
 
 /// Handle client errors uniformly.

@@ -8,7 +8,7 @@
 //! (which drives the native event loop) is never blocked after init.
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use apollia_core::{A2AConfig, HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
@@ -349,6 +349,23 @@ impl EmbeddedConfig {
 /// - [`EmbeddedError::SupervisorFailed`] if the Supervisor fails to start.
 /// - [`EmbeddedError::StartupTimeout`] if `AllReady` is not received in time.
 /// - [`EmbeddedError::RuntimeThreadPanicked`] if the runtime thread panics.
+/// Process-global handle to the apollia-worker Tokio runtime.
+///
+/// Stored so the PyO3 async bridge (`apollia-aip`) can pin
+/// `pyo3-async-runtimes` onto this exact runtime instead of letting it spawn a
+/// second one. Populated by the first [`init_embedded`] call.
+static WORKER_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Returns the apollia-worker Tokio runtime once the embedded runtime has
+/// started, or `None` before [`init_embedded`] has run.
+///
+/// Kept crate-neutral (no PyO3 types) so `apollia-runtime` stays Python-free;
+/// the PyO3 bridge fetches this handle and pins itself to it.
+#[must_use]
+pub fn worker_runtime() -> Option<&'static tokio::runtime::Runtime> {
+    WORKER_RUNTIME.get()
+}
+
 pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let (result_tx, result_rx) = std::sync::mpsc::channel::<Result<RuntimeHandle, EmbeddedError>>();
     let startup_timeout_secs = config.startup_timeout_secs;
@@ -356,7 +373,7 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
     std::thread::Builder::new()
         .name("apollia-runtime".to_string())
         .spawn(move || {
-            let rt = match tokio::runtime::Builder::new_multi_thread()
+            let built = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .thread_name("apollia-worker")
                 .build()
@@ -369,6 +386,19 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
                             reason: e.to_string(),
                         },
                     )));
+                    return;
+                }
+            };
+
+            // Publish the runtime process-globally so the PyO3 async bridge can
+            // pin itself to it. A second init_embedded in the same process
+            // reuses the first runtime (the freshly built one is dropped here,
+            // harmless as it holds no tasks yet).
+            let _ = WORKER_RUNTIME.set(built);
+            let rt = match WORKER_RUNTIME.get() {
+                Some(rt) => rt,
+                None => {
+                    let _ = result_tx.send(Err(EmbeddedError::RuntimeThreadPanicked));
                     return;
                 }
             };

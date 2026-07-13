@@ -349,11 +349,7 @@ fn format_channel_list(resp: &serde_json::Value) {
             .unwrap_or_default();
 
         let events_str = events_list.join(", ");
-        let events_display = if events_str.len() > 38 {
-            format!("{}…", &events_str[..37])
-        } else {
-            events_str
-        };
+        let events_display = crate::commands::truncate_for_display(&events_str, 38, 37, "…");
 
         let statut = if enabled {
             "✔ active"

@@ -549,6 +549,10 @@ fn main() {
     let runtime_handle: RuntimeHandle =
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
 
+    // Pin the PyO3 async bridge onto the worker runtime now that it is up, before
+    // any Python agent runs a coroutine.
+    apollia_aip::pin_async_runtime();
+
     // Load the STT config from SQLite for the desktop hotkey listener.
     let stt_config_for_hotkey = load_stt_config(&apollia_data_dir);
 

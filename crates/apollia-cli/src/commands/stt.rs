@@ -310,11 +310,7 @@ fn print_transcriptions_human(resp: &serde_json::Value) {
         let source = item["source"].as_str().unwrap_or("?");
         let lang = item["language"].as_str().unwrap_or("-");
         let text = item["full_text"].as_str().unwrap_or("");
-        let truncated = if text.len() > 60 {
-            format!("{}...", &text[..57])
-        } else {
-            text.to_string()
-        };
+        let truncated = crate::commands::truncate_for_display(text, 60, 57, "...");
         println!("  {:<34} {:<8} {:<6} {}", id, source, lang, truncated);
     }
 }

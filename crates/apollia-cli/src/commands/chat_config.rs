@@ -348,13 +348,7 @@ fn run_permissions_list(db: Option<&Path>, json: bool) -> i32 {
             let argument = r
                 .arg_prefix
                 .as_deref()
-                .map(|s| {
-                    if s.len() > 18 {
-                        format!("{}…", &s[..17])
-                    } else {
-                        s.to_string()
-                    }
-                })
+                .map(|s| crate::commands::truncate_for_display(s, 18, 17, "…"))
                 .unwrap_or_else(|| "*".to_string());
             let expires = match r.expires_at {
                 Some(ts) => format!("unix {ts}"),

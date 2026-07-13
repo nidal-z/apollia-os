@@ -882,7 +882,7 @@ impl LlmRouter {
             }
         }
 
-        let default = pick_default_or_fallback(default_name, &backends)?;
+        let default = resolve_default_backend(default_name, &backends)?;
 
         Ok(Self {
             backends,
@@ -968,7 +968,7 @@ impl LlmRouter {
             }
         }
 
-        let default = pick_default_or_fallback(default_name, &backends)?;
+        let default = resolve_default_backend(default_name, &backends)?;
 
         Ok(Self {
             backends,
@@ -1370,13 +1370,21 @@ impl LlmRouter {
     }
 }
 
-/// Pick the effective default backend name with graceful fallback.
+/// Resolve the configured default backend name, failing fast when it is absent.
 ///
-/// When the configured default is missing from the successfully-instantiated
-/// `backends` (e.g. the local feature isn't compiled or the API key is
-/// missing for a cloud backend), pick the first available alphabetical backend
-/// and emit a clear warning. Only fails entirely when no backend instantiated.
-fn pick_default_or_fallback(
+/// The configured default must be present in the successfully-instantiated
+/// `backends` map. When it is missing (e.g. the local feature isn't compiled or
+/// the API key is missing for a cloud backend) this returns
+/// [`LlmError::BackendUnavailable`] rather than silently substituting another
+/// backend: routing every request to an unrequested model is a silent failure,
+/// and principle 4 (fail fast) requires a startup-detectable misconfiguration
+/// to surface at startup.
+///
+/// # Errors
+///
+/// - [`LlmError::BackendUnavailable`] if `configured_default` is not among the
+///   instantiated backends.
+fn resolve_default_backend(
     configured_default: String,
     backends: &HashMap<String, Arc<dyn CompletionModel>>,
 ) -> Result<String, LlmError> {
@@ -1385,21 +1393,10 @@ fn pick_default_or_fallback(
     }
     let mut available: Vec<&String> = backends.keys().collect();
     available.sort();
-    match available.first() {
-        Some(fallback) => {
-            tracing::warn!(
-                configured_default = %configured_default,
-                fallback = %fallback,
-                available = ?available,
-                "configured default LLM backend unavailable - falling back to first available backend"
-            );
-            Ok((*fallback).clone())
-        }
-        None => Err(LlmError::BackendUnavailable {
-            backend: configured_default,
-            reason: "no LLM backend instantiated successfully (default unreachable, no fallback available)".to_string(),
-        }),
-    }
+    Err(LlmError::BackendUnavailable {
+        backend: configured_default,
+        reason: format!("configured default backend not instantiated (available: {available:?})"),
+    })
 }
 
 // ─────────────────────────────────────────────
@@ -1942,6 +1939,45 @@ mod tests {
             ),
             "from_config doit retourner BackendUnavailable si le backend défaut est absent"
         );
+    }
+
+    // GIVEN an instantiated backend set that does NOT contain the configured default
+    // WHEN resolving the default backend
+    // THEN it fails fast with BackendUnavailable rather than substituting another backend
+    #[test]
+    fn test_resolve_default_backend_fails_when_default_absent() {
+        // GIVEN
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert("cloud".to_string(), make_mock_backend("cloud"));
+        backends.insert("other".to_string(), make_mock_backend("other"));
+
+        // WHEN
+        let result = resolve_default_backend("local".to_string(), &backends);
+
+        // THEN
+        assert!(
+            matches!(
+                result,
+                Err(LlmError::BackendUnavailable { ref backend, .. }) if backend == "local"
+            ),
+            "a missing configured default must fail fast, not silently route to another backend"
+        );
+    }
+
+    // GIVEN an instantiated backend set that DOES contain the configured default
+    // WHEN resolving the default backend
+    // THEN it returns that exact name
+    #[test]
+    fn test_resolve_default_backend_returns_present_default() {
+        // GIVEN
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert("local".to_string(), make_mock_backend("local"));
+
+        // WHEN
+        let result = resolve_default_backend("local".to_string(), &backends);
+
+        // THEN
+        assert_eq!(result.expect("present default resolves"), "local");
     }
 
     // ── Observability tests ──────────────────────────────────────────────────

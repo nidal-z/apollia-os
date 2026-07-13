@@ -36,10 +36,17 @@ pub struct StreamableHttpTransport {
     auth_headers: Vec<(String, String)>,
     timeout: Duration,
     /// Sender side: filled by `send` after each successful HTTP response.
-    response_tx: mpsc::UnboundedSender<String>,
+    response_tx: mpsc::Sender<String>,
     /// Receiver side: drained by `recv`.
-    response_rx: Mutex<mpsc::UnboundedReceiver<String>>,
+    response_rx: Mutex<mpsc::Receiver<String>>,
 }
+
+// REASON: bounded so a server flooding SSE events faster than the session layer
+// drains them applies backpressure on `send` instead of growing memory without
+// limit. The MCP dispatch loop alternates one `send` then one `recv`, so this
+// buffer normally holds a single response; 256 is ample headroom for batched
+// SSE events without any practical risk of blocking a healthy session.
+const RESPONSE_BUFFER_CAPACITY: usize = 256;
 
 impl StreamableHttpTransport {
     /// Build a transport targeting `url`.
@@ -58,7 +65,7 @@ impl StreamableHttpTransport {
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
 
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::channel(RESPONSE_BUFFER_CAPACITY);
 
         Ok(Self {
             client,
@@ -163,6 +170,7 @@ impl McpTransport for StreamableHttpTransport {
             for json_payload in parse_sse_data_events(&body) {
                 self.response_tx
                     .send(json_payload)
+                    .await
                     .map_err(|_| TransportError::Closed)?;
             }
             Ok(())
@@ -172,6 +180,7 @@ impl McpTransport for StreamableHttpTransport {
         } else {
             self.response_tx
                 .send(body)
+                .await
                 .map_err(|_| TransportError::Closed)
         }
     }
@@ -269,6 +278,35 @@ mod tests {
                 .expect("axum::serve must not fail");
         });
         addr
+    }
+
+    // GIVEN a transport whose response buffer is filled to capacity without draining
+    // WHEN pushing one more response
+    // THEN the buffer refuses it (bounded), applying backpressure instead of
+    // growing without limit
+    #[tokio::test]
+    async fn test_response_buffer_is_bounded() {
+        // GIVEN
+        let transport =
+            StreamableHttpTransport::new("http://localhost", vec![], Duration::from_secs(1))
+                .expect("transport builds");
+
+        // WHEN filling the buffer up to capacity
+        for i in 0..RESPONSE_BUFFER_CAPACITY {
+            transport
+                .response_tx
+                .try_send(format!("msg-{i}"))
+                .expect("sends up to capacity must succeed");
+        }
+
+        // THEN the next send is refused rather than buffered without bound
+        assert!(
+            transport
+                .response_tx
+                .try_send("overflow".to_string())
+                .is_err(),
+            "response buffer must be bounded and reject sends beyond capacity"
+        );
     }
 
     #[tokio::test]

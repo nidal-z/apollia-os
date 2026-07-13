@@ -23,6 +23,11 @@ use apollia_llm::{
 /// the real batching, and this only caps in-flight requests.
 const DEFAULT_MAP_CONCURRENCY: usize = 8;
 
+/// Capacity of the channel buffering streamed LLM token chunks between the
+/// background forwarder and the Python async iterator. Bounded so a slow
+/// consumer applies backpressure rather than letting the queue grow unbounded.
+const TOKEN_STREAM_BUFFER_CAPACITY: usize = 1024;
+
 // PyO3 types
 
 /// Token-consumption statistics returned to Python.
@@ -569,7 +574,11 @@ impl LlmProxy {
         let bus = self.event_bus.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let (tx, rx) = mpsc::unbounded_channel::<Result<String, LlmError>>();
+            // REASON: bounded so a slow Python consumer applies backpressure onto
+            // the LLM stream (the forwarder awaits on a full buffer) instead of
+            // letting a fast backend grow the queue without limit. Token chunks
+            // are small; 1024 leaves generous slack before backpressure engages.
+            let (tx, rx) = mpsc::channel::<Result<String, LlmError>>(TOKEN_STREAM_BUFFER_CAPACITY);
 
             // Background task: stream from the backend and forward onto tx.
             tokio::spawn(async move {
@@ -641,7 +650,7 @@ struct StreamForward {
     temperature: Option<f32>,
     max_tokens: Option<u32>,
     seed: Option<u64>,
-    tx: mpsc::UnboundedSender<Result<String, LlmError>>,
+    tx: mpsc::Sender<Result<String, LlmError>>,
 }
 
 /// Streams chunks from the resolved backend and forwards each one onto `tx`.
@@ -663,10 +672,12 @@ async fn forward_stream(f: StreamForward) {
     } = f;
     let backend_key = backend.as_deref();
     let Some(model) = router.get(backend_key) else {
-        let _ = tx.send(Err(LlmError::BackendUnavailable {
-            backend: backend_key.unwrap_or("(default)").to_string(),
-            reason: "no matching backend".to_string(),
-        }));
+        let _ = tx
+            .send(Err(LlmError::BackendUnavailable {
+                backend: backend_key.unwrap_or("(default)").to_string(),
+                reason: "no matching backend".to_string(),
+            }))
+            .await;
         return;
     };
 
@@ -682,7 +693,7 @@ async fn forward_stream(f: StreamForward) {
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(StreamChunk::Text(text)) => {
-                        if tx.send(Ok(text)).is_err() {
+                        if tx.send(Ok(text)).await.is_err() {
                             break;
                         }
                     }
@@ -692,7 +703,7 @@ async fn forward_stream(f: StreamForward) {
                         // accumulated text.
                     }
                     Err(e) => {
-                        let _ = tx.send(Err(e));
+                        let _ = tx.send(Err(e)).await;
                         break;
                     }
                 }
@@ -713,10 +724,10 @@ async fn forward_stream(f: StreamForward) {
                 .await
             {
                 Ok(resp) => {
-                    let _ = tx.send(Ok(resp.content));
+                    let _ = tx.send(Ok(resp.content)).await;
                 }
                 Err(e) => {
-                    let _ = tx.send(Err(e));
+                    let _ = tx.send(Err(e)).await;
                 }
             }
         }
@@ -732,7 +743,7 @@ async fn forward_stream(f: StreamForward) {
 /// backend error.
 #[pyclass(name = "TokenStream")]
 pub struct PyTokenStream {
-    rx: Arc<AsyncMutex<mpsc::UnboundedReceiver<Result<String, LlmError>>>>,
+    rx: Arc<AsyncMutex<mpsc::Receiver<Result<String, LlmError>>>>,
 }
 
 #[pymethods]

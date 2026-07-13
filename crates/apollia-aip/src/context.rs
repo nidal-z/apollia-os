@@ -1896,10 +1896,10 @@ impl RuntimeContext {
     /// with the categories `preferences`, `habits`, `context`, or Python `None`
     /// if the agent is not in chat mode or the user memory is empty.
     #[getter]
-    fn user_context(&self, py: Python<'_>) -> PyObject {
+    fn user_context(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.user_context {
-            Some(ctx) => ctx.clone().into_pyobject(py).unwrap().into_any().unbind(),
-            None => py.None(),
+            Some(ctx) => Ok(ctx.clone().into_pyobject(py)?.into_any().unbind()),
+            None => Ok(py.None()),
         }
     }
 
@@ -3035,6 +3035,49 @@ mod a2a_tests {
 
         // THEN user_context is None
         assert!(ctx.user_context.is_none());
+    }
+
+    // GIVEN a RuntimeContext whose user_context is populated
+    // WHEN the Python `ctx.user_context` getter is invoked
+    // THEN it converts to a Python dict without unwrapping / panicking
+    #[test]
+    fn test_user_context_getter_returns_dict() {
+        // GIVEN
+        let mut uc = HashMap::new();
+        uc.insert(
+            "preferences".to_string(),
+            vec![("langue".to_string(), "francais".to_string())],
+        );
+        let mut ctx = RuntimeContext::for_test();
+        ctx.user_context = Some(uc);
+
+        // WHEN / THEN
+        Python::with_gil(|py| {
+            let obj = ctx
+                .user_context(py)
+                .expect("getter must return Ok, not panic");
+            let bound = obj.bind(py);
+            assert!(!bound.is_none(), "populated user_context must not be None");
+            assert!(
+                bound.is_instance_of::<pyo3::types::PyDict>(),
+                "user_context must convert to a Python dict"
+            );
+        });
+    }
+
+    // GIVEN a RuntimeContext with no user_context (task mode)
+    // WHEN the Python getter is invoked
+    // THEN it returns Python None, still via a Result (no unwrap)
+    #[test]
+    fn test_user_context_getter_none() {
+        // GIVEN
+        let ctx = RuntimeContext::for_test();
+
+        // WHEN / THEN
+        Python::with_gil(|py| {
+            let obj = ctx.user_context(py).expect("getter must return Ok");
+            assert!(obj.bind(py).is_none());
+        });
     }
 }
 
