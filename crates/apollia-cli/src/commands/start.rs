@@ -2346,6 +2346,7 @@ mod adr038_master_proof {
     //! structured arguments, and asserts the file was written, the invocation was
     //! audited, and the tool-call budget was consumed.
 
+    use std::pin::Pin;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -2370,28 +2371,33 @@ mod adr038_master_proof {
     /// content to the path. Stands in for `file_write`/`bash`/`http` in the test.
     struct WriteNoteExecutor;
 
-    #[async_trait::async_trait]
     impl ToolExecutor for WriteNoteExecutor {
         fn name(&self) -> &str {
             "write_note"
         }
-        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-            let path = input.get("path").and_then(Value::as_str).ok_or_else(|| {
-                ToolExecutionError::InvalidInput {
-                    message: "missing 'path'".to_string(),
-                }
-            })?;
-            let content = input
-                .get("content")
-                .and_then(Value::as_str)
-                .ok_or_else(|| ToolExecutionError::InvalidInput {
-                    message: "missing 'content'".to_string(),
+        fn execute(
+            &self,
+            input: Value,
+        ) -> Pin<Box<dyn std::future::Future<Output = Result<Value, ToolExecutionError>> + Send + '_>>
+        {
+            Box::pin(async move {
+                let path = input.get("path").and_then(Value::as_str).ok_or_else(|| {
+                    ToolExecutionError::InvalidInput {
+                        message: "missing 'path'".to_string(),
+                    }
                 })?;
-            std::fs::write(path, content).map_err(|e| ToolExecutionError::ExecutionFailed {
-                code: "io_error".to_string(),
-                message: e.to_string(),
-            })?;
-            Ok(Value::String(format!("wrote {} bytes", content.len())))
+                let content = input
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| ToolExecutionError::InvalidInput {
+                        message: "missing 'content'".to_string(),
+                    })?;
+                std::fs::write(path, content).map_err(|e| ToolExecutionError::ExecutionFailed {
+                    code: "io_error".to_string(),
+                    message: e.to_string(),
+                })?;
+                Ok(Value::String(format!("wrote {} bytes", content.len())))
+            })
         }
     }
 

@@ -15,6 +15,8 @@
 pub mod registry;
 pub mod session;
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -137,7 +139,6 @@ impl PersistentBashExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for PersistentBashExecutor {
     fn name(&self) -> &str {
         "persistent_bash"
@@ -148,70 +149,75 @@ impl ToolExecutor for PersistentBashExecutor {
         false
     }
 
-    async fn execute(
+    fn execute(
         &self,
         input: serde_json::Value,
-    ) -> Result<serde_json::Value, ToolExecutionError> {
-        let command = input["command"]
-            .as_str()
-            .ok_or_else(|| ToolExecutionError::InvalidInput {
-                message: "required field 'command' is missing or not a string".into(),
-            })?
-            .to_string();
-
-        let session_id_str =
-            input["session_id"]
+    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, ToolExecutionError>> + Send + '_>>
+    {
+        Box::pin(async move {
+            let command = input["command"]
                 .as_str()
                 .ok_or_else(|| ToolExecutionError::InvalidInput {
-                    message: "required field 'session_id' is missing or not a string".into(),
-                })?;
+                    message: "required field 'command' is missing or not a string".into(),
+                })?
+                .to_string();
 
-        let session_id: SessionId =
-            session_id_str
-                .parse()
-                .map_err(|_| ToolExecutionError::InvalidInput {
-                    message: format!("'session_id' must be a valid UUID - got: '{session_id_str}'"),
-                })?;
+            let session_id_str =
+                input["session_id"]
+                    .as_str()
+                    .ok_or_else(|| ToolExecutionError::InvalidInput {
+                        message: "required field 'session_id' is missing or not a string".into(),
+                    })?;
 
-        let timeout_secs = input["timeout_secs"].as_u64().unwrap_or(30);
+            let session_id: SessionId =
+                session_id_str
+                    .parse()
+                    .map_err(|_| ToolExecutionError::InvalidInput {
+                        message: format!(
+                            "'session_id' must be a valid UUID - got: '{session_id_str}'"
+                        ),
+                    })?;
 
-        // Use the process's current directory as the initial CWD for new sessions.
-        let cwd = std::env::current_dir()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|_| "/tmp".to_string());
+            let timeout_secs = input["timeout_secs"].as_u64().unwrap_or(30);
 
-        tracing::debug!(
-            session_id = %session_id,
-            command = %command,
-            timeout_secs = timeout_secs,
-            "persistent_bash: dispatching command"
-        );
+            // Use the process's current directory as the initial CWD for new sessions.
+            let cwd = std::env::current_dir()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| "/tmp".to_string());
 
-        let session_arc = self
-            .registry
-            .get_or_create(session_id, &cwd)
-            .await
+            tracing::debug!(
+                session_id = %session_id,
+                command = %command,
+                timeout_secs = timeout_secs,
+                "persistent_bash: dispatching command"
+            );
+
+            let session_arc = self
+                .registry
+                .get_or_create(session_id, &cwd)
+                .await
+                .map_err(Self::map_error)?;
+
+            // Each call creates its own CancellationToken. External cancellation from
+            // the ORIA step budget is wired in at the ORIAEngine level (future story).
+            let cancel = CancellationToken::new();
+            let timeout = Duration::from_secs(timeout_secs);
+
+            let output = {
+                let mut session = session_arc.lock().await;
+                session.exec(&command, timeout, cancel).await
+            }
             .map_err(Self::map_error)?;
 
-        // Each call creates its own CancellationToken. External cancellation from
-        // the ORIA step budget is wired in at the ORIAEngine level (future story).
-        let cancel = CancellationToken::new();
-        let timeout = Duration::from_secs(timeout_secs);
+            tracing::debug!(
+                session_id = %session_id,
+                exit_code = output.exit_code,
+                cwd = %output.cwd,
+                "persistent_bash: command finished"
+            );
 
-        let output = {
-            let mut session = session_arc.lock().await;
-            session.exec(&command, timeout, cancel).await
-        }
-        .map_err(Self::map_error)?;
-
-        tracing::debug!(
-            session_id = %session_id,
-            exit_code = output.exit_code,
-            cwd = %output.cwd,
-            "persistent_bash: command finished"
-        );
-
-        Ok(Self::output_to_json(output))
+            Ok(Self::output_to_json(output))
+        })
     }
 }
 

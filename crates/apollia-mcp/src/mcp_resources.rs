@@ -16,6 +16,8 @@
 //! into the agent context on their own.
 
 use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin;
 
 use apollia_core::SandboxProfile;
 use apollia_tools::descriptor::{ToolDescriptor, ToolKind};
@@ -147,7 +149,6 @@ impl McpResourcesListExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for McpResourcesListExecutor {
     fn name(&self) -> &str {
         MCP_RESOURCES_LIST
@@ -160,14 +161,19 @@ impl ToolExecutor for McpResourcesListExecutor {
     /// Returns [`ToolExecutionError::ExecutionFailed`] only if the aggregated
     /// list cannot be serialised. An empty list (no servers, no resources) is a
     /// success, not an error.
-    async fn execute(&self, _input: Value) -> Result<Value, ToolExecutionError> {
-        let resources = self.handle.list_resources().await;
-        serde_json::to_value(&resources)
-            .map(|resources| serde_json::json!({ "resources": resources }))
-            .map_err(|e| ToolExecutionError::ExecutionFailed {
-                code: "serialize_failed".to_string(),
-                message: e.to_string(),
-            })
+    fn execute(
+        &self,
+        _input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let resources = self.handle.list_resources().await;
+            serde_json::to_value(&resources)
+                .map(|resources| serde_json::json!({ "resources": resources }))
+                .map_err(|e| ToolExecutionError::ExecutionFailed {
+                    code: "serialize_failed".to_string(),
+                    message: e.to_string(),
+                })
+        })
     }
 }
 
@@ -188,7 +194,6 @@ impl McpResourcesReadExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for McpResourcesReadExecutor {
     fn name(&self) -> &str {
         MCP_RESOURCES_READ
@@ -201,26 +206,31 @@ impl ToolExecutor for McpResourcesReadExecutor {
     /// - [`ToolExecutionError::InvalidInput`] when `uri` is missing or empty.
     /// - [`ToolExecutionError::ExecutionFailed`] when no connected server
     ///   exposes the URI, or the underlying `resources/read` call fails.
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let uri = input
-            .get("uri")
-            .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| ToolExecutionError::InvalidInput {
-                message: "missing required field `uri`".to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let uri = input
+                .get("uri")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| ToolExecutionError::InvalidInput {
+                    message: "missing required field `uri`".to_string(),
+                })?;
+            let server = input.get("server").and_then(Value::as_str);
+
+            let payload = self.handle.read_resource(server, uri).await.map_err(|e| {
+                ToolExecutionError::ExecutionFailed {
+                    code: "mcp_resource_read_failed".to_string(),
+                    message: e.to_string(),
+                }
             })?;
-        let server = input.get("server").and_then(Value::as_str);
 
-        let payload = self.handle.read_resource(server, uri).await.map_err(|e| {
-            ToolExecutionError::ExecutionFailed {
-                code: "mcp_resource_read_failed".to_string(),
+            serde_json::to_value(&payload).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialize_failed".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(&payload).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialize_failed".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }

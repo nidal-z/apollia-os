@@ -17,6 +17,8 @@
 //! This keeps `apollia-mcp` independent of `apollia-runtime` (which already
 //! depends on this crate).
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -35,14 +37,17 @@ use crate::server_types::{parse_request, CallToolParams, McpRequest};
 ///
 /// The `apollia-cli` crate provides a concrete implementation backed by
 /// `RuntimeHandle::router_handle`.
-#[async_trait::async_trait]
 pub trait SubmitTaskHandler: Send + Sync {
     /// Submit a task to the named agent and return the assigned task ID.
     ///
     /// # Errors
     ///
     /// Returns a human-readable error string when the task cannot be submitted.
-    async fn submit(&self, task: String, agent_id: String) -> Result<String, String>;
+    fn submit(
+        &self,
+        task: String,
+        agent_id: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>>;
 }
 
 // ─── Error type ──────────────────────────────────────────────────────────────
@@ -381,10 +386,13 @@ mod tests {
         // GIVEN: inject a stub SubmitTaskHandler to simulate the runtime path
         struct StubSubmit;
 
-        #[async_trait::async_trait]
         impl SubmitTaskHandler for StubSubmit {
-            async fn submit(&self, _task: String, _agent_id: String) -> Result<String, String> {
-                Ok("stub-task-id".to_string())
+            fn submit(
+                &self,
+                _task: String,
+                _agent_id: String,
+            ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
+                Box::pin(async move { Ok("stub-task-id".to_string()) })
             }
         }
 

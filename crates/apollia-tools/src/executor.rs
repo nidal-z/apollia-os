@@ -13,6 +13,8 @@ use apollia_core::utils::truncate_middle;
 use apollia_core::EventBusSender;
 use apollia_permissions::{PermissionDecision, PermissionEngine};
 use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin;
 use thiserror::Error;
 
 use crate::tools::bash_executor::{BashExecutor, BashExecutorError, BashInput};
@@ -144,7 +146,6 @@ impl SessionToolFilter {
 ///
 /// Each native tool implements this trait. The dispatcher routes by tool name
 /// and delegates to the corresponding executor instance.
-#[async_trait::async_trait]
 pub trait ToolExecutor: Send + Sync {
     /// The unique name identifying this tool (must match the descriptor name).
     fn name(&self) -> &str;
@@ -166,7 +167,10 @@ pub trait ToolExecutor: Send + Sync {
     /// - [`ToolExecutionError::InvalidInput`] if `input` cannot be deserialized into the
     ///   tool's expected schema.
     /// - [`ToolExecutionError::ExecutionFailed`] if the tool encounters a domain error.
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError>;
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>>;
 }
 
 /// A single tool invocation in a batch dispatched by [`ToolDispatcher::execute_batch`].
@@ -492,7 +496,6 @@ impl ToolDispatcher {
 // ToolExecutor implementations - file tools
 // ---------------------------------------------------------------------------
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileRead {
     fn name(&self) -> &str {
         "file_read"
@@ -502,97 +505,109 @@ impl ToolExecutor for FileRead {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileReadInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileReadInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileReadError::SandboxViolation { .. } => "sandbox_violation",
+                    FileReadError::NotFound { .. } => "not_found",
+                    FileReadError::IoError { .. } => "io_error",
+                    FileReadError::BinaryFile { .. } => "binary_file",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileReadError::SandboxViolation { .. } => "sandbox_violation",
-                FileReadError::NotFound { .. } => "not_found",
-                FileReadError::IoError { .. } => "io_error",
-                FileReadError::BinaryFile { .. } => "binary_file",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileWrite {
     fn name(&self) -> &str {
         "file_write"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileWriteInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileWriteInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileWriteError::SandboxViolation { .. } => "sandbox_violation",
+                    FileWriteError::IoError { .. } => "io_error",
+                    FileWriteError::JournalFailed(_) => "journal_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileWriteError::SandboxViolation { .. } => "sandbox_violation",
-                FileWriteError::IoError { .. } => "io_error",
-                FileWriteError::JournalFailed(_) => "journal_failed",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
-                message: e.to_string(),
-            }
-        })?;
-
-        Ok(serde_json::json!({}))
+            Ok(serde_json::json!({}))
+        })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileEdit {
     fn name(&self) -> &str {
         "file_edit"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileEditInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileEditInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileEditError::SandboxViolation { .. } => "sandbox_violation",
+                    FileEditError::NotFound { .. } => "not_found",
+                    FileEditError::PatternNotFound { .. } => "pattern_not_found",
+                    FileEditError::AmbiguousMatch { .. } => "ambiguous_match",
+                    FileEditError::NoChange => "no_change",
+                    FileEditError::BinaryFile { .. } => "binary_file",
+                    FileEditError::IoError { .. } => "io_error",
+                    FileEditError::JournalFailed(_) => "journal_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileEditError::SandboxViolation { .. } => "sandbox_violation",
-                FileEditError::NotFound { .. } => "not_found",
-                FileEditError::PatternNotFound { .. } => "pattern_not_found",
-                FileEditError::AmbiguousMatch { .. } => "ambiguous_match",
-                FileEditError::NoChange => "no_change",
-                FileEditError::BinaryFile { .. } => "binary_file",
-                FileEditError::IoError { .. } => "io_error",
-                FileEditError::JournalFailed(_) => "journal_failed",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileList {
     fn name(&self) -> &str {
         "file_list"
@@ -602,33 +617,37 @@ impl ToolExecutor for FileList {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileListInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileListInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileListError::SandboxViolation { .. } => "sandbox_violation",
+                    FileListError::NotFound { .. } => "not_found",
+                    FileListError::NotADirectory { .. } => "not_a_directory",
+                    FileListError::IoError { .. } => "io_error",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileListError::SandboxViolation { .. } => "sandbox_violation",
-                FileListError::NotFound { .. } => "not_found",
-                FileListError::NotADirectory { .. } => "not_a_directory",
-                FileListError::IoError { .. } => "io_error",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileGlob {
     fn name(&self) -> &str {
         "file_glob"
@@ -638,33 +657,37 @@ impl ToolExecutor for FileGlob {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileGlobInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileGlobInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileGlobError::SandboxViolation { .. } => "sandbox_violation",
+                    FileGlobError::InvalidPattern(_) => "invalid_pattern",
+                    FileGlobError::IoError(_) => "io_error",
+                    FileGlobError::GlobLimitExceeded { .. } => "glob_limit_exceeded",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileGlobError::SandboxViolation { .. } => "sandbox_violation",
-                FileGlobError::InvalidPattern(_) => "invalid_pattern",
-                FileGlobError::IoError(_) => "io_error",
-                FileGlobError::GlobLimitExceeded { .. } => "glob_limit_exceeded",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for FileGrep {
     fn name(&self) -> &str {
         "file_grep"
@@ -674,27 +697,32 @@ impl ToolExecutor for FileGrep {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: FileGrepInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: FileGrepInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    FileGrepError::SandboxViolation { .. } => "sandbox_violation",
+                    FileGrepError::InvalidRegex(_) => "invalid_regex",
+                    FileGrepError::IoError(_) => "io_error",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                FileGrepError::SandboxViolation { .. } => "sandbox_violation",
-                FileGrepError::InvalidRegex(_) => "invalid_regex",
-                FileGrepError::IoError(_) => "io_error",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -703,7 +731,6 @@ impl ToolExecutor for FileGrep {
 // ToolExecutor implementations - notebook tools
 // ---------------------------------------------------------------------------
 
-#[async_trait::async_trait]
 impl ToolExecutor for NotebookRead {
     fn name(&self) -> &str {
         "notebook_read"
@@ -713,61 +740,70 @@ impl ToolExecutor for NotebookRead {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: NotebookReadInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: NotebookReadInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    NotebookReadError::SandboxViolation { .. } => "sandbox_violation",
+                    NotebookReadError::NotFound { .. } => "not_found",
+                    NotebookReadError::Io { .. } => "io_error",
+                    NotebookReadError::InvalidNotebook => "invalid_input",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                NotebookReadError::SandboxViolation { .. } => "sandbox_violation",
-                NotebookReadError::NotFound { .. } => "not_found",
-                NotebookReadError::Io { .. } => "io_error",
-                NotebookReadError::InvalidNotebook => "invalid_input",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for NotebookEdit {
     fn name(&self) -> &str {
         "notebook_edit"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: NotebookEditInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: NotebookEditInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    NotebookEditError::SandboxViolation { .. } => "sandbox_violation",
+                    NotebookEditError::NotFound { .. } => "not_found",
+                    NotebookEditError::Io { .. } => "io_error",
+                    NotebookEditError::InvalidNotebook => "invalid_input",
+                    NotebookEditError::IndexOutOfBounds { .. } => "index_out_of_bounds",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                NotebookEditError::SandboxViolation { .. } => "sandbox_violation",
-                NotebookEditError::NotFound { .. } => "not_found",
-                NotebookEditError::Io { .. } => "io_error",
-                NotebookEditError::InvalidNotebook => "invalid_input",
-                NotebookEditError::IndexOutOfBounds { .. } => "index_out_of_bounds",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -777,37 +813,41 @@ impl ToolExecutor for NotebookEdit {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "http")]
-#[async_trait::async_trait]
 impl ToolExecutor for HttpFetch {
     fn name(&self) -> &str {
         "http_fetch"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: HttpFetchInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: HttpFetchInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    HttpFetchError::HostNotAllowed { .. } => "host_not_allowed",
+                    HttpFetchError::NoAllowlist => "no_allowlist",
+                    HttpFetchError::InvalidUrl(_) => "invalid_url",
+                    HttpFetchError::RequestFailed(_) => "request_failed",
+                    HttpFetchError::ResponseTooLarge { .. } => "response_too_large",
+                    HttpFetchError::Timeout { .. } => "timeout",
+                    HttpFetchError::Ssrf(_) => "ssrf_blocked",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                HttpFetchError::HostNotAllowed { .. } => "host_not_allowed",
-                HttpFetchError::NoAllowlist => "no_allowlist",
-                HttpFetchError::InvalidUrl(_) => "invalid_url",
-                HttpFetchError::RequestFailed(_) => "request_failed",
-                HttpFetchError::ResponseTooLarge { .. } => "response_too_large",
-                HttpFetchError::Timeout { .. } => "timeout",
-                HttpFetchError::Ssrf(_) => "ssrf_blocked",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -817,7 +857,6 @@ impl ToolExecutor for HttpFetch {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "web-search")]
-#[async_trait::async_trait]
 impl ToolExecutor for WebSearch {
     fn name(&self) -> &str {
         "web_search"
@@ -827,28 +866,33 @@ impl ToolExecutor for WebSearch {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: WebSearchInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: WebSearchInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    WebSearchError::InvalidQuery { .. } => "invalid_query",
+                    WebSearchError::BackendNotAvailable { .. } => "backend_not_available",
+                    WebSearchError::AllBackendsFailed { .. } => "all_backends_failed",
+                    WebSearchError::NoBackends => "no_backends_available",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                WebSearchError::InvalidQuery { .. } => "invalid_query",
-                WebSearchError::BackendNotAvailable { .. } => "backend_not_available",
-                WebSearchError::AllBackendsFailed { .. } => "all_backends_failed",
-                WebSearchError::NoBackends => "no_backends_available",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -858,7 +902,6 @@ impl ToolExecutor for WebSearch {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "web-read")]
-#[async_trait::async_trait]
 impl ToolExecutor for WebRead {
     fn name(&self) -> &str {
         "web_read"
@@ -868,33 +911,38 @@ impl ToolExecutor for WebRead {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: WebReadInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: WebReadInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    WebReadError::InvalidUrl(_) => "invalid_url",
+                    WebReadError::PrivateAddress(_) => "private_address",
+                    WebReadError::UnsupportedContentType { .. } => "unsupported_content_type",
+                    WebReadError::RequestFailed(_) => "request_failed",
+                    WebReadError::BadStatus(_) => "bad_status",
+                    WebReadError::ResponseTooLarge { .. } => "response_too_large",
+                    WebReadError::Timeout(_) => "timeout",
+                    WebReadError::ExtractionFailed(_) => "extraction_failed",
+                    WebReadError::EmptyContent(_) => "empty_content",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                WebReadError::InvalidUrl(_) => "invalid_url",
-                WebReadError::PrivateAddress(_) => "private_address",
-                WebReadError::UnsupportedContentType { .. } => "unsupported_content_type",
-                WebReadError::RequestFailed(_) => "request_failed",
-                WebReadError::BadStatus(_) => "bad_status",
-                WebReadError::ResponseTooLarge { .. } => "response_too_large",
-                WebReadError::Timeout(_) => "timeout",
-                WebReadError::ExtractionFailed(_) => "extraction_failed",
-                WebReadError::EmptyContent(_) => "empty_content",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -904,7 +952,6 @@ impl ToolExecutor for WebRead {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "memory-search")]
-#[async_trait::async_trait]
 impl ToolExecutor for MemorySearchTool {
     fn name(&self) -> &str {
         "memory_search"
@@ -914,27 +961,32 @@ impl ToolExecutor for MemorySearchTool {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: MemorySearchInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: MemorySearchInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    MemorySearchToolError::EmptyQuery => "empty_query",
+                    MemorySearchToolError::NamespaceNotAllowed(_) => "namespace_not_allowed",
+                    MemorySearchToolError::SearchFailed(_) => "search_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
             })?;
 
-        let output = self.run(typed).await.map_err(|e| {
-            let code = match &e {
-                MemorySearchToolError::EmptyQuery => "empty_query",
-                MemorySearchToolError::NamespaceNotAllowed(_) => "namespace_not_allowed",
-                MemorySearchToolError::SearchFailed(_) => "search_failed",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            }
-        })?;
-
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -943,107 +995,115 @@ impl ToolExecutor for MemorySearchTool {
 // ToolExecutor implementations - process tools (manual JSON I/O)
 // ---------------------------------------------------------------------------
 
-#[async_trait::async_trait]
 impl ToolExecutor for BashExecutor {
     fn name(&self) -> &str {
         "bash_executor"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let command = input["command"]
-            .as_str()
-            .ok_or_else(|| ToolExecutionError::InvalidInput {
-                message: "missing required field 'command'".to_string(),
-            })?
-            .to_string();
-
-        let timeout_secs =
-            input["timeout_secs"]
-                .as_u64()
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let command = input["command"]
+                .as_str()
                 .ok_or_else(|| ToolExecutionError::InvalidInput {
-                    message: "missing required field 'timeout_secs'".to_string(),
-                })?;
+                    message: "missing required field 'command'".to_string(),
+                })?
+                .to_string();
 
-        let working_dir = input["working_dir"].as_str().map(std::path::PathBuf::from);
+            let timeout_secs =
+                input["timeout_secs"]
+                    .as_u64()
+                    .ok_or_else(|| ToolExecutionError::InvalidInput {
+                        message: "missing required field 'timeout_secs'".to_string(),
+                    })?;
 
-        let bash_input = BashInput {
-            command,
-            timeout_secs,
-            working_dir,
-        };
+            let working_dir = input["working_dir"].as_str().map(std::path::PathBuf::from);
 
-        let output = self.run(bash_input).await.map_err(|e| {
-            let code = match &e {
-                BashExecutorError::EmptyCommand => "empty_command",
-                BashExecutorError::WorkingDirNotFound(_) => "working_dir_not_found",
-                BashExecutorError::Timeout { .. } => "timeout",
-                BashExecutorError::SpawnFailed(_) => "spawn_failed",
-                BashExecutorError::OutputCaptureFailed(_) => "output_capture_failed",
-                BashExecutorError::SyntaxError { .. } => "syntax_error",
-                BashExecutorError::RiskyCommand { .. } => "risky_command",
-                BashExecutorError::SyntaxValidationTimeout => "syntax_validation_timeout",
+            let bash_input = BashInput {
+                command,
+                timeout_secs,
+                working_dir,
             };
-            ToolExecutionError::ExecutionFailed {
-                code: code.to_string(),
-                message: e.to_string(),
-            }
-        })?;
 
-        Ok(serde_json::json!({
-            "stdout": output.stdout,
-            "stderr": output.stderr,
-            "exit_code": output.exit_code,
-            "duration_ms": output.duration_ms,
-        }))
+            let output = self.run(bash_input).await.map_err(|e| {
+                let code = match &e {
+                    BashExecutorError::EmptyCommand => "empty_command",
+                    BashExecutorError::WorkingDirNotFound(_) => "working_dir_not_found",
+                    BashExecutorError::Timeout { .. } => "timeout",
+                    BashExecutorError::SpawnFailed(_) => "spawn_failed",
+                    BashExecutorError::OutputCaptureFailed(_) => "output_capture_failed",
+                    BashExecutorError::SyntaxError { .. } => "syntax_error",
+                    BashExecutorError::RiskyCommand { .. } => "risky_command",
+                    BashExecutorError::SyntaxValidationTimeout => "syntax_validation_timeout",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
+            })?;
+
+            Ok(serde_json::json!({
+                "stdout": output.stdout,
+                "stderr": output.stderr,
+                "exit_code": output.exit_code,
+                "duration_ms": output.duration_ms,
+            }))
+        })
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for PythonExecutor {
     fn name(&self) -> &str {
         "python_executor"
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let code = input["code"]
-            .as_str()
-            .ok_or_else(|| ToolExecutionError::InvalidInput {
-                message: "missing required field 'code'".to_string(),
-            })?
-            .to_string();
-
-        let timeout_secs =
-            input["timeout_secs"]
-                .as_u64()
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let code = input["code"]
+                .as_str()
                 .ok_or_else(|| ToolExecutionError::InvalidInput {
-                    message: "missing required field 'timeout_secs'".to_string(),
-                })?;
+                    message: "missing required field 'code'".to_string(),
+                })?
+                .to_string();
 
-        let python_input = PythonInput { code, timeout_secs };
+            let timeout_secs =
+                input["timeout_secs"]
+                    .as_u64()
+                    .ok_or_else(|| ToolExecutionError::InvalidInput {
+                        message: "missing required field 'timeout_secs'".to_string(),
+                    })?;
 
-        let output = self.run(python_input).await.map_err(|e| {
-            let code_str = match &e {
-                PythonExecutorError::EmptyCode => "empty_code",
-                PythonExecutorError::PythonUnavailable => "python_unavailable",
-                PythonExecutorError::VenvCreationFailed(_) => "venv_creation_failed",
-                PythonExecutorError::PackageInstallFailed { .. } => "package_install_failed",
-                PythonExecutorError::Timeout { .. } => "timeout",
-                PythonExecutorError::SpawnFailed(_) => "spawn_failed",
-                PythonExecutorError::OutputCaptureFailed(_) => "output_capture_failed",
-                PythonExecutorError::TempFileFailed(_) => "temp_file_failed",
-            };
-            ToolExecutionError::ExecutionFailed {
-                code: code_str.to_string(),
-                message: e.to_string(),
-            }
-        })?;
+            let python_input = PythonInput { code, timeout_secs };
 
-        Ok(serde_json::json!({
-            "stdout": output.stdout,
-            "stderr": output.stderr,
-            "exit_code": output.exit_code,
-            "duration_ms": output.duration_ms,
-        }))
+            let output = self.run(python_input).await.map_err(|e| {
+                let code_str = match &e {
+                    PythonExecutorError::EmptyCode => "empty_code",
+                    PythonExecutorError::PythonUnavailable => "python_unavailable",
+                    PythonExecutorError::VenvCreationFailed(_) => "venv_creation_failed",
+                    PythonExecutorError::PackageInstallFailed { .. } => "package_install_failed",
+                    PythonExecutorError::Timeout { .. } => "timeout",
+                    PythonExecutorError::SpawnFailed(_) => "spawn_failed",
+                    PythonExecutorError::OutputCaptureFailed(_) => "output_capture_failed",
+                    PythonExecutorError::TempFileFailed(_) => "temp_file_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code_str.to_string(),
+                    message: e.to_string(),
+                }
+            })?;
+
+            Ok(serde_json::json!({
+                "stdout": output.stdout,
+                "stderr": output.stderr,
+                "exit_code": output.exit_code,
+                "duration_ms": output.duration_ms,
+            }))
+        })
     }
 }
 
@@ -1062,14 +1122,16 @@ mod tests {
         tool_name: &'static str,
     }
 
-    #[async_trait::async_trait]
     impl ToolExecutor for EchoExecutor {
         fn name(&self) -> &str {
             self.tool_name
         }
 
-        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-            Ok(input)
+        fn execute(
+            &self,
+            input: Value,
+        ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+            Box::pin(async move { Ok(input) })
         }
     }
 
@@ -1146,14 +1208,16 @@ mod tests {
         size: usize,
     }
 
-    #[async_trait::async_trait]
     impl ToolExecutor for LargeOutputExecutor {
         fn name(&self) -> &str {
             "large_tool"
         }
 
-        async fn execute(&self, _input: Value) -> Result<Value, ToolExecutionError> {
-            Ok(Value::String("x".repeat(self.size)))
+        fn execute(
+            &self,
+            _input: Value,
+        ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+            Box::pin(async move { Ok(Value::String("x".repeat(self.size))) })
         }
     }
 
@@ -1218,7 +1282,6 @@ mod tests {
         delay_ms: u64,
     }
 
-    #[async_trait::async_trait]
     impl ToolExecutor for TimedEchoExecutor {
         fn name(&self) -> &str {
             self.tool_name
@@ -1228,11 +1291,16 @@ mod tests {
             self.read_only
         }
 
-        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-            if self.delay_ms > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_millis(self.delay_ms)).await;
-            }
-            Ok(input)
+        fn execute(
+            &self,
+            input: Value,
+        ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+            Box::pin(async move {
+                if self.delay_ms > 0 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(self.delay_ms)).await;
+                }
+                Ok(input)
+            })
         }
     }
 

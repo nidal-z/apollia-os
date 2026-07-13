@@ -2641,21 +2641,28 @@ mod tests {
         // (DispatcherExecutor -> ToolDispatcher -> executor), same wiring as
         // production orchestrated execution.
         struct EchoInputExecutor;
-        #[async_trait::async_trait]
         impl NativeToolExecutor for EchoInputExecutor {
             fn name(&self) -> &str {
                 "echo"
             }
-            async fn execute(
+            fn execute(
                 &self,
                 input: serde_json::Value,
-            ) -> Result<serde_json::Value, ToolExecutionError> {
-                let text = input
-                    .get("input")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                Ok(serde_json::Value::String(format!("echo: {text}")))
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<serde_json::Value, ToolExecutionError>>
+                        + Send
+                        + '_,
+                >,
+            > {
+                Box::pin(async move {
+                    let text = input
+                        .get("input")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    Ok(serde_json::Value::String(format!("echo: {text}")))
+                })
             }
         }
 

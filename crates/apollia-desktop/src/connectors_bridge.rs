@@ -16,6 +16,8 @@
 //! input field, default account preference) is deferred; track it in a
 //! follow-up.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_auth::{AccountId, AuthManager, ConnectorProvider, GoogleScope};
@@ -26,7 +28,6 @@ use apollia_connectors::google::{
     GoogleConnector,
 };
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
-use async_trait::async_trait;
 use serde_json::{json, Value};
 
 /// Build the full set of Google [`ToolExecutor`]s the dispatcher should know
@@ -147,7 +148,6 @@ impl GoogleToolExecutor {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for GoogleToolExecutor {
     fn name(&self) -> &str {
         self.op_id
@@ -163,8 +163,11 @@ impl ToolExecutor for GoogleToolExecutor {
         )
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        dispatch_google(self, input).await
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move { dispatch_google(self, input).await })
     }
 }
 

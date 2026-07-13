@@ -9,12 +9,13 @@
 //! dispatcher's `PermissionEngine`. Writes are immediately visible to later
 //! `decide()` calls.
 
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 
 use apollia_permissions::{
     PermissionError, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
 };
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
@@ -306,7 +307,6 @@ impl PermissionRuleAdd {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for PermissionRuleAdd {
     fn name(&self) -> &str {
         "permission_rule_add"
@@ -316,15 +316,20 @@ impl ToolExecutor for PermissionRuleAdd {
         false
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: PermissionRuleAddInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: PermissionRuleAddInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+            let out = self.run(typed)?;
+            serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            })?;
-        let out = self.run(typed)?;
-        serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -401,7 +406,6 @@ impl PermissionRuleRemove {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for PermissionRuleRemove {
     fn name(&self) -> &str {
         "permission_rule_remove"
@@ -411,15 +415,20 @@ impl ToolExecutor for PermissionRuleRemove {
         false
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: PermissionRuleRemoveInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: PermissionRuleRemoveInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+            let out = self.run(typed)?;
+            serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            })?;
-        let out = self.run(typed)?;
-        serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }
@@ -531,7 +540,6 @@ impl PermissionRuleList {
     }
 }
 
-#[async_trait]
 impl ToolExecutor for PermissionRuleList {
     fn name(&self) -> &str {
         "permission_rule_list"
@@ -541,19 +549,24 @@ impl ToolExecutor for PermissionRuleList {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        // Empty input accepted (filters are optional).
-        let typed: PermissionRuleListInput = if input.is_null() {
-            PermissionRuleListInput::default()
-        } else {
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            // Empty input accepted (filters are optional).
+            let typed: PermissionRuleListInput = if input.is_null() {
+                PermissionRuleListInput::default()
+            } else {
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?
+            };
+            let out = self.run(typed)?;
+            serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
                 message: e.to_string(),
-            })?
-        };
-        let out = self.run(typed)?;
-        serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            })
         })
     }
 }

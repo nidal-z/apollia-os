@@ -14,6 +14,8 @@ use crate::executor::ToolExecutionError;
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
@@ -269,7 +271,6 @@ impl AskUserExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl crate::executor::ToolExecutor for AskUserExecutor {
     fn name(&self) -> &str {
         "ask_user"
@@ -279,67 +280,73 @@ impl crate::executor::ToolExecutor for AskUserExecutor {
         true
     }
 
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let parsed: AskUserInput =
-            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
-                message: e.to_string(),
-            })?;
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let parsed: AskUserInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
 
-        if parsed.questions.is_empty() {
-            return Err(ToolExecutionError::InvalidInput {
-                message: "at least one question is required".to_string(),
-            });
-        }
-
-        if parsed.questions.len() > 10 {
-            return Err(ToolExecutionError::InvalidInput {
-                message: "maximum 10 questions per call".to_string(),
-            });
-        }
-
-        // Validate choice questions have options
-        for q in &parsed.questions {
-            if (q.question_type == QuestionType::SingleChoice
-                || q.question_type == QuestionType::MultiChoice)
-                && q.options.is_empty()
-            {
+            if parsed.questions.is_empty() {
                 return Err(ToolExecutionError::InvalidInput {
-                    message: format!(
-                        "question '{}' is {:?} but has no options",
-                        q.id, q.question_type
-                    ),
+                    message: "at least one question is required".to_string(),
                 });
             }
-        }
 
-        let (reply_tx, reply_rx) = oneshot::channel();
-        let request_id = uuid::Uuid::new_v4().to_string();
+            if parsed.questions.len() > 10 {
+                return Err(ToolExecutionError::InvalidInput {
+                    message: "maximum 10 questions per call".to_string(),
+                });
+            }
 
-        let pending = PendingUserInput {
-            questions: parsed.questions,
-            context: parsed.context,
-            session_id: self.session_id.clone(),
-            reply_tx,
-        };
+            // Validate choice questions have options
+            for q in &parsed.questions {
+                if (q.question_type == QuestionType::SingleChoice
+                    || q.question_type == QuestionType::MultiChoice)
+                    && q.options.is_empty()
+                {
+                    return Err(ToolExecutionError::InvalidInput {
+                        message: format!(
+                            "question '{}' is {:?} but has no options",
+                            q.id, q.question_type
+                        ),
+                    });
+                }
+            }
 
-        self.pending_tx
-            .send((request_id.clone(), pending))
-            .await
-            .map_err(|_| ToolExecutionError::ExecutionFailed {
-                code: "channel_closed".to_string(),
-                message: "pending user input channel is closed".to_string(),
-            })?;
+            let (reply_tx, reply_rx) = oneshot::channel();
+            let request_id = uuid::Uuid::new_v4().to_string();
 
-        let output = reply_rx
-            .await
-            .map_err(|_| ToolExecutionError::ExecutionFailed {
-                code: "response_dropped".to_string(),
-                message: "user input response was dropped (timeout or session closed)".to_string(),
-            })?;
+            let pending = PendingUserInput {
+                questions: parsed.questions,
+                context: parsed.context,
+                session_id: self.session_id.clone(),
+                reply_tx,
+            };
 
-        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialization_error".to_string(),
-            message: e.to_string(),
+            self.pending_tx
+                .send((request_id.clone(), pending))
+                .await
+                .map_err(|_| ToolExecutionError::ExecutionFailed {
+                    code: "channel_closed".to_string(),
+                    message: "pending user input channel is closed".to_string(),
+                })?;
+
+            let output = reply_rx
+                .await
+                .map_err(|_| ToolExecutionError::ExecutionFailed {
+                    code: "response_dropped".to_string(),
+                    message: "user input response was dropped (timeout or session closed)"
+                        .to_string(),
+                })?;
+
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
+                message: e.to_string(),
+            })
         })
     }
 }

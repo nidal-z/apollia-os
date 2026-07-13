@@ -13,10 +13,11 @@ pub mod slides;
 pub mod tasks;
 pub mod youtube;
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_auth::{AccountId, AuthManager, ConnectorProvider, GoogleScope};
-use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::{
@@ -148,7 +149,6 @@ impl GoogleConnector {
     }
 }
 
-#[async_trait]
 impl Connector for GoogleConnector {
     fn id(&self) -> &'static str {
         GOOGLE_PROVIDER_ID
@@ -162,32 +162,37 @@ impl Connector for GoogleConnector {
         OPERATIONS
     }
 
-    async fn check(&self, account_id: &AccountId) -> Result<HealthReport, ConnectorError> {
-        // The cheapest authenticated probe Google offers is the OIDC userinfo
-        // endpoint, which only requires the profile scope (always implicitly
-        // granted).
-        let cfg = apollia_auth::build_google_provider(&[]);
-        let token = self
-            .auth
-            .get_valid_token(ConnectorProvider::Google, account_id, &cfg)
-            .await?;
-        let access = token.access_token.clone();
-        let access_for_refresh = access.clone();
-        let http = HttpClient::new(GOOGLE_PROVIDER_ID)?;
-        let info: UserInfo = http
-            .get_json(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                &access,
-                || async move { Ok::<_, ConnectorError>(access_for_refresh) },
-            )
-            .await?;
-        Ok(HealthReport {
-            reachable: true,
-            granted_scopes: token.scopes,
-            detail: format!(
-                "connected as {}",
-                info.email.unwrap_or_else(|| "<unknown>".into())
-            ),
+    fn check<'a>(
+        &'a self,
+        account_id: &'a AccountId,
+    ) -> Pin<Box<dyn Future<Output = Result<HealthReport, ConnectorError>> + Send + 'a>> {
+        Box::pin(async move {
+            // The cheapest authenticated probe Google offers is the OIDC userinfo
+            // endpoint, which only requires the profile scope (always implicitly
+            // granted).
+            let cfg = apollia_auth::build_google_provider(&[]);
+            let token = self
+                .auth
+                .get_valid_token(ConnectorProvider::Google, account_id, &cfg)
+                .await?;
+            let access = token.access_token.clone();
+            let access_for_refresh = access.clone();
+            let http = HttpClient::new(GOOGLE_PROVIDER_ID)?;
+            let info: UserInfo = http
+                .get_json(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    &access,
+                    || async move { Ok::<_, ConnectorError>(access_for_refresh) },
+                )
+                .await?;
+            Ok(HealthReport {
+                reachable: true,
+                granted_scopes: token.scopes,
+                detail: format!(
+                    "connected as {}",
+                    info.email.unwrap_or_else(|| "<unknown>".into())
+                ),
+            })
         })
     }
 }

@@ -9,10 +9,11 @@ pub mod calendar;
 pub mod mail;
 pub mod onedrive;
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_auth::{AccountId, AuthManager, ConnectorProvider, MicrosoftScope};
-use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::{
@@ -88,7 +89,6 @@ impl MicrosoftConnector {
     }
 }
 
-#[async_trait]
 impl Connector for MicrosoftConnector {
     fn id(&self) -> &'static str {
         MICROSOFT_PROVIDER_ID
@@ -102,32 +102,37 @@ impl Connector for MicrosoftConnector {
         OPERATIONS
     }
 
-    async fn check(&self, account_id: &AccountId) -> Result<HealthReport, ConnectorError> {
-        // Probe via /me which only requires User.Read (always implicitly granted).
-        let cfg = apollia_auth::build_microsoft_provider(&[]);
-        let token = self
-            .auth
-            .get_valid_token(ConnectorProvider::Microsoft, account_id, &cfg)
-            .await?;
-        let access = token.access_token.clone();
-        let access_for_refresh = access.clone();
-        let http = HttpClient::new(MICROSOFT_PROVIDER_ID)?;
-        let info: UserInfo = http
-            .get_json(
-                "https://graph.microsoft.com/v1.0/me",
-                &access,
-                || async move { Ok::<_, ConnectorError>(access_for_refresh) },
-            )
-            .await?;
-        Ok(HealthReport {
-            reachable: true,
-            granted_scopes: token.scopes,
-            detail: format!(
-                "connected as {}",
-                info.user_principal_name
-                    .or(info.mail)
-                    .unwrap_or_else(|| "<unknown>".into())
-            ),
+    fn check<'a>(
+        &'a self,
+        account_id: &'a AccountId,
+    ) -> Pin<Box<dyn Future<Output = Result<HealthReport, ConnectorError>> + Send + 'a>> {
+        Box::pin(async move {
+            // Probe via /me which only requires User.Read (always implicitly granted).
+            let cfg = apollia_auth::build_microsoft_provider(&[]);
+            let token = self
+                .auth
+                .get_valid_token(ConnectorProvider::Microsoft, account_id, &cfg)
+                .await?;
+            let access = token.access_token.clone();
+            let access_for_refresh = access.clone();
+            let http = HttpClient::new(MICROSOFT_PROVIDER_ID)?;
+            let info: UserInfo = http
+                .get_json(
+                    "https://graph.microsoft.com/v1.0/me",
+                    &access,
+                    || async move { Ok::<_, ConnectorError>(access_for_refresh) },
+                )
+                .await?;
+            Ok(HealthReport {
+                reachable: true,
+                granted_scopes: token.scopes,
+                detail: format!(
+                    "connected as {}",
+                    info.user_principal_name
+                        .or(info.mail)
+                        .unwrap_or_else(|| "<unknown>".into())
+                ),
+            })
         })
     }
 }

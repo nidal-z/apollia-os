@@ -13,6 +13,8 @@
 
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
 use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin;
 
 /// Upper bound the pure [`search_index`] accepts for `limit`.
 const MAX_SEARCH_LIMIT: usize = 500;
@@ -161,7 +163,6 @@ impl ToolSearchExecutor {
     }
 }
 
-#[async_trait::async_trait]
 impl ToolExecutor for ToolSearchExecutor {
     fn name(&self) -> &str {
         "tool_search"
@@ -177,32 +178,37 @@ impl ToolExecutor for ToolSearchExecutor {
     ///
     /// Returns [`ToolExecutionError::InvalidInput`] when `limit` is `0` or
     /// exceeds the configured `max_limit`; the search is not run in that case.
-    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let query = input
-            .get("query")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        let limit = input
-            .get("limit")
-            .and_then(Value::as_u64)
-            .map(|n| n as usize)
-            .unwrap_or(DEFAULT_SEARCH_LIMIT);
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let query = input
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let limit = input
+                .get("limit")
+                .and_then(Value::as_u64)
+                .map(|n| n as usize)
+                .unwrap_or(DEFAULT_SEARCH_LIMIT);
 
-        if limit == 0 || limit > self.max_limit {
-            return Err(ToolExecutionError::InvalidInput {
-                message: format!(
-                    "limit must be between 1 and {} (got {limit})",
-                    self.max_limit
-                ),
-            });
-        }
+            if limit == 0 || limit > self.max_limit {
+                return Err(ToolExecutionError::InvalidInput {
+                    message: format!(
+                        "limit must be between 1 and {} (got {limit})",
+                        self.max_limit
+                    ),
+                });
+            }
 
-        let matches = search_index(&self.index, &query, limit)
-            .map_err(|message| ToolExecutionError::InvalidInput { message })?;
-        let total = matches.len();
+            let matches = search_index(&self.index, &query, limit)
+                .map_err(|message| ToolExecutionError::InvalidInput { message })?;
+            let total = matches.len();
 
-        Ok(serde_json::json!({ "matches": matches, "total": total }))
+            Ok(serde_json::json!({ "matches": matches, "total": total }))
+        })
     }
 }
 

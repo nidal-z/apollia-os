@@ -1,0 +1,544 @@
+use super::*;
+
+impl BuiltInChatAgent {
+    /// Record one ReAct turn that produced tool calls: capture reasoning,
+    /// append the assistant message, and dispatch each tool call.
+    ///
+    /// Updates `consecutive_tool_failures` per call: incremented on a failed
+    /// call (execution error, non-zero exit code, or operator refusal), reset to
+    /// 0 on the first success, so the loop can derive an escalation signal.
+    pub(in crate::chat::builtin_agent) async fn record_tool_turn(
+        &self,
+        input: RecordTurnInput<'_>,
+        reasoning_fragments: &mut Vec<String>,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+        consecutive_tool_failures: &mut u32,
+    ) {
+        let RecordTurnInput {
+            accumulated_text,
+            tool_calls,
+            budget,
+            ids,
+            valid_tool_names,
+        } = input;
+        // Capture reasoning text emitted before tool calls.
+        let clean_reasoning = Self::strip_think_blocks(accumulated_text);
+        let reasoning_with_think = Self::extract_think_blocks(accumulated_text);
+        let reasoning_text = reasoning_with_think.unwrap_or_else(|| clean_reasoning.clone());
+        tracing::info!(
+            accumulated_len = accumulated_text.len(),
+            reasoning_len = reasoning_text.trim().len(),
+            tool_count = tool_calls.len(),
+            session_id = %ids.session_id,
+            "ReAct turn: captured reasoning before tool calls"
+        );
+        if !reasoning_text.trim().is_empty() {
+            reasoning_fragments.push(reasoning_text.trim().to_string());
+        }
+
+        // Strip think blocks before re-injecting into the LLM context
+        // so reasoning tokens don't pollute future turns.
+        let clean_for_context = clean_reasoning;
+        llm_messages.push(LlmChatMessage::assistant_with_calls(
+            &clean_for_context,
+            tool_calls,
+        ));
+
+        let session_id = ids.session_id;
+        let message_id = ids.message_id;
+
+        // PreToolUse hooks (blocking): resolve a decision per call before any
+        // tool runs, so a `deny` truly prevents the invocation, including the
+        // read-only calls that would otherwise execute in the parallel phase
+        // below. `effective_calls` carries any rewritten arguments; `denied[i]`
+        // holds the refusal reason when call `i` was blocked. With no hook
+        // configured this is a borrow of the original calls with no denials, so
+        // the loop behaves exactly as before.
+        let pre = self
+            .apply_pre_tool_use(tool_calls, session_id, ids.run_id)
+            .await;
+        let effective_calls: &[ToolCall] = pre.calls.as_ref();
+
+        // Determine read-only status for each call via the tool registry. A call
+        // runs concurrently only when its tool is read-only AND already
+        // authorized: execute_tool_call then touches neither llm_messages nor acc,
+        // so the slow invocations overlap while results are applied in order.
+        // Unknown tools (absent from the registry, e.g. hardcoded-false MCP specs)
+        // are treated as write, the conservative default.
+        let mut read_only: Vec<bool> = Vec::with_capacity(effective_calls.len());
+        for call in effective_calls.iter() {
+            let ro = self
+                .tool_registry
+                .describe(&call.name)
+                .await
+                .map(|d| d.is_read_only)
+                .unwrap_or(false);
+            read_only.push(ro);
+        }
+
+        // Plan-mode hard gate: before a plan is approved, refuse execution tools.
+        // Only the plan_* surface, `ask_user`, and read-only tools may run, so the
+        // agent must propose and submit a plan, then wait for approval, before
+        // acting. The refusal reuses the PreToolUse deny path below: a synthetic
+        // tool result is injected and the call never executes.
+        let gate_blocks = self.plan_gate_blocks();
+        let denied: Vec<Option<String>> = effective_calls
+            .iter()
+            .enumerate()
+            .map(|(i, call)| {
+                // Hook deny wins, then an unknown (hallucinated) tool name, then
+                // the plan gate. Refusing an unknown name before the gate avoids
+                // gate-denying a tool that does not exist.
+                pre.denied[i]
+                    .clone()
+                    .or_else(|| unknown_tool_reason(&call.name, valid_tool_names))
+                    .or_else(|| {
+                        if plan_gate_denies(gate_blocks, &call.name, read_only[i]) {
+                            Some(PLAN_GATE_DENY_REASON.to_string())
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .collect();
+        let denied = &denied;
+
+        // The tool-call budget is a non-bypassable ceiling (principle #7). Bound
+        // the calls this turn may execute to what the budget still allows,
+        // computed before the parallel phase so read-only calls are bounded too.
+        // Calls past the allowance are truncated in Phase B with a synthetic
+        // result. Without this, a single turn that batches N calls could run all
+        // N and overshoot max_tool_calls, since the step-boundary guard only
+        // fires before the next LLM call.
+        let allowed_calls = budget.tool_calls_left() as usize;
+
+        // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
+        // Denied calls never run, even when read-only. Calls beyond the budget
+        // allowance never run either.
+        let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
+            use futures::stream::{self, StreamExt};
+            let parallel = (0..effective_calls.len())
+                .filter(|&i| {
+                    i < allowed_calls
+                        && denied[i].is_none()
+                        && read_only[i]
+                        && acc.authorized.contains(&effective_calls[i].name)
+                })
+                .map(|i| async move {
+                    let outcome = self
+                        .execute_tool_call(session_id, message_id, &effective_calls[i], ids.run_id)
+                        .await;
+                    (i, outcome)
+                });
+            stream::iter(parallel)
+                .buffered(MAX_CONCURRENT_READONLY_TOOL_CALLS)
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .collect()
+        };
+
+        // Phase B: apply every call in original order. Parallel-safe calls reuse
+        // their precomputed result; everything else (write tools, read-only calls
+        // awaiting HITL approval) goes through the sequential path.
+        for (i, call) in effective_calls.iter().enumerate() {
+            // Enforce the tool-call ceiling mid-turn: once the allowance is
+            // spent, the remaining calls are not executed. A synthetic result
+            // keeps each tool_call id paired with a tool_result so the model's
+            // next turn sees a well-formed history.
+            if i >= allowed_calls {
+                let synthetic = "tool call budget exhausted".to_string();
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &synthetic));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(synthetic),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                tracing::warn!(
+                    tool_name = %call.name,
+                    session_id = %session_id,
+                    "chat.budget.tool_calls_exhausted: tool call truncated"
+                );
+                continue;
+            }
+            budget.increment_tool_calls();
+            // PreToolUse deny: the tool is not invoked. Inject a synthetic tool
+            // result so the model can react to the refusal on its next turn, and
+            // do not count it as a tool failure (a deny is a policy decision, not
+            // an execution failure).
+            if let Some(reason) = &denied[i] {
+                let synthetic = format!("tool denied: {reason}");
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &synthetic));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(synthetic),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                tracing::warn!(
+                    tool_name = %call.name,
+                    decision = "deny",
+                    reason = %reason,
+                    session_id = %session_id,
+                    "hook.pretooluse.deny: tool call blocked"
+                );
+                continue;
+            }
+            let (failed, executed) = match (call.name.as_str(), self.todo.as_ref()) {
+                // todo_write is a safe built-in handled in-loop: it never goes
+                // through the registry, the parallel partition, or HITL approval.
+                // No PostToolUse hook fires for it.
+                (TODO_WRITE_TOOL_NAME, Some(todo)) => (
+                    Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await,
+                    None,
+                ),
+                // plan_* tools are safe built-ins handled in-loop, gated on plan
+                // mode (a plan handle is present only in that case). They
+                // delegate to the PlanHandle and inject the snapshot result;
+                // they never reach the registry, parallel partition, or HITL
+                // approval.
+                (name, _)
+                    if is_plan_tool(name) && self.plan_mode_active() && self.plan.is_some() =>
+                {
+                    // `plan_mode_active()` plus the `is_some()` guard guarantee a
+                    // handle; `if let` binds it without an unwrap or panic.
+                    if let Some(plan) = self.plan.as_ref() {
+                        (
+                            Self::handle_plan_tool(
+                                plan,
+                                session_id,
+                                call,
+                                llm_messages,
+                                acc,
+                                self.pending_injection.as_ref(),
+                            )
+                            .await,
+                            None,
+                        )
+                    } else {
+                        (false, None)
+                    }
+                }
+                _ => match precomputed.remove(&i) {
+                    Some((record, tool_result, success)) => {
+                        llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                        acc.all_tool_calls.push(record);
+                        (!success, Some((tool_result, success)))
+                    }
+                    None => {
+                        let outcome = self
+                            .process_tool_call(
+                                ToolCallContext {
+                                    session_id,
+                                    message_id,
+                                    call,
+                                    run_id: ids.run_id,
+                                    pending_approvals: ids.pending_approvals,
+                                },
+                                llm_messages,
+                                acc,
+                            )
+                            .await;
+                        (outcome.failed, outcome.executed)
+                    }
+                },
+            };
+
+            // PostToolUse (non-blocking, best-effort): fires only when the tool
+            // actually ran. A returned injection is appended as a system message
+            // so the model sees it on the next turn.
+            if let Some((output, success)) = executed {
+                if let Some(injection) = self
+                    .fire_post_tool_use(&call.name, &output, success, session_id)
+                    .await
+                {
+                    llm_messages.push(LlmChatMessage::system(injection));
+                }
+            }
+
+            *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
+        }
+    }
+
+    /// Run the `todo_write` built-in tool inside the ReAct loop.
+    ///
+    /// Persists the agent-provided list via the [`TodoHandle`] and injects the
+    /// JSON result as the tool message. Returns `true` when the write failed
+    /// (invariant violation or malformed payload) so the loop counts it toward
+    /// escalation; the loop itself never stops on a todo error.
+    async fn handle_todo_write(
+        todo: &TodoHandle,
+        session_id: &str,
+        call: &ToolCall,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) -> bool {
+        let result = run_todo_write(todo, session_id, &call.arguments).await;
+        let item_count = result.count.unwrap_or(0);
+        tracing::info!(
+            session_id = %session_id,
+            item_count,
+            ok = result.ok,
+            "chat.todo_write.applied"
+        );
+        let tool_result = serde_json::to_string(&result).unwrap_or_else(|_| {
+            r#"{"ok":false,"error":"todo result serialization failed"}"#.to_string()
+        });
+        llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+        acc.all_tool_calls.push(ToolCallRecord {
+            tool_name: call.name.clone(),
+            input: call.arguments.clone(),
+            output: Some(tool_result),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        });
+        !result.ok
+    }
+
+    /// Execute a single tool call via the [`ToolInvoker`], emitting events.
+    /// Process one tool call: run it directly when authorized, otherwise go
+    /// through the HITL approval flow. Mutates `llm_messages` and `acc`.
+    ///
+    /// Returns a [`ToolCallOutcome`]: `failed` for the escalation counter, and
+    /// the executed output when the tool actually ran (for the `PostToolUse`
+    /// hook). A refusal yields `failed = true` with no executed output.
+    async fn process_tool_call(
+        &self,
+        ctx: ToolCallContext<'_>,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) -> ToolCallOutcome {
+        let ToolCallContext {
+            session_id,
+            message_id,
+            call,
+            run_id,
+            pending_approvals,
+        } = ctx;
+
+        if acc.authorized.contains(&call.name) {
+            let (record, tool_result, success) = self
+                .execute_tool_call(session_id, message_id, call, run_id)
+                .await;
+            llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+            acc.all_tool_calls.push(record);
+            return ToolCallOutcome {
+                failed: !success,
+                executed: Some((tool_result, success)),
+            };
+        }
+
+        // HITL approval
+        let key = format!("{session_id}::{message_id}::{}", call.name);
+        let input_preview =
+            truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+            prompt: format!(
+                "L'outil '{}' demande à être exécuté avec: {}",
+                call.name, input_preview
+            ),
+        });
+
+        let rx = pending_approvals.register(key.clone());
+        pending_approvals.start_timeout(ApprovalTimeoutParams {
+            key,
+            duration: CHAT_APPROVAL_TIMEOUT,
+            event_bus: self.event_bus.clone(),
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+        });
+        let decision = rx.await.unwrap_or(ToolDecision::refuse());
+
+        self.apply_tool_decision(
+            ToolExecTarget {
+                session_id,
+                message_id,
+                call,
+                run_id,
+            },
+            decision,
+            llm_messages,
+            acc,
+        )
+        .await
+    }
+
+    /// Apply the operator's HITL decision for an unauthorized tool call.
+    ///
+    /// Returns a [`ToolCallOutcome`]: `failed` is set on an execution failure or
+    /// a refusal; `executed` carries the output when the tool ran, enabling the
+    /// `PostToolUse` hook.
+    async fn apply_tool_decision(
+        &self,
+        target: ToolExecTarget<'_>,
+        decision: ToolDecision,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) -> ToolCallOutcome {
+        let ToolExecTarget {
+            session_id,
+            message_id,
+            call,
+            run_id,
+        } = target;
+        match decision {
+            ToolDecision::Accept => {
+                let (record, tool_result, success) = self
+                    .execute_tool_call(session_id, message_id, call, run_id)
+                    .await;
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+                ToolCallOutcome {
+                    failed: !success,
+                    executed: Some((tool_result, success)),
+                }
+            }
+            ToolDecision::AlwaysAccept { .. } => {
+                acc.authorized.insert(call.name.clone());
+                acc.newly_authorized.push(call.name.clone());
+                let (record, tool_result, success) = self
+                    .execute_tool_call(session_id, message_id, call, run_id)
+                    .await;
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+                ToolCallOutcome {
+                    failed: !success,
+                    executed: Some((tool_result, success)),
+                }
+            }
+            ToolDecision::Refuse { reason } => {
+                // The reason carries the operator's intent (e.g. "wrong
+                // directory"), surface it to the LLM so it can correct course
+                // on the next iteration instead of retrying blind.
+                let refusal = match &reason {
+                    Some(r) => format!("Outil refusé par l'utilisateur. Raison : {r}"),
+                    None => "Outil refusé par l'utilisateur".to_string(),
+                };
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(refusal),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                ToolCallOutcome {
+                    failed: true,
+                    executed: None,
+                }
+            }
+        }
+    }
+
+    async fn execute_tool_call(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        call: &apollia_llm::types::ToolCall,
+        run_id: &RunId,
+    ) -> (ToolCallRecord, String, bool) {
+        let input_preview =
+            truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
+
+        // Generate the opt-in rationale *before* execution so the UI can
+        // surface it immediately. Falls back to `None` when the meta handle
+        // is absent, the routine is disabled, the budget is exhausted, or
+        // the call fails / times out (see MetaOrchestratorHandle docs).
+        let rationale = if let Some(handle) = self.meta_handle.as_ref() {
+            handle
+                .generate_tool_call_rationale(
+                    &call.name,
+                    &call.arguments,
+                    "",
+                    session_id.to_string(),
+                )
+                .await
+        } else {
+            None
+        };
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatToolCallStarted {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+            input_preview,
+            rationale: rationale.clone(),
+        });
+
+        let result = self.tool_invoker.invoke(&call.name, &call.arguments).await;
+        let (output, success) = match result {
+            Ok(s) => {
+                // Detect tool-reported failures (e.g. bash_executor with exit_code != 0)
+                let tool_failed = serde_json::from_str::<serde_json::Value>(&s)
+                    .ok()
+                    .and_then(|v| v.get("exit_code")?.as_i64())
+                    .is_some_and(|code| code != 0);
+                (s, !tool_failed)
+            }
+            Err(e) => {
+                warn!(tool = %call.name, error = %e, "Tool call failed");
+                (format!("tool error: {e}"), false)
+            }
+        };
+
+        let output_preview = truncate_preview(&output);
+
+        // Static analysis (always-on): run the static error classifier (on
+        // failure) and the hallucination heuristic (on every output).
+        // Opt-in: when the
+        // analysis falls back to `Unknown`, ask the meta-LLM to humanise
+        // the message via `MetaRoutine::GenerateErrorExplanation`.
+        let analysis = self
+            .build_error_analysis(session_id, &call.name, &output, success)
+            .await;
+        let _ = self.event_bus.send(RuntimeEvent::ChatToolCallCompleted {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+            success,
+            output_preview: Some(output_preview),
+            analysis,
+        });
+
+        // Capture the full tool output for deterministic replay. The output is
+        // stored verbatim (JSON string when it is not itself JSON), distinct
+        // from the truncated preview above.
+        let captured_output = serde_json::from_str::<serde_json::Value>(&output)
+            .unwrap_or_else(|_| serde_json::Value::String(output.clone()));
+        let _ = self.event_bus.send(RuntimeEvent::ToolOutputCaptured {
+            run_id: run_id.clone(),
+            tool_call_id: call.id.clone(),
+            tool_name: call.name.clone(),
+            output: captured_output,
+            status: if success { "success" } else { "error" }.to_string(),
+        });
+
+        let record = ToolCallRecord {
+            tool_name: call.name.clone(),
+            input: call.arguments.clone(),
+            output: Some(output.clone()),
+            status: ToolCallStatus::Executed,
+            rationale,
+            retry_attempts: Vec::new(),
+        };
+
+        // Truncate output for LLM context to avoid flooding the context window.
+        // The full output is preserved in the ToolCallRecord for history/UI.
+        let llm_output = truncate_tool_output(&output);
+
+        (record, llm_output, success)
+    }
+}
