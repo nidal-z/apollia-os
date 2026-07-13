@@ -1,4 +1,4 @@
-//! `apollia workspace`: inspect and initialise the current workspace.
+//! `apollia-os workspace`: inspect and initialise the current workspace.
 //!
 //! Two subcommands:
 //! - `status`: shows the git branch, modified files, presence of APOLLIA.md, and a file count.
@@ -14,7 +14,7 @@ use apollia_workspace::git::GitContextCollector;
 
 use crate::exit_codes;
 
-/// Template written by `apollia workspace init`.
+/// Template written by `apollia-os workspace init`.
 const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md - Instructions for AI agents\n\
 \n\
 ## Project context\n\
@@ -29,7 +29,7 @@ const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md - Instructions for AI agents\n\
 ## Useful commands\n\
 <!-- Examples: `cargo test`, `make build`, `npm run dev`. -->\n";
 
-/// `apollia workspace` subcommand with two actions.
+/// `apollia-os workspace` subcommand with two actions.
 #[derive(Debug, clap::Subcommand)]
 pub enum WorkspaceCommand {
     /// Show the status of the current workspace.
@@ -63,7 +63,7 @@ struct WorkspaceStatusOutput {
     file_count: usize,
 }
 
-/// Entry point of the `apollia workspace` subcommand.
+/// Entry point of the `apollia-os workspace` subcommand.
 pub async fn run(cmd: &WorkspaceCommand, json: bool) -> i32 {
     match cmd {
         WorkspaceCommand::Status => run_workspace_status(json).await,

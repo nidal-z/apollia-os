@@ -1,4 +1,4 @@
-//! `apollia eval run/report`: drive an evaluation suite over the local socket.
+//! `apollia-os eval run/report`: drive an evaluation suite over the local socket.
 //!
 //! `run` parses a TOML suite, drives each task against the running runtime via
 //! the existing socket client, aggregates the metrics, prints a table (or JSON),
@@ -26,7 +26,7 @@ const HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 /// Bound on a single task run, so a stuck task cannot hang the harness.
 const RUN_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// `apollia eval` sub-commands.
+/// `apollia-os eval` sub-commands.
 #[derive(Debug, Subcommand)]
 pub enum EvalCommand {
     /// Run an eval suite against the running runtime.

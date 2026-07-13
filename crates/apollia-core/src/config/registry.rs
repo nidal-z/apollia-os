@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Community pipeline registry configuration (`[registry]` section in `apollia.toml`).
 ///
-/// Holds the URL of the public Git repository from which `apollia pipeline
+/// Holds the URL of the public Git repository from which `apollia-os pipeline
 /// install` downloads templates. GitHub URLs (`https://github.com/org/repo`)
 /// are converted automatically to raw-content URLs by the `PipelineRegistry`.
 /// Every field has a sane default via [`Default`].

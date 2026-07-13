@@ -72,6 +72,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os audit stats`↴](#apollia-os-audit-stats)
 * [`apollia-os audit export`↴](#apollia-os-audit-export)
 * [`apollia-os audit verify`↴](#apollia-os-audit-verify)
+* [`apollia-os audit anchor`↴](#apollia-os-audit-anchor)
 * [`apollia-os audit replay`↴](#apollia-os-audit-replay)
 * [`apollia-os audit show`↴](#apollia-os-audit-show)
 * [`apollia-os hooks`↴](#apollia-os-hooks)
@@ -1140,7 +1141,8 @@ Audit trail (list, stats, export, verify, show, replay)
 * `list` — List recent audit events (default)
 * `stats` — Display audit statistics
 * `export` — Export the full audit trail as JSON
-* `verify` — Verify the hash chain and signatures of a run's audit journal
+* `verify` — Verify the audit journal's hash chains and signatures
+* `anchor` — Print the exportable head anchor of the global chain
 * `replay` — Replay a captured run and detect divergences
 * `show` — Show a run's full journal, including the model's LLM completions
 
@@ -1185,13 +1187,25 @@ Export the full audit trail as JSON
 
 ## `apollia-os audit verify`
 
-Verify the hash chain and signatures of a run's audit journal
+Verify the audit journal's hash chains and signatures.
 
-**Usage:** `apollia-os audit verify <RUN_ID>`
+With a RUN_ID, verifies that run's per-run chain. Without an argument, verifies the whole journal: the global chain across all runs (detecting interior deletion and whole-run deletion) and the head anchor (detecting truncation of the global tail).
+
+**Usage:** `apollia-os audit verify [RUN_ID]`
 
 ###### **Arguments:**
 
-* `<RUN_ID>` — Identifier of the run to verify
+* `<RUN_ID>` — Identifier of the run to verify. Omit to verify the whole journal
+
+
+
+## `apollia-os audit anchor`
+
+Print the exportable head anchor of the global chain.
+
+Storing this off-machine is the only defense against truncation of the global tail once the signing key can be compromised.
+
+**Usage:** `apollia-os audit anchor`
 
 
 
@@ -1329,7 +1343,7 @@ Wipe an agent's memory
 
 Purge memory entries older than a day threshold.
 
-Example: `apollia memory purge --namespace my-agent --older-than 30` Filtered: `apollia memory purge --namespace my-agent --type episodic --older-than 7`
+Example: `apollia-os memory purge --namespace my-agent --older-than 30` Filtered: `apollia-os memory purge --namespace my-agent --type episodic --older-than 7`
 
 **Usage:** `apollia-os memory purge [OPTIONS] --namespace <NAME> --older-than <DAYS>`
 
@@ -1357,7 +1371,7 @@ Example: `apollia memory purge --namespace my-agent --older-than 30` Filtered: `
 
 Record a procedure in a namespace's procedural memory.
 
-Example: `apollia memory learn-procedure --namespace agent-x --trigger "analyse a report" --steps "1. Open, 2. Read, 3. Summarise"`
+Example: `apollia-os memory learn-procedure --namespace agent-x --trigger "analyse a report" --steps "1. Open, 2. Read, 3. Summarise"`
 
 **Usage:** `apollia-os memory learn-procedure [OPTIONS] --namespace <NAME> --trigger <TEXT>`
 
@@ -1375,7 +1389,7 @@ Example: `apollia memory learn-procedure --namespace agent-x --trigger "analyse 
 
 Export a namespace's memory to a JSON file.
 
-Example: `apollia memory export --namespace agent-x --output ./backup.apollia-memory`
+Example: `apollia-os memory export --namespace agent-x --output ./backup.apollia-memory`
 
 **Usage:** `apollia-os memory export [OPTIONS] --namespace <NAME>`
 
@@ -1391,7 +1405,7 @@ Example: `apollia memory export --namespace agent-x --output ./backup.apollia-me
 
 Import memory from a JSON file into a namespace.
 
-Example: `apollia memory import --namespace agent-x --input ./backup.apollia-memory --replace`
+Example: `apollia-os memory import --namespace agent-x --input ./backup.apollia-memory --replace`
 
 **Usage:** `apollia-os memory import [OPTIONS] --namespace <NAME> --input <FILE>`
 
@@ -3004,7 +3018,7 @@ Reads the reversible journal at `~/.apollia/journal/<session-id>/` and replays t
 
 ###### **Arguments:**
 
-* `<SESSION_ID>` — Session ID to roll back (from `apollia rollback --list`).
+* `<SESSION_ID>` — Session ID to roll back (from `apollia-os rollback --list`).
 
    Either `session_id` or `--last-n` must be provided.
 

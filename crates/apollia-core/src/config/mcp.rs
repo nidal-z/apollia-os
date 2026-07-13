@@ -36,7 +36,7 @@ pub enum McpToolLoading {
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.
     ///
-    /// When an operator runs `apollia mcp set-approval`, the `mcp_approvals`
+    /// When an operator runs `apollia-os mcp set-approval`, the `mcp_approvals`
     /// entry is created with `expires_at = now + approval_ttl_hours`. A value of
     /// `0` disables expiration (permanent approval).
     /// Default: 24. Bounds: [0, 8760] (0 h to 1 year).

@@ -1,4 +1,4 @@
-//! `apollia rollback`: restore filesystem state after an agent session.
+//! `apollia-os rollback`: restore filesystem state after an agent session.
 //!
 //! Reads the reversible journal written by `FileWrite` and `FileEdit`
 //! and replays the inverse of each mutation in reverse order.
@@ -18,7 +18,7 @@ use apollia_tools::journal::{list_sessions, rollback_session, JournalEntry, Jour
 /// Revert filesystem mutations recorded by the agent during a chat session.
 #[derive(Debug, Args)]
 pub struct RollbackArgs {
-    /// Session ID to roll back (from `apollia rollback --list`).
+    /// Session ID to roll back (from `apollia-os rollback --list`).
     ///
     /// Either `session_id` or `--last-n` must be provided.
     pub session_id: Option<String>,

@@ -1277,7 +1277,7 @@ fn format_pending_human(
         }
     }
 
-    out.push_str("\nRun `apollia mcp set-approval <server> <tool>` to approve.\n");
+    out.push_str("\nRun `apollia-os mcp set-approval <server> <tool>` to approve.\n");
     Ok(out)
 }
 

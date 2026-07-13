@@ -173,7 +173,7 @@ pub enum McpSessionError {
     /// The tool call was suspended because HITL approval is required.
     ///
     /// The caller should surface `approval_id` to the operator so they can
-    /// run `apollia mcp set-approval` to unblock future calls.
+    /// run `apollia-os mcp set-approval` to unblock future calls.
     #[error("tool call to '{server}/{tool}' requires human approval (id={approval_id})")]
     PendingApproval {
         /// MCP server name.

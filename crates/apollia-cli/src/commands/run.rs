@@ -735,7 +735,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     code
 }
 
-/// Cost-ceiling fields appended to `apollia run --json` output after a run ends.
+/// Cost-ceiling fields appended to `apollia-os run --json` output after a run ends.
 ///
 /// `ceiling_usd` and `ceiling_reached` come from the shared hybrid router via
 /// `GET /api/v1/llm/status`. `ceiling_usd` is omitted when hybrid routing is not

@@ -22,7 +22,7 @@ pub struct ResolvedHandler {
 }
 
 /// Flat summary of one hook handler, used by the `GET /hooks` route and the
-/// `apollia hooks list` CLI command.
+/// `apollia-os hooks list` CLI command.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookHandlerSummary {
     /// Zero-based index in the configuration (declaration order).

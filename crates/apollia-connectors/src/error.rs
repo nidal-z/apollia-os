@@ -6,7 +6,7 @@ use thiserror::Error;
 ///
 /// Connector implementations should map upstream API errors onto these
 /// variants. Apollia tools use the variant to decide whether to surface the
-/// failure to the user (e.g. `NotConnected` becomes "Run `apollia auth
+/// failure to the user (e.g. `NotConnected` becomes "Run `apollia-os auth
 /// connect google` to connect Gmail") or retry transparently (`RateLimited`,
 /// `Network`).
 #[derive(Debug, Error)]

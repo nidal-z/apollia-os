@@ -71,8 +71,8 @@ pub enum MemoryCommand {
 
     /// Purge memory entries older than a day threshold.
     ///
-    /// Example: `apollia memory purge --namespace my-agent --older-than 30`
-    /// Filtered: `apollia memory purge --namespace my-agent --type episodic --older-than 7`
+    /// Example: `apollia-os memory purge --namespace my-agent --older-than 30`
+    /// Filtered: `apollia-os memory purge --namespace my-agent --type episodic --older-than 7`
     Purge {
         /// Target namespace.
         #[arg(long, value_name = "NAME")]
@@ -93,7 +93,7 @@ pub enum MemoryCommand {
 
     /// Record a procedure in a namespace's procedural memory.
     ///
-    /// Example: `apollia memory learn-procedure --namespace agent-x --trigger "analyse a report" --steps "1. Open, 2. Read, 3. Summarise"`
+    /// Example: `apollia-os memory learn-procedure --namespace agent-x --trigger "analyse a report" --steps "1. Open, 2. Read, 3. Summarise"`
     LearnProcedure {
         /// Target namespace.
         #[arg(long, value_name = "NAME")]
@@ -119,7 +119,7 @@ pub enum MemoryCommand {
 
     /// Export a namespace's memory to a JSON file.
     ///
-    /// Example: `apollia memory export --namespace agent-x --output ./backup.apollia-memory`
+    /// Example: `apollia-os memory export --namespace agent-x --output ./backup.apollia-memory`
     Export {
         /// Namespace to export.
         #[arg(long, value_name = "NAME")]
@@ -136,7 +136,7 @@ pub enum MemoryCommand {
 
     /// Import memory from a JSON file into a namespace.
     ///
-    /// Example: `apollia memory import --namespace agent-x --input ./backup.apollia-memory --replace`
+    /// Example: `apollia-os memory import --namespace agent-x --input ./backup.apollia-memory --replace`
     Import {
         /// Target namespace.
         #[arg(long, value_name = "NAME")]

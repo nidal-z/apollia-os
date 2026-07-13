@@ -11,7 +11,7 @@ use super::{validate_bounds, ConfigError};
 /// Reversible filesystem journal configuration (`[filesystem.journal]` section in `apollia.toml`).
 ///
 /// Controls the journal that persists the prior state of each native mutation
-/// before it is applied. Lets `apollia rollback` restore the disk after an
+/// before it is applied. Lets `apollia-os rollback` restore the disk after an
 /// agent performs unwanted operations.
 ///
 /// Every field has a sane default via [`Default`].

@@ -611,7 +611,7 @@ fn wire_engine_with_llm(
 ///
 /// Caps the agent-declared budget to the runtime ceiling
 /// ([`StepBudgetConfig::default`]: 30 steps / 60 tool calls / 600s wall clock)
-/// so `apollia run` never executes under an unlimited budget. This restores
+/// so `apollia-os run` never executes under an unlimited budget. This restores
 /// principle #7 on the direct path, which previously used
 /// `StepBudget::unlimited()` (u32::MAX steps + 24h). Extracted for unit testing.
 fn direct_path_budget(agent_budget: &StepBudgetConfig) -> StepBudget {

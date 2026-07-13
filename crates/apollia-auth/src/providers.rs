@@ -29,7 +29,7 @@ pub struct ProviderConfig {
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-/// Provider identifiers supported by `apollia auth`.
+/// Provider identifiers supported by `apollia-os auth`.
 pub const SUPPORTED_PROVIDERS: &[&str] = &["anthropic", "openai", "vertex"];
 
 /// Return the [`ProviderConfig`] for the named provider, or `None` if unknown.

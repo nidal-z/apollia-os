@@ -16,9 +16,9 @@ const config = {
   organizationName: 'Apollia-OS',
   projectName: 'apollia-os',
 
-  // Placeholder pages cross-link before their targets are migrated, so broken
-  // links warn rather than fail the build during phase 1.
-  onBrokenLinks: 'warn',
+  // The corpus is migrated and the site is at zero broken links, so a broken
+  // link fails the build (deploy gate) rather than warning.
+  onBrokenLinks: 'throw',
 
   // `.md` parses as CommonMark, `.mdx` as MDX. This protects the generated CLI
   // reference (which contains <ARG> placeholders) from being read as JSX, while
@@ -30,7 +30,7 @@ const config = {
     // only; the sovereign runtime is untouched.
     mermaid: true,
     hooks: {
-      onBrokenMarkdownLinks: 'warn',
+      onBrokenMarkdownLinks: 'throw',
     },
   },
 
