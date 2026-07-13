@@ -434,7 +434,8 @@ impl ResilienceLayer {
     {
         self.pre_check(tool_name)?;
 
-        for attempt in 1..=retry_policy.max_attempts {
+        let max_attempts = retry_policy.effective_attempts();
+        for attempt in 1..=max_attempts {
             match operation().await {
                 Ok(value) => {
                     let _ = self.record_success(tool_name);
@@ -447,12 +448,12 @@ impl ResilienceLayer {
                         return Err(ResilienceError::ExecutionFailed(err_msg));
                     }
 
-                    if attempt < retry_policy.max_attempts {
+                    if attempt < max_attempts {
                         let delay = retry_policy.calculate_delay(attempt);
                         tracing::warn!(
                             tool = %tool_name,
                             attempt = attempt,
-                            max_attempts = retry_policy.max_attempts,
+                            max_attempts = max_attempts,
                             delay_ms = delay.as_millis() as u64,
                             "transient error, retrying after backoff"
                         );
@@ -498,7 +499,8 @@ impl ResilienceLayer {
             return (Err(e), attempts);
         }
 
-        for attempt in 1..=retry_policy.max_attempts {
+        let max_attempts = retry_policy.effective_attempts();
+        for attempt in 1..=max_attempts {
             let started_at = now_ms();
             let start_instant = Instant::now();
 
@@ -528,7 +530,7 @@ impl ResilienceLayer {
                         return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
                     }
 
-                    if attempt < retry_policy.max_attempts {
+                    if attempt < max_attempts {
                         let delay = retry_policy.calculate_delay(attempt);
                         tracing::warn!(
                             tool = %tool_name,
@@ -637,6 +639,15 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
+    /// Effective number of attempts, never below 1.
+    ///
+    /// A `max_attempts` of 0 would make the retry loop range `1..=0` empty and
+    /// fall through to the `unreachable!()` guard, panicking. Clamping to at
+    /// least one guarantees the operation runs once and the loop always returns.
+    pub fn effective_attempts(&self) -> u32 {
+        self.max_attempts.max(1)
+    }
+
     /// Calculates the delay for a given attempt number (1-indexed).
     ///
     /// Formula: `min(base_delay_ms * 2^(attempt - 1), max_delay_ms)`,
@@ -1077,6 +1088,32 @@ mod tests {
 
         // THEN Ok returned, operation called once
         assert_eq!(result.unwrap(), 42);
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    // A zero max_attempts must not panic on the unreachable guard: it is clamped
+    // to a single attempt (principle #7, guardrails never crash the runtime).
+    #[tokio::test]
+    async fn test_execute_zero_max_attempts_does_not_panic() {
+        // GIVEN a RetryPolicy with max_attempts = 0
+        let layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute() runs a succeeding operation
+        let result = layer
+            .execute("t", &fast_retry_policy(0), transient_classifier, || {
+                let cc = cc.clone();
+                async move {
+                    cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Ok::<_, String>(7)
+                }
+            })
+            .await;
+
+        // THEN it does not panic and runs exactly one attempt
+        assert_eq!(result.unwrap(), 7);
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 

@@ -762,6 +762,10 @@ struct BridgeRunner {
     /// MCP client manager handle, `None` when no MCP server is configured. Used
     /// at `call_run` to build one executor per registered MCP tool.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Direct-path `StepBudget`, shared with `execute_direct`. A live view of it
+    /// is wired into the agent's `ctx.tools` and `ctx.llm` so the Python agent's
+    /// tool and LLM calls are counted and cut off (principle #7, non-bypassable).
+    budget: Arc<StepBudget>,
 }
 
 impl BridgeRunner {
@@ -877,6 +881,8 @@ impl AgentRunner for BridgeRunner {
         let secrets_declared = self.secrets_declared.clone();
         let secrets_data_dir = self.secrets_data_dir.clone();
         let mcp_handle = self.mcp_handle.clone();
+        // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
+        let budget_view = Arc::new(self.budget.to_live_budget_view());
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -947,7 +953,9 @@ impl AgentRunner for BridgeRunner {
                         run_id: task.run_id.clone(),
                     })
                     // tool_call_* instrumentation.
-                    .with_event_bus(event_bus.clone());
+                    .with_event_bus(event_bus.clone())
+                    // Direct-path budget: count and cap the agent's tool calls.
+                    .with_budget(Arc::clone(&budget_view));
                     let proxy = if let Some(invoker) = a2a_invoker.clone() {
                         proxy.with_a2a(invoker, 0, None)
                     } else {
@@ -989,7 +997,7 @@ impl AgentRunner for BridgeRunner {
             let ctx: PyObject = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
                     llm_router,
-                    Arc::new(StepBudgetView::unlimited()),
+                    Arc::clone(&budget_view),
                     tool_helper,
                     Arc::new(ObservabilityConfig::default()),
                     event_bus,
@@ -1087,6 +1095,14 @@ impl ExecutionBackend for AIPProductionBackend {
         &self,
         task: AIPTask,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        // Agent-declared budget capped to the runtime ceiling. The same
+        // Arc<StepBudget> is shared into the runner (so the Direct-path ctx
+        // counts the agent's tool/LLM calls) and into execute_direct (so the
+        // engine supervises the same counters). Principle #7 holds on the Direct
+        // path, not only wall-clock.
+        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
+        let direct_budget = Arc::new(direct_path_budget(&agent_step_budget));
+
         let runner = BridgeRunner {
             bridge: Arc::clone(&self.bridge),
             llm_router: self.llm_router.clone(),
@@ -1109,6 +1125,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
+            budget: Arc::clone(&direct_budget),
         };
 
         // Build a per-task ORIAEngine wired with HITL components.
@@ -1146,11 +1163,6 @@ impl ExecutionBackend for AIPProductionBackend {
             .map(|b| b.max_steps)
             .unwrap_or(20);
 
-        // Agent-declared budget, capped to the runtime ceiling below. Both the
-        // direct and orchestrated paths run under a bounded StepBudget so
-        // principle #7 (non-bypassable guardrails) holds regardless of route.
-        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
-
         // Wire the Reasoner + LlmRouter so ORIA's orchestrated path can plan.
         // Extracted into `wire_engine_with_llm` for unit testing, see the
         // regression guard in the test module at the bottom of this file.
@@ -1176,11 +1188,11 @@ impl ExecutionBackend for AIPProductionBackend {
                 };
                 Ok(engine.execute(task, &runner).await)
             } else {
-                // Bound the direct path by the agent budget capped to the runtime
-                // ceiling, instead of the previous unlimited() budget.
-                let budget = Arc::new(direct_path_budget(&agent_step_budget));
+                // Bound the direct path by the same budget shared into the
+                // runner's ctx, so the engine supervisor and the agent's
+                // tool/LLM chokepoints enforce one set of counters.
                 engine
-                    .execute_direct(task, &runner, budget)
+                    .execute_direct(task, &runner, direct_budget)
                     .await
                     .map_err(|e| e.to_string())
             }

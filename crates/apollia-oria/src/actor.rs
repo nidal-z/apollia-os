@@ -450,6 +450,21 @@ impl ActorLoop {
                 self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
             );
         }
+
+        // Clamp the level to what the budget still allows. Every batch step is a
+        // read-only tool call that consumes one step and one tool-call unit, so
+        // the level cannot run wider than min(steps_left, tool_calls_left).
+        // Running the whole level unconditionally would let a batch overshoot the
+        // budget (principle #7, guardrails are non-bypassable). The guard above
+        // guarantees at least one unit remains here, so the head is never empty.
+        let allowed = deps.budget.steps_left().min(deps.budget.tool_calls_left()) as usize;
+        let budget_truncated = level_steps.len() > allowed;
+        let level_steps: Vec<PlanStep> = if budget_truncated {
+            level_steps.into_iter().take(allowed).collect()
+        } else {
+            level_steps
+        };
+
         for step in &level_steps {
             let step_num = completed_outputs.len() + 1;
             self.persist_step_pre_execution(step, step_num, &completed_outputs);
@@ -508,6 +523,14 @@ impl ActorLoop {
                     )
                 }
             }
+        }
+
+        // The budget could not cover the whole level: stop cleanly after the
+        // allowed prefix rather than silently dropping the remaining steps.
+        if budget_truncated {
+            return LevelOutcome::Terminal(
+                self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
+            );
         }
 
         LevelOutcome::Continue(completed_outputs)
@@ -2417,6 +2440,61 @@ mod tests {
             err.message.contains("tool"),
             "detail should attribute the tool-call dimension, got: {}",
             err.message
+        );
+    }
+
+    /// GIVEN a wide single topological level of 3 independent read-only tool
+    ///        steps (the concurrent batch path) and a StepBudget that allows
+    ///        only 2 tool calls
+    /// WHEN actor.execute() runs the level
+    /// THEN the batch is clamped to the remaining budget: the tool is invoked
+    ///      exactly twice, the budget is fully spent, and the plan stops with
+    ///      STEP_BUDGET_EXCEEDED instead of overshooting to 3 invocations. This
+    ///      proves the budget clamps the batch path too, not only the sequential
+    ///      one (principle #7).
+    #[tokio::test]
+    async fn test_batch_level_clamped_to_remaining_budget() {
+        // GIVEN a wide level of 3 independent read-only tool steps.
+        let plan = make_plan(vec![("s1", &[]), ("s2", &[]), ("s3", &[])]);
+        let (mut actor, _rx) = make_actor(plan);
+        let proxy = BatchProxy::new();
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::new(&apollia_core::StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 2,
+            wall_clock_secs: 300,
+        });
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN the batch path executes the whole level.
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN only the 2 budget-allowed steps ran, then the plan stopped.
+        assert_eq!(
+            proxy.calls_for("mock_tool"),
+            2,
+            "batch must clamp to the remaining tool-call budget, not run the whole level"
+        );
+        assert_eq!(
+            budget.tool_calls_left(),
+            0,
+            "the tool-call budget must be fully spent"
+        );
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(
+            result.error.expect("expected error").code,
+            "STEP_BUDGET_EXCEEDED"
         );
     }
 

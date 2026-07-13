@@ -12,11 +12,15 @@ use crate::types::{
     ChatMessage, CompletionModel, CompletionRequest, FinishReason, LlmError, ToolSpec,
 };
 
-/// Read-only view of the `StepBudget` exposed to the ReAct loop and to
-/// `ctx.step_budget`.
+/// View of the `StepBudget` shared with the ReAct loop and the runtime.
 ///
-/// Shared via `Arc<AtomicU32>` with the runtime's mutable budget. No mutation
-/// is possible from this view.
+/// Backed by `Arc<AtomicU32>` counters shared with the owning budget. Reads
+/// (`is_exhausted`, `steps_remaining`, `tool_calls_remaining`) never mutate.
+/// The [`increment_steps`](Self::increment_steps) and
+/// [`increment_tool_calls`](Self::increment_tool_calls) methods advance the
+/// shared counters so a chokepoint that only holds the view (for instance the
+/// AIP tool and LLM proxies on the Direct path) can enforce the budget the
+/// runtime supervises (principle #7).
 pub struct StepBudgetView {
     step_count: Arc<AtomicU32>,
     step_limit: u32,
@@ -71,6 +75,21 @@ impl StepBudgetView {
     /// Return `true` if the step budget has been exhausted.
     pub fn is_exhausted(&self) -> bool {
         self.step_count.load(Ordering::Relaxed) >= self.step_limit
+    }
+
+    /// Advance the shared step counter by one.
+    ///
+    /// Visible to the owning budget through the shared `Arc<AtomicU32>`, so the
+    /// runtime supervising that budget sees the increment.
+    pub fn increment_steps(&self) {
+        self.step_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Advance the shared tool-call counter by one.
+    ///
+    /// Visible to the owning budget through the shared `Arc<AtomicU32>`.
+    pub fn increment_tool_calls(&self) {
+        self.tool_calls_count.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Steps remaining before reaching the limit.
@@ -171,10 +190,13 @@ impl ToolCallHelper {
         };
 
         for _iter in 0..max_iters {
-            // Budget guardrail checked first.
+            // Budget guardrail checked first, then this iteration is charged as one
+            // step so the shared budget advances even on the Direct path where no
+            // other component counts the ReAct iterations (principle #7).
             if budget.is_exhausted() {
                 return Err(LlmError::BudgetExceeded);
             }
+            budget.increment_steps();
 
             let response = self
                 .model
@@ -236,6 +258,35 @@ mod tests {
 
     fn exhausted_budget() -> StepBudgetView {
         StepBudgetView::new(Arc::new(AtomicU32::new(100)), 100)
+    }
+
+    /// Increments advance the shared counters and drive exhaustion.
+    #[test]
+    fn test_step_budget_view_increments_shared_counters() {
+        // GIVEN a view over shared counters with a 2-step, 3-tool-call budget
+        let steps = Arc::new(AtomicU32::new(0));
+        let tools = Arc::new(AtomicU32::new(0));
+        let view = StepBudgetView::with_tool_tracking(
+            Arc::clone(&steps),
+            2,
+            Arc::clone(&tools),
+            3,
+            std::time::Instant::now(),
+        );
+
+        // WHEN the step budget is spent through the view
+        view.increment_steps();
+        assert!(!view.is_exhausted());
+        view.increment_steps();
+
+        // THEN the shared counter reflects it and the view reports exhaustion
+        assert_eq!(steps.load(Ordering::Relaxed), 2);
+        assert!(view.is_exhausted());
+
+        // AND tool-call increments are tracked independently
+        view.increment_tool_calls();
+        assert_eq!(view.tool_calls_remaining(), 2);
+        assert_eq!(tools.load(Ordering::Relaxed), 1);
     }
 
     // ── Response helpers ───────────────────────────────────────────────────
@@ -539,6 +590,28 @@ mod tests {
 
         // THEN
         assert!(matches!(result, Err(LlmError::BudgetExceeded)));
+    }
+
+    /// Each ReAct iteration charges one step against the shared budget, so a
+    /// step-limited budget stops the loop before `max_iters` (Direct-path
+    /// enforcement, principle #7).
+    #[tokio::test]
+    async fn test_run_tools_charges_a_step_per_iteration() {
+        // GIVEN a model that always requests a tool and a budget of 2 steps
+        let model = Arc::new(MockInfiniteToolCallModel);
+        let invoker = Arc::new(MockToolInvoker::new());
+        let helper = ToolCallHelper::new(model, invoker);
+        let budget = StepBudgetView::new(Arc::new(AtomicU32::new(0)), 2);
+
+        // WHEN run_tools loops with a generous max_iters (5)
+        let result = helper
+            .run_tools(vec![ChatMessage::user("q")], vec![], 5, &budget)
+            .await;
+
+        // THEN it stops on the step budget (2), not on max_iters (5): each
+        // iteration was charged as a step.
+        assert!(matches!(result, Err(LlmError::BudgetExceeded)));
+        assert_eq!(budget.steps_remaining(), 0);
     }
 
     /// Tool error absorbed as text, the loop continues.

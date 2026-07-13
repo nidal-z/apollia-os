@@ -166,6 +166,22 @@ impl LlmProxy {
         self
     }
 
+    /// Charge one reasoning step against the shared budget (Direct path).
+    ///
+    /// Returns the Python error to raise when the step dimension is already
+    /// spent, otherwise advances the shared step counter. This enforces
+    /// `max_steps` for a Python agent's `ctx.llm` calls (principle #7). Outside
+    /// the Direct path the view is unlimited, so this is a no-op increment.
+    fn charge_step(&self) -> PyResult<()> {
+        if self.budget_view.is_exhausted() {
+            return Err(PyRuntimeError::new_err(
+                "step budget exhausted: max_steps reached",
+            ));
+        }
+        self.budget_view.increment_steps();
+        Ok(())
+    }
+
     /// Emits `RuntimeEvent::LlmCallStarted` if both bus and task_id are set.
     fn emit_started(&self, backend: &str, model: &str, messages_count: u32, prompt_chars: u64) {
         if let (Some(bus), Some(task_id), Some(agent_id)) = (
@@ -220,6 +236,9 @@ impl LlmProxy {
         max_tokens: Option<u32>,
         seed: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        // Charge one step against the budget before dispatch (Direct path).
+        self.charge_step()?;
+
         // Emit LlmCallStarted before dispatch.
         let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
         let backend_label = backend
@@ -324,9 +343,11 @@ impl LlmProxy {
                     let _permit = Arc::clone(&sem).acquire_owned().await.ok();
                     // Honour a run-level budget already exhausted elsewhere rather
                     // than overrunning it; the item reports the reason instead.
+                    // Each dispatched item is charged as one step (Direct path).
                     if budget.is_exhausted() {
                         return (index, Err("budget exhausted".to_string()));
                     }
+                    budget.increment_steps();
                     let req = CompletionRequest {
                         messages: vec![ChatMessage::system(system_prefix), ChatMessage::user(item)],
                         temperature,
@@ -397,6 +418,9 @@ impl LlmProxy {
             .iter()
             .map(|obj| py_dict_to_chat_message(py, obj))
             .collect::<PyResult<Vec<_>>>()?;
+
+        // Charge one step against the budget before dispatch (Direct path).
+        self.charge_step()?;
 
         // Emit LlmCallStarted before dispatch.
         // MessageContent may carry plain text or tool_calls; we sum the

@@ -45,10 +45,7 @@ pub use plan_approval::{ApprovalError, PlanApprovalHandle};
 pub use registry::{AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle};
 pub use router::{SubmitError, TaskRouterHandle};
 pub use shutdown::{wait_for_shutdown_signal, ShutdownConfig, ShutdownController, ShutdownError};
-pub use supervisor::{
-    ChildSpec, RestartPolicy, RestartTracker, Supervisor, SupervisorConfig, SupervisorError,
-    SupervisorHandles,
-};
+pub use supervisor::{Supervisor, SupervisorConfig, SupervisorError, SupervisorHandles};
 pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
 
 // Embedded runtime.

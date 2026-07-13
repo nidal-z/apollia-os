@@ -40,6 +40,16 @@ pub enum PlanValidationError {
     /// dependencies, acyclic), as checked by [`validate_plan`].
     #[error("invalid plan: {0}")]
     InvalidPlan(#[source] apollia_core::plan::PlanValidationError),
+    /// The plan declares more steps than the configured `max_steps` ceiling.
+    /// `max_steps` is a hard cardinality bound, not only a prompt hint: an
+    /// oversized plan is rejected before it can execute (principle #7).
+    #[error("plan has {got} steps, exceeds max_steps {max}")]
+    TooManySteps {
+        /// Number of steps the LLM produced.
+        got: usize,
+        /// Configured `max_steps` ceiling.
+        max: u32,
+    },
 }
 
 /// Validates a plan's steps: unique ids, resolvable dependencies, no cycle.
@@ -460,12 +470,13 @@ impl Reasoner {
 
     /// Validate a raw JSON plan returned by the LLM.
     ///
-    /// 5 sequential validations, returning `Err` at the first problem encountered:
+    /// 6 sequential validations, returning `Err` at the first problem encountered:
     /// 1. Strip any Markdown backticks and parse the JSON
     /// 2. Deserialize the [`PlanStep`] array from the `"steps"` field
     /// 3. Check that all `step_id`s are unique
     /// 4. Check that each `depends_on` references a `step_id` present in the plan
     /// 5. Detect cycles via [`topological_sort`] (Kahn's algorithm)
+    /// 6. Reject plans whose step count exceeds `max_steps`
     ///
     /// This function is public and pure, testable independently of the LLM.
     pub fn parse_and_validate(
@@ -490,6 +501,15 @@ impl Reasoner {
 
         // 3-5. Unique ids, existing dependencies, no cycle.
         validate_steps(&steps)?;
+
+        // 6. Cardinality: max_steps is a hard ceiling, not only a prompt hint.
+        // A plan that exceeds it is rejected so it never reaches the actor loop.
+        if steps.len() > self.max_steps as usize {
+            return Err(PlanValidationError::TooManySteps {
+                got: steps.len(),
+                max: self.max_steps,
+            });
+        }
 
         // The first generation has no per-step reason: stamp Initial provenance
         // with the current clock so the origin survives persistence.
@@ -843,6 +863,45 @@ mod tests {
         // THEN
         assert!(result.is_ok());
         assert_eq!(result.unwrap().steps[0].step_id, "s1");
+    }
+
+    // Cardinality ceiling: max_steps is enforced, not only a prompt hint.
+
+    /// GIVEN a Reasoner with max_steps = 2
+    /// WHEN parse_and_validate() receives a well-formed plan of 3 steps
+    /// THEN Err(TooManySteps { got: 3, max: 2 }) so the plan never executes
+    #[test]
+    fn test_plan_exceeding_max_steps_rejected() {
+        // GIVEN a reasoner whose ceiling is 2 steps
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 2);
+
+        // WHEN a valid 3-step plan is validated
+        let result = reasoner.parse_and_validate(VALID_PLAN_3_STEPS, "task-001");
+
+        // THEN it is rejected on the cardinality ceiling
+        assert!(
+            matches!(
+                result,
+                Err(PlanValidationError::TooManySteps { got: 3, max: 2 })
+            ),
+            "expected TooManySteps, got: {result:?}"
+        );
+    }
+
+    /// GIVEN a Reasoner with max_steps = 3
+    /// WHEN parse_and_validate() receives a plan of exactly 3 steps
+    /// THEN it is accepted (the ceiling is inclusive)
+    #[test]
+    fn test_plan_at_max_steps_accepted() {
+        // GIVEN a reasoner whose ceiling is exactly the plan size
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 3);
+
+        // WHEN a valid 3-step plan is validated
+        let result = reasoner.parse_and_validate(VALID_PLAN_3_STEPS, "task-001");
+
+        // THEN it passes
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        assert_eq!(result.unwrap().steps.len(), 3);
     }
 
     // Direct validation of parse_and_validate

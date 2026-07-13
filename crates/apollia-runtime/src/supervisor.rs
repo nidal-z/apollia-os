@@ -6,12 +6,14 @@
 //! If any actor fails to start within the configured timeout, all previously started
 //! actors are stopped in reverse order.
 //!
-//! After startup, the Supervisor monitors actor health via `watch()` and applies
-//! [`RestartPolicy`] on failure.
+//! After startup, the model is fail-fast then degrade: `watch()` listens for a
+//! `ShutdownRequested` or `FatalError` event and coordinates shutdown. There is no
+//! actor restart-on-crash. A crashed actor leaves the runtime running in a degraded
+//! state until an explicit shutdown. The inference sidecar is the exception: its own
+//! `RunnerSupervisor` restarts that process (see `runner_supervisor`).
 
-use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -40,30 +42,6 @@ use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
 use crate::timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig};
-
-/// Restart policy for supervised actors.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RestartPolicy {
-    /// Always restart on termination (ToolRegistry, MemoryEngine).
-    Always,
-    /// Restart only on failure/panic (APIServer).
-    OnFailure,
-    /// Never restart (one-shot actors).
-    Never,
-}
-
-/// Specification for a supervised child actor.
-#[derive(Debug)]
-pub struct ChildSpec {
-    /// Human-readable name of the actor.
-    pub name: String,
-    /// When to restart this actor.
-    pub restart_policy: RestartPolicy,
-    /// Maximum number of restarts within `restart_window_secs`.
-    pub max_restarts: u32,
-    /// Time window (in seconds) for counting restarts.
-    pub restart_window_secs: u64,
-}
 
 /// Supervisor configuration.
 pub struct SupervisorConfig {
@@ -330,17 +308,6 @@ pub enum SupervisorError {
     #[error("configuration error: {0}")]
     ConfigError(String),
 
-    /// An actor exceeded its maximum restart count within the window.
-    #[error("max restarts exceeded for {actor}: {count} restarts in {window_secs}s")]
-    MaxRestartsExceeded {
-        /// Name of the actor.
-        actor: String,
-        /// Number of restarts that occurred.
-        count: u32,
-        /// Time window in seconds.
-        window_secs: u64,
-    },
-
     /// The `[notifications]` section contains an invalid channel configuration.
     #[error("notification configuration error: {0}")]
     NotificationConfig(String),
@@ -352,42 +319,6 @@ impl From<APIServerError> for SupervisorError {
             actor: "api_server".to_string(),
             reason: err.to_string(),
         }
-    }
-}
-
-/// Tracks restart history for a single actor.
-pub struct RestartTracker {
-    spec: ChildSpec,
-    timestamps: VecDeque<Instant>,
-}
-
-impl RestartTracker {
-    /// Create a new tracker from a child spec.
-    pub fn new(spec: ChildSpec) -> Self {
-        Self {
-            spec,
-            timestamps: VecDeque::new(),
-        }
-    }
-
-    /// Record a restart and check if max_restarts is exceeded within the window.
-    ///
-    /// Returns `true` if the restart is allowed, `false` if the limit is exceeded.
-    pub fn record_restart(&mut self) -> bool {
-        let now = Instant::now();
-        let window = Duration::from_secs(self.spec.restart_window_secs);
-
-        // Evict timestamps outside the window
-        while let Some(&front) = self.timestamps.front() {
-            if now.duration_since(front) > window {
-                self.timestamps.pop_front();
-            } else {
-                break;
-            }
-        }
-
-        self.timestamps.push_back(now);
-        self.timestamps.len() <= self.spec.max_restarts as usize
     }
 }
 
@@ -1991,18 +1922,16 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     descriptors
 }
 
-/// Watch actor health and apply restart policies.
+/// Watch for a coordinated-shutdown signal on the EventBus.
 ///
 /// This is a standalone async function (not a method on Supervisor) because
 /// the Supervisor is consumed by `start()`. The caller runs `watch()` as a
 /// background task after obtaining handles.
 ///
-/// Listens for `ShutdownRequested` or `FatalError` events on the EventBus.
-/// Returns when shutdown is requested or a fatal error occurs.
-pub async fn watch(
-    event_sender: &EventBusSender,
-    _trackers: Vec<RestartTracker>,
-) -> Result<(), SupervisorError> {
+/// Listens for `ShutdownRequested` or `FatalError` events and returns when
+/// either occurs. It does not restart actors: the runtime is fail-fast at
+/// startup then degrades on a post-startup crash (see the module docs).
+pub async fn watch(event_sender: &EventBusSender) -> Result<(), SupervisorError> {
     let mut rx = event_sender.subscribe();
 
     loop {
@@ -2019,7 +1948,7 @@ pub async fn watch(
                 });
             }
             Ok(_) => {
-                // Other events, ignore in MVP
+                // Non-terminal events are not acted on: no restart-on-crash.
             }
             Err(broadcast::error::RecvError::Lagged(n)) => {
                 warn!(skipped = n, "Supervisor watch: lagged, skipped events");
@@ -2144,54 +2073,6 @@ fn seed_default_desktop_channel_if_needed(
         );
     }
     info!("Supervisor: seeded default desktop notification channel");
-}
-
-/// Create the default child specs for the runtime actors.
-pub fn default_child_specs() -> Vec<ChildSpec> {
-    vec![
-        ChildSpec {
-            name: "event_bus".to_string(),
-            restart_policy: RestartPolicy::Always,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "agent_registry".to_string(),
-            restart_policy: RestartPolicy::Always,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "tool_registry".to_string(),
-            restart_policy: RestartPolicy::Always,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "memory_engine".to_string(),
-            restart_policy: RestartPolicy::Always,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "task_router".to_string(),
-            restart_policy: RestartPolicy::OnFailure,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "trigger_engine".to_string(),
-            restart_policy: RestartPolicy::OnFailure,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-        ChildSpec {
-            name: "api_server".to_string(),
-            restart_policy: RestartPolicy::OnFailure,
-            max_restarts: 5,
-            restart_window_secs: 60,
-        },
-    ]
 }
 
 #[cfg(test)]
@@ -2569,64 +2450,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_restart_tracker_allows_within_limit() {
-        // GIVEN a tracker with max_restarts=3, window=60s
-        let spec = ChildSpec {
-            name: "test_actor".to_string(),
-            restart_policy: RestartPolicy::OnFailure,
-            max_restarts: 3,
-            restart_window_secs: 60,
-        };
-        let mut tracker = RestartTracker::new(spec);
-
-        // WHEN 3 restarts are recorded
-        assert!(tracker.record_restart(), "1st restart should be allowed");
-        assert!(tracker.record_restart(), "2nd restart should be allowed");
-        assert!(tracker.record_restart(), "3rd restart should be allowed");
-
-        // THEN the 4th is denied
-        assert!(
-            !tracker.record_restart(),
-            "4th restart should be denied (exceeds max_restarts=3)"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_max_restarts_exceeded() {
-        // GIVEN a tracker with max_restarts=2
-        let spec = ChildSpec {
-            name: "flaky_actor".to_string(),
-            restart_policy: RestartPolicy::Always,
-            max_restarts: 2,
-            restart_window_secs: 60,
-        };
-        let mut tracker = RestartTracker::new(spec);
-
-        // WHEN the max is exceeded
-        tracker.record_restart();
-        tracker.record_restart();
-        let allowed = tracker.record_restart();
-
-        // THEN the restart is denied
-        assert!(!allowed, "should exceed max_restarts");
-
-        // AND the matching error can be constructed
-        let err = SupervisorError::MaxRestartsExceeded {
-            actor: "flaky_actor".to_string(),
-            count: 3,
-            window_secs: 60,
-        };
-        assert!(err.to_string().contains("flaky_actor"));
-        assert!(err.to_string().contains("3"));
-    }
-
-    #[tokio::test]
     async fn test_watch_exits_on_shutdown_requested() {
         // GIVEN an EventBus and a watch in progress
         let (sender, _rx) = EventBus::new();
         let sender_clone = sender.clone();
 
-        let watch_handle = tokio::spawn(async move { watch(&sender_clone, vec![]).await });
+        let watch_handle = tokio::spawn(async move { watch(&sender_clone).await });
 
         // WHEN ShutdownRequested is emitted
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -2638,28 +2467,6 @@ mod tests {
             .expect("watch should exit within 2s")
             .expect("join should succeed");
         assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_default_child_specs() {
-        // GIVEN / WHEN
-        let specs = default_child_specs();
-
-        // THEN 7 specs are returned in order
-        assert_eq!(specs.len(), 7);
-        assert_eq!(specs[0].name, "event_bus");
-        assert_eq!(specs[1].name, "agent_registry");
-        assert_eq!(specs[2].name, "tool_registry");
-        assert_eq!(specs[3].name, "memory_engine");
-        assert_eq!(specs[4].name, "task_router");
-        assert_eq!(specs[5].name, "trigger_engine");
-        assert_eq!(specs[6].name, "api_server");
-
-        // AND the policies are correct
-        assert_eq!(specs[0].restart_policy, RestartPolicy::Always);
-        assert_eq!(specs[4].restart_policy, RestartPolicy::OnFailure);
-        assert_eq!(specs[5].restart_policy, RestartPolicy::OnFailure);
-        assert_eq!(specs[6].restart_policy, RestartPolicy::OnFailure);
     }
 
     // Supervisor starts successfully with llm_config = None

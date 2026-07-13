@@ -299,6 +299,10 @@ struct BridgeRunner {
     /// Agent manifest, exposed via the `AIPAgent` contract for the orchestrated
     /// planner path (manifest + plan-complete hook).
     manifest: AgentManifest,
+    /// Direct-path `StepBudget`, shared with `execute_direct`. A live view of it
+    /// is wired into `ctx.tools` and `ctx.llm` so the Python agent's tool and
+    /// LLM calls are counted and cut off (principle #7, non-bypassable).
+    budget: Arc<StepBudget>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -335,6 +339,8 @@ impl AgentRunner for BridgeRunner {
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
         let secrets_declared = self.secrets_declared.clone();
+        // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
+        let budget_view = Arc::new(self.budget.to_live_budget_view());
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -414,7 +420,9 @@ impl AgentRunner for BridgeRunner {
                         run_id: task.run_id.clone(),
                     })
                     // tool_call_* instrumentation on the EventBus.
-                    .with_event_bus(event_bus.clone());
+                    .with_event_bus(event_bus.clone())
+                    // Direct-path budget: count and cap the agent's tool calls.
+                    .with_budget(Arc::clone(&budget_view));
                     // Wire A2A so `ctx.tools.invoke("a2a:<skill>")` routes through
                     // the orchestrator. Without this, the registry would still
                     // surface `a2a:*` in allowed_tools but the dispatcher would
@@ -469,7 +477,7 @@ impl AgentRunner for BridgeRunner {
             let ctx: PyObject = Python::with_gil(|py| {
                 let mut ctx = RuntimeContext::new_with_llm(
                     llm_router,
-                    Arc::new(StepBudgetView::unlimited()),
+                    Arc::clone(&budget_view),
                     tool_helper,
                     Arc::new(ObservabilityConfig::default()),
                     event_bus,
@@ -564,6 +572,12 @@ impl ExecutionBackend for AIPProductionBackend {
         &self,
         task: AIPTask,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        // Agent budget capped to the runtime ceiling, shared into the runner's
+        // ctx and the engine supervisor so the Direct path is bounded on the
+        // step/tool_call dimensions, not wall-clock alone (principle #7).
+        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
+        let direct_budget = Arc::new(direct_path_budget(&agent_step_budget));
+
         let runner = BridgeRunner {
             bridge: Arc::clone(&self.bridge),
             llm_router: self.llm_router.clone(),
@@ -592,6 +606,7 @@ impl ExecutionBackend for AIPProductionBackend {
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
             manifest: self.manifest.clone(),
+            budget: Arc::clone(&direct_budget),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -631,16 +646,12 @@ impl ExecutionBackend for AIPProductionBackend {
         // Orchestrated agents flow through ORIA's planner + ActorLoop (where the
         // plan gate lives); everything else uses the direct dispatch path.
         let execution_mode = self.manifest.execution_mode.clone();
-        // Agent budget capped to the runtime ceiling on the direct path
-        // (principle #7): never an unlimited budget.
-        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
         Box::pin(async move {
             if execution_mode == "orchestrated" {
                 Ok(engine.execute(task, &runner).await)
             } else {
-                let budget = Arc::new(direct_path_budget(&agent_step_budget));
                 engine
-                    .execute_direct(task, &runner, budget)
+                    .execute_direct(task, &runner, direct_budget)
                     .await
                     .map_err(|e| e.to_string())
             }
@@ -1035,7 +1046,9 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             build_user_context_from_repo(&repo)
         });
 
-        // 4. Build RuntimeContext and call the agent
+        // 4. Build RuntimeContext and call the agent. The Direct-path budget is
+        // shared into the runner's ctx and the engine supervisor.
+        let direct_budget = Arc::new(direct_path_budget(&agent_step_budget));
         let runner = BridgeRunner {
             bridge,
             llm_router,
@@ -1060,6 +1073,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             agent_dir,
             secrets_declared,
             manifest: chat_manifest,
+            budget: Arc::clone(&direct_budget),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);
@@ -1070,9 +1084,8 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             engine = engine.with_task_repository(repo);
         }
 
-        let budget = Arc::new(direct_path_budget(&agent_step_budget));
         engine
-            .execute_direct(task, &runner, budget)
+            .execute_direct(task, &runner, direct_budget)
             .await
             .map_err(|e| e.to_string())
     }

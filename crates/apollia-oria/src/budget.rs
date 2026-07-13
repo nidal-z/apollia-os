@@ -11,10 +11,10 @@
 //! between ORIAEngine and ToolProxy.
 
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 
 use apollia_core::StepBudgetConfig;
 
@@ -23,9 +23,11 @@ use apollia_core::StepBudgetConfig;
 /// Thread-safe via `AtomicU32` counters and `Instant` for the timer.
 /// Shared via `Arc<StepBudget>` between ORIAEngine and ToolProxy.
 ///
-/// When the budget is exhausted (steps or tool_calls), the `exhaustion_tx` sender
-/// is consumed to notify waiters via [`wait_for_exhaustion`]. The wall_clock
-/// dimension is handled by a `tokio::time::sleep` on the remaining duration.
+/// When the budget is exhausted (steps or tool_calls), the `exhaustion_tx`
+/// watch channel is set to notify waiters via [`wait_for_exhaustion`]. The
+/// wall_clock dimension is handled by a `tokio::time::sleep` on the remaining
+/// duration. The watch channel is re-armable, so a task resumed after HITL is
+/// still supervised on the step/tool_call dimensions, not wall-clock alone.
 ///
 /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
 pub struct StepBudget {
@@ -35,28 +37,26 @@ pub struct StepBudget {
     pub max_tool_calls: u32,
     /// Maximum execution duration.
     pub wall_clock_limit: Duration,
-    current_steps: AtomicU32,
-    current_tool_calls: AtomicU32,
+    current_steps: Arc<AtomicU32>,
+    current_tool_calls: Arc<AtomicU32>,
     started_at: Instant,
-    /// Sender fired once when steps or tool_calls reaches its limit.
-    exhaustion_tx: Mutex<Option<oneshot::Sender<()>>>,
-    /// Receiver consumed once by [`wait_for_exhaustion`].
-    exhaustion_rx: Mutex<Option<oneshot::Receiver<()>>>,
+    /// Set to `true` when a counter dimension reaches its limit. A `watch`
+    /// channel (not a mono-use oneshot) so the signal survives multiple awaits.
+    exhaustion_tx: watch::Sender<bool>,
 }
 
 impl StepBudget {
     /// Creates a new StepBudget from the config.
     pub fn new(config: &StepBudgetConfig) -> Self {
-        let (tx, rx) = oneshot::channel();
+        let (exhaustion_tx, _) = watch::channel(false);
         Self {
             max_steps: config.max_steps,
             max_tool_calls: config.max_tool_calls,
             wall_clock_limit: Duration::from_secs(config.wall_clock_secs),
-            current_steps: AtomicU32::new(0),
-            current_tool_calls: AtomicU32::new(0),
+            current_steps: Arc::new(AtomicU32::new(0)),
+            current_tool_calls: Arc::new(AtomicU32::new(0)),
             started_at: Instant::now(),
-            exhaustion_tx: Mutex::new(Some(tx)),
-            exhaustion_rx: Mutex::new(Some(rx)),
+            exhaustion_tx,
         }
     }
 
@@ -101,42 +101,36 @@ impl StepBudget {
         }
     }
 
-    /// Fires the exhaustion oneshot at most once.
+    /// Raises the exhaustion signal. Idempotent and re-armable.
     fn try_notify_exhaustion(&self) {
-        if let Ok(mut guard) = self.exhaustion_tx.lock() {
-            if let Some(tx) = guard.take() {
-                let _ = tx.send(());
-            }
-        }
+        let _ = self.exhaustion_tx.send(true);
     }
 
     /// Returns a future that resolves when the budget is exhausted.
     ///
     /// Resolves when either:
-    /// - `increment_steps` / `increment_tool_calls` fires the exhaustion oneshot, or
+    /// - `increment_steps` / `increment_tool_calls` raises the exhaustion signal, or
+    /// - a counter dimension is already exhausted when the future is created, or
     /// - the `wall_clock_limit` elapses.
     ///
-    /// Can only be awaited once per `StepBudget` instance (the receiver is consumed).
-    /// Subsequent calls fall back to waiting on the remaining wall-clock duration only.
+    /// Re-armable: unlike a mono-use oneshot, this may be awaited several times
+    /// on the same `StepBudget` (for example the first Direct run and again after
+    /// a HITL resume), each await supervising the step/tool_call dimensions.
     pub async fn wait_for_exhaustion(&self) {
-        let rx = {
-            let mut guard = self.exhaustion_rx.lock().unwrap_or_else(|p| p.into_inner());
-            guard.take()
-        };
+        let mut rx = self.exhaustion_tx.subscribe();
         let wall_clock_remaining = self
             .wall_clock_limit
             .saturating_sub(self.started_at.elapsed());
 
-        match rx {
-            Some(rx) => {
-                tokio::select! {
-                    _ = rx => {}
-                    _ = tokio::time::sleep(wall_clock_remaining) => {}
-                }
-            }
-            None => {
-                tokio::time::sleep(wall_clock_remaining).await;
-            }
+        // Fast path: the signal already fired, or a counter dimension is already
+        // at its limit (for instance after a resume that inherited a spent budget).
+        if *rx.borrow_and_update() || self.is_exhausted() {
+            return;
+        }
+
+        tokio::select! {
+            _ = rx.changed() => {}
+            _ = tokio::time::sleep(wall_clock_remaining) => {}
         }
     }
 
@@ -192,6 +186,25 @@ impl StepBudget {
             Arc::new(AtomicU32::new(
                 self.current_tool_calls.load(Ordering::Relaxed),
             )),
+            self.max_tool_calls,
+            self.started_at,
+        )
+    }
+
+    /// Build a `StepBudgetView` backed by this budget's live shared counters.
+    ///
+    /// Unlike [`to_budget_view`](Self::to_budget_view), which snapshots the
+    /// counters, the returned view shares the same `Arc<AtomicU32>` counters, so
+    /// increments made through the view are visible to this budget and to
+    /// [`is_exhausted`](Self::is_exhausted). This is how the runtime enforces the
+    /// budget on the Direct path: the Python agent's tool and LLM calls increment
+    /// the shared view through the AIP proxies, and the same budget the engine
+    /// supervises sees those increments (principle #7, non-bypassable).
+    pub fn to_live_budget_view(&self) -> apollia_llm::StepBudgetView {
+        apollia_llm::StepBudgetView::with_tool_tracking(
+            Arc::clone(&self.current_steps),
+            self.max_steps,
+            Arc::clone(&self.current_tool_calls),
             self.max_tool_calls,
             self.started_at,
         )
@@ -396,7 +409,121 @@ mod tests {
         assert_eq!(budget.steps_left(), 0);
     }
 
-    /// `wait_for_exhaustion` completes via the oneshot when `increment_steps` exhausts the budget.
+    /// The exhaustion signal re-arms: a second `wait_for_exhaustion` (as on a
+    /// HITL resume) still resolves via the counter dimension, not wall-clock only.
+    #[tokio::test]
+    async fn test_wait_for_exhaustion_rearms_after_first_await() {
+        // GIVEN a budget with room for 2 steps and a long wall clock
+        let config = StepBudgetConfig {
+            max_steps: 2,
+            max_tool_calls: 100,
+            wall_clock_secs: 3_600,
+        };
+        let budget = Arc::new(StepBudget::new(&config));
+
+        // A first supervision await completes (models the first Direct run). It is
+        // raced against a short sleep so it returns without blocking the wall clock.
+        budget.increment_steps(); // 1/2, not yet exhausted
+        tokio::select! {
+            _ = budget.wait_for_exhaustion() => {}
+            _ = tokio::time::sleep(Duration::from_millis(1)) => {}
+        }
+
+        // WHEN the budget is exhausted on the step dimension, then supervised again
+        budget.increment_steps(); // 2/2 -> exhausted
+
+        // THEN the second await resolves via the re-armed signal within 1s, not
+        // after the 3600s wall clock.
+        tokio::time::timeout(Duration::from_secs(1), budget.wait_for_exhaustion())
+            .await
+            .expect(
+                "second wait_for_exhaustion must resolve via the re-armed counter, not wall-clock",
+            );
+    }
+
+    /// The signal (not only the fast path) re-arms: exhaustion fired from another
+    /// task DURING a second await still wakes it.
+    #[tokio::test]
+    async fn test_wait_for_exhaustion_signal_wakes_second_await() {
+        // GIVEN a budget with room for 2 steps and a long wall clock
+        let config = StepBudgetConfig {
+            max_steps: 2,
+            max_tool_calls: 100,
+            wall_clock_secs: 3_600,
+        };
+        let budget = Arc::new(StepBudget::new(&config));
+
+        // A first await is consumed (first Direct run).
+        tokio::select! {
+            _ = budget.wait_for_exhaustion() => {}
+            _ = tokio::time::sleep(Duration::from_millis(1)) => {}
+        }
+
+        // WHEN a second await starts while the budget is not yet exhausted, and a
+        // concurrent task exhausts it after the await has registered.
+        let b = Arc::clone(&budget);
+        let waiter = tokio::spawn(async move { b.wait_for_exhaustion().await });
+        tokio::task::yield_now().await;
+        budget.increment_steps();
+        budget.increment_steps(); // 2/2 -> fires the signal
+
+        // THEN the second await wakes via the signal within 1s.
+        tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("second await must wake via the re-armed signal, not wall-clock")
+            .expect("waiter task should not panic");
+    }
+
+    /// A live budget view shares the counters: incrementing the view exhausts the
+    /// budget the engine supervises (C7-R1, non-bypassable on the Direct path).
+    #[test]
+    fn test_live_budget_view_shares_counters() {
+        // GIVEN a budget with room for 2 tool calls and a live view of it
+        let config = StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 2,
+            wall_clock_secs: 300,
+        };
+        let budget = StepBudget::new(&config);
+        let view = budget.to_live_budget_view();
+
+        // WHEN the view (as the Direct-path proxy would) spends the tool budget
+        assert!(!budget.is_exhausted());
+        view.increment_tool_calls();
+        view.increment_tool_calls();
+
+        // THEN the budget the engine holds sees it and is exhausted
+        assert!(
+            budget.is_exhausted(),
+            "increments via the live view must be visible to the owning budget"
+        );
+        assert_eq!(budget.tool_calls_left(), 0);
+        assert_eq!(view.tool_calls_remaining(), 0);
+    }
+
+    /// A snapshot view (`to_budget_view`) does NOT share counters: it is a
+    /// point-in-time copy, so mutating it never affects the owning budget.
+    #[test]
+    fn test_snapshot_budget_view_is_decoupled() {
+        // GIVEN a budget and a snapshot view of it
+        let config = StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 2,
+            wall_clock_secs: 300,
+        };
+        let budget = StepBudget::new(&config);
+        let snapshot = budget.to_budget_view();
+
+        // WHEN the snapshot is mutated
+        snapshot.increment_tool_calls();
+        snapshot.increment_tool_calls();
+
+        // THEN the owning budget is unaffected (proves the two views differ)
+        assert!(!budget.is_exhausted());
+        assert_eq!(budget.tool_calls_left(), 2);
+    }
+
+    /// `wait_for_exhaustion` completes via the signal when `increment_steps` exhausts the budget.
     #[tokio::test]
     async fn test_budget_exhaustion_oneshot_notification() {
         // GIVEN a budget with max_steps = 1

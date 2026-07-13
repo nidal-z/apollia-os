@@ -244,18 +244,24 @@ impl PlanRepository {
     /// [`apollia_core::plan::StepOrigin::Initial`], `at` 0) instead of failing
     /// the read, so older plans stay loadable without a backfill.
     ///
+    /// The `plan_steps` primary key is composite `(step_id, plan_id)`: a
+    /// `step_id` like `"s1"` is only unique within its plan, so both halves of
+    /// the key are required to read the right row.
+    ///
     /// # Errors
-    /// Returns [`PlanRepositoryError::NotFound`] when no step matches `step_id`,
-    /// or [`PlanRepositoryError::Sqlite`] on any other SQLite error.
+    /// Returns [`PlanRepositoryError::NotFound`] when no step matches
+    /// `(plan_id, step_id)`, or [`PlanRepositoryError::Sqlite`] on any other
+    /// SQLite error.
     pub fn load_step_provenance(
         &self,
+        plan_id: &str,
         step_id: &str,
     ) -> Result<(Option<String>, StepProvenance), PlanRepositoryError> {
         let conn = self.conn.lock().expect("plan repository mutex poisoned");
         let (rationale, provenance_raw): (Option<String>, Option<String>) = conn
             .query_row(
-                "SELECT rationale, provenance FROM plan_steps WHERE step_id = ?1",
-                params![step_id],
+                "SELECT rationale, provenance FROM plan_steps WHERE plan_id = ?1 AND step_id = ?2",
+                params![plan_id, step_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| match e {
@@ -951,7 +957,9 @@ mod tests {
         repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
 
         // WHEN
-        let (rationale, provenance) = repo.load_step_provenance("s1").expect("load");
+        let (rationale, provenance) = repo
+            .load_step_provenance(&plan.plan_id, "s1")
+            .expect("load");
 
         // THEN
         assert_eq!(rationale.as_deref(), Some("decoupe"));
@@ -965,9 +973,53 @@ mod tests {
         assert_eq!(s1.provenance.origin, StepOrigin::Replan(1));
 
         // A step inserted with default provenance round-trips to Initial / None.
-        let (rationale_s2, provenance_s2) = repo.load_step_provenance("s2").expect("load s2");
+        let (rationale_s2, provenance_s2) = repo
+            .load_step_provenance(&plan.plan_id, "s2")
+            .expect("load s2");
         assert_eq!(rationale_s2, None);
         assert_eq!(provenance_s2.origin, StepOrigin::Initial);
+    }
+
+    // GIVEN two plans that both own a step id "s1" with distinct provenance
+    // WHEN  loading "s1" for the second plan
+    // THEN  the second plan's provenance is returned, not the first plan's
+    //       (the composite key (step_id, plan_id) disambiguates across plans)
+    #[test]
+    fn test_load_step_provenance_disambiguates_across_plans() {
+        use apollia_core::plan::{StepOrigin, StepProvenance};
+
+        // GIVEN plan A with s1 = Replan(1) and plan B with s1 = Replan(2)
+        let (repo, _f) = make_repo();
+
+        let mut plan_a = make_plan("task-A");
+        plan_a.steps[0].rationale = Some("from-A".into());
+        plan_a.steps[0].provenance = StepProvenance {
+            origin: StepOrigin::Replan(1),
+            reason: Some("A".into()),
+            at: 1_000,
+        };
+        repo.insert_plan(&plan_a, "agent-a").unwrap();
+        repo.insert_steps(&plan_a.plan_id, &plan_a.steps).unwrap();
+
+        let mut plan_b = make_plan("task-B");
+        plan_b.steps[0].rationale = Some("from-B".into());
+        plan_b.steps[0].provenance = StepProvenance {
+            origin: StepOrigin::Replan(2),
+            reason: Some("B".into()),
+            at: 2_000,
+        };
+        repo.insert_plan(&plan_b, "agent-b").unwrap();
+        repo.insert_steps(&plan_b.plan_id, &plan_b.steps).unwrap();
+
+        // WHEN loading s1 scoped to plan B
+        let (rationale, provenance) = repo
+            .load_step_provenance(&plan_b.plan_id, "s1")
+            .expect("load");
+
+        // THEN plan B's row is returned, never plan A's
+        assert_eq!(rationale.as_deref(), Some("from-B"));
+        assert_eq!(provenance.origin, StepOrigin::Replan(2));
+        assert_eq!(provenance.at, 2_000);
     }
 
     // GIVEN a legacy row whose provenance column is NULL
@@ -993,7 +1045,9 @@ mod tests {
         }
 
         // WHEN
-        let (rationale, provenance) = repo.load_step_provenance("legacy").expect("load");
+        let (rationale, provenance) = repo
+            .load_step_provenance(&plan.plan_id, "legacy")
+            .expect("load");
 
         // THEN
         assert_eq!(rationale, None);

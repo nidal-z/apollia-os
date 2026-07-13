@@ -4,7 +4,8 @@
 //! the same pattern as existing repositories (`TriggerDefinitionRepository`, etc.).
 //!
 //! The cache key is a SHA-256 digest of `{agent_name}:{agent_version}:{sorted_tools}:{normalized_text}`.
-//! Strategy: TTL 7 days, max 1000 entries, LRU eviction.
+//! Strategy: TTL 7 days (via [`PlanCacheRepository::evict_expired`]) plus a hard
+//! `CACHE_MAX_ENTRIES` LRU cap enforced on every store.
 
 use std::path::Path;
 
@@ -31,15 +32,20 @@ pub enum PlanCacheError {
 /// Maximum length of the normalized task text included in the cache key.
 const MAX_TEXT_LENGTH: usize = 500;
 
+/// Hard ceiling on the number of cached plans. Beyond it, the least recently
+/// used entries are evicted on store so the cache stays bounded even when the
+/// TTL window holds more than this many distinct keys.
+const CACHE_MAX_ENTRIES: usize = 1000;
+
 // Repository
 
 /// SQLite-backed cache for ORIA execution plans.
 ///
 /// Stores plans keyed by a deterministic SHA-256 hash of agent metadata and
 /// task text. On cache hit, `hit_count` and `last_used_at` are updated for
-/// observability. Eviction is time-based via [`Self::evict_expired`].
-///
-/// Time-based eviction keeps the cache bounded.
+/// observability. Two eviction paths keep the cache bounded: time-based via
+/// [`Self::evict_expired`] (TTL) and size-based LRU via
+/// [`Self::enforce_capacity`], applied automatically on every [`Self::store`].
 pub struct PlanCacheRepository {
     conn: rusqlite::Connection,
 }
@@ -112,6 +118,9 @@ impl PlanCacheRepository {
             params![key, plan_json, agent_name, agent_version],
         )?;
 
+        // Keep the cache within its hard size ceiling after every insert.
+        self.enforce_capacity(CACHE_MAX_ENTRIES)?;
+
         Ok(())
     }
 
@@ -122,6 +131,32 @@ impl PlanCacheRepository {
         let deleted = self.conn.execute(
             "DELETE FROM plan_cache WHERE created_at < datetime('now', ?1)",
             params![format!("-{max_age_days} days")],
+        )?;
+
+        Ok(deleted as u32)
+    }
+
+    /// Evict least-recently-used entries so at most `max_entries` remain.
+    ///
+    /// Ordering is by `last_used_at` ascending, with the implicit `rowid`
+    /// (insertion order) as a deterministic tiebreak when timestamps collide at
+    /// the one-second SQLite resolution. Returns the number of evicted entries.
+    pub(crate) fn enforce_capacity(&self, max_entries: usize) -> Result<u32, PlanCacheError> {
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM plan_cache", [], |row| row.get(0))?;
+
+        let over = count - max_entries as i64;
+        if over <= 0 {
+            return Ok(0);
+        }
+
+        let deleted = self.conn.execute(
+            "DELETE FROM plan_cache WHERE cache_key IN (
+                SELECT cache_key FROM plan_cache
+                ORDER BY last_used_at ASC, rowid ASC
+                LIMIT ?1)",
+            params![over],
         )?;
 
         Ok(deleted as u32)
@@ -344,6 +379,60 @@ mod tests {
         assert!(repo.lookup("key-old-1").expect("lookup").is_none());
         assert!(repo.lookup("key-old-2").expect("lookup").is_none());
         assert!(repo.lookup("key-fresh").expect("lookup").is_some());
+    }
+
+    // Size-based LRU eviction (the documented 1000-entry cap, tested small)
+
+    /// GIVEN a cache holding k1, k2, k3 stored in that order
+    /// WHEN enforce_capacity(2) runs
+    /// THEN exactly one entry is evicted, the least recently used (k1) is gone,
+    ///      and k2, k3 remain
+    #[test]
+    fn test_enforce_capacity_evicts_least_recently_used() {
+        // GIVEN three entries inserted in order (k1 oldest by rowid)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("plan_cache.db");
+        let repo = PlanCacheRepository::open(&db_path).expect("open");
+        let plan = sample_plan();
+        repo.store("k1", &plan, "agent", "1.0").expect("store");
+        repo.store("k2", &plan, "agent", "1.0").expect("store");
+        repo.store("k3", &plan, "agent", "1.0").expect("store");
+
+        // WHEN the cap is enforced at 2
+        let evicted = repo.enforce_capacity(2).expect("enforce");
+
+        // THEN the least-recently-used k1 is evicted, k2 and k3 survive
+        assert_eq!(evicted, 1);
+        assert!(repo.lookup("k1").expect("lookup").is_none());
+        assert!(repo.lookup("k2").expect("lookup").is_some());
+        assert!(repo.lookup("k3").expect("lookup").is_some());
+    }
+
+    /// GIVEN a cache whose hard ceiling is enforced on every store
+    /// WHEN more than the ceiling of distinct keys are stored
+    /// THEN the entry count never exceeds the ceiling
+    #[test]
+    fn test_store_never_exceeds_capacity() {
+        // GIVEN a fresh cache
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("plan_cache.db");
+        let repo = PlanCacheRepository::open(&db_path).expect("open");
+        let plan = sample_plan();
+
+        // WHEN storing more distinct keys than the ceiling (tested via a manual
+        // enforce so the test stays fast, mirroring what store() applies).
+        for i in 0..(CACHE_MAX_ENTRIES + 25) {
+            repo.store(&format!("key-{i}"), &plan, "agent", "1.0")
+                .expect("store");
+        }
+
+        // THEN the cache stays bounded by the ceiling
+        let stats = repo.stats().expect("stats");
+        assert!(
+            stats.total_entries as usize <= CACHE_MAX_ENTRIES,
+            "cache grew to {} entries, exceeds ceiling {CACHE_MAX_ENTRIES}",
+            stats.total_entries
+        );
     }
 
     // Different versions produce different keys

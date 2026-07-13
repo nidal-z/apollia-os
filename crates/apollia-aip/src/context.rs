@@ -127,6 +127,11 @@ pub struct ToolProxy {
     /// `A2AInvokeStarted/Completed`. `None` disables runtime observability
     /// without breaking dispatch.
     event_bus: Option<apollia_core::events::EventBusSender>,
+    /// Live view of the runtime `StepBudget`, shared with the engine. Present
+    /// only on the Direct path, where the agent's tool calls are counted and
+    /// cut off here (principle #7). `None` in orchestrated mode, whose ActorLoop
+    /// accounts the budget itself, so the counter is never charged twice.
+    budget: Option<Arc<apollia_llm::StepBudgetView>>,
 }
 
 #[pymethods]
@@ -153,6 +158,12 @@ impl ToolProxy {
             .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
         let input_value: serde_json::Value = serde_json::from_str(&input_str)
             .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
+
+        // Direct-path budget enforcement: count this tool call against the shared
+        // runtime budget and deny once the tool-call (or step) dimension is spent.
+        if let Some(reason) = self.reject_if_budget_exhausted() {
+            return Err(PyRuntimeError::new_err(reason));
+        }
 
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
@@ -403,7 +414,18 @@ impl ToolProxy {
             a2a_depth: 0,
             chain_deadline: None,
             event_bus: None,
+            budget: None,
         }
+    }
+
+    /// Wires the live `StepBudget` view enforced on the Direct path.
+    ///
+    /// Each `call` then charges one tool-call unit against the shared budget and
+    /// is denied once `max_tool_calls` (or the step dimension) is reached. Left
+    /// unset in orchestrated mode so the ActorLoop remains the sole accountant.
+    pub fn with_budget(mut self, budget: Arc<apollia_llm::StepBudgetView>) -> Self {
+        self.budget = Some(budget);
+        self
     }
 
     /// Wires the EventBus to emit observability events
@@ -471,6 +493,13 @@ impl ToolProxy {
         tool_name: &str,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, ToolProxyError> {
+        // Budget enforcement for a Direct-path proxy carrying a live budget. In
+        // orchestrated mode `budget` is None and the ActorLoop accounts instead,
+        // so this never double-counts.
+        if let Some(reason) = self.reject_if_budget_exhausted() {
+            return Err(ToolProxyError::ExecutionFailed(reason));
+        }
+
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
         if let Some(skill_id) = extract_a2a_skill_id(tool_name) {
@@ -509,6 +538,24 @@ impl ToolProxy {
             input,
         )
         .await
+    }
+
+    /// Charge one tool-call unit against the live budget, if one is wired.
+    ///
+    /// Returns `Some(reason)` when the call must be denied because the tool-call
+    /// or step dimension is already spent; otherwise increments the shared
+    /// tool-call counter and returns `None`. No-op (returns `None`) when no
+    /// budget is attached, which is the orchestrated case.
+    fn reject_if_budget_exhausted(&self) -> Option<String> {
+        let budget = self.budget.as_ref()?;
+        if budget.tool_calls_remaining() == 0 {
+            return Some("step budget exhausted: max_tool_calls reached".to_string());
+        }
+        if budget.is_exhausted() {
+            return Some("step budget exhausted: max_steps reached".to_string());
+        }
+        budget.increment_tool_calls();
+        None
     }
 }
 
@@ -2706,6 +2753,52 @@ mod tests {
 
         // THEN tool_call_count() returns 3
         assert_eq!(proxy.tool_call_count(), 3);
+
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+
+    // Direct-path budget enforcement on the tool chokepoint (C7-R1, principle #7).
+
+    /// GIVEN a ToolProxy carrying a live budget view with max_tool_calls = 2
+    /// WHEN the agent makes 3 tool calls
+    /// THEN the first two run and the third is denied without invoking the tool,
+    ///      and the shared budget records both tool calls
+    #[tokio::test]
+    async fn test_call_inner_enforces_tool_call_budget() {
+        use apollia_llm::StepBudgetView;
+
+        // GIVEN a proxy with a live budget of 2 tool calls (unlimited steps).
+        let (proxy, registry, audit) = make_proxy(vec!["file_io"], Ok(serde_json::json!({}))).await;
+        registry
+            .register(file_io_descriptor())
+            .await
+            .expect("register failed");
+        let steps = Arc::new(AtomicU32::new(0));
+        let tool_calls = Arc::new(AtomicU32::new(0));
+        let view = Arc::new(StepBudgetView::with_tool_tracking(
+            Arc::clone(&steps),
+            u32::MAX,
+            Arc::clone(&tool_calls),
+            2,
+            std::time::Instant::now(),
+        ));
+        let proxy = proxy.with_budget(Arc::clone(&view));
+
+        // WHEN three calls are made against a 2-call budget.
+        let r1 = proxy.call_inner("file_io", serde_json::json!({})).await;
+        let r2 = proxy.call_inner("file_io", serde_json::json!({})).await;
+        let r3 = proxy.call_inner("file_io", serde_json::json!({})).await;
+
+        // THEN the first two succeed and the third is denied on the budget.
+        assert!(r1.is_ok(), "first call should run");
+        assert!(r2.is_ok(), "second call should run");
+        assert!(
+            matches!(r3, Err(ToolProxyError::ExecutionFailed(ref m)) if m.contains("max_tool_calls")),
+            "third call must be denied on the tool-call budget, got: {r3:?}"
+        );
+        // AND the shared counter reflects exactly the two allowed calls.
+        assert_eq!(tool_calls.load(std::sync::atomic::Ordering::Relaxed), 2);
 
         registry.shutdown().await;
         audit.shutdown().await;
