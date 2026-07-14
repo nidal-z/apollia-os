@@ -97,12 +97,10 @@ Never circumvent a rule by reformulating it in vague terms.
 
 ## Related corpora outside this directory
 
-- `docs/book/` : pedagogical mdBook, French, end-user developer onboarding.
-- `docs/wiki/` : technical reference, currently being rebuilt in English (L2b).
-- `docs/help/` : operator help, French, desktop app focus.
+- `docs/site/` : public Docusaurus documentation (en + fr), Diataxis structure
+  (tutorials / how-to / reference / operator-help / explanation).
 - `docs/adr/` : architectural decision records, numbered, append-only.
-- `wiki/Architecture-Principes.md` : authoritative source for the 8 principles.
-- `wiki/DESIGN-SYSTEM.md` : design tokens, components, propagated into
+- `crates/apollia-desktop/ui/src/styles/tokens.css` : design tokens, components, propagated into
   `FRONTEND-PATTERNS.md` and `crates/apollia-desktop/ui/AGENTS.md`.
 
 The `docs/agents/` corpus does not duplicate those references. It cites them.

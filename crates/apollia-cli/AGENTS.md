@@ -50,7 +50,7 @@ allowed WITHOUT a noun; everything else is strictly noun-verb:
 `chat-config` -> `chat config`, `plan-cache` -> `plan cache`, `user-memory` ->
 `profile`; `hitl` removed (use `task list --pending-approval`).
 
-If you add a new noun, document it here and in `docs/wiki/Briques-CLI.md`.
+If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
 ---
 
@@ -130,7 +130,7 @@ Run Phase A on every PR. Run Phase B before releases.
 - Errors go to stderr, results go to stdout. Scripts can `2>/dev/null`.
 
 **Machine mode (`--json`)** :
-- Stable schema per command, documented in `docs/wiki/Reference-CLI.md`.
+- Stable schema per command, documented in `docs/site/docs/reference/cli/`.
 - One JSON document per invocation. Either an object or an array, never
   newline-delimited streams (the runtime API does NDJSON, the CLI does
   not).
@@ -190,9 +190,9 @@ specific error type. `anyhow` is forbidden everywhere except `main`.
 2. Implement in `src/commands/<noun>.rs`.
 3. Add parsing tests in the same file.
 4. Add the route call via `client::*` helpers.
-5. Add `--json` output schema. Document in `docs/wiki/Reference-CLI.md`.
+5. Add `--json` output schema. Document in `docs/site/docs/reference/cli/`.
 6. Add an entry to Phase A of `tests/cli/cli-e2e.sh`.
-7. Update `docs/wiki/Briques-CLI.md` and the relevant book chapter.
+7. Update `docs/site/docs/reference/cli/`.
 
 ---
 

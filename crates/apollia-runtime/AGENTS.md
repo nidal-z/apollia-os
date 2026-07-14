@@ -50,7 +50,7 @@ Lag handling : subscribers receive `Lagged(n)` from
 `resubscribe()`, and continue. Never panic on lag.
 
 Adding a new variant is a wire-format change. Document it in
-`docs/wiki/Reference-EventBus.md` (post-L2b) and bump the
+`docs/site/docs/reference/` (post-L2b) and bump the
 `EVENTBUS_SCHEMA_VERSION` constant.
 
 ---
@@ -95,7 +95,7 @@ Adding a route :
 2. Implement the handler.
 3. Mount in `mod.rs`.
 4. Add an `axum-test` integration test.
-5. Document in `docs/wiki/Reference-API.md`.
+5. Document in `docs/site/docs/reference/api/`.
 6. Add CLI consumption if applicable.
 
 ---
@@ -176,7 +176,7 @@ mapped to `MailboxConfig` at boot :
 Rules :
 - Never read `APOLLIA_*` env vars in production code for raw secrets.
   Selectors only.
-- Defaults documented in `docs/wiki/Reference-Config.md`.
+- Defaults documented in `docs/site/docs/reference/`.
 - Validation runs at startup. Invalid config fails fast.
 
 ---

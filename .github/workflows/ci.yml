@@ -163,34 +163,6 @@ jobs:
         working-directory: crates/apollia-desktop/ui
         run: npm test
 
-  # ── Docs : mdBook + sitemap + charte ─────────────────────────────────────
-  mdbook:
-    name: Book Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
-        with:
-          tool: mdbook
-      - run: mdbook build docs/book
-      - name: Generate sitemap + robots
-        run: bash docs/book/scripts/gen-sitemap.sh book.apollia.fr docs/target/book
-
-  doc-charte:
-    name: Doc Charte L1.4
-    runs-on: ubuntu-latest
-    # Seulement quand un fichier doc/lint a bougé - évite de re-runner sur
-    # chaque changement code.
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'docs/book/src/') ||
-      contains(github.event.head_commit.modified, 'docs/wiki/') ||
-      contains(github.event.head_commit.modified, 'docs/help/') ||
-      contains(github.event.head_commit.modified, 'scripts/lints/')
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - run: bash scripts/lints/charte-doc.sh
-
   diagrams:
     name: PlantUML Diagrams
     runs-on: ubuntu-latest
@@ -327,7 +299,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/wiki/**/*.md' 'docs/book/src/**/*.md' 'docs/help/**/*.md'"
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/site/docs/**/*.md'"
           fail: true
 
   # ── Unused dependencies : keeps the Cargo graph honest ─────────────────────

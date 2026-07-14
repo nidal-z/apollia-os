@@ -86,7 +86,7 @@ custom properties defined in `crates/apollia-desktop/ui/src/styles/app.css`
 Why HSL custom properties : light and dark themes resolve from the same
 class name. Hardcoding RGB or hex breaks dark mode silently.
 
-Categories of tokens (see `wiki/DESIGN-SYSTEM.md` for the full table) :
+Categories of tokens (see `crates/apollia-desktop/ui/src/styles/tokens.css` for the full table) :
 
 - **Color** : `--primary`, `--surface-1`, `--surface-2`, `--surface-3`,
   `--card`, `--muted`, `--border`, `--destructive`, `--success`, `--warning`,
@@ -101,7 +101,7 @@ Categories of tokens (see `wiki/DESIGN-SYSTEM.md` for the full table) :
 
 Adding a new token requires : entry in `app.css` (both light and dark
 values), entry in `tailwind.config.js` if a class is needed, line in
-`wiki/DESIGN-SYSTEM.md`.
+`crates/apollia-desktop/ui/src/styles/tokens.css`.
 
 ---
 
@@ -232,7 +232,7 @@ field exposed). When fusing duplicated screens or features :
 ## 12. When the rules block you
 
 - New token : add to `app.css` (both modes), to `tailwind.config.js`, to
-  `wiki/DESIGN-SYSTEM.md`. Do not reach for a hex value as a shortcut.
+  `crates/apollia-desktop/ui/src/styles/tokens.css`. Do not reach for a hex value as a shortcut.
 - New Tauri command : add the Rust side first
   (`crates/apollia-desktop/src/commands/<domain>.rs`), then the typed
   wrapper, then the consumer. Three commits, one PR, ordered.

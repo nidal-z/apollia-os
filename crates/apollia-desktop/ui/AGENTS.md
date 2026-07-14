@@ -7,7 +7,7 @@
 Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 +
 lucide-svelte + bits-ui + svelte-i18n v4. ~114 Tauri IPC commands.
 
-Authoritative design reference : `docs/wiki/DESIGN-SYSTEM.md`. The
+Authoritative design reference : `crates/apollia-desktop/ui/src/styles/tokens.css (design-system doc is internal)`. The
 front-end never invents tokens or layout primitives; it consumes that
 reference.
 
@@ -118,7 +118,7 @@ Rules :
   Unsubscribe in `$effect` cleanup.
 
 Catalogue of ~114 commands : grouped by domain. The full list lives in
-`docs/wiki/Reference-Tauri-Commands.md` (post-L2b). Until then, the
+`docs/site/docs/reference/` (post-L2b). Until then, the
 authoritative source is the `#[tauri::command]` attributes in
 `crates/apollia-desktop/src/commands/`.
 
@@ -144,7 +144,7 @@ Read it before touching `styles/`.
 Adding a new token :
 1. Add to `app.css` in **both** light and dark blocks.
 2. Add to `tailwind.config.js` if a class shortcut is needed.
-3. Document in `docs/wiki/DESIGN-SYSTEM.md`.
+3. Document in `crates/apollia-desktop/ui/src/styles/tokens.css (design-system doc is internal)`.
 
 ---
 
@@ -241,7 +241,7 @@ A component test must not call Tauri IPC. Mock the wrapper.
 ## 11. When the rules block you
 
 - New design token : `app.css` (both modes), `tailwind.config.js`,
-  `wiki/DESIGN-SYSTEM.md`. Never reach for a hex value as a shortcut.
+  `crates/apollia-desktop/ui/src/styles/tokens.css`. Never reach for a hex value as a shortcut.
 - New Tauri command : Rust side first, then TS wrapper, then consumer.
   Three commits, one PR, ordered.
 - Cross-cutting visual change : open a designer brief (structure and

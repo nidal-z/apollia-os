@@ -141,9 +141,9 @@ deliberate house-style choice for typographic consistency across the corpus. Use
 comma, parenthesis, colon, period, or hyphen `-` instead.
 
 **NEVER mix French and English in the same file.** Each file is one language.
-Current allocation: `docs/book/` and `docs/help/` are French, `docs/wiki/` is being
-migrated to English (L2b), `docs/agents/*.md` and `docs/adr/` are English, code
-doc-comments are English, in-code inline comments are French until L2 sanitize.
+Current allocation: `docs/site/` is bilingual (en + fr, one language per file),
+`docs/agents/*.md` and `docs/adr/` are English, code doc-comments are English,
+in-code inline comments are French until L2 sanitize.
 
 **NEVER AI-stock phrases.** Forbidden tokens (non-exhaustive):
 - "as an AI", "as a language model", "I'm here to help", "Certainly!", "I'd be happy
@@ -171,9 +171,9 @@ short description`.
 **NEVER hardcoded secrets, API keys, tokens, or PII** in any committed file. Use
 `SecretStore` backends (Keyring or AgeFile). See `docs/agents/SECURITY.md`.
 
-**NEVER ADR or wiki URLs in `docs/book/` day-one.** Cite ADRs by their bare
-identifier (`ADR-018`) with a global warning in the book introduction that
-hyperlinks will be activated post-launch.
+**NEVER link to raw ADR files from `docs/site/` public pages.** The ADR corpus
+lives in `docs/adr/` and is not published on the site; cite ADRs by their bare
+identifier (`ADR-018`) instead of a hyperlink.
 
 **NEVER CSS values in designer briefs.** The designer knows the charter. Briefs
 describe structure, wording, and intent only.

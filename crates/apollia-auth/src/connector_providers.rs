@@ -17,8 +17,8 @@
 //! CASA security assessment and would shift the cost model, so they are NOT in
 //! the default set. Draft creation uses the sensitive `gmail.drafts.create`
 //! scope; full draft management (`gmail.compose`, now restricted) and inbox
-//! read stay behind Expert Mode (the user's own OAuth client, cf.
-//! `docs/help/integrations/mode-expert-google-restricted-scopes.md`).
+//! read stay behind Expert Mode (the user brings their own OAuth client and
+//! consents to the restricted scopes).
 
 use crate::providers::ProviderConfig;
 

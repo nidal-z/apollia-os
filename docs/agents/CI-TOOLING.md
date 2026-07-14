@@ -348,7 +348,7 @@ Actual structure :
 7. `python-types` : `mypy apollia` (strict)
 8. `coverage` : `cargo llvm-cov --workspace --fail-under-lines $COVERAGE_FLOOR`
 9. `audit` / `deny` : `rustsec/audit-check` + `cargo-deny check` (full)
-10. `vitest` (frontend), `mdbook`, `prose-guard`, `links` (lychee)
+10. `vitest` (frontend), `prose-guard`, `links` (lychee)
 
 Non-blocking (`continue-on-error`) advisory jobs :
 
