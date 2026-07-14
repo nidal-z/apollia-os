@@ -21,8 +21,10 @@ class SkillCard(Protocol):
 class A2AInterface(Protocol):
     """Inter-agent invocation API.
 
-    Consolidates the legacy ``ctx.send`` / ``ctx.receive`` / ``ctx.delegate``
-    / ``ctx.a2a_invoke`` surfaces into a single, typed entry point.
+    ``ctx.a2a.invoke`` is the single typed entry point for a synchronous
+    agent-to-agent call: it runs a skill on another agent and awaits a typed
+    result. Asynchronous, non-blocking messaging lives on a separate service,
+    ``ctx.mail``.
     """
 
     async def invoke(

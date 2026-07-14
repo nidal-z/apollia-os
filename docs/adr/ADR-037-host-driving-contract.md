@@ -1,102 +1,97 @@
-# ADR-037 - Contrat de pilotage partagé pour l'intégration hôte
+# ADR-037 - Shared driving contract for host integration
 
-**Date :** 2026-07-08
-**Statut :** Accepté
-**Décideur :** Nidal (solo)
-**Sprint :** Pré-implémentation
+- Status: Accepted
+- Date: 2026-07-08
 
----
+## Context
 
-## Contexte
+The chosen product positioning is: Apollia is the sovereign runtime, **embeddable and federable**, that IT product vendors integrate to add auditable autonomous agents, locally. The central subject is therefore integration: how a host application consumes an Apollia instance.
 
-Le positionnement produit retenu est : Apollia est le runtime souverain **embarquable et fédérable** que des éditeurs de produits IT intègrent pour ajouter des agents autonomes auditables, en local. Le sujet central est donc l'intégration : comment une app hôte consomme une instance Apollia.
+The certified cartography of 2026-07-08 (source of truth, verified against the code) establishes that this positioning has **no product integration contract**. This is a packaging gap, not a capability gap: the value building blocks are wired, but nothing lets a third party drive them cleanly.
 
-La cartographie certifiée du 2026-07-08 (source de vérité, vérifiée contre le code) établit que ce positionnement n'a **pas de contrat d'intégration produit**. C'est un trou de packaging, pas de capacité : les briques de valeur sont câblées, mais rien ne permet à un tiers de les piloter proprement.
+Verified state of the code:
+- The `/api/v1` API exists (axum, listening simultaneously on a Unix socket and TCP `127.0.0.1:7771`, ~25 route modules), but **with no OpenAPI schema, no typed client, no contract documentation**. The request/response types are private `serde` structs in each `routes_*.rs`.
+- The reference client (`apollia-cli/src/client.rs`) is **Unix-socket-only on Unix** and **never sends an `Authorization` header**: it cannot even drive the authenticated TCP path. The API is architected for local same-host access, not third-party driving.
+- **No host-side client SDK** in any language. The Python SDK `sdk/apollia` serves to *write* agents, not to *drive* the runtime.
+- **Inconsistent** auth: the Unix socket is never authenticated (file-system permissions only); TCP is protected by a Bearer token by default, but the embedded path forces `api_token: None` (`embedded.rs:401`), so the TCP port is served without auth under Tauri.
+- An agent executing MCP tools via `ctx.tools.call('mcp:...')` **resolves the tool but does not execute it** (the AIP ToolProxy path is not wired). The Yumni integration had to work around this with a hand-written REST worker.
 
-État vérifié du code :
-- L'API `/api/v1` existe (axum, écoute simultanée sur socket Unix et TCP `127.0.0.1:7771`, ~25 modules de routes), mais **sans schéma OpenAPI, sans client typé, sans documentation de contrat**. Les types requête/réponse sont des structs `serde` privés dans chaque `routes_*.rs`.
-- Le client de référence (`apollia-cli/src/client.rs`) est **socket-Unix-only sur Unix** et **n'envoie jamais d'en-tête `Authorization`** : il ne peut même pas piloter le TCP authentifié. L'API est architecturée pour l'accès local même-hôte, pas pour un pilotage tiers.
-- **Aucun SDK client côté hôte** dans aucun langage. Le SDK Python `sdk/apollia` sert à *écrire* des agents, pas à *piloter* le runtime.
-- Auth **incohérente** : le socket Unix n'est jamais authentifié (permissions du système de fichiers uniquement) ; le TCP est protégé par token Bearer par défaut, mais le chemin embarqué force `api_token: None` (`embedded.rs:401`), donc le port TCP est servi sans auth sous Tauri.
-- L'exécution des outils MCP par un agent via `ctx.tools.call('mcp:...')` **résout l'outil mais ne l'exécute pas** (chemin ToolProxy AIP non câblé). L'intégration Yumni a dû contourner par un worker REST écrit à la main.
+Constraint: a host vendor can be written in any language. The realistic integration point is therefore the HTTP API, not the in-process Rust API. This is also the "machine API" side of principle 8. Why now: this contract is the keystone of the beachhead; without it, "integration is the product" has no product.
 
-Contrainte : un éditeur hôte peut être écrit dans n'importe quel langage. Le point d'intégration réaliste est donc l'API HTTP, pas l'API Rust in-process. C'est aussi le volet "machine API" du principe 8. Pourquoi maintenant : ce contrat est la clé de voûte du beachhead ; sans lui, "l'intégration est le produit" n'a pas de produit.
+## Decision
 
-## Décision
+We package the `/api/v1` API as a **shared driving contract**: a stable, typed and documented product, serving both federation (the Yumni pattern: Apollia as a sovereign peer that talks to the host) and direct driving. It comprises four components and one guarantee:
 
-Nous packageons l'API `/api/v1` en **contrat de pilotage partagé** : un produit stable, typé et documenté, servant à la fois la fédération (pattern Yumni : Apollia pair souverain qui dialogue avec l'hôte) et le pilotage direct. Il comprend quatre composants et une garantie :
+1. **OpenAPI spec generated from the code**, via `utoipa` (annotations on the handlers and on the `routes_*.rs` structs). The generated spec is the published contract artifact; it cannot diverge from the code since it derives from it.
+2. **Host client SDKs generated from the OpenAPI**, TypeScript and Python first (consistent with Yumni: Node MCP server + Python director). Produced by tooling (for example `openapi-typescript` and `openapi-python-client`), not hand-written, to stay in sync with the spec.
+3. **Consistent TCP auth**: the Bearer token is honored everywhere on TCP, including on the embedded path. By default, the embedded path does **not** bind a TCP port (Unix socket only); if it binds one, it honors the token. The Unix socket stays local-trust (FS permissions), documented as such.
+4. **MCP execution wiring**: the AIP ToolProxy really executes tools prefixed `mcp:` through the MCP executor, so the federation pattern no longer requires a host-side workaround.
+5. **Stability guarantee**: `/api/v1` becomes a versioned contract. Any breaking change goes through `/api/v2`, never through a silent mutation of `v1`.
 
-1. **Spec OpenAPI générée depuis le code**, via `utoipa` (annotations sur les handlers et les structs de `routes_*.rs`). La spec générée est l'artefact de contrat publié ; elle ne peut pas diverger du code puisqu'elle en dérive.
-2. **SDK clients hôte générés depuis l'OpenAPI**, TypeScript et Python en premier (cohérent avec Yumni : serveur MCP Node + director Python). Générés par outillage (par exemple `openapi-typescript` et `openapi-python-client`), pas écrits à la main, pour rester synchronisés avec la spec.
-3. **Auth TCP cohérente** : le token Bearer est honoré partout sur TCP, y compris sur le chemin embarqué. Par défaut, l'embarqué ne bind **pas** de port TCP (socket Unix uniquement) ; s'il en bind un, il honore le token. Le socket Unix reste en confiance-locale (permissions FS), documenté comme tel.
-4. **Câblage de l'exécution MCP** : le ToolProxy AIP exécute réellement les outils préfixés `mcp:` via l'executor MCP, pour que le pattern de fédération n'exige plus de contournement côté hôte.
-5. **Garantie de stabilité** : `/api/v1` devient un contrat versionné. Tout changement cassant passe par `/api/v2`, jamais par une mutation silencieuse de `v1`.
+The scope explicitly excludes **pure in-process embedding** (extracting `embedded` into a crate independent of Tauri, a reusable Rust API): deferred to phase 2, under a future ADR.
 
-Le périmètre exclut explicitement l'**embedding in-process pur** (extraire `embedded` en crate indépendante de Tauri, API Rust réutilisable) : différé en phase 2, sous un futur ADR.
+## Alternatives considered
 
-## Alternatives considérées
+### Option A - Federation only (rejected)
+**For:** closest to the real code and the Yumni proof; minimal effort.
+**Against:** too narrow. It does not serve direct driving, does not solve the missing schema/SDK/doc, and leaves each integration reinventing a one-off bridge (like Yumni's REST worker). It does not make integration a replicable product.
 
-### Option A - Fédération uniquement (rejetée)
-**Pour :** le plus proche du code réel et de la preuve Yumni ; effort minimal.
-**Contre :** trop étroit. Ne sert pas le pilotage direct, ne résout pas l'absence de schéma/SDK/doc, et laisse chaque intégration réinventer un pont one-off (comme le worker REST de Yumni). Ne fait pas de l'intégration un produit réplicable.
+### Option B - Pure in-process embedding first (rejected)
+**For:** the purest "embed the runtime" model; zero latency.
+**Against:** Rust-only, so it excludes TS/Python hosts (including Yumni). Large refactor (extract `embedded` from Tauri, provide a PyO3 loader + backend). It does not meet the need for a multi-language host. Deferred to phase 2.
 
-### Option B - Embedding in-process pur d'abord (rejetée)
-**Pour :** le modèle "embarquer le runtime" le plus pur ; latence nulle.
-**Contre :** Rust-only, donc exclut les hôtes TS/Python (dont Yumni). Gros refactor (extraire `embedded` de Tauri, fournir loader PyO3 + backend). Ne répond pas au besoin d'un hôte multi-langage. Reporté en phase 2.
+### Option C - Status quo, raw undocumented HTTP (rejected)
+**For:** zero work.
+**Against:** it is not a product. Every integrator has to reverse-engineer `routes_*.rs`, auth is inconsistent and exposed, nothing guarantees stability. This is exactly the current gap.
 
-### Option C - Statu quo, HTTP brut non documenté (rejetée)
-**Pour :** zéro travail.
-**Contre :** ce n'est pas un produit. Chaque intégrateur doit reverse-engineer `routes_*.rs`, l'auth est incohérente et exposée, rien ne garantit la stabilité. C'est exactement le trou actuel.
+### Chosen: Shared driving contract
+**For:** a single foundation serves both models (federation and driving); the generated OpenAPI stays in sync with the code; multi-language; it is already the real usage (Yumni drives Apollia over HTTP). It makes integration replicable, and therefore sellable.
+**Trade-offs:** a stability commitment on `/api/v1`; added build dependencies (utoipa + generators).
 
-### Option retenue - Contrat de pilotage partagé
-**Pour :** une seule fondation sert les deux modèles (fédération et pilotage) ; l'OpenAPI généré reste synchrone avec le code ; multi-langage ; c'est déjà l'usage réel (Yumni pilote Apollia via HTTP). Rend l'intégration réplicable, donc vendable.
-**Compromis acceptés :** engagement de stabilité sur `/api/v1` ; ajout de dépendances de build (utoipa + générateurs).
+## Consequences
 
-## Conséquences
+**Positives:**
+- The beachhead finally gets an integration product: a host vendor integrates Apollia in TS/Python without reverse-engineering.
+- Consistent auth closes the "TCP without auth" exposure of the embedded path.
+- MCP wiring unblocks the federation pattern without a workaround.
+- The OpenAPI also becomes the API reference, and feeds the adopter documentation.
 
-**Positives :**
-- Le beachhead obtient enfin un produit d'intégration : un éditeur hôte intègre Apollia en TS/Python sans reverse-engineering.
-- L'auth cohérente ferme l'exposition "TCP sans auth" du chemin embarqué.
-- Le câblage MCP débloque le pattern de fédération sans contournement.
-- L'OpenAPI devient aussi la référence de l'API, et nourrit la doc adopters (dérivation arc42 du chantier A).
+**Negatives / Trade-offs:**
+- Stability commitment on `/api/v1`: a breaking change now costs a `/api/v2` + a migration.
+- New build dependencies (utoipa, OpenAPI generators): a sovereignty surface to own. They are **build-time only**, not embedded at runtime, which makes them acceptable with respect to principle 2.
+- Annotating all `routes_*.rs` with utoipa is broad mechanical work.
+- Generating and maintaining two SDKs adds CI load.
 
-**Négatives / Compromis :**
-- Engagement de stabilité sur `/api/v1` : un changement cassant coûte désormais un `/api/v2` + une migration.
-- Nouvelles dépendances de build (utoipa, générateurs OpenAPI) : surface de souveraineté à assumer. Elles sont **build-time uniquement**, pas embarquées au runtime, ce qui les rend acceptables au regard du principe 2.
-- Annoter tous les `routes_*.rs` avec utoipa est un travail mécanique large.
-- Générer et maintenir deux SDK ajoute de la charge CI.
+**Neutral / Watch:**
+- The Unix socket stays unauthenticated (local-trust): watch that remote hosts really go through TCP + token.
+- SDK languages beyond TS/Python (Go, a Rust client) to be decided based on demand.
+- This ADR does not address in-process embedding (phase 2) nor the budget safeguards (a separate workstream).
 
-**Neutres / À surveiller :**
-- Le socket Unix reste non authentifié (confiance-locale) : surveiller que les hôtes distants passent bien par TCP + token.
-- Langages SDK au-delà de TS/Python (Go, client Rust) à décider selon la demande.
-- Cet ADR ne traite pas l'embedding in-process (phase 2) ni les garde-fous budget (chantier B séparé).
+## Architectural principles
 
-## Principes architecturaux impactés
+- **Principle #8 - Human CLI, machine API**: reinforces the "machine API" side by making it stable, typed and documented; this is its concrete realization.
+- **Principle #2 - Zero external dependency**: the added dependencies are build-time and justified here; the served API stays local (Unix socket / localhost).
+- **Principle #4 - Fail fast**: a typed contract + consistent auth make integration errors fail early.
 
-- **Principe #8 - Human CLI, machine API** : renforce le volet "machine API" en le rendant stable, typé et documenté ; c'est sa concrétisation.
-- **Principe #2 - Zéro dépendance externe** : les dépendances ajoutées sont build-time et justifiées ici ; l'API servie reste locale (socket Unix / localhost).
-- **Principe #4 - Fail fast** : un contrat typé + une auth cohérente font échouer tôt les erreurs d'intégration.
+## Related
 
-## Liens
+- Cartography (source of truth): `docs/internal/cartography/capability-registry.md`, `docs/internal/cartography/business-one-pager.md`
+- Related ADRs: ADR-016 (secrets, keyring and local API auth), ADR-017 (MCP client, transport, server mode), ADR-024 (SDK ctx runtime contract), ADR-020 (desktop / embedded architecture)
 
-- Cartographie (source de vérité) : `docs/internal/cartography/capability-registry.md`, `docs/internal/cartography/business-one-pager.md`
-- ADR liés : ADR-016 (secrets, keyring et auth de l'API locale), ADR-017 (client MCP, transport, mode serveur), ADR-024 (contrat runtime du SDK ctx), ADR-020 (architecture desktop / embedded)
-- Story associée : à créer (chantier #1)
+## Amendment (2026-07-08, post-implementation)
 
-## Amendement (2026-07-08, post-implémentation)
+The host driving contract is delivered and proven on the `feat/driving-contract` branch (components 1, 2, 3, 5 conformant; end-to-end host demo green).
 
-Le chantier #1 est livré et prouvé sur la branche `feat/driving-contract` (composants 1, 2, 3, 5 conformes ; démo hôte end-to-end verte).
+Rectification of **component 4 (MCP execution)**: the implementation established that an agent executing MCP tools via `ctx.tools.call('mcp:...')` **was already wired and functional** (fixed earlier in commit `4c7266d6`). The "broken" observation in the Context section came from a stale comment (`yumni_bridge.py:6-8`) taken at face value. Component 4 therefore reduces to: adding a non-regression test (`crates/apollia-mcp/tests/integration_agent_dispatch.rs`) and removing the REST workaround on the Yumni side. No other part of the decision is affected.
 
-Rectification du **composant 4 (exécution MCP)** : l'implémentation a établi que l'exécution des outils MCP par un agent via `ctx.tools.call('mcp:...')` **était déjà câblée et fonctionnelle** (corrigée antérieurement en commit `4c7266d6`). Le constat "cassé" de la section Contexte provenait d'un commentaire périmé (`yumni_bridge.py:6-8`) pris pour argent comptant. Le composant 4 se réduit donc à : ajout d'un test de non-régression (`crates/apollia-mcp/tests/integration_agent_dispatch.rs`) et retrait du contournement REST côté Yumni. Aucune autre partie de la décision n'est affectée.
+Known minor caveat: 3 raw-body endpoints (stt config/transcribe, webhook) stay documented in the spec but are not exposed as typed SDK methods.
 
-Réserve mineure connue : 3 endpoints à corps brut (stt config/transcribe, webhook) restent documentés dans la spec mais non exposés en méthodes SDK typées.
+## Amendment (2026-07-10, post-merge)
 
-## Amendement (2026-07-10, post-merge)
+The host driving contract is now **merged into `main`** (the `feat/driving-contract` branch cited above has been integrated). The rectification of component 4 was **re-verified against the merged code**, and it holds:
+- End-to-end proof of `ctx.tools.call('mcp:...')` present and executed in `crates/apollia-aip/src/context.rs` (the "Full end-to-end proof" test, real dispatch via `apollia_mcp::executor::build_agent_tool_executors`).
+- Non-regression test `crates/apollia-mcp/tests/integration_agent_dispatch.rs` present.
+- Earlier MCP execution fix confirmed (commit `4c7266d6`).
+- REST workaround on the Yumni side removed (`yumni_bridge.py` absent from the repository).
 
-Le chantier #1 est désormais **mergé dans `main`** (la branche `feat/driving-contract` citée ci-dessus a été intégrée). La rectification du composant 4 a été **revérifiée contre le code mergé**, et elle tient :
-- Preuve end-to-end de `ctx.tools.call('mcp:...')` présente et exécutée dans `crates/apollia-aip/src/context.rs` (test « Full end-to-end proof », dispatch réel via `apollia_mcp::executor::build_agent_tool_executors`).
-- Test de non-régression `crates/apollia-mcp/tests/integration_agent_dispatch.rs` présent.
-- Correctif d'exécution MCP antérieur confirmé (commit `4c7266d6`).
-- Contournement REST côté Yumni retiré (`yumni_bridge.py` absent du dépôt).
-
-La seule réserve encore ouverte reste les 3 endpoints à corps brut non typés en SDK (ci-dessus). Le constat initial « exécution MCP cassée » de la section Contexte est donc invalidé et ne subsiste que comme trace de l'analyse d'origine (append-only) : il faut le lire à la lumière des deux amendements.
+The only remaining open caveat is the 3 raw-body endpoints not typed in the SDK (above). The initial "MCP execution broken" observation in the Context section is therefore invalidated and survives only as a trace of the original analysis (append-only): read it in the light of the two amendments.

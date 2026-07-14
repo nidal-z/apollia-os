@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: ctx.templates
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->

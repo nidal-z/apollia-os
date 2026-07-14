@@ -51,7 +51,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 
 # Docs
-mdbook build docs/book/
+cd docs/site && npm run build
 
 # CLI end-to-end (Phase A local, Phase B opt-in cloud)
 bash tests/cli/cli-e2e.sh
@@ -77,7 +77,7 @@ Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
    bypassable.
 8. **Human CLI, machine API** : `--json` global, TTY auto-detected.
 
-Source : `docs/wiki/Architecture-Principes.md`. Detailed rationale and worked
+Source : `docs/site/docs/explanation/the-8-principles.md`. Detailed rationale and worked
 examples in `docs/agents/ARCHITECTURE.md`.
 
 ---

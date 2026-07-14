@@ -61,13 +61,20 @@ sudo systemctl status apollia
 
 ## Harden the network posture
 
-- **Bind to loopback.** The TCP API defaults to `127.0.0.1`, and TCP callers must
-  present the bearer token written to `~/.apollia/api-token` on first boot (the
-  Unix socket is local-trust). Keep the bind on loopback.
-- **Do not expose the port directly.** To reach the daemon from another host, put
-  it behind a reverse proxy that terminates TLS and enforces authentication, and
-  forward to `127.0.0.1:7771`. The built-in bearer token is a local-trust
-  credential, not a substitute for a real edge auth layer.
+- **Default: loopback plus token.** The TCP API defaults to `127.0.0.1`, and TCP
+  callers must present the bearer token written to `~/.apollia/api-token` on first
+  boot (the Unix socket is local-trust). For a same-host integration, keep the bind
+  on loopback and leave `[api].require_token = true`.
+- **Expose over TLS, never in the clear.** To reach the daemon from another host,
+  the runtime can terminate TLS itself: set `[api].tls_cert` and `[api].tls_key` in
+  `apollia.toml` (both, or neither) and the TCP listener serves HTTPS directly, with
+  no extra component to operate. Alternatively, keep the bind on loopback and put a
+  reverse proxy that terminates TLS in front, forwarding to `127.0.0.1:7771`. Either
+  way, keep the bearer token required.
+- **Insecure binds fail fast.** Binding a non-loopback address with
+  `require_token = false` is refused at startup, so a public port is never served
+  unauthenticated by accident. Keep the token requirement on for any exposed
+  interface.
 - **Protect the token file.** `~/.apollia/api-token` for the service user grants
   full control of the runtime. Keep it readable only by that user.
 - **Sandbox prerequisites (Linux).** The `bash_executor` tool isolates commands

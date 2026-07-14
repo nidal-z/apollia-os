@@ -3,7 +3,7 @@
 > The 8 non-negotiable principles, the patterns Apollia uses to enforce them,
 > and pointers into the codebase. Read this first when starting on the project.
 
-Authoritative French source for the principles : `docs/wiki/Architecture-Principes.md`.
+Authoritative source for the principles : `docs/site/docs/explanation/the-8-principles.md`.
 This file is the English LLM-facing summary plus the canonical patterns and
 the ADR map.
 

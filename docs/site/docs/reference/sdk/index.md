@@ -8,7 +8,7 @@ title: SDK / ctx contract
 
 Runtime context passed to every agent handler.
 
-Exposes 100% of the Apollia backend through 14 typed services.
+Exposes 100% of the Apollia backend through 15 typed services.
 Use type hints to get IDE autocomplete::
 
     @skill("foo.bar")
@@ -24,6 +24,7 @@ Use type hints to get IDE autocomplete::
 | [`ctx.memory`](./memory.md) | `MemoryInterface` | Tri-mode memory: episodic events, semantic key-value, procedural triggers. |
 | [`ctx.tools`](./tools.md) | `ToolProxy` | Tool invocation surface - native registry + MCP routing. |
 | [`ctx.a2a`](./a2a.md) | `A2AInterface` | Inter-agent invocation API. |
+| [`ctx.mail`](./mail.md) | `MailInterface` | Durable, at-least-once inter-agent messaging surface. |
 | [`ctx.datasources`](./datasources.md) | `DatasourcesInterface` | Runtime access to YAML datasources declared in ``@agent(datasources=(...))``. |
 | [`ctx.templates`](./templates.md) | `TemplatesInterface` | Runtime Jinja2 template rendering. |
 | [`ctx.secrets`](./secrets.md) | `SecretsInterface` | Read-only access to credentials declared in ``@agent(secrets=(...))``. |

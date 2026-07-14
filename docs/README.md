@@ -5,15 +5,19 @@ corpus a une audience claire et un mode d'écriture précis (au sens
 [Diátaxis](https://diataxis.fr/)). Pour ne pas dupliquer, chaque corpus se
 limite à son rôle et cite les autres.
 
+> **Documentation publique canonique : `docs/site/`** (Docusaurus, en + fr, Diátaxis). Les corpus
+> historiques `docs/book/`, `docs/wiki/` et `docs/help/` sont supersédés et en cours de retrait :
+> ne plus y écrire.
+
 ---
 
 ## Matrice Persona × Sujet
 
 | Tu es… | Tu cherches à… | Va dans |
 |---|---|---|
-| **Opérateur** (utilisateur Desktop, non-développeur) | accomplir une tâche dans l'app | [`docs/help/`](./help/) |
-| **Développeur découvrant Apollia ou utilisant le SDK Python** | apprendre en faisant, exemples concrets, guide SDK complet (49 chapitres, 9 parties) | [`docs/book/`](./book/) |
-| **Développeur expérimenté** | référence technique exhaustive | [`docs/wiki/`](./wiki/) (⚠️ refonte en cours, voir bannière) |
+| **Opérateur** (utilisateur Desktop, non-développeur) | accomplir une tâche dans l'app | [`docs/site/` operator-help](./site/docs/operator-help/) |
+| **Développeur découvrant Apollia ou utilisant le SDK Python** | apprendre en faisant, exemples concrets | [`docs/site/` tutorials + how-to](./site/docs/tutorials/) |
+| **Développeur expérimenté** | référence technique | [`docs/site/` reference](./site/docs/reference/) |
 | **Mainteneur** | comprendre une décision passée | [`docs/adr/`](./adr/) |
 | **LLM / agent IA** | règles de code, conventions, patterns | [`docs/agents/`](./agents/) |
 | **Toi en R&D** (consultation hors-code) | concepts digestibles avec analogies | Notion `PORTAIL TECH` (privé) |

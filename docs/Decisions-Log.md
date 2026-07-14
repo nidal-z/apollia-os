@@ -35,7 +35,7 @@
 | 2026-06-04 | ADR-026 | Installation des agents, format de bundle et distribution | [ADR-026](adr/ADR-026-agent-install-distribution.md) |
 | 2026-06-04 | ADR-027 | Agent d'onboarding | [ADR-027](adr/ADR-027-onboarding-agent.md) |
 | 2026-06-04 | ADR-028 | Distribution de release, updater et signature de code | [ADR-028](adr/ADR-028-release-updater-code-signing.md) |
-| , | ADR-029 | Numéro sauté, aucun ADR (pas de décision associée) | , |
+| - | ADR-029 | Numéro sauté, aucun ADR associé | - |
 | 2026-06-05 | ADR-030 | Fiabilité du modèle local et routage hybride | [ADR-030](adr/ADR-030-local-model-reliability-hybrid-routing.md) |
 | 2026-06-10 | ADR-031 | Modèle de plan unifié dans apollia-core | [ADR-031](adr/ADR-031-unified-plan-model.md) |
 | 2026-06-10 | ADR-032 | Moteur de plan natif au chat | [ADR-032](adr/ADR-032-chat-native-plan-engine.md) |
@@ -47,3 +47,10 @@
 | 2026-07-08 | ADR-038 | Contrat d'arguments des steps de plan orchestres (hybride A+B: args structures PlanStep remplis par le Reasoner en GBNF, repli extraction JIT) | [ADR-038](adr/ADR-038-orchestrated-step-args-contract.md) |
 | 2026-07-08 | ADR-039 | Verification et critic sur le chemin orchestre (verdict audite via VerificationCompleted, replan-on-fail borne, gating par tier d'autonomie) | [ADR-039](adr/ADR-039-orchestrated-verification-critic.md) |
 | 2026-07-08 | ADR-040 | Site de documentation adopters (Docusaurus, Diataxis, references API/CLI/SDK generees de la source unique, clap-markdown derriere une feature gen-docs) | [ADR-040](adr/ADR-040-docs-site-docusaurus.md) |
+| 2026-07-10 | ADR-041 | Messagerie inter-agents durable et auditable (service `ctx.mail`, store SQLite at-least-once, TTL, auditabilite HMAC, controle hote) | [ADR-041](adr/ADR-041-inter-agent-messaging.md) |
+| 2026-07-10 | ADR-042 | Ancre globale de chaine pour la preuve de troncature du journal d'audit | [ADR-042](adr/ADR-042-audit-journal-global-anchor.md) |
+| 2026-07-10 | ADR-043 | Outillage de verification concurrence (Loom) et UB (Miri), dev-only sans dependance runtime | [ADR-043](adr/ADR-043-loom-miri-verification-tooling.md) |
+| 2026-07-10 | ADR-044 | Durcissement de l'isolation des agents et visibilite de la posture | [ADR-044](adr/ADR-044-agent-isolation-hardening.md) |
+| 2026-07-13 | ADR-045 | Superviseur fail-fast puis degradation, sans redemarrage d'acteur au crash | [ADR-045](adr/ADR-045-supervisor-fail-fast-degrade.md) |
+| 2026-07-13 | ADR-046 | Preuves Kani des invariants cardinaux et fence de bail du mailbox | [ADR-046](adr/ADR-046-kani-invariant-proofs-mailbox-lease-fence.md) |
+| 2026-07-14 | ADR-047 | TLS natif sur le listener TCP de l'API et fail-fast sur bind distant non securise | [ADR-047](adr/ADR-047-api-tls-and-non-loopback-fail-fast.md) |

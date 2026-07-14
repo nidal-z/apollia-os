@@ -1,69 +1,64 @@
-# ADR-038 - Contrat d'arguments des steps de plan orchestrés
+# ADR-038 - Argument contract for orchestrated plan steps
 
-**Date :** 2026-07-08
-**Statut :** Accepté
-**Décideur :** Nidal (solo)
-**Sprint :** Pré-implémentation
+- Status: Accepted
+- Date: 2026-07-08
 
----
+## Context
 
-## Contexte
+The orchestrated ORIA path was wired to the real governed `ToolProxy` (permissions + audit + resilience + budget), replacing the `NoopToolProxy`. Doing so exposed a gap: `apollia_core::plan::PlanStep` carries **no structured arguments**, only a description. An orchestrated step therefore cannot pass valid input to the native tools that require it (bash, file, http). A tool with trivial input (echo) works; the others do not. This is the last blocker for the "dispatch a task to an orchestrated agent" capability (cap 2.1).
 
-Le chantier #2 a câblé le chemin orchestré ORIA au vrai `ToolProxy` gouverné (permissions + audit + résilience + budget), remplaçant le `NoopToolProxy`. Ce faisant, il a mis à nu un manque : `apollia_core::plan::PlanStep` ne porte **pas d'arguments structurés**, seulement une description. Un step orchestré ne peut donc pas passer d'entrée valide aux outils natifs qui en exigent (bash, file, http). Un outil à entrée triviale (echo) fonctionne ; les autres non. C'est le dernier blocage de la capacité "lancer une task à un agent orchestré" (cap 2.1).
+Value constraint: the strength of orchestration is the **plan as a first-class artifact** (DAG for parallelism, HITL plan-gate, audit and replay). This is the accountability primitive the EU AI Act positioning relies on. The argument contract must preserve that property, not dilute it.
 
-Contrainte de valeur : la force de l'orchestré est le **plan comme artefact de première classe** (DAG pour le parallélisme, plan-gate HITL, audit et replay). C'est la primitive de redevabilité sur laquelle repose le positionnement EU AI Act. Le contrat d'args doit préserver cette propriété, pas la diluer.
+Technical constraints: modifying `PlanStep` touches a **public** model of `apollia-core` (defined by ADR-031), so it goes through the ASK FIRST procedure + this ADR. Apollia already has grammar-constrained generation (GBNF), used by the `do` command and by tool-calling.
 
-Contraintes techniques : modifier `PlanStep` touche un modèle **public** d'`apollia-core` (défini par ADR-031), donc procédure ASK FIRST + cet ADR. Apollia dispose déjà de la génération contrainte par grammaire (GBNF), utilisée par la commande `do` et le tool-calling.
+## Decision
 
-## Décision
+We adopt a **hybrid A+B** argument resolution for the tool steps of the orchestrated plan:
 
-Nous adoptons une résolution d'arguments **hybride A+B** pour les steps outil du plan orchestré :
+- **A (default, at plan time)**: `PlanStep` gains a structured-arguments field (`args: Option<serde_json::Value>`). The Reasoner fills it via **schema-guided generation (GBNF)** constrained to the targeted tool's schema, and it is **validated** before execution. The plan is thereby fully specified, deterministic, auditable and replayable with its real arguments.
+- **B (fallback, at execution time)**: if a tool step's args are absent or fail validation, the `ActorLoop` triggers a **JIT extraction** (one LLM call mapping description + tool schema to args), validated in turn, before failing the step. A safety net for the cases where the Reasoner did not produce valid args at plan time.
 
-- **A (défaut, au moment du plan)** : `PlanStep` gagne un champ d'arguments structurés (`args: Option<serde_json::Value>`). Le Reasoner les remplit par **génération schema-guided (GBNF)** contrainte au schéma de l'outil ciblé, et ils sont **validés** avant exécution. Le plan est ainsi pleinement spécifié, déterministe, auditable et rejouable avec ses vrais arguments.
-- **B (repli, au moment de l'exécution)** : si les args d'un step outil sont absents ou échouent la validation, l'`ActorLoop` déclenche une **extraction JIT** (un appel LLM mappant description + schéma d'outil vers des args), validée à son tour, avant d'échouer le step. Filet de sécurité pour les cas où le Reasoner n'a pas produit d'args valides au plan.
+The `ActorLoop` calls `tool_proxy.invoke(tool, args)` with the resolved args (A, then B as fallback). Execution stays entirely under the governed ToolProxy.
 
-L'`ActorLoop` appelle `tool_proxy.invoke(tool, args)` avec les args résolus (A, puis B en repli). L'exécution reste intégralement sous le ToolProxy gouverné.
+## Alternatives considered
 
-## Alternatives considérées
+### Option B alone - systematic JIT extraction (rejected)
+**For:** does not touch the public `PlanStep` model.
+**Against:** one LLM call per tool step (cost, latency), non-deterministic, and the plan stays under-specified, which degrades plan audit and replay. Loses the "fully specified plan" property.
 
-### Option B seule - extraction JIT systématique (rejetée)
-**Pour :** ne touche pas le modèle public `PlanStep`.
-**Contre :** un appel LLM par step outil (coût, latence), non-déterministe, et le plan reste sous-spécifié, ce qui dégrade l'audit et le replay du plan. Perd la propriété "plan pleinement spécifié".
+### Option C - native tool-calling inside the plan (rejected)
+**For:** reuses the chat-path mechanism, already proven.
+**Against:** it makes orchestration converge toward generic ReAct and dilutes the plan-as-artifact. It loses part of the DAG / audit / replay moat, which is precisely the EU AI Act differentiator.
 
-### Option C - tool-calling natif dans le plan (rejetée)
-**Pour :** réutilise le mécanisme du chemin chat, déjà prouvé.
-**Contre :** fait converger l'orchestré vers du ReAct générique et dilue le plan-comme-artefact. On perd une partie du moat DAG / audit / replay, qui est précisément le différenciateur EU AI Act.
+### Chosen: A + B hybrid
+**For:** A preserves the auditable and replayable plan (the moat); B brings robustness without sacrificing that property. It builds on the GBNF already present.
+**Trade-offs:** two arg-resolution paths (more complexity and tests); modification of a public `apollia-core` model.
 
-### Option retenue - A + B hybride
-**Pour :** A préserve le plan auditable et rejouable (le moat) ; B apporte la robustesse sans sacrifier cette propriété. S'appuie sur le GBNF déjà présent.
-**Compromis acceptés :** deux chemins de résolution d'args (plus de complexité et de tests) ; modification d'un modèle public `apollia-core`.
+## Consequences
 
-## Conséquences
+**Positives:**
+- Orchestration finally drives real native tools: unblocks cap 2.1.
+- The plan stays a fully specified, auditable and replayable artifact: the EU AI Act primitive is reinforced, not diluted.
+- Reuses the existing GBNF (no new building block).
 
-**Positives :**
-- L'orchestré pilote enfin de vrais outils natifs : débloque la cap 2.1.
-- Le plan reste un artefact pleinement spécifié, auditable et rejouable : la primitive EU AI Act est renforcée, pas diluée.
-- Réutilise le GBNF existant (pas de nouvelle brique).
+**Negatives / Trade-offs:**
+- Change to a public `apollia-core` model (`PlanStep`): touches plan-mode, `audit_journal` (plan snapshots), replay, the desktop plan-mode UI, and forces a migration / default value for existing plans. Cross-cutting work.
+- Two arg-resolution paths (A + fallback B): increased complexity and test surface.
+- Fallback B adds an LLM call when it triggers (cost/latency on those cases).
 
-**Négatives / Compromis :**
-- Changement d'un modèle public d'`apollia-core` (`PlanStep`) : touche plan-mode, `audit_journal` (snapshots de plan), replay, l'UI plan-mode du desktop, et impose une migration/valeur par défaut pour les plans existants. Travail transverse.
-- Deux chemins de résolution d'args (A + repli B) : surface de complexité et de tests accrue.
-- Le repli B ajoute un appel LLM quand il se déclenche (coût/latence sur ces cas).
+**Neutral / Watch:**
+- The trigger rate of fallback B: if it is high, arg generation at plan time (A) is weak and must be improved.
+- Replay compatibility with old plans without args (migration / default to `None`).
 
-**Neutres / À surveiller :**
-- Le taux de déclenchement du repli B : s'il est élevé, c'est que la génération d'args au plan (A) est faible et doit être améliorée.
-- La compatibilité du replay avec les anciens plans sans args (migration / défaut à `None`).
+## Architectural principles
 
-## Principes architecturaux impactés
+- **Principle #7 - Non-bypassable safeguards**: the resolved args go through the governed `ToolProxy` (permissions + audit + budget); execution stays under guard.
+- **Audit / accountability moat**: a fully specified plan reinforces auditability and replay.
+- Modifies a **public** model of `apollia-core`: the ASK FIRST procedure is respected via this ADR; it extends ADR-031.
 
-- **Principe #7 - Safeguards non-bypassables** : les args résolus passent par le `ToolProxy` gouverné (permissions + audit + budget) ; l'exécution reste sous garde.
-- **Moat audit / redevabilité** : un plan pleinement spécifié renforce l'auditabilité et le replay.
-- Modifie un modèle **public** d'`apollia-core` : procédure ASK FIRST respectée via cet ADR ; étend ADR-031.
+## Related
 
-## Liens
-
-- ADR-031 (modèle de plan unifié dans apollia-core) : cet ADR étend `PlanStep`.
-- ADR-037 (contrat de pilotage hôte) : chantier précédent.
-- Cartographie : `docs/internal/cartography/capability-registry.md` (cap 2.1).
-- Origine : rapport du chantier #2 (garde-fous budget + orchestré), qui a mis le besoin à nu.
-- Story associée : à créer (chantier #3).
+- ADR-031 (unified plan model in apollia-core): this ADR extends `PlanStep`.
+- ADR-037 (host driving contract): the preceding workstream.
+- Cartography: `docs/internal/cartography/capability-registry.md` (cap 2.1).
+- Origin: the budget-safeguards + orchestration workstream report, which exposed the need.

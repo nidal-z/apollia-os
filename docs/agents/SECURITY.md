@@ -134,7 +134,7 @@ Rules :
 - Multi-account : one `account_id` per (provider, identity). The
   `account_id` is the index into the secret store.
 
-See `crates/apollia-auth/src/` and `docs/wiki/Briques-Auth-OAuth.md`.
+See `crates/apollia-auth/src/` (OAuth2 PKCE, keyring token storage) and ADR-016.
 
 ---
 
@@ -260,8 +260,8 @@ Rules :
 | MCP server hijack | TLS validation, server cert pinning where applicable |
 | Crash / DoS via a crafted parser input (LLM output, web content, automation text, tool specs) | `cargo-fuzz` targets on the untrusted-input parsers, char-boundary-safe slicing, panic-free parse contract (see `docs/agents/TESTING.md` 8b) |
 
-A more formal threat model lives in `docs/wiki/Security-Threat-Model.md`
-(post-L2b).
+The agent trust model and sandbox posture are covered in
+`docs/site/docs/explanation/agent-trust-model.md` and ADR-003.
 
 ---
 

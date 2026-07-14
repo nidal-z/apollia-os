@@ -1,5 +1,5 @@
 ---
-sidebar_position: 15
+sidebar_position: 16
 title: Content types and helpers
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -123,7 +123,7 @@ cases:
 #### `completed`
 
 ```python
-def completed(text: str, data: dict[str, Any] | None=None) -> AIPResult
+def completed(text: str, data: dict[str, Any] | None=None) -> 'AIPResult'
 ```
 
 Create a successful result.
@@ -131,7 +131,7 @@ Create a successful result.
 #### `failed`
 
 ```python
-def failed(code: str, message: str) -> AIPResult
+def failed(code: str, message: str) -> 'AIPResult'
 ```
 
 Create a failure result.
@@ -139,7 +139,7 @@ Create a failure result.
 #### `input_required`
 
 ```python
-def input_required(prompt: str, context: dict[str, Any] | None=None) -> AIPResult
+def input_required(prompt: str, context: dict[str, Any] | None=None) -> 'AIPResult'
 ```
 
 Create an input-required result (HITL).

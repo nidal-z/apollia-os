@@ -1,70 +1,66 @@
-# ADR-039 - Vérification et critic sur le chemin orchestré ORIA
+# ADR-039 - Verification and critic on the orchestrated ORIA path
 
-**Date :** 2026-07-08
-**Statut :** Accepté
-**Décideur :** Nidal (solo)
-**Sprint :** Pré-implémentation
+- Status: Accepted
+- Date: 2026-07-08
 
----
+## Context
 
-## Contexte
+`apollia-oria` has defined a post-run verification loop for several iterations: `VerificationLoop` (deterministic shell checks) and `CriticPass` (optional, degradable LLM critic), in `crates/apollia-oria/src/verification.rs`. Verified in the code: these types were wired **only on the chat side** (`apollia-runtime/src/chat/manager.rs` and `builtin_agent.rs`). On the orchestrated path (`ORIAEngine::execute_orchestrated_plan`), a run therefore ended **without** verification or critique. Capability 2.8 was in a "scaffolding" state on the orchestrated side.
 
-`apollia-oria` définit depuis plusieurs sprints une boucle de vérification post-run : `VerificationLoop` (checks shell déterministes) et `CriticPass` (critic LLM optionnel, dégradable), dans `crates/apollia-oria/src/verification.rs`. Vérifié dans le code : ces types n'étaient câblés **que côté chat** (`apollia-runtime/src/chat/manager.rs` et `builtin_agent.rs`). Sur le chemin orchestré (`ORIAEngine::execute_orchestrated_plan`), un run se terminait donc **sans** vérification ni critique. La capacité 2.8 était à l'état "échafaudage" côté orchestré.
+The chat path serves as the reference: verification there is gated by the autonomy tier (`AutonomyLevelConfig.run_verification`, false for `assisted`, true above), the LLM critic is **off-budget** (it routes directly, never touches the `StepBudget`), and on a fail verdict the chat injects a correction and **restarts** its ReAct loop, bounded and guarded by the budget.
 
-Le chemin chat sert de référence : la vérification y est gated par le tier d'autonomie (`AutonomyLevelConfig.run_verification`, faux pour `assisted`, vrai au-dessus), le critic LLM est **off-budget** (il route directement, ne touche jamais le `StepBudget`), et sur verdict fail le chat injecte une correction et **relance** sa boucle ReAct, borné et gardé par le budget.
+The orchestrated path does not run a message-buffer ReAct loop: it executes a plan via the `ActorLoop`. The question "what does the critic do with a fail verdict in orchestration" (annotate, gate, or replan) had no obvious answer modeled on chat. This is a real architecture decision, raised for arbitration.
 
-Le chemin orchestré n'exécute pas une boucle ReAct à tampon de messages : il exécute un plan via l'`ActorLoop`. La question "que fait le critic d'un verdict fail en orchestré" (annoter, gater, ou replanifier) n'avait pas de réponse évidente calquée sur le chat. C'est une vraie décision d'architecture, remontée pour arbitrage.
+Value constraint: Apollia's accountability rests on audit + verify + rollback (cap 4.3). A verification verdict must be **traceable in the signed journal**, not merely logged (chat, for its part, drops its verdict without persisting it: a gap not to be reproduced).
 
-Contrainte de valeur : la redevabilité d'Apollia repose sur audit + verify + rollback (cap 4.3). Un verdict de vérification doit être **traçable dans le journal signé**, pas seulement loggé (le chat, lui, abandonne son verdict sans le persister : trou à ne pas reproduire).
+## Decision
 
-## Décision
+On the orchestrated path we adopt a post-run verification **gated by the autonomy tier** which, on a fail verdict, **replans and re-executes** in a bounded way under a shared budget:
 
-Nous adoptons, sur le chemin orchestré, une vérification post-run **gated par le tier d'autonomie** qui, sur verdict fail, **replanifie et ré-exécute** de façon bornée et sous budget partagé :
+- **Activation**: at the end of a completed orchestrated run, if the tier resolves `run_verification = true` (chat parity, via `AutonomyLevelConfig::default_for(tier)`), the engine runs `VerificationLoop` (fed by `manifest.check_commands`) plus `CriticPass` on the final result.
+- **Verdict semantics = replan-on-fail**: on a fail verdict, the engine produces structured feedback, calls `Reasoner::plan_with_feedback`, re-executes the `ActorLoop`, and repeats up to `oria_config.verification_max_replans` (default 2, `0` disables replan). The `StepBudget` is created **once** and shared across all iterations: it remains the non-bypassable ceiling of the whole run (principle #7). The LLM critic is **off-budget** (chat parity); plan re-execution is on-budget (the `ActorLoop` increments), and the loop stops on budget exhaustion.
+- **Traceability**: each verdict is emitted as `RuntimeEvent::VerificationCompleted` on the EventBus, mapped by the `audit_journal` subscriber under the run's `task_id` (like plan-gate events). The verdict therefore lands in the signed journal.
+- **Shell checks**: `VerificationLoop` is built from `manifest.check_commands` but with a no-op invoker (chat parity, which does not run a command). Real guarded shell execution remains a later workstream.
 
-- **Activation** : à la fin d'un run orchestré complété, si le tier résout `run_verification = true` (parité chat, via `AutonomyLevelConfig::default_for(tier)`), le moteur exécute `VerificationLoop` (alimenté par `manifest.check_commands`) plus `CriticPass` sur le résultat final.
-- **Sémantique du verdict = replan-on-fail** : sur verdict fail, le moteur produit un feedback structuré, appelle `Reasoner::plan_with_feedback`, ré-exécute l'`ActorLoop`, et recommence jusqu'à `oria_config.verification_max_replans` (défaut 2, `0` désactive le replan). Le `StepBudget` est créé **une fois** et partagé sur toutes les itérations : il reste le plafond non-bypassable du run entier (principe #7). Le critic LLM est **off-budget** (parité chat) ; la ré-exécution de plan est on-budget (l'`ActorLoop` incrémente), et la boucle s'arrête sur budget épuisé.
-- **Traçabilité** : chaque verdict est émis comme `RuntimeEvent::VerificationCompleted` sur l'EventBus, mappé par le subscriber `audit_journal` sous le `task_id` du run (comme les événements de plan-gate). Le verdict atterrit donc dans le journal signé.
-- **Checks shell** : `VerificationLoop` est construit depuis `manifest.check_commands` mais avec un invoker no-op (parité chat, qui ne lance pas de commande). L'exécution shell réelle sous garde reste un chantier ultérieur.
+## Alternatives considered
 
-## Alternatives considérées
+### Annotate and trace only (rejected for this workstream)
+**For:** the simplest and safest; no loop risk; strict "observability" parity without changing the execution flow.
+**Against:** the engine observes a defect without acting on it. The value "the agent corrects itself" (the differentiator of autonomous ReAct agents vs deterministic pipelines) is not delivered in orchestration. This was the fallback option of the brief, set aside in favor of replan.
 
-### Annoter et tracer seulement (rejetée pour ce chantier)
-- **Pour :** le plus simple et sûr ; aucun risque de boucle ; strict parité "observabilité" sans changer le flux d'exécution.
-- **Contre :** le moteur constate un défaut sans agir dessus. La valeur "l'agent se corrige seul" (différenciateur des agents ReAct autonomes vs pipelines déterministes) n'est pas rendue en orchestré. C'était l'option de repli du brief, écartée au profit du replan.
+### Plan-gate on a fail verdict (rejected)
+**For:** puts a human in the loop before re-delivering a doubtful result.
+**Against:** the plan-gate already exists before execution; adding another after verification burdens the headless flow (A2A, triggers) and adds value only in supervised interactive mode. Out of scope.
 
-### Plan-gate sur verdict fail (rejetée)
-- **Pour :** met un humain dans la boucle avant de re-livrer un résultat douteux.
-- **Contre :** la porte plan-gate existe déjà avant exécution ; en rajouter une après vérification alourdit le flux headless (A2A, triggers) et n'apporte de valeur qu'en mode supervisé interactif. Hors périmètre.
+### Chosen: bounded replan-on-fail under a shared budget
+**For:** delivers self-correction in orchestration; reuses `plan_with_feedback`, already proven at plan-gate reject; the shared budget guarantees no replan bypasses the ceiling.
+**Trade-offs:** one more loop in the engine (complexity, tests); a run may cost several plans before converging (bounded by `verification_max_replans` and the budget).
 
-### Retenue - replan-on-fail borné sous budget partagé
-- **Pour :** rend l'auto-correction en orchestré ; réutilise `plan_with_feedback` déjà éprouvé au reject du plan-gate ; le budget partagé garantit qu'aucun replan ne contourne le plafond.
-- **Compromis acceptés :** une boucle de plus dans le moteur (complexité, tests) ; un run peut coûter plusieurs plans avant de converger (borné par `verification_max_replans` et le budget).
+## Consequences
 
-## Conséquences
+**Positives:**
+- Cap 2.8 goes from scaffolding to wired and proven in orchestration (a verdict produced and emitted on a real run).
+- The verdict is traceable in the signed journal, reinforcing the accountability primitive (cap 4.3).
+- The orchestrated agent self-corrects in a bounded way, never exceeding the `StepBudget`.
 
-**Positives :**
-- La cap 2.8 passe d'échafaudage à câblée et prouvée en orchestré (verdict produit et émis sur un run réel).
-- Le verdict est traçable dans le journal signé, renforçant la primitive de redevabilité (cap 4.3).
-- L'agent orchestré se corrige seul de façon bornée, sans jamais dépasser le `StepBudget`.
+**Negatives / Trade-offs:**
+- New public variant `RuntimeEvent::VerificationCompleted` in `apollia-core` (additive, catch-all consumers not broken).
+- New field `ORIAConfig.verification_max_replans` (additive, default 2).
+- The critic is off-budget: consistent with chat, but a costly critic is not counted against the run budget (the re-execution is).
 
-**Négatives / Compromis :**
-- Nouvelle variante publique `RuntimeEvent::VerificationCompleted` dans `apollia-core` (additive, consommateurs à catch-all non cassés).
-- Nouveau champ `ORIAConfig.verification_max_replans` (additive, défaut 2).
-- Le critic est off-budget : cohérent avec le chat, mais un critic coûteux n'est pas compté au budget du run (la ré-exécution, elle, l'est).
+**Neutral / Watch:**
+- The replan rate triggered by verification: if it is high, initial planning is weak.
+- Real shell execution of the `check_commands` (no-op invoker today): to be wired under guard in a later workstream.
 
-**Neutres / À surveiller :**
-- Le taux de replan déclenché par la vérification : s'il est élevé, c'est que la planification initiale est faible.
-- L'exécution shell réelle des `check_commands` (invoker no-op aujourd'hui) : à câbler sous garde dans un chantier suivant.
+## Architectural principles
 
-## Principes architecturaux impactés
+- **Principle #7 - Non-bypassable safeguards**: `StepBudget` created once and shared across all replans; the loop stops on budget exhaustion; the critic does not bypass it (it executes nothing governed, it routes an LLM call like chat).
+- **Principle #4 - Fail fast, degradable**: without a critic backend, the pass is skipped (verdict `skipped`), the run does not fail.
+- **Audit / accountability moat**: the verdict enters the signed journal via the EventBus.
 
-- **Principe #7 - Safeguards non-bypassables** : `StepBudget` créé une fois et partagé sur tous les replans ; la boucle s'arrête sur budget épuisé ; le critic ne le contourne pas (il n'exécute rien de gouverné, il route un appel LLM comme le chat).
-- **Principe #4 - Fail fast, dégradable** : sans backend critic, le pass est skippé (verdict `skipped`), le run n'échoue pas.
-- **Moat audit / redevabilité** : le verdict entre dans le journal signé via l'EventBus.
+## Related
 
-## Liens
-
-- ADR-038 (contrat d'arguments des steps orchestrés) : chantier #3, précédent immédiat et modèle de procédure STOP -> ADR.
-- ADR-031 (modèle de plan unifié) : le replan réutilise `Reasoner::plan_with_feedback`.
-- Cartographie : `docs/internal/cartography/capability-registry.md` (cap 2.8, cap 4.3).
-- Origine : chantier #4 (vérification / critic sur le chemin orchestré).
+- ADR-038 (argument contract for orchestrated steps): the immediately preceding workstream and the STOP -> ADR procedure model.
+- ADR-031 (unified plan model): replan reuses `Reasoner::plan_with_feedback`.
+- Cartography: `docs/internal/cartography/capability-registry.md` (cap 2.8, cap 4.3).
+- Origin: the orchestrated verification / critic workstream.

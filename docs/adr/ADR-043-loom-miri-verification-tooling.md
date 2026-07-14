@@ -1,105 +1,102 @@
-# ADR-043 - Outillage de vérification concurrence (Loom) et UB (Miri)
+# ADR-043 - Concurrency (Loom) and UB (Miri) verification tooling
 
-**Date :** 2026-07-10
-**Statut :** Accepté
-**Décideur :** Nidal (solo)
-**Chantier :** #9 (vérification Loom / Miri)
+- Status: Accepted
+- Date: 2026-07-10
 
----
+## Context
 
-## Contexte
+The core of the runtime is an actor model (bounded mpsc + cloneable handle, no
+shared `Arc<Mutex>` between actors, principle #5), and the PyO3 FFI boundary
+(`apollia-aip`) passes objects between Rust and Python. This workstream targets
+two guarantees: prove that the concurrent algorithms are sound, and that the FFI
+boundary does not introduce undefined behavior.
 
-Le coeur du runtime est un modèle actor (mpsc borné + handle clonable, aucun
-`Arc<Mutex>` partagé entre actors, principe #5), et la frontière FFI PyO3
-(`apollia-aip`) fait passer des objets entre Rust et Python. Le chantier #9 vise
-deux garanties : prouver que les algorithmes concurrents sont sains, et que la
-frontière FFI n'introduit pas d'undefined behavior.
+Two technical realities constrain the method:
 
-Deux réalités techniques contraignent la méthode :
+1. **Loom cannot instrument Tokio.** The actors rely entirely on
+   `tokio::sync` (`mpsc`, `broadcast`, `oneshot`, `Semaphore`) run on the
+   Tokio scheduler, which Loom does not see. Worse, `--cfg loom` is a global
+   rustc flag: Tokio conditions `tokio::net` behind `cfg(not(loom))`, so
+   compiling a crate that depends on Tokio under this flag breaks the build
+   (hyper-util / axum lose `tokio::net::UnixStream`).
+2. **Miri cannot run the PyO3 boundary.** `apollia-aip` contains
+   no hand-written `unsafe` block; all the `unsafe` comes from the pyo3 macros.
+   Miri intercepts foreign function calls: `Python::with_gil` calls
+   into libpython, unsupported. The only production `unsafe` elsewhere is
+   `unsafe impl Send/Sync for LoadedWhisper` (whisper.cpp bindings), out of
+   Miri's reach.
 
-1. **Loom ne peut pas instrumenter Tokio.** Les actors reposent entièrement sur
-   `tokio::sync` (`mpsc`, `broadcast`, `oneshot`, `Semaphore`) exécutés sur le
-   scheduler Tokio, que Loom ne voit pas. Pire, `--cfg loom` est un flag rustc
-   global : Tokio conditionne `tokio::net` derrière `cfg(not(loom))`, donc
-   compiler une crate qui dépend de Tokio sous ce flag casse le build
-   (hyper-util / axum perdent `tokio::net::UnixStream`).
-2. **Miri ne peut pas exécuter la frontière PyO3.** `apollia-aip` ne contient
-   aucun bloc `unsafe` écrit à la main ; tout le `unsafe` vient des macros pyo3.
-   Miri intercepte les appels de fonction étrangère : `Python::with_gil` appelle
-   dans libpython, non supporté. Le seul `unsafe` de production ailleurs est
-   `unsafe impl Send/Sync for LoadedWhisper` (bindings whisper.cpp), hors de
-   portée de Miri.
+The brief assumed rewriting the actor synchronization primitives under
+`cfg(loom)`. That is not feasible for Tokio actors. The real shape of the
+tooling therefore had to be arbitrated.
 
-Le brief supposait de réécrire les primitives de synchro des actors sous
-`cfg(loom)`. Ce n'est pas réalisable pour des actors Tokio. Il faut donc arbitrer
-la forme réelle de l'outillage.
+## Decision
 
-## Décision
+Adopt Loom and Miri as **dev-only** verification tooling, with no added runtime
+dependency, with documented and honest coverage boundaries.
 
-Adopter Loom et Miri comme outillage de vérification **dev-only**, sans aucune
-dépendance runtime ajoutée, avec des frontières de couverture documentées et
-honnêtes.
+**Loom: abstract models in an excluded crate.** A standalone crate
+`crates/apollia-loom-models`, excluded from the workspace (like `fuzz/`), with no Tokio
+in its tree. Each model reimplements an actor's concurrent algorithm
+with the Loom primitives and cites the production `file:line` it mirrors. Seven
+models cover: registry eviction, coordinator semaphore, mailbox lease
+exclusivity, router terminal-status guard, shutdown force-exit latch, plan-gate
+single decision, drain snapshot/subscribe window.
+`loom` enters only under `[target.'cfg(loom)'.dependencies]`.
 
-**Loom : modèles abstraits dans une crate exclue.** Une crate autonome
-`crates/apollia-loom-models`, exclue du workspace (comme `fuzz/`), sans Tokio
-dans son arbre. Chaque modèle réimplémente l'algorithme concurrent d'un actor
-avec les primitives Loom et cite le `file:line` de production qu'il reflète. Sept
-modèles couvrent : éviction du registry, sémaphore du coordinator, exclusivité de
-bail du mailbox, garde de statut terminal du router, latch de force-exit du
-shutdown, décision unique du plan gate, fenêtre snapshot/subscribe du drain.
-`loom` entre uniquement sous `[target.'cfg(loom)'.dependencies]`.
+**Miri: a suite of pure helpers, nightly job.** A `miri_pure` suite in
+`apollia-aip`, as named unit tests for targeted filtering
+(`cargo +nightly miri test -p apollia-aip --lib miri_pure`), touching only
+interpreter-free helpers (date arithmetic, string parsing,
+namespace composition). Miri is a rustup nightly component: no crate
+added.
 
-**Miri : suite de helpers purs, job nightly.** Une suite `miri_pure` dans
-`apollia-aip`, en tests unitaires nommés pour un filtrage ciblé
-(`cargo +nightly miri test -p apollia-aip --lib miri_pure`), touchant uniquement
-des helpers sans interpréteur (arithmétique de date, parsing de chaînes,
-composition de namespace). Miri est un composant rustup nightly : aucune crate
-ajoutée.
+**Honesty boundary.** A Loom model proves the algorithm, not the exact Tokio
+code. Two models (`mailbox_lease_exclusivity`, `shutdown_drain_snapshot_gap`)
+model the recommended fix of a defect the production code does not yet
+implement; the gap is a tracked finding (F3, F4), not a proof
+of the current production. Miri covers the pure helpers; the PyO3 boundary and
+the C bindings stay covered by integration tests and the SAFETY review.
 
-**Frontière d'honnêteté.** Un modèle Loom prouve l'algorithme, pas le code Tokio
-exact. Deux modèles (`mailbox_lease_exclusivity`, `shutdown_drain_snapshot_gap`)
-modélisent le correctif recommandé d'un défaut que le code de production
-n'implémente pas encore ; l'écart est un finding tracé (F3, F4), pas une preuve
-sur la production actuelle. Miri couvre les helpers purs ; la frontière PyO3 et
-les bindings C restent couverts par les tests d'intégration et la revue SAFETY.
+**CI.** Two advisory jobs in `nightly.yml`: `loom` (on the pinned `1.95.0`,
+`--cfg loom`) and `miri` (the repository's first nightly job, `nightly` + the
+`miri` component). Neither blocks a PR.
 
-**CI.** Deux jobs advisory dans `nightly.yml` : `loom` (sur le `1.95.0` épinglé,
-`--cfg loom`) et `miri` (premier job nightly du dépôt, `nightly` + composant
-`miri`). Ni l'un ni l'autre ne bloque une PR.
+## Alternatives considered
 
-## Alternatives considérées
+- **Rewrite the actors under `cfg(loom)` (the initial brief).** Rejected:
+  impossible for Tokio actors, and `--cfg loom` breaks the compilation of the
+  whole Tokio-dependent graph.
+- **`loom` as a dev-dependency of `apollia-runtime`.** Rejected: verified
+  empirically, `RUSTFLAGS="--cfg loom" cargo test -p apollia-runtime` fails to
+  compile (loss of `tokio::net`). Hence the excluded crate.
+- **ThreadSanitizer / `shuttle`.** Set aside for this workstream: TSan does not give
+  Loom's exhaustiveness on small algorithms; `shuttle` covers async
+  but adds a dependency and heavier instrumentation. Reconsider if
+  a real async-interleaving need arises.
+- **Extract the pure helpers from `apollia-aip` into a pyo3-free crate** for a
+  broader Miri. Not retained now (out-of-scope refactor); noted as a
+  fallback if one day Miri can no longer compile `apollia-aip`.
 
-- **Réécrire les actors sous `cfg(loom)` (le brief initial).** Rejeté :
-  impossible pour des actors Tokio, et `--cfg loom` casse la compilation de tout
-  le graphe dépendant de Tokio.
-- **`loom` en dev-dependency d'`apollia-runtime`.** Rejeté : vérifié
-  empiriquement, `RUSTFLAGS="--cfg loom" cargo test -p apollia-runtime` échoue à
-  la compilation (perte de `tokio::net`). D'où la crate exclue.
-- **ThreadSanitizer / `shuttle`.** Écartés pour ce chantier : TSan ne donne pas
-  l'exhaustivité de Loom sur les petits algorithmes ; `shuttle` couvre l'async
-  mais ajoute une dépendance et une instrumentation plus lourde. Réexaminables si
-  un besoin d'entrelacement async réel apparaît.
-- **Extraire les helpers purs d'`apollia-aip` dans une crate sans pyo3** pour un
-  Miri plus large. Non retenu maintenant (refactor hors périmètre) ; noté comme
-  repli si un jour Miri ne peut plus compiler `apollia-aip`.
+## Consequences
 
-## Conséquences
+Positives:
 
-Positives :
+- The critical concurrent invariants (terminal-status guard, semaphore,
+  HITL gate single decision) are proven race-free on their algorithm.
+- The Miri suite validates the absence of UB on the pure Rust code near the
+  FFI.
+- No runtime dependency; zero impact on the normal build (Loom crate excluded,
+  Miri helpers = fast tests also run by `cargo test`).
+- Two findings (F3 drain, F4 mailbox lease) are now backed by a model of the
+  recommended fix.
 
-- Les invariants concurrents critiques (garde de statut terminal, sémaphore,
-  décision unique du gate HITL) sont prouvés race-free sur leur algorithme.
-- La suite Miri valide l'absence d'UB sur le code Rust pur proche du FFI.
-- Aucune dépendance runtime ; impact nul sur le build normal (crate Loom exclue,
-  helpers Miri = tests rapides also exécutés par `cargo test`).
-- Deux findings (F3 drain, F4 bail mailbox) sont désormais adossés à un modèle du
-  correctif recommandé.
+Negatives / costs:
 
-Négatives / coûts :
-
-- Les modèles Loom sont abstraits : ils peuvent diverger du code de production si
-  un actor évolue sans mettre à jour le modèle. Mitigation : chaque modèle cite
-  le `file:line` reflété.
-- Miri exige une toolchain nightly (premier usage nightly récurrent du dépôt hors
-  fuzz).
-- Loom demande une invocation `RUSTFLAGS` dédiée, hors des gates de PR standard.
+- The Loom models are abstract: they can diverge from the production code if
+  an actor evolves without updating the model. Mitigation: each model cites
+  the mirrored `file:line`.
+- Miri requires a nightly toolchain (the repository's first recurring nightly
+  usage outside fuzz).
+- Loom demands a dedicated `RUSTFLAGS` invocation, outside the standard PR
+  gates.

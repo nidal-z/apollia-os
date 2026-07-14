@@ -1,228 +1,221 @@
-# ADR-041 - Messagerie inter-agents durable et auditable
+# ADR-041 - Durable and auditable inter-agent messaging
 
-**Date :** 2026-07-10
-**Statut :** Accepté
-**Décideur :** Nidal (solo)
-**Chantier :** #5 (messagerie inter-agents)
+- Status: Accepted
+- Date: 2026-07-10
 
----
+## Context
 
-## Contexte
+The runtime already has a functional actor mailbox (`crates/apollia-runtime/src/mailbox.rs`),
+spawned permanently at startup (`supervisor.rs:1181`) and wired into `AppState`
+(`api/server.rs:179`) and the embedded path (`embedded.rs:88`). It manages bounded per-recipient
+queues, already emits `RuntimeEvent::AgentMessageSent` (`mailbox.rs:213`), and a read-only HTTP
+route exposes it (`GET /api/v1/agents/{name}/messages`, `routes_messages.rs:60`).
+But no agent can use it: the `ctx` surface was never laid down. The helpers
+`send_inner`/`receive_inner` (`context.rs:1891-1909`) and the `RuntimeContext.mailbox` field
+(`context.rs:1095`) are dead, referenced only by tests. This is a half-built capability: the
+infra exists, the agent API is missing.
 
-Le runtime possède déjà un actor mailbox fonctionnel (`crates/apollia-runtime/src/mailbox.rs`),
-spawné en permanence au démarrage (`supervisor.rs:1181`) et branché dans `AppState`
-(`api/server.rs:179`) et le chemin embarqué (`embedded.rs:88`). Il gère des files bornées par
-destinataire, émet déjà `RuntimeEvent::AgentMessageSent` (`mailbox.rs:213`), et une route
-HTTP en lecture seule l'expose (`GET /api/v1/agents/{name}/messages`, `routes_messages.rs:60`).
-Mais aucun agent ne peut l'utiliser : la surface `ctx` n'a jamais été posée. Les helpers
-`send_inner`/`receive_inner` (`context.rs:1891-1909`) et le champ `RuntimeContext.mailbox`
-(`context.rs:1095`) sont morts, référencés uniquement par des tests. C'est une capacité à
-moitié construite : l'infra existe, l'API agent manque.
+Decisive history: **ADR-024 explicitly removed** the old `ctx.send`/`ctx.receive`
+(`ADR-024:82-89`), citing four unresolved objections:
 
-Historique décisif : **ADR-024 a explicitement retiré** l'ancien `ctx.send`/`ctx.receive`
-(`ADR-024:82-89`) en citant quatre objections non résolues :
+1. persistence unspecified,
+2. TTL unspecified,
+3. delivery to a stopped recipient unspecified,
+4. no clear boundary against `ctx.a2a.invoke`.
 
-1. persistance non spécifiée,
-2. TTL non spécifié,
-3. remise sur destinataire arrêté non spécifiée,
-4. absence de frontière claire face à `ctx.a2a.invoke`.
+ADR-024 deferred "a real asynchronous bus until a concrete use case justifies a clean
+specification". This workstream brings that use case (six professional multi-agent coordination
+scenarios documented in D1) and that clean specification (D2). This ADR lifts the four objections
+one by one and supersedes ADR-024's removal stance.
 
-ADR-024 a différé "un vrai bus asynchrone jusqu'à ce qu'un cas d'usage concret justifie une
-spécification propre". Le chantier #5 apporte ce cas d'usage (six scénarios professionnels de
-coordination multi-agents documentés en D1) et cette spécification propre (D2). Cet ADR lève
-les quatre objections une à une et supersède la posture de retrait d'ADR-024.
+Why now: asynchronous messaging unblocks patterns that the synchronous RPC `ctx.a2a.invoke`
+(ADR-025) cannot express without blocking the caller (streaming aggregated fan-out,
+producer/consumer notification, long-task handoff, host supervision, out-of-band cancellation,
+non-blocking progress). It is also a product differentiator aligned with the beachhead: auditable
+inter-agent messaging that the host can drive, a direct argument for the EU AI Act (record-keeping,
+oversight) and for "integration is the product" (ADR-037).
 
-Pourquoi maintenant : la messagerie asynchrone débloque des patrons que le RPC synchrone
-`ctx.a2a.invoke` (ADR-025) ne peut pas exprimer sans bloquer l'appelant (fan-out agrégé au fil
-de l'eau, notification producteur/consommateur, handoff de tâche longue, supervision hôte,
-annulation hors-bande, progression non bloquante). Elle constitue aussi un différenciateur
-produit aligné sur le beachhead : une messagerie inter-agents auditable et pilotable par
-l'hôte, argument direct pour l'EU AI Act (record-keeping, oversight) et pour "l'intégration est
-le produit" (ADR-037).
+Constraint: the eight principles (notably #5 one actor one responsibility, #7 non-bypassable
+safeguards, #6 agent-initiated, #1 local-first, #8 machine API), and the `Ctx` contract format
+verified at load (ADR-024).
 
-Contrainte : les huit principes (notamment #5 un actor une responsabilité, #7 garde-fous non
-contournables, #6 à l'initiative de l'agent, #1 local-first, #8 API machine), et le format de
-contrat `Ctx` vérifié au chargement (ADR-024).
+## Decision
 
-## Décision
+We adopt an inter-agent messaging that is **durable, auditable and host-drivable**, exposed to
+agents under a new dedicated service `ctx.mail`, distinct from `ctx.a2a`. It answers ADR-024's
+four objections point by point.
 
-Nous adoptons une messagerie inter-agents **durable, auditable et pilotable par l'hôte**,
-exposée aux agents sous un nouveau service dédié `ctx.mail`, distinct de `ctx.a2a`. Elle
-répond point par point aux quatre objections d'ADR-024.
+### A dedicated service `ctx.mail` (lifts objection 4)
 
-### Un service dédié `ctx.mail` (lève l'objection 4)
+Messaging becomes the 15th service of the `Ctx` contract (`sdk/apollia/types.py`), not a facet
+of `ctx.a2a`. The mental boundary is sharp and documented: `ctx.a2a.invoke` calls a skill and
+awaits a typed result (synchronous RPC, ADR-025); `ctx.mail.send` posts a message into an agent's
+mailbox and continues (asynchronous, non-blocking). The agent API is
+`send`/`receive`/`poll`/`pending`/`list`/`ack`/`nack`, backed by a Rust pyclass
+`MailInterface` mirroring `A2AInterface` (`a2a.rs:38-50`), wired into `RuntimeContext` by the
+same pattern (`Option<Py<...>>` field, construction under `with_gil`, `#[getter]`). Adding a
+service = a minor SemVer bump of the SDK contract.
 
-La messagerie devient le 15e service du contrat `Ctx` (`sdk/apollia/types.py`), pas une facette
-de `ctx.a2a`. La frontière mentale est nette et documentée : `ctx.a2a.invoke` appelle une skill
-et attend un résultat typé (RPC synchrone, ADR-025) ; `ctx.mail.send` poste un message dans la
-boîte d'un agent et continue (asynchrone, non bloquant). L'API agent est
-`send`/`receive`/`poll`/`pending`/`list`/`ack`/`nack`, adossée à une pyclass Rust
-`MailInterface` miroir de `A2AInterface` (`a2a.rs:38-50`), branchée dans `RuntimeContext` selon
-le même patron (champ `Option<Py<...>>`, construction sous `with_gil`, `#[getter]`). Ajout d'un
-service = bump mineur SemVer du contrat SDK.
+### A durable SQLite store (lifts objections 1 and 3)
 
-### Un store durable SQLite (lève les objections 1 et 3)
+Messages are persisted in a SQLite table owned exclusively by the mailbox actor
+(one connection, one actor, principle #5, on the audit-journal actor pattern). They survive
+restart as long as they are not acknowledged; a stopped recipient finds its messages again
+on return. Delivery is **at-least-once**: `receive` leases the message (in-flight state, visibility
+timeout, default 60 s) instead of deleting it; the ack deletes it; a crash before ack lets the
+lease expire, which redelivers the message. The ack is automatic when the consumer context
+completes successfully; explicit `ack`/`nack` remain available. This at-least-once choice is
+settled at specification time (not deferred), because it shapes the SQLite schema and the API:
+adding it afterwards would be a refactor.
 
-Les messages sont persistés dans une table SQLite possédée en exclusif par l'actor mailbox
-(une connexion, un actor, principe #5, sur le patron de l'audit journal actor). Ils survivent
-au redémarrage tant qu'ils ne sont pas accusés ; un destinataire arrêté retrouve ses messages
-à son retour. La remise est **at-least-once** : `receive` loue le message (état in-flight,
-délai de visibilité, défaut 60 s) au lieu de le supprimer ; l'accusé (ack) le supprime ; un
-crash avant accusé laisse le lease expirer, ce qui réexpédie le message. L'accusé est
-automatique quand le contexte consommateur se termine avec succès ; `ack`/`nack` explicites
-restent disponibles. Ce choix at-least-once est tranché dès la spécification (pas différé), car
-il façonne le schéma SQLite et l'API : le rajouter après serait un refactor.
+Ordering is **best-effort FIFO per recipient**, not strict: a message whose lease expires
+(or is refused by `nack`) is redelivered after more recent messages already delivered. This is
+inherent to at-least-once queues with a visibility timeout; strict ordering is not guaranteed
+under redelivery, and this limit is assumed explicitly rather than falsely promised.
 
-L'ordre est **FIFO best-effort par destinataire**, pas strict : un message dont le lease expire
-(ou refusé par `nack`) est réexpédié après des messages plus récents déjà livrés. C'est
-inhérent aux files at-least-once à délai de visibilité ; l'ordre strict n'est pas garanti sous
-réexpédition, et cette limite est assumée explicitement plutôt que promise à tort.
+A message payload size is bounded by a configurable limit
+(`mailbox_max_payload_bytes`) rejected at send time, to prevent an agent from inflating the
+durable store.
 
-La taille du payload d'un message est bornée par une limite configurable
-(`mailbox_max_payload_bytes`) rejetée à l'envoi, pour empêcher un agent de gonfler le store
-durable.
+### A TTL and bounded eviction (lifts objection 2)
 
-### Un TTL et une éviction bornée (lève l'objection 2)
+Each message carries `sent_at`; a sweep evicts messages never picked up beyond a configurable
+TTL (`mailbox_message_ttl`, default 24 h) and redelivers leased messages whose lease has expired
+(`mailbox_visibility_timeout`, default 60 s). Eviction emits `AgentMessageDropped`
+{ reason: expired } and an audit entry. The store is thereby bounded, the TTL objection lifted.
 
-Chaque message porte `sent_at` ; un balayage évince les messages jamais relevés au-delà d'un
-TTL configurable (`mailbox_message_ttl`, défaut 24 h) et réexpédie les messages loués dont le
-lease a expiré (`mailbox_visibility_timeout`, défaut 60 s). L'éviction émet `AgentMessageDropped`
-{ reason: expired } et une entrée d'audit. Le store est ainsi borné, l'objection TTL levée.
+### Addressing, scoping and safeguards
 
-### Adressage, scoping et garde-fous
+- Unicast addressing by registered agent name, self-addressing allowed; fan-out is done
+  by N unicast sends. Broadcast/topics/groups deferred to future extensions (sobriety).
+- Scoping: a `mailbox` capability declared in the manifest, mandatory opt-in (like
+  secrets/datasources), with an optional recipient allowlist. Without declaration, no access.
+- Unknown recipient: `send` validates against the `AgentRegistry` and returns
+  `MailboxError::UnknownRecipient` (fail-fast, principle #4), correcting the current behavior
+  of silent queue creation (`mailbox.rs:200`).
+- Anti-spam: a per-run send quota applied in the actor (a prudent default, on the order of 50
+  sends per run, configurable), emitting `MailboxGuardTriggered` on the pattern of
+  `A2AGuardTriggered` (`events.rs:1050`). The `StepBudget` is not overloaded (a message is not
+  a reasoning step). Non-bypassable from Python (principle #7).
+- HITL: not gated by default (local messaging, principle #1); opt-in gate via
+  `PermissionEngine` (synthetic tool name `mailbox:send`) or `tools_requiring_approval`,
+  enforceable by the host.
 
-- Adressage unicast par nom d'agent enregistré, auto-adressage autorisé ; le fan-out se fait
-  par N envois unicast. Broadcast/topics/groupes reportés en extensions futures (sobriété).
-- Scoping : capability `mailbox` déclarée au manifest, opt-in obligatoire (comme
-  secrets/datasources), avec allowlist de destinataires optionnelle. Sans déclaration, aucun
-  accès.
-- Destinataire inconnu : `send` valide contre l'`AgentRegistry` et rend
-  `MailboxError::UnknownRecipient` (fail-fast, principe #4), corrigeant le comportement actuel
-  de création silencieuse de file (`mailbox.rs:200`).
-- Anti-spam : quota d'envois par run appliqué dans l'actor (défaut prudent, de l'ordre de 50
-  envois par run, configurable), émettant `MailboxGuardTriggered` sur le patron de
-  `A2AGuardTriggered` (`events.rs:1050`). Le `StepBudget` n'est pas surchargé (un message n'est
-  pas un pas de raisonnement). Non contournable depuis Python (principe #7).
-- HITL : non gaté par défaut (messagerie locale, principe #1) ; gate opt-in via
-  `PermissionEngine` (nom d'outil synthétique `mailbox:send`) ou `tools_requiring_approval`,
-  imposable par l'hôte.
+### Provable auditability
 
-### Auditabilité prouvable
+Each send, delivery, ack and drop emits a `RuntimeEvent` and, via the subscriber, an
+HMAC-SHA256-signed and chained audit-journal entry. Hard prerequisite: mailbox events
+must carry a `run_id`, failing which the subscriber ignores them
+(`subscriber.rs:483`). For a message sent by an agent, it is the sender's `run_id`.
+For a message **injected by the host** (which has no agent run), the injection allocates a
+host-scoped synthetic `run_id`, so that injected messages are journaled on their own audit chain
+and the invariant "everything journaled carries a `run_id`" holds without a special case in the
+subscriber. Without this synthetic `run_id`, host injection would pierce the "the host injects and
+everything is auditable" promise. Entries carry `from`, `to`,
+`message_id`, `payload_hash`, `sent_at`; the full payload is journaled only if a runtime flag
+enables it (`mailbox_audit_full_payload`, off by default). Non-repudiation proof without
+storing content at rest. Everything stays fire-and-forget (no impact on the send path).
 
-Chaque envoi, remise, accusé et abandon émet un `RuntimeEvent` et, via le subscriber, une
-entrée de journal d'audit signée HMAC-SHA256 et chaînée. Prérequis dur : les évènements
-mailbox doivent porter un `run_id`, faute de quoi le subscriber les ignore
-(`subscriber.rs:483`). Pour un message envoyé par un agent, c'est le `run_id` de l'émetteur.
-Pour un message **injecté par l'hôte** (qui n'a pas de run agent), l'injection alloue un
-`run_id` synthétique de portée hôte, de sorte que les messages injectés sont journalisés sur
-leur propre chaîne d'audit et que l'invariant "tout ce qui est journalisé porte un `run_id`"
-tient sans cas particulier dans le subscriber. Sans ce `run_id` synthétique, l'injection hôte
-troue la promesse "l'hôte injecte et tout est auditable". Les entrées portent `from`, `to`,
-`message_id`, `payload_hash`, `sent_at` ; le payload complet n'est journalisé que si un flag
-runtime l'active (`mailbox_audit_full_payload`, off par défaut). Preuve de non-répudiation sans
-stocker le contenu au repos. Tout reste fire-and-forget (aucun impact sur le chemin d'envoi).
+### Host control (driving contract)
 
-### Contrôle par l'hôte (contrat de pilotage)
+The `/api/v1` API (ADR-037) exposes, additively and non-breaking: observation
+(`GET .../messages` existing + an SSE stream `GET /api/v1/mailbox/stream`), proof
+(`GET /api/v1/mailbox/audit`), injection (`POST /api/v1/agents/{name}/messages`, sender
+`host:<id>`, with allocation of a host-scoped synthetic `run_id` for auditability), and
+the gate (routing via `PermissionEngine`, hold-for-approval policy). All annotated with utoipa, so
+propagated automatically to the TS and Python host SDKs (`clients/regen.sh`). The host stays master
+of the choreography.
 
-L'API `/api/v1` (ADR-037) expose, en additif et non cassant : l'observation
-(`GET .../messages` existant + un flux SSE `GET /api/v1/mailbox/stream`), la preuve
-(`GET /api/v1/mailbox/audit`), l'injection (`POST /api/v1/agents/{name}/messages`, émetteur
-`host:<id>`, avec allocation d'un `run_id` synthétique de portée hôte pour l'auditabilité), et
-le gate (routage via `PermissionEngine`, policy hold-for-approval). Tout annoté utoipa, donc
-propagé automatiquement aux SDK hôte TS et Python (`clients/regen.sh`). L'hôte reste maître de
-la chorégraphie.
+## Alternatives considered
 
-## Alternatives considérées
+### Remove the mailbox for good (rejected)
 
-### Retirer définitivement le mailbox (rejetée)
+**For:** consistent with ADR-024's stance, zero new surface.
+**Against:** wastes an infra already built and wired, and abandons a product differentiator
+(auditable asynchronous coordination) now justified by concrete use cases.
+ADR-024 had explicitly conditioned removal on the absence of a use case and a spec; both
+now exist.
 
-**Pour :** cohérent avec la posture d'ADR-024, zéro nouvelle surface.
-**Contre :** gaspille une infra déjà construite et branchée, et abandonne un différenciateur
-produit (coordination asynchrone auditable) désormais justifié par des cas d'usage concrets.
-ADR-024 avait explicitement conditionné le retrait à l'absence de cas d'usage et de spec ; les
-deux existent maintenant.
+### Volatile in-memory queue (status quo) or hybrid (rejected)
 
-### File volatile en mémoire (statu quo) ou hybride (rejetée)
+**For:** the simplest; the existing actor is already in-memory.
+**Against:** loses messages on restart, incompatible with durable handoff and the
+"reliable + auditable" promise. The hybrid (volatile queue + persisted audit) proves but does not
+guarantee delivery. Set aside by product arbitration in favor of the full guarantee.
 
-**Pour :** le plus simple ; l'actor existant est déjà in-memory.
-**Contre :** perd les messages au redémarrage, incompatible avec le handoff durable et la
-promesse "fiable + auditable". L'hybride (file volatile + audit persisté) prouve mais ne
-garantit pas la remise. Écarté par arbitrage produit au profit de la garantie complète.
+### At-most-once delivery (delete on pickup) (rejected)
 
-### Livraison at-most-once (suppression à la relève) (rejetée)
+**For:** simpler schema and API (no lease, no ack).
+**Against:** inconsistent with a durable store chosen for reliability; an agent crash
+between `receive` and end of processing would lose the message. The processing guarantee is
+precisely what the product sells. Adding it in v2 would be a schema and API refactor.
 
-**Pour :** schéma et API plus simples (pas de lease ni d'accusé).
-**Contre :** incohérent avec un store durable choisi pour la fiabilité ; un crash de l'agent
-entre `receive` et la fin de traitement perdrait le message. La garantie de traitement est
-précisément ce que le produit vend. Le rajouter en v2 serait un refactor du schéma et de l'API.
+### Extend `ctx.a2a` with messaging methods (rejected)
 
-### Étendre `ctx.a2a` avec des méthodes de messagerie (rejetée)
+**For:** no new service.
+**Against:** reintroduces exactly the boundary blur ADR-024 wanted to remove. A
+separate service keeps the mental model clean.
 
-**Pour :** pas de nouveau service.
-**Contre :** réintroduit exactement le flou de frontière qu'ADR-024 a voulu supprimer. Un
-service séparé garde le modèle mental propre.
+### Count sends against the `StepBudget` (rejected)
 
-### Compter les envois dans le `StepBudget` (rejetée)
+**For:** reuses an existing non-bypassable safeguard.
+**Against:** pollutes reasoning-budget accounting (a send is not a step). A dedicated
+guard on the A2AGuard pattern is more semantically correct.
 
-**Pour :** réutilise un garde-fou non contournable existant.
-**Contre :** pollue la comptabilité du budget de raisonnement (un envoi n'est pas un pas). Une
-garde dédiée sur le patron A2AGuard est plus juste sémantiquement.
+### Chosen: durable, auditable, drivable messaging
 
-### Option retenue - messagerie durable, auditable, pilotable
+**For:** lifts ADR-024's four objections, unblocks the asynchronous use cases, serves the
+beachhead (auditability + host control), reuses existing infra and patterns (actor,
+A2AInterface, audit journal, PermissionEngine, driving contract).
+**Trade-offs:** migration of the actor from `VecDeque` to a SQLite store (contention and
+GC to manage), broadened contract surface (15th service, additive endpoints and events),
+lease/ack complexity assumed from v1.
 
-**Pour :** lève les quatre objections d'ADR-024, débloque les use-cases asynchrones, sert le
-beachhead (auditabilité + contrôle hôte), réutilise l'infra et les patrons existants (actor,
-A2AInterface, audit journal, PermissionEngine, contrat de pilotage).
-**Compromis acceptés :** migration de l'actor de `VecDeque` vers un store SQLite (contention et
-GC à gérer), surface de contrat élargie (15e service, endpoints et évènements additifs),
-complexité du lease/accusé assumée dès la v1.
+## Consequences
 
-## Conséquences
+**Positives:**
+- The half-built capability becomes a complete and coherent product.
+- Concrete EU AI Act differentiator: prove what the agents said to each other, and give the host
+  a grip on their coordination.
+- Sharp `mail` vs `a2a` boundary, ADR-024's design debt resolved cleanly.
+- Additive and non-breaking: existing agents and `ctx.a2a` are not affected.
 
-**Positives :**
-- La capacité à moitié construite devient un produit complet et cohérent.
-- Différenciateur EU AI Act concret : prouver ce que les agents se sont dit, et donner à l'hôte
-  une prise sur leur coordination.
-- Frontière `mail` vs `a2a` nette, dette de conception d'ADR-024 résorbée proprement.
-- Additif et non cassant : les agents existants et `ctx.a2a` ne sont pas affectés.
-
-**Négatives / Compromis :**
-- L'actor mailbox devient stateful sur SQLite (schéma, migration, GC, contention) au lieu d'un
+**Negatives / Trade-offs:**
+- The mailbox actor becomes stateful on SQLite (schema, migration, GC, contention) instead of a
   simple `VecDeque`.
-- Le contrat `Ctx` passe de 14 à 15 services, imposant une régénération documentaire (rulebook,
-  wiki, book, SDK hôte).
-- Le lease et l'accusé at-least-once ajoutent de la complexité au chemin de consommation.
+- The `Ctx` contract goes from 14 to 15 services, forcing a documentation regeneration (rulebook,
+  reference docs, host SDK).
+- The at-least-once lease and ack add complexity to the consumption path.
 
-**Neutres / À surveiller :**
-- Croissance du store durable sous fort trafic (TTL, quota et borne de payload comme limites).
-- Contention de l'actor mailbox si de nombreux agents consomment simultanément.
-- Valeurs retenues, à ajuster à l'usage : délai de visibilité 60 s, TTL 24 h, quota d'envois par
-  run de l'ordre de 50, accusé automatique sur succès plus `ack`/`nack` explicites optionnels.
-- L'ordre FIFO best-effort (non strict sous réexpédition) : à surveiller si un cas d'usage
-  exige un ordre strict, qui relèverait alors d'une extension.
+**Neutral / Watch:**
+- Growth of the durable store under heavy traffic (TTL, quota and payload bound as limits).
+- Contention of the mailbox actor if many agents consume simultaneously.
+- Chosen values, to tune with usage: visibility timeout 60 s, TTL 24 h, per-run send quota
+  on the order of 50, automatic ack on success plus optional explicit `ack`/`nack`.
+- Best-effort FIFO ordering (not strict under redelivery): to watch if a use case
+  requires strict ordering, which would then be an extension.
 
-## Principes architecturaux impactés
+## Architectural principles
 
-- **Principe #1 - Local-first :** toute la messagerie reste in-process et locale ; aucun message
-  ne traverse la frontière machine.
-- **Principe #5 - Un actor, une responsabilité :** le store durable est possédé en exclusif par
-  l'actor mailbox (mpsc borné + handle clonable), jamais d'`Arc<Mutex<T>>` partagé.
-- **Principe #6 - Mémoire à l'initiative de l'agent :** le modèle pull ; le destinataire relève
-  ses messages quand il le décide, jamais d'injection automatique.
-- **Principe #7 - Garde-fous non contournables :** quota anti-spam, cap par destinataire, gating
-  de capability et de permission sont appliqués par le runtime, non contournables depuis Python.
-- **Principe #4 - Fail fast :** destinataire inconnu, capability non déclarée, et config invalide
-  échouent tôt.
-- **Principe #8 - API machine :** l'exposition hôte étend le contrat de pilotage versionné.
+- **Principle #1 - Local-first:** all messaging stays in-process and local; no message
+  crosses the machine boundary.
+- **Principle #5 - One actor, one responsibility:** the durable store is owned exclusively by
+  the mailbox actor (bounded mpsc + cloneable handle), never a shared `Arc<Mutex<T>>`.
+- **Principle #6 - Agent-initiated memory:** the pull model; the recipient picks up
+  its messages when it decides, never an automatic injection.
+- **Principle #7 - Non-bypassable safeguards:** anti-spam quota, per-recipient cap, capability
+  and permission gating are applied by the runtime, non-bypassable from Python.
+- **Principle #4 - Fail fast:** unknown recipient, undeclared capability, and invalid config
+  fail early.
+- **Principle #8 - Machine API:** the host exposure extends the versioned driving contract.
 
-## Liens
+## Related
 
-- Cartographie et spécification : `docs/internal/cartography/mailbox-spec/01-besoin-usecases.md`,
+- Cartography and specification: `docs/internal/cartography/mailbox-spec/01-besoin-usecases.md`,
   `docs/internal/cartography/mailbox-spec/02-specification.md`,
   `docs/internal/cartography/mailbox-spec/03-plan-implementation.md`
-- ADR liés : ADR-024 (contrat runtime `ctx`, qui avait retiré le mailbox ; superseded sur ce
-  point), ADR-025 (workers et routage A2A synchrone, complément du mailbox), ADR-037 (contrat
-  de pilotage hôte, étendu ici), ADR-023 (décorateurs AgentKit, capability manifest),
-  ADR-015 (gouvernance des permissions), ADR-033 (journal d'audit signé et `JournalEntryKind`,
-  étendu ici avec les kinds Message*), ADR-012 (observabilité et EventBus)
-- Story associée : à créer (chantier #5, phase 2)
+- Related ADRs: ADR-024 (`ctx` runtime contract, which had removed the mailbox; superseded on this
+  point), ADR-025 (workers and synchronous A2A routing, complement to the mailbox), ADR-037 (host
+  driving contract, extended here), ADR-023 (AgentKit decorators, capability manifest),
+  ADR-015 (permission governance), ADR-033 (signed audit journal and `JournalEntryKind`,
+  extended here with the Message* kinds), ADR-012 (observability and EventBus)
