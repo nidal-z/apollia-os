@@ -1,7 +1,0 @@
-# Dépendances et caches VitePress
-*/node_modules/
-*/dist/
-*/.vitepress-cache/
-*/.vitepress/cache/
-*/.vitepress/dist/
-dist/

@@ -12,69 +12,20 @@ macos_target := "aarch64-apple-darwin"
 # Documentation
 # -----------------------------------------------------------------------------
 
-# Generate all SVGs from .puml files
-diagrams:
-    @echo "→ Génération des diagrammes PlantUML..."
-    @mkdir -p docs/book/src/appendix-a-diagrams
-    @if command -v plantuml > /dev/null 2>&1; then \
-        plantuml -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
-        echo "✅ SVGs générés dans docs/book/src/appendix-a-diagrams/"; \
-    elif [ -f ~/.local/bin/plantuml.jar ]; then \
-        java -jar ~/.local/bin/plantuml.jar -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
-        echo "✅ SVGs générés depuis plantuml.jar"; \
-    else \
-        echo "⚠️  plantuml non trouvé - installez-le avec: brew install plantuml"; \
-        echo "   Les SVGs existants sont conservés."; \
-    fi
-
 # Generate Rust API docs (rustdoc)
 rustdoc:
     @echo "→ Génération rustdoc..."
     cargo doc --no-deps --workspace --document-private-items
     @echo "✅ rustdoc → target/doc/"
 
-# Generate ADR index automatically
-adr-index:
-    @echo "→ Génération de l'index ADR..."
-    @{ \
-        echo "# Décisions Architecturales (ADR)"; \
-        echo ""; \
-        echo "> Registre de toutes les décisions significatives."; \
-        echo ""; \
-        echo "| ADR | Titre | Statut |"; \
-        echo "|---|---|---|"; \
-        for f in docs/adr/ADR-[0-9]*.md; do \
-            num=$$(basename "$$f" .md | grep -o 'ADR-[0-9]*'); \
-            title=$$(grep '^# ' "$$f" | head -1 | sed 's/^# //'); \
-            slug=$$(basename "$$f" .md | tr '[:upper:]' '[:lower:]'); \
-            echo "| $$num | [$$title](./$$slug.md) | Accepté |"; \
-        done; \
-    } > docs/book/src/decisions/index.md
-    @echo "✅ Index ADR → docs/book/src/decisions/index.md"
+# Regenerate the site's machine references (CLI / API / SDK) from the code
+docs-regen:
+    bash docs/site/regen.sh
 
-# Build mdBook
-book:
-    @echo "→ Build mdBook..."
-    @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
-    mdbook build docs/book/
-    @echo "✅ Book → target/book/"
-
-# Full docs build (order: diagrams -> adr-index -> book)
-docs: diagrams adr-index book
-    @echo ""
-    @echo "✅ Documentation complète générée"
-    @echo "   Book : target/book/index.html"
-    @echo "   API  : target/doc/apollia_core/index.html"
-
-# Hot-reload docs server
-dev:
-    @echo "→ Démarrage du serveur de dev..."
-    @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
-    mdbook serve docs/book/ --open
-
-# Check broken includes in docs/book/src/
-check-includes:
-    @python3 scripts/check-includes.py
+# Build the public documentation site (Docusaurus, en + fr)
+docs:
+    cd docs/site && npm ci && npm run build
+    @echo "✅ Site → docs/site/build/"
 
 # -----------------------------------------------------------------------------
 # Rust workspace
@@ -183,17 +134,11 @@ release-windows:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
-# Local CI: lint + tests + docs
-ci: lint test docs check-includes
+# Local CI: lint + tests
+ci: lint test
     @echo "✅ CI locale passée"
 
-# Clean generated artifacts (keep SVGs)
+# Clean generated artifacts
 clean:
     cargo clean
-    rm -rf target/book/
     @echo "✅ Artefacts nettoyés"
-
-# Full clean including generated SVGs
-clean-all: clean
-    rm -f docs/book/src/appendix-a-diagrams/*.svg
-    @echo "✅ Nettoyage complet"

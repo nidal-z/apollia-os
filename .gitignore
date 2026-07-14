@@ -52,14 +52,11 @@ lcov.info
 *.log
 
 # Docs
-docs/internal/STORIES/
 docs/internal/
 docs/specs/
 # mdBook build output (generated, never committed)
 docs/target/
 # Archived legacy book + gettext translation catalogs (excluded from public repo)
-docs/book/_legacy/
-docs/book/po/
 
 # Claude
 .claude/

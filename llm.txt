@@ -321,7 +321,6 @@ Public documentation lives in `docs/site/` (Docusaurus, en + fr, Diataxis).
 | Architecture Decision Records | `docs/adr/` (ADR-001 to ADR-047, ADR-029 absent) |
 | Decisions log | `docs/Decisions-Log.md` |
 
-The legacy `docs/book/`, `docs/wiki/` and `docs/help/` corpora are superseded by `docs/site/` and are being retired.
 
 ---
 

@@ -50,7 +50,6 @@ The `apollia` package is what agent authors import. Decorators (`@agent`,
 |---|---|
 | `docs/adr/` | Architecture Decision Records, append-only. |
 | `docs/site/` | Docusaurus public documentation (en + fr), the canonical public docs. |
-| `docs/book/`, `docs/wiki/`, `docs/help/` | Legacy corpora, superseded by `docs/site/`, being retired. |
 | `docs/agents/` | Rulebook for AI coding assistants working in this repo. |
 | `docs/PROJECT-LAYOUT.md` | This file. |
 
