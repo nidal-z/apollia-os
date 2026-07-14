@@ -150,6 +150,8 @@ async fn build_webhook_state(
         registry_handle,
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
+        plan_gates: None,
+        audit_journal: None,
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::empty_shared_llm_router(),
         trigger_engine: Some(engine_handle),
@@ -201,6 +203,8 @@ async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u1
         tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
+        tls_cert_path: None,
+        tls_key_path: None,
     };
     let server = APIServer::new(config, state);
     let handle = server.start().await.expect("APIServer start failed");

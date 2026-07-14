@@ -210,6 +210,11 @@ fn make_plan(steps: Vec<(&str, &[&str])>) -> ExecutionPlan {
                 tool_hint: Some("mock_tool".to_string()),
                 depends_on: deps.iter().map(|s| s.to_string()).collect(),
                 model_hint: None,
+                title: String::new(),
+                status: Default::default(),
+                rationale: None,
+                provenance: Default::default(),
+                args: None,
             })
             .collect(),
     }
@@ -623,6 +628,8 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 }),
                 supports_streaming: false,
                 supports_a2a: false,
+                supports_mailbox: false,
+                mailbox_allowlist: None,
                 memory_namespace: None,
                 shared_memory_namespaces: vec![],
                 max_concurrent_tasks: 1,

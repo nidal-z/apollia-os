@@ -13,12 +13,12 @@ use apollia_oria::resilience::{CircuitState, ErrorClass, ResilienceError, Resili
 #[tokio::test]
 async fn test_circuit_breaker_opens_on_threshold() {
     // GIVEN a ResilienceLayer with failure_threshold=3 and a registered tool
-    let mut layer = ResilienceLayer::new(3, Duration::from_secs(60));
+    let layer = ResilienceLayer::new(3, Duration::from_secs(60));
     layer.register_tool("test_tool");
 
     // Verify initial state is Closed
     assert_eq!(
-        layer.get("test_tool").unwrap().state(),
+        layer.breaker("test_tool").unwrap().state(),
         &CircuitState::Closed
     );
     assert!(layer.pre_check("test_tool").is_ok());
@@ -33,8 +33,11 @@ async fn test_circuit_breaker_opens_on_threshold() {
     }
 
     // THEN the circuit is Open
-    assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Open);
-    assert_eq!(layer.get("test_tool").unwrap().failure_count(), 3);
+    assert_eq!(
+        layer.breaker("test_tool").unwrap().state(),
+        &CircuitState::Open
+    );
+    assert_eq!(layer.breaker("test_tool").unwrap().failure_count(), 3);
 
     // AND subsequent pre_check calls return CircuitOpen without executing
     let result = layer.pre_check("test_tool");
@@ -53,7 +56,7 @@ async fn test_circuit_breaker_opens_on_threshold() {
     layer.register_tool("other_tool");
     assert!(layer.pre_check("other_tool").is_ok());
     assert_eq!(
-        layer.get("other_tool").unwrap().state(),
+        layer.breaker("other_tool").unwrap().state(),
         &CircuitState::Closed
     );
 }
@@ -62,7 +65,7 @@ async fn test_circuit_breaker_opens_on_threshold() {
 #[tokio::test]
 async fn test_circuit_breaker_half_open_after_cooldown() {
     // GIVEN a circuit breaker with a very short cooldown (1ms) that is Open
-    let mut layer = ResilienceLayer::new(1, Duration::from_millis(1));
+    let layer = ResilienceLayer::new(1, Duration::from_millis(1));
     layer.register_tool("test_tool");
 
     // Trip the circuit
@@ -70,7 +73,10 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
         .record_failure("test_tool", &ErrorClass::Transient)
         .unwrap();
     assert!(opened, "circuit should open after 1 failure (threshold=1)");
-    assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Open);
+    assert_eq!(
+        layer.breaker("test_tool").unwrap().state(),
+        &CircuitState::Open
+    );
 
     // Verify it rejects calls while Open (cooldown not yet elapsed)
     // Note: may or may not be elapsed within 1ms - just verify it's either Open or HalfOpen
@@ -86,7 +92,7 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
         "pre_check should succeed after cooldown elapsed"
     );
     assert_eq!(
-        layer.get("test_tool").unwrap().state(),
+        layer.breaker("test_tool").unwrap().state(),
         &CircuitState::HalfOpen,
         "circuit should be HalfOpen after cooldown"
     );
@@ -98,18 +104,18 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
         "record_success on HalfOpen should return true (restored)"
     );
     assert_eq!(
-        layer.get("test_tool").unwrap().state(),
+        layer.breaker("test_tool").unwrap().state(),
         &CircuitState::Closed,
         "circuit should be Closed after successful probe"
     );
-    assert_eq!(layer.get("test_tool").unwrap().failure_count(), 0);
+    assert_eq!(layer.breaker("test_tool").unwrap().failure_count(), 0);
 }
 
 // HalfOpen probe failure reopens the circuit
 #[tokio::test]
 async fn test_circuit_half_open_probe_failure_reopens() {
     // GIVEN a circuit in HalfOpen state
-    let mut layer = ResilienceLayer::new(1, Duration::from_millis(1));
+    let layer = ResilienceLayer::new(1, Duration::from_millis(1));
     layer.register_tool("test_tool");
     layer
         .record_failure("test_tool", &ErrorClass::Transient)
@@ -118,7 +124,7 @@ async fn test_circuit_half_open_probe_failure_reopens() {
     layer.pre_check("test_tool").unwrap(); // transitions to HalfOpen
 
     assert_eq!(
-        layer.get("test_tool").unwrap().state(),
+        layer.breaker("test_tool").unwrap().state(),
         &CircuitState::HalfOpen
     );
 
@@ -129,7 +135,10 @@ async fn test_circuit_half_open_probe_failure_reopens() {
 
     // THEN the circuit reopens immediately (HalfOpen -> Open)
     assert!(reopened, "probe failure should reopen the circuit");
-    assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Open);
+    assert_eq!(
+        layer.breaker("test_tool").unwrap().state(),
+        &CircuitState::Open
+    );
 }
 
 // execute() with retry retries on Transient, not on Permanent
@@ -142,7 +151,7 @@ async fn test_execute_with_retry_transient_then_success() {
     };
 
     // GIVEN a layer and an operation that fails once then succeeds
-    let mut layer = ResilienceLayer::new(5, Duration::from_secs(60));
+    let layer = ResilienceLayer::new(5, Duration::from_secs(60));
     layer.register_tool("tool");
     let call_count = Arc::new(AtomicU32::new(0));
     let cc = call_count.clone();
@@ -184,5 +193,5 @@ async fn test_execute_with_retry_transient_then_success() {
     assert_eq!(result.unwrap(), 42);
     assert_eq!(call_count.load(Ordering::SeqCst), 2);
     // AND circuit is still Closed (failure then success = reset)
-    assert_eq!(layer.get("tool").unwrap().failure_count(), 0);
+    assert_eq!(layer.breaker("tool").unwrap().failure_count(), 0);
 }

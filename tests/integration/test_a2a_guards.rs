@@ -84,6 +84,8 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: true,
+        supports_mailbox: false,
+        mailbox_allowlist: None,
         memory_namespace: Some(name.to_string()),
         shared_memory_namespaces: vec![],
         max_concurrent_tasks: 1,

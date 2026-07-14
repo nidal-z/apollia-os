@@ -27,7 +27,7 @@ use apollia_llm::types::{
     CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
     ToolCall,
 };
-use apollia_llm::{CompletionModel, LlmRouter, ToolInvoker};
+use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_runtime::{
     api::routes_agents::StubAgentLoader,
     api::{APIServer, APIServerConfig, APIServerHandle, AppState},
@@ -146,28 +146,6 @@ impl CompletionModel for MockChatModel {
     }
 }
 
-// ─── MockToolInvoker ────────────────────────────────────────────────────────
-
-/// Mock [`ToolInvoker`] that returns predefined output for known tools.
-struct MockToolInvoker;
-
-#[async_trait::async_trait]
-impl ToolInvoker for MockToolInvoker {
-    async fn invoke(
-        &self,
-        tool_name: &str,
-        _arguments: &serde_json::Value,
-    ) -> Result<String, String> {
-        match tool_name {
-            "bash_executor" => {
-                Ok(r#"{"stdout":"file1.txt\nfile2.txt","stderr":"","exit_code":0}"#.to_string())
-            }
-            "file_io" => Ok(r#"{"content":"hello world"}"#.to_string()),
-            _ => Err(format!("unknown tool: {tool_name}")),
-        }
-    }
-}
-
 // ─── MockBackend ────────────────────────────────────────────────────────────
 
 /// Backend that completes tasks instantly (not used by chat, but required by AppState).
@@ -259,6 +237,10 @@ fn build_chat_app_state(
         None, // no project repo in tests
         None, // no MCP handle in tests
         None, // no chat tools config in tests
+        apollia_mcp::session::LoadingMode::Eager,
+        20,    // tool_search_limit
+        None,  // no hook executor in tests
+        false, // plan_mode_default
     )
     .expect("ChatSessionManager spawn");
 
@@ -267,6 +249,8 @@ fn build_chat_app_state(
         registry_handle,
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
+        plan_gates: None,
+        audit_journal: None,
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::shared_llm_router_from(Some(llm_router)),
         trigger_engine: None,
@@ -318,6 +302,8 @@ async fn start_chat_server(
         tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
+        tls_cert_path: None,
+        tls_key_path: None,
     };
     let server = APIServer::new(config, state);
     let handle = server.start().await.expect("APIServer start failed");

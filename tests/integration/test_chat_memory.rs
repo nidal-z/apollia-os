@@ -242,9 +242,15 @@ async fn test_user_memory_store_recall_injection() {
         event_bus,
         user_memory: Some(repo_arc),
         a2a_invoker: None,
+        todo: None,
+        plan: None,
     });
 
-    let prompt = agent.build_system_prompt("Base system prompt.");
+    let prompt = agent.build_system_prompt(
+        Some("Base system prompt."),
+        apollia_core::AutonomyLevel::Assisted,
+        true,
+    );
     // Production prepends a temporal context block, so the base prompt is
     // present but no longer the leading line.
     assert!(prompt.contains("Base system prompt."));
@@ -516,9 +522,15 @@ async fn test_agent_mode_user_context() {
         event_bus,
         user_memory: Some(repo_arc),
         a2a_invoker: None,
+        todo: None,
+        plan: None,
     });
 
-    let prompt = agent.build_system_prompt("You are a helpful assistant.");
+    let prompt = agent.build_system_prompt(
+        Some("You are a helpful assistant."),
+        apollia_core::AutonomyLevel::Assisted,
+        true,
+    );
     // Production now uses recall_persona_brief with "## User Persona" header
     assert!(prompt.contains("## User Persona"));
     assert!(prompt.contains("francais"));

@@ -18,6 +18,7 @@ apollia-tools    = { workspace = true }
 apollia-llm      = { workspace = true }
 apollia-triggers = { workspace = true }
 tokio            = { workspace = true }
+tokio-util       = { workspace = true }
 uuid             = { workspace = true }
 serde_json       = { workspace = true }
 async-trait      = { workspace = true }

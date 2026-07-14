@@ -3,10 +3,12 @@
 //! Listens on `localhost:<tcp_port>` and a Unix socket simultaneously,
 //! sharing the same axum `Router` and `AppState`.
 //!
-//! TCP uses `axum::serve` directly. Unix socket uses a manual accept loop
-//! with `hyper-util` since axum 0.7 only supports `TcpListener` natively.
+//! Both listeners use a manual `hyper-util` accept loop (axum 0.7 serves only a
+//! bare `TcpListener` natively, which cannot terminate TLS or accept a Unix
+//! socket). The TCP loop optionally wraps each connection in a `rustls`
+//! `TlsAcceptor` when a certificate is configured (ADR-047).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::extract::State;
@@ -299,8 +301,8 @@ pub struct APIServerConfig {
     /// `Some(port)` binds a TCP listener on `bind_addr:port`. `None` skips the
     /// TCP listener entirely, so the runtime is reachable only through the Unix
     /// socket (local-trust). Embedded hosts default to `None`; the daemon sets
-    /// `Some(port)`. When a TCP port is bound without an `api_token`, a warning
-    /// is emitted because the port is then unauthenticated.
+    /// `Some(port)`. Binding a non-loopback address without an `api_token` is
+    /// refused at startup (ADR-047); a loopback bind without a token is allowed.
     pub tcp_port: Option<u16>,
     /// Bearer token required on TCP connections.
     ///
@@ -312,7 +314,32 @@ pub struct APIServerConfig {
     /// `require_token = false` in `apollia.toml`).
     ///
     /// The Unix socket listener is never subject to token authentication.
+    ///
+    /// When a non-loopback `bind_addr` is combined with `None`, startup fails
+    /// fast (ADR-047): the daemon refuses to serve a public unauthenticated API.
     pub api_token: Option<String>,
+    /// PEM certificate chain for native TLS on the TCP listener (ADR-047).
+    ///
+    /// `Some` with [`tls_key_path`](Self::tls_key_path) enables TLS termination
+    /// on the TCP listener. `None` keeps the listener cleartext, unchanged from
+    /// prior behavior. Setting exactly one of the pair is a startup error. The
+    /// Unix socket is never subject to TLS.
+    pub tls_cert_path: Option<PathBuf>,
+    /// PEM private key matching [`tls_cert_path`](Self::tls_cert_path).
+    pub tls_key_path: Option<PathBuf>,
+}
+
+impl Default for APIServerConfig {
+    fn default() -> Self {
+        Self {
+            socket_path: PathBuf::from("/tmp/apollia.sock"),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: None,
+            api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
+        }
+    }
 }
 
 /// Handle to control a running APIServer.
@@ -349,6 +376,31 @@ pub enum APIServerError {
         path: String,
         /// The underlying IO error.
         source: std::io::Error,
+    },
+
+    /// TLS certificate or key could not be loaded (ADR-047).
+    ///
+    /// A daemon configured for TLS fails fast rather than falling back to
+    /// cleartext when the certificate or key is missing or malformed.
+    #[error("failed to load TLS material from {path}: {reason}")]
+    TlsConfigLoad {
+        /// The certificate or key path that failed to load.
+        path: String,
+        /// Human-readable cause (IO error or PEM parse failure).
+        reason: String,
+    },
+
+    /// A non-loopback TCP bind was configured without a token (ADR-047).
+    ///
+    /// Serving a public interface with no authentication is refused at startup
+    /// instead of degrading to an unauthenticated API.
+    #[error(
+        "refusing to bind non-loopback address {bind_addr} without an api_token: \
+         set [api].require_token = true or bind a loopback address"
+    )]
+    InsecureBindWithoutToken {
+        /// The non-loopback bind address that was rejected.
+        bind_addr: String,
     },
 
     /// Generic server error.
@@ -662,6 +714,21 @@ impl APIServer {
         // Conditionally bind the TCP listener. `None` serves the Unix socket
         // only, closing any unauthenticated TCP exposure for embedded hosts.
         if let Some(tcp_port) = config.tcp_port {
+            // Fail-fast (ADR-047): refuse a non-loopback bind with no token
+            // rather than silently serving a public unauthenticated API.
+            if !is_loopback_addr(&config.bind_addr) && config.api_token.is_none() {
+                return Err(APIServerError::InsecureBindWithoutToken {
+                    bind_addr: config.bind_addr.clone(),
+                });
+            }
+
+            // Build the TLS acceptor before binding so a bad certificate fails
+            // fast instead of degrading to cleartext (ADR-047).
+            let tls_acceptor = match (&config.tls_cert_path, &config.tls_key_path) {
+                (Some(cert), Some(key)) => Some(build_tls_acceptor(cert, key)?),
+                _ => None,
+            };
+
             let tcp_addr = format!("{}:{}", config.bind_addr, tcp_port);
             let tcp_listener = TcpListener::bind(&tcp_addr).await.map_err(|source| {
                 APIServerError::BindFailed {
@@ -673,25 +740,18 @@ impl APIServer {
             // Apply token authentication to the TCP-facing router only.
             let tcp_router = match &config.api_token {
                 Some(token) => router.clone().layer(TokenAuthLayer::new(token.as_str())),
-                None => {
-                    tracing::warn!(
-                        tcp_port = %tcp_port,
-                        "api.tcp.unauthenticated"
-                    );
-                    router.clone()
-                }
+                None => router.clone(),
             };
+
+            info!(
+                tcp_port = %tcp_port,
+                tls_enabled = tls_acceptor.is_some(),
+                "api.tcp.listener_ready"
+            );
 
             let mut tcp_shutdown_rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let result = axum::serve(tcp_listener, tcp_router)
-                    .with_graceful_shutdown(async move {
-                        let _ = tcp_shutdown_rx.wait_for(|v| *v).await;
-                    })
-                    .await;
-                if let Err(e) = result {
-                    tracing::error!(error = %e, "TCP listener error");
-                }
+                serve_tcp(tcp_listener, tcp_router, tls_acceptor, &mut tcp_shutdown_rx).await;
             });
         }
 
@@ -717,6 +777,135 @@ impl APIServer {
 
         let handle = APIServerHandle { shutdown_tx };
         Ok(handle)
+    }
+}
+
+/// Return `true` when `bind_addr` denotes a loopback interface.
+///
+/// `localhost` and any address parsing as a loopback IP (`127.0.0.0/8`, `::1`)
+/// are loopback. Anything else, including an unparseable host, is treated as
+/// non-loopback so a token is required (ADR-047, fail-fast).
+fn is_loopback_addr(bind_addr: &str) -> bool {
+    if bind_addr.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    bind_addr
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+/// Build a [`tokio_rustls::TlsAcceptor`] from PEM certificate and key paths.
+///
+/// Uses the ring crypto provider (already vendored) and the PEM helpers from
+/// `rustls-pki-types`, so no additional PEM crate is required. Any IO or parse
+/// failure is a fail-fast [`APIServerError::TlsConfigLoad`] (ADR-047).
+fn build_tls_acceptor(
+    cert_path: &Path,
+    key_path: &Path,
+) -> Result<tokio_rustls::TlsAcceptor, APIServerError> {
+    use tokio_rustls::rustls::pki_types::pem::PemObject;
+    use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
+    use tokio_rustls::rustls::ServerConfig;
+
+    let cert_err = |e: &dyn std::fmt::Display| APIServerError::TlsConfigLoad {
+        path: cert_path.display().to_string(),
+        reason: e.to_string(),
+    };
+
+    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(cert_path)
+        .map_err(|e| cert_err(&e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| cert_err(&e))?;
+
+    let key =
+        PrivateKeyDer::from_pem_file(key_path).map_err(|e| APIServerError::TlsConfigLoad {
+            path: key_path.display().to_string(),
+            reason: e.to_string(),
+        })?;
+
+    let provider = std::sync::Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+    let server_config = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| cert_err(&e))?
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .map_err(|e| cert_err(&e))?;
+
+    Ok(tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(
+        server_config,
+    )))
+}
+
+/// Log a per-connection serving error, downgrading benign client-close noise.
+fn log_tcp_conn_error<E: std::fmt::Display>(e: &E) {
+    let msg = e.to_string();
+    if msg.contains("shut") || msg.contains("broken pipe") || msg.contains("connection reset") {
+        tracing::debug!(error = %e, "TCP connection closed by client");
+    } else {
+        tracing::error!(error = %e, "TCP connection error");
+    }
+}
+
+/// Serve HTTP requests over a TCP listener using hyper-util, optionally
+/// terminating TLS.
+///
+/// Mirrors [`serve_unix`]: an accept loop hands each connection to hyper via
+/// `TokioIo` + `TowerToHyperService`. When `tls_acceptor` is `Some`, each
+/// accepted stream completes a TLS handshake before being served, and a failed
+/// handshake drops that connection only. `None` serves cleartext, identical to
+/// the prior `axum::serve` behavior.
+async fn serve_tcp(
+    listener: TcpListener,
+    router: Router,
+    tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
+    shutdown_rx: &mut watch::Receiver<bool>,
+) {
+    use hyper_util::rt::TokioIo;
+    use hyper_util::server::conn::auto::Builder as ServerBuilder;
+    use hyper_util::service::TowerToHyperService;
+
+    let builder = ServerBuilder::new(hyper_util::rt::TokioExecutor::new());
+
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                match result {
+                    Ok((stream, _addr)) => {
+                        let svc = TowerToHyperService::new(router.clone());
+                        let conn_builder = builder.clone();
+                        let acceptor = tls_acceptor.clone();
+                        tokio::spawn(async move {
+                            match acceptor {
+                                Some(acceptor) => {
+                                    let tls_stream = match acceptor.accept(stream).await {
+                                        Ok(s) => s,
+                                        Err(e) => {
+                                            tracing::debug!(error = %e, "TCP TLS handshake failed");
+                                            return;
+                                        }
+                                    };
+                                    let io = TokioIo::new(tls_stream);
+                                    if let Err(e) = conn_builder.serve_connection(io, svc).await {
+                                        log_tcp_conn_error(&e);
+                                    }
+                                }
+                                None => {
+                                    let io = TokioIo::new(stream);
+                                    if let Err(e) = conn_builder.serve_connection(io, svc).await {
+                                        log_tcp_conn_error(&e);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "TCP accept error");
+                    }
+                }
+            }
+            _ = shutdown_rx.wait_for(|v| *v) => break,
+        }
     }
 }
 
@@ -954,6 +1143,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
 
@@ -980,6 +1171,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: None,
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
 
@@ -1014,6 +1207,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: Some(token.to_owned()),
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
         let handle = server.start().await.unwrap();
@@ -1032,6 +1227,229 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    // Self-signed EC certificate + key for the TLS handshake test. Generated
+    // once with `openssl req -x509 -newkey ec` for CN/SAN localhost. Test-only.
+    const TEST_TLS_CERT_PEM: &str = "-----BEGIN CERTIFICATE-----\n\
+MIIBmjCCAT+gAwIBAgIUQqKKeHUOBMBghGEEvDXjapDcIiQwCgYIKoZIzj0EAwIw\n\
+FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDcxNDA1MzQyOFoXDTM2MDcxMTA1\n\
+MzQyOFowFDESMBAGA1UEAwwJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0D\n\
+AQcDQgAEWZ0RPXZo8vEdvtyHUAAe/R0TryJmnh2fT5wTVuUMZrJVIGRVTTbfenOz\n\
+XFC25yp0escLNTMuNprp7qchbrmjIaNvMG0wHQYDVR0OBBYEFCLotXp0e5i8B2vA\n\
+mlHBnwgVvxn1MB8GA1UdIwQYMBaAFCLotXp0e5i8B2vAmlHBnwgVvxn1MA8GA1Ud\n\
+EwEB/wQFMAMBAf8wGgYDVR0RBBMwEYcEfwAAAYIJbG9jYWxob3N0MAoGCCqGSM49\n\
+BAMCA0kAMEYCIQC9y01nmYoSlWnK+uX1tqHfjMn0a+HWhRiaSN55QML6LAIhAPKM\n\
+Htplqy9lO4oMS0FJXRsjbD93wxQgJHL/4YHl+Ne0\n\
+-----END CERTIFICATE-----\n";
+
+    const TEST_TLS_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----\n\
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgBUl6bU7cNDQoy04z\n\
+6fv3u4wCglZ2i1wK/BnAmFhnqo2hRANCAARZnRE9dmjy8R2+3IdQAB79HROvImae\n\
+HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
+-----END PRIVATE KEY-----\n";
+
+    /// Test-only cert verifier that accepts any server certificate, so the
+    /// handshake test does not need a trust anchor for the self-signed fixture.
+    #[derive(Debug)]
+    struct AcceptAnyCert(Arc<tokio_rustls::rustls::crypto::CryptoProvider>);
+
+    impl tokio_rustls::rustls::client::danger::ServerCertVerifier for AcceptAnyCert {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+            _intermediates: &[tokio_rustls::rustls::pki_types::CertificateDer<'_>],
+            _server_name: &tokio_rustls::rustls::pki_types::ServerName<'_>,
+            _ocsp_response: &[u8],
+            _now: tokio_rustls::rustls::pki_types::UnixTime,
+        ) -> Result<
+            tokio_rustls::rustls::client::danger::ServerCertVerified,
+            tokio_rustls::rustls::Error,
+        > {
+            Ok(tokio_rustls::rustls::client::danger::ServerCertVerified::assertion())
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+            dss: &tokio_rustls::rustls::DigitallySignedStruct,
+        ) -> Result<
+            tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+            tokio_rustls::rustls::Error,
+        > {
+            tokio_rustls::rustls::crypto::verify_tls12_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &tokio_rustls::rustls::pki_types::CertificateDer<'_>,
+            dss: &tokio_rustls::rustls::DigitallySignedStruct,
+        ) -> Result<
+            tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+            tokio_rustls::rustls::Error,
+        > {
+            tokio_rustls::rustls::crypto::verify_tls13_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<tokio_rustls::rustls::SignatureScheme> {
+            self.0.signature_verification_algorithms.supported_schemes()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_tcp_tls_handshake_serves_health() {
+        // GIVEN a server configured with a self-signed cert + key
+        let dir = std::env::temp_dir().join(format!("apollia-tls-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cert_path = dir.join("cert.pem");
+        let key_path = dir.join("key.pem");
+        std::fs::write(&cert_path, TEST_TLS_CERT_PEM).unwrap();
+        std::fs::write(&key_path, TEST_TLS_KEY_PEM).unwrap();
+
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: Some(port),
+            api_token: None,
+            tls_cert_path: Some(cert_path),
+            tls_key_path: Some(key_path),
+        };
+        let server = APIServer::new(config, state);
+        let handle = server.start().await.unwrap();
+
+        // WHEN a TLS client completes the handshake and GETs /api/v1/health
+        let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+        let client_config =
+            tokio_rustls::rustls::ClientConfig::builder_with_provider(provider.clone())
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(AcceptAnyCert(provider)))
+                .with_no_client_auth();
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_config));
+        let server_name =
+            tokio_rustls::rustls::pki_types::ServerName::try_from("localhost").unwrap();
+        let tcp = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .expect("TCP connect");
+        let mut tls = connector
+            .connect(server_name, tcp)
+            .await
+            .expect("TLS handshake");
+        tls.write_all(
+            b"GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        )
+        .await
+        .unwrap();
+        let mut response = Vec::new();
+        tls.read_to_end(&mut response).await.unwrap();
+        let response_str = String::from_utf8_lossy(&response);
+
+        // THEN the health body is served over TLS
+        let raw_body = response_str.split("\r\n\r\n").nth(1).unwrap_or("").trim();
+        let body = match (raw_body.find('{'), raw_body.rfind('}')) {
+            (Some(s), Some(e)) => &raw_body[s..=e],
+            _ => raw_body,
+        };
+        assert_eq!(body, r#"{"status":"ok"}"#);
+
+        // Cleanup
+        handle.shutdown();
+        let _ = std::fs::remove_file(&socket_path);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_non_loopback_bind_without_token_is_refused() {
+        // GIVEN a non-loopback bind with no token
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "0.0.0.0".to_owned(),
+            tcp_port: Some(port),
+            api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
+        };
+        let server = APIServer::new(config, state);
+
+        // WHEN start() is called THEN it fails fast with InsecureBindWithoutToken
+        let result = server.start().await;
+        assert!(
+            matches!(
+                &result,
+                Err(APIServerError::InsecureBindWithoutToken { .. })
+            ),
+            "expected InsecureBindWithoutToken, got: {:?}",
+            result.as_ref().err()
+        );
+
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
+    async fn test_loopback_bind_without_token_is_allowed() {
+        // GIVEN a loopback bind with no token
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: Some(port),
+            api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
+        };
+        let server = APIServer::new(config, state);
+
+        // WHEN start() is called THEN it starts (loopback is trusted)
+        let handle = server.start().await.expect("loopback bind should start");
+
+        // Cleanup
+        handle.shutdown();
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
+    async fn test_non_loopback_bind_with_token_is_allowed() {
+        // GIVEN a non-loopback bind with a token
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "0.0.0.0".to_owned(),
+            tcp_port: Some(port),
+            api_token: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned()),
+            tls_cert_path: None,
+            tls_key_path: None,
+        };
+        let server = APIServer::new(config, state);
+
+        // WHEN start() is called THEN it starts (token authenticates the surface)
+        let handle = server.start().await.expect("token bind should start");
+
+        // Cleanup
+        handle.shutdown();
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
     #[tokio::test]
     async fn test_unix_socket_listener_binds_successfully() {
         // GIVEN a temporary socket path
@@ -1043,6 +1461,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
 
@@ -1072,6 +1492,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
 
@@ -1098,6 +1520,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let server = APIServer::new(config, state);
         let handle = server.start().await.unwrap();

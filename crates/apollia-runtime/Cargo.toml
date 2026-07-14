@@ -54,6 +54,11 @@ axum               = { workspace = true }
 utoipa             = { workspace = true }
 tokio-stream       = { workspace = true }
 hyper-util         = { workspace = true }
+# Native TLS termination on the API TCP listener (ADR-047). Pinned to the ring
+# provider (already vendored via reqwest/hyper-rustls) with default features
+# off, so the aws-lc-rs default provider is not pulled and no new crate enters
+# the tree.
+tokio-rustls       = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
 tower              = { workspace = true }
 uuid               = { workspace = true }
 rusqlite           = { workspace = true }

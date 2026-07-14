@@ -28,7 +28,7 @@ use apollia_memory::manager::MemoryManager;
 use apollia_oria::observer::{classify, ExecutionMode};
 use apollia_oria::plan::ExecutionPlan;
 use apollia_oria::plan_cache::{compute_cache_key, PlanCacheRepository};
-use apollia_runtime::mailbox::AgentMailboxHandle;
+use apollia_runtime::mailbox::{AgentMailboxHandle, MailboxConfig};
 use apollia_tools::descriptor::{ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
@@ -103,6 +103,8 @@ fn make_manifest(
         tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: false,
+        supports_mailbox: false,
+        mailbox_allowlist: None,
         memory_namespace: None,
         shared_memory_namespaces: vec![],
         max_concurrent_tasks: 1,
@@ -151,6 +153,7 @@ fn make_task(text: &str) -> AIPTask {
         project_id: None,
         message_id: None,
         delegation_chain: Vec::new(),
+        ..AIPTask::default()
     }
 }
 
@@ -374,6 +377,11 @@ async fn test_plan_cache_hit() {
                 tool_hint: Some("tool_a".to_owned()),
                 depends_on: vec![],
                 model_hint: None,
+                title: String::new(),
+                status: Default::default(),
+                rationale: None,
+                provenance: Default::default(),
+                args: None,
             },
             apollia_oria::plan::PlanStep {
                 step_id: "s2".to_owned(),
@@ -381,6 +389,11 @@ async fn test_plan_cache_hit() {
                 tool_hint: Some("tool_b".to_owned()),
                 depends_on: vec!["s1".to_owned()],
                 model_hint: None,
+                title: String::new(),
+                status: Default::default(),
+                rationale: None,
+                provenance: Default::default(),
+                args: None,
             },
         ],
     };
@@ -505,7 +518,7 @@ async fn test_weighted_classifier() {
 async fn test_agent_mailbox_round_trip() {
     // GIVEN an AgentMailbox actor is running
     let bus = make_event_bus();
-    let mailbox = AgentMailboxHandle::spawn(bus, 256);
+    let mailbox = AgentMailboxHandle::spawn(None, bus, MailboxConfig::default()).await;
 
     let payload = serde_json::json!({
         "action": "review",
@@ -515,13 +528,13 @@ async fn test_agent_mailbox_round_trip() {
 
     // WHEN agent-a sends a message to agent-b
     mailbox
-        .send("agent-a", "agent-b", payload.clone())
+        .send("agent-a", "agent-b", payload.clone(), None)
         .await
         .expect("send should succeed");
 
     // THEN agent-b receives the message with correct metadata
     let msg = mailbox
-        .receive("agent-b", Duration::from_secs(1))
+        .receive("agent-b", None, Duration::from_secs(1))
         .await
         .expect("receive should return a message");
 
@@ -535,12 +548,20 @@ async fn test_agent_mailbox_round_trip() {
         "sent_at should be a non-empty timestamp"
     );
 
-    // AND the pending count for agent-b is now 0 (message consumed)
+    // Delivery is at-least-once: receive leases the message, ack deletes it.
+    mailbox
+        .ack("agent-b", &msg.message_id, None)
+        .await
+        .expect("ack should succeed");
+
+    // AND the pending count for agent-b is now 0 (message acknowledged)
     let pending = mailbox.pending_count("agent-b").await;
-    assert_eq!(pending, 0, "pending count should be 0 after receive");
+    assert_eq!(pending, 0, "pending count should be 0 after ack");
 
     // AND agent-a has no pending messages
-    let no_msg = mailbox.receive("agent-a", Duration::from_millis(50)).await;
+    let no_msg = mailbox
+        .receive("agent-a", None, Duration::from_millis(50))
+        .await;
     assert!(no_msg.is_none(), "agent-a should have no pending messages");
 
     mailbox.shutdown().await;

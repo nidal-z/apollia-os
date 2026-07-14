@@ -135,6 +135,8 @@ async fn build_app_state_with_repos(
         registry_handle,
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
+        plan_gates: None,
+        audit_journal: None,
         backend: MockBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: Some(engine_handle),
@@ -179,6 +181,8 @@ async fn start_test_server_with_repos(
         tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
+        tls_cert_path: None,
+        tls_key_path: None,
     };
     let server = APIServer::new(config, state);
     let handle = server.start().await.expect("APIServer start failed");

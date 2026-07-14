@@ -12,13 +12,10 @@ ignore = [
     # Not encountered with current async-openai 0.28 lockfile, but kept
     # defensively until async-openai migrates off backoff upstream.
     "RUSTSEC-2025-0012", # backoff: unmaintained
-    # Transitive in tauri via tauri-utils / kuchikiki (fxhash).
-    # Not encountered with current tauri 2.x lockfile on this platform.
-    "RUSTSEC-2025-0057", # fxhash: unmaintained
-    # Unsound IterMut in lru 0.12 (apollia-llm MetaLlmOrchestrator cache).
-    # Fix lands in lru 0.16.3; deferred to a follow-up workspace dep bump
-    # because lru 0.16 changes the public API (separate migration story).
-    "RUSTSEC-2026-0002", # lru: IterMut soundness
+    # RUSTSEC-2025-0057 (fxhash) and RUSTSEC-2026-0002 (lru) discharged:
+    # fxhash is no longer in the lockfile, and lru is now 0.18.0 (past the
+    # 0.16.3 fix), so neither advisory is triggered. Re-add only if a future
+    # dependency reintroduces the affected version.
     # Unsound rand 0.8 ThreadRng when used from a custom log:: logger.
     # We do not install a custom logger that calls rand from within log
     # callbacks; the exploit path does not apply to our usage. Deferred

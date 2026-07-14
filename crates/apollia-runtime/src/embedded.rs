@@ -444,6 +444,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port,
             api_token: config.api_token,
+            // Embedded hosts are loopback-only; TLS is a daemon-only concern.
+            ..APIServerConfig::default()
         },
         startup_timeout_secs: config.startup_timeout_secs,
         llm_config: config.llm_config,

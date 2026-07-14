@@ -1550,6 +1550,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             bind_addr,
             tcp_port: Some(tcp_port),
             api_token,
+            tls_cert_path: api_cfg.tls_cert.clone(),
+            tls_key_path: api_cfg.tls_key.clone(),
         },
         startup_timeout_secs: 10,
         llm_config,

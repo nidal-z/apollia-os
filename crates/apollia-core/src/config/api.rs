@@ -43,6 +43,21 @@ pub struct ApiConfig {
     /// Default: `/tmp/apollia.sock`. The parent directory must exist.
     #[serde(default = "default_unix_socket")]
     pub unix_socket: PathBuf,
+
+    /// PEM certificate chain for native TLS on the TCP listener.
+    ///
+    /// When both `tls_cert` and `tls_key` are set, the TCP listener terminates
+    /// TLS itself. When both are absent (the default), the listener stays
+    /// cleartext, unchanged from prior behavior. Setting exactly one of the pair
+    /// is a startup configuration error. The Unix socket is never affected.
+    #[serde(default)]
+    pub tls_cert: Option<PathBuf>,
+
+    /// PEM private key matching [`tls_cert`](Self::tls_cert).
+    ///
+    /// See [`tls_cert`](Self::tls_cert) for the both-or-neither rule.
+    #[serde(default)]
+    pub tls_key: Option<PathBuf>,
 }
 
 impl Default for ApiConfig {
@@ -52,6 +67,8 @@ impl Default for ApiConfig {
             port: default_api_port(),
             require_token: default_require_token(),
             unix_socket: default_unix_socket(),
+            tls_cert: None,
+            tls_key: None,
         }
     }
 }
@@ -59,8 +76,9 @@ impl Default for ApiConfig {
 impl ApiConfig {
     /// Validates the API configuration at startup (fail-fast).
     ///
-    /// Checks that the parent directory of the Unix socket exists. A Unix socket
-    /// whose parent directory is missing cannot be bound.
+    /// Checks that the parent directory of the Unix socket exists (a Unix socket
+    /// whose parent directory is missing cannot be bound) and that the TLS
+    /// certificate and key are set together or not at all.
     pub fn validate(&self) -> Result<(), ConfigError> {
         let parent = self.unix_socket.parent().unwrap_or_else(|| {
             // Fallback to root, which is always accessible.
@@ -69,6 +87,12 @@ impl ApiConfig {
         if !parent.exists() {
             return Err(ConfigError::SocketParentMissing {
                 path: self.unix_socket.display().to_string(),
+            });
+        }
+        if self.tls_cert.is_some() != self.tls_key.is_some() {
+            return Err(ConfigError::InvalidValue {
+                field: "api.tls".to_owned(),
+                reason: "tls_cert and tls_key must both be set or both be absent".to_owned(),
             });
         }
         Ok(())

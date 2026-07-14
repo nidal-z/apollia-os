@@ -573,6 +573,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let api_server = APIServer::new(config, state);
         let api_handle = api_server.start().await.unwrap();
@@ -719,6 +721,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
         let api_handle = api.start().await.unwrap();
@@ -840,6 +844,8 @@ mod tests {
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
         let api_handle = api.start().await.unwrap();
@@ -957,6 +963,8 @@ mod tests {
                 bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: Some(port),
                 api_token: None,
+                tls_cert_path: None,
+                tls_key_path: None,
             },
             state,
         );
@@ -1162,6 +1170,8 @@ mod tests {
                 bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: Some(port),
                 api_token: None,
+                tls_cert_path: None,
+                tls_key_path: None,
             },
             state,
         );

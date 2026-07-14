@@ -93,6 +93,8 @@ async fn test_runtime_starts_without_llm_router() {
         registry_handle: registry,
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
+        plan_gates: None,
+        audit_journal: None,
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(), // aucun LLM configuré
         trigger_engine: None,
@@ -130,6 +132,8 @@ async fn test_runtime_starts_without_llm_router() {
             tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         },
         state,
     );
@@ -239,6 +243,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         registry_handle: registry,
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
+        plan_gates: None,
+        audit_journal: None,
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,
@@ -275,6 +281,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
             tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         },
         state,
     );

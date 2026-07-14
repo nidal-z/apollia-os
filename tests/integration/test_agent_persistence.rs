@@ -123,6 +123,8 @@ fn test_manifest(name: &str, version: &str) -> AgentManifest {
         tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: false,
+        supports_mailbox: false,
+        mailbox_allowlist: None,
         memory_namespace: None,
         shared_memory_namespaces: vec![],
         max_concurrent_tasks: 1,
@@ -196,6 +198,8 @@ fn test_supervisor_config(
             tcp_port: Some(tcp_port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
         },
         startup_timeout_secs: 10,
         llm_config: None,
@@ -208,6 +212,12 @@ fn test_supervisor_config(
         bundled_agents_path: None,
         package_repository: None,
         tools_config: apollia_core::ToolsConfig::default(),
+        mcp_loading: apollia_mcp::session::LoadingMode::Eager,
+        tool_search_limit: 20,
+        hooks_config: apollia_core::HooksConfig::default(),
+        plan_mode_default: false,
+        chat_default_workspace: None,
+        chat_tool_turn_temperature: None,
     }
 }
 

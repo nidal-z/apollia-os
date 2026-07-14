@@ -18,7 +18,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use apollia_core::{HybridRoutingConfig, LlmRoutingConfig};
+use apollia_core::{HybridRoutingConfig, LlmRoutingConfig, RunId};
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, StreamChunk, ToolCall,
 };
@@ -29,6 +29,7 @@ use apollia_runtime::chat::{
 };
 use apollia_runtime::EventBus;
 use apollia_tools::ToolRegistryHandle;
+use tokio_util::sync::CancellationToken;
 
 type StreamResult =
     Result<Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>;
@@ -141,6 +142,7 @@ fn make_hybrid_router(ceiling_usd: f64) -> (Arc<LlmRouter>, Arc<AtomicU32>) {
         hybrid: Some(HybridRoutingConfig {
             frontier: "frontier".into(),
             cost_ceiling_usd: ceiling_usd,
+            ceiling_action: Default::default(),
         }),
     };
     let router = LlmRouter::with_backends(backends, "local").with_routing(routing);
@@ -157,6 +159,8 @@ fn make_agent(router: Arc<LlmRouter>, tool_registry: ToolRegistryHandle) -> Buil
         event_bus,
         user_memory: None,
         a2a_invoker: None,
+        todo: None,
+        plan: None,
     })
 }
 
@@ -184,6 +188,7 @@ async fn b4_escalation_accepted_routes_to_frontier() {
         .execute(
             "sess-b4-accept",
             "msg-1",
+            &RunId::new(),
             "go",
             &[],
             "",
@@ -197,6 +202,7 @@ async fn b4_escalation_accepted_routes_to_frontier() {
             None,
             None,
             None,
+            CancellationToken::new(),
         )
         .await
         .expect("escalated run should produce a final response");
@@ -232,6 +238,7 @@ async fn b4_ceiling_blocked_stays_local_and_flags() {
         .execute(
             "sess-b4-block",
             "msg-1",
+            &RunId::new(),
             "go",
             &[],
             "",
@@ -245,6 +252,7 @@ async fn b4_ceiling_blocked_stays_local_and_flags() {
             None,
             None,
             None,
+            CancellationToken::new(),
         )
         .await
         .expect("blocked run should still produce a final local response");
@@ -289,6 +297,7 @@ async fn b4_below_threshold_never_escalates() {
         hybrid: Some(HybridRoutingConfig {
             frontier: "frontier".into(),
             cost_ceiling_usd: 100.0,
+            ceiling_action: Default::default(),
         }),
     };
     let router = Arc::new(LlmRouter::with_backends(backends, "local").with_routing(routing));
@@ -301,6 +310,7 @@ async fn b4_below_threshold_never_escalates() {
         .execute(
             "sess-b4-clean",
             "msg-1",
+            &RunId::new(),
             "go",
             &[],
             "",
@@ -314,6 +324,7 @@ async fn b4_below_threshold_never_escalates() {
             None,
             None,
             None,
+            CancellationToken::new(),
         )
         .await
         .expect("clean run should produce a final response");
