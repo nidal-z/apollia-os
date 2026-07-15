@@ -9,6 +9,8 @@
 pub mod agent_packages;
 pub mod agents;
 pub mod artifacts;
+#[cfg(debug_assertions)]
+pub mod automation;
 pub mod chat;
 pub mod chat_libre;
 pub mod cli;

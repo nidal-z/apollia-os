@@ -990,6 +990,13 @@ fn main() {
             commands::cli::get_cli_status,
             commands::cli::install_cli,
             commands::cli::uninstall_cli,
+            // Automation harness (dev-only, absent from release builds)
+            #[cfg(debug_assertions)]
+            commands::automation::automation_script,
+            #[cfg(debug_assertions)]
+            commands::automation::automation_capture,
+            #[cfg(debug_assertions)]
+            commands::automation::automation_finish,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

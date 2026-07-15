@@ -1,0 +1,29 @@
+{
+  "name": "a2a",
+  "stopOnError": false,
+  "steps": [
+    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
+
+    { "kind": "goto", "route": "agents" },
+    { "kind": "sleep", "ms": 600 },
+    { "kind": "screenshot", "label": "01-agents (start the yumni-classification worker here first)" },
+
+    { "kind": "goto", "route": "chat" },
+    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 15000 },
+    { "kind": "expect", "testid": "a2a-worker-badge" },
+    { "kind": "screenshot", "label": "02-chat-workers" },
+
+    { "kind": "sendChat", "text": "Utilise l'agent de classification ESRS pour classer ces entités via le skill esrs.match_entities : critère \"Émissions de gaz à effet de serre (Scope 1)\", entités [\"Chaudière gaz du site A\", \"Flotte de véhicules thermiques\", \"Serveur cloud hébergé\"]. Rends le mapping." },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "sleep", "ms": 1500 },
+    { "kind": "screenshot", "label": "03-delegating-during" },
+    { "kind": "expect", "testid": "chat-a2a-delegating" },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 180000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "a2a_result" },
+    { "kind": "screenshot", "label": "04-a2a-result" },
+
+    { "kind": "goto", "route": "agents" },
+    { "kind": "sleep", "ms": 600 },
+    { "kind": "screenshot", "label": "05-agents-activity (cross-check worker task rows)" }
+  ]
+}

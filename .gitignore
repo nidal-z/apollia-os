@@ -35,6 +35,9 @@ crates/apollia-desktop/resources/
 crates/apollia-desktop/python/
 crates/apollia-desktop/apollia-os
 
+# Dev-only automation harness output (screenshots + report.json)
+/.apollia-automation/
+
 # OS
 .DS_Store
 Thumbs.db

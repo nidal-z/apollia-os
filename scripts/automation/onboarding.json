@@ -1,0 +1,26 @@
+{
+  "name": "onboarding",
+  "stopOnError": false,
+  "steps": [
+    { "kind": "waitFor", "testid": "onboarding-modal", "timeoutMs": 30000 },
+    { "kind": "waitFor", "testid": "onboarding-welcome" },
+    { "kind": "screenshot", "label": "01-welcome" },
+    { "kind": "click", "testid": "onboarding-welcome-cta" },
+
+    { "kind": "waitFor", "testid": "onboarding-profile-selector", "timeoutMs": 15000 },
+    { "kind": "screenshot", "label": "02-profile-selector" },
+    { "kind": "click", "testid": "profile-card-operator" },
+
+    { "kind": "waitFor", "testid": "onboarding-ai-setup", "timeoutMs": 15000 },
+    { "kind": "screenshot", "label": "03-ai-setup" },
+    { "kind": "click", "testid": "ai-setup-skip" },
+
+    { "kind": "waitFor", "testid": "onboarding-chat-step", "timeoutMs": 15000 },
+    { "kind": "screenshot", "label": "04-chat-step" },
+    { "kind": "expect", "testid": "onboarding-chat-no-llm" },
+
+    { "kind": "click", "testid": "onboarding-finish-early" },
+    { "kind": "sleep", "ms": 800 },
+    { "kind": "screenshot", "label": "05-after-finish" }
+  ]
+}

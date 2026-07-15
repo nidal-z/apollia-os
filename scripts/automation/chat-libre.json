@@ -1,0 +1,48 @@
+{
+  "name": "chat-libre",
+  "stopOnError": false,
+  "steps": [
+    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
+    { "kind": "goto", "route": "chat" },
+    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 15000 },
+    { "kind": "screenshot", "label": "01-chat-empty" },
+
+    { "kind": "sendChat", "text": "Combien font 17 x 23 ?" },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "screenshot", "label": "02-math-during" },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "math" },
+    { "kind": "screenshot", "label": "03-math-done" },
+
+    { "kind": "sendChat", "text": "Liste les fichiers du dossier courant." },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "screenshot", "label": "04-file_list-during" },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "file_list" },
+    { "kind": "screenshot", "label": "05-file_list-done" },
+
+    { "kind": "sendChat", "text": "Cherche le mot TODO dans les fichiers .rs du projet." },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "screenshot", "label": "06-grep-during" },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "grep" },
+    { "kind": "screenshot", "label": "07-grep-done" },
+
+    { "kind": "sendChat", "text": "Lis le fichier Cargo.toml et donne-moi le nom du package." },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "file_read" },
+    { "kind": "screenshot", "label": "08-file_read-done" },
+
+    { "kind": "sendChat", "text": "Retiens que mon plat préféré est le couscous." },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "screenshot", "label": "09-memory-write" },
+
+    { "kind": "sendChat", "text": "Quel est mon plat préféré ?" },
+    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
+    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 120000 },
+    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "memory_recall" },
+    { "kind": "screenshot", "label": "10-memory-recall" }
+  ]
+}

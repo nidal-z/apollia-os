@@ -27,6 +27,7 @@
   import { openNewTaskRequested } from "$lib/stores/tasks";
   import { llmBackends } from "$lib/stores/sse";
   import { get } from "svelte/store";
+  import type { AutomationBoot } from "$lib/automation/types";
 
   let ready = $state(false);
   let prevLlmCount = 0;
@@ -83,6 +84,22 @@
       } else if (window.location.hash === "#design-dark-mode") {
         navigateTo("design-dark-mode");
       }
+    }
+
+    // Dev-only gestural automaton - when APOLLIA_AUTOMATION points at a script,
+    // the backend returns it and we drive the real app against its testids.
+    // The import.meta.env.DEV guard tree-shakes the whole block (and the runner
+    // chunk) out of release builds. Scripts own their own readiness waits.
+    if (import.meta.env.DEV) {
+      void invoke<AutomationBoot | null>("automation_script")
+        .then(async (boot) => {
+          if (!boot) return;
+          const { runAutomation } = await import("$lib/automation/runner");
+          await runAutomation(boot.script, boot.allowDestructive);
+        })
+        .catch((e) => {
+          console.error("[automation] boot failed", e);
+        });
     }
 
     // Initial check - handles the case where OnboardingRequired was emitted
