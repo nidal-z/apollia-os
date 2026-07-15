@@ -20,12 +20,7 @@ tags = ["coach", "system", "guide", "meta"]
 agent_type = "system"
 execution_mode = "auto"
 tools_required = []
-tools_optional = [
-    "navigate",
-    "read_memory_namespace",
-    "get_user_integrations",
-    "get_installed_agents",
-]
+tools_optional = []
 memory_namespace = "apollia-guide"
 supports_streaming = false
 supports_a2a = false

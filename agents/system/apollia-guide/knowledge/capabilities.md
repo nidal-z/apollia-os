@@ -1,22 +1,43 @@
-# Apollia OS - Capabilities
+# Apollia OS, capabilities
 
-Apollia OS is a local-first runtime for autonomous AI agents.
+Apollia OS is a sovereign, local-first runtime for autonomous AI agents. It
+runs any Python agent locally, in isolation, with tools, and without a cloud
+dependency.
 
 ## Core features
 
-- **Agents**: Run any Python agent (LangGraph, CrewAI, custom) locally via the AIP bridge.
-- **Memory**: Cross-session semantic and episodic memory stored in SQLite.
-- **Tools**: Native tools - web search, web read, file operations, bash executor, HTTP fetch.
-- **Triggers**: Cron, interval, file watch, and webhook triggers to automate agent runs.
-- **Pipelines**: DAG-based pipelines with fan-out/fan-in, HITL approval steps, and fallback.
-- **A2A**: Director/Worker delegation pattern for multi-agent collaboration.
-- **Agent Packages**: Distributable agent packages described by `agent.toml` (ADR-026).
-- **LLM backends**: llama.cpp (local), Ollama, Anthropic Claude, OpenAI.
-- **MCP**: Native MCP client for tool servers (stdio, HTTP, SSE).
-- **Desktop app**: Tauri-based desktop app with Svelte UI for all operations.
+- **Agents**: run Python agents built with the Apollia AgentKit SDK. An agent
+  is a class decorated with `@agent`; it handles chat with `@on_message` or
+  exposes callable skills with `@skill`.
+- **Local inference**: llama.cpp GGUF models run on-device (Metal / CUDA). You
+  can also point Apollia at Ollama, Anthropic, or OpenAI backends.
+- **Memory**: cross-session semantic, episodic, and procedural memory in local
+  SQLite. Agents read and write it at their own initiative through `ctx.memory`;
+  it is never injected automatically.
+- **Tools**: native tools include web search (`web_search`), web read
+  (`web_read`), HTTP fetch (`http_fetch`), file access (`file_read`,
+  `file_write`, `file_glob`), and a sandboxed `bash_executor`.
+- **Triggers**: cron, interval, file-watch, and webhook triggers automate agent
+  runs.
+- **Orchestration (ORIA)**: a ReAct engine with an enforced, non-bypassable step
+  budget and a resilience layer, plus post-run verification.
+- **A2A**: agents delegate to one another (director / worker) through
+  `ctx.a2a`, with a recursion guard and a chain deadline.
+- **Audit**: every run is recorded in a tamper-evident, hash-chained journal you
+  can verify and export.
+- **MCP**: a native MCP client connects tool servers over stdio, HTTP, or SSE.
+- **Connectors**: OAuth connectors for Google and Microsoft, gated per scope.
+- **Surfaces**: a Unix-socket + TCP HTTP API (token auth, optional native TLS),
+  a `apollia-os` CLI, and a Tauri desktop app.
 
-## Principles
+## The 8 principles
 
-1. Local-first - no user data leaves the machine without explicit action.
-2. Zero external dependencies - binary runs on any Linux without installation.
-3. Minimal contract - agents need only `manifest()` + `async run()`.
+1. Local-first: no user data leaves the machine without an explicit action.
+2. Zero external dependency: the binary runs on a clean machine with no prior
+   install.
+3. Minimal contract: an agent is a decorated Python class, nothing more.
+4. Fail-fast: any startup-detectable error is detected at startup.
+5. One actor, one responsibility: no shared state between runtime actors.
+6. Memory at the agent's initiative: context is never injected automatically.
+7. Non-bypassable safeguards: the step budget is enforced by the runtime.
+8. Human CLI, machine API: `--json` everywhere, TTY auto-detected.

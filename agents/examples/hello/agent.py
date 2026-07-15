@@ -6,11 +6,12 @@ installation is wired up, and as a starting point for your own agents.
 """
 
 from apollia import agent, on_message
-from apollia.context import Ctx
+from apollia.types import Ctx
 
 
 @agent(
     name="hello",
+    version="0.1.0",
     description="Echoes back whatever message you send.",
 )
 class Hello:

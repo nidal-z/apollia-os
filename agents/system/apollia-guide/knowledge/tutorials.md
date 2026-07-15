@@ -1,49 +1,72 @@
-# Apollia OS - Tutorials
+# Apollia OS, tutorials
 
-## Install and run your first agent
+## Write the smallest agent
+
+An agent is a decorated Python class. `@on_message` handles a chat turn and
+returns the reply string.
+
+```python
+from apollia import agent, on_message
+from apollia.types import Ctx
+
+
+@agent(name="hello", version="0.1.0", description="Echoes back whatever you send.")
+class Hello:
+    @on_message
+    async def handle(self, message: str, history: list, ctx: Ctx) -> str:
+        return f"You said: {message}"
+
+
+agent = Hello()
+```
+
+## Install and run an agent from the CLI
 
 ```bash
-# Install a package (director + workers + triggers)
-apollia agent install ./agents/veille-ia
+# Install an agent package from a directory
+apollia-os agent install ./agents/examples/hello
 
 # List installed agents
-apollia agent list
+apollia-os agent list
 
-# Start an agent
-apollia agent start veille-ia-agent
-
-# Run a task
-apollia task run veille-ia-agent '{"text": "Generate today report"}'
+# Start an agent, then submit a task
+apollia-os agent start hello
+apollia-os task run hello '{"message": "hi"}'
 ```
 
-## Configure a trigger
+## Use memory
 
-```toml
-# In agent.toml
-[[triggers]]
-id             = "daily-run"
-agent          = "my-agent"
-enabled        = true
-on_busy        = "skip"
-input_template = "Run daily task"
-
-[triggers.source]
-type     = "cron"
-schedule = "0 8 * * 1-5"
-```
-
-## Use memory in an agent
+Memory is read and written at the agent's initiative through `ctx.memory`. It is
+never injected automatically.
 
 ```python
-# Store a value
-await ctx.memory.remember("my-key", "my-value", namespace="my-agent")
+# Store a value (source and confidence are optional)
+await ctx.memory.remember("user.city", "Lyon")
 
-# Recall a value
-value = await ctx.memory.recall("my-key", namespace="my-agent")
+# Recall it later, in this or a future session
+city = await ctx.memory.recall("user.city")   # -> "Lyon" or None
 ```
 
-## Delegate to a worker (A2A)
+## Expose a callable skill
 
 ```python
-result = await ctx.a2a_invoke("my-skill", {"text": "process this"})
+from apollia import agent, skill
+from apollia.types import Ctx
+
+
+@agent(name="notes", version="0.1.0", description="Keeps short notes.")
+class Notes:
+    @skill("notes.add", description="Append a note.")
+    async def add(self, text: str, ctx: Ctx) -> dict:
+        await ctx.memory.record("note", text)
+        return {"stored": text}
+
+
+agent = Notes()
+```
+
+## Delegate to another agent (A2A)
+
+```python
+result = await ctx.a2a.invoke("notes.add", {"text": "buy milk"})
 ```
