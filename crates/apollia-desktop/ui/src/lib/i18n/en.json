@@ -2609,6 +2609,12 @@
     "cli_needs_privilege": "Administrator privileges required.",
     "profile": {
       "intro": "Build your profile gradually. The more Apollia knows you, the more relevant the automations it can suggest. No data leaves your machine.",
+      "enrichment": {
+        "title": "Complete your profile",
+        "detail": "A few optional details would help your agents. The assistant can pick up where you left off, without losing what you already shared.",
+        "resume": "Continue with the assistant",
+        "dismiss": "Not now"
+      },
       "sensitive_badge": "Sensitive",
       "sensitive_notice": "Changing these choices does not adjust your permission rules automatically - rerun the onboarding so the agent can propose the matching adjustments.",
       "source": {
@@ -2634,6 +2640,7 @@
         "agent_domains": "Areas where your agents work autonomously",
         "trigger": "How your agents start by default",
         "tools_daily": "Everyday tools (comma-separated)",
+        "tech_stack": "Technical stack",
         "proficiency": "Comfort with technical tooling",
         "integrations": "Connect Apollia to",
         "sovereignty": "Data sovereignty",
@@ -2646,7 +2653,8 @@
         "role": "CTO, fullstack dev, ops…",
         "goals": "E.g. Automate my competitive watch and pre-process my emails.",
         "agent_domains": "watch, email, reporting",
-        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…"
+        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…",
+        "tech_stack": "Python, TypeScript, React, Postgres…"
       },
       "sector": {
         "fintech": "Fintech",
@@ -2664,7 +2672,8 @@
       },
       "proficiency": {
         "debutant": "Beginner",
-        "a_laise": "Comfortable",
+        "intermediaire": "Intermediate",
+        "avance": "Advanced",
         "expert": "Expert"
       },
       "language": {
@@ -2700,6 +2709,7 @@
         "agent_domains": "Free-form list of areas (watch, email, reporting…) where you let your agents act without manual approval, subject to the supervision level above.",
         "trigger": "Distinct from the supervision level: this defines <em>when</em> an agent runs, not <em>whether</em> it needs your approval.",
         "tools_daily": "Free-form list - business apps, IDEs, desktop tools, SaaS platforms.",
+        "tech_stack": "Languages, frameworks, and databases you work with, so agents match your ecosystem.",
         "proficiency": "Helps agents calibrate the level of technical explanation (vocabulary, step detail).",
         "integrations": "Enabling an integration opens default permissions on the associated APIs. Rerun the onboarding to adjust the matching rules."
       },
@@ -3953,7 +3963,22 @@
     "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider - the agent needs one to chat.",
     "back_step": "← Previous step",
     "bootstrap": "Starting the agent…",
-    "bootstrap_failed": "Couldn't start onboarding."
+    "bootstrap_failed": "Couldn't start onboarding.",
+    "progress_label": "Onboarding progress",
+    "phase_calibration": "Calibration",
+    "phase_enrichment": "Profile",
+    "finish_early": "I'm done",
+    "finish_early_hint_calibration": "You can wrap up once the first questions are answered.",
+    "finish_early_hint_enrichment": "Optional from here - skip the rest whenever you like.",
+    "finish_early_message": "That's good for me, let's wrap up."
+  },
+  "onboarding_modal": {
+    "title": "Apollia - First contact",
+    "progress_label": "Onboarding progress",
+    "step_welcome": "Welcome",
+    "step_profile": "Profile",
+    "step_models": "Models",
+    "step_calibration": "Calibration"
   },
   "onboarding_permissions": {
     "title": "Suggested permission rules",

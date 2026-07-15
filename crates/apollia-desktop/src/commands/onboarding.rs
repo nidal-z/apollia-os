@@ -435,10 +435,26 @@ pub async fn trigger_onboarding(
     profile: Option<String>,
     state: State<'_, RuntimeHandle>,
 ) -> Result<TriggerResult, String> {
-    trigger_onboarding_inner(topic, profile, &state)
+    trigger_onboarding_inner(topic, profile, false, &state)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "trigger_onboarding failed");
+            e.to_string()
+        })
+}
+
+/// Resumes onboarding for profile enrichment without wiping collected facts.
+///
+/// Unlike `trigger_onboarding` (which resets progress for a fresh run), this
+/// keeps the already-collected Tier 1 + Tier 2 profile so the agent continues
+/// the optional enrichment where it left off. Used by the "complete your
+/// profile" entry point after a user finished calibration but skipped Tier 2.
+#[tauri::command]
+pub async fn resume_onboarding(state: State<'_, RuntimeHandle>) -> Result<TriggerResult, String> {
+    trigger_onboarding_inner(None, None, true, &state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "resume_onboarding failed");
             e.to_string()
         })
 }
@@ -833,11 +849,14 @@ fn topic_for_memory_key(key: &str) -> Option<&'static str> {
         Some("identity")
     } else if key.starts_with("user.preferences") {
         Some("preferences")
-    } else if key.starts_with("user.tools") {
+    } else if key.starts_with("user.tools") || key.starts_with("user.tech") {
         Some("tools")
     } else if key.starts_with("user.domain") {
         Some("domain")
-    } else if key.starts_with("user.agents") || key.starts_with("user.challenges") {
+    } else if key.starts_with("user.agents")
+        || key.starts_with("user.challenges")
+        || key.starts_with("user.constraints")
+    {
         Some("agents")
     } else {
         None
@@ -1036,6 +1055,7 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
 async fn trigger_onboarding_inner(
     topic: Option<String>,
     profile: Option<String>,
+    resume: bool,
     state: &RuntimeHandle,
 ) -> Result<TriggerResult, OnboardingError> {
     // Validate topic if provided
@@ -1048,7 +1068,9 @@ async fn trigger_onboarding_inner(
     // Wipe stale progress (topic marks + agent semantic entries from prior
     // sessions). Without this the progress bar shows 100% before the user
     // has even sent a single message - see `reset_onboarding_progress`.
-    if topic.is_none() {
+    // A resume run keeps already-collected Tier 1 + Tier 2 facts so the agent
+    // continues the profile enrichment where it left off, so it never resets.
+    if topic.is_none() && !resume {
         if let Ok(repo_arc) = get_repo(state) {
             if let Ok(repo) = repo_arc.lock() {
                 reset_onboarding_progress(&repo);
@@ -1076,9 +1098,17 @@ async fn trigger_onboarding_inner(
         return Err(OnboardingError::AgentNotInstalled);
     }
 
-    // Build system prompt based on mode
-    let mode = if topic.is_some() { "partial" } else { "full" };
-    let system_prompt = build_onboarding_prompt(&topic);
+    // The onboarding agent supplies its own system prompt from its
+    // `@on_message` handler; in `ChatMode::Agent` the session `system_prompt`
+    // is not forwarded to the agent (see `session_to_task`), so we pass `None`
+    // rather than a second, divergent prompt.
+    let mode = if resume {
+        "resume"
+    } else if topic.is_some() {
+        "partial"
+    } else {
+        "full"
+    };
 
     // Create chat session via ChatSessionManager
     let manager = state
@@ -1090,7 +1120,7 @@ async fn trigger_onboarding_inner(
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
             mode: ChatMode::Agent,
             agent_name: Some(ONBOARDING_AGENT_NAME.to_string()),
-            system_prompt: Some(system_prompt),
+            system_prompt: None,
             tools: Vec::new(),
             project_id: None,
         })
@@ -1141,32 +1171,6 @@ async fn dismiss_onboarding_inner(state: &RuntimeHandle) -> Result<(), Onboardin
 
     tracing::info!("onboarding dismissed by user");
     Ok(())
-}
-
-/// Builds the system prompt for the onboarding agent.
-fn build_onboarding_prompt(topic: &Option<String>) -> String {
-    match topic {
-        Some(t) => format!(
-            "You are an onboarding assistant. Focus exclusively on the topic: {t}. \
-             Ask natural questions to learn about the user's {t}. \
-             Do not cover other topics.",
-        ),
-        None => String::from(
-            "You are an onboarding assistant for all professionals (not just developers). \
-             First, ALWAYS collect the user's name and role/profession - these are mandatory. \
-             Then cover ALL five topics naturally through conversation. \
-             You MUST cover every single topic before concluding - do not skip any:\n\
-             1. **identity** - name, role/profession, expertise, industry, goals\n\
-             2. **preferences** - communication style, response detail level, language\n\
-             3. **tools** - IDE, AI tools, project management, version control\n\
-             4. **domain** - sector, channels (LinkedIn, website…), current focus\n\
-             5. **agents** - what AI agents or automations they want to use, challenges they face with AI\n\n\
-             Ask questions one at a time. Be conversational, not rigid. \
-             Adapt your questions to the user's profession. \
-             IMPORTANT: Do NOT conclude the onboarding until you have gathered information on ALL five topics, \
-             especially 'agents' (what the user wants to automate or delegate to AI agents).",
-        ),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1562,13 +1566,23 @@ pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> 
 pub async fn setup_whisper_model(
     model_path: String,
     state: State<'_, RuntimeHandle>,
+    app: tauri::AppHandle,
+    stt_flow_state: State<'_, crate::commands::stt::SttFlowState>,
 ) -> Result<OnboardingState, String> {
-    setup_whisper_model_inner(model_path, &state)
+    let result = setup_whisper_model_inner(model_path, &state)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "setup_whisper_model failed");
             e.to_string()
-        })
+        })?;
+
+    // Hot-load the freshly-configured model so onboarding "Tester" and the
+    // dictation hotkey work immediately, without restarting the app.
+    if let Err(e) = crate::commands::stt::reload_stt_inner(&state, &app, &stt_flow_state).await {
+        tracing::warn!(error = %e, "whisper model configured but STT reload failed");
+    }
+
+    Ok(result)
 }
 
 async fn setup_whisper_model_inner(
@@ -2806,30 +2820,6 @@ mod tests {
     }
 
     #[test]
-    fn test_build_onboarding_prompt_full() {
-        // GIVEN no specific topic
-        let prompt = build_onboarding_prompt(&None);
-
-        // THEN the prompt mentions all 5 topics
-        for topic in &ONBOARDING_TOPICS {
-            assert!(
-                prompt.contains(topic),
-                "full prompt should mention topic: {topic}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_build_onboarding_prompt_partial() {
-        // GIVEN a specific topic
-        let prompt = build_onboarding_prompt(&Some("preferences".to_string()));
-
-        // THEN the prompt focuses on that topic
-        assert!(prompt.contains("preferences"));
-        assert!(prompt.contains("Focus exclusively"));
-    }
-
-    #[test]
     fn test_completion_pct_calculation() {
         // GIVEN 3 out of 5 topics covered
         let covered = 3_usize;
@@ -3078,17 +3068,24 @@ mod tests {
     }
 
     #[test]
-    fn test_trigger_onboarding_without_profile_is_retrocompatible() {
-        // GIVEN no profile (None)
-        // WHEN building the onboarding prompt without profile
-        let prompt = build_onboarding_prompt(&None);
-        // THEN the prompt covers all 5 generic topics (no profile-specific section)
-        for topic in &ONBOARDING_TOPICS {
-            assert!(
-                prompt.contains(topic),
-                "generic prompt must mention: {topic}"
-            );
-        }
+    fn test_topic_for_memory_key_maps_tier2_keys() {
+        // GIVEN the Tier 2 profile keys the onboarding agent now collects
+        // WHEN mapping each to an onboarding topic
+        // THEN every one resolves to a known topic (keeps completion_pct honest)
+        assert_eq!(topic_for_memory_key("user.goals"), Some("identity"));
+        assert_eq!(topic_for_memory_key("user.domain.sector"), Some("domain"));
+        assert_eq!(topic_for_memory_key("user.tech.proficiency"), Some("tools"));
+        assert_eq!(topic_for_memory_key("user.tech.stack"), Some("tools"));
+        assert_eq!(topic_for_memory_key("user.tools.daily"), Some("tools"));
+        assert_eq!(
+            topic_for_memory_key("user.preferences.language"),
+            Some("preferences")
+        );
+        assert_eq!(topic_for_memory_key("user.agents.domains"), Some("agents"));
+        assert_eq!(
+            topic_for_memory_key("user.constraints.compliance"),
+            Some("agents")
+        );
     }
 
     #[test]

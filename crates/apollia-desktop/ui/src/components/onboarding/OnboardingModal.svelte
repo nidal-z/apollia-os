@@ -23,6 +23,7 @@
   import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { t } from "svelte-i18n";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingProfileSelector from "./OnboardingProfileSelector.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
@@ -37,11 +38,11 @@
 
   type Step = "welcome" | "profile" | "ai-setup" | "chat";
 
-  const STEPS: { id: Step; label: string }[] = [
-    { id: "welcome", label: "Accueil" },
-    { id: "profile", label: "Profil" },
-    { id: "ai-setup", label: "Modèles" },
-    { id: "chat", label: "Calibrage" },
+  const STEPS: { id: Step; labelKey: string }[] = [
+    { id: "welcome", labelKey: "onboarding_modal.step_welcome" },
+    { id: "profile", labelKey: "onboarding_modal.step_profile" },
+    { id: "ai-setup", labelKey: "onboarding_modal.step_models" },
+    { id: "chat", labelKey: "onboarding_modal.step_calibration" },
   ];
 
   let currentStep = $state<Step>("welcome");
@@ -157,19 +158,19 @@
   >
     <header class="onboarding-card-header">
       <h2 id="onboarding-modal-title" class="onboarding-card-title">
-        Apollia - Premier contact
+        {$t("onboarding_modal.title")}
       </h2>
-      <ol class="onboarding-steps" aria-label="Progression de l'onboarding">
+      <ol class="onboarding-steps" aria-label={$t("onboarding_modal.progress_label")}>
         {#each STEPS as step, i (step.id)}
           <li
             class="onboarding-step"
             class:done={i < stepIndex}
             class:active={i === stepIndex}
             aria-current={i === stepIndex ? "step" : undefined}
-            title={step.label}
+            title={$t(step.labelKey)}
           >
             <span class="onboarding-step-dot">{i + 1}</span>
-            <span class="onboarding-step-label">{step.label}</span>
+            <span class="onboarding-step-label">{$t(step.labelKey)}</span>
           </li>
         {/each}
       </ol>

@@ -49,6 +49,8 @@ mod bundled;
 mod lifecycle;
 mod persistence;
 
+pub(crate) use persistence::resolve_home;
+
 pub use bootstrap::watch;
 
 #[cfg(test)]
@@ -264,16 +266,18 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when the open failed (warning logged, user memory disabled).
     pub user_memory:
         Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
-    /// Handle to the SttEngine actor (Phase 15).
+    /// Swappable handle to the SttEngine actor (Phase 15).
     ///
-    /// `Some` when `stt.enabled = true` and the model loaded successfully.
-    /// `None` when STT is disabled, the model is absent, or loading failed.
-    pub stt_engine: Option<crate::stt::SttEngineHandle>,
-    /// STT transcription repository for API routes.
+    /// Shares the same cell as [`AppState`](crate::api::AppState) so a
+    /// mid-session reload is visible to both the axum routes and the embedded
+    /// runtime handle. Holds `None` when STT is disabled, the model is absent,
+    /// or loading failed.
+    pub stt_engine: crate::api::server::SharedSttEngine,
+    /// Swappable STT transcription repository for API routes.
     ///
     /// Separate connection from the engine's internal repository (SQLite WAL
-    /// supports concurrent readers). `None` when STT is disabled.
-    pub stt_repository: Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// supports concurrent readers). Holds `None` when STT is disabled.
+    pub stt_repository: crate::api::server::SharedSttRepository,
     /// Handle to the MCP client manager actor (Phase 3b).
     ///
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.

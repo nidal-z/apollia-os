@@ -128,7 +128,12 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> RouteResult<SttStatusResponse> {
-    let engine = state.stt_engine.as_ref().ok_or_else(stt_unavailable)?;
+    let engine = state
+        .stt_engine
+        .read()
+        .await
+        .clone()
+        .ok_or_else(stt_unavailable)?;
 
     let status = engine.status().await.ok_or_else(|| {
         (
@@ -178,8 +183,18 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     mut multipart: Multipart,
 ) -> RouteResult<apollia_stt::TranscriptRow> {
-    let engine = state.stt_engine.as_ref().ok_or_else(stt_unavailable)?;
-    let repo = state.stt_repository.as_ref().ok_or_else(stt_unavailable)?;
+    let engine = state
+        .stt_engine
+        .read()
+        .await
+        .clone()
+        .ok_or_else(stt_unavailable)?;
+    let repo = state
+        .stt_repository
+        .read()
+        .await
+        .clone()
+        .ok_or_else(stt_unavailable)?;
 
     let mut audio_data: Option<Vec<u8>> = None;
     let mut language: Option<String> = None;
@@ -337,7 +352,12 @@ pub async fn list_transcriptions<B: ExecutionBackend + Clone + From<DynBackend>>
     State(state): State<AppState<B>>,
     Query(params): Query<ListTranscriptionsQuery>,
 ) -> RouteResult<TranscriptionsListResponse> {
-    let repo = state.stt_repository.as_ref().ok_or_else(stt_unavailable)?;
+    let repo = state
+        .stt_repository
+        .read()
+        .await
+        .clone()
+        .ok_or_else(stt_unavailable)?;
 
     let limit = params.limit.unwrap_or(50);
     let offset = params.offset.unwrap_or(0);
@@ -388,7 +408,12 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<SttErrorResponse>)> {
-    let repo = state.stt_repository.as_ref().ok_or_else(stt_unavailable)?;
+    let repo = state
+        .stt_repository
+        .read()
+        .await
+        .clone()
+        .ok_or_else(stt_unavailable)?;
 
     repo.lock()
         .map_err(|e| {
@@ -583,6 +608,91 @@ pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(updated)))
 }
 
+/// Response body for `POST /api/v1/stt/reload`.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct SttReloadResponse {
+    /// Whether an engine is loaded after the reload. `false` when STT is
+    /// disabled, the model file is absent, or the runner is unavailable.
+    pub loaded: bool,
+}
+
+/// `POST /api/v1/stt/reload`, rebuild the STT engine from persisted config.
+///
+/// Reads the current `stt_config` row from `system.db`, rebuilds the engine
+/// actor via [`build_stt_engine`](crate::stt::build_stt_engine), swaps it into
+/// the shared cell, and shuts the previous engine down. Lets a model enabled or
+/// downloaded mid-session come online without restarting the daemon. Idempotent:
+/// swaps in `None` when STT is disabled or the model is missing.
+#[utoipa::path(
+    post,
+    path = "/api/v1/stt/reload",
+    tag = "stt",
+    responses(
+        (status = 200, description = "STT engine reloaded", body = SttReloadResponse),
+        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
+    State(state): State<AppState<B>>,
+) -> RouteResult<SttReloadResponse> {
+    // Snapshot the persisted config, dropping the (!Send) lock guard before the
+    // async rebuild.
+    let cfg = {
+        let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(SttErrorResponse {
+                    error: "STT config repository not available".into(),
+                }),
+            )
+        })?;
+        let guard = repo.lock().map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(SttErrorResponse {
+                    error: format!("repository lock error: {e}"),
+                }),
+            )
+        })?;
+        guard.get_or_default().map_err(|e| {
+            tracing::error!(error = %e, "failed to read STT config from database");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(SttErrorResponse {
+                    error: format!("database error: {e}"),
+                }),
+            )
+        })?
+    };
+
+    let (engine, repository) = crate::stt::build_stt_engine(
+        &state.data_dir,
+        Some(&cfg),
+        state.runner_proxy.clone(),
+        &state.event_sender,
+    )
+    .await;
+    let loaded = engine.is_some();
+
+    // Swap the new engine/repository in, then shut the previous engine down
+    // outside the write guard so no reader observes a half-swapped state.
+    let previous = {
+        let mut engine_cell = state.stt_engine.write().await;
+        let mut repo_cell = state.stt_repository.write().await;
+        let old = engine_cell.take();
+        *engine_cell = engine;
+        *repo_cell = repository;
+        old
+    };
+    if let Some(old) = previous {
+        old.shutdown().await;
+    }
+
+    tracing::info!(loaded, "STT engine reloaded");
+    Ok((StatusCode::OK, Json(SttReloadResponse { loaded })))
+}
+
 // ── WAV decoding ────────────────────────────────────────────────────
 
 /// Decode a WAV byte buffer into f32 samples, returning (samples, sample_rate, channels).
@@ -687,8 +797,9 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
-            stt_engine: None,
-            stt_repository: None,
+            data_dir: std::path::PathBuf::new(),
+            stt_engine: crate::api::server::empty_shared_stt_engine(),
+            stt_repository: crate::api::server::empty_shared_stt_repository(),
             stt_config_repo: None,
             mcp_handle: None,
             mcp_server_repo: None,
@@ -725,7 +836,9 @@ mod tests {
             std::env::temp_dir().join(format!("apollia_stt_api_test_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let repo = apollia_stt::SttRepository::open(&dir.join("stt.db")).expect("open test repo");
-        state.stt_repository = Some(Arc::new(std::sync::Mutex::new(repo)));
+        state.stt_repository = crate::api::server::shared_stt_repository_from(Some(Arc::new(
+            std::sync::Mutex::new(repo),
+        )));
 
         Router::new()
             .route(

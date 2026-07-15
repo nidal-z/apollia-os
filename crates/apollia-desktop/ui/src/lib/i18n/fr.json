@@ -2609,6 +2609,12 @@
     "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": {
       "intro": "Enrichis ton profil progressivement. Plus Apollia te connaît, plus elle peut te proposer des automatisations pertinentes. Aucune donnée ne quitte ta machine.",
+      "enrichment": {
+        "title": "Complète ton profil",
+        "detail": "Quelques informations optionnelles aideraient tes agents. L'assistant peut reprendre là où tu t'es arrêté, sans perdre ce que tu as déjà partagé.",
+        "resume": "Continuer avec l'assistant",
+        "dismiss": "Plus tard"
+      },
       "sensitive_badge": "Sensible",
       "sensitive_notice": "Modifier ces choix n'ajuste pas tes règles de permissions automatiquement - relance l'onboarding pour que l'agent te propose les ajustements correspondants.",
       "source": {
@@ -2634,6 +2640,7 @@
         "agent_domains": "Domaines où vos agents travaillent en autonomie",
         "trigger": "Comment vos agents démarrent par défaut",
         "tools_daily": "Outils du quotidien (séparés par virgules)",
+        "tech_stack": "Stack technique",
         "proficiency": "Aisance avec l'outillage tech",
         "integrations": "Connecter Apollia à",
         "sovereignty": "Souveraineté des données",
@@ -2646,7 +2653,8 @@
         "role": "CTO, dev fullstack, ops…",
         "goals": "Ex. Automatiser ma veille concurrentielle et pré-traiter mes emails.",
         "agent_domains": "veille, email, reporting",
-        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…"
+        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…",
+        "tech_stack": "Python, TypeScript, React, Postgres…"
       },
       "sector": {
         "fintech": "Fintech",
@@ -2664,7 +2672,8 @@
       },
       "proficiency": {
         "debutant": "Débutant",
-        "a_laise": "À l'aise",
+        "intermediaire": "Intermédiaire",
+        "avance": "Avancé",
         "expert": "Expert"
       },
       "language": {
@@ -2700,6 +2709,7 @@
         "agent_domains": "Liste libre des domaines (veille, email, reporting…) où tu laisses tes agents agir sans validation manuelle, sous réserve du niveau de supervision ci-dessus.",
         "trigger": "Distinct du niveau de supervision : ceci définit <em>quand</em> un agent s'exécute, pas <em>si</em> il a besoin de ton approbation.",
         "tools_daily": "Liste libre - applications métier, IDE, outils de bureau, plateformes SaaS.",
+        "tech_stack": "Langages, frameworks et bases de données que tu utilises, pour que les agents collent à ton écosystème.",
         "proficiency": "Sert aux agents à doser le niveau d'explication technique (vocabulaire, détail des étapes).",
         "integrations": "Activer une intégration ouvre des permissions par défaut sur les API associées. Relance l'onboarding pour adapter les règles correspondantes."
       },
@@ -3953,7 +3963,22 @@
     "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud - l'agent en a besoin pour dialoguer.",
     "back_step": "← Étape précédente",
     "bootstrap": "Initialisation de l'agent…",
-    "bootstrap_failed": "Impossible de démarrer l'onboarding."
+    "bootstrap_failed": "Impossible de démarrer l'onboarding.",
+    "progress_label": "Progression de l'onboarding",
+    "phase_calibration": "Calibrage",
+    "phase_enrichment": "Profil",
+    "finish_early": "J'ai fini",
+    "finish_early_hint_calibration": "Vous pourrez conclure une fois les premières questions répondues.",
+    "finish_early_hint_enrichment": "Optionnel à partir d'ici, passez le reste quand vous voulez.",
+    "finish_early_message": "C'est bon pour moi, terminons."
+  },
+  "onboarding_modal": {
+    "title": "Apollia - Premier contact",
+    "progress_label": "Progression de l'onboarding",
+    "step_welcome": "Accueil",
+    "step_profile": "Profil",
+    "step_models": "Modèles",
+    "step_calibration": "Calibrage"
   },
   "onboarding_permissions": {
     "title": "Règles de permissions proposées",

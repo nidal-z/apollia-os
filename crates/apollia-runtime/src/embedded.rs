@@ -92,15 +92,17 @@ pub struct RuntimeHandle {
     /// `None` when the open failed (warning logged, user memory disabled).
     pub user_memory:
         Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
-    /// Handle to the SttEngine actor.
+    /// Swappable handle to the SttEngine actor.
     ///
-    /// `Some` when `stt.enabled = true` and the model loaded successfully.
-    /// `None` when STT is disabled, the model is absent, or loading failed.
-    pub stt_engine: Option<crate::stt::SttEngineHandle>,
-    /// STT transcription repository for API routes.
+    /// Shares the same cell as [`AppState`](crate::api::AppState), so the STT
+    /// reload command brings a model online mid-session for both the in-process
+    /// desktop readers and the axum routes. Holds `None` when STT is disabled,
+    /// the model is absent, or loading failed.
+    pub stt_engine: crate::api::server::SharedSttEngine,
+    /// Swappable STT transcription repository for API routes.
     ///
-    /// Separate connection for read operations. `None` when STT is disabled.
-    pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// Separate connection for read operations. Holds `None` when STT is disabled.
+    pub stt_repository: crate::api::server::SharedSttRepository,
     /// Project repository, manages per-project workspace contexts.
     ///
     /// `Some` when `projects.db` opened successfully on startup.

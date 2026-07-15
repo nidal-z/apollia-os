@@ -1,33 +1,42 @@
-"""onboarding-agent v2.2 - 4-turn calibration of new Apollia OS users.
+"""onboarding-agent v2.3 - two-phase calibration + profile enrichment.
 
-Drives a short conversation (≤ 4 turns / 3 questions, < 2 minutes) that
-captures the four Tier 1 facts required to finalize the onboarding:
+Drives a short conversation in two phases. Phase 1 (mandatory) captures the
+four Tier 1 facts required to calibrate the user's agents:
 
   user.name                         (first name, confidence=0.9)
   user.role                         (role, confidence=0.9)
   user.agents.hitl                  (always | critical-only | never)
   user.constraints.sovereignty      (local-only | local-preferred | cloud-ok)
 
-Once the four are collected, the agent writes the meta keys in this strict
-order (the desktop watches ``onboarding.completed_at``):
+Phase 2 (optional, skippable) enriches the profile with the Tier 2 keys
+(goals, sector, tech proficiency, daily tools, stack, integrations, compliance,
+language, preferred LLM, agent domains + trigger). Every Tier 2 field is
+optional: the user may skip any of them, and closed-vocabulary values
+(proficiency, language) are mapped to their canonical option.
 
-  1. Tier 1 keys (turn-by-turn, immediate)
+Closure is *decoupled* from Tier 1 completion: the agent finalizes only when
+Tier 1 is complete AND it emits a [PROFILE ...] tag (its explicit end-of-flow
+signal), so the conversation continues into Phase 2 instead of closing the
+moment Tier 1 is done. At closure the meta keys are written in strict order
+(the desktop watches ``onboarding.completed_at``):
+
+  1. Tier 1 + Tier 2 keys (turn-by-turn, immediate)
   2. onboarding.profile_type        (operator | builder, inferred from role)
-  3. onboarding.version             ("2.0")
+  3. onboarding.version             (ONBOARDING_VERSION)
   4. onboarding.suggested_agents    (JSON list)
   5. onboarding.completed_at        (ISO 8601, LAST - desktop signal)
 
-If user.name OR user.role is missing at the end, NO completion key is written
-and the conversation closes with: "We can resume from Settings whenever
-you like."
+If user.name OR user.role is missing, NO completion key is written and the
+conversation closes with: "We can resume from Settings whenever you like."
 
 Tags emitted by the LLM and parsed by this module:
   [REMEMBER key=value]   explicit fact, confidence 0.9
   [INFER    key=value]   inference, confidence 0.6 - confirm next turn
-  [PROFILE  operator]    profile decision (operator | builder)
+  [PROFILE  operator]    profile decision (operator | builder), final message
   [SUGGEST  <slug>]      demo agent recommendation (one slug per tag)
 
 SDK signatures used:
+  ctx.profile.get(key) -> str | None   ctx.profile.set(key=..., value=...)
   ctx.memory.remember(key, value, source=None, confidence=1.0)
   ctx.memory.recall(key) -> str | None
   ctx.llm.complete(messages) -> LlmResponse(.content)
@@ -52,7 +61,7 @@ _logger = logging.getLogger("onboarding-agent")
 # ---------------------------------------------------------------------------
 
 MEMORY_SOURCE: str = "onboarding"
-ONBOARDING_VERSION: str = "2.2"
+ONBOARDING_VERSION: str = "2.3"
 
 # The agent proposes the permission rules that match the collected profile
 # preferences, through the HITL-gated native tools `permission_rule_add` /
@@ -112,6 +121,58 @@ INJECTION_PATTERNS: tuple[str, ...] = (
 
 VALID_HITL = {"always", "critical-only", "never"}
 VALID_SOVEREIGNTY = {"local-only", "local-preferred", "cloud-ok"}
+VALID_PROFICIENCY = {"debutant", "intermediaire", "avance", "expert"}
+VALID_LANGUAGE = {"fr", "en"}
+
+# Tier 2 profile keys, in the order the agent offers them (high-value first).
+# These are all optional: the user may skip any of them. They map 1:1 to the
+# canonical flat keys declared in `apollia_memory::profile_schema::PROFILE_SCHEMA`
+# (the `user.` prefix is stripped on write by `ctx.profile`).
+TIER2_KEYS: tuple[str, ...] = (
+    "user.goals",
+    "user.domain.sector",
+    "user.tech.proficiency",
+    "user.tools.daily",
+    "user.domain.team_size",
+    "user.tech.stack",
+    "user.tech.integrations",
+    "user.constraints.compliance",
+    "user.preferences.language",
+    "user.preferences.llm",
+    "user.agents.domains",
+    "user.agents.trigger",
+)
+
+# Tier 2 keys that carry sensitive data. The agent confirms the understood value
+# with the user (via [INFER] then a rephrase) before writing, exactly like the
+# Tier 1 sensitive keys.
+SENSITIVE_TIER2_KEYS: frozenset[str] = frozenset(
+    {"user.tech.integrations", "user.constraints.compliance"}
+)
+
+# Short, English hint injected into the runtime progress note so the model knows
+# what each remaining Tier 2 key is about without bloating the static prompt.
+TIER2_LABELS: dict[str, str] = {
+    "user.goals": "what they want to accomplish with Apollia",
+    "user.domain.sector": "their industry / field",
+    "user.tech.proficiency": (
+        "technical comfort, mapped to debutant | intermediaire | avance | expert"
+    ),
+    "user.tools.daily": "the tools they use daily",
+    "user.domain.team_size": "team size (solo, small team, larger org)",
+    "user.tech.stack": "their technical stack (languages, frameworks)",
+    "user.tech.integrations": (
+        "SENSITIVE: services to connect (e.g. github, slack, notion, gmail); "
+        "confirm before writing"
+    ),
+    "user.constraints.compliance": (
+        "SENSITIVE: compliance constraints (e.g. RGPD, HIPAA); confirm before writing"
+    ),
+    "user.preferences.language": "preferred language, mapped to fr | en",
+    "user.preferences.llm": "preferred LLM model, if any",
+    "user.agents.domains": "the domains where agents would help",
+    "user.agents.trigger": "how agents should be triggered (manual, scheduled...)",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -120,95 +181,111 @@ VALID_SOVEREIGNTY = {"local-only", "local-preferred", "cloud-ok"}
 
 SYSTEM_PROMPT = """\
 You are the onboarding agent for Apollia OS, a local-first runtime for \
-autonomous AI agents. Your job: calibrate the user's agents in 3 questions \
-(about 4 turns), in under 2 minutes. You MUST follow the flow below exactly.
+autonomous AI agents. Your job: calibrate the user's agents and build a useful \
+profile through a short, natural conversation. Two phases: first a mandatory \
+calibration (4 keys), then an optional profile enrichment. Keep it under a few \
+minutes and follow the flow below.
 
 ## Communication rules
 
 - Respond in the user's language, detected from their messages.
-- Keep each message under 100 words. One topic, one question per turn.
-- No numbered lists of questions, no "and also...".
-- Warm, direct tone, no flattery or empty phrases.
+- Keep each message under 100 words. One topic, at most one or two questions \
+per turn.
+- No long numbered lists. Warm, direct tone, no flattery or empty phrases.
+- The user may skip any OPTIONAL question. If they decline or say \
+"skip"/"pass"/"later", accept it at once, never re-ask, and move on.
+- Never claim to have collected a value the user did not actually give you, \
+and never invent a value.
 
-## Advancement rule (CRITICAL)
+## Phase 1, calibration (MANDATORY)
 
-You may NEVER close onboarding until all of these keys are collected:
-  - `user.name` (Turn 1)
-  - `user.role` (Turn 1)
-  - `user.agents.hitl` (Turn 2)
-  - `user.constraints.sovereignty` (Turn 3)
+Collect these four keys, in order, one topic per turn:
+  - `user.name` and `user.role` (first turn)
+  - `user.agents.hitl` (supervision)
+  - `user.constraints.sovereignty` (data sovereignty)
+You may NEVER move to closure while any of these four is missing. The runtime \
+progress note tells you which key is next; ask exactly that one.
 
-At each turn, look at the history and find the next missing key. Ask the \
-question for that key. Only when all keys are collected, move to Turn 4 \
-(closure). Never claim to have collected a value the user did not give you.
-
-## Strict flow, 4 turns
-
-### Turn 1, welcome + identity (first message)
-Open with this exact hook, phrased in the user's language:
-"I'll ask you 3 quick questions to calibrate your agents. Your answers can be \
-changed at any time from Settings."
-Then immediately ask one open question for first name + role (e.g. "To start, \
-your first name and what you do day to day?").
-When the user answers, emit at the end of your next message:
+First turn opening hook, phrased in the user's language:
+"I'll ask a few quick questions to calibrate your agents. You can change or \
+complete anything later from Settings."
+Then ask one open question for first name + role.
   [REMEMBER user.name=First name]
   [REMEMBER user.role=short role description]
 
-### Turn 2, agent supervision
-Prerequisite: `user.name` and `user.role` collected.
-Exact question:
+Supervision question:
 "When an agent is about to send an email or change a file, do you prefer to \
-(1) always approve, (2) approve only critical actions, or (3) let the agent \
-act autonomously?"
-Map the answer to a single value:
-  (1) -> always · (2) -> critical-only · (3) -> never
-Emit: [REMEMBER user.agents.hitl=always|critical-only|never]
+(1) always approve, (2) approve only critical actions, or (3) let it act \
+autonomously?"
+Map: (1) always · (2) critical-only · (3) never
+  [REMEMBER user.agents.hitl=always|critical-only|never]
 
-### Turn 3, data sovereignty (DO NOT SKIP)
-Prerequisite: `user.agents.hitl` collected.
-You MUST ask this before closing, even if the user answered the previous \
-question briefly. Exact question:
+Data sovereignty question (ask even if the user was brief):
 "Can your agents use cloud APIs (OpenAI, Anthropic...), or must everything \
 stay on your machine? (local only / local preferred / cloud OK)"
-Map to:
-  local only -> local-only · local preferred -> local-preferred · \
+Map: local only -> local-only · local preferred -> local-preferred · \
 cloud OK -> cloud-ok
-Emit: [REMEMBER user.constraints.sovereignty=local-only|local-preferred|cloud-ok]
+  [REMEMBER user.constraints.sovereignty=local-only|local-preferred|cloud-ok]
 
-### Turn 4, closure (ONLY if all 4 keys are present)
-First check that `user.name`, `user.role`, `user.agents.hitl` AND \
-`user.constraints.sovereignty` were all given by the user in the previous \
-turns. If even one is missing, do NOT close: re-ask that question instead.
+## Phase 2, profile enrichment (OPTIONAL, skippable)
 
-If all 4 keys are collected:
+Once the four calibration keys are collected, keep the conversation going to \
+build a richer profile that helps tailor the user's agents. Say once that these \
+are optional ("A few optional questions to tailor your agents, skip any you \
+like."), then offer the topics below, the most useful first, one or two per \
+turn. The runtime progress note lists which keys remain and what each means; \
+lean on it. Stop as soon as the user wants to.
+
+High value first: goals, industry/sector, technical comfort, daily tools. \
+Then: team size, tech stack, integrations to connect, compliance needs, \
+preferred language, preferred LLM, agent domains, how agents should trigger.
+
+For each answer, emit a tag with the matching key, e.g.:
+  [REMEMBER user.goals=...]
+  [REMEMBER user.domain.sector=...]
+  [REMEMBER user.tools.daily=...]
+Closed-vocabulary keys MUST be mapped to a canonical value:
+  - `user.tech.proficiency` -> one of: debutant | intermediaire | avance | expert
+  - `user.preferences.language` -> one of: fr | en
+
+## Sensitive fields (confirm before writing)
+
+`user.tech.integrations` and `user.constraints.compliance` are sensitive. Do \
+not write them straight away: first restate what you understood as an \
+inference and ask the user to confirm.
+  Turn A: [INFER user.tech.integrations=github, slack] + "So you'd connect \
+GitHub and Slack, correct?"
+  Turn B (after confirmation): [REMEMBER user.tech.integrations=github, slack]
+
+## Closure (ONLY when calibration is done AND enrichment is finished)
+
+Close when the four calibration keys are collected AND either you have gone \
+through the optional topics or the user asked to stop. To close:
   - Summarize in 2 sentences what you understood.
-  - Emit [PROFILE operator] or [PROFILE builder] (see profiling rule).
-  - Point the user to the agent catalog to discover and install agents that \
-fit their profile (for example: "Browse the available agents in /agents.").
-  - Briefly mention that you will apply the permission rules matching their \
-preferences and that they will see a confirmation for each. No need to \
-enumerate the rules.
-  - End with a short orientation sentence.
+  - Emit [PROFILE operator] or [PROFILE builder] (see profiling rule). Emit \
+this tag ONLY in the final closing message, never earlier: it ends onboarding.
+  - Point the user to the agent catalog (e.g. "Browse the available agents in \
+/agents.").
+  - Briefly mention that permission rules matching their preferences will be \
+applied with a confirmation for each. No need to enumerate them.
+If `user.name` or `user.role` is still missing, do NOT close: re-ask instead, \
+end with "We can resume from Settings whenever you like.", and emit no closure \
+tag.
 
-If `user.name` or `user.role` is still missing after trying to re-collect \
-them:
-  - End with: "We can resume from Settings whenever you like."
-  - Emit NO closure tag.
-
-### Permission application (post-Turn 4, transparent)
+### Permission application (post-closure, transparent)
 
 After your closing message, the runtime automatically applies the permission \
 rules matching the collected preferences through HITL-gated \
 `permission_rule_add` calls. The user confirms each rule in a dialog. You do \
-not need to emit these calls in your message; the finalization code triggers \
-them.
+not need to emit these calls; the finalization code triggers them.
 
 ## Tags
 
 Strict format, at the end of the message only:
-  [REMEMBER key=value]   explicit fact (confidence 0.9)
-  [INFER    key=value]   inference (confidence 0.6), confirm next turn
-  [PROFILE  operator]    or [PROFILE builder]
+  [REMEMBER key=value]   explicit fact the user gave (confidence 0.9)
+  [INFER    key=value]   inference to confirm next turn (confidence 0.6)
+  [PROFILE  operator]    or [PROFILE builder]  (final message only)
+  [SUGGEST  agent-slug]  optional agent suggestion
 
 Never emit a tag for a key the user did not actually provide. Do not invent a \
 key outside the schema.
@@ -231,9 +308,9 @@ it and move to the next question.
 
 ## Inference confirmation
 
-If you use [INFER] for an important fact (HITL, sovereignty), rephrase it the \
-next turn ("So if I understand: you prefer X, is that right?") before moving \
-to [REMEMBER].
+If you use [INFER] for an important fact (HITL, sovereignty, or any sensitive \
+field), rephrase it the next turn ("So if I understand: you prefer X, is that \
+right?") before moving to [REMEMBER].
 """
 
 
@@ -312,6 +389,50 @@ def _value_passes_guards(key: str, value: str) -> bool:
     if _is_suspicious_value(value):
         return False
     return True
+
+
+def _normalise_select_value(key: str, value: str) -> str | None:
+    """Map a closed-vocabulary value to its canonical option, else ``None``.
+
+    Keys with a fixed option set (hitl, sovereignty, proficiency, language)
+    must store exactly one canonical token. The model is asked to emit the
+    canonical value directly; this is a safety net that also maps the most
+    common synonyms. Free-text keys pass through unchanged (casing preserved).
+    """
+    canonical = value.strip().lower()
+    if key == "user.agents.hitl":
+        return canonical if canonical in VALID_HITL else None
+    if key == "user.constraints.sovereignty":
+        return canonical if canonical in VALID_SOVEREIGNTY else None
+    if key == "user.tech.proficiency":
+        synonyms = {
+            "beginner": "debutant",
+            "novice": "debutant",
+            "débutant": "debutant",
+            "debutante": "debutant",
+            "intermediate": "intermediaire",
+            "intermédiaire": "intermediaire",
+            "moyen": "intermediaire",
+            "advanced": "avance",
+            "avancé": "avance",
+            "confirmé": "avance",
+            "confirme": "avance",
+        }
+        mapped = synonyms.get(canonical, canonical)
+        return mapped if mapped in VALID_PROFICIENCY else None
+    if key == "user.preferences.language":
+        synonyms = {
+            "french": "fr",
+            "français": "fr",
+            "francais": "fr",
+            "fr": "fr",
+            "english": "en",
+            "anglais": "en",
+            "en": "en",
+        }
+        mapped = synonyms.get(canonical)
+        return mapped if mapped in VALID_LANGUAGE else None
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +582,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
     Small local models routinely fail to emit a clean
     ``[REMEMBER user.agents.hitl=critical-only]`` tag - they parrot the
     user's own words ("local par défaut", "actions critiques") inside
-    the tag, which the guard in ``converse`` rejects as out of vocabulary.
+    the tag, which the guard in ``chat`` rejects as out of vocabulary.
     Without this fallback the agent would loop on the same question.
 
     The matching is intentionally permissive: order from most specific
@@ -575,41 +696,54 @@ async def _build_progress_note(ctx: Any) -> str:
     local models on rails - they are unreliable at multi-step planning,
     but very reliable at executing an explicit instruction.
     """
-    collected: list[str] = []
-    missing: list[str] = []
-    for key in TIER1_KEYS:
+    async def _has(key: str) -> bool:
         try:
             if key.startswith("user."):
-                value = await ctx.profile.get(key)
-            else:
-                value = await ctx.memory.recall(key)
+                return bool(await ctx.profile.get(key))
+            return bool(await ctx.memory.recall(key))
         except Exception:
-            value = None
-        if value:
-            collected.append(key)
-        else:
-            missing.append(key)
+            return False
 
-    if not missing:
+    tier1_missing = [key for key in TIER1_KEYS if not await _has(key)]
+
+    # Phase 1: calibration incomplete -> stay on rails, ask the next key and
+    # forbid closure. Kept bilingual on purpose: the hard guard reads more
+    # reliably to small local models when stated in the user's own language.
+    if tier1_missing:
+        next_key = tier1_missing[0]
+        instruction = _NEXT_QUESTION.get(next_key, "")
+        collected = [key for key in TIER1_KEYS if key not in tier1_missing]
+        collected_str = ", ".join(collected) if collected else "none"
+        missing_str = ", ".join(tier1_missing)
         return (
-            "INTERNAL STATE: all required keys are collected: "
-            f"{', '.join(collected)}. You may now move to Turn 4 "
-            "(closure): a 2-sentence summary, [PROFILE ...], point the user to "
-            "the agent catalog, then end with an orientation sentence such as "
-            "\"You can now open /agents.\"."
+            f"ÉTAT INTERNE - clés déjà collectées : {collected_str}. "
+            f"Clés encore manquantes : {missing_str}. "
+            f"Action attendue : {instruction} "
+            "INTERDIT de clore l'onboarding tant que les 4 clés "
+            "(user.name, user.role, user.agents.hitl, "
+            "user.constraints.sovereignty) ne sont pas TOUTES collectées."
         )
 
-    next_key = missing[0]
-    instruction = _NEXT_QUESTION.get(next_key, "")
-    collected_str = ", ".join(collected) if collected else "none"
-    missing_str = ", ".join(missing)
+    # Phase 2: calibration done -> optional Tier 2 enrichment.
+    tier2_missing = [key for key in TIER2_KEYS if not await _has(key)]
+    if not tier2_missing:
+        return (
+            "INTERNAL STATE: calibration is complete and every optional profile "
+            "field is collected. You may now CLOSE: a 2-sentence summary, then "
+            "[PROFILE operator] or [PROFILE builder], and point the user to "
+            "/agents. Emit the [PROFILE ...] tag ONLY now."
+        )
+
+    up_next = tier2_missing[:2]
+    topics = "; ".join(f"{key} ({TIER2_LABELS.get(key, '')})" for key in up_next)
     return (
-        f"ÉTAT INTERNE - clés déjà collectées : {collected_str}. "
-        f"Clés encore manquantes : {missing_str}. "
-        f"Action attendue : {instruction} "
-        "INTERDIT de clore l'onboarding tant que les 4 clés "
-        "(user.name, user.role, user.agents.hitl, "
-        "user.constraints.sovereignty) ne sont pas TOUTES collectées."
+        "INTERNAL STATE: calibration is complete. Now run the OPTIONAL profile "
+        "enrichment. Offer the next topic(s): " + topics + ". These are "
+        "optional: if the user skips or asks to stop, accept it and close. Do "
+        "NOT emit [PROFILE ...] yet - keep enriching until the optional topics "
+        "are exhausted or the user asks to stop. user.tech.integrations and "
+        "user.constraints.compliance are sensitive: confirm with [INFER] before "
+        "[REMEMBER]."
     )
 
 
@@ -657,7 +791,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
 
     sovereignty = await ctx.profile.get("user.constraints.sovereignty")
     hitl = await ctx.profile.get("user.agents.hitl")
-    integrations_raw = await ctx.profile.get("user.tools.integrations") or ""
+    integrations_raw = await ctx.profile.get("user.tech.integrations") or ""
     integrations = {
         item.strip().lower()
         for item in integrations_raw.split(",")
@@ -886,15 +1020,20 @@ class OnboardingAgent:
             for key, value in explicit_pairs:
                 if not _value_passes_guards(key, value):
                     continue
-                if key == "user.agents.hitl" and value not in VALID_HITL:
+                # Closed-vocabulary keys (hitl, sovereignty, proficiency,
+                # language) are mapped to their canonical token; an unmappable
+                # value is dropped rather than stored raw.
+                normalised = _normalise_select_value(key, value)
+                if normalised is None:
                     continue
-                if key == "user.constraints.sovereignty" and value not in VALID_SOVEREIGNTY:
-                    continue
-                await _remember(ctx, key, value, explicit=True)
+                await _remember(ctx, key, normalised, explicit=True)
             for key, value in inferred_pairs:
                 if not _value_passes_guards(key, value):
                     continue
-                await _remember(ctx, key, value, explicit=False)
+                normalised = _normalise_select_value(key, value)
+                if normalised is None:
+                    continue
+                await _remember(ctx, key, normalised, explicit=False)
 
             # --- Fallback: heuristic recovery from user text ----------------
             # When the LLM omitted (or mangled) the [REMEMBER] tag for a
@@ -916,12 +1055,18 @@ class OnboardingAgent:
                     await _remember(ctx, key, recovered, explicit=False)
 
             # --- Conditional finalize ---------------------------------------
-            # Finalize only when the FULL Tier 1 set is collected - otherwise
-            # we'd write ``onboarding.completed_at`` after just the identity
-            # turn, locking in suggested_agents and permission proposals on a
-            # half-empty profile (cf. v2.2 fix).
+            # Finalize only at *true closure*: the full Tier 1 set is collected
+            # AND the agent emitted a [PROFILE ...] tag this turn. The prompt
+            # emits [PROFILE ...] only in the final closing message, so the
+            # conversation continues into the optional Tier 2 enrichment instead
+            # of closing the moment Tier 1 is done. This writes
+            # ``onboarding.completed_at`` LAST (the desktop completion signal).
             already_done = await ctx.memory.recall("onboarding.completed_at")
-            if not already_done and await _all_keys_present(ctx, FINALIZE_KEYS):
+            if (
+                not already_done
+                and profile_hint is not None
+                and await _all_keys_present(ctx, FINALIZE_KEYS)
+            ):
                 await _finalize(ctx, profile_hint, suggested_hint)
 
         # --- Premature-closure override --------------------------------------

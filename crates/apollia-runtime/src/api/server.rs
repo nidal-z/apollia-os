@@ -63,6 +63,44 @@ pub fn shared_llm_router_from(initial: Option<Arc<LlmRouter>>) -> SharedLlmRoute
     Arc::new(RwLock::new(initial))
 }
 
+/// Shared, swappable handle to the active STT engine actor.
+///
+/// Mirrors [`SharedLlmRouter`]: readers snapshot the handle under a read-lock,
+/// the `POST /api/v1/stt/reload` route swaps a freshly-built engine in under a
+/// write-lock. `None` means STT is not currently loaded (disabled, no model, or
+/// runner unavailable). The same cell is shared by [`AppState`] and the embedded
+/// runtime handle, so a mid-session reload is visible to every reader.
+pub type SharedSttEngine = Arc<RwLock<Option<crate::stt::SttEngineHandle>>>;
+
+/// Shared, swappable API-side STT transcription repository.
+///
+/// Rebuilt alongside [`SharedSttEngine`] so the transcription history endpoints
+/// come online when a model is enabled mid-session.
+pub type SharedSttRepository =
+    Arc<RwLock<Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>>>;
+
+/// Build an empty [`SharedSttEngine`] for tests and "no STT" boot paths.
+pub fn empty_shared_stt_engine() -> SharedSttEngine {
+    Arc::new(RwLock::new(None))
+}
+
+/// Build a [`SharedSttEngine`] pre-loaded with an engine (or `None` if absent).
+pub fn shared_stt_engine_from(initial: Option<crate::stt::SttEngineHandle>) -> SharedSttEngine {
+    Arc::new(RwLock::new(initial))
+}
+
+/// Build an empty [`SharedSttRepository`] for tests and "no STT" boot paths.
+pub fn empty_shared_stt_repository() -> SharedSttRepository {
+    Arc::new(RwLock::new(None))
+}
+
+/// Build a [`SharedSttRepository`] pre-loaded with a repository (or `None`).
+pub fn shared_stt_repository_from(
+    initial: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+) -> SharedSttRepository {
+    Arc::new(RwLock::new(initial))
+}
+
 /// Shared application state injected into all routes.
 ///
 /// Contains handles to the runtime actors. Passed to axum via `with_state()`.
@@ -184,16 +222,21 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` after the Supervisor opens `user_memory.db` on startup.
     /// `None` in tests or when user memory is not configured.
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    /// Handle to the STT engine actor.
+    /// Swappable handle to the STT engine actor.
     ///
-    /// `Some` after Phase 14 of the Supervisor startup when `stt.enabled = true`.
-    /// `None` in tests or when STT is disabled. Routes return 503 when `None`.
-    pub stt_engine: Option<crate::stt::SttEngineHandle>,
-    /// STT transcription repository, persists transcription history.
+    /// Holds `Some` after Phase 15 of the Supervisor startup when
+    /// `stt.enabled = true`; `None` in tests or when STT is disabled. Routes
+    /// return 503 when `None`. The `POST /api/v1/stt/reload` route swaps a
+    /// freshly-built engine in without restarting the daemon.
+    pub stt_engine: SharedSttEngine,
+    /// Swappable STT transcription repository, persists transcription history.
     ///
-    /// `Some` when the STT subsystem is initialized.
-    /// `None` in tests or when STT is disabled.
-    pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// Rebuilt alongside [`SharedSttEngine`]; `None` in tests or when STT is
+    /// disabled.
+    pub stt_repository: SharedSttRepository,
+    /// Runtime data directory (`~/.apollia`), used by the STT reload route to
+    /// locate `stt_transcriptions.db` when rebuilding the engine.
+    pub data_dir: PathBuf,
     /// Handle to the MCP client manager actor.
     ///
     /// `Some` when at least one MCP server is configured in `mcp.db` and connected.
@@ -275,6 +318,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             user_memory: self.user_memory.clone(),
             stt_engine: self.stt_engine.clone(),
             stt_repository: self.stt_repository.clone(),
+            data_dir: self.data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
             mcp_server_repo: self.mcp_server_repo.clone(),
             llm_backend_repo: self.llm_backend_repo.clone(),
@@ -495,8 +539,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_review::post_review;
     use super::routes_sse::stream_task;
     use super::routes_stt::{
-        delete_transcription, get_stt_config, list_models, list_transcriptions, stt_status,
-        transcribe_audio, update_stt_config,
+        delete_transcription, get_stt_config, list_models, list_transcriptions, reload_stt_engine,
+        stt_status, transcribe_audio, update_stt_config,
     };
     use super::routes_tasks::{
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
@@ -661,6 +705,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/stt/config",
             get(get_stt_config::<B>).put(update_stt_config::<B>),
         )
+        .route("/api/v1/stt/reload", post(reload_stt_engine::<B>))
         // MCP routes
         .merge(mcp_router::<B>())
         .with_state(state)
@@ -1033,8 +1078,9 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
-            stt_engine: None,
-            stt_repository: None,
+            data_dir: std::path::PathBuf::new(),
+            stt_engine: crate::api::server::empty_shared_stt_engine(),
+            stt_repository: crate::api::server::empty_shared_stt_repository(),
             mcp_handle: None,
             mcp_server_repo: None,
             llm_backend_repo: None,

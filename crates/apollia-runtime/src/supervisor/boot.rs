@@ -352,6 +352,12 @@ impl Supervisor {
         let (stt_engine, stt_repository) = self
             .start_stt_engine(stt_cfg.as_ref(), &runner_supervisor, &event_sender)
             .await;
+        // Wrap the boot snapshot in shared, swappable cells so the STT reload
+        // route (and the desktop reload command) can bring a model online
+        // mid-session without restarting the daemon. AppState and the embedded
+        // runtime handle share the same cells, so a swap is seen by every reader.
+        let shared_stt_engine = crate::api::server::shared_stt_engine_from(stt_engine);
+        let shared_stt_repository = crate::api::server::shared_stt_repository_from(stt_repository);
 
         // Clone handles before moving into AppState, needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();
@@ -388,8 +394,9 @@ impl Supervisor {
             plan_cache: plan_cache.clone(),
             mailbox_handle: Some(mailbox_handle.clone()),
             user_memory: user_memory.clone(),
-            stt_engine: stt_engine.clone(),
-            stt_repository: stt_repository.clone(),
+            stt_engine: shared_stt_engine.clone(),
+            stt_repository: shared_stt_repository.clone(),
+            data_dir: self.config.data_dir.clone(),
             stt_config_repo: stt_config_repo.clone(),
             mcp_handle: mcp_handle.clone(),
             mcp_server_repo: mcp_server_repo.clone(),
@@ -511,8 +518,8 @@ impl Supervisor {
             plan_cache,
             mailbox_handle: Some(mailbox_handle),
             user_memory,
-            stt_engine,
-            stt_repository,
+            stt_engine: shared_stt_engine,
+            stt_repository: shared_stt_repository,
             mcp_handle,
             project_repository,
             runner_supervisor,

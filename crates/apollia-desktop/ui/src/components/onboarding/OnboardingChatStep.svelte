@@ -3,11 +3,13 @@
    * Onboarding step 4 - Agent chat.
    *
    * Final step of the onboarding flow. Spawns an `onboarding-agent` chat
-   * session and renders the conversation in the modal. The agent collects
-   * the four mandatory facts (`user.name`, `user.role`, `user.agents.hitl`,
-   * `user.constraints.sovereignty`) over ~4 turns, then writes
-   * `onboarding.completed_at` which the supervisor turns into the
-   * `OnboardingCompleted` runtime event (handled by the parent modal).
+   * session and renders the conversation in the modal. The agent first
+   * collects the four mandatory facts (`user.name`, `user.role`,
+   * `user.agents.hitl`, `user.constraints.sovereignty`), then runs an optional
+   * profile enrichment (Tier 2). It writes `onboarding.completed_at` at
+   * closure, which the supervisor turns into the `OnboardingCompleted` runtime
+   * event (handled by the parent modal). The user can end early via the
+   * explicit "finish" button, which nudges the agent to close.
    *
    * Safety net: if no LLM backend is registered when this step mounts
    * (e.g. the user skipped AI Setup), we surface the situation explicitly
@@ -19,8 +21,10 @@
   import ChatConversation from "../chat/ChatConversation.svelte";
   import OnboardingPermissionStep from "./OnboardingPermissionStep.svelte";
   import type { ChatSessionDetail, TriggerResult } from "$lib/types";
+  import { get } from "svelte/store";
   import { llmBackends } from "$lib/stores/sse";
   import { onboardingTourActive } from "$lib/stores/tour";
+  import { onboardingResumeMode } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
   import { AlertCircle, CheckCircle2 } from "lucide-svelte";
 
@@ -40,9 +44,10 @@
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let bootstrapStarted = false;
 
-  // Visual progress bar : the wizard advertises "4 tours" (Q1, Q2, Q3,
-  // closure). It's a UI hint, NOT a completion criterion.
-  const TOTAL_TURNS = 4;
+  // Visual progress bar. The flow now has two phases: a mandatory 3-question
+  // calibration, then an optional profile enrichment (~a handful of turns).
+  // It's a UI hint, NOT a completion criterion.
+  const TOTAL_TURNS = 8;
   // The first user message is the auto-kick "Bonjour !" injected by this
   // component to prime the agent. We don't count it when judging whether
   // the user has actually engaged.
@@ -52,15 +57,17 @@
   // state from a previous broken session triggering the wrap-up panel
   // before the conversation has even started.
   const MIN_REAL_REPLIES = 2;
-  // Safety net: how many real replies the user has to type before we let
-  // the wrap-up panel appear *without* the agent's authoritative
-  // `onboarding.completed_at` signal. The 3 structured questions need 3
-  // real replies; we wait for one extra (4) so the agent has had a chance
-  // to either finalize or retry a missed answer. Without this slack,
-  // hitting `TOTAL_TURNS` (which counts the kick) would surface the
-  // wrap-up the very moment the user answered Q3, even if the agent is
-  // still processing their reply.
-  const SAFETY_REPLIES = 4;
+  // Number of real replies after which calibration (name/role/hitl/
+  // sovereignty) is complete and the conversation has moved into the
+  // optional Tier 2 enrichment phase.
+  const CALIBRATION_REPLIES = 3;
+  // Safety net: how many real replies the user types before we let the
+  // wrap-up panel appear *without* the agent's authoritative
+  // `onboarding.completed_at` signal. Deliberately generous now that the
+  // conversation runs through the optional enrichment: the real exits are
+  // the agent's [PROFILE] closure and the explicit "finish" button, so this
+  // backstop should almost never fire before either.
+  const SAFETY_REPLIES = 12;
 
   const turnIndex = $derived(Math.min(userTurns, TOTAL_TURNS));
   const realReplies = $derived(Math.max(0, userTurns - KICK_MESSAGES));
@@ -68,6 +75,32 @@
     (agentFinalized && realReplies >= MIN_REAL_REPLIES) || realReplies >= SAFETY_REPLIES,
   );
   const llmReady = $derived($llmBackends.length > 0);
+
+  // Phase caption + explicit early-finish. Calibration first, then optional
+  // enrichment. The user can end at any time once calibration is under way;
+  // the agent will still refuse to close before name + role are collected.
+  const enrichmentPhase = $derived(realReplies >= CALIBRATION_REPLIES);
+  let finishing = $state(false);
+  const canFinishEarly = $derived(
+    sessionId !== null && !completed && !bootstrapping && realReplies >= MIN_REAL_REPLIES,
+  );
+
+  async function finishEarly(): Promise<void> {
+    if (!sessionId || finishing) return;
+    finishing = true;
+    try {
+      // Nudge the agent to wrap up. It closes with [PROFILE] once the
+      // mandatory keys are present, which writes `onboarding.completed_at`.
+      await invoke("send_chat_message", {
+        sessionId,
+        content: $t("onboarding_chat.finish_early_message"),
+      });
+    } catch {
+      // Non-fatal: the agent may still close on a later turn.
+    } finally {
+      finishing = false;
+    }
+  }
 
   // Permissions step: between agent finalisation and the wrap-up, the agent
   // may have persisted a list of permission rule proposals under
@@ -152,10 +185,16 @@
     bootstrapping = true;
     bootstrapError = null;
     try {
-      const result = await invoke<TriggerResult>("trigger_onboarding", {
-        topic: null,
-        profile: null,
-      });
+      // Resume mode (from the "complete your profile" entry point) keeps the
+      // already-collected profile; a normal launch resets for a fresh run.
+      const resume = get(onboardingResumeMode);
+      const result = resume
+        ? await invoke<TriggerResult>("resume_onboarding")
+        : await invoke<TriggerResult>("trigger_onboarding", {
+            topic: null,
+            profile: null,
+          });
+      onboardingResumeMode.set(false);
       sessionId = result.session_id;
       bootstrapping = false;
 
@@ -191,7 +230,7 @@
 </script>
 
 <div class="chat-step" data-testid="onboarding-chat-step">
-  <div class="chat-progress" aria-label="Tours de l'onboarding">
+  <div class="chat-progress" aria-label={$t("onboarding_chat.progress_label")}>
     {#each Array(TOTAL_TURNS) as _, i}
       <span
         class="chat-progress-pip"
@@ -201,6 +240,13 @@
     {/each}
     <span class="chat-progress-check" class:active={completed}>✓</span>
   </div>
+  {#if sessionId && !completed}
+    <p class="chat-phase" data-testid="onboarding-chat-phase">
+      {enrichmentPhase
+        ? $t("onboarding_chat.phase_enrichment")
+        : $t("onboarding_chat.phase_calibration")}
+    </p>
+  {/if}
 
   {#if showPermissions}
     <!-- Permission cards take over the modal once the agent finalises. We
@@ -273,6 +319,24 @@
           embedded={true}
           hideConfig={true}
         />
+        {#if canFinishEarly}
+          <div class="chat-finish-bar">
+            <span class="chat-finish-hint">
+              {enrichmentPhase
+                ? $t("onboarding_chat.finish_early_hint_enrichment")
+                : $t("onboarding_chat.finish_early_hint_calibration")}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onclick={finishEarly}
+              disabled={finishing}
+              data-testid="onboarding-finish-early"
+            >
+              {$t("onboarding_chat.finish_early")}
+            </Button>
+          </div>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -384,6 +448,17 @@
     color: hsl(var(--muted-foreground));
   }
 
+  .chat-phase {
+    margin: 0;
+    padding: 0.3rem 1rem 0;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
   .chat-banner {
     margin: 0;
     padding: 0.5rem 1rem;
@@ -394,6 +469,23 @@
     line-height: 1.4;
     text-align: center;
     flex-shrink: 0;
+  }
+
+  .chat-finish-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid hsl(var(--border) / 0.6);
+    background: hsl(var(--muted) / 0.3);
+    flex-shrink: 0;
+  }
+
+  .chat-finish-hint {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: hsl(var(--muted-foreground));
   }
 
   .chat-status {

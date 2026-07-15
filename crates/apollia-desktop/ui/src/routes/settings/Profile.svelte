@@ -22,6 +22,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
+  import { onboardingModalOpen, onboardingResumeMode } from "$lib/stores/onboarding";
 
   // ---------------------------------------------------------------------------
   // Profile keys are stored flat in `__user__`.  The schema is
@@ -60,6 +61,39 @@
   let sources = $state<Record<string, string>>({});
   let resetOpen = $state(false);
   let resetting = $state(false);
+  let enrichmentDismissed = $state(false);
+
+  // "Complete your profile" nudge: once calibration (name + role) is done but
+  // optional Tier 2 fields are still empty, offer to resume the onboarding
+  // agent (which preserves collected data) instead of filling the form by hand.
+  const TIER2_KEYS = [
+    "goals",
+    "domain.sector",
+    "domain.team_size",
+    "tech.stack",
+    "tech.proficiency",
+    "tools.daily",
+    "tech.integrations",
+    "preferences.language",
+    "preferences.llm",
+    "agents.domains",
+    "agents.trigger",
+    "constraints.compliance",
+  ];
+  const calibrationDone = $derived(
+    !!values["name"]?.trim() && !!values["role"]?.trim(),
+  );
+  const tier2MissingCount = $derived(
+    TIER2_KEYS.filter((k) => !values[k]?.trim()).length,
+  );
+  const showEnrichmentBanner = $derived(
+    !enrichmentDismissed && calibrationDone && tier2MissingCount > 0,
+  );
+
+  function resumeEnrichment(): void {
+    onboardingResumeMode.set(true);
+    onboardingModalOpen.set(true);
+  }
 
   // ── Loading ───────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -213,7 +247,8 @@
   const PROFICIENCY = [
     { v: "", labelKey: "settings.profile.option.none" },
     { v: "debutant", labelKey: "settings.profile.proficiency.debutant" },
-    { v: "a-laise", labelKey: "settings.profile.proficiency.a_laise" },
+    { v: "intermediaire", labelKey: "settings.profile.proficiency.intermediaire" },
+    { v: "avance", labelKey: "settings.profile.proficiency.avance" },
     { v: "expert", labelKey: "settings.profile.proficiency.expert" },
   ];
   const LANGUAGES = [
@@ -298,6 +333,40 @@
     <p class="text-xs text-muted-foreground">
       {$t("settings.profile.intro")}
     </p>
+
+    {#if showEnrichmentBanner}
+      <div
+        class="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        data-testid="profile-enrichment-banner"
+      >
+        <div class="flex flex-col gap-0.5">
+          <span class="text-sm font-semibold text-foreground">
+            {$t("settings.profile.enrichment.title")}
+          </span>
+          <span class="text-xs text-muted-foreground">
+            {$t("settings.profile.enrichment.detail")}
+          </span>
+        </div>
+        <div class="flex flex-shrink-0 items-center gap-2">
+          <Button
+            variant="primary-gradient"
+            size="sm"
+            onclick={resumeEnrichment}
+            data-testid="profile-enrichment-resume"
+          >
+            {$t("settings.profile.enrichment.resume")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onclick={() => (enrichmentDismissed = true)}
+            data-testid="profile-enrichment-dismiss"
+          >
+            {$t("settings.profile.enrichment.dismiss")}
+          </Button>
+        </div>
+      </div>
+    {/if}
 
     <!-- ─── Identité ──────────────────────────────────────────────────────── -->
     <Card class="space-y-4 rounded-lg p-4">
@@ -506,6 +575,23 @@
         />
         <span class="block text-[11px] text-muted-foreground">
           {$t("settings.profile.hint.tools_daily")}
+        </span>
+      </label>
+
+      <label class="space-y-1 block">
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          {$t("settings.profile.fields.tech_stack")}
+          {@render sourceBadge("tech.stack")}
+        </span>
+        <Input
+          value={val("tech.stack")}
+          onblur={(e: Event) => saveKey("tech.stack", (e.target as HTMLInputElement).value)}
+          placeholder={$t("settings.profile.placeholder.tech_stack")}
+          disabled={saving["tech.stack"]}
+          data-testid="profile-input-tech-stack"
+        />
+        <span class="block text-[11px] text-muted-foreground">
+          {$t("settings.profile.hint.tech_stack")}
         </span>
       </label>
 

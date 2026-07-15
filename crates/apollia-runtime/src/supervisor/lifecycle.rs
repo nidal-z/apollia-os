@@ -1,7 +1,6 @@
 use super::*;
 
 use super::bootstrap::{migrate_mcp_from_toml, start_mcp_manager};
-use super::persistence::resolve_home;
 
 impl Supervisor {
     /// Create a new Supervisor with the given configuration.
@@ -160,57 +159,13 @@ impl Supervisor {
         Option<crate::stt::SttEngineHandle>,
         Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
     ) {
-        let Some(cfg) = stt_cfg.filter(|c| c.enabled) else {
-            info!("Supervisor: STT disabled in config - Phase 15 skipped");
-            return (None, None);
-        };
-        info!("Supervisor: starting SttEngine");
-
-        let model_path = resolve_home(std::path::Path::new(&cfg.model_path));
-        if !model_path.exists() {
-            error!(
-                path = %model_path.display(),
-                "STT model file not found - SttEngine disabled"
-            );
-            return (None, None);
-        }
-
-        let repo_path = self.config.data_dir.join("stt_transcriptions.db");
-        let repository = match apollia_stt::SttRepository::open(&repo_path) {
-            Ok(repository) => repository,
-            Err(e) => {
-                error!(error = %e, "SttRepository failed to open - SttEngine disabled");
-                return (None, None);
-            }
-        };
-
-        let model_id = model_path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "whisper".to_string());
-
-        // STT routes through the sidecar runner via `RunnerSttBackend`. If the
-        // runner failed to spawn at boot, STT is disabled.
-        let Some(supervisor) = runner_supervisor.as_ref() else {
-            warn!("STT engine disabled (runner sidecar unavailable)");
-            return (None, None);
-        };
-        let proxy = supervisor.proxy();
-        let backend: Box<dyn apollia_stt::SttBackend> = Box::new(
-            crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id),
-        );
-
-        let handle = crate::stt::SttEngineHandle::start(
-            backend,
-            repository,
-            cfg.clone(),
-            event_sender.clone(),
-        );
-        info!("Supervisor: SttEngine ready");
-        let api_repo = apollia_stt::SttRepository::open(&repo_path)
-            .map(|r| std::sync::Arc::new(std::sync::Mutex::new(r)))
-            .ok();
-        (Some(handle), api_repo)
+        crate::stt::build_stt_engine(
+            &self.config.data_dir,
+            stt_cfg,
+            runner_supervisor.as_ref().map(|s| s.proxy()),
+            event_sender,
+        )
+        .await
     }
 
     /// Phase 4: open `system.db`, migrate TOML backends on first boot, and

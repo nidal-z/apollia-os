@@ -1,8 +1,9 @@
 //! Tauri IPC commands for STT (Speech-to-Text) functionality.
 //!
-//! Exposes 9 commands to the Svelte frontend:
+//! Exposes 10 commands to the Svelte frontend:
 //! - `get_stt_config`         : read STT config from system.db
-//! - `update_stt_config`      : write STT config to system.db
+//! - `update_stt_config`      : write STT config to system.db (hot-reloads engine)
+//! - `reload_stt`             : rebuild the engine from system.db without a restart
 //! - `get_stt_status`         : query runtime engine status
 //! - `list_transcriptions`    : list transcription history
 //! - `delete_transcription`   : delete a transcription by ID
@@ -105,13 +106,19 @@ pub async fn get_stt_config() -> Result<SttConfigView, String> {
     })
 }
 
-/// Persists the STT configuration to `~/.apollia/system.db`.
+/// Persists the STT configuration to `~/.apollia/system.db`, then hot-reloads
+/// the engine so the change takes effect without a restart.
 ///
-/// Upserts the singleton row in `system.db`. The new configuration takes
-/// effect immediately for subsequent reads; an engine restart may be required
-/// to apply model or enable/disable changes.
+/// Upserts the singleton row, then rebuilds the engine from the new config:
+/// enabling (with a model present) loads the model and arms the hotkey;
+/// disabling tears the engine down. A reload failure is logged, not fatal.
 #[tauri::command]
-pub async fn update_stt_config(config: SttConfigView) -> Result<(), String> {
+pub async fn update_stt_config(
+    config: SttConfigView,
+    runtime: State<'_, RuntimeHandle>,
+    app: tauri::AppHandle,
+    stt_flow_state: State<'_, SttFlowState>,
+) -> Result<(), String> {
     let db_path = resolve_home("~/.apollia/system.db");
 
     // Ensure the data directory exists.
@@ -148,7 +155,89 @@ pub async fn update_stt_config(config: SttConfigView) -> Result<(), String> {
         "STT configuration updated via desktop UI"
     );
 
+    // Bring the running engine in line with the persisted config, no restart.
+    if let Err(e) = reload_stt_inner(&runtime, &app, &stt_flow_state).await {
+        tracing::warn!(error = %e, "STT config saved but engine reload failed");
+    }
+
     Ok(())
+}
+
+/// Rebuilds the STT engine from the persisted config and swaps it into the
+/// shared cell, shutting the previous engine down. Arms the global hotkey the
+/// first time a model comes online mid-session (an already-armed flow reads the
+/// shared cell, so a later swap needs no re-registration). Shared by the
+/// `reload_stt` command and `update_stt_config`.
+pub(crate) async fn reload_stt_inner(
+    runtime: &RuntimeHandle,
+    app: &tauri::AppHandle,
+    stt_flow_state: &SttFlowState,
+) -> Result<(), String> {
+    let data_dir = resolve_home("~/.apollia");
+    let db_path = data_dir.join("system.db");
+
+    let cfg = tokio::task::spawn_blocking(move || {
+        let repo = apollia_core::SttConfigRepository::open(&db_path)
+            .map_err(|e| format!("failed to open system.db: {e}"))?;
+        repo.get_or_default()
+            .map_err(|e| format!("failed to read STT config: {e}"))
+    })
+    .await
+    .map_err(|e| format!("task error: {e}"))??;
+
+    let runner_proxy = runtime.runner_supervisor.as_ref().map(|s| s.proxy());
+    let (engine, repository) = apollia_runtime::stt::build_stt_engine(
+        &data_dir,
+        Some(&cfg),
+        runner_proxy,
+        &runtime.event_sender,
+    )
+    .await;
+    let loaded = engine.is_some();
+
+    // Swap the new engine/repository in, then shut the previous engine down
+    // outside the write guard so no reader observes a half-swapped state.
+    let previous = {
+        let mut engine_cell = runtime.stt_engine.write().await;
+        let mut repo_cell = runtime.stt_repository.write().await;
+        let old = engine_cell.take();
+        *engine_cell = engine;
+        *repo_cell = repository;
+        old
+    };
+    if let Some(old) = previous {
+        old.shutdown().await;
+    }
+
+    // Arm the hotkey the first time a model comes online mid-session. Window +
+    // global-shortcut registration must run on the main thread.
+    let already_armed = stt_flow_state.lock().map(|g| g.is_some()).unwrap_or(false);
+    if loaded && cfg.enabled && !already_armed {
+        let app_for_main = app.clone();
+        let runtime_handle = runtime.clone();
+        let flow_state = Arc::clone(stt_flow_state);
+        let cfg_for_hotkey = cfg.clone();
+        app.run_on_main_thread(move || {
+            crate::setup_stt_hotkey(&app_for_main, &cfg_for_hotkey, &runtime_handle, &flow_state);
+        })
+        .map_err(|e| format!("failed to arm STT hotkey: {e}"))?;
+    }
+
+    tracing::info!(loaded, enabled = cfg.enabled, "STT engine reloaded");
+    Ok(())
+}
+
+/// Rebuilds the STT engine from `system.db` and swaps it into the shared cell.
+///
+/// Called by the frontend after a model is downloaded or STT is toggled so
+/// dictation works without restarting the app.
+#[tauri::command]
+pub async fn reload_stt(
+    runtime: State<'_, RuntimeHandle>,
+    app: tauri::AppHandle,
+    stt_flow_state: State<'_, SttFlowState>,
+) -> Result<(), String> {
+    reload_stt_inner(&runtime, &app, &stt_flow_state).await
 }
 
 /// Returns the current STT engine status.
@@ -159,10 +248,9 @@ pub async fn update_stt_config(config: SttConfigView) -> Result<(), String> {
 pub async fn get_stt_status(
     runtime: State<'_, RuntimeHandle>,
 ) -> Result<serde_json::Value, String> {
-    let engine = runtime
-        .stt_engine
-        .as_ref()
-        .ok_or_else(|| "STT engine not available".to_owned())?;
+    let engine = runtime.stt_engine.read().await.clone().ok_or_else(|| {
+        "STT engine not available (enable dictation and load a model in Settings)".to_owned()
+    })?;
 
     let status = engine
         .status()
@@ -180,7 +268,7 @@ pub async fn list_transcriptions(
     runtime: State<'_, RuntimeHandle>,
     limit: Option<u32>,
 ) -> Result<Vec<TranscriptRow>, String> {
-    let repo = stt_repo(&runtime)?;
+    let repo = stt_repo(&runtime).await?;
     let limit = limit.unwrap_or(50);
 
     let rows = repo
@@ -200,7 +288,7 @@ pub async fn delete_transcription(
     runtime: State<'_, RuntimeHandle>,
     id: String,
 ) -> Result<(), String> {
-    let repo = stt_repo(&runtime)?;
+    let repo = stt_repo(&runtime).await?;
 
     repo.lock()
         .map_err(|e| format!("repository lock error: {e}"))?
@@ -219,11 +307,10 @@ pub async fn transcribe_file(
     runtime: State<'_, RuntimeHandle>,
     file_path: String,
 ) -> Result<TranscriptRow, String> {
-    let engine = runtime
-        .stt_engine
-        .as_ref()
-        .ok_or_else(|| "STT engine not available".to_owned())?;
-    let repo = stt_repo(&runtime)?;
+    let engine = runtime.stt_engine.read().await.clone().ok_or_else(|| {
+        "STT engine not available (enable dictation and load a model in Settings)".to_owned()
+    })?;
+    let repo = stt_repo(&runtime).await?;
 
     let raw_bytes =
         std::fs::read(&file_path).map_err(|e| format!("failed to read file '{file_path}': {e}"))?;
@@ -388,11 +475,13 @@ fn find_next_section_offset(content: &str) -> Option<usize> {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/// Extracts the `SttRepository` from the runtime handle.
-fn stt_repo(runtime: &RuntimeHandle) -> Result<&Arc<std::sync::Mutex<SttRepository>>, String> {
+/// Clones the current `SttRepository` handle out of the shared cell.
+async fn stt_repo(runtime: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<SttRepository>>, String> {
     runtime
         .stt_repository
-        .as_ref()
+        .read()
+        .await
+        .clone()
         .ok_or_else(|| "STT repository not available".to_owned())
 }
 

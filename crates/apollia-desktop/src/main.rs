@@ -335,22 +335,24 @@ fn auto_load_installed_agents(
 
 /// Wire the global STT hotkey + recording overlay to the full `SttFlow`
 /// pipeline. Best-effort: each failure degrades gracefully with a warning.
-fn setup_stt_hotkey(
-    app: &tauri::App,
+///
+/// The flow holds the shared engine cell and reads it on each trigger, so a
+/// model brought online mid-session (via `reload_stt`) is picked up without
+/// re-registering. Registration itself is one-shot: the caller only invokes
+/// this when no flow is armed yet. Changing the hotkey binding still needs a
+/// restart. Takes an [`AppHandle`](tauri::AppHandle) so it can run both from
+/// the Tauri `setup` closure and from the reload command.
+pub(crate) fn setup_stt_hotkey(
+    app: &tauri::AppHandle,
     stt_cfg: &apollia_core::SttConfigRow,
     runtime_handle: &RuntimeHandle,
     stt_flow_state: &commands::stt::SttFlowState,
 ) {
-    let Some(stt_engine) = runtime_handle.stt_engine.as_ref() else {
-        tracing::warn!("STT enabled in config but engine not loaded - hotkey disabled");
-        return;
-    };
-
     let flow = Arc::new(stt::flow::SttFlow::new(
         stt_cfg.clone(),
-        stt_engine.clone(),
+        runtime_handle.stt_engine.clone(),
         runtime_handle.event_sender.clone(),
-        app.handle().clone(),
+        app.clone(),
     ));
 
     let mode = stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
@@ -365,7 +367,7 @@ fn setup_stt_hotkey(
     let flow_stop = Arc::clone(&flow);
 
     if let Err(e) = listener.register(
-        app.handle(),
+        app,
         move || {
             flow_start.start_recording();
         },
@@ -385,7 +387,7 @@ fn setup_stt_hotkey(
     let on_cancel = Arc::new(move || {
         flow_cancel.cancel_recording();
     });
-    match stt::overlay::RecordingOverlay::create(app.handle(), stt_cfg.hotkey.clone(), on_cancel) {
+    match stt::overlay::RecordingOverlay::create(app, stt_cfg.hotkey.clone(), on_cancel) {
         Ok(overlay) => {
             stt::overlay::spawn_overlay_listener(overlay, &runtime_handle.event_sender);
             tracing::info!("recording overlay window created");
@@ -670,10 +672,13 @@ fn main() {
             app.manage(metrics_store);
 
             // Register the global STT hotkey with the full SttFlow pipeline
-            // when STT is enabled and the engine loaded successfully.
+            // when STT is enabled. The flow reads the shared engine cell on each
+            // trigger, so it is armed even if no model is loaded yet (a
+            // mid-session download + reload brings the engine online without
+            // re-registering).
             if let Some(ref stt_cfg) = stt_config_for_hotkey {
                 if stt_cfg.enabled {
-                    setup_stt_hotkey(app, stt_cfg, &runtime_handle, &stt_flow_state);
+                    setup_stt_hotkey(app.handle(), stt_cfg, &runtime_handle, &stt_flow_state);
                 }
             }
 
@@ -867,6 +872,7 @@ fn main() {
             commands::onboarding::set_onboarding_profile,
             commands::onboarding::get_onboarding_status,
             commands::onboarding::trigger_onboarding,
+            commands::onboarding::resume_onboarding,
             commands::onboarding::dismiss_onboarding,
             commands::permissions_proposals::list_proposed_permission_rules,
             commands::permissions_proposals::apply_proposed_permission_rule,
@@ -889,6 +895,7 @@ fn main() {
             commands::user_memory::get_conversation_stats,
             commands::stt::get_stt_config,
             commands::stt::update_stt_config,
+            commands::stt::reload_stt,
             commands::stt::get_stt_status,
             commands::stt::list_transcriptions,
             commands::stt::delete_transcription,

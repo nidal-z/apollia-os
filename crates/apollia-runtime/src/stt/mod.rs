@@ -5,6 +5,8 @@
 //! `spawn_blocking`; results are persisted via [`SttRepository`](apollia_stt::SttRepository)
 //! and broadcast on the [`EventBus`](crate::eventbus::EventBus).
 
+mod builder;
 pub(crate) mod engine;
 
+pub use builder::build_stt_engine;
 pub use engine::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

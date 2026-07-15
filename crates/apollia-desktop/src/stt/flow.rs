@@ -15,7 +15,8 @@ use apollia_core::{EventBusSender, RuntimeEvent, SttConfigRow};
 use apollia_stt::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
 use tauri_plugin_notification::NotificationExt;
 
-use apollia_runtime::stt::{SttEngineHandle, TranscriptSource};
+use apollia_runtime::api::server::SharedSttEngine;
+use apollia_runtime::stt::TranscriptSource;
 
 use crate::stt::clipboard;
 
@@ -40,8 +41,10 @@ const MIN_SAMPLES: usize = 1_600;
 pub struct SttFlow {
     /// STT configuration (thresholds, clipboard mode, etc.).
     config: SttConfigRow,
-    /// Handle to the SttEngine actor for transcription requests.
-    stt_engine: SttEngineHandle,
+    /// Shared, swappable handle to the SttEngine actor. Read on each trigger so
+    /// a model brought online mid-session (via `reload_stt`) is picked up
+    /// without rebuilding the flow or re-registering the hotkey.
+    stt_engine: SharedSttEngine,
     /// EventBus sender for lifecycle event broadcasting.
     event_bus: EventBusSender,
     /// Tauri application handle for desktop notifications.
@@ -59,7 +62,7 @@ impl SttFlow {
     /// Creates a new orchestrator from the STT configuration and runtime handles.
     pub fn new(
         config: SttConfigRow,
-        stt_engine: SttEngineHandle,
+        stt_engine: SharedSttEngine,
         event_bus: EventBusSender,
         app: tauri::AppHandle,
     ) -> Self {
@@ -229,9 +232,26 @@ impl SttFlow {
             trimmed
         };
 
+        // Read the current engine from the shared cell. `None` means STT was
+        // enabled in config but no model is loaded yet (download pending or a
+        // reload that resolved to disabled). Notify and bail rather than fail.
+        let Some(engine) = self.stt_engine.read().await.clone() else {
+            tracing::warn!("STT hotkey pressed but no engine is loaded - skipping transcription");
+            let result = self
+                .app
+                .notification()
+                .builder()
+                .title("Aucun mod\u{00e8}le STT charg\u{00e9}")
+                .body("Activez la dict\u{00e9}e et chargez un mod\u{00e8}le dans les R\u{00e9}glages.")
+                .show();
+            if let Err(e) = result {
+                tracing::warn!(error = %e, "failed to send STT unavailable notification");
+            }
+            return;
+        };
+
         // Transcribe via the SttEngine actor.
-        let transcript = match self
-            .stt_engine
+        let transcript = match engine
             .transcribe(
                 final_audio.to_vec(),
                 WHISPER_SAMPLE_RATE,

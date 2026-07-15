@@ -104,6 +104,15 @@ export const onboardingStore = createOnboardingStore();
  */
 export const onboardingModalOpen = writable(false);
 
+/**
+ * When `true`, the onboarding chat step resumes profile enrichment instead of
+ * starting a fresh run: it calls `resume_onboarding` (which preserves the
+ * already-collected Tier 1 + Tier 2 facts) rather than `trigger_onboarding`
+ * (which resets progress). Set by the "complete your profile" entry point and
+ * consumed (reset to `false`) by the chat step once the session starts.
+ */
+export const onboardingResumeMode = writable(false);
+
 /** Whether the sidebar onboarding badge should be visible. */
 export const showOnboardingBadge = derived(
   onboardingStore,
