@@ -7,6 +7,10 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # Defaults (override per command: `just <recipe> var=value`)
 desktop_runners := "cpu metal"
 macos_target := "aarch64-apple-darwin"
+# Local llama-server used as the external OpenAI-compat backend in dev.
+# Override the model per command or export APOLLIA_LLAMA_MODEL.
+llama_model := env_var_or_default("APOLLIA_LLAMA_MODEL", "")
+llama_port := "8899"
 
 # -----------------------------------------------------------------------------
 # Documentation
@@ -97,6 +101,48 @@ desktop-dev:
 
 # macOS dev shortcut: ensure metal+cpu runners then start desktop
 desktop-dev-macos: runners-dev-macos
+    cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
+
+# Start a local llama-server as the external OpenAI-compat backend (:8899).
+# Launched WITH --jinja so tool-calling is template-driven (native); a server
+# started without --jinja falls back to a tool grammar it may fail to parse.
+# Override the model: just llama-server model=/path/to/model.gguf
+llama-server model=llama_model port=llama_port:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{model}}" ]; then
+      echo "set a model: just llama-server model=/path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
+      exit 1
+    fi
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    echo "→ llama-server (--jinja) on :{{port}} : $(basename "{{model}}")"
+    exec "$LLAMA_BIN" -m "{{model}}" -ngl 999 -c "${CTX:-16384}" -np "${NP:-8}" -cb \
+      --flash-attn on --jinja --host 127.0.0.1 --port "{{port}}"
+
+# macOS dev with the external llama-server (:8899) + desktop together.
+# Starts llama-server (--jinja) in the background, waits for /health, then runs
+# the desktop with RUST_LOG=debug. Kills the server on exit. Override the model
+# as for `llama-server`.
+desktop-dev-llama model=llama_model: runners-dev-macos
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{model}}" ]; then
+      echo "set a model: just desktop-dev-llama model=/path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
+      exit 1
+    fi
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    SLOG="/tmp/apollia-dev-llama-server.log"
+    echo "→ starting llama-server (--jinja) on :{{llama_port}} ..."
+    "$LLAMA_BIN" -m "{{model}}" -ngl 999 -c "${CTX:-16384}" -np "${NP:-8}" -cb \
+      --flash-attn on --jinja --host 127.0.0.1 --port {{llama_port}} > "$SLOG" 2>&1 &
+    LPID=$!
+    trap 'kill $LPID 2>/dev/null || true' EXIT
+    for _ in $(seq 1 300); do
+      curl -sf http://127.0.0.1:{{llama_port}}/health >/dev/null 2>&1 && break
+      kill -0 $LPID 2>/dev/null || { echo "llama-server died at load:" >&2; tail -15 "$SLOG" >&2; exit 1; }
+      sleep 1
+    done
+    echo "✅ llama-server ready on :{{llama_port}} (log: $SLOG)"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
 # Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS)
