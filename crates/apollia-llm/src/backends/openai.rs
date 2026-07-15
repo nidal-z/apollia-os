@@ -431,6 +431,10 @@ fn build_messages(
 }
 
 /// Convert Apollia tool specs into `async-openai` tools.
+///
+/// Tool `parameters` are normalized by [`crate::schema_sanitize::grammar_safe_schema`]
+/// so a llama.cpp-backed server can build a valid tool-calling grammar from
+/// them; see that module for the constructs it neutralizes.
 fn build_tools(tools: &[crate::types::ToolSpec]) -> Vec<ChatCompletionTool> {
     tools
         .iter()
@@ -439,7 +443,9 @@ fn build_tools(tools: &[crate::types::ToolSpec]) -> Vec<ChatCompletionTool> {
             function: FunctionObject {
                 name: spec.name.clone(),
                 description: Some(spec.description.clone()),
-                parameters: Some(spec.parameters.clone()),
+                parameters: Some(crate::schema_sanitize::grammar_safe_schema(
+                    &spec.parameters,
+                )),
                 strict: None,
             },
         })

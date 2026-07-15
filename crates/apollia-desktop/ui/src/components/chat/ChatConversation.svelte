@@ -115,6 +115,10 @@
   let sessionStatus = $state<"active" | "processing" | "closed">("active");
   let isStreaming = $state(false);
   let isProcessing = $state(false);
+  // Last exchange error (e.g. step budget exhausted). Surfaced as a system
+  // bubble that survives the session reload in `applySessionDetail`, cleared
+  // when the user sends the next message.
+  let pendingError = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
   const loadErrorKind = $derived<"none" | "not_found" | "corrupted" | "other">(
@@ -431,6 +435,25 @@
           if (p.request_id) removePendingUserInput(String(p.request_id));
           return;
         }
+        if (evt.event_type === "ChatError") {
+          const inner = (evt.payload as Record<string, unknown>)?.ChatError as
+            { session_id?: string; error?: string } | undefined;
+          const p = inner ?? evt.payload as { session_id?: string; error?: string };
+          if (!p.session_id || p.session_id === sessionId || p.session_id === "") {
+            isStreaming = false;
+            isProcessing = false;
+            const detail = p.error?.trim() ? p.error : $t("chat.exchange_error_generic");
+            pendingError = detail;
+            const label = $t("chat.exchange_error", { values: { error: detail } });
+            addToast(label, "error");
+            messages = [
+              ...(messages ?? []).filter((m) => m.id !== "exchange-error"),
+              makeErrorMessage(label),
+            ];
+            scrollToBottom();
+          }
+          return;
+        }
         if (evt.event_type === "ChatResponseCompleted") {
           pendingApproval = null;
           void finalizeStreaming();
@@ -523,8 +546,21 @@
   }
 
 
+  // Build the system bubble shown when an exchange fails (id is stable so it is
+  // de-duplicated across reloads).
+  function makeErrorMessage(text: string): ChatMessageView {
+    return {
+      id: "exchange-error", role: "system", content: text,
+      tool_calls: null, tool_name: null,
+      seq: (messages ?? []).length, created_at: new Date().toISOString(),
+    };
+  }
+
   function applySessionDetail(detail: ChatSessionDetail): void {
     messages = detail.messages ?? [];
+    // The server never persists the exchange error, so re-attach it after a
+    // reload until the user sends the next message.
+    if (pendingError) messages = [...messages, makeErrorMessage(pendingError)];
     sessionMode = detail.mode;
     sessionAgentName = detail.agent_name;
     sessionStatus = detail.status;
@@ -640,7 +676,8 @@
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
     };
-    messages = [...(messages ?? []), tempMsg];
+    pendingError = null;
+    messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
     await tick(); scrollToBottom(true);
 

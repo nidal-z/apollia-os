@@ -3795,6 +3795,8 @@
     "linked_project_tooltip": "Lié au projet « {name} » - cliquer pour ouvrir",
     "project_linked_toast": "Conversation liée au projet « {name} »",
     "project_unlinked_toast": "Conversation déliée du projet",
+    "exchange_error": "Erreur : {error}",
+    "exchange_error_generic": "la réponse n'a pas pu être complétée",
     "project_link_failed": "Échec de la liaison au projet",
     "toggle_context_drawer": "Afficher le panneau de contexte",
     "close_session_active_tooltip": "Fermer la session active",

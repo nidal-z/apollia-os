@@ -134,7 +134,7 @@ describe("validateForm", () => {
 });
 
 describe("buildConfigJson", () => {
-  it("includes endpoint + api_key for remote providers", () => {
+  it("writes the URL under canonical base_url + api_key for remote providers", () => {
     const cfg = buildConfigJson(
       baseForm({
         provider: "openai",
@@ -145,15 +145,15 @@ describe("buildConfigJson", () => {
       }),
     );
     expect(cfg).toEqual({
-      endpoint: "https://api.openai.com/v1",
+      base_url: "https://api.openai.com/v1",
       api_key: "sk-x",
       timeout_sec: 30,
     });
   });
 
-  it("omits endpoint/api_key for local providers", () => {
+  it("omits base_url/api_key for local providers", () => {
     const cfg = buildConfigJson(baseForm());
-    expect(cfg.endpoint).toBeUndefined();
+    expect(cfg.base_url).toBeUndefined();
     expect(cfg.api_key).toBeUndefined();
     expect(cfg.timeout_sec).toBe(60);
   });
@@ -170,19 +170,24 @@ describe("buildConfigJson", () => {
     );
     expect(cfg.temperature).toBe(0.2);
     expect(cfg.device).toBe("cuda");
-    expect(cfg.endpoint).toBe("https://api.openai.com/v1");
+    expect(cfg.base_url).toBe("https://api.openai.com/v1");
   });
 
-  it("lets remote fields override extra JSON keys of the same name", () => {
+  it("converges legacy endpoint/api_url aliases onto base_url", () => {
     const cfg = buildConfigJson(
       baseForm({
         provider: "openai",
         endpoint: "https://real.example",
         apiKey: "sk-real",
         model: "gpt-4",
-        extraJson: JSON.stringify({ endpoint: "https://stale.example" }),
+        extraJson: JSON.stringify({
+          endpoint: "https://stale.example",
+          api_url: "https://also-stale.example",
+        }),
       }),
     );
-    expect(cfg.endpoint).toBe("https://real.example");
+    expect(cfg.base_url).toBe("https://real.example");
+    expect(cfg.endpoint).toBeUndefined();
+    expect(cfg.api_url).toBeUndefined();
   });
 });

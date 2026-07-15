@@ -3795,6 +3795,8 @@
     "linked_project_tooltip": "Linked to project \"{name}\" - click to open",
     "project_linked_toast": "Conversation linked to project \"{name}\"",
     "project_unlinked_toast": "Conversation unlinked from project",
+    "exchange_error": "Error: {error}",
+    "exchange_error_generic": "the response could not be completed",
     "project_link_failed": "Failed to link conversation to project",
     "toggle_context_drawer": "Toggle context drawer",
     "close_session_active_tooltip": "Close the active session",

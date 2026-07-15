@@ -96,7 +96,12 @@
       delete base.model_paths;
     }
     if (isRemoteProvider(state.provider)) {
-      if (state.endpoint.trim()) base.endpoint = state.endpoint.trim();
+      // Persist the URL under the canonical `base_url` key (the one the router
+      // reads). Drop the legacy `endpoint`/`api_url` aliases so an edited row
+      // converges on a single key instead of keeping a stale duplicate.
+      if (state.endpoint.trim()) base.base_url = state.endpoint.trim();
+      delete base.endpoint;
+      delete base.api_url;
       if (state.apiKey.trim()) base.api_key = state.apiKey.trim();
     }
     if (Number.isFinite(state.timeoutSec) && state.timeoutSec > 0) {
@@ -159,11 +164,19 @@
       };
     }
     const cfg = (b.config_json ?? {}) as Record<string, unknown>;
-    const endpoint = typeof cfg.endpoint === "string" ? cfg.endpoint : "";
+    // The URL reads from the canonical `base_url`, falling back to the legacy
+    // `endpoint`/`api_url` aliases so backends persisted before the key
+    // convergence still populate the field.
+    const urlValue = [cfg.base_url, cfg.endpoint, cfg.api_url].find(
+      (v): v is string => typeof v === "string" && v.length > 0,
+    );
+    const endpoint = urlValue ?? "";
     const apiKey = typeof cfg.api_key === "string" ? cfg.api_key : "";
     const timeout = typeof cfg.timeout_sec === "number" ? cfg.timeout_sec : 60;
     const rest = { ...cfg };
+    delete rest.base_url;
     delete rest.endpoint;
+    delete rest.api_url;
     delete rest.api_key;
     delete rest.timeout_sec;
     delete rest.temperature;

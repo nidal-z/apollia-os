@@ -511,15 +511,19 @@ fn backend_to_toml_block(cfg: &LlmBackendConfig) -> Option<String> {
     }
 
     // `api_url` and `api_key_env` are required by `ApiBackendConfig`; emit both so
-    // the block round-trips through the config parser. The URL lives under
-    // `base_url` (the key the CLI writes and the router reads); fall back to a
-    // legacy `api_url` key. `provider` is not a parser field: it is ignored on read
-    // and re-inferred from the URL, kept here only for human readability.
-    let api_url = cfg
-        .config_json
-        .get("base_url")
-        .or_else(|| cfg.config_json.get("api_url"))
-        .and_then(|v| v.as_str())
+    // the block round-trips through the config parser. The URL is read from the
+    // canonical `base_url` (CLI + router), falling back to the desktop `endpoint`
+    // and the legacy `api_url` keys so any persisted backend mirrors correctly.
+    // `provider` is not a parser field: it is ignored on read and re-inferred from
+    // the URL, kept here only for human readability.
+    let api_url = ["base_url", "endpoint", "api_url"]
+        .iter()
+        .find_map(|key| {
+            cfg.config_json
+                .get(*key)
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+        })
         .unwrap_or_default();
 
     // Reconstruct api_key_env from the stored "${VAR}" sentinel; empty for a
@@ -875,6 +879,24 @@ mod tests {
         assert!(block.contains("\"remote\""));
         assert!(block.contains(r#"api_url     = "http://127.0.0.1:8080/v1""#));
         assert!(block.contains(r#"api_key_env = "OPENAI_KEY""#));
+    }
+
+    // GIVEN a backend created by the desktop UI, which stores the URL under
+    // `endpoint` instead of the canonical `base_url`
+    // WHEN  backend_to_toml_block()
+    // THEN  the TOML mirror still resolves the URL from the `endpoint` fallback
+    #[test]
+    fn test_backend_to_toml_block_reads_endpoint_fallback() {
+        let cfg = LlmBackendConfig {
+            name: "ui-made".to_string(),
+            provider: LlmProvider::OpenAi,
+            model: "qwen".to_string(),
+            config_json: serde_json::json!({ "endpoint": "http://127.0.0.1:8899/v1" }),
+            enabled: true,
+            is_default: false,
+        };
+        let block = backend_to_toml_block(&cfg).expect("api backend is mirrored");
+        assert!(block.contains(r#"api_url     = "http://127.0.0.1:8899/v1""#));
     }
 
     // GIVEN a keyless API backend (e.g. a local llama-server)

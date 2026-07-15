@@ -1503,12 +1503,23 @@ fn extract_api_key_value(cfg: &LlmBackendConfig) -> Result<String, LlmError> {
     }
 }
 
-/// Extract the base URL from `config_json["base_url"]`, or return `default`.
+/// Extract the base URL from the backend `config_json`, or return `default`.
+///
+/// The URL has historically been persisted under three different keys: the
+/// desktop settings write `endpoint`, the CLI writes `base_url`, and the
+/// TOML-to-DB seed writes `api_url`. This reads all three (canonical first) so a
+/// backend created by any path resolves to its real URL instead of silently
+/// falling back to the provider default.
 #[cfg(feature = "cloud")]
 fn extract_base_url(cfg: &LlmBackendConfig, default: &str) -> String {
-    cfg.config_json
-        .get("base_url")
-        .and_then(|v| v.as_str())
+    ["base_url", "endpoint", "api_url"]
+        .iter()
+        .find_map(|key| {
+            cfg.config_json
+                .get(*key)
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+        })
         .unwrap_or(default)
         .to_string()
 }
@@ -1771,6 +1782,68 @@ mod tests {
         assert!(names.contains(&"ollama-default".to_string()));
         assert!(names.contains(&"ollama-extra".to_string()));
         assert!(!names.contains(&"ollama-disabled".to_string()));
+    }
+
+    // GIVEN backends whose URL is stored under each of the three historical keys
+    // (canonical `base_url`, desktop `endpoint`, legacy `api_url`), plus one with none
+    // WHEN  extract_base_url() resolves the URL
+    // THEN  each stored key is honored and the empty one falls back to the default
+    #[cfg(feature = "cloud")]
+    #[test]
+    fn test_extract_base_url_reads_all_key_variants() {
+        use apollia_core::{LlmBackendConfig, LlmProvider};
+
+        let make = |json: serde_json::Value| LlmBackendConfig {
+            name: "b".to_string(),
+            provider: LlmProvider::OpenAi,
+            model: "m".to_string(),
+            config_json: json,
+            enabled: true,
+            is_default: false,
+        };
+        let default = "https://api.openai.com/v1";
+
+        // WHEN/THEN each writer's key resolves.
+        assert_eq!(
+            extract_base_url(
+                &make(serde_json::json!({"base_url": "http://a/v1"})),
+                default
+            ),
+            "http://a/v1"
+        );
+        assert_eq!(
+            extract_base_url(
+                &make(serde_json::json!({"endpoint": "http://b/v1"})),
+                default
+            ),
+            "http://b/v1"
+        );
+        assert_eq!(
+            extract_base_url(
+                &make(serde_json::json!({"api_url": "http://c/v1"})),
+                default
+            ),
+            "http://c/v1"
+        );
+        // Canonical key wins when several are present.
+        assert_eq!(
+            extract_base_url(
+                &make(
+                    serde_json::json!({"base_url": "http://win/v1", "endpoint": "http://lose/v1"})
+                ),
+                default
+            ),
+            "http://win/v1"
+        );
+        // No key (or empty) falls back to the provider default.
+        assert_eq!(
+            extract_base_url(&make(serde_json::json!({})), default),
+            default
+        );
+        assert_eq!(
+            extract_base_url(&make(serde_json::json!({"base_url": ""})), default),
+            default
+        );
     }
 
     // GIVEN a repository with no default backend
