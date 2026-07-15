@@ -302,6 +302,27 @@ impl CompletionModel for OpenAICompatibleClient {
             Err(other) => return Err(map_openai_error(other)),
         };
 
+        // async-openai defers the HTTP status check to the first poll, so a
+        // non-2xx (e.g. a 400 for an unknown model or a rejected parameter)
+        // surfaces as the first stream item rather than a setup error, with the
+        // response body dropped. Peek the first item: on that opaque
+        // StreamError, recover the real reason via a non-streaming request.
+        let mut sse_stream = sse_stream;
+        let first = sse_stream.next().await;
+        if let Some(Err(async_openai::error::OpenAIError::StreamError(detail))) = &first {
+            let detail = detail.clone();
+            return Err(match self.do_complete(req).await {
+                Err(recovered) => recovered,
+                Ok(_) => LlmError::HttpError {
+                    status: 0,
+                    body: format!(
+                        "backend accepted a non-streaming request but rejected \
+                         streaming ({detail}); it may not support SSE streaming"
+                    ),
+                },
+            });
+        }
+
         // OpenAI streams tool calls as fragments across multiple SSE chunks,
         // keyed by `index`.  Text tokens are emitted immediately.  Tool call
         // fragments are accumulated and flushed when the SSE stream ends.
@@ -309,6 +330,7 @@ impl CompletionModel for OpenAICompatibleClient {
         // State transitions: Streaming → Flushing → Done.
         let state = OpenAIStreamState::Streaming {
             inner: sse_stream,
+            first: first.map(Box::new),
             pending: HashMap::new(),
         };
 
@@ -487,6 +509,16 @@ enum OpenAIStreamState {
     /// Reading SSE chunks from the inner stream.
     Streaming {
         inner: ChatCompletionResponseStream,
+        /// First item peeked in `stream()` to surface a lazy non-2xx status;
+        /// drained before polling `inner`. Boxed to keep the variant small.
+        first: Option<
+            Box<
+                Result<
+                    async_openai::types::CreateChatCompletionStreamResponse,
+                    async_openai::error::OpenAIError,
+                >,
+            >,
+        >,
         pending: HashMap<u32, PartialToolCall>,
     },
     /// SSE stream ended; emitting accumulated tool calls one by one.
@@ -519,15 +551,24 @@ async fn next_openai_stream_item(
         }),
         OpenAIStreamState::Streaming {
             mut inner,
+            mut first,
             mut pending,
         } => {
             loop {
-                match inner.next().await {
+                let next = match first.take() {
+                    Some(item) => Some(*item),
+                    None => inner.next().await,
+                };
+                match next {
                     Some(Ok(response)) => {
                         if let Some(text) = next_emittable_text(&mut pending, response) {
                             return Some((
                                 Ok(StreamChunk::Text(text)),
-                                OpenAIStreamState::Streaming { inner, pending },
+                                OpenAIStreamState::Streaming {
+                                    inner,
+                                    first,
+                                    pending,
+                                },
                             ));
                         }
                         continue;

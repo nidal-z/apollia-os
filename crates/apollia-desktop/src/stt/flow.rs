@@ -59,6 +59,12 @@ pub struct SttFlow {
 }
 
 impl SttFlow {
+    /// Currently armed global hotkey binding, used to detect a changed binding
+    /// on reload so the shortcut can be re-registered.
+    pub fn hotkey(&self) -> &str {
+        &self.config.hotkey
+    }
+
     /// Creates a new orchestrator from the STT configuration and runtime handles.
     pub fn new(
         config: SttConfigRow,

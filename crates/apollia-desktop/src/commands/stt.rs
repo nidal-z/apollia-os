@@ -209,10 +209,15 @@ pub(crate) async fn reload_stt_inner(
         old.shutdown().await;
     }
 
-    // Arm the hotkey the first time a model comes online mid-session. Window +
-    // global-shortcut registration must run on the main thread.
-    let already_armed = stt_flow_state.lock().map(|g| g.is_some()).unwrap_or(false);
-    if loaded && cfg.enabled && !already_armed {
+    // Arm the hotkey when a model is online and enabled and the binding is not
+    // yet registered or has changed; tear it down on an explicit disable. Window
+    // + global-shortcut registration must run on the main thread.
+    let armed_hotkey = stt_flow_state
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().map(|f| f.hotkey().to_owned()));
+    let want_armed = loaded && cfg.enabled;
+    if want_armed && armed_hotkey.as_deref() != Some(cfg.hotkey.as_str()) {
         let app_for_main = app.clone();
         let runtime_handle = runtime.clone();
         let flow_state = Arc::clone(stt_flow_state);
@@ -221,6 +226,16 @@ pub(crate) async fn reload_stt_inner(
             crate::setup_stt_hotkey(&app_for_main, &cfg_for_hotkey, &runtime_handle, &flow_state);
         })
         .map_err(|e| format!("failed to arm STT hotkey: {e}"))?;
+    } else if !cfg.enabled && armed_hotkey.is_some() {
+        let app_for_main = app.clone();
+        let flow_state = Arc::clone(stt_flow_state);
+        app.run_on_main_thread(move || {
+            let _ = crate::stt::hotkey::unregister_all(&app_for_main);
+            if let Ok(mut guard) = flow_state.lock() {
+                *guard = None;
+            }
+        })
+        .map_err(|e| format!("failed to disarm STT hotkey: {e}"))?;
     }
 
     tracing::info!(loaded, enabled = cfg.enabled, "STT engine reloaded");

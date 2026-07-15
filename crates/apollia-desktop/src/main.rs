@@ -348,6 +348,11 @@ pub(crate) fn setup_stt_hotkey(
     runtime_handle: &RuntimeHandle,
     stt_flow_state: &commands::stt::SttFlowState,
 ) {
+    // Release any previously registered global shortcut so a changed binding
+    // replaces the old one instead of leaving the stale shortcut active. STT is
+    // the only consumer of global shortcuts, so this affects nothing else.
+    let _ = stt::hotkey::unregister_all(app);
+
     let flow = Arc::new(stt::flow::SttFlow::new(
         stt_cfg.clone(),
         runtime_handle.stt_engine.clone(),
