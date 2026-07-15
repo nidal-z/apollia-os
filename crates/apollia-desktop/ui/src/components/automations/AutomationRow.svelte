@@ -8,12 +8,13 @@
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Play, History, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
+  import { Play, Pause, History, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
   import { StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Avatar } from "$lib/components/ui/avatar";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { refreshTriggers } from "$lib/stores/sse";
   import { ActionMenu, type ActionMenuItem } from "$lib/components/ui/action-menu";
   import {
     estimateNextRun,
@@ -121,7 +122,36 @@
     }
   }
 
+  let toggling = $state(false);
+
+  // Enable/disable the trigger. Reflects the AUTO-9 pause/resume gap: the
+  // backend already exposes set_trigger_enabled, this surfaces it per-row.
+  async function handleToggleEnabled() {
+    if (toggling) return;
+    toggling = true;
+    const next = !trigger.enabled;
+    try {
+      await invoke("set_trigger_enabled", { id: trigger.id, enabled: next });
+      addToast(
+        next ? $t("automations.resume_toast") : $t("automations.pause_toast"),
+        "success",
+      );
+      await refreshTriggers();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      toggling = false;
+    }
+  }
+
   const menuItems = $derived<ActionMenuItem[]>([
+    {
+      id: "toggle-enabled",
+      label: trigger.enabled ? $t("automations.pause") : $t("automations.resume"),
+      icon: trigger.enabled ? Pause : Play,
+      onclick: () => void handleToggleEnabled(),
+      testid: `automation-enabled-toggle-${trigger.id}`,
+    },
     {
       id: "history",
       label: $t("automations.view_history"),

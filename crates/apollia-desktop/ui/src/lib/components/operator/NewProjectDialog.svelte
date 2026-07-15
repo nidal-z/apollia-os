@@ -95,6 +95,7 @@
             onclick={close}
             class="bg-transparent border-0 text-muted-foreground cursor-pointer hover:text-foreground"
             aria-label={$t("common.close")}
+            data-testid="new-project-close"
           >
             <X size={16} />
           </Button>
@@ -111,6 +112,7 @@
               class="px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
                 ? 'bg-primary/10 border-2 border-primary'
                 : 'bg-surface-1 border border-border hover:border-primary/40'}"
+              data-testid="new-project-template-{tpl.id}"
             >
               <div class="flex items-center gap-1.5 mb-1.5">
                 <div
@@ -141,7 +143,7 @@
           {/each}
         </div>
         <div class="flex gap-2 mt-4">
-          <Button variant="outline" size="sm" onclick={close}>{$t("common.cancel")}</Button>
+          <Button variant="outline" size="sm" onclick={close} data-testid="new-project-cancel">{$t("common.cancel")}</Button>
           <div class="flex-1"></div>
           <Button variant="primary-solid" size="sm"
             onclick={() => {
@@ -151,6 +153,7 @@
                 onContinue?.(id);
               }
             }}
+            data-testid="new-project-continue"
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
             {$t("common.continue")}
@@ -181,6 +184,7 @@
             bind:value={name}
             class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-[13.5px] font-medium text-foreground outline-none"
             placeholder={$t("projects.dialog.name_placeholder")}
+            data-testid="new-project-name-input"
            />
         </div>
 
@@ -192,6 +196,7 @@
             bind:value={description}
             rows={3}
             class="w-full px-3 py-2 rounded-lg border border-border bg-surface-1 text-[12.5px] text-muted-foreground min-h-[54px] leading-[1.55] outline-none resize-y"
+            data-testid="new-project-description-input"
           ></Textarea>
         </div>
 
@@ -203,6 +208,7 @@
                 type="button"
                 onclick={() => (color = c)}
                 aria-label={$t("projects.dialog.color_label")}
+                data-testid="new-project-color-{c}"
                 class="w-6 h-6 rounded-full cursor-pointer transition-shadow"
                 style="background: {c}; border: 2px solid {color === c
                   ? 'hsl(var(--foreground))'
@@ -228,7 +234,7 @@
         </div>
 
         <div class="flex gap-2">
-          <Button variant="outline" size="sm" onclick={() => (step = 0)}>{$t("common.back")}</Button>
+          <Button variant="outline" size="sm" onclick={() => (step = 0)} data-testid="new-project-back">{$t("common.back")}</Button>
           <div class="flex-1"></div>
           <Button variant="primary-solid" size="sm"
             onclick={() => {
@@ -241,6 +247,7 @@
                 });
               }
             }}
+            data-testid="new-project-create"
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘↵</span>{/snippet}
             {$t("projects.create_project")}

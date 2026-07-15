@@ -621,6 +621,7 @@
                 bind:value={listFilter}
                 placeholder={$t("projects.search_placeholder")}
                 class="flex-1 text-[11.5px] text-foreground"
+                data-testid="projects-sidebar-search"
                />
             </div>
           {/snippet}
@@ -634,6 +635,7 @@
               state={isActive ? "active" : "default"}
               class="mb-0.5 text-left"
               onclick={() => selectProject(p.id)}
+              data-testid="project-row-{p.id}"
             >
               <div
                 class="w-1 self-stretch rounded-sm shrink-0 my-0.5"

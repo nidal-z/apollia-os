@@ -363,6 +363,7 @@
               onclick={() => clearOverride(status.provider)}
               disabled={savingProvider !== null ||
                 (status.override_client_id ?? "").length === 0}
+              data-testid={`oauth-clear-override-${status.provider}`}
             >
               Effacer l'override
             </Button>
@@ -403,6 +404,7 @@
             <Button variant="primary-solid" size="sm"
               onclick={() => save(status.provider)}
               disabled={savingProvider === status.provider}
+              data-testid={`oauth-save-${status.provider}`}
             >
               {savingProvider === status.provider ? "Enregistrement…" : "Enregistrer"}
             </Button>
@@ -426,6 +428,7 @@
                   <Button variant="outline" size="sm"
                     onclick={() => clearSecret(status.provider)}
                     disabled={savingSecretProvider !== null}
+                    data-testid={`oauth-clear-secret-${status.provider}`}
                   >
                     Effacer le secret
                   </Button>
@@ -461,6 +464,7 @@
                   onclick={() => saveSecret(status.provider)}
                   disabled={savingSecretProvider === status.provider
                     || (secretDrafts[status.provider] ?? "").trim().length === 0}
+                  data-testid={`oauth-save-secret-${status.provider}`}
                 >
                   {savingSecretProvider === status.provider
                     ? "Enregistrement…"
@@ -488,6 +492,7 @@
                   <Button variant="outline" size="sm"
                     onclick={() => clearApiKey(status.provider)}
                     disabled={savingApiKeyProvider !== null}
+                    data-testid={`oauth-clear-api-key-${status.provider}`}
                   >
                     Effacer la clé
                   </Button>
@@ -521,6 +526,7 @@
                   onclick={() => saveApiKey(status.provider)}
                   disabled={savingApiKeyProvider === status.provider
                     || (apiKeyDrafts[status.provider] ?? "").trim().length === 0}
+                  data-testid={`oauth-save-api-key-${status.provider}`}
                 >
                   {savingApiKeyProvider === status.provider
                     ? "Enregistrement…"
@@ -597,6 +603,7 @@
                       <Button variant="primary-solid" size="sm"
                         onclick={() => saveDriveFolder(folder.account_id)}
                         disabled={savingDriveFolderAccount === folder.account_id}
+                        data-testid={`drive-folder-save-${folder.account_id}`}
                       >
                         {savingDriveFolderAccount === folder.account_id
                           ? "…"

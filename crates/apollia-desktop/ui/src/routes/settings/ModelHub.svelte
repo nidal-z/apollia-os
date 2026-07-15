@@ -21,6 +21,8 @@
     Eye,
     EyeOff,
     SlidersHorizontal,
+    HardDrive,
+    Trash2,
   } from "lucide-svelte";
   import { addToast } from "$lib/components/ui/toast";
   import { Spinner } from "$lib/components/ui/progress";
@@ -28,6 +30,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { ErrorBanner } from "$lib/components/operator";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   // ──────────────────────────────────────────────
   // Types
@@ -136,6 +139,7 @@
 
   onMount(async () => {
     await loadHardware();
+    await loadInstalledModels();
     await loadInitialModels();
 
     unlisten = await listen<DownloadProgress>("model-download-progress", (event) => {
@@ -331,6 +335,54 @@
     return `${bytes} B`;
   }
 
+  // ── Installed models (list + guarded delete, G6) ──
+  interface InstalledModel {
+    path: string;
+    name: string;
+    size_bytes: number;
+    kind: "llm" | "stt";
+    in_use: boolean;
+    used_by: string | null;
+  }
+
+  let installedModels = $state<InstalledModel[]>([]);
+  let installedLoading = $state(true);
+  let deleteTarget = $state<InstalledModel | null>(null);
+  let deleting = $state(false);
+
+  const installedTotalBytes = $derived(
+    installedModels.reduce((sum, m) => sum + m.size_bytes, 0),
+  );
+
+  async function loadInstalledModels(): Promise<void> {
+    installedLoading = true;
+    try {
+      installedModels = await invoke<InstalledModel[]>("list_installed_models");
+    } catch (e) {
+      addToast(String(e), "error");
+    } finally {
+      installedLoading = false;
+    }
+  }
+
+  async function confirmDeleteModel(): Promise<void> {
+    if (!deleteTarget) return;
+    deleting = true;
+    try {
+      await invoke("delete_installed_model", { path: deleteTarget.path });
+      addToast(
+        $t("settings.model_hub.installed.deleted_toast", { values: { name: deleteTarget.name } }),
+        "success",
+      );
+      deleteTarget = null;
+      await loadInstalledModels();
+    } catch (e) {
+      addToast(String(e), "error");
+    } finally {
+      deleting = false;
+    }
+  }
+
   function extractQuantName(filename: string): string {
     const base = filename.split("/").pop() ?? filename;
     const m = base.match(QUANT_RE);
@@ -469,7 +521,7 @@
   </div>
 
   <!-- ── Hardware profile ── -->
-  <section class="rounded-xl border border-border bg-muted/40 p-4">
+  <section class="rounded-xl border border-border bg-muted/40 p-4" data-testid="model-hardware-card">
     <div class="mb-3 flex items-center gap-2">
       <Cpu class="h-4 w-4 text-muted-foreground" />
       <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.hardware.label")}</span>
@@ -503,16 +555,81 @@
     {/if}
   </section>
 
+  <!-- ── Installed models (G6) ── -->
+  <section class="rounded-xl border border-border bg-muted/40 p-4" data-testid="installed-models-section">
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <HardDrive class="h-4 w-4 text-muted-foreground" />
+        <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.installed.label")}</span>
+      </div>
+      {#if !installedLoading && installedModels.length > 0}
+        <span class="text-xs text-muted-foreground" data-testid="installed-models-total">
+          {$t("settings.model_hub.installed.total", { values: { size: formatSizeBytes(installedTotalBytes) } })}
+        </span>
+      {/if}
+    </div>
+
+    {#if installedLoading}
+      <div class="flex items-center gap-2 text-sm text-muted-foreground">
+        <Spinner class="h-4 w-4" />
+        {$t("common.loading")}
+      </div>
+    {:else if installedModels.length === 0}
+      <p class="text-sm text-muted-foreground" data-testid="installed-models-empty">
+        {$t("settings.model_hub.installed.empty")}
+      </p>
+    {:else}
+      <div class="flex flex-col divide-y divide-border/60" data-testid="installed-models-list">
+        {#each installedModels as model (model.path)}
+          <div
+            class="flex items-center gap-3 py-2"
+            data-testid="installed-model-row-{model.name}"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="truncate font-mono text-[12px] text-foreground" title={model.path}>{model.name}</span>
+                <span class="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">{model.kind}</span>
+                {#if model.in_use}
+                  <span
+                    class="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
+                    title={model.used_by ?? ""}
+                    data-testid="installed-model-inuse-{model.name}"
+                  >
+                    {$t("settings.model_hub.installed.in_use")}
+                  </span>
+                {/if}
+              </div>
+              <div class="text-[11px] text-muted-foreground" data-testid="installed-model-size-{model.name}">
+                {formatSizeBytes(model.size_bytes)}
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              class="text-destructive hover:bg-destructive/10"
+              disabled={model.in_use}
+              title={model.in_use ? (model.used_by ?? "") : $t("settings.model_hub.installed.delete")}
+              onclick={() => (deleteTarget = model)}
+              data-testid="installed-model-delete-{model.name}"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
   <!-- ── Active downloads ── -->
   {#if activeDownloads.size > 0}
-    <section class="rounded-xl border border-primary/20 bg-primary/5 p-4">
+    <section class="rounded-xl border border-primary/20 bg-primary/5 p-4" data-testid="active-downloads-section">
       <div class="mb-3 flex items-center gap-2">
         <Download class="h-4 w-4 text-primary" />
         <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.downloads.active")}</span>
       </div>
       <div class="flex flex-col gap-2">
         {#each [...activeDownloads.values()] as dl}
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3" data-testid="active-download-{dl.id}">
             <div class="flex-1">
               <div class="text-xs text-muted-foreground font-mono truncate">{dl.dest_path.split("/").pop()}</div>
               <div class="mt-1 h-1.5 w-full rounded-full bg-muted">
@@ -529,6 +646,7 @@
               onclick={() => cancelDownload(dl.id)}
               class="rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
               aria-label={$t("settings.model_hub.downloads.cancel_aria")}
+              data-testid="model-download-cancel-{dl.id}"
             >
               <X class="h-3 w-3" />
             </Button>
@@ -562,10 +680,12 @@
           bind:value={hfToken}
           placeholder="hf_••••••••••••••••"
           class="flex h-9 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          data-testid="hf-token-input"
          />
         <Button variant="ghost" size="sm"
           onclick={() => (showTokenForm = false)}
           class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          data-testid="hf-token-save"
         >
           {$t("settings.model_hub.token.done")}
         </Button>
@@ -584,12 +704,14 @@
           onkeydown={(e) => e.key === "Enter" && search()}
           placeholder={$t("settings.model_hub.search.placeholder")}
           class="flex h-9 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          data-testid="model-hub-search-input"
         />
       </div>
       <Button variant="ghost" size="sm"
         onclick={() => search()}
         disabled={searching}
         class="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        data-testid="model-hub-search-btn"
       >
         {#if searching}
           <Spinner class="h-4 w-4" />
@@ -602,6 +724,7 @@
         onclick={() => (showTokenForm = !showTokenForm)}
         class="flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         title={$t("settings.model_hub.token.title_button")}
+        data-testid="hf-token-toggle"
       >
         <Key class="h-4 w-4" />
         {hfToken ? $t("settings.model_hub.token.set") : $t("settings.model_hub.token.btn")}
@@ -621,6 +744,7 @@
         bind:value={sortBy}
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+        data-testid="model-filter-sort"
       >
         <option value="downloads">{$t("settings.model_hub.filters.sort_downloads")}</option>
         <option value="likes">{$t("settings.model_hub.filters.sort_likes")}</option>
@@ -633,6 +757,7 @@
         bind:value={langFilter}
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+        data-testid="model-filter-language"
       >
         <option value="">{$t("settings.model_hub.filters.lang_any")}</option>
         <option value="en">{$t("settings.model_hub.filters.lang_en")}</option>
@@ -651,6 +776,7 @@
       <Select
         bind:value={licenseFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+        data-testid="model-filter-license"
       >
         <option value="any">{$t("settings.model_hub.filters.license_any")}</option>
         <option value="open">{$t("settings.model_hub.filters.license_open")}</option>
@@ -661,6 +787,7 @@
       <Select
         bind:value={modelTypeFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+        data-testid="model-filter-type"
       >
         <option value="any">{$t("settings.model_hub.filters.type_any")}</option>
         <option value="instruct">{$t("settings.model_hub.filters.type_instruct")}</option>
@@ -672,6 +799,7 @@
       <Select
         bind:value={gatedFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+        data-testid="model-filter-gated"
       >
         <option value="any">{$t("settings.model_hub.filters.gated_any")}</option>
         <option value="open">{$t("settings.model_hub.filters.gated_open_only")}</option>
@@ -686,6 +814,7 @@
             ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
             : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
         title={showIncompatible ? $t("settings.model_hub.filters.hide_incompatible_title") : $t("settings.model_hub.filters.show_incompatible_title")}
+        data-testid="model-filter-incompatible"
       >
         {#if showIncompatible}
           <Eye class="h-3 w-3" />
@@ -714,6 +843,7 @@
           <Button variant="ghost" size="sm"
             onclick={() => expandModel(model.repo_id)}
             class="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/40 transition-colors"
+            data-testid="model-card-{model.repo_id}"
           >
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
@@ -822,7 +952,7 @@
                           )
                         )}
                         {@const Icon = group.compatibility ? compatIcon(group.compatibility) : null}
-                        <div class="flex items-center gap-3 rounded-md bg-muted/40 px-3 py-2.5">
+                        <div class="flex items-center gap-3 rounded-md bg-muted/40 px-3 py-2.5" data-testid="model-variant-{group.quantName}">
                           <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1.5">
                               <span
@@ -847,6 +977,7 @@
                             onclick={() => downloadGroup(group)}
                             disabled={isDownloading}
                             class="flex shrink-0 items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                            data-testid="model-variant-download-{group.quantName}"
                           >
                             {#if isDownloading}
                               <Spinner class="h-3 w-3" />
@@ -874,6 +1005,7 @@
                           <Button variant="ghost" size="sm"
                             onclick={() => startDownload(f)}
                             class="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                            data-testid="model-projector-download-{f.filename}"
                           >
                             <Download class="h-3 w-3" /> {$t("settings.model_hub.detail.download")}
                           </Button>
@@ -897,6 +1029,7 @@
             onclick={loadMore}
             disabled={searching}
             class="flex items-center gap-2 rounded-md border border-border px-5 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors"
+            data-testid="model-load-more"
           >
             {#if searching}
               <Spinner class="h-4 w-4" />
@@ -909,14 +1042,26 @@
       {/if}
     </div>
   {:else if !searching && searchResults.length > 0}
-    <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
+    <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground" data-testid="model-results-no-match">
       {$t("settings.model_hub.results.no_match")}
       <Button variant="ghost" size="sm" onclick={() => { licenseFilter = "any"; modelTypeFilter = "any"; gatedFilter = "any"; showIncompatible = true; }}
-        class="ml-2 text-primary hover:underline">{$t("settings.model_hub.results.clear_filters")}</Button>
+        class="ml-2 text-primary hover:underline" data-testid="model-results-clear-filters">{$t("settings.model_hub.results.clear_filters")}</Button>
     </div>
   {:else if !searching && searchQuery}
-    <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
+    <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground" data-testid="model-results-empty">
       {$t("settings.model_hub.results.no_results", { values: { query: searchQuery } })}
     </div>
   {/if}
 </div>
+
+<ConfirmDialog
+  open={deleteTarget !== null}
+  onclose={() => (deleteTarget = null)}
+  onconfirm={confirmDeleteModel}
+  title={$t("settings.model_hub.installed.delete_title")}
+  message={$t("settings.model_hub.installed.delete_message", { values: { name: deleteTarget?.name ?? "" } })}
+  confirmLabel={$t("settings.model_hub.installed.delete")}
+  cancelLabel={$t("common.cancel")}
+  loading={deleting}
+  data-testid="installed-model-delete-dialog"
+/>

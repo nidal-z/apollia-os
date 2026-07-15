@@ -1773,6 +1773,10 @@
     "run_now": "Run now",
     "running": "Starting…",
     "view_history": "View history",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pause_toast": "Automation paused",
+    "resume_toast": "Automation resumed",
     "advanced_link": "Open the advanced builder view",
     "target_prefix": "Assistant",
     "paused_hint": "Paused - enable it in the advanced view to run on schedule.",
@@ -2813,6 +2817,15 @@
         "timeout_toast": "No key pressed - capture cancelled"
       },
       "status_refresh": "Refresh",
+      "reload_btn": "Reload",
+      "reload_toast": "STT engine reloaded",
+      "test": {
+        "label": "Test dictation",
+        "start": "Test",
+        "stop": "Stop & transcribe",
+        "transcribing": "Transcribing...",
+        "empty": "(no speech detected)"
+      },
       "status_updated": "Updated {relative}",
       "status_never": "Never refreshed",
       "status_live_updates": "Live updates",
@@ -2893,7 +2906,9 @@
       "delete_title": "Delete backend",
       "delete_message": "Delete backend '{name}'? Active sessions using this backend will fail.",
       "delete_type_prompt": "Type DELETE to confirm removing the default backend.",
-      "delete_toast": "Backend '{name}' deleted"
+      "delete_toast": "Backend '{name}' deleted",
+      "reload_btn": "Reload",
+      "reload_toast": "LLM engine reloaded"
     },
     "llm_dialog": {
       "title_add": "Add LLM backend",
@@ -2942,6 +2957,16 @@
     "model_hub": {
       "title": "Model Hub",
       "subtitle": "Browse, download, and manage GGUF models from HuggingFace.",
+      "installed": {
+        "label": "Installed models",
+        "total": "{size} on disk",
+        "empty": "No models installed yet.",
+        "in_use": "In use",
+        "delete": "Delete",
+        "delete_title": "Delete model?",
+        "delete_message": "Permanently delete '{name}' from disk? This cannot be undone.",
+        "deleted_toast": "Model '{name}' deleted"
+      },
       "hardware": {
         "label": "Your hardware",
         "detecting": "Detecting hardware…",
@@ -3079,6 +3104,21 @@
     "permissions": {
       "title": "Permissions",
       "subtitle": "View and revoke the permissions granted to tools, by scope.",
+      "add": {
+        "button": "Add rule",
+        "tool_label": "Tool",
+        "tool_placeholder": "Select a tool",
+        "action_label": "Action",
+        "action_allow": "Allow",
+        "action_deny": "Deny",
+        "scope_label": "Scope",
+        "arg_prefix_label": "Argument prefix (optional)",
+        "arg_prefix_placeholder": "e.g. git status",
+        "project_path_label": "Project path",
+        "project_path_placeholder": "/absolute/path/to/project",
+        "submit": "Create rule",
+        "created_toast": "Permission rule created"
+      },
       "revoke_all": "Revoke all",
       "reload": "Reload",
       "filter_scope_label": "Scope",
@@ -3630,6 +3670,10 @@
     "delete_session": "Delete",
     "delete_confirm": "Delete this conversation?",
     "copy_message": "Copy",
+    "stop": "Stop",
+    "regenerate": "Regenerate",
+    "edit_message": "Edit",
+    "edit_save": "Save & send",
     "dictate_start": "Voice dictation",
     "dictate_stop": "Stop dictation",
     "slash_commands": "Commands",

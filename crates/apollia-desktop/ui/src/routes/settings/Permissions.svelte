@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { RotateCw } from "lucide-svelte";
+  import { RotateCw, Plus } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import { ErrorBanner } from "$lib/components/operator";
@@ -57,6 +59,7 @@
   let bulkSubmitting = $state(false);
 
   onMount(() => {
+    void loadAvailableTools();
     void Promise.all([
       loadRules(),
       loadAudit(),
@@ -113,6 +116,64 @@
     for (const r of $permissionRules) names.add(r.tool_name);
     return Array.from(names).sort();
   });
+
+  // ── Add-rule form (G5) ──
+  // The backend create command (`add_permission_prefix_rule`) only accepts the
+  // project and global scopes; session/agent rules are created via HITL only.
+  interface ToolStatus { name: string }
+
+  let availableTools = $state<string[]>([]);
+  let addOpen = $state(false);
+  let addTool = $state("");
+  let addScope = $state<"global" | "project">("global");
+  let addAction = $state<"allow" | "deny">("allow");
+  let addProjectPath = $state("");
+  let addArgPrefix = $state("");
+  let addSubmitting = $state(false);
+
+  const canSubmitRule = $derived(
+    addTool.trim() !== "" &&
+      (addScope !== "project" || addProjectPath.trim() !== ""),
+  );
+
+  async function loadAvailableTools(): Promise<void> {
+    try {
+      const tools = await invoke<ToolStatus[]>("governance_list_tools");
+      availableTools = tools.map((tool) => tool.name).sort();
+    } catch {
+      availableTools = [];
+    }
+  }
+
+  function resetAddForm(): void {
+    addTool = "";
+    addScope = "global";
+    addAction = "allow";
+    addProjectPath = "";
+    addArgPrefix = "";
+  }
+
+  async function submitRule(): Promise<void> {
+    if (!canSubmitRule || addSubmitting) return;
+    addSubmitting = true;
+    try {
+      await invoke("add_permission_prefix_rule", {
+        toolName: addTool,
+        argPrefix: addArgPrefix.trim() === "" ? null : addArgPrefix.trim(),
+        action: addAction,
+        scope: addScope,
+        projectPath: addScope === "project" ? addProjectPath.trim() : null,
+      });
+      addToast($t("settings.permissions.add.created_toast"), "success");
+      resetAddForm();
+      addOpen = false;
+      await loadRules();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      addSubmitting = false;
+    }
+  }
 
   function scopeFromValue(value: string): PermissionRuleScope | null {
     if (
@@ -239,6 +300,15 @@
     </div>
     <div class="flex items-center gap-2">
       <Button
+        variant="default"
+        size="sm"
+        onclick={() => (addOpen = !addOpen)}
+        data-testid="permission-rule-add-toggle"
+      >
+        <Plus size={14} class="mr-1" aria-hidden="true" />
+        {$t("settings.permissions.add.button")}
+      </Button>
+      <Button
         variant="destructive"
         size="sm"
         onclick={openBulk}
@@ -259,6 +329,91 @@
       </Button>
     </div>
   </header>
+
+  {#if addOpen}
+    <form
+      class="grid gap-3 rounded-md border border-border bg-muted/30 p-4 sm:grid-cols-2"
+      data-testid="permission-rule-add-form"
+      onsubmit={(e) => { e.preventDefault(); void submitRule(); }}
+    >
+      <div class="space-y-1.5">
+        <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permission-rule-add-tool">
+          {$t("settings.permissions.add.tool_label")}
+        </label>
+        <Select id="permission-rule-add-tool" bind:value={addTool} data-testid="permission-rule-add-tool">
+          <option value="" disabled>{$t("settings.permissions.add.tool_placeholder")}</option>
+          {#each availableTools as name (name)}
+            <option value={name}>{name}</option>
+          {/each}
+        </Select>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permission-rule-add-action">
+          {$t("settings.permissions.add.action_label")}
+        </label>
+        <Select id="permission-rule-add-action" bind:value={addAction} data-testid="permission-rule-add-action">
+          <option value="allow">{$t("settings.permissions.add.action_allow")}</option>
+          <option value="deny">{$t("settings.permissions.add.action_deny")}</option>
+        </Select>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permission-rule-add-scope">
+          {$t("settings.permissions.add.scope_label")}
+        </label>
+        <Select id="permission-rule-add-scope" bind:value={addScope} data-testid="permission-rule-add-scope">
+          <option value="global">{$t("settings.permissions.scope_global")}</option>
+          <option value="project">{$t("settings.permissions.scope_project")}</option>
+        </Select>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permission-rule-add-arg-prefix">
+          {$t("settings.permissions.add.arg_prefix_label")}
+        </label>
+        <Input
+          id="permission-rule-add-arg-prefix"
+          bind:value={addArgPrefix}
+          placeholder={$t("settings.permissions.add.arg_prefix_placeholder")}
+          data-testid="permission-rule-add-arg-prefix"
+        />
+      </div>
+
+      {#if addScope === "project"}
+        <div class="space-y-1.5 sm:col-span-2">
+          <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permission-rule-add-project-path">
+            {$t("settings.permissions.add.project_path_label")}
+          </label>
+          <Input
+            id="permission-rule-add-project-path"
+            bind:value={addProjectPath}
+            placeholder={$t("settings.permissions.add.project_path_placeholder")}
+            data-testid="permission-rule-add-project-path"
+          />
+        </div>
+      {/if}
+
+      <div class="flex justify-end gap-2 sm:col-span-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onclick={() => { addOpen = false; resetAddForm(); }}
+        >
+          {$t("common.cancel")}
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={!canSubmitRule || addSubmitting}
+          data-testid="permission-rule-add-submit"
+        >
+          {$t("settings.permissions.add.submit")}
+        </Button>
+      </div>
+    </form>
+  {/if}
 
   <div class="grid gap-4 lg:grid-cols-[14rem_1fr]">
     <aside class="space-y-4 rounded-md border border-border bg-muted/30 p-3">

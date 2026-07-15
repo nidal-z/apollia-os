@@ -11,6 +11,12 @@
     agentName?: string | null;
     /** "compact" propagates to bubbles for embedded contexts. */
     variant?: "default" | "compact";
+    /** True while a turn is generating - disables regenerate/edit in bubbles. */
+    busy?: boolean;
+    /** Regenerate the reply to an assistant turn (truncate-in-place). */
+    onregenerate?: (messageId: string) => void;
+    /** Replace a user message and re-run from it (truncate-in-place). */
+    onedit?: (messageId: string, content: string) => void;
   }
 
   let {
@@ -18,6 +24,9 @@
     sessionId,
     agentName = null,
     variant = "default",
+    busy = false,
+    onregenerate,
+    onedit,
   }: Props = $props();
 
   const isUser = $derived(group.role === "user");
@@ -55,6 +64,9 @@
         {sessionId}
         showTimestamp={false}
         {variant}
+        {busy}
+        {onregenerate}
+        {onedit}
       />
     {/each}
   </div>

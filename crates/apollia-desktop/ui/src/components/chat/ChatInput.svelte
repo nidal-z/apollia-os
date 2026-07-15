@@ -13,7 +13,7 @@
 <script lang="ts">
   import { onMount, untrack, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks } from "lucide-svelte";
+  import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { tourPrefill } from "$lib/stores/tour";
@@ -47,6 +47,10 @@
 
   interface Props {
     disabled: boolean;
+    /** True while a turn is generating - swaps Send for a Stop control. */
+    busy?: boolean;
+    /** Invoked when the user hits Stop during generation. */
+    onstop?: () => void;
     onsend: (content: string, attachments: PendingAttachment[]) => void;
     suggestions?: string[];
     /** Last user message text - used by ↑ to pre-fill editing. */
@@ -69,6 +73,8 @@
 
   let {
     disabled,
+    busy = false,
+    onstop,
     onsend,
     suggestions,
     lastUserMessage = null,
@@ -814,22 +820,37 @@
           ⌘↵
         </span>
       {/if}
-      <button
-        onclick={send}
-        disabled={!canSend}
-        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
-          transition-all active:scale-[0.96]
-          disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed"
-        class:bg-primary-solid={canSend}
-        class:text-primary-foreground={canSend}
-        class:shadow-warm-glow={canSend}
-        class:bg-muted={!canSend}
-        class:text-muted-foreground={!canSend}
-        aria-label={$t("chat.send")}
-        data-testid="chat-send-button"
-      >
-        <Send size={16} />
-      </button>
+      {#if busy && onstop}
+        <button
+          type="button"
+          onclick={() => onstop?.()}
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
+            bg-destructive text-destructive-foreground shadow-warm-glow
+            transition-all active:scale-[0.96]"
+          aria-label={$t("chat.stop")}
+          title={$t("chat.stop")}
+          data-testid="chat-stop-button"
+        >
+          <Square size={14} class="fill-current" />
+        </button>
+      {:else}
+        <button
+          onclick={send}
+          disabled={!canSend}
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
+            transition-all active:scale-[0.96]
+            disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed"
+          class:bg-primary-solid={canSend}
+          class:text-primary-foreground={canSend}
+          class:shadow-warm-glow={canSend}
+          class:bg-muted={!canSend}
+          class:text-muted-foreground={!canSend}
+          aria-label={$t("chat.send")}
+          data-testid="chat-send-button"
+        >
+          <Send size={16} />
+        </button>
+      {/if}
     </div>
   </div>
 

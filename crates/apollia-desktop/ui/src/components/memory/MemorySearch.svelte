@@ -57,6 +57,7 @@
     value={internalValue}
     oninput={handleInput}
     icon={Search}
+    data-testid="memory-search-input"
   >
     {#snippet trailing()}
       {#if internalValue.length > 0}

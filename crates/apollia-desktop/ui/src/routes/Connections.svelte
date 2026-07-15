@@ -1649,7 +1649,7 @@
             <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
           {/snippet}
           {#snippet actions()}
-            <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+            <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading} data-testid="oauth-add-account-{connector.id}">
               {#snippet icon()}<Plus size={12} />{/snippet}
               {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
             </Button>
@@ -1682,7 +1682,7 @@
                 <p class="text-[12.5px] text-muted-foreground mb-3">
                   {$t("connections.no_account_for", { values: { name: connector.name } })}
                 </p>
-                <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+                <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading} data-testid="oauth-connect-{connector.id}">
                   {#snippet icon()}<Plus size={12} />{/snippet}
                   {$t("connections.connect_account")}
                 </Button>
@@ -1699,6 +1699,7 @@
                       onclick={() => disconnectNative(account)}
                       disabled={nativeLoading}
                       class="text-destructive hover:bg-destructive/10"
+                      data-testid="oauth-disconnect-{account.account_id}"
                     >
                       {$t("connections.disconnect")}
                     </Button>
@@ -2057,7 +2058,7 @@
 
 <!-- ============ NATIVE OAUTH DIALOG ============ -->
 {#if oauthDialogOpen}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" data-testid="oauth-dialog">
     <div class="w-full max-w-md rounded-xl bg-surface-1 border border-border p-5 space-y-3">
       <h2 class="text-lg font-semibold">
         {#if oauthDialogStep === "drive_folder"}
@@ -2135,7 +2136,8 @@
             class="underline"
             href={oauthDialogAuthUrl}
             target="_blank"
-            rel="noopener noreferrer">{$t("connections.oauth_open_url_manually")}</a
+            rel="noopener noreferrer"
+            data-testid="oauth-open-url-link">{$t("connections.oauth_open_url_manually")}</a
           >.
         </p>
 
@@ -2153,6 +2155,7 @@
               placeholder={$t("connections.custom_mcp.code_placeholder")}
               bind:value={oauthDialogPastedCode}
               disabled={oauthDialogBusy}
+              data-testid="oauth-paste-code-input"
             />
           </div>
         </details>
@@ -2175,15 +2178,16 @@
             {oauthDialogDriveFolderSaving ? $t("connections.saving") : $t("connections.save")}
           </Button>
         {:else}
-          <Button variant="outline" size="sm" onclick={closeOauthDialog}>{$t("common.cancel")}</Button>
+          <Button variant="outline" size="sm" onclick={closeOauthDialog} data-testid="oauth-cancel-btn">{$t("common.cancel")}</Button>
           {#if oauthDialogErrorIsMissingClient}
-            <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations}>
+            <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations} data-testid="oauth-open-settings-btn">
               {$t("connections.open_settings_integrations")}
             </Button>
           {:else if oauthDialogAuthUrl}
             <Button variant="primary-solid" size="sm"
               onclick={completeNativeFlow}
               disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
+              data-testid="oauth-finalize-btn"
             >
               {oauthDialogBusy ? $t("common.finalizing") : $t("common.finalize")}
             </Button>
@@ -2383,6 +2387,7 @@
               placeholder={$t("connections.custom_name_placeholder")}
               bind:value={customForm.name}
               disabled={customBusy}
+              data-testid="custom-mcp-name-input"
             />
           </label>
 
@@ -2392,6 +2397,7 @@
               class="mt-1"
               bind:value={customForm.transport}
               disabled={customBusy}
+              data-testid="custom-mcp-transport-select"
             >
               <option value="stdio">{$t("connections.custom_transport_stdio")}</option>
               <option value="streamable-http">{$t("connections.custom_transport_http")}</option>
@@ -2408,6 +2414,7 @@
                 placeholder="npx, uvx, /path/to/binary…"
                 bind:value={customForm.command}
                 disabled={customBusy}
+                data-testid="custom-mcp-command-input"
               />
             </label>
             <label class="block text-[11.5px] font-medium text-foreground">
@@ -2418,6 +2425,7 @@
                 placeholder="@modelcontextprotocol/server-filesystem /tmp"
                 bind:value={customForm.args}
                 disabled={customBusy}
+                data-testid="custom-mcp-args-input"
               />
             </label>
           {:else}
@@ -2429,6 +2437,7 @@
                 placeholder="https://mcp.example.com/v1"
                 bind:value={customForm.url}
                 disabled={customBusy}
+                data-testid="custom-mcp-url-input"
               />
             </label>
           {/if}
@@ -2444,11 +2453,12 @@
                 : "Authorization=Bearer xxx\nX-Custom-Header=value"}
               bind:value={customForm.headers}
               disabled={customBusy}
+              data-testid="custom-mcp-env-input"
             />
           </label>
 
           <label class="flex items-center gap-2 pt-1 text-[11.5px] font-medium text-foreground">
-            <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} />
+            <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} data-testid="custom-mcp-approval-toggle" />
             {$t("connections.custom_require_approval")}
           </label>
         </div>
@@ -2463,10 +2473,10 @@
         {/if}
 
         <div class="mt-5 flex justify-end gap-2">
-          <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy}>
+          <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy} data-testid="custom-mcp-test-btn">
             {customBusy ? $t("connections.testing") : $t("connections.test")}
           </Button>
-          <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy}>
+          <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy} data-testid="custom-mcp-install-btn">
             {customBusy ? $t("connections.installing") : $t("connections.install")}
           </Button>
         </div>

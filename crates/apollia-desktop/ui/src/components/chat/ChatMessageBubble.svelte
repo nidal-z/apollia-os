@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
-  import { Copy, Check } from "lucide-svelte";
+  import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import MessageRenderer from "./MessageRenderer.svelte";
@@ -22,6 +22,12 @@
     showTimestamp?: boolean;
     /** Visual density. "compact" clamps the max-width at 72 % for embedded contexts. */
     variant?: "default" | "compact";
+    /** True while a turn is generating - disables regenerate/edit affordances. */
+    busy?: boolean;
+    /** Regenerate the reply to this assistant turn (truncate-in-place). */
+    onregenerate?: (messageId: string) => void;
+    /** Replace this user message and re-run from it (truncate-in-place). */
+    onedit?: (messageId: string, content: string) => void;
   }
 
   let {
@@ -29,6 +35,9 @@
     sessionId,
     showTimestamp = true,
     variant = "default",
+    busy = false,
+    onregenerate,
+    onedit,
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
@@ -107,6 +116,31 @@
       // clipboard API may not be available
     }
   }
+
+  // Inline edit of a user turn (G10). Opening the editor seeds it with the
+  // current text; saving hands the new content up so the parent truncates the
+  // history from this message and re-runs.
+  let editing = $state(false);
+  let editValue = $state("");
+
+  const canRegenerate = $derived(!isUser && !!onregenerate && !!message.content);
+  const canEdit = $derived(isUser && !!onedit && !!message.content);
+
+  function startEdit(): void {
+    editValue = message.content ?? "";
+    editing = true;
+  }
+
+  function cancelEdit(): void {
+    editing = false;
+  }
+
+  function saveEdit(): void {
+    const next = editValue.trim();
+    if (!next) return;
+    editing = false;
+    onedit?.(message.id, next);
+  }
 </script>
 
 <div
@@ -121,32 +155,102 @@
   {/if}
 
   <div
-    class="relative {widthClass} text-[14px] leading-relaxed {blockClass} {!isUser && message.content ? 'pr-10' : ''}"
+    class="relative {widthClass} text-[14px] leading-relaxed {blockClass} {!isUser && message.content ? (canRegenerate ? 'pr-16' : 'pr-10') : ''} {canEdit && !editing ? 'pr-10' : ''}"
   >
-    <!-- Copy button - floating, backdrop-blur, always reachable on touch. -->
+    <!-- Copy / regenerate - floating, backdrop-blur, always reachable on touch. -->
     {#if message.content && !isUser}
-      <button
-        onclick={handleCopy}
-        class="absolute top-2 right-2 z-10 h-6 w-6 rounded-md flex items-center justify-center
-          bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
-          opacity-0 group-hover:opacity-100 focus-visible:opacity-100
-          hover:text-foreground hover:bg-card/90 transition-all shadow-sm
+      <div
+        class="absolute top-2 right-2 z-10 flex items-center gap-1
+          opacity-0 group-hover:opacity-100 focus-within:opacity-100
           supports-[hover:none]:opacity-100"
-        title={$t("chat.copy_message")}
-        data-testid="chat-message-copy-{message.id}"
-        aria-label={$t("chat.copy_message")}
       >
-        {#if copied}
-          <Check size={11} class="text-success" />
-        {:else}
-          <Copy size={11} />
+        {#if canRegenerate}
+          <button
+            onclick={() => onregenerate?.(message.id)}
+            disabled={busy}
+            class="h-6 w-6 rounded-md flex items-center justify-center
+              bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
+              hover:text-foreground hover:bg-card/90 transition-all shadow-sm
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            title={$t("chat.regenerate")}
+            data-testid="chat-message-regenerate-{message.id}"
+            aria-label={$t("chat.regenerate")}
+          >
+            <RefreshCw size={11} />
+          </button>
         {/if}
-      </button>
+        <button
+          onclick={handleCopy}
+          class="h-6 w-6 rounded-md flex items-center justify-center
+            bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
+            hover:text-foreground hover:bg-card/90 transition-all shadow-sm"
+          title={$t("chat.copy_message")}
+          data-testid="chat-message-copy-{message.id}"
+          aria-label={$t("chat.copy_message")}
+        >
+          {#if copied}
+            <Check size={11} class="text-success" />
+          {:else}
+            <Copy size={11} />
+          {/if}
+        </button>
+      </div>
     {/if}
 
     {#if isUser}
-      {#if message.content}
+      {#if editing}
+        <div class="flex flex-col gap-2">
+          <!-- svelte-ignore a11y_autofocus -->
+          <textarea
+            bind:value={editValue}
+            rows="3"
+            autofocus
+            class="w-full resize-y rounded-md border border-border bg-background px-3 py-2
+              text-[14px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="chat-message-edit-input-{message.id}"
+          ></textarea>
+          <div class="flex justify-end gap-2">
+            <button
+              type="button"
+              onclick={cancelEdit}
+              class="rounded-md px-2.5 py-1 text-[12px] text-muted-foreground
+                hover:bg-surface-3 hover:text-foreground transition-colors"
+              data-testid="chat-message-edit-cancel-{message.id}"
+            >
+              {$t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              onclick={saveEdit}
+              disabled={busy || !editValue.trim()}
+              class="rounded-md bg-primary-solid px-2.5 py-1 text-[12px] text-primary-foreground
+                hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              data-testid="chat-message-edit-save-{message.id}"
+            >
+              {$t("chat.edit_save")}
+            </button>
+          </div>
+        </div>
+      {:else if message.content}
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
+        {#if canEdit}
+          <button
+            type="button"
+            onclick={startEdit}
+            disabled={busy}
+            class="absolute top-2 right-2 z-10 h-6 w-6 rounded-md flex items-center justify-center
+              bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
+              opacity-0 group-hover:opacity-100 focus-visible:opacity-100
+              hover:text-foreground hover:bg-card/90 transition-all shadow-sm
+              supports-[hover:none]:opacity-100
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            title={$t("chat.edit_message")}
+            data-testid="chat-message-edit-{message.id}"
+            aria-label={$t("chat.edit_message")}
+          >
+            <Pencil size={11} />
+          </button>
+        {/if}
       {/if}
     {:else if isEmptyAgentResponse}
       <p

@@ -119,11 +119,11 @@
       </Button>
     {/if}
     {#if type === "approval"}
-      <Button variant="primary-solid" size="sm" onclick={onAction}>{$t("inbox.row.action_allow")}</Button>
+      <Button variant="primary-solid" size="sm" onclick={onAction} data-testid="inbox-row-primary">{$t("inbox.row.action_allow")}</Button>
     {:else if type === "question"}
-      <Button variant="outline" size="sm" onclick={onAction}>{$t("inbox.row.action_reply")}</Button>
+      <Button variant="outline" size="sm" onclick={onAction} data-testid="inbox-row-primary">{$t("inbox.row.action_reply")}</Button>
     {:else if type === "error"}
-      <Button variant="outline" size="sm" onclick={onAction}>{$t("inbox.row.action_resolve")}</Button>
+      <Button variant="outline" size="sm" onclick={onAction} data-testid="inbox-row-primary">{$t("inbox.row.action_resolve")}</Button>
     {/if}
   </div>
 </ListRow>

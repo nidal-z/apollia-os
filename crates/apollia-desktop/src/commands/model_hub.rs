@@ -7,9 +7,10 @@
 //! - [`cancel_model_download`]: cancels an in-progress download
 //! - [`list_model_downloads`]: lists active downloads
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use apollia_core::LlmBackendRepository;
 use apollia_llm::hardware::detect as detect_hardware;
 use apollia_llm::{AcceleratorProfile, HardwareProfile};
 use serde::{Deserialize, Serialize};
@@ -227,4 +228,195 @@ pub async fn list_model_downloads(
     manager: State<'_, SharedDownloadManager>,
 ) -> Result<Vec<String>, String> {
     Ok(manager.lock().await.active_ids())
+}
+
+// ─────────────────────────────────────────────
+// Installed models (list + guarded delete)
+// ─────────────────────────────────────────────
+
+/// Classification of an installed model file by extension.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InstalledModelKind {
+    /// GGUF weights for local LLM inference.
+    Llm,
+    /// GGML weights for local speech-to-text.
+    Stt,
+}
+
+/// A model file installed under `~/.apollia/models/`.
+#[derive(Debug, Clone, Serialize)]
+pub struct InstalledModelView {
+    /// Absolute path of the file on disk.
+    pub path: String,
+    /// File name (basename).
+    pub name: String,
+    /// Size in bytes.
+    pub size_bytes: u64,
+    /// LLM or STT, inferred from the extension.
+    pub kind: InstalledModelKind,
+    /// True when an LLM backend or the STT config references this file.
+    pub in_use: bool,
+    /// Human-readable owner when `in_use` (e.g. `LLM backend 'local-code'`).
+    pub used_by: Option<String>,
+}
+
+/// A model file referenced by the active configuration.
+struct ModelRef {
+    /// Basename of the referenced file, used for a conservative match.
+    name: String,
+    /// Owner label surfaced to the operator.
+    label: String,
+}
+
+fn home_dir() -> PathBuf {
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir())
+}
+
+fn models_dir() -> PathBuf {
+    home_dir().join(".apollia").join("models")
+}
+
+fn expand_tilde(raw: &str) -> PathBuf {
+    if let Some(rest) = raw.strip_prefix("~/") {
+        home_dir().join(rest)
+    } else {
+        PathBuf::from(raw)
+    }
+}
+
+/// Collect every model file referenced by an LLM backend or the STT config.
+///
+/// Read-only over `~/.apollia/system.db`. A backend whose `model` is a cloud
+/// model name (not a path) simply never matches a local `.gguf`, so it is
+/// harmless here.
+fn collect_in_use_refs() -> Vec<ModelRef> {
+    let mut refs = Vec::new();
+    let db_path = home_dir().join(".apollia").join("system.db");
+
+    let mut push = |raw: &str, label: String| {
+        if let Some(name) = expand_tilde(raw).file_name().map(|n| n.to_owned()) {
+            refs.push(ModelRef {
+                name: name.to_string_lossy().to_string(),
+                label,
+            });
+        }
+    };
+
+    if let Ok(repo) = LlmBackendRepository::open(&db_path) {
+        if let Ok(list) = repo.list() {
+            for cfg in list {
+                let label = format!("LLM backend '{}'", cfg.name);
+                push(&cfg.model, label.clone());
+                if let Some(mp) = cfg.config_json.get("model_path").and_then(|v| v.as_str()) {
+                    push(mp, label);
+                }
+            }
+        }
+    }
+
+    if let Ok(repo) = apollia_core::SttConfigRepository::open(&db_path) {
+        if let Ok(row) = repo.get_or_default() {
+            push(&row.model_path, "STT engine".to_string());
+        }
+    }
+
+    refs
+}
+
+/// Conservative match: same file name as a referenced model. Prefers a false
+/// "in use" (blocks a delete) over an accidental removal of a live model.
+fn used_by(file: &Path, refs: &[ModelRef]) -> Option<String> {
+    let name = file.file_name()?.to_string_lossy().to_string();
+    refs.iter()
+        .find(|r| r.name == name)
+        .map(|r| r.label.clone())
+}
+
+fn collect_installed_models() -> Result<Vec<InstalledModelView>, String> {
+    let dir = models_dir();
+    let refs = collect_in_use_refs();
+    let mut out = Vec::new();
+
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(e) => e,
+        // No models directory yet is not an error: nothing installed.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+        Err(e) => return Err(format!("failed to read models directory: {e}")),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let kind = match path.extension().and_then(|e| e.to_str()) {
+            Some("gguf") => InstalledModelKind::Llm,
+            Some("bin") => InstalledModelKind::Stt,
+            _ => continue,
+        };
+        let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let owner = used_by(&path, &refs);
+        out.push(InstalledModelView {
+            path: path.to_string_lossy().to_string(),
+            name,
+            size_bytes,
+            kind,
+            in_use: owner.is_some(),
+            used_by: owner,
+        });
+    }
+
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
+}
+
+fn delete_installed_model_inner(path: &str) -> Result<(), String> {
+    let target = PathBuf::from(path);
+
+    // The file must exist and resolve to a real path inside the managed models
+    // directory: reject traversal, symlinks pointing outside, and stray paths.
+    let canonical_target = target
+        .canonicalize()
+        .map_err(|e| format!("model file not found: {e}"))?;
+    let canonical_dir = models_dir()
+        .canonicalize()
+        .map_err(|e| format!("models directory not found: {e}"))?;
+    if !canonical_target.starts_with(&canonical_dir) {
+        return Err("refusing to delete a file outside the models directory".to_string());
+    }
+
+    // In-use guard: never delete a model referenced by a live backend or STT.
+    if let Some(owner) = used_by(&canonical_target, &collect_in_use_refs()) {
+        return Err(format!(
+            "model is in use by {owner}; change or remove that configuration first"
+        ));
+    }
+
+    std::fs::remove_file(&canonical_target).map_err(|e| format!("failed to delete model file: {e}"))
+}
+
+/// Lists model files installed under `~/.apollia/models/` with size and usage.
+#[tauri::command]
+pub async fn list_installed_models() -> Result<Vec<InstalledModelView>, String> {
+    tokio::task::spawn_blocking(collect_installed_models)
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
+/// Deletes an installed model file after a path and in-use safety check.
+///
+/// Refuses any path outside `~/.apollia/models/` and any file still referenced
+/// by an LLM backend or the STT configuration.
+#[tauri::command]
+pub async fn delete_installed_model(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || delete_installed_model_inner(&path))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }

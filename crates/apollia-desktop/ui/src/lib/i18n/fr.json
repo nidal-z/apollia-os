@@ -1773,6 +1773,10 @@
     "run_now": "Lancer maintenant",
     "running": "Lancement…",
     "view_history": "Voir l'historique",
+    "pause": "Mettre en pause",
+    "resume": "Reprendre",
+    "pause_toast": "Automatisation mise en pause",
+    "resume_toast": "Automatisation reprise",
     "advanced_link": "Ouvrir la vue builder avancée",
     "target_prefix": "Assistant",
     "paused_hint": "En pause - réactivez-la en mode avancé pour qu'elle s'exécute selon sa planification.",
@@ -2813,6 +2817,15 @@
         "timeout_toast": "Aucune touche - capture annulée"
       },
       "status_refresh": "Rafraîchir",
+      "reload_btn": "Recharger",
+      "reload_toast": "Moteur STT rechargé",
+      "test": {
+        "label": "Tester la dictée",
+        "start": "Tester",
+        "stop": "Arrêter et transcrire",
+        "transcribing": "Transcription...",
+        "empty": "(aucune parole détectée)"
+      },
       "status_updated": "Mis à jour {relative}",
       "status_never": "Jamais rafraîchi",
       "status_live_updates": "Mises à jour en direct",
@@ -2893,7 +2906,9 @@
       "delete_title": "Supprimer le backend",
       "delete_message": "Supprimer le backend « {name} » ? Les sessions actives qui l'utilisent échoueront.",
       "delete_type_prompt": "Saisissez DELETE pour confirmer la suppression du backend par défaut.",
-      "delete_toast": "Backend « {name} » supprimé"
+      "delete_toast": "Backend « {name} » supprimé",
+      "reload_btn": "Recharger",
+      "reload_toast": "Moteur LLM rechargé"
     },
     "llm_dialog": {
       "title_add": "Ajouter un backend LLM",
@@ -2942,6 +2957,16 @@
     "model_hub": {
       "title": "Hub de modèles",
       "subtitle": "Parcourez, téléchargez et gérez les modèles GGUF depuis HuggingFace.",
+      "installed": {
+        "label": "Modèles installés",
+        "total": "{size} sur le disque",
+        "empty": "Aucun modèle installé pour le moment.",
+        "in_use": "Utilisé",
+        "delete": "Supprimer",
+        "delete_title": "Supprimer le modèle ?",
+        "delete_message": "Supprimer définitivement « {name} » du disque ? Cette action est irréversible.",
+        "deleted_toast": "Modèle « {name} » supprimé"
+      },
       "hardware": {
         "label": "Votre matériel",
         "detecting": "Détection du matériel…",
@@ -3079,6 +3104,21 @@
     "permissions": {
       "title": "Autorisations",
       "subtitle": "Visualisez et révoquez les autorisations accordées aux outils, par portée.",
+      "add": {
+        "button": "Ajouter une règle",
+        "tool_label": "Outil",
+        "tool_placeholder": "Sélectionnez un outil",
+        "action_label": "Action",
+        "action_allow": "Autoriser",
+        "action_deny": "Refuser",
+        "scope_label": "Portée",
+        "arg_prefix_label": "Préfixe d'argument (optionnel)",
+        "arg_prefix_placeholder": "ex. git status",
+        "project_path_label": "Chemin du projet",
+        "project_path_placeholder": "/chemin/absolu/vers/le/projet",
+        "submit": "Créer la règle",
+        "created_toast": "Règle d'autorisation créée"
+      },
       "revoke_all": "Tout révoquer",
       "reload": "Recharger",
       "filter_scope_label": "Portée",
@@ -3630,6 +3670,10 @@
     "delete_session": "Supprimer",
     "delete_confirm": "Supprimer cette conversation ?",
     "copy_message": "Copier",
+    "stop": "Arrêter",
+    "regenerate": "Régénérer",
+    "edit_message": "Modifier",
+    "edit_save": "Enregistrer et envoyer",
     "dictate_start": "Dictée vocale",
     "dictate_stop": "Arrêter la dictée",
     "slash_commands": "Commandes",

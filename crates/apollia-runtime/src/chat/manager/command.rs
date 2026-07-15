@@ -168,6 +168,28 @@ pub enum ChatCommand {
         /// Response channel: `None` for an unknown session.
         reply: oneshot::Sender<Option<PauseState>>,
     },
+    /// Regenerate the assistant reply to the last user turn (truncate-in-place).
+    RegenerateResponse {
+        /// Target session.
+        session_id: SessionId,
+        /// Assistant message to regenerate. This message and every later message
+        /// are truncated, then the preceding user turn is re-run.
+        message_id: MessageId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Replace a user message and re-run from it (truncate-in-place).
+    EditAndResend {
+        /// Target session.
+        session_id: SessionId,
+        /// User message to edit. This message and everything after it are
+        /// truncated, then a fresh user message with `content` is sent.
+        message_id: MessageId,
+        /// New user message content.
+        content: String,
+        /// Response channel: the id of the newly appended user message.
+        reply: oneshot::Sender<Result<MessageId, ChatError>>,
+    },
     /// Internal: ReAct exchange completed successfully (sent by spawned task).
     ExchangeComplete {
         /// Target session.

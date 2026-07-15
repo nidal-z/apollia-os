@@ -180,6 +180,23 @@ impl ChatSessionManager {
                     );
                     let _ = reply.send(result);
                 }
+                ChatCommand::RegenerateResponse {
+                    session_id,
+                    message_id,
+                    reply,
+                } => {
+                    let result = self.handle_regenerate_response(&session_id, &message_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::EditAndResend {
+                    session_id,
+                    message_id,
+                    content,
+                    reply,
+                } => {
+                    let result = self.handle_edit_and_resend(&session_id, &message_id, &content);
+                    let _ = reply.send(result);
+                }
                 ChatCommand::ExchangeComplete {
                     session_id,
                     message_id,

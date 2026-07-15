@@ -146,6 +146,12 @@ async function refreshTriggersViaIpc(): Promise<void> {
   }
 }
 
+// Force an immediate trigger-list refresh (used after enable/disable so the UI
+// reflects the change without waiting for the next SSE push).
+export async function refreshTriggers(): Promise<void> {
+  await refreshTriggersViaIpc();
+}
+
 async function refreshPendingApprovalsViaIpc(): Promise<void> {
   try {
     const result: PendingApproval[] = await invoke("list_pending_approvals");

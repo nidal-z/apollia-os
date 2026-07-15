@@ -7,6 +7,7 @@
 <div
   class="fixed top-4 right-4 flex flex-col gap-2 pointer-events-none"
   style="z-index: var(--z-toast, 40);"
+  data-testid="toast-container"
 >
   {#each $visibleToasts as toast (toast.id)}
     <Toast

@@ -318,6 +318,59 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Regenerate the assistant reply to the last user turn (truncate-in-place).
+    ///
+    /// `message_id` is the assistant message to regenerate: it and every later
+    /// message are dropped from SQLite and memory, then the preceding user turn
+    /// is replayed in the same session. Fails with [`ChatError::SessionBusy`]
+    /// when a turn is already in flight.
+    pub async fn regenerate_response(
+        &self,
+        session_id: SessionId,
+        message_id: MessageId,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::RegenerateResponse {
+                session_id,
+                message_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Replace a user message and re-run from it (truncate-in-place).
+    ///
+    /// `message_id` is the user message to edit: it and every later message are
+    /// dropped, then `content` is sent as a fresh user turn. Returns the new user
+    /// message id. Fails with [`ChatError::SessionBusy`] when a turn is in flight.
+    pub async fn edit_and_resend(
+        &self,
+        session_id: SessionId,
+        message_id: MessageId,
+        content: String,
+    ) -> Result<MessageId, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::EditAndResend {
+                session_id,
+                message_id,
+                content,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// List all direct child sessions (forks) of the given parent.
     ///
     /// Returns an empty vec if the actor is unreachable or the query fails.

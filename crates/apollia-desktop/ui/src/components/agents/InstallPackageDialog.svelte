@@ -194,7 +194,7 @@
 
   <!-- ── Step: pick ──────────────────────────────────────────────────────── -->
   {#if step === "pick"}
-    <div class="py-4 flex flex-col items-center gap-4 text-center">
+    <div class="py-4 flex flex-col items-center gap-4 text-center" data-testid="install-step-pick">
       {#if previewLoading}
         <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
           <Package2 size={28} class="text-primary/60" />
@@ -218,7 +218,7 @@
           </div>
         {/if}
 
-        <Button onclick={handlePickFolder} class="gap-2 w-full">
+        <Button onclick={handlePickFolder} class="gap-2 w-full" data-testid="install-pick-choose-folder">
           <FolderOpen size={14} />
           {$t("agents.install.choose_folder")}
         </Button>
@@ -227,7 +227,7 @@
 
   <!-- ── Step: preview ──────────────────────────────────────────────────── -->
   {:else if step === "preview" && preview}
-    <div class="py-2 space-y-4">
+    <div class="py-2 space-y-4" data-testid="install-step-preview">
       <!-- Package header -->
       <div class="flex items-center gap-3">
         <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
@@ -347,8 +347,8 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={reset} class="flex-1">{$t("agents.install.change")}</Button>
-        <Button onclick={proceedFromPreview} class="flex-1 gap-1.5" disabled={!preview.valid}>
+        <Button variant="outline" onclick={reset} class="flex-1" data-testid="install-preview-change">{$t("agents.install.change")}</Button>
+        <Button onclick={proceedFromPreview} class="flex-1 gap-1.5" disabled={!preview.valid} data-testid="install-preview-next">
           {willShowDepsConfirm
             ? $t("agents.install.continue")
             : needsConfig
@@ -361,7 +361,7 @@
 
   <!-- ── Step: deps-confirm (pip packages confirmation) ─────────────────── -->
   {:else if step === "deps-confirm" && preview}
-    <div class="py-2 space-y-4">
+    <div class="py-2 space-y-4" data-testid="install-step-deps">
       <div class="flex items-center gap-2 text-sm font-medium">
         <Package2 size={15} class="text-primary" />
         {$t("agents.install.deps_confirm_title")}
@@ -408,8 +408,8 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">{$t("agents.install.back")}</Button>
-        <Button onclick={confirmDepsAndProceed} class="flex-1 gap-1.5">
+        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1" data-testid="install-deps-back">{$t("agents.install.back")}</Button>
+        <Button onclick={confirmDepsAndProceed} class="flex-1 gap-1.5" data-testid="install-deps-confirm">
           <CheckCircle2 size={13} />
           {needsConfig ? $t("agents.install.confirm_and_continue") : $t("agents.install.confirm_and_install")}
         </Button>
@@ -418,7 +418,7 @@
 
   <!-- ── Step: configure (webhook secrets) ─────────────────────────────── -->
   {:else if step === "configure" && preview}
-    <div class="py-2 space-y-4">
+    <div class="py-2 space-y-4" data-testid="install-step-configure">
       <div class="flex items-center gap-2 text-sm font-medium">
         <Settings size={15} class="text-primary" />
         {$t("agents.install.configure_title")}
@@ -479,6 +479,7 @@
                 placeholder="Ex: my-super-secret-key-at-least-32-chars"
                 class="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 bind:value={webhookSecrets[trigger.id]}
+                data-testid="install-secret-input-{trigger.id}"
               />
               {#if (webhookSecrets[trigger.id] ?? "").trim().length > 0}
                 <Button variant="ghost" size="sm"
@@ -509,8 +510,8 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">{$t("agents.install.back")}</Button>
-        <Button onclick={handleInstall} class="flex-1" disabled={!canInstall}>
+        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1" data-testid="install-configure-back">{$t("agents.install.back")}</Button>
+        <Button onclick={handleInstall} class="flex-1" disabled={!canInstall} data-testid="install-configure-install">
           {$t("agents.install.install")}
         </Button>
       </div>
@@ -518,7 +519,7 @@
 
   <!-- ── Step: installing ───────────────────────────────────────────────── -->
   {:else if step === "installing"}
-    <div class="py-8 flex flex-col items-center gap-3 text-center">
+    <div class="py-8 flex flex-col items-center gap-3 text-center" data-testid="install-step-installing">
       <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
         <Package size={28} class="text-primary/60" />
       </div>
@@ -534,7 +535,7 @@
 
   <!-- ── Step: done ─────────────────────────────────────────────────────── -->
   {:else if step === "done" && installResult}
-    <div class="py-6 flex flex-col items-center gap-4 text-center">
+    <div class="py-6 flex flex-col items-center gap-4 text-center" data-testid="install-step-done">
       <div class="size-16 rounded-2xl bg-success/10 flex items-center justify-center">
         <CheckCircle2 size={28} class="text-success" />
       </div>
@@ -560,7 +561,7 @@
           </div>
         {/if}
       </div>
-      <Button onclick={handleClose} class="w-full">{$t("common.close")}</Button>
+      <Button onclick={handleClose} class="w-full" data-testid="install-done-close">{$t("common.close")}</Button>
     </div>
   {/if}
 

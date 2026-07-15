@@ -78,6 +78,7 @@
   state={isCancelled ? "dimmed" : "default"}
   onclick={onclick}
   class="text-[12px]"
+  data-testid={`task-row-${task.id ?? task.title}`}
 >
   <div class="flex-[2] min-w-0">
     <div

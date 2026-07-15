@@ -657,6 +657,31 @@ impl ChatSessionRepository {
         Ok(next_seq)
     }
 
+    /// Delete every message of a session at or after a given `seq`.
+    ///
+    /// Truncate-in-place primitive backing regenerate and edit-and-rerun: rows
+    /// with `seq >= from_seq` (when `inclusive`) or `seq > from_seq` (otherwise)
+    /// are removed so the turn can be replayed on the shortened history. Returns
+    /// the number of rows deleted. `seq` is a per-session monotonic counter, so
+    /// the next `append_message` naturally continues from the new maximum.
+    pub fn truncate_messages_from_seq(
+        &self,
+        session_id: &str,
+        from_seq: u32,
+        inclusive: bool,
+    ) -> Result<u32, ChatError> {
+        let sql = if inclusive {
+            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq >= ?2"
+        } else {
+            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq > ?2"
+        };
+        let deleted = self
+            .conn
+            .execute(sql, rusqlite::params![session_id, from_seq])
+            .map_err(|e| ChatError::InternalError(format!("truncate_messages: {e}")))?;
+        Ok(deleted as u32)
+    }
+
     /// Retrieve messages for a session, ordered by `seq` ascending.
     ///
     /// If `limit` is `Some(n)`, only the last `n` messages are returned.
@@ -1534,6 +1559,92 @@ mod tests {
         assert_eq!(messages.len(), 5);
         let seqs: Vec<u32> = messages.iter().map(|m| m.seq).collect();
         assert_eq!(seqs, vec![1, 2, 3, 4, 5]);
+    }
+
+    /// Seed a session with `n` sequential user messages for truncation tests.
+    #[cfg(test)]
+    fn seed_messages(repo: &ChatSessionRepository, session_id: &str, n: u32) {
+        repo.create_session(
+            session_id,
+            &ChatMode::Libre,
+            None,
+            "",
+            &[],
+            "2026-03-20T10:00:00Z",
+            None,
+            None,
+        )
+        .expect("create");
+        for i in 1..=n {
+            repo.append_message(&AppendMessageParams {
+                id: &format!("msg-{i}"),
+                session_id,
+                role: &ChatRole::User,
+                content: &format!("message {i}"),
+                tool_calls_json: None,
+                tool_name: None,
+                created_at: &format!("2026-03-20T10:0{i}:00Z"),
+                metadata: None,
+            })
+            .expect("append");
+        }
+    }
+
+    #[test]
+    fn test_truncate_messages_from_seq_exclusive() {
+        // GIVEN a session with 5 messages (regenerate: keep the user turn at seq 3)
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        seed_messages(&repo, "s1", 5);
+
+        // WHEN we truncate everything after seq 3
+        let deleted = repo
+            .truncate_messages_from_seq("s1", 3, false)
+            .expect("truncate");
+
+        // THEN seq 4 and 5 are gone, 1..=3 remain
+        assert_eq!(deleted, 2);
+        let seqs: Vec<u32> = repo
+            .get_messages("s1", None)
+            .expect("get")
+            .iter()
+            .map(|m| m.seq)
+            .collect();
+        assert_eq!(seqs, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_truncate_messages_from_seq_inclusive_then_reappend() {
+        // GIVEN a session with 5 messages (edit: drop the user turn at seq 3 and after)
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        seed_messages(&repo, "s1", 5);
+
+        // WHEN we truncate from seq 3 inclusive, then append a fresh message
+        let deleted = repo
+            .truncate_messages_from_seq("s1", 3, true)
+            .expect("truncate");
+        assert_eq!(deleted, 3);
+        let new_seq = repo
+            .append_message(&AppendMessageParams {
+                id: "msg-edit",
+                session_id: "s1",
+                role: &ChatRole::User,
+                content: "edited",
+                tool_calls_json: None,
+                tool_name: None,
+                created_at: "2026-03-20T10:09:00Z",
+                metadata: None,
+            })
+            .expect("append");
+
+        // THEN the surviving history is 1, 2 and the re-appended message continues at seq 3
+        assert_eq!(new_seq, 3);
+        let seqs: Vec<u32> = repo
+            .get_messages("s1", None)
+            .expect("get")
+            .iter()
+            .map(|m| m.seq)
+            .collect();
+        assert_eq!(seqs, vec![1, 2, 3]);
     }
 
     #[test]

@@ -13,7 +13,17 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { Plus, Pencil, Trash2, Plug, Star, CheckCircle2, XCircle, PauseCircle } from "lucide-svelte";
+  import {
+    Plus,
+    Pencil,
+    Trash2,
+    Plug,
+    Star,
+    CheckCircle2,
+    XCircle,
+    PauseCircle,
+    RefreshCw,
+  } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
@@ -130,6 +140,24 @@
     }
   }
 
+  let reloading = $state(false);
+
+  // Explicit engine reload, independent of a config save. Frees the current
+  // GGUF from RAM and rebuilds the router from the database.
+  async function handleReload() {
+    if (reloading) return;
+    reloading = true;
+    actionError = null;
+    try {
+      await invoke("reload_llm");
+      addToast($t("settings.llm.reload_toast"), "success");
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      reloading = false;
+    }
+  }
+
   async function handleSetDefault(b: LlmBackendConfig) {
     actionError = null;
     try {
@@ -179,10 +207,22 @@
   <section class="space-y-4" data-testid="llm-backends-section">
     <div class="flex items-center justify-between">
       <p class="text-sm text-muted-foreground">{$t("settings.llm_backends_subtitle")}</p>
-      <Button size="sm" onclick={openAdd} data-testid="add-backend-btn">
-        <Plus class="h-4 w-4 mr-1" />
-        {$t("settings.llm_add_backend")}
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={handleReload}
+          disabled={reloading}
+          data-testid="llm-reload-btn"
+        >
+          <RefreshCw class="h-4 w-4 mr-1 {reloading ? 'animate-spin' : ''}" />
+          {$t("settings.llm.reload_btn")}
+        </Button>
+        <Button size="sm" onclick={openAdd} data-testid="add-backend-btn">
+          <Plus class="h-4 w-4 mr-1" />
+          {$t("settings.llm_add_backend")}
+        </Button>
+      </div>
     </div>
 
     {#if actionError}

@@ -12,6 +12,7 @@
 
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
@@ -108,6 +109,72 @@
   async function refreshStatus() {
     await refreshSttStatus();
     lastStatusRefresh = Date.now();
+  }
+
+  // ── Test dictation (G7) ──
+  // Reuses the onboarding tour recorder: start records, stop transcribes, and
+  // the Rust pipeline broadcasts `stt-transcribed` with the resulting text.
+  let testRecording = $state(false);
+  let testBusy = $state(false);
+  let testResult = $state<string | null>(null);
+  let testUnlisten: (() => void) | null = null;
+
+  onMount(() => {
+    let cancelled = false;
+    void listen<{ text?: string } | string>("stt-transcribed", (event) => {
+      if (!testRecording) return;
+      const text =
+        typeof event.payload === "string" ? event.payload : event.payload?.text ?? "";
+      testResult = text;
+      testRecording = false;
+      testBusy = false;
+    }).then((unlisten) => {
+      if (cancelled) unlisten();
+      else testUnlisten = unlisten;
+    });
+    return () => {
+      cancelled = true;
+      testUnlisten?.();
+      testUnlisten = null;
+    };
+  });
+
+  async function toggleTest(): Promise<void> {
+    if (testBusy) return;
+    testBusy = true;
+    try {
+      if (testRecording) {
+        await invoke("stop_tour_recording");
+        // testBusy stays true until the transcription event arrives.
+      } else {
+        testResult = null;
+        await invoke("start_tour_recording");
+        testRecording = true;
+        testBusy = false;
+      }
+    } catch (err) {
+      testRecording = false;
+      testBusy = false;
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  let reloading = $state(false);
+
+  // Explicit engine reload without re-saving the config. Rebuilds the STT
+  // engine from the database and re-arms the global hotkey.
+  async function handleReload() {
+    if (reloading) return;
+    reloading = true;
+    try {
+      await invoke("reload_stt");
+      await refreshStatus();
+      addToast($t("settings.stt.reload_toast"), "success");
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      reloading = false;
+    }
   }
 
   $effect(() => {
@@ -232,6 +299,7 @@
           <label class="text-sm text-muted-foreground" for="stt-trigger">{$t('settings.stt_trigger_mode')}</label>
           <Select
             id="stt-trigger"
+            data-testid="stt-trigger"
             bind:value={sttConfig.trigger_mode}
             class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
@@ -284,6 +352,7 @@
         <div class="relative">
           <Input
             id="stt-silence"
+            data-testid="stt-silence"
             type="number"
             min="-80"
             max="0"
@@ -308,6 +377,7 @@
           <div class="relative">
             <Input
               id="stt-max-rec"
+              data-testid="stt-max-rec"
               type="number"
               min="5"
               max="300"
@@ -321,6 +391,7 @@
           <label class="text-sm text-muted-foreground" for="stt-clipboard">{$t('settings.stt_clipboard_mode')}</label>
           <Select
             id="stt-clipboard"
+            data-testid="stt-clipboard"
             bind:value={sttConfig.clipboard_mode}
             class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
@@ -335,6 +406,7 @@
         <Button variant="ghost" size="sm"
           type="button"
           role="switch"
+          data-testid="stt-clipboard-restore"
           aria-checked={sttConfig.clipboard_restore}
           aria-label={$t('settings.stt_clipboard_restore')}
           onclick={() => { if (sttConfig) sttConfig.clipboard_restore = !sttConfig.clipboard_restore; }}
@@ -373,6 +445,15 @@
           <Button
             variant="outline"
             size="sm"
+            onclick={handleReload}
+            disabled={reloading}
+            data-testid="stt-reload-btn"
+          >
+            {$t('settings.stt.reload_btn')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onclick={refreshStatus}
             data-testid="stt-status-refresh-btn"
           >
@@ -380,6 +461,33 @@
           </Button>
         </div>
       {/snippet}
+
+      <!-- Test dictation (G7): record a phrase and show the transcription. -->
+      <div class="mb-3 flex flex-col gap-2 rounded-md border border-border/40 bg-muted/20 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm text-muted-foreground">{$t('settings.stt.test.label')}</span>
+          <Button
+            variant={testRecording ? "destructive" : "outline"}
+            size="sm"
+            onclick={toggleTest}
+            disabled={testBusy && !testRecording}
+            data-testid={testRecording ? "stt-test-stop" : "stt-test-start"}
+          >
+            {#if testRecording}
+              {$t('settings.stt.test.stop')}
+            {:else if testBusy}
+              {$t('settings.stt.test.transcribing')}
+            {:else}
+              {$t('settings.stt.test.start')}
+            {/if}
+          </Button>
+        </div>
+        {#if testResult !== null}
+          <p class="rounded bg-background px-2 py-1 text-sm text-foreground" data-testid="stt-test-result">
+            {testResult || $t('settings.stt.test.empty')}
+          </p>
+        {/if}
+      </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <span class="text-sm text-muted-foreground">{$t('settings.stt_engine_status')}</span>

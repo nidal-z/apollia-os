@@ -1,5 +1,15 @@
 use super::*;
 
+/// Identifiers and control handle threaded into [`BuiltInChatAgent::consume_stream`].
+pub(in crate::chat::builtin_agent) struct StreamConsumeParams<'a> {
+    /// Session the tokens belong to (for `ChatToken` events).
+    pub session_id: &'a str,
+    /// Assistant message id the tokens accumulate into.
+    pub message_id: &'a str,
+    /// Cooperative stop token: cancellation ends the stream at the next chunk.
+    pub cancel: &'a tokio_util::sync::CancellationToken,
+}
+
 impl BuiltInChatAgent {
     /// Consume a token stream, emitting [`RuntimeEvent::ChatToken`] for each token
     /// and accumulating text in `accumulated_text`.
@@ -12,13 +22,24 @@ impl BuiltInChatAgent {
         mut stream: std::pin::Pin<
             Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
         >,
-        session_id: &str,
-        message_id: &str,
+        params: StreamConsumeParams<'_>,
         accumulated_text: &mut String,
     ) -> Result<Vec<ToolCall>, String> {
+        let StreamConsumeParams {
+            session_id,
+            message_id,
+            cancel,
+        } = params;
         let mut tool_calls = Vec::new();
 
         while let Some(chunk_result) = stream.next().await {
+            // Cooperative stop while tokens are streaming: the user hit Stop.
+            // Drop the just-received chunk and end the stream, keeping the text
+            // accumulated so far as the frozen partial. The caller detects the
+            // cancellation and returns a paused response.
+            if cancel.is_cancelled() {
+                break;
+            }
             match chunk_result {
                 Ok(StreamChunk::Text(token)) => {
                     // Emit ChatToken and accumulate

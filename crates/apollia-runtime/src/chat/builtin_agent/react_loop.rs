@@ -1,3 +1,4 @@
+use super::stream::StreamConsumeParams;
 use super::*;
 
 impl BuiltInChatAgent {
@@ -463,8 +464,38 @@ impl BuiltInChatAgent {
             // Consume stream, emit ChatToken per token, accumulate text
             let mut accumulated_text = String::new();
             let stream_result = self
-                .consume_stream(stream, session_id, message_id, &mut accumulated_text)
+                .consume_stream(
+                    stream,
+                    StreamConsumeParams {
+                        session_id,
+                        message_id,
+                        cancel: &ids.cancel,
+                    },
+                    &mut accumulated_text,
+                )
                 .await;
+
+            // Mid-stream cooperative stop. The user hit Stop while the LLM was
+            // streaming: freeze the partial text as the assistant turn, mark the
+            // turn paused (no ChatResponseCompleted), and let the manager persist
+            // it. This is the checkpoint that makes Stop interrupt a single
+            // streaming answer, not only the boundary between ReAct steps.
+            if ids.cancel.is_cancelled() {
+                tracing::info!(session_id = %session_id, "chat.react.paused_mid_stream");
+                return Ok(self.paused_text_response(
+                    &accumulated_text,
+                    &mut reasoning_fragments,
+                    ResponseContext {
+                        acc,
+                        total_usage,
+                        session_id,
+                        message_id,
+                        run_id,
+                        frontier_ceiling_reached,
+                        final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                    },
+                ));
+            }
 
             // Capture the full response for deterministic replay. A stream that
             // errored is captured as truncated with its partial text, never
@@ -653,6 +684,56 @@ impl BuiltInChatAgent {
         );
         ChatAgentResponse {
             content: String::new(),
+            tool_calls: acc.all_tool_calls,
+            newly_authorized: acc.newly_authorized,
+            tokens_used: total_usage,
+            thinking_trace,
+            verification_report: None,
+            frontier_ceiling_reached,
+            final_plan_phase,
+            paused: true,
+        }
+    }
+
+    /// Build a paused response that freezes the partial streamed text as the
+    /// assistant turn.
+    ///
+    /// Used when the user stops generation mid-stream: the token stream was cut
+    /// inside [`consume_stream`](Self::consume_stream), the accumulated partial
+    /// is carried as `content` so the manager persists it, and `paused` is set so
+    /// no [`RuntimeEvent::ChatResponseCompleted`] is emitted and the session is
+    /// left resumable.
+    fn paused_text_response(
+        &self,
+        accumulated_text: &str,
+        reasoning_fragments: &mut Vec<String>,
+        ctx: ResponseContext<'_>,
+    ) -> ChatAgentResponse {
+        let ResponseContext {
+            acc,
+            total_usage,
+            session_id,
+            frontier_ceiling_reached,
+            final_plan_phase,
+            ..
+        } = ctx;
+        let final_thinking = Self::extract_think_blocks(accumulated_text);
+        let clean = Self::strip_think_blocks(accumulated_text);
+        if let Some(ft) = &final_thinking {
+            reasoning_fragments.push(ft.clone());
+        }
+        let thinking_trace = if reasoning_fragments.is_empty() {
+            None
+        } else {
+            Some(reasoning_fragments.join("\n\n---\n\n"))
+        };
+        tracing::info!(
+            session_id = %session_id,
+            partial_len = clean.len(),
+            "chat.react.pause_text_response"
+        );
+        ChatAgentResponse {
+            content: clean,
             tool_calls: acc.all_tool_calls,
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,

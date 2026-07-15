@@ -545,6 +545,44 @@
     } catch { /* Session may have been deleted */ }
   }
 
+  let stopRequested = $state(false);
+
+  // Stop the in-flight turn (G1). The backend interrupts the ReAct stream at its
+  // next token, freezes the partial as the assistant message, and marks the turn
+  // paused - so no ChatResponseCompleted event arrives. Reconcile by polling
+  // until the session settles out of "processing", then finalize so the frozen
+  // partial stays on screen and the composer re-enables. A turn that converges
+  // on its own before the stop lands is finalized by the normal event path.
+  async function handleStop(): Promise<void> {
+    if (stopRequested) return;
+    if (!isProcessing && !isStreaming) return;
+    stopRequested = true;
+    try {
+      try {
+        await invoke("pause_chat_session", { sessionId });
+      } catch (err) {
+        console.error("pause_chat_session failed", err);
+      }
+      for (let i = 0; i < 40; i++) {
+        if (!isProcessing && !isStreaming) break;
+        await new Promise((r) => setTimeout(r, 150));
+        let status: string;
+        try {
+          const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+          status = detail.status;
+        } catch {
+          break;
+        }
+        if (status !== "processing") {
+          await finalizeStreaming();
+          break;
+        }
+      }
+    } finally {
+      stopRequested = false;
+    }
+  }
+
 
   // Build the system bubble shown when an exchange fails (id is stable so it is
   // de-duplicated across reloads).
@@ -692,6 +730,60 @@
         seq: (messages ?? []).length, created_at: new Date().toISOString(),
       };
       messages = [...(messages ?? []), errMsg]; scrollToBottom();
+    }
+  }
+
+  // Regenerate the assistant reply to a turn (G9). Optimistically truncate the
+  // local thread back to the user turn, then let the backend replay it; the
+  // streaming events render the new answer and finalizeStreaming reloads the
+  // authoritative history.
+  async function handleRegenerate(messageId: string): Promise<void> {
+    if (isProcessing || isStreaming) return;
+    const msgs = messages ?? [];
+    const idx = msgs.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    let userIdx = -1;
+    for (let i = idx; i >= 0; i--) {
+      if (msgs[i]!.role === "user") { userIdx = i; break; }
+    }
+    if (userIdx < 0) return;
+    pendingError = null;
+    messages = msgs.slice(0, userIdx + 1);
+    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
+    await tick(); scrollToBottom(true);
+    try {
+      await invoke("regenerate_chat_response", { sessionId, messageId });
+    } catch (err: unknown) {
+      isProcessing = false;
+      addToast(err instanceof Error ? err.message : String(err), "error");
+      void finalizeStreaming();
+    }
+  }
+
+  // Edit a user message and re-run from it (G10). Truncate the local thread
+  // before the edited message, show the new text optimistically, then send it
+  // as a fresh turn through the truncate-in-place backend path.
+  async function handleEdit(messageId: string, newContent: string): Promise<void> {
+    if (isProcessing || isStreaming) return;
+    const msgs = messages ?? [];
+    const idx = msgs.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    pendingError = null;
+    const kept = msgs.slice(0, idx);
+    const tempMsg: ChatMessageView = {
+      id: `temp-${Date.now()}`, role: "user", content: newContent,
+      tool_calls: null, tool_name: null,
+      seq: kept.length, created_at: new Date().toISOString(),
+    };
+    messages = [...kept, tempMsg];
+    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
+    await tick(); scrollToBottom(true);
+    try {
+      await invoke<string>("edit_and_resend_chat_message", { sessionId, messageId, content: newContent });
+    } catch (err: unknown) {
+      isProcessing = false;
+      addToast(err instanceof Error ? err.message : String(err), "error");
+      void finalizeStreaming();
     }
   }
 
@@ -1083,6 +1175,9 @@
               {group}
               {sessionId}
               agentName={sessionAgentName}
+              busy={isProcessing || isStreaming}
+              onregenerate={handleRegenerate}
+              onedit={handleEdit}
             />
             {#if $uiMode === "builder" && hasCrossSessionRefs && isSingleCrossSession}
               <div
@@ -1279,6 +1374,8 @@
   {#if !inputHidden}
     <ChatInput
       disabled={inputDisabled}
+      busy={isProcessing || isStreaming}
+      onstop={handleStop}
       onsend={handleSend}
       lastUserMessage={lastUserMessageText}
       oncommand={handleSlashCommand}

@@ -229,11 +229,11 @@
       subtitle={headlineSubtitle}
     >
       {#snippet actions()}
-        <Button variant="outline" size="sm" onclick={navigateToProjects}>
+        <Button variant="outline" size="sm" onclick={navigateToProjects} data-testid="dashboard-cta-projects">
           {#snippet icon()}<FolderOpen size={13} />{/snippet}
           {$t("dashboard.header_action_projects")}
         </Button>
-        <Button variant="primary-solid" size="sm" onclick={navigateToChat}>
+        <Button variant="primary-solid" size="sm" onclick={navigateToChat} data-testid="dashboard-cta-new-chat">
           {#snippet icon()}<MessageSquarePlus size={13} />{/snippet}
           {$t("dashboard.header_action_new_chat")}
         </Button>
@@ -274,6 +274,7 @@
                   class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
                   onclick={navigateToInbox}
                   aria-label={$t("dashboard.see_all_pending_aria")}
+                  data-testid="dashboard-see-all-pending"
                 >
                   {$t("dashboard.see_all_arrow")}
                 </button>
@@ -309,6 +310,7 @@
                     type="button"
                     class="px-4 py-2.5 text-[11.5px] text-primary hover:bg-muted/40 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     onclick={navigateToInbox}
+                    data-testid="dashboard-inbox-more"
                   >
                     {$t(
                       inboxItems.length - PENDING_BLOCK_LIMIT > 1
@@ -345,6 +347,7 @@
                   align="center"
                   onclick={navigateToTasks}
                   aria-label={$t("dashboard.open_task_aria", { values: { name: tk.agent_name } })}
+                  data-testid="dashboard-deliverable-{tk.id}"
                 >
                   <div
                     class="w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 bg-success/10 text-success"
@@ -385,6 +388,7 @@
                   align="center"
                   onclick={() => openDetail(agent)}
                   aria-label={$t("dashboard.agent_detail_aria", { values: { name: agent.name } })}
+                  data-testid="dashboard-agent-row-{agent.name}"
                 >
                   <div
                     class="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0 bg-gradient-to-br from-primary to-secondary"
@@ -422,6 +426,7 @@
               type="button"
               class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
               onclick={navigateToTasks}
+              data-testid="dashboard-recent-see-all"
             >
               {$t("dashboard.see_all_short_arrow")}
             </button>
@@ -440,6 +445,7 @@
                   type="button"
                   class="w-full text-left px-3 py-2.5 flex-col items-stretch focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-xl"
                   onclick={navigateToTasks}
+                  data-testid="dashboard-activity-{tk.id}"
                 >
                   <div class="flex items-center gap-1.5 mb-1">
                     <Activity size={10} class="text-muted-foreground" />
@@ -467,6 +473,7 @@
               type="button"
               class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
               onclick={navigateToProjects}
+              data-testid="dashboard-projects-see-all"
             >
               {$t("dashboard.see_all_projects_arrow")}
             </button>
@@ -498,6 +505,7 @@
                 class="shrink-0 w-[260px]"
                 animate:flip={{ duration: 200 }}
                 in:fly={{ y: 6, duration: 200, delay: i * 30 }}
+                data-testid="dashboard-project-{p.id}"
               >
                 <ProjectCard
                   title={p.name}

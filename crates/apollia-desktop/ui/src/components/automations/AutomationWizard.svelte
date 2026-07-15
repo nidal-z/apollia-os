@@ -384,7 +384,7 @@
       <Button
         onclick={handleDescribeNext}
         disabled={!canAdvanceFromDescribe || parsing}
-        data-testid="automation-wizard-next"
+        data-testid="automation-wizard-next-{step}"
       >
         {parsing ? $t("automations.wizard.parsing") : $t("common.next")}
       </Button>
@@ -392,7 +392,7 @@
       <Button
         onclick={handleScheduleNext}
         disabled={!canAdvanceFromSchedule}
-        data-testid="automation-wizard-next"
+        data-testid="automation-wizard-next-{step}"
       >
         {$t("common.next")}
       </Button>
@@ -400,7 +400,7 @@
       <Button
         onclick={handleAgentNext}
         disabled={!canAdvanceFromAgent}
-        data-testid="automation-wizard-next"
+        data-testid="automation-wizard-next-{step}"
       >
         {$t("common.next")}
       </Button>

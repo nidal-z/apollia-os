@@ -463,6 +463,87 @@ pub async fn send_chat_message(
     Ok(message_id)
 }
 
+/// Regenerates the assistant reply to the last user turn (truncate-in-place).
+///
+/// `message_id` is the assistant message to regenerate. The turn re-runs in the
+/// same session. Rejected while a turn is already in flight.
+#[tauri::command]
+pub async fn regenerate_chat_response(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    message_id: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .regenerate_response(session_id, message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Replaces a user message and re-runs the conversation from it.
+///
+/// `message_id` is the user message to edit; `content` is its new text. Returns
+/// the id of the newly appended user message. Rejected while a turn is in flight.
+#[tauri::command]
+pub async fn edit_and_resend_chat_message(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    message_id: String,
+    content: String,
+) -> Result<String, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .edit_and_resend(session_id, message_id, content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Requests a cooperative pause of the in-flight turn for a session.
+///
+/// The ReAct loop stops at its next checkpoint, the partial assistant message
+/// is persisted, and no `ChatResponseCompleted` event is emitted. If no turn is
+/// active this is a no-op. The frontend finalizes the streamed partial on ack.
+#[tauri::command]
+pub async fn pause_chat_session(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .pause_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Resumes a previously paused session, continuing the ReAct loop.
+#[tauri::command]
+pub async fn resume_chat_session(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .resume_paused_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Resolves a pending tool approval in a chat session.
 ///
 /// `reason` is forwarded to the agent when `decision == "refuse"` so it can
