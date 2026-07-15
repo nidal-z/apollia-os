@@ -31,10 +31,6 @@ pub mod tool_helper;
 pub mod tool_performance_hints;
 pub mod types;
 
-pub use meta::apollia_coach::{
-    invoke_apollia_coach, ActionButton as CoachActionButton, ApolliaCoachError, CoachAction,
-    CoachContext, CoachMode, CoachResponse, CoachTurn,
-};
 pub use meta::parse_automation::{
     parse_automation as parse_automation_description, AgentMatch as ParsedAgentMatch,
     Confidence as ParseAutomationConfidence, ParsedAutomation, ParsedSchedule,

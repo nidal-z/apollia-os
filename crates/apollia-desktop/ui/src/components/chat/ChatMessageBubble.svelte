@@ -9,6 +9,11 @@
   import ReasoningSequence from "./ReasoningSequence.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
   import { parseStream } from "$lib/chat/streamParser";
+  import {
+    parseApolliaActions,
+    sanitizeActionButtons,
+    executeActionButton,
+  } from "$lib/apolliaGuide/actionButtons";
 
   interface Props {
     message: ChatMessageView;
@@ -51,6 +56,17 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
+  // The apollia-guide agent may append an ```apollia-actions``` block. Split it
+  // out of the visible text and keep the validated navigate/invoke buttons.
+  // Only the assistant side carries these; user turns render verbatim.
+  const actionSplit = $derived(
+    isUser
+      ? { text: cleanContent, buttons: [] }
+      : parseApolliaActions(cleanContent),
+  );
+  const displayContent = $derived(actionSplit.text);
+  const actionButtons = $derived(sanitizeActionButtons(actionSplit.buttons));
+
   // A finalized agent turn that produced only reasoning and/or failed tool
   // calls leaves cleanContent empty. ChatMessageBubble only renders committed
   // messages (live tokens go through StreamingMessage), so an empty agent
@@ -58,7 +74,7 @@
   // mid-stream frame. Surface a mode-adapted notice instead of a blank bubble;
   // builder mode points to the reasoning/tool detail already shown above.
   const isEmptyAgentResponse = $derived(
-    !isUser && cleanContent.trim() === "",
+    !isUser && displayContent.trim() === "" && actionButtons.length === 0,
   );
   const emptyResponseLabel = $derived(
     isOperator
@@ -140,11 +156,32 @@
         {emptyResponseLabel}
       </p>
     {:else}
-      <MessageRenderer
-        content={cleanContent}
-        citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
-      />
-      <LinkPreviewList content={cleanContent} />
+      {#if displayContent.trim() !== ""}
+        <MessageRenderer
+          content={displayContent}
+          citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
+        />
+        <LinkPreviewList content={displayContent} />
+      {/if}
+      {#if actionButtons.length > 0}
+        <div
+          class="mt-2 flex flex-wrap gap-2"
+          data-testid="chat-action-buttons-{message.id}"
+        >
+          {#each actionButtons as btn (btn.action + btn.target + btn.label)}
+            <button
+              type="button"
+              class="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[13px]
+                font-medium text-foreground hover:bg-surface-3 hover:text-primary
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring
+                transition-colors"
+              onclick={() => void executeActionButton(btn)}
+            >
+              {btn.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
     {/if}
 
     {#if showTimestamp}

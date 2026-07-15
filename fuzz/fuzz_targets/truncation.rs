@@ -3,7 +3,6 @@
 //! Fuzzes the byte-index string-truncation helpers that cut untrusted text at
 //! a computed index. Each is reached through a `#[cfg(fuzzing)] pub` shim over
 //! the real production function:
-//!   - `apollia_llm` `truncate_kb` (knowledge-base prompt assembly)
 //!   - `apollia_connectors` `truncate` (HTTP response / error bodies)
 //!   - `apollia_oria` `message_text_preview` (chat message preview)
 //! A cut that lands inside a multibyte code point panics; this target drives
@@ -28,7 +27,6 @@ fuzz_target!(|input: TruncInput| {
         input.max % (text.len() + 1)
     };
 
-    let _ = apollia_llm::meta::apollia_coach::__fuzz_truncate_kb(&text);
     let _ = apollia_connectors::http::__fuzz_truncate(&text, max);
     let _ = apollia_oria::context_manager::__fuzz_message_text_preview(&text, max);
 });

@@ -29,6 +29,9 @@ const ONBOARDING_TOPICS: [&str; 5] = ["identity", "preferences", "tools", "domai
 /// Name of the agent used for onboarding conversations.
 const ONBOARDING_AGENT_NAME: &str = "onboarding-agent";
 
+/// Name of the agent that powers the in-app companion panel.
+const GUIDE_AGENT_NAME: &str = "apollia-guide";
+
 /// Valid user profiles for the onboarding flow.
 const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 
@@ -240,6 +243,10 @@ pub enum OnboardingError {
     /// The chat subsystem is not available.
     #[error("chat subsystem not available")]
     ChatNotAvailable,
+
+    /// The apollia-guide companion agent is not registered in the runtime.
+    #[error("apollia-guide agent not found - it powers the companion panel and should be provisioned automatically at startup. Bundle it and restart the application.")]
+    GuideAgentNotInstalled,
 
     /// The requested phase transition is not legal.
     #[error("Cannot advance from {from:?} to {to:?}")]
@@ -1219,8 +1226,10 @@ pub async fn get_companion_context(route: String) -> Result<String, String> {
     Ok(get_companion_context_text(&route).to_string())
 }
 
-/// Creates a Chat Libre companion session with a route-contextual system prompt.
+/// Creates a companion session backed by the apollia-guide agent.
 ///
+/// The session runs in Agent mode so the panel is driven by the single
+/// product coach (knowledge base, live environment listing, action buttons).
 /// The session is persisted normally through the chat subsystem. On success,
 /// the `session_id` is stored in the onboarding state so other commands can
 /// reference the active companion session.
@@ -1241,28 +1250,33 @@ async fn create_companion_session_inner(
     context: Option<String>,
     state: &RuntimeHandle,
 ) -> Result<CompanionSessionResult, OnboardingError> {
-    let context_text = context
-        .as_deref()
-        .map(get_companion_context_text)
-        .unwrap_or(COMPANION_CONTEXT_FALLBACK);
-
-    let system_prompt = format!(
-        "Tu es le Companion Apollia, un assistant contextuel intégré à l'interface. \
-         {context_text} \
-         Réponds de manière concise et adaptée au contexte de la page. \
-         Tu n'injectes jamais de mémoire automatiquement - c'est l'utilisateur qui décide."
-    );
+    // The companion panel is powered by the apollia-guide agent: a
+    // knowledge-base-grounded coach that inspects the live environment and
+    // suggests allowlisted deep-links. Verify it is registered first so the
+    // panel can surface a clear install hint instead of an opaque failure.
+    let found = state
+        .registry_handle
+        .find_by_name(GUIDE_AGENT_NAME)
+        .await
+        .map_err(|_| OnboardingError::GuideAgentNotInstalled)?;
+    if found.is_none() {
+        return Err(OnboardingError::GuideAgentNotInstalled);
+    }
 
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
+    // Agent mode: the agent owns its own system prompt, environment listing,
+    // and action-block contract, so no caller prompt is supplied. The
+    // `context` route hint is retained on the IPC surface for a future
+    // page-aware enhancement but is not injected here.
     let info = manager
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
-            mode: ChatMode::Companion,
-            agent_name: None,
-            system_prompt: Some(system_prompt),
+            mode: ChatMode::Agent,
+            agent_name: Some(GUIDE_AGENT_NAME.to_string()),
+            system_prompt: None,
             tools: Vec::new(),
             project_id: None,
         })
@@ -1286,6 +1300,7 @@ async fn create_companion_session_inner(
 
     tracing::info!(
         session_id = %session_id,
+        agent = %GUIDE_AGENT_NAME,
         context = ?context,
         "companion session created"
     );

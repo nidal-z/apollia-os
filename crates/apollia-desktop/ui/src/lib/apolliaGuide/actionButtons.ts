@@ -1,17 +1,16 @@
 /**
  * Apollia Guide - action button helpers.
  *
- * The meta-chat coach (backend `apollia_coach_invoke`) returns structured
- * `action_buttons` alongside its narrative text. The frontend renders them
- * inline inside the reply bubble. To keep the attack surface minimal and
- * prevent prompt-injected links, we enforce a **strict allowlist** here -
- * both the action kind AND the payload shape are validated before the
- * button is rendered.
+ * The `apollia-guide` agent ends a reply with an ```apollia-actions``` fenced
+ * block: a small JSON array of navigate/invoke buttons. The panel parses that
+ * block out of the assistant text (`parseApolliaActions`), validates each
+ * button against a strict allowlist (`sanitizeActionButtons`), and renders the
+ * survivors inline. To keep the attack surface minimal and prevent
+ * prompt-injected links, both the action kind AND the payload shape are
+ * validated before a button is rendered.
  *
- * Mirrored server-side in `agent.py::_ALLOWED_ROUTES` and (loosely) in
- * `apollia_coach.rs::extract_action_block`. Kept in sync manually; the
- * Rust side is authoritative for parsing, this module is authoritative
- * for execution.
+ * The route allowlist mirrors `agent.py::_ALLOWED_ROUTES`. Parsing and
+ * execution are now client-side; the agent is the source of the block.
  */
 import { navigateTo, type Route } from "$lib/stores/navigation";
 
@@ -37,6 +36,46 @@ export interface SafeActionButton {
   target: string;
   /** Extra query string for navigate actions (e.g. `wizard=open`). `""` when absent. */
   query: string;
+}
+
+/**
+ * Fenced action block the agent appends to its reply, e.g.
+ * ```apollia-actions
+ * [{"label": "...", "action": "navigate", "payload": {"route": "/agents"}}]
+ * ```
+ * Mirrors `agent.py::_ACTION_RE`. `[\s\S]` spans newlines (JS has no DOTALL).
+ */
+const ACTION_BLOCK_RE = /```apollia-actions\s*(\[[\s\S]*?\])\s*```/;
+
+/**
+ * Split a raw assistant reply into its visible text and the raw action
+ * buttons carried in its ```apollia-actions``` block. When no block is present
+ * (or its JSON is malformed) the text is returned untouched with no buttons.
+ * The buttons are still untrusted here - pass them through
+ * {@link sanitizeActionButtons} before rendering.
+ */
+export function parseApolliaActions(content: string): {
+  text: string;
+  buttons: RawActionButton[];
+} {
+  if (typeof content !== "string" || content === "") {
+    return { text: content ?? "", buttons: [] };
+  }
+  const match = content.match(ACTION_BLOCK_RE);
+  if (!match) {
+    return { text: content, buttons: [] };
+  }
+  let buttons: RawActionButton[] = [];
+  try {
+    const parsed: unknown = JSON.parse(match[1]);
+    if (Array.isArray(parsed)) {
+      buttons = parsed as RawActionButton[];
+    }
+  } catch {
+    buttons = [];
+  }
+  const text = content.replace(ACTION_BLOCK_RE, "").trim();
+  return { text, buttons };
 }
 
 /**

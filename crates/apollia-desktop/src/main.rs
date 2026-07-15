@@ -762,8 +762,6 @@ fn main() {
             commands::model_hub::cancel_model_download,
             commands::model_hub::list_model_downloads,
             commands::meta_automation::meta_parse_automation,
-            commands::apollia_coach::apollia_coach_invoke,
-            commands::apollia_coach::apollia_guide_bootstrap,
             commands::meta_digest::meta_generate_daily_digest,
             commands::meta_next_steps::meta_generate_next_steps,
             commands::mcp_coaching::meta_generate_capabilities_coaching,
