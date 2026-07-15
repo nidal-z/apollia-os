@@ -16,7 +16,6 @@
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
   import Settings from "../../../routes/Settings.svelte";
-  import SettingsPermissionRules from "../../../routes/SettingsPermissionRules.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
   import Projects from "../../../routes/Projects.svelte";
@@ -84,8 +83,6 @@
           <Connections />
         {:else if $currentRoute === "settings"}
           <Settings />
-        {:else if $currentRoute === "settings-permission-rules"}
-          <SettingsPermissionRules />
         {:else if isDev && $currentRoute === "design"}
           <Design />
         {:else if isDev && $currentRoute === "design-motion"}

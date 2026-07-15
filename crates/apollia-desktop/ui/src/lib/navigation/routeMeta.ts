@@ -28,7 +28,6 @@ import {
   Settings,
   Mic,
   FolderKanban,
-  Shield,
   Paintbrush,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
@@ -57,11 +56,6 @@ export const routeMeta: Record<Route, RouteMeta> = {
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   onboarding: { labelKey: "nav.onboarding", parent: null },
-  "settings-permission-rules": {
-    labelKey: "settings.permission_rules.title",
-    parent: "settings",
-    icon: Shield,
-  },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },
   "design-empty-states": { labelKey: "topbar.route.design_empty_states", parent: "design", icon: Paintbrush },

@@ -302,7 +302,7 @@
     }
     const map: Record<string, Route> = {
       network: "integrations",
-      permissions: "settings-permission-rules",
+      permissions: "settings",
       timeout: "llm",
       internal: "settings",
     };
