@@ -280,12 +280,27 @@ impl CompletionModel for OpenAICompatibleClient {
             .build()
             .map_err(|e| LlmError::InferenceError(format!("build stream request: {e}")))?;
 
-        let sse_stream = self
-            .client
-            .chat()
-            .create_stream(request)
-            .await
-            .map_err(map_openai_error)?;
+        let sse_stream = match self.client.chat().create_stream(request).await {
+            Ok(stream) => stream,
+            Err(async_openai::error::OpenAIError::StreamError(detail)) => {
+                // async-openai reports a non-2xx SSE setup status as an opaque
+                // `StreamError` ("Invalid status code: ...") and drops the
+                // response body, hiding the real reason (unknown model, rejected
+                // parameter, oversized prompt). Re-issue the same request without
+                // streaming to recover the API error body and surface it.
+                return Err(match self.do_complete(req).await {
+                    Err(recovered) => recovered,
+                    Ok(_) => LlmError::HttpError {
+                        status: 0,
+                        body: format!(
+                            "backend accepted a non-streaming request but rejected \
+                             streaming ({detail}); it may not support SSE streaming"
+                        ),
+                    },
+                });
+            }
+            Err(other) => return Err(map_openai_error(other)),
+        };
 
         // OpenAI streams tool calls as fragments across multiple SSE chunks,
         // keyed by `index`.  Text tokens are emitted immediately.  Tool call

@@ -69,6 +69,7 @@
 
   {#each trail as route, i (route)}
     {@const meta = routeMeta[route]}
+    {#if meta}
     {@const isLast = i === trail.length - 1}
     {@const Icon = meta.icon}
     <span class="text-muted-foreground/50" aria-hidden="true">/</span>
@@ -93,6 +94,7 @@
         {/if}
         <span>{$t(meta.labelKey)}</span>
       </button>
+    {/if}
     {/if}
   {/each}
 </nav>
