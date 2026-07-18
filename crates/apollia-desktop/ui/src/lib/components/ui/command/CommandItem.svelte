@@ -28,7 +28,7 @@
   )}
   onclick={onselect}
   onmousemove={onhover}
-  data-testid="command-item"
+  data-testid={`command-item-${item.id}`}
 >
   {#if Icon}
     {@const IconComponent = Icon}

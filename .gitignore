@@ -98,3 +98,6 @@ demo/
 /docs/site/.docusaurus/
 /docs/site/docs/reference/api/
 sdk/build/
+
+# Throwaway seeded data ecosystem for automation verification (build-seed.sh)
+.apollia-seed-home/

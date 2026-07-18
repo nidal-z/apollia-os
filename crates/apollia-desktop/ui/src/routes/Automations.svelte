@@ -164,7 +164,7 @@
         {#snippet icon()}<RefreshCw size={12} class={refreshing ? "animate-spin" : ""} />{/snippet}
         {$t("common.refresh")}
       </Button>
-      <Button variant="primary-solid" size="sm" onclick={handleCreate}>
+      <Button variant="primary-solid" size="sm" onclick={handleCreate} data-testid="automations-new-btn">
         {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("automations.new")}
       </Button>

@@ -10,9 +10,12 @@
   import { t } from "svelte-i18n";
   import { UserRound, Settings, Keyboard, RotateCcw, Info, LogOut } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
+  import { Dialog } from "$lib/components/ui/dialog";
+  import { Button } from "$lib/components/ui/button";
   import { navigateToSettings } from "$lib/router";
 
   let open = $state(false);
+  let aboutOpen = $state(false);
 
   function close() {
     open = false;
@@ -42,8 +45,9 @@
   }
 
   function showAbout() {
-    // Minimal about surface - a full dialog can land later (-xxx).
-    alert(`${$t('userMenu.about_title')}\n\nApollia OS`);
+    // In-app dialog instead of a native browser alert, which blocks the
+    // webview and cannot be dismissed from automation.
+    aboutOpen = true;
     close();
   }
 
@@ -135,3 +139,25 @@
     </ul>
   {/snippet}
 </Popover>
+
+<Dialog
+  open={aboutOpen}
+  onclose={() => (aboutOpen = false)}
+  size="sm"
+  title={$t('userMenu.about_title')}
+  data-testid="user-menu-about-dialog"
+>
+  <div class="flex flex-col gap-4">
+    <p class="text-sm text-muted-foreground">Apollia OS</p>
+    <div class="flex justify-end">
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={() => (aboutOpen = false)}
+        data-testid="user-menu-about-close"
+      >
+        {$t('common.close')}
+      </Button>
+    </div>
+  </div>
+</Dialog>

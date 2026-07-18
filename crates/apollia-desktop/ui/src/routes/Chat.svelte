@@ -497,7 +497,12 @@
          />
       </div>
 
-      <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={() => openNewChatPicker()}
+        data-testid="chat-new-chat-btn"
+      >
         {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("chat.new_chat")}
       </Button>
@@ -642,6 +647,7 @@
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
           onclick={() => (railTab = "plan")}
+          data-testid="chat-inspector-plan-tab"
         >
           {$t("plan_session.tab_plan")}
         </button>

@@ -588,7 +588,7 @@
       >
         {#snippet icon()}<Folder size={22} />{/snippet}
         {#snippet action()}
-          <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
+          <Button variant="primary-solid" size="sm" onclick={openCreateDialog} data-testid="projects-new-project-btn">
             {#snippet icon()}<Plus size={12} />{/snippet}
             {$t("projects.new_project")}
           </Button>
@@ -604,6 +604,7 @@
             <Button variant="ghost" size="sm"
               type="button"
               onclick={openCreateDialog}
+              data-testid="projects-new-project-btn"
               class="text-[11px] text-primary bg-transparent border-0 cursor-pointer inline-flex items-center gap-1 font-medium hover:underline"
             >
               <Plus size={11} />
@@ -1006,4 +1007,5 @@
   loading={deleting}
   onconfirm={confirmDelete}
   onclose={() => (showDeleteConfirm = false)}
+  data-testid="project-delete-confirm"
 />

@@ -182,4 +182,5 @@
   loading={deleting}
   onconfirm={confirmDelete}
   onclose={() => (deleteTarget = null)}
+  data-testid="provider-delete-confirm"
 />
