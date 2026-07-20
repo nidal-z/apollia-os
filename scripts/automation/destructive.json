@@ -32,27 +32,38 @@
       "label": "01-memory-before"
     },
     {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
       "kind": "click",
-      "testidPrefix": "memory-delete-btn-",
-      "nth": 0
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "memory-delete-confirm",
-      "timeoutMs": 15000
+      "testid": "memory-entry-sheet-delete",
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
-      "label": "02-memory-delete-dialog"
+      "label": "02-memory-sheet-delete"
     },
     {
       "kind": "click",
-      "testid": "memory-delete-confirm-confirm"
+      "testid": "memory-entry-sheet-delete"
     },
     {
-      "kind": "waitGone",
-      "testid": "memory-delete-confirm",
-      "timeoutMs": 15000
+      "kind": "waitFor",
+      "testid": "memory-entry-sheet-delete-confirm",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "memory-entry-sheet-delete-confirm"
     },
     {
       "kind": "screenshot",
@@ -98,8 +109,29 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-header-overflow-button",
-      "timeoutMs": 15000
+      "testid": "chat-page"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Conversation a supprimer."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 30000
     },
     {
       "kind": "screenshot",
@@ -111,8 +143,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-header-menu-delete",
-      "timeoutMs": 15000
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -121,7 +153,7 @@
     {
       "kind": "waitFor",
       "testid": "chat-header-delete-confirm",
-      "timeoutMs": 15000
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
@@ -134,7 +166,7 @@
     {
       "kind": "waitGone",
       "testid": "chat-header-delete-confirm",
-      "timeoutMs": 15000
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
@@ -175,11 +207,6 @@
     {
       "kind": "screenshot",
       "label": "11-llm-delete-dialog"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-delete-confirm-input",
-      "text": "DELETE"
     },
     {
       "kind": "click",
@@ -293,11 +320,23 @@
     {
       "kind": "click",
       "testidPrefix": "project-row-",
-      "nth": 0
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
-      "kind": "sleep",
-      "ms": 400
+      "kind": "waitFor",
+      "testid": "project-tabbar",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "delete-project-",
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -305,12 +344,22 @@
       "nth": 0
     },
     {
-      "kind": "sleep",
-      "ms": 500
+      "kind": "waitFor",
+      "testid": "project-delete-confirm",
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
       "label": "20-project-delete-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "project-delete-confirm-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "project-delete-confirm",
+      "timeoutMs": 5000
     },
     {
       "kind": "goto",
@@ -413,16 +462,32 @@
     },
     {
       "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "mcp-disconnect-btn"
     },
     {
       "kind": "waitFor",
       "testid": "mcp-disconnect-confirm-btn",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "28-mcp-disconnect-dialog"
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
