@@ -717,7 +717,19 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
         None => return emit_llm_error("invalid model filename".into(), json),
     };
     let dest = models_dir.join(&file_name);
-    if dest != model {
+    // Guard against copying the model onto itself. A naive `dest != model` path
+    // compare misses the case where `models_dir` resolves (e.g. via a symlink)
+    // to the directory already holding the source: the two paths differ as
+    // strings but point at the same file, and std::fs::copy opens the
+    // destination for writing (truncating it) before reading the source,
+    // zeroing the model. Compare canonicalized paths so an already-present
+    // source is never destroyed.
+    let same_file = std::fs::canonicalize(model)
+        .ok()
+        .zip(std::fs::canonicalize(&dest).ok())
+        .map(|(src, dst)| src == dst)
+        .unwrap_or(false);
+    if !same_file {
         if let Err(e) = std::fs::copy(model, &dest) {
             return emit_llm_error(
                 format!("copy {} → {}: {e}", model.display(), dest.display()),
@@ -1717,6 +1729,36 @@ mod tests {
             json: true,
         });
         assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_setup_does_not_truncate_model_when_models_dir_symlinks_to_source() {
+        // GIVEN a .gguf model in a real dir, and a models_dir that symlinks to
+        // that same dir, so the copy destination resolves to the source file.
+        let real = tempfile::tempdir().unwrap();
+        let model = real.path().join("m.gguf");
+        std::fs::write(&model, b"REAL-MODEL-BYTES").unwrap();
+        let holder = tempfile::tempdir().unwrap();
+        let link_dir = holder.path().join("models");
+        std::os::unix::fs::symlink(real.path(), &link_dir).unwrap();
+        let sysdb = holder.path().join("system.db");
+
+        // WHEN setup runs with the models dir pointing (via symlink) at the
+        // directory already holding the source model.
+        let _ = run_setup(SetupArgs {
+            local: true,
+            model: &model,
+            backend_name: "local",
+            device_override: None,
+            system_db_override: Some(&sysdb),
+            models_dir_override: Some(&link_dir),
+            json: true,
+        });
+
+        // THEN the source model is never truncated (regression: a naive path
+        // compare let std::fs::copy zero the file).
+        assert_eq!(std::fs::read(&model).unwrap(), b"REAL-MODEL-BYTES");
     }
 
     #[test]
