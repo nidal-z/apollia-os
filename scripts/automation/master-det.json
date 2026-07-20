@@ -1042,6 +1042,10 @@
     },
     {
       "kind": "expect",
+      "testid": "chat-close-button"
+    },
+    {
+      "kind": "expect",
       "testid": "chat-input"
     },
     {
@@ -1257,6 +1261,10 @@
     },
     {
       "kind": "expect",
+      "testid": "chat-header-menu-drawer"
+    },
+    {
+      "kind": "expect",
       "testid": "chat-header-menu-rename"
     },
     {
@@ -1431,6 +1439,10 @@
       "kind": "waitFor",
       "testid": "conversation-row-delete-confirm",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "conversation-row-delete-confirm-btn"
     },
     {
       "kind": "screenshot",
@@ -2892,6 +2904,99 @@
     {
       "kind": "click",
       "testid": "trigger-type-card-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "trigger-input-cron"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-interval",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "trigger-input-interval"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-oneshot",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-fire-at-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-fire-at-input",
+      "text": "2026-12-31"
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-fire-at-time-input",
+      "text": "09:00"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-file_watch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-filepath",
+      "text": "/tmp/seed-watch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-event-create",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-event-modify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-event-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "trigger-recursive-toggle",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-input-webhook-path",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-secret-generate-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "trigger-enabled-toggle",
+      "checked": true
+    },
+    {
+      "kind": "screenshot",
+      "label": "03e-trigger-types-covered"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-cron",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",

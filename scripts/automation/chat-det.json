@@ -285,6 +285,10 @@
     },
     {
       "kind": "expect",
+      "testid": "chat-close-button"
+    },
+    {
+      "kind": "expect",
       "testid": "chat-input"
     },
     {
@@ -500,6 +504,10 @@
     },
     {
       "kind": "expect",
+      "testid": "chat-header-menu-drawer"
+    },
+    {
+      "kind": "expect",
       "testid": "chat-header-menu-rename"
     },
     {
@@ -674,6 +682,10 @@
       "kind": "waitFor",
       "testid": "conversation-row-delete-confirm",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "conversation-row-delete-confirm-btn"
     },
     {
       "kind": "screenshot",
