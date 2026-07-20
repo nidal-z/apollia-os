@@ -35,6 +35,10 @@ pub struct StreamableHttpTransport {
     session_id: Mutex<Option<String>>,
     auth_headers: Vec<(String, String)>,
     timeout: Duration,
+    /// Maximum bytes accepted for a single HTTP response body before the read
+    /// aborts with [`TransportError::ResponseTooLarge`]. Bounds memory against a
+    /// server returning an oversized or never-ending body.
+    max_response_bytes: u64,
     /// Sender side: filled by `send` after each successful HTTP response.
     response_tx: mpsc::Sender<String>,
     /// Receiver side: drained by `recv`.
@@ -55,11 +59,15 @@ impl StreamableHttpTransport {
     /// `timeout` is applied per request; expiry surfaces as [`TransportError::Io`] with
     /// the message `"timeout"`.
     ///
+    /// `max_response_bytes` caps a single response body; a larger body aborts
+    /// with [`TransportError::ResponseTooLarge`] instead of exhausting memory.
+    ///
     /// No network connection is established by this constructor.
     pub fn new(
         url: impl Into<String>,
         auth_headers: Vec<(String, String)>,
         timeout: Duration,
+        max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
         let client = reqwest::Client::builder()
             .build()
@@ -73,6 +81,7 @@ impl StreamableHttpTransport {
             session_id: Mutex::new(None),
             auth_headers,
             timeout,
+            max_response_bytes,
             response_tx: tx,
             response_rx: Mutex::new(rx),
         })
@@ -161,10 +170,7 @@ impl McpTransport for StreamableHttpTransport {
             })
             .unwrap_or(false);
 
-        let body = response
-            .text()
-            .await
-            .map_err(|e| TransportError::Io(e.to_string()))?;
+        let body = read_capped_text(response, self.max_response_bytes).await?;
 
         if is_sse {
             for json_payload in parse_sse_data_events(&body) {
@@ -202,6 +208,34 @@ impl McpTransport for StreamableHttpTransport {
     async fn shutdown(&self) -> Result<(), TransportError> {
         Ok(())
     }
+}
+
+// ─── capped body read ───────────────────────────────────────────────────────
+
+/// Read a response body into a `String`, aborting once `limit` bytes are
+/// exceeded.
+///
+/// Streams the body chunk by chunk (`reqwest::Response::chunk`) so an oversized
+/// or never-ending body is rejected with [`TransportError::ResponseTooLarge`]
+/// before it is fully buffered, instead of the whole body being read into
+/// memory as `Response::text` would. Bytes are decoded lossily, matching the
+/// UTF-8 assumption the JSON-RPC layer already relies on.
+async fn read_capped_text(
+    mut response: reqwest::Response,
+    limit: u64,
+) -> Result<String, TransportError> {
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| TransportError::Io(e.to_string()))?
+    {
+        if buf.len() as u64 + chunk.len() as u64 > limit {
+            return Err(TransportError::ResponseTooLarge { limit });
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
 // ─── SSE body parsing (streamable-http with text/event-stream response) ─────
@@ -287,9 +321,13 @@ mod tests {
     #[tokio::test]
     async fn test_response_buffer_is_bounded() {
         // GIVEN
-        let transport =
-            StreamableHttpTransport::new("http://localhost", vec![], Duration::from_secs(1))
-                .expect("transport builds");
+        let transport = StreamableHttpTransport::new(
+            "http://localhost",
+            vec![],
+            Duration::from_secs(1),
+            8 * 1024 * 1024,
+        )
+        .expect("transport builds");
 
         // WHEN filling the buffer up to capacity
         for i in 0..RESPONSE_BUFFER_CAPACITY {
@@ -333,6 +371,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -388,6 +427,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -445,6 +485,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![("Authorization".to_string(), "Bearer tok-xyz".to_string())],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -530,6 +571,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -556,6 +598,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -584,6 +627,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -625,6 +669,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -656,6 +701,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -688,6 +734,7 @@ mod tests {
             format!("http://{addr}/mcp"),
             vec![],
             Duration::from_millis(100),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -710,6 +757,7 @@ mod tests {
             "https://mcp.example.com/mcp",
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -724,6 +772,7 @@ mod tests {
             "https://mcp.example.com/mcp",
             vec![],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("transport construction must succeed");
 
@@ -732,5 +781,62 @@ mod tests {
 
         // THEN it succeeds without error
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_rejects_oversized_body() {
+        // GIVEN a server that returns a 100 KiB body, under a 1 KiB cap
+        let app = Router::new().route("/mcp", post(|| async { "a".repeat(100 * 1024) }));
+        let addr = start_server(app).await;
+
+        let transport = StreamableHttpTransport::new(
+            format!("http://{addr}/mcp"),
+            vec![],
+            Duration::from_secs(5),
+            1024,
+        )
+        .expect("transport construction must succeed");
+
+        // WHEN the message is sent and the oversized body is read
+        let result = transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
+            .await;
+
+        // THEN the read aborts with ResponseTooLarge instead of buffering it all
+        assert!(
+            matches!(
+                result,
+                Err(TransportError::ResponseTooLarge { limit: 1024 })
+            ),
+            "expected ResponseTooLarge, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_legit_body_ok_under_small_cap() {
+        // GIVEN a server returning a small JSON-RPC body, under a 1 KiB cap
+        let app = Router::new().route(
+            "/mcp",
+            post(|| async { r#"{"jsonrpc":"2.0","id":1,"result":{}}"# }),
+        );
+        let addr = start_server(app).await;
+
+        let transport = StreamableHttpTransport::new(
+            format!("http://{addr}/mcp"),
+            vec![],
+            Duration::from_secs(5),
+            1024,
+        )
+        .expect("transport construction must succeed");
+
+        // WHEN a message well under the cap is sent and received
+        transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
+            .await
+            .expect("send must succeed");
+        let body = transport.recv().await.expect("recv must succeed");
+
+        // THEN the legitimate response body is returned unchanged
+        assert!(body.contains("result"));
     }
 }

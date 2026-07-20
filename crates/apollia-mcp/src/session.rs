@@ -1021,6 +1021,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs,
             call_timeout_secs,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         }
     }

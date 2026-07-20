@@ -65,12 +65,25 @@ impl McpServerRepository {
                 requires_approval  INTEGER NOT NULL DEFAULT 0,
                 init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
                 call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
+                max_response_bytes INTEGER NOT NULL DEFAULT 8388608,
                 tags_json          TEXT NOT NULL DEFAULT '[]',
                 enabled            INTEGER NOT NULL DEFAULT 1,
                 created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
                 updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );",
         )?;
+        // Additive migration for databases created before max_response_bytes
+        // existed. `CREATE TABLE IF NOT EXISTS` above never alters an existing
+        // table, so the column is added here. A "duplicate column name" error
+        // means the column is already present (fresh DB or prior migration),
+        // which is expected; any other error is a real migration failure.
+        if let Err(e) = conn.execute_batch(
+            "ALTER TABLE mcp_servers ADD COLUMN max_response_bytes INTEGER NOT NULL DEFAULT 8388608;",
+        ) {
+            if !e.to_string().contains("duplicate column name") {
+                return Err(McpRepoError::Db(e));
+            }
+        }
         Ok(Self { conn })
     }
 
@@ -92,8 +105,8 @@ impl McpServerRepository {
             "INSERT INTO mcp_servers
                 (name, command, args_json, env_json, transport, url,
                  requires_approval, init_timeout_secs, call_timeout_secs,
-                 tags_json, enabled, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1,
+                 max_response_bytes, tags_json, enabled, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1,
                      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(name) DO UPDATE SET
                 command            = excluded.command,
@@ -104,6 +117,7 @@ impl McpServerRepository {
                 requires_approval  = excluded.requires_approval,
                 init_timeout_secs  = excluded.init_timeout_secs,
                 call_timeout_secs  = excluded.call_timeout_secs,
+                max_response_bytes = excluded.max_response_bytes,
                 tags_json          = excluded.tags_json,
                 updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
@@ -116,6 +130,7 @@ impl McpServerRepository {
                 config.requires_approval as i64,
                 config.init_timeout_secs as i64,
                 config.call_timeout_secs as i64,
+                config.max_response_bytes as i64,
                 tags_json,
             ],
         )?;
@@ -127,7 +142,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json
+                    tags_json, max_response_bytes
              FROM mcp_servers
              ORDER BY name",
         )?;
@@ -141,7 +156,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json
+                    tags_json, max_response_bytes
              FROM mcp_servers
              WHERE name = ?1",
         )?;
@@ -224,6 +239,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let requires_approval: i64 = row.get(6)?;
     let init_timeout_secs: i64 = row.get(7)?;
     let call_timeout_secs: i64 = row.get(8)?;
+    let max_response_bytes: i64 = row.get(10)?;
 
     let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
     let env: HashMap<String, String> = serde_json::from_str(&env_json).unwrap_or_default();
@@ -239,6 +255,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
         requires_approval: requires_approval != 0,
         init_timeout_secs: init_timeout_secs as u64,
         call_timeout_secs: call_timeout_secs as u64,
+        max_response_bytes: max_response_bytes as u64,
         tags,
     })
 }
@@ -260,6 +277,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         }
     }
@@ -351,6 +369,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         };
 
@@ -405,6 +424,7 @@ mod tests {
             requires_approval: true,
             init_timeout_secs: 45,
             call_timeout_secs: 90,
+            max_response_bytes: 4 * 1024 * 1024,
             tags: vec!["productivity".to_string()],
         };
 
@@ -419,6 +439,7 @@ mod tests {
         assert!(found.requires_approval);
         assert_eq!(found.init_timeout_secs, 45);
         assert_eq!(found.call_timeout_secs, 90);
+        assert_eq!(found.max_response_bytes, 4 * 1024 * 1024);
         assert_eq!(found.tags, vec!["productivity"]);
     }
 

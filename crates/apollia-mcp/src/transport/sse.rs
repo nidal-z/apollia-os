@@ -60,11 +60,17 @@ impl SseTransport {
     /// `auth_headers` are added to both the initial `GET` and every subsequent `POST`.
     /// `timeout` limits both the maximum wait for the `endpoint` event and each `POST`.
     ///
+    /// `max_response_bytes` caps the SSE receive buffer; if the accumulated
+    /// stream grows past it without a newline the listener aborts with
+    /// [`TransportError::ResponseTooLarge`] instead of buffering without bound,
+    /// and pending [`recv`] calls then observe [`TransportError::Closed`].
+    ///
     /// Must be called from within a Tokio runtime context (`tokio::spawn` is used internally).
     pub fn new(
         sse_url: impl Into<String>,
         auth_headers: Vec<(String, String)>,
         timeout: Duration,
+        max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
         let client = reqwest::Client::builder()
             .build()
@@ -83,6 +89,7 @@ impl SseTransport {
                 auth_headers: Arc::clone(&auth),
                 endpoint_tx,
                 msg_tx,
+                max_response_bytes,
             },
             shutdown_rx,
         ));
@@ -193,6 +200,9 @@ struct SseListenerCtx {
     auth_headers: Arc<Vec<(String, String)>>,
     endpoint_tx: watch::Sender<Option<String>>,
     msg_tx: mpsc::Sender<String>,
+    /// Maximum bytes the receive buffer may hold before the listener aborts
+    /// with [`TransportError::ResponseTooLarge`].
+    max_response_bytes: u64,
 }
 
 /// Entry point for the background SSE listener task.
@@ -255,6 +265,11 @@ async fn run_sse_loop(
                     Some(Err(e)) => return Err(TransportError::Io(e.to_string())),
                     Some(Ok(bytes)) => {
                         buffer.push_str(&String::from_utf8_lossy(&bytes));
+                        if buffer.len() as u64 > ctx.max_response_bytes {
+                            return Err(TransportError::ResponseTooLarge {
+                                limit: ctx.max_response_bytes,
+                            });
+                        }
                         process_buffer(&mut buffer, &mut current, &ctx.endpoint_tx, &ctx.msg_tx)
                             .await;
                     }
@@ -396,9 +411,13 @@ mod tests {
         let (addr, _) = start_sse_server(None).await;
 
         // WHEN the transport is constructed (background task connects immediately)
-        let transport =
-            SseTransport::new(format!("http://{addr}/sse"), vec![], Duration::from_secs(5))
-                .expect("SseTransport::new must succeed");
+        let transport = SseTransport::new(
+            format!("http://{addr}/sse"),
+            vec![],
+            Duration::from_secs(5),
+            8 * 1024 * 1024,
+        )
+        .expect("SseTransport::new must succeed");
 
         // THEN send() resolves the endpoint without timing out and POSTs successfully
         let result = transport
@@ -416,9 +435,13 @@ mod tests {
         let response_body = r#"{"jsonrpc":"2.0","id":1,"result":{}}"#.to_string();
         let (addr, _) = start_sse_server(Some(response_body.clone())).await;
 
-        let transport =
-            SseTransport::new(format!("http://{addr}/sse"), vec![], Duration::from_secs(5))
-                .expect("SseTransport::new must succeed");
+        let transport = SseTransport::new(
+            format!("http://{addr}/sse"),
+            vec![],
+            Duration::from_secs(5),
+            8 * 1024 * 1024,
+        )
+        .expect("SseTransport::new must succeed");
 
         // WHEN send() is followed by recv()
         transport
@@ -487,6 +510,7 @@ mod tests {
             format!("http://{addr}/sse"),
             vec![("Authorization".to_string(), "Bearer ssetoken".to_string())],
             Duration::from_secs(5),
+            8 * 1024 * 1024,
         )
         .expect("SseTransport::new must succeed");
 
@@ -522,6 +546,7 @@ mod tests {
             format!("http://{addr}/sse"),
             vec![],
             Duration::from_millis(200),
+            8 * 1024 * 1024,
         )
         .expect("SseTransport::new must succeed");
 
@@ -550,6 +575,7 @@ mod tests {
             format!("http://{addr}/sse"),
             vec![],
             Duration::from_millis(300),
+            8 * 1024 * 1024,
         )
         .expect("SseTransport::new must succeed");
 
@@ -568,8 +594,13 @@ mod tests {
     #[tokio::test]
     async fn test_sse_transport_pid_is_none() {
         // GIVEN an SSE transport (no subprocess involved)
-        let transport = SseTransport::new("http://127.0.0.1:1/sse", vec![], Duration::from_secs(5))
-            .expect("SseTransport::new must succeed");
+        let transport = SseTransport::new(
+            "http://127.0.0.1:1/sse",
+            vec![],
+            Duration::from_secs(5),
+            8 * 1024 * 1024,
+        )
+        .expect("SseTransport::new must succeed");
 
         // THEN pid() returns None
         assert!(transport.pid().is_none());
@@ -578,13 +609,82 @@ mod tests {
     #[tokio::test]
     async fn test_sse_transport_shutdown_is_ok() {
         // GIVEN an SSE transport (background task may or may not have connected)
-        let transport = SseTransport::new("http://127.0.0.1:1/sse", vec![], Duration::from_secs(5))
-            .expect("SseTransport::new must succeed");
+        let transport = SseTransport::new(
+            "http://127.0.0.1:1/sse",
+            vec![],
+            Duration::from_secs(5),
+            8 * 1024 * 1024,
+        )
+        .expect("SseTransport::new must succeed");
 
         // WHEN shutdown() is called
         let result = transport.shutdown().await;
 
         // THEN it succeeds regardless of the connection state
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_rejects_oversized_buffer_without_newline() {
+        // GIVEN an SSE server that streams 100 KiB with no newline, under a 1 KiB
+        // cap (the DoS shape: a stream that never terminates a line)
+        let big = Bytes::from("a".repeat(100 * 1024));
+        let app = Router::new().route(
+            "/sse",
+            get(move || {
+                let big = big.clone();
+                async move {
+                    let body = Body::from_stream(stream::iter([Ok::<_, Infallible>(big)]));
+                    Response::builder()
+                        .header("content-type", "text/event-stream")
+                        .body(body)
+                        .expect("valid SSE response")
+                }
+            }),
+        );
+        let addr = start_server(app).await;
+
+        let transport = SseTransport::new(
+            format!("http://{addr}/sse"),
+            vec![],
+            Duration::from_secs(5),
+            1024,
+        )
+        .expect("SseTransport::new must succeed");
+
+        // WHEN recv is awaited: the listener aborts on the oversized buffer and
+        // drops its message sender
+        let result = transport.recv().await;
+
+        // THEN recv observes a closed transport rather than the daemon OOMing
+        assert!(
+            matches!(result, Err(TransportError::Closed)),
+            "expected Closed after oversized-buffer teardown, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_legit_stream_ok_under_small_cap() {
+        // GIVEN a small endpoint + data event well under a 4 KiB cap
+        let response_body = r#"{"jsonrpc":"2.0","id":1,"result":{}}"#.to_string();
+        let (addr, _) = start_sse_server(Some(response_body.clone())).await;
+
+        let transport = SseTransport::new(
+            format!("http://{addr}/sse"),
+            vec![],
+            Duration::from_secs(5),
+            4096,
+        )
+        .expect("SseTransport::new must succeed");
+
+        // WHEN send() is followed by recv()
+        transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
+            .await
+            .expect("send must succeed");
+        let received = transport.recv().await.expect("recv must succeed");
+
+        // THEN the legitimate JSON-RPC message round-trips unchanged
+        assert_eq!(received, response_body);
     }
 }

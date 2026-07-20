@@ -39,6 +39,14 @@ pub enum AuthError {
     #[error("sérialisation: {0}")]
     Serialization(String),
 
+    /// A remote response exceeded the byte cap before it could be read.
+    ///
+    /// OAuth authorization servers and MCP protected-resource metadata are
+    /// untrusted; this bounds memory when a peer returns an oversized body.
+    /// The value is the byte ceiling that was exceeded.
+    #[error("réponse dépasse le plafond de {0} octets")]
+    ResponseTooLarge(u64),
+
     /// A refresh was requested but no refresh token is stored.
     #[error("pas de refresh token disponible")]
     NoRefreshToken,

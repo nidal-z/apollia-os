@@ -140,6 +140,18 @@ pub struct McpServerConfig {
     #[serde(default = "default_call_timeout")]
     pub call_timeout_secs: u64,
 
+    /// Maximum number of bytes accepted from a single server response before the
+    /// transport aborts the read with an error.
+    ///
+    /// MCP servers are untrusted: a server that never emits a newline, streams
+    /// forever, or returns a giant body would otherwise grow daemon memory
+    /// without bound. This cap is enforced by every transport (stdio line read,
+    /// HTTP body read, SSE buffer accumulation). Default: 8 MiB. Bounds:
+    /// `[1024, 1_073_741_824]` (1 KiB to 1 GiB). Raise it for servers with
+    /// legitimately large tool payloads.
+    #[serde(default = "default_max_response_bytes")]
+    pub max_response_bytes: u64,
+
     /// Additional tags applied to every tool advertised by this server.
     #[serde(default)]
     pub tags: Vec<String>,
@@ -156,6 +168,18 @@ fn default_init_timeout() -> u64 {
 fn default_call_timeout() -> u64 {
     60
 }
+
+fn default_max_response_bytes() -> u64 {
+    8 * 1024 * 1024
+}
+
+/// Lower bound for `max_response_bytes` (1 KiB): below this even a single
+/// JSON-RPC handshake line would not fit, which is a misconfiguration.
+const MIN_MAX_RESPONSE_BYTES: u64 = 1024;
+
+/// Upper bound for `max_response_bytes` (1 GiB): a ceiling generous enough for
+/// any realistic tool payload while still bounding memory.
+const MAX_MAX_RESPONSE_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// Errors that can occur while loading or validating MCP configuration.
 #[derive(Debug, Error)]
@@ -204,6 +228,15 @@ pub enum McpConfigError {
     /// `call_timeout_secs` is outside the valid range `[1, 600]`.
     #[error("server '{server}': call_timeout_secs must be in [1, 600], got {value}")]
     InvalidCallTimeout {
+        /// Server name.
+        server: String,
+        /// The out-of-range value.
+        value: u64,
+    },
+
+    /// `max_response_bytes` is outside the valid range `[1024, 1_073_741_824]`.
+    #[error("server '{server}': max_response_bytes must be in [1024, 1073741824], got {value}")]
+    InvalidMaxResponseBytes {
         /// Server name.
         server: String,
         /// The out-of-range value.
@@ -304,6 +337,7 @@ impl McpServerConfig {
     /// - `url` is present and carries an `http://` or `https://` scheme for network transports
     /// - `init_timeout_secs` is in `[1, 300]`
     /// - `call_timeout_secs` is in `[1, 600]`
+    /// - `max_response_bytes` is in `[1024, 1_073_741_824]`
     pub fn validate(&self) -> Result<(), McpConfigError> {
         if self.name.is_empty() {
             return Err(McpConfigError::EmptyServerName);
@@ -328,6 +362,13 @@ impl McpServerConfig {
             return Err(McpConfigError::InvalidCallTimeout {
                 server: self.name.clone(),
                 value: self.call_timeout_secs,
+            });
+        }
+
+        if !(MIN_MAX_RESPONSE_BYTES..=MAX_MAX_RESPONSE_BYTES).contains(&self.max_response_bytes) {
+            return Err(McpConfigError::InvalidMaxResponseBytes {
+                server: self.name.clone(),
+                value: self.max_response_bytes,
             });
         }
 
@@ -595,6 +636,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -618,6 +660,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN
@@ -641,6 +684,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -663,6 +707,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -689,6 +734,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN
@@ -711,6 +757,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -733,6 +780,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -756,6 +804,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN validation rejects with a guidance-bearing error.
@@ -780,6 +829,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -810,6 +860,7 @@ mod tests {
                 requires_approval: false,
                 init_timeout_secs: 30,
                 call_timeout_secs: 60,
+                max_response_bytes: default_max_response_bytes(),
                 tags: vec![],
             };
             // WHEN / THEN: must accept all of these.
@@ -869,6 +920,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         }
     }
@@ -1037,6 +1089,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 0,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1059,6 +1112,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 301,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1081,6 +1135,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 0,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1103,6 +1158,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1125,6 +1181,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1144,6 +1201,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1163,6 +1221,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1185,6 +1244,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: default_max_response_bytes(),
             tags: vec![],
         };
         // WHEN / THEN
@@ -1235,5 +1295,54 @@ mod tests {
         assert_eq!(server.command, "npx");
         assert_eq!(server.args, vec!["mcp-server-sqlite"]);
         assert!(server.url.is_none());
+    }
+
+    #[test]
+    fn test_mcp_max_response_bytes_below_min_returns_validation_error() {
+        // GIVEN max_response_bytes below the 1024-byte floor
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_response_bytes = 512;
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidMaxResponseBytes { value: 512, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_max_response_bytes_above_max_returns_validation_error() {
+        // GIVEN max_response_bytes above the 1 GiB ceiling
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_response_bytes = 2 * 1024 * 1024 * 1024;
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidMaxResponseBytes { .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_max_response_bytes_within_bounds_passes_validation() {
+        // GIVEN a max_response_bytes inside [1024, 1 GiB]
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_response_bytes = 16 * 1024 * 1024;
+        // WHEN / THEN
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_max_response_bytes_defaults_when_absent_from_toml() {
+        // GIVEN a mcp.toml entry that omits max_response_bytes
+        let toml_content = r#"
+            [[servers]]
+            name = "notion"
+            command = "npx"
+        "#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN the config is loaded
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN the serde default (8 MiB) is applied
+        assert_eq!(config.servers[0].max_response_bytes, 8 * 1024 * 1024);
     }
 }

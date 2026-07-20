@@ -19,6 +19,7 @@ fn mock_server_config() -> McpServerConfig {
         requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
+        max_response_bytes: 8 * 1024 * 1024,
         tags: vec!["test".to_string()],
     }
 }
@@ -37,6 +38,7 @@ fn crash_server_config() -> McpServerConfig {
         requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 1,
+        max_response_bytes: 8 * 1024 * 1024,
         tags: vec![],
     }
 }
@@ -57,6 +59,7 @@ fn deferred_server_config() -> McpServerConfig {
         requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
+        max_response_bytes: 8 * 1024 * 1024,
         tags: vec![],
     }
 }
@@ -170,6 +173,7 @@ async fn test_initialize_timeout_on_slow_server() {
         requires_approval: false,
         init_timeout_secs: 1,
         call_timeout_secs: 1,
+        max_response_bytes: 8 * 1024 * 1024,
         tags: vec![],
     };
 

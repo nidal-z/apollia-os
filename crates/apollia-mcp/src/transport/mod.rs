@@ -36,6 +36,17 @@ pub enum TransportError {
     #[error("transport closed")]
     Closed,
 
+    /// A single server response exceeded the configured byte cap.
+    ///
+    /// MCP servers are untrusted; this bounds memory when a server never
+    /// terminates a line, streams without end, or returns an oversized body.
+    /// `limit` is the `max_response_bytes` ceiling that was exceeded.
+    #[error("MCP server response exceeded the {limit}-byte cap")]
+    ResponseTooLarge {
+        /// The `max_response_bytes` ceiling that was exceeded.
+        limit: u64,
+    },
+
     /// The requested transport variant is not supported.
     #[error("unsupported transport: {0}")]
     Unsupported(String),
@@ -117,10 +128,16 @@ pub fn create_transport(
     config: &McpServerConfig,
     resolved_env: HashMap<String, String>,
 ) -> Result<Box<dyn McpTransport>, TransportError> {
+    let max_response_bytes = config.max_response_bytes;
     match config.transport.as_str() {
         "stdio" => {
-            let transport =
-                StdioTransport::spawn(&config.name, &config.command, &config.args, resolved_env)?;
+            let transport = StdioTransport::spawn(
+                &config.name,
+                &config.command,
+                &config.args,
+                resolved_env,
+                max_response_bytes,
+            )?;
             Ok(Box::new(transport))
         }
         "streamable-http" => {
@@ -131,7 +148,8 @@ pub fn create_transport(
             })?;
             let auth_headers: Vec<(String, String)> = resolved_env.into_iter().collect();
             let timeout = Duration::from_secs(config.call_timeout_secs);
-            let transport = StreamableHttpTransport::new(url, auth_headers, timeout)?;
+            let transport =
+                StreamableHttpTransport::new(url, auth_headers, timeout, max_response_bytes)?;
             Ok(Box::new(transport))
         }
         "sse" => {
@@ -142,7 +160,7 @@ pub fn create_transport(
             })?;
             let auth_headers: Vec<(String, String)> = resolved_env.into_iter().collect();
             let timeout = Duration::from_secs(config.call_timeout_secs);
-            let transport = SseTransport::new(url, auth_headers, timeout)?;
+            let transport = SseTransport::new(url, auth_headers, timeout, max_response_bytes)?;
             Ok(Box::new(transport))
         }
         other => Err(TransportError::Unsupported(other.to_string())),
@@ -167,6 +185,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 5,
             call_timeout_secs: 5,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         }
     }

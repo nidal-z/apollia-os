@@ -1804,6 +1804,7 @@ mod tests {
             requires_approval: true,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         };
         // WHEN / THEN the flag is readable
@@ -1824,6 +1825,7 @@ mod tests {
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
+            max_response_bytes: 8 * 1024 * 1024,
             tags: vec![],
         };
         // THEN

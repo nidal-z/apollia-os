@@ -132,3 +132,17 @@ fresh bearer via `ensure_fresh_token`.
 ## Related
 
 - [ADR-016](ADR-016-secrets-keyring-api-auth.md) provides the secret storage that persists MCP OAuth tokens.
+
+## Addendum: byte cap on OAuth discovery and token reads (2026-07-20)
+
+The same pre-launch review found that the OAuth 2.1 discovery and token reads
+(protected-resource and authorization-server metadata, dynamic client
+registration, authorization-code exchange, refresh) decoded response bodies with
+no size limit, so a hostile or broken authorization server could exhaust memory
+during the handshake.
+
+These reads are now bounded by a fixed 1 MiB ceiling (`MAX_OAUTH_RESPONSE_BYTES`):
+the body is streamed chunk by chunk and aborts with a typed `ResponseTooLarge`
+error past the cap. The ceiling is a constant rather than a per-server setting
+because the OAuth flow runs before any transport is built, so no server
+configuration is in scope, and the documents involved are small and spec-bounded.

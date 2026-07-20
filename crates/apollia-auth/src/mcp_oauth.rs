@@ -25,9 +25,62 @@
 //! 6. Client launches the authorization code flow with PKCE S256 and `resource=`.
 //! 7. Token endpoint exchange returns the access + refresh tokens.
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::error::AuthError;
+
+// ─── capped response reads (untrusted AS / resource metadata) ───────────────
+
+/// Byte ceiling for a single OAuth / MCP-discovery HTTP response.
+///
+/// Authorization-server metadata, protected-resource metadata, DCR responses,
+/// and token responses are all small, spec-bounded JSON documents. 1 MiB sits
+/// far above any legitimate payload while bounding memory against a hostile or
+/// broken peer. This is not per-server configurable: the OAuth flow runs before
+/// any transport is built, so no `McpServerConfig` cap is in scope here.
+pub(crate) const MAX_OAUTH_RESPONSE_BYTES: u64 = 1024 * 1024;
+
+/// Read a response body into bytes, aborting once `limit` is exceeded.
+///
+/// Streams the body chunk by chunk (`reqwest::Response::chunk`) so an oversized
+/// or never-ending body is rejected with [`AuthError::ResponseTooLarge`] before
+/// it is fully buffered.
+pub(crate) async fn read_body_capped(
+    mut response: reqwest::Response,
+    limit: u64,
+) -> Result<Vec<u8>, AuthError> {
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| AuthError::HttpError(e.to_string()))?
+    {
+        if buf.len() as u64 + chunk.len() as u64 > limit {
+            return Err(AuthError::ResponseTooLarge(limit));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
+/// Read and JSON-decode a response body, bounded by `limit`.
+pub(crate) async fn read_json_capped<T: DeserializeOwned>(
+    response: reqwest::Response,
+    limit: u64,
+) -> Result<T, AuthError> {
+    let bytes = read_body_capped(response, limit).await?;
+    serde_json::from_slice(&bytes).map_err(|e| AuthError::Serialization(e.to_string()))
+}
+
+/// Read a response body as a lossy UTF-8 string, bounded by `limit`.
+pub(crate) async fn read_text_capped(
+    response: reqwest::Response,
+    limit: u64,
+) -> Result<String, AuthError> {
+    let bytes = read_body_capped(response, limit).await?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
 
 // ─── RFC 9728: Protected Resource Metadata ─────────────────────────────────
 
@@ -345,10 +398,7 @@ impl McpDiscoveryClient {
                 response.status()
             )));
         }
-        response
-            .json::<ProtectedResourceMetadata>()
-            .await
-            .map_err(|e| AuthError::Serialization(e.to_string()))
+        read_json_capped::<ProtectedResourceMetadata>(response, MAX_OAUTH_RESPONSE_BYTES).await
     }
 
     /// Fetch AS metadata. Tries each candidate URL until one returns a 200.
@@ -361,9 +411,14 @@ impl McpDiscoveryClient {
         for url in &candidates {
             match self.http.get(url).send().await {
                 Ok(r) if r.status().is_success() => {
-                    match r.json::<AuthorizationServerMetadata>().await {
+                    match read_json_capped::<AuthorizationServerMetadata>(
+                        r,
+                        MAX_OAUTH_RESPONSE_BYTES,
+                    )
+                    .await
+                    {
                         Ok(meta) => return Ok(meta),
-                        Err(e) => last_err = Some(AuthError::Serialization(e.to_string())),
+                        Err(e) => last_err = Some(e),
                     }
                 }
                 Ok(_) => {} // Try the next candidate.
@@ -394,18 +449,14 @@ impl McpDiscoveryClient {
             .map_err(|e| AuthError::HttpError(e.to_string()))?;
         if !response.status().is_success() {
             let status = response.status();
-            let text = response
-                .text()
+            let text = read_text_capped(response, MAX_OAUTH_RESPONSE_BYTES)
                 .await
                 .unwrap_or_else(|_| "<unreadable>".to_string());
             return Err(AuthError::ProviderError(format!(
                 "DCR returned {status}: {text}"
             )));
         }
-        response
-            .json::<DcrResponse>()
-            .await
-            .map_err(|e| AuthError::Serialization(e.to_string()))
+        read_json_capped::<DcrResponse>(response, MAX_OAUTH_RESPONSE_BYTES).await
     }
 }
 
@@ -535,5 +586,66 @@ mod tests {
         assert_eq!(req.token_endpoint_auth_method, "none");
         assert_eq!(req.redirect_uris.len(), 1);
         assert!(req.redirect_uris[0].contains("54321"));
+    }
+
+    // ── capped response reads ───────────────────────────────────────────────
+
+    /// Bind a random local port, serve `app`, and return the bound address.
+    async fn start_server(app: axum::Router) -> std::net::SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("TcpListener::bind must succeed in tests");
+        let addr = listener.local_addr().expect("local_addr must be available");
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("axum::serve must not fail");
+        });
+        addr
+    }
+
+    #[tokio::test]
+    async fn test_read_body_capped_rejects_oversized() {
+        // GIVEN a server returning a 4 KiB body, under a 1 KiB cap
+        let app = axum::Router::new().route("/", axum::routing::get(|| async { "a".repeat(4096) }));
+        let addr = start_server(app).await;
+        let resp = reqwest::get(format!("http://{addr}/"))
+            .await
+            .expect("request must reach the test server");
+
+        // WHEN the body is read with a 1 KiB cap
+        let result = read_body_capped(resp, 1024).await;
+
+        // THEN the read aborts with ResponseTooLarge instead of buffering it all
+        assert!(
+            matches!(result, Err(AuthError::ResponseTooLarge(1024))),
+            "expected ResponseTooLarge, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_json_capped_ok_for_small_document() {
+        // GIVEN a small PRM JSON document well under the cap
+        let app = axum::Router::new().route(
+            "/",
+            axum::routing::get(|| async {
+                (
+                    [(reqwest::header::CONTENT_TYPE, "application/json")],
+                    r#"{"resource":"https://x","authorization_servers":["https://as"]}"#,
+                )
+            }),
+        );
+        let addr = start_server(app).await;
+        let resp = reqwest::get(format!("http://{addr}/"))
+            .await
+            .expect("request must reach the test server");
+
+        // WHEN it is decoded with the production cap
+        let prm: ProtectedResourceMetadata = read_json_capped(resp, MAX_OAUTH_RESPONSE_BYTES)
+            .await
+            .expect("small document must decode");
+
+        // THEN the legitimate document deserializes unchanged
+        assert_eq!(prm.authorization_servers, vec!["https://as"]);
     }
 }

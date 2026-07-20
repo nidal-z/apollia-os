@@ -4,7 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::process::Stdio;
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
@@ -41,8 +41,14 @@ pub struct StdioTransport {
     pid: Option<u32>,
     /// Buffered writer protecting the child's stdin pipe.
     stdin: Mutex<BufWriter<ChildStdin>>,
-    /// Line reader protecting the child's stdout pipe.
-    stdout: Mutex<Lines<BufReader<ChildStdout>>>,
+    /// Buffered reader protecting the child's stdout pipe. A single JSON-RPC
+    /// line is read at a time by [`recv`](StdioTransport::recv), bounded by
+    /// `max_response_bytes`.
+    stdout: Mutex<BufReader<ChildStdout>>,
+    /// Maximum bytes accepted for a single stdout line before the read aborts
+    /// with [`TransportError::ResponseTooLarge`]. Bounds memory against a server
+    /// that never emits a newline.
+    max_response_bytes: u64,
     /// Child process handle, kept for `shutdown`.
     child: Mutex<Child>,
     /// Rolling window of the most recent stderr lines, populated by the
@@ -56,11 +62,16 @@ impl StdioTransport {
     ///
     /// `server_name` is used purely as a tracing tag so multi-server logs stay
     /// disambiguable; pass an empty string when no name is yet known.
+    ///
+    /// `max_response_bytes` caps a single stdout line; a line that grows past it
+    /// (a server that never emits a newline) aborts with
+    /// [`TransportError::ResponseTooLarge`] instead of exhausting memory.
     pub fn spawn(
         server_name: &str,
         command: &str,
         args: &[String],
         envs: HashMap<String, String>,
+        max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
         let mut child = Command::new(command)
             .args(args)
@@ -124,7 +135,8 @@ impl StdioTransport {
         Ok(Self {
             pid,
             stdin: Mutex::new(BufWriter::new(raw_stdin)),
-            stdout: Mutex::new(BufReader::new(raw_stdout).lines()),
+            stdout: Mutex::new(BufReader::new(raw_stdout)),
+            max_response_bytes,
             child: Mutex::new(child),
             stderr_tail,
         })
@@ -147,15 +159,53 @@ impl McpTransport for StdioTransport {
             .map_err(|e| TransportError::Io(e.to_string()))
     }
 
-    /// Read the next newline-terminated line from the child's stdout.
+    /// Read the next newline-terminated line from the child's stdout, bounded
+    /// by `max_response_bytes`.
+    ///
+    /// Reads byte ranges from the buffered reader until a `\n` is found,
+    /// returning the line without the terminator (a trailing `\r` is stripped,
+    /// mirroring `tokio`'s `Lines`). Returns [`TransportError::Closed`] on EOF
+    /// with no pending bytes, and [`TransportError::ResponseTooLarge`] as soon
+    /// as the accumulated line exceeds the cap, so a server that never emits a
+    /// newline cannot grow memory without bound.
     async fn recv(&self) -> Result<String, TransportError> {
-        self.stdout
-            .lock()
-            .await
-            .next_line()
-            .await
-            .map_err(|e| TransportError::Io(e.to_string()))?
-            .ok_or(TransportError::Closed)
+        let mut reader = self.stdout.lock().await;
+        let mut line: Vec<u8> = Vec::new();
+        loop {
+            let (consumed, done) = {
+                let available = reader
+                    .fill_buf()
+                    .await
+                    .map_err(|e| TransportError::Io(e.to_string()))?;
+                if available.is_empty() {
+                    // EOF: the stream ended before a newline arrived.
+                    if line.is_empty() {
+                        return Err(TransportError::Closed);
+                    }
+                    (0, true)
+                } else if let Some(pos) = available.iter().position(|&b| b == b'\n') {
+                    line.extend_from_slice(&available[..pos]);
+                    (pos + 1, true)
+                } else {
+                    line.extend_from_slice(available);
+                    (available.len(), false)
+                }
+            };
+            reader.consume(consumed);
+            if line.len() as u64 > self.max_response_bytes {
+                return Err(TransportError::ResponseTooLarge {
+                    limit: self.max_response_bytes,
+                });
+            }
+            if done {
+                break;
+            }
+        }
+        // Mirror tokio `Lines::next_line`: a CRLF line drops the trailing '\r'.
+        if line.last() == Some(&b'\r') {
+            line.pop();
+        }
+        String::from_utf8(line).map_err(|e| TransportError::Io(e.to_string()))
     }
 
     /// Kill the child process and wait for it to exit.
@@ -188,8 +238,11 @@ impl McpTransport for StdioTransport {
 mod tests {
     use super::*;
 
+    /// Generous cap used by the round-trip tests where the payload is small.
+    const TEST_CAP: u64 = 8 * 1024 * 1024;
+
     fn cat_transport() -> StdioTransport {
-        StdioTransport::spawn("test", "cat", &[], HashMap::new())
+        StdioTransport::spawn("test", "cat", &[], HashMap::new(), TEST_CAP)
             .expect("cat must be available on the test system")
     }
 
@@ -256,8 +309,13 @@ mod tests {
     #[tokio::test]
     async fn test_spawn_invalid_command_returns_error() {
         // GIVEN a command that does not exist on this system
-        let result =
-            StdioTransport::spawn("test", "nonexistent-binary-xyz-12345", &[], HashMap::new());
+        let result = StdioTransport::spawn(
+            "test",
+            "nonexistent-binary-xyz-12345",
+            &[],
+            HashMap::new(),
+            TEST_CAP,
+        );
         // THEN spawn returns SpawnFailed
         assert!(matches!(result, Err(TransportError::SpawnFailed(_))));
     }
@@ -273,6 +331,7 @@ mod tests {
                 "echo first 1>&2; echo second 1>&2; cat".to_string(),
             ],
             HashMap::new(),
+            TEST_CAP,
         )
         .expect("sh spawn must succeed");
 
@@ -291,5 +350,53 @@ mod tests {
         );
 
         transport.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_stdio_transport_rejects_oversized_line_without_newline() {
+        // GIVEN a subprocess that streams 100_000 bytes with no newline, under a
+        // 1 KiB cap (the DoS shape: a server that never terminates a line)
+        let transport = StdioTransport::spawn(
+            "test",
+            "sh",
+            &[
+                "-c".to_string(),
+                "head -c 100000 /dev/zero | tr '\\0' 'a'".to_string(),
+            ],
+            HashMap::new(),
+            1024,
+        )
+        .expect("sh spawn must succeed");
+
+        // WHEN the line is read
+        let result = transport.recv().await;
+
+        // THEN the read aborts with ResponseTooLarge rather than growing memory
+        assert!(
+            matches!(
+                result,
+                Err(TransportError::ResponseTooLarge { limit: 1024 })
+            ),
+            "expected ResponseTooLarge, got {result:?}"
+        );
+
+        transport.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_stdio_transport_legit_line_ok_under_small_cap() {
+        // GIVEN a `cat` transport with a small (1 KiB) cap
+        let transport = StdioTransport::spawn("test", "cat", &[], HashMap::new(), 1024)
+            .expect("cat must be available on the test system");
+        let message = r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#;
+
+        // WHEN a message well under the cap is sent and received
+        transport.send(message).await.expect("send must succeed");
+        let received = transport.recv().await.expect("recv must succeed");
+
+        // THEN the legitimate line round-trips unchanged
+        assert_eq!(received, message);
+
+        transport.shutdown().await.expect("shutdown must succeed");
     }
 }

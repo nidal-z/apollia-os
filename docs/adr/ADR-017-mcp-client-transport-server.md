@@ -125,3 +125,24 @@ either way.
 
 - [ADR-018](ADR-018-mcp-oauth.md) adds the OAuth flow for remote HTTP MCP servers.
 - [ADR-019](ADR-019-connectors-integrations.md) wires MCP servers into the catalogue and the connector wizard.
+
+## Addendum: response byte cap on untrusted transports (2026-07-20)
+
+A pre-launch security review confirmed that no byte ceiling existed on any read
+of an MCP server's output: the stdio line reader, the streamable-HTTP body read,
+and the SSE receive buffer all grew without bound. A connected server that never
+emitted a newline, streamed without end, or returned a giant body could exhaust
+daemon memory mid-session.
+
+Each transport now enforces a per-server byte cap, `max_response_bytes` on the
+server configuration (default 8 MiB, bounds [1024, 1073741824], persisted with
+the server record). Exceeding it aborts the read with a typed `ResponseTooLarge`
+error instead of buffering without limit: the stdio reader bounds the accumulated
+line, the HTTP transport streams the body chunk by chunk against the cap, and the
+SSE listener bounds its receive buffer (tearing the connection down, which
+surfaces to callers as a closed transport). Legitimate traffic and the JSON-RPC
+id-correlation are unchanged; operators can raise the cap per server for large
+tool payloads.
+
+The subprocess stderr drainer keeps its rolling-window semantics and is not
+bounded per line; that lower-severity path is tracked separately.

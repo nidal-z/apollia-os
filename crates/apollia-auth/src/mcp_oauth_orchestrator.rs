@@ -32,8 +32,9 @@ use tokio::sync::Mutex;
 use crate::callback::{bind_ephemeral_port, wait_for_callback};
 use crate::error::AuthError;
 use crate::mcp_oauth::{
-    canonical_resource_uri, parse_www_authenticate, AuthorizationServerMetadata,
-    McpDiscoveryClient, ProtectedResourceMetadata, APOLLIA_CIMD_URL,
+    canonical_resource_uri, parse_www_authenticate, read_json_capped, read_text_capped,
+    AuthorizationServerMetadata, McpDiscoveryClient, ProtectedResourceMetadata, APOLLIA_CIMD_URL,
+    MAX_OAUTH_RESPONSE_BYTES,
 };
 use crate::mcp_token_store::{
     delete_mcp_token, extract_identity_claims, load_mcp_token, save_mcp_token, StoredMcpToken,
@@ -544,16 +545,12 @@ async fn exchange_code(
 
     if !response.status().is_success() {
         let status = response.status();
-        let body = response
-            .text()
+        let body = read_text_capped(response, MAX_OAUTH_RESPONSE_BYTES)
             .await
             .unwrap_or_else(|_| "<unreadable>".into());
         return Err(AuthError::TokenExchangeFailed(format!("{status}: {body}")));
     }
-    response
-        .json::<TokenResponse>()
-        .await
-        .map_err(|e| AuthError::Serialization(e.to_string()))
+    read_json_capped::<TokenResponse>(response, MAX_OAUTH_RESPONSE_BYTES).await
 }
 
 /// Refresh an access token using the OAuth `refresh_token` grant.
@@ -589,16 +586,12 @@ async fn refresh_grant(
 
     if !response.status().is_success() {
         let status = response.status();
-        let body = response
-            .text()
+        let body = read_text_capped(response, MAX_OAUTH_RESPONSE_BYTES)
             .await
             .unwrap_or_else(|_| "<unreadable>".into());
         return Err(AuthError::TokenExchangeFailed(format!("{status}: {body}")));
     }
-    let token: TokenResponse = response
-        .json()
-        .await
-        .map_err(|e| AuthError::Serialization(e.to_string()))?;
+    let token: TokenResponse = read_json_capped(response, MAX_OAUTH_RESPONSE_BYTES).await?;
 
     let now = chrono::Utc::now().timestamp();
     let identity = extract_identity_claims(&token.access_token);
