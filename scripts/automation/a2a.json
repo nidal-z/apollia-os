@@ -1,29 +1,37 @@
 {
-  "name": "a2a",
+  "name": "a2a (seed-classifier delegation via chat)",
   "stopOnError": false,
   "steps": [
-    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
-
-    { "kind": "goto", "route": "agents" },
-    { "kind": "sleep", "ms": 600 },
-    { "kind": "screenshot", "label": "01-agents (start the yumni-classification worker here first)" },
+    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
+    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
+    { "kind": "waitFor", "testid": "app-main" },
 
     { "kind": "goto", "route": "chat" },
-    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 15000 },
+    { "kind": "waitFor", "testid": "chat-page" },
+    { "kind": "click", "testid": "chat-new-chat-btn" },
+    { "kind": "waitFor", "testid": "quickpicker" },
+    { "kind": "fill", "testid": "quickpicker-textarea", "text": "Bonjour, je vais te demander une classification." },
+    { "kind": "click", "testid": "quickpicker-submit" },
+    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 30000 },
+    { "kind": "awaitTurn", "timeoutMs": 120000 },
+    { "kind": "screenshot", "label": "01-chat-ready" },
+
     { "kind": "expect", "testid": "a2a-worker-badge" },
-    { "kind": "screenshot", "label": "02-chat-workers" },
+    { "kind": "click", "testid": "a2a-worker-badge" },
+    { "kind": "waitFor", "testid": "a2a-worker-popover", "timeoutMs": 5000 },
+    { "kind": "expect", "testid": "a2a-skill-chip-classify_text" },
+    { "kind": "screenshot", "label": "02-skill-chip-classify_text" },
+    { "kind": "click", "testid": "a2a-worker-badge" },
+    { "kind": "sleep", "ms": 400 },
 
-    { "kind": "sendChat", "text": "Utilise l'agent de classification ESRS pour classer ces entités via le skill esrs.match_entities : critère \"Émissions de gaz à effet de serre (Scope 1)\", entités [\"Chaudière gaz du site A\", \"Flotte de véhicules thermiques\", \"Serveur cloud hébergé\"]. Rends le mapping." },
+    { "kind": "sendChat", "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label." },
     { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
-    { "kind": "sleep", "ms": 1500 },
-    { "kind": "screenshot", "label": "03-delegating-during" },
+    { "kind": "sleep", "ms": 500 },
+    { "kind": "screenshot", "label": "03-delegating" },
     { "kind": "expect", "testid": "chat-a2a-delegating" },
-    { "kind": "waitGone", "testid": "chat-stop-button", "timeoutMs": 180000 },
+    { "kind": "awaitTurn", "timeoutMs": 180000 },
+    { "kind": "sleep", "ms": 800 },
     { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "a2a_result" },
-    { "kind": "screenshot", "label": "04-a2a-result" },
-
-    { "kind": "goto", "route": "agents" },
-    { "kind": "sleep", "ms": 600 },
-    { "kind": "screenshot", "label": "05-agents-activity (cross-check worker task rows)" }
+    { "kind": "screenshot", "label": "04-a2a-result" }
   ]
 }

@@ -43,7 +43,7 @@
     },
     {
       "kind": "expect",
-      "testid": "a2a-skill-chip-esrs.match_entities"
+      "testid": "a2a-skill-chip-classify_text"
     },
     {
       "kind": "screenshot",
@@ -59,7 +59,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Utilise l'agent de classification ESRS pour classer ces entit\u00e9s via le skill esrs.match_entities : crit\u00e8re \"\u00c9missions de gaz \u00e0 effet de serre (Scope 1)\", entit\u00e9s [\"Chaudi\u00e8re gaz du site A\", \"Flotte de v\u00e9hicules thermiques\", \"Serveur cloud h\u00e9berg\u00e9\"]. Rends le mapping."
+      "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label."
     },
     {
       "kind": "waitFor",
@@ -97,7 +97,7 @@
       "kind": "expect",
       "testidPrefix": "chat-message-",
       "nth": -1,
-      "contains": "esrs.match_entities"
+      "contains": "classify_text"
     },
     {
       "kind": "screenshot",
@@ -115,7 +115,7 @@
     {
       "kind": "fill",
       "testid": "agents-search",
-      "text": "yumni"
+      "text": "seed-classifier"
     },
     {
       "kind": "sleep",

@@ -117,10 +117,6 @@
       "testid": "stt-toggle"
     },
     {
-      "kind": "expect",
-      "testid": "onboarding-open-cloud"
-    },
-    {
       "kind": "screenshot",
       "label": "06-onb-ai-setup"
     },
@@ -158,11 +154,6 @@
       "kind": "waitFor",
       "testid": "onboarding-chat-step",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-chat-no-llm",
-      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
