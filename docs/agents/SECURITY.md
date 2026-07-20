@@ -203,24 +203,34 @@ Rules :
 
 ## 7. Network access
 
-Outbound HTTP from the `http_fetch` tool goes through the `apollia-tools` HTTP
-wrapper. The wrapper applies :
-- DNS rebind protection.
-- Per-host rate limits.
+Outbound HTTP from the `http_fetch` and `web_read` tools goes through the
+`apollia-tools` SSRF guard (`apollia_tools::ssrf`). The guard applies :
+- A name-level check (`assert_public`) that rejects loopback, RFC 1918 private,
+  link-local (cloud metadata), multicast, unique-local, and internal-domain
+  destinations, on the initial URL.
+- The same check on the target of every redirect hop
+  (`public_redirect_policy`), with a bounded hop count, so a public endpoint
+  cannot `302` the client onto a private host.
 - Audit log entries.
 
-Profile gating (`local_only`) is not yet enforced here (see section 1). And
-because agent code is unsandboxed, an agent can open a raw socket directly,
-bypassing the wrapper; the wrapper protects tool-mediated fetches, not the agent
-process. Tool child processes on Linux share the host network namespace (no
-`--net` isolation yet).
+Residual (not yet mitigated) : the check is name-level only, so DNS rebinding
+(host resolves public at check-time, private at connect-time) and a redirect
+host that rebinds between the policy check and the socket connect are not
+closed. That requires a custom resolver that pins the resolved IP for the
+connection. Profile gating (`local_only`) is not yet enforced here (see
+section 1). And because agent code is unsandboxed, an agent can open a raw
+socket directly, bypassing the guard; it protects tool-mediated fetches, not
+the agent process. Tool child processes on Linux share the host network
+namespace (no `--net` isolation yet).
 
 Rules :
-- Never `reqwest::Client::new()` directly from a tool path. Use the wrapper.
-- Never bypass DNS validation. The wrapper resolves once and pins the
-  IP for the request.
+- Never `reqwest::Client::new()` without the SSRF redirect policy from a tool
+  path. Build the client with `apollia_tools::ssrf::public_redirect_policy`.
+- Never validate only the initial URL. Redirect targets are attacker-controlled
+  and must be re-checked per hop.
 - Webhook outbound is the only direct-network path in the runtime, and
-  it carries no agent payload.
+  it carries no agent payload. It applies the same initial + per-redirect SSRF
+  check.
 
 ---
 

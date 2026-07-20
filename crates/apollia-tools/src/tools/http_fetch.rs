@@ -116,7 +116,14 @@ impl HttpFetch {
     /// Panics only if the TLS backend fails to initialise, which cannot occur in practice
     /// with the default platform TLS.
     pub fn new(allowlist: Option<Vec<String>>) -> Self {
+        // Re-validate every redirect hop, not just the initial URL: reqwest
+        // follows `Location` headers, which a remote endpoint controls. The
+        // hop cap matches reqwest's own default. This guard is independent of
+        // the test-only `ssrf_guard` toggle (which gates the initial check).
         let client = reqwest::Client::builder()
+            .redirect(crate::ssrf::public_redirect_policy(
+                crate::ssrf::DEFAULT_MAX_REDIRECTS,
+            ))
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
@@ -733,6 +740,37 @@ mod tests {
 
         // THEN
         assert!(matches!(err, HttpFetchError::Ssrf(_)), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn ssrf_blocks_redirect_to_private_address() {
+        // GIVEN an allowlisted mock endpoint that 302-redirects to the AWS
+        // metadata link-local IP
+        let (listener, port) = bind_local().await;
+        let response = b"HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/\r\nContent-Length: 0\r\n\r\n";
+        tokio::spawn(serve_once(listener, response));
+
+        // AND the initial-URL SSRF check disabled (loopback entry) while the
+        // redirect-revalidating client stays active
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()])).with_ssrf_guard(false);
+
+        // WHEN the redirect fires
+        let err = tool
+            .run(HttpFetchInput {
+                url: format!("http://127.0.0.1:{port}/redirect"),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_secs: Some(5),
+            })
+            .await
+            .expect_err("redirect to a private host must be refused");
+
+        // THEN the request fails at the hop instead of fetching the metadata IP
+        assert!(
+            matches!(err, HttpFetchError::RequestFailed(_)),
+            "got: {err}"
+        );
     }
 
     #[test]

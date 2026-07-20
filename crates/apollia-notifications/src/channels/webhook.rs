@@ -70,9 +70,15 @@ impl WebhookChannel {
     /// the supported systems (no custom TLS or incompatible system proxy
     /// required).
     pub fn new(config: WebhookChannelConfig) -> Self {
+        // Re-validate every redirect hop, not just the configured URL: an
+        // operator endpoint could `302` the request onto 127.0.0.1 or a cloud
+        // metadata address. The hop cap matches reqwest's own default.
         let client = Client::builder()
             .timeout(Duration::from_secs(5))
             .user_agent(format!("apollia-os/{}", env!("CARGO_PKG_VERSION")))
+            .redirect(apollia_tools::ssrf::public_redirect_policy(
+                apollia_tools::ssrf::DEFAULT_MAX_REDIRECTS,
+            ))
             .build()
             .expect("reqwest::Client build ne peut pas échouer avec la config par défaut");
         Self::with_client(config, client)
@@ -1088,6 +1094,48 @@ mod tests {
         assert!(
             matches!(result, Err(NotifError::Ssrf(_))),
             "attendu Err(Ssrf), obtenu {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_webhook_channel_blocks_redirect_to_private_address() {
+        // GIVEN a reachable endpoint that 302-redirects to the cloud metadata
+        // link-local address
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind échoue");
+        let addr = listener.local_addr().expect("local_addr");
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf).await;
+                let response = b"HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response).await;
+            }
+        });
+
+        // AND a channel whose initial-URL check is disabled (loopback entry)
+        // while its client still re-validates each redirect hop
+        let channel = WebhookChannel::new(WebhookChannelConfig {
+            id: "redirect-test".into(),
+            url: format!("http://127.0.0.1:{}/redirect", addr.port()),
+            enabled: true,
+            events: None,
+            signing_secret: None,
+            min_severity: Severity::Info,
+        })
+        .with_ssrf_guard(false);
+        let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
+
+        // WHEN
+        let result = channel.send(&notif).await;
+
+        // THEN the send fails at the redirect instead of reaching the metadata IP
+        assert!(
+            matches!(result, Err(NotifError::WebhookFailed(_))),
+            "attendu Err(WebhookFailed), obtenu {:?}",
             result
         );
     }

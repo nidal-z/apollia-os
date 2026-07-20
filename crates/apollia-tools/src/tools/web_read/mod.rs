@@ -107,10 +107,18 @@ impl WebRead {
     }
 
     fn build(timeout_secs: u64, max_body_bytes: usize, ssrf_guard: bool) -> Self {
+        // With the guard on, re-validate every redirect hop (a public page can
+        // `302` onto a private host); otherwise keep the plain hop cap so the
+        // operator's opt-out is honoured end to end.
+        let redirect_policy = if ssrf_guard {
+            crate::ssrf::public_redirect_policy(MAX_REDIRECTS)
+        } else {
+            reqwest::redirect::Policy::limited(MAX_REDIRECTS)
+        };
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(timeout_secs))
-            .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
+            .redirect(redirect_policy)
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
@@ -753,5 +761,66 @@ mod tests {
             .expect_err("404");
 
         assert!(matches!(err, WebReadError::BadStatus(404)));
+    }
+
+    #[tokio::test]
+    async fn redirect_to_private_address_is_blocked() {
+        // GIVEN a reachable endpoint that 302-redirects to the cloud metadata
+        // link-local address
+        let (listener, port) = bind_local().await;
+        let response = b"HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/\r\nContent-Length: 0\r\n\r\n".to_vec();
+        tokio::spawn(respond_once(listener, response));
+
+        // AND a guard-on client, whose redirect policy re-validates each hop
+        let tool = loopback_web_read();
+
+        // WHEN the initial (loopback) request is made and the redirect fires
+        let err = tool
+            .fetch_raw_for_test(&format!("http://127.0.0.1:{port}/redirect"))
+            .await
+            .expect_err("redirect to a private host must be refused");
+
+        // THEN the send fails instead of following the hop to the private host
+        assert!(
+            matches!(err, WebReadError::RequestFailed(_)),
+            "got: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn legitimate_redirect_is_followed() {
+        // GIVEN a target server that returns an article
+        let (target_listener, target_port) = bind_local().await;
+        let article = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
+            ARTICLE_FIXTURE.len(),
+            ARTICLE_FIXTURE
+        );
+        tokio::spawn(respond_once(target_listener, article.into_bytes()));
+
+        // AND an entry server that 302-redirects to it
+        let (entry_listener, entry_port) = bind_local().await;
+        let redirect = format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{target_port}/post\r\nContent-Length: 0\r\n\r\n"
+        );
+        tokio::spawn(respond_once(entry_listener, redirect.into_bytes()));
+
+        // AND a guard-off client so the loopback redirect is permitted (the
+        // guard legitimately blocks loopback; this exercises the follow path)
+        let tool = WebRead::from_config(&WebReadConfig {
+            ssrf_guard: false,
+            ..WebReadConfig::default()
+        });
+
+        // WHEN the entry URL is fetched
+        let out = tool
+            .fetch_raw_for_test(&format!("http://127.0.0.1:{entry_port}/start"))
+            .await
+            .expect("a legitimate redirect should be followed");
+
+        // THEN the article behind the redirect is extracted
+        assert!(out
+            .content
+            .contains("Apollia OS is an open-source Rust runtime"));
     }
 }

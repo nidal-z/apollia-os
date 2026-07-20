@@ -3,6 +3,10 @@
 //! We intentionally duplicate the helper (it is `pub(crate)` in apollia-tools)
 //! instead of widening the public surface of that crate.  Keep the two
 //! copies in sync if SSRF policy changes.
+//!
+//! Like the shared guard, [`public_redirect_policy`] re-runs [`assert_public`]
+//! on every redirect hop so a public page cannot `302` the fetch onto a private
+//! host. Connect-time IP pinning (DNS rebinding) remains a follow-up.
 
 use thiserror::Error;
 
@@ -79,6 +83,63 @@ pub fn assert_public(url: &url::Url) -> Result<(), SsrfError> {
     Ok(())
 }
 
+/// Outcome of evaluating a single redirect hop against the SSRF policy.
+///
+/// Pure and constructible in tests, unlike reqwest's `Attempt`; the decision
+/// logic is unit-tested here and [`public_redirect_policy`] only maps it onto a
+/// reqwest action.
+#[derive(Debug)]
+pub enum RedirectDecision {
+    /// Hop target is public and within the hop budget: follow it.
+    Follow,
+    /// Hop target resolves to a private / internal destination: refuse.
+    Block(SsrfError),
+    /// The redirect chain reached its cap.
+    TooMany,
+}
+
+/// Decide what to do with one redirect hop. `hops_so_far` is the number of
+/// redirects already followed (`attempt.previous().len()` in reqwest).
+pub fn evaluate_redirect(
+    target: &url::Url,
+    hops_so_far: usize,
+    max_redirects: usize,
+) -> RedirectDecision {
+    if hops_so_far >= max_redirects {
+        return RedirectDecision::TooMany;
+    }
+    match assert_public(target) {
+        Ok(()) => RedirectDecision::Follow,
+        Err(err) => RedirectDecision::Block(err),
+    }
+}
+
+/// Reason a redirect hop was refused, surfaced through reqwest so the transport
+/// error carries an explanatory message.
+#[derive(Debug, Error)]
+pub enum RedirectBlocked {
+    /// A hop resolved to a private / internal destination.
+    #[error("ssrf blocked on redirect: {0}")]
+    Ssrf(#[source] SsrfError),
+
+    /// The redirect chain exceeded its configured cap.
+    #[error("too many redirects (limit {0})")]
+    TooMany(usize),
+}
+
+/// Build a redirect policy that re-runs [`assert_public`] on every hop and caps
+/// the chain at `max_redirects`. A refused hop aborts the chain before the
+/// socket to the blocked host is opened.
+pub fn public_redirect_policy(max_redirects: usize) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        match evaluate_redirect(attempt.url(), attempt.previous().len(), max_redirects) {
+            RedirectDecision::Follow => attempt.follow(),
+            RedirectDecision::Block(err) => attempt.error(RedirectBlocked::Ssrf(err)),
+            RedirectDecision::TooMany => attempt.error(RedirectBlocked::TooMany(max_redirects)),
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,5 +165,44 @@ mod tests {
     fn accepts_public() {
         assert!(assert_public(&parse("https://example.com/")).is_ok());
         assert!(assert_public(&parse("https://8.8.8.8/")).is_ok());
+    }
+
+    #[test]
+    fn evaluate_redirect_follows_public_target_within_budget() {
+        // GIVEN a public redirect target with budget remaining
+        // WHEN the hop is evaluated
+        let decision = evaluate_redirect(&parse("https://example.com/next"), 1, 3);
+        // THEN it is followed
+        assert!(matches!(decision, RedirectDecision::Follow));
+    }
+
+    #[test]
+    fn evaluate_redirect_blocks_private_targets() {
+        // GIVEN redirect targets pointing at internal destinations
+        for host in [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1/admin",
+            "http://192.168.1.1/",
+        ] {
+            // WHEN the hop is evaluated with budget remaining
+            let decision = evaluate_redirect(&parse(host), 0, 3);
+            // THEN it is refused
+            assert!(
+                matches!(
+                    decision,
+                    RedirectDecision::Block(SsrfError::PrivateAddress(_))
+                ),
+                "expected Block for {host}, got {decision:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluate_redirect_stops_when_budget_exhausted() {
+        // GIVEN a public target but a hop count at the cap
+        // WHEN the hop is evaluated
+        let decision = evaluate_redirect(&parse("https://example.com/loop"), 3, 3);
+        // THEN the chain is stopped
+        assert!(matches!(decision, RedirectDecision::TooMany));
     }
 }

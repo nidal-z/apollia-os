@@ -3,13 +3,18 @@
 //!
 //! Used by `http_fetch`, `web_read`, and the webhook notification channel.
 //!
+//! Redirects are covered too: [`public_redirect_policy`] re-runs
+//! [`assert_public`] on the target of every hop, so a public endpoint cannot
+//! `302` the client onto a private destination.
+//!
 //! # Gap documented for v1
 //!
 //! This guard is a *name-level* check. A malicious domain that resolves to a
 //! public IP at check-time and to a private one at connect-time (DNS
-//! rebinding) is not mitigated. Closing that gap requires a custom
-//! `reqwest::dns::Resolve` implementation and a matching connector policy,
-//! scheduled as a follow-up.
+//! rebinding) is not mitigated, and neither is a redirect whose host rebinds
+//! between the policy check and the socket connect. Closing that gap requires a
+//! custom `reqwest::dns::Resolve` implementation that pins the resolved IP for
+//! the connection, scheduled as a follow-up.
 
 use thiserror::Error;
 
@@ -105,6 +110,79 @@ pub fn assert_public(url: &url::Url) -> Result<(), SsrfError> {
     Ok(())
 }
 
+/// Redirect-chain cap applied when a call site does not pick its own. Mirrors
+/// reqwest's own default of 10 hops.
+pub const DEFAULT_MAX_REDIRECTS: usize = 10;
+
+/// Outcome of evaluating a single redirect hop against the SSRF policy.
+///
+/// Pure and constructible in tests: reqwest's `Attempt` has no public
+/// constructor, so the decision logic lives here and is unit-tested directly,
+/// while [`public_redirect_policy`] only translates the decision into a reqwest
+/// action.
+#[derive(Debug)]
+pub enum RedirectDecision {
+    /// Hop target is public and within the hop budget: follow it.
+    Follow,
+    /// Hop target resolves to a private / internal destination: refuse.
+    Block(SsrfError),
+    /// The redirect chain reached its cap.
+    TooMany,
+}
+
+/// Decide what to do with one redirect hop.
+///
+/// `hops_so_far` is the number of redirects already followed (reqwest exposes
+/// this as `attempt.previous().len()`). A target is followed only when the
+/// budget is not exhausted *and* [`assert_public`] accepts it.
+pub fn evaluate_redirect(
+    target: &url::Url,
+    hops_so_far: usize,
+    max_redirects: usize,
+) -> RedirectDecision {
+    if hops_so_far >= max_redirects {
+        return RedirectDecision::TooMany;
+    }
+    match assert_public(target) {
+        Ok(()) => RedirectDecision::Follow,
+        Err(err) => RedirectDecision::Block(err),
+    }
+}
+
+/// Reason a redirect hop was refused, surfaced through reqwest's redirect
+/// machinery so the transport error carries an explanatory message.
+#[cfg(feature = "http")]
+#[derive(Debug, Error)]
+pub enum RedirectBlocked {
+    /// A hop resolved to a private / internal destination.
+    #[error("ssrf blocked on redirect: {0}")]
+    Ssrf(#[source] SsrfError),
+
+    /// The redirect chain exceeded its configured cap.
+    #[error("too many redirects (limit {0})")]
+    TooMany(usize),
+}
+
+/// Build a redirect policy that re-runs [`assert_public`] on every hop and caps
+/// the chain at `max_redirects`.
+///
+/// The initial-URL check performed by call sites is not enough on its own:
+/// reqwest follows 3xx `Location` headers, which an attacker controls, so each
+/// hop is re-validated here. A refused hop aborts the chain *before* the socket
+/// to the blocked host is opened; the resulting error surfaces through
+/// `send().await` as a transport failure carrying the [`RedirectBlocked`]
+/// message.
+#[cfg(feature = "http")]
+pub fn public_redirect_policy(max_redirects: usize) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        match evaluate_redirect(attempt.url(), attempt.previous().len(), max_redirects) {
+            RedirectDecision::Follow => attempt.follow(),
+            RedirectDecision::Block(err) => attempt.error(RedirectBlocked::Ssrf(err)),
+            RedirectDecision::TooMany => attempt.error(RedirectBlocked::TooMany(max_redirects)),
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +237,47 @@ mod tests {
         let parsed = url::Url::parse("file:///etc/passwd").expect("valid url");
         let err = assert_public(&parsed).expect_err("no host");
         assert!(matches!(err, SsrfError::InvalidUrl(_)));
+    }
+
+    #[test]
+    fn evaluate_redirect_follows_public_target_within_budget() {
+        // GIVEN a public redirect target and an unexhausted hop budget
+        let target = parse("https://example.com/next");
+        // WHEN the hop is evaluated
+        let decision = evaluate_redirect(&target, 2, 5);
+        // THEN it is followed
+        assert!(matches!(decision, RedirectDecision::Follow));
+    }
+
+    #[test]
+    fn evaluate_redirect_blocks_private_targets() {
+        // GIVEN redirect targets pointing at internal destinations
+        for host in [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1/admin",
+            "http://10.0.0.1/",
+        ] {
+            let target = parse(host);
+            // WHEN the hop is evaluated with budget remaining
+            let decision = evaluate_redirect(&target, 0, 5);
+            // THEN it is refused
+            assert!(
+                matches!(
+                    decision,
+                    RedirectDecision::Block(SsrfError::PrivateAddress(_))
+                ),
+                "expected Block for {host}, got {decision:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluate_redirect_stops_when_budget_exhausted() {
+        // GIVEN a public target but a hop count that has reached the cap
+        let target = parse("https://example.com/loop");
+        // WHEN the hop is evaluated
+        let decision = evaluate_redirect(&target, 5, 5);
+        // THEN the chain is stopped before the public check even matters
+        assert!(matches!(decision, RedirectDecision::TooMany));
     }
 }

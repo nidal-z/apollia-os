@@ -169,7 +169,9 @@ pub async fn link_preview(url: String) -> Result<LinkPreview, String> {
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
+        // Re-validate every redirect hop, not just the initial URL: a public
+        // page can `302` the fetch onto a private host.
+        .redirect(super::ssrf::public_redirect_policy(MAX_REDIRECTS))
         .build()
         .map_err(|e| format!("reqwest client init failed: {e}"))?;
 
