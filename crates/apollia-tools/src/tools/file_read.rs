@@ -408,6 +408,62 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn read_through_escaping_symlink_is_rejected() {
+        // GIVEN: a sandbox with a symlink pointing to a directory outside the root
+        let sandbox = TempDir::new().expect("sandbox dir");
+        let outside = TempDir::new().expect("outside dir");
+        std::fs::write(outside.path().join("secret.txt"), "top secret").expect("seed secret");
+        std::os::unix::fs::symlink(outside.path(), sandbox.path().join("link"))
+            .expect("create escaping symlink");
+
+        let file_read =
+            FileRead::new(sandbox.path().to_path_buf()).expect("Failed to create FileRead");
+
+        // WHEN: reading through the escaping symlink
+        let result = file_read
+            .run(FileReadInput {
+                path: "link/secret.txt".to_string(),
+                offset: None,
+                limit: None,
+            })
+            .await;
+
+        // THEN: rejected as a sandbox violation, the outside secret is not leaked
+        assert!(matches!(
+            result,
+            Err(FileReadError::SandboxViolation { .. })
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn read_through_internal_symlink_ok() {
+        // GIVEN: a sandbox with a real file and an internal symlink to its dir
+        let sandbox = TempDir::new().expect("sandbox dir");
+        std::fs::create_dir_all(sandbox.path().join("real")).expect("create real dir");
+        std::fs::write(sandbox.path().join("real/f.txt"), "inside").expect("seed inside file");
+        std::os::unix::fs::symlink(sandbox.path().join("real"), sandbox.path().join("link"))
+            .expect("create internal symlink");
+
+        let file_read =
+            FileRead::new(sandbox.path().to_path_buf()).expect("Failed to create FileRead");
+
+        // WHEN: reading through the internal symlink
+        let result = file_read
+            .run(FileReadInput {
+                path: "link/f.txt".to_string(),
+                offset: None,
+                limit: None,
+            })
+            .await;
+
+        // THEN: the real file content is returned
+        let output = result.expect("internal symlink read should succeed");
+        assert!(output.content.contains("inside"));
+    }
+
     #[test]
     fn descriptor_is_valid() {
         // GIVEN: FileRead::descriptor()

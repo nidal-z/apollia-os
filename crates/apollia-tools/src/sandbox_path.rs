@@ -21,8 +21,10 @@ pub enum SandboxPathError {
 /// Validated sandbox root directory.
 ///
 /// Created once per tool instance. All path operations validate against this root.
-/// The sandbox root is canonicalized at creation time, and all resolved paths
-/// are checked to ensure they remain within the sandbox boundary.
+/// The sandbox root is canonicalized at creation time. Every resolved path has
+/// its existing prefix canonicalized and re-checked against the root, so a
+/// symlink is followed only while it stays inside the sandbox and any symlink
+/// escaping the root is rejected.
 #[derive(Debug, Clone)]
 pub struct SandboxRoot {
     /// Canonicalized absolute path to the sandbox root directory.
@@ -33,7 +35,9 @@ impl SandboxRoot {
     /// Create and canonicalize the sandbox root directory.
     ///
     /// Creates the directory (and parents) if it doesn't exist.
-    /// Canonicalizes the path to resolve symlinks and normalize.
+    /// Canonicalizes the root path itself to resolve symlinks and normalize.
+    /// Per-request paths are resolved and symlink-checked separately in
+    /// [`SandboxRoot::resolve`].
     ///
     /// # Errors
     ///
@@ -57,17 +61,23 @@ impl SandboxRoot {
 
     /// Resolve a relative path within the sandbox.
     ///
-    /// Validates that the path remains within the sandbox boundary after normalization.
+    /// Validates that the path remains within the sandbox boundary after
+    /// lexical normalization, then canonicalizes the resolved target's existing
+    /// prefix and re-checks it against the root. A symlink is therefore
+    /// followed only while its real target stays under the root; a symlink
+    /// pointing outside is rejected. When the target does not exist yet
+    /// (e.g. a fresh `file_write`), the longest existing ancestor is
+    /// canonicalized and the not-yet-created tail is re-appended.
     ///
     /// Absolute paths are accepted if they point under the canonical root
     /// (e.g. `/Users/alice/docs` with root `/Users/alice`). Absolute paths
-    /// outside the root (e.g. `/etc/passwd`) are rejected by the
-    /// `starts_with(canonical)` check at the end of the method.
+    /// outside the root (e.g. `/etc/passwd`) are rejected.
     ///
     /// # Rejections
     ///
     /// - Path traversal attempts (e.g. "../../etc/passwd")
     /// - Any path that would resolve outside the sandbox root
+    /// - Symlinks whose real target escapes the sandbox root
     ///
     /// # Errors
     ///
@@ -102,7 +112,50 @@ impl SandboxRoot {
             });
         }
 
-        Ok(resolved)
+        self.contain_within_root(&resolved, relative_path)
+    }
+
+    /// Canonicalize the existing portion of `resolved` and re-check confinement.
+    ///
+    /// Walks up to the longest existing ancestor, canonicalizes it (resolving
+    /// every symlink), and verifies the real path still starts with the
+    /// canonical root. The not-yet-existing tail is re-appended so callers that
+    /// create files (`file_write`) keep working. Any failure to confirm
+    /// confinement is treated as an escape (fail-closed).
+    fn contain_within_root(
+        &self,
+        resolved: &Path,
+        original: &str,
+    ) -> Result<PathBuf, SandboxPathError> {
+        let violation = || SandboxPathError::SandboxViolation {
+            path: original.to_string(),
+        };
+
+        let mut tail: Vec<std::ffi::OsString> = Vec::new();
+        let mut probe = resolved.to_path_buf();
+
+        let real_prefix = loop {
+            match probe.canonicalize() {
+                Ok(canonical) => break canonical,
+                Err(_) => {
+                    let name = probe.file_name().ok_or_else(violation)?.to_os_string();
+                    tail.push(name);
+                    if !probe.pop() {
+                        return Err(violation());
+                    }
+                }
+            }
+        };
+
+        if !real_prefix.starts_with(&self.canonical) {
+            return Err(violation());
+        }
+
+        let mut full = real_prefix;
+        for name in tail.into_iter().rev() {
+            full.push(name);
+        }
+        Ok(full)
     }
 
     /// Return a reference to the canonical sandbox root path.
@@ -369,6 +422,65 @@ mod tests {
         let resolved = result.expect("Resolution failed");
         assert!(resolved.starts_with(sandbox.path()));
         assert!(resolved.ends_with("src/main.rs"));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_rejects_symlink_escaping_root() {
+        // GIVEN: a sandbox containing a symlink that points outside the root
+        let temp_dir = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(temp_dir.clone()).expect("Failed to create sandbox");
+        let outside = std::env::temp_dir().join(format!("apollia-out-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+        std::fs::write(outside.join("secret.txt"), b"top secret").expect("seed outside file");
+        std::os::unix::fs::symlink(&outside, sandbox.path().join("link"))
+            .expect("create escaping symlink");
+
+        // WHEN: resolving a path that traverses the escaping symlink
+        let via_symlink = sandbox.resolve("link/secret.txt");
+        let bare_symlink = sandbox.resolve("link");
+
+        // THEN: both are rejected as sandbox violations
+        assert!(
+            matches!(via_symlink, Err(SandboxPathError::SandboxViolation { .. })),
+            "escaping symlink target must be rejected, got {via_symlink:?}"
+        );
+        assert!(
+            matches!(bare_symlink, Err(SandboxPathError::SandboxViolation { .. })),
+            "escaping symlink itself must be rejected, got {bare_symlink:?}"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_allows_internal_symlink() {
+        // GIVEN: a sandbox with a real subdir and a symlink to it, both inside root
+        let temp_dir = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(temp_dir.clone()).expect("Failed to create sandbox");
+        std::fs::create_dir_all(sandbox.path().join("real")).expect("create real dir");
+        std::fs::write(sandbox.path().join("real/f.txt"), b"inside").expect("seed inside file");
+        std::os::unix::fs::symlink(sandbox.path().join("real"), sandbox.path().join("link"))
+            .expect("create internal symlink");
+
+        // WHEN: resolving a path that traverses the internal symlink
+        let resolved = sandbox
+            .resolve("link/f.txt")
+            .expect("internal symlink must resolve");
+
+        // THEN: it lands on the real file under the root, with the symlink resolved away
+        assert!(resolved.starts_with(sandbox.path()));
+        assert!(resolved.ends_with("real/f.txt"));
+        assert!(
+            !resolved.to_string_lossy().contains("/link/"),
+            "resolved path must not contain the symlink segment, got {resolved:?}"
+        );
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);

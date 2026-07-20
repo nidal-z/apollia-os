@@ -266,6 +266,70 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn write_through_escaping_symlink_is_rejected() {
+        // GIVEN: a sandbox with a symlink pointing to a directory outside the root
+        let sandbox = TempDir::new().expect("sandbox dir");
+        let outside = TempDir::new().expect("outside dir");
+        std::os::unix::fs::symlink(outside.path(), sandbox.path().join("link"))
+            .expect("create escaping symlink");
+
+        let file_write =
+            FileWrite::new(sandbox.path().to_path_buf()).expect("Failed to create FileWrite");
+
+        // WHEN: writing through the escaping symlink
+        let result = file_write
+            .run(FileWriteInput {
+                path: "link/evil.txt".to_string(),
+                content: "hack".to_string(),
+            })
+            .await;
+
+        // THEN: rejected as a violation and nothing is written outside the sandbox
+        assert!(matches!(
+            result,
+            Err(FileWriteError::SandboxViolation { .. })
+        ));
+        assert!(
+            !outside.path().join("evil.txt").exists(),
+            "file must not be written outside the sandbox"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn write_through_internal_symlink_ok() {
+        // GIVEN: a sandbox with a real subdir and an internal symlink to it
+        let sandbox = TempDir::new().expect("sandbox dir");
+        tokio::fs::create_dir_all(sandbox.path().join("real"))
+            .await
+            .expect("create real dir");
+        std::os::unix::fs::symlink(sandbox.path().join("real"), sandbox.path().join("link"))
+            .expect("create internal symlink");
+
+        let file_write =
+            FileWrite::new(sandbox.path().to_path_buf()).expect("Failed to create FileWrite");
+
+        // WHEN: writing through the internal symlink
+        let result = file_write
+            .run(FileWriteInput {
+                path: "link/note.txt".to_string(),
+                content: "inside".to_string(),
+            })
+            .await;
+
+        // THEN: the write lands on the real file under the root
+        assert!(
+            result.is_ok(),
+            "internal symlink write should succeed: {result:?}"
+        );
+        let content = tokio::fs::read_to_string(sandbox.path().join("real/note.txt"))
+            .await
+            .expect("read real file");
+        assert_eq!(content, "inside");
+    }
+
     #[test]
     fn descriptor_is_valid() {
         // GIVEN: FileWrite::descriptor()
