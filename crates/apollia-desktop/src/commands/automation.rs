@@ -178,8 +178,19 @@ mod capture {
         let out = output_dir()?.join(format!("{seq:03}-{}.png", sanitize_label(&label)));
         let out_str = out.display().to_string();
 
-        let result = tokio::process::Command::new("screencapture")
-            .args(["-R", &region, "-x", &out_str])
+        // Capture the specific window by its id (`-l`) so an editor or any other
+        // window sitting on top of the app region does not get captured instead.
+        // Falls back to a screen-region capture (`-R`) if the id is unavailable.
+        let mut command = tokio::process::Command::new("screencapture");
+        match window_number(&window) {
+            Some(id) => {
+                command.args(["-l", &id.to_string(), "-o", "-x", &out_str]);
+            }
+            None => {
+                command.args(["-R", &region, "-x", &out_str]);
+            }
+        }
+        let result = command
             .output()
             .await
             .map_err(|e| AutomationError::Capture(e.to_string()))?;
@@ -193,6 +204,27 @@ mod capture {
         }
         tracing::info!(label = %label, path = %out_str, region = %region, "automation.capture.saved");
         Ok(out_str)
+    }
+
+    /// The CoreGraphics window id of the app window, read from the underlying
+    /// `NSWindow.windowNumber`. Used so `screencapture -l` grabs the app content
+    /// regardless of what is stacked on top of it. Returns `None` if the native
+    /// handle cannot be resolved (the caller then falls back to region capture).
+    fn window_number(window: &tauri::WebviewWindow) -> Option<i64> {
+        use objc2::runtime::AnyObject;
+
+        let ptr = window.ns_window().ok()?;
+        if ptr.is_null() {
+            return None;
+        }
+        // SAFETY: `ns_window()` returns a valid `NSWindow*` owned by the window,
+        // which stays alive for the duration of this synchronous call. We only
+        // send the `windowNumber` getter, which has no side effects.
+        let number: isize = unsafe {
+            let ns_window = &*(ptr.cast::<AnyObject>());
+            objc2::msg_send![ns_window, windowNumber]
+        };
+        (number > 0).then_some(number as i64)
     }
 }
 
