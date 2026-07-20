@@ -125,3 +125,49 @@ to version.
 - [ADR-015](ADR-015-permission-tool-governance.md) the append-only audit spirit and
   SQLite triggers.
 - [ADR-016](ADR-016-secrets-keyring-api-auth.md) the secret storage backing the signing key.
+
+## Addendum: signatures-required verification (2026-07-20)
+
+- Status: Accepted
+- Date: 2026-07-20
+
+A pre-launch review found that verification only checked a signature when the entry
+*carried* one. Because the hash chains are keyless by design, an attacker with file
+access could rewrite entries, recompute both the per-run and global hash chains,
+set `signature` and `global_signature` to NULL, and update the mutable head anchor to
+match. Verification then returned `ok: true`: the HMAC layer was bypassed by removing
+it, not by defeating it. No verification mode required signatures to be present.
+
+### Decision
+
+Verification now enforces a signatures-required mode. When a signer is configured
+(so every entry is expected to be signed), `verify_entries` and `verify_journal`
+require every verified per-run entry and global link to carry a valid signature by
+the active key. A missing signature fails with `BrokenLinkReason::SignatureInvalid`
+(per-run) or `JournalBreakReason::GlobalSignatureInvalid` (global), reusing the
+existing reasons so no report schema, client, or reference-doc changes. The mode is
+driven by signer presence (`signer.is_some()`): an unsigned journal keeps the
+keyless hash-only walk unchanged. Existing failure reasons keep their meaning; they
+now also cover an absent-but-required signature.
+
+The signing key file (`<data_dir>/journal-hmac-key`) is created owner-only (`0600`)
+before any byte is written, closing the earlier write-then-chmod window. A missing
+or unreadable key at startup still degrades to an unsigned journal, but the fallback
+is now surfaced as an explicit `audit.journal.unsigned_fallback` warning.
+
+### Scope reaffirmed
+
+This does not change the honesty boundary above: the guarantee stays tamper-evidence,
+not tamper-proof. The signer is a symmetric HMAC, so a party with file access can read
+the key and re-sign a consistent shorter chain; the signatures-required mode closes the
+strip-signature bypass for any verifier that holds the key (the runtime itself and
+`apollia audit verify`), and the exported anchor remains the durable defense against a
+key holder. Eliminating that residual (an asymmetric signature with the private key
+kept off-machine, so a keyless third party can verify and a file-access attacker cannot
+re-sign) would reopen the HMAC choice recorded here and is deliberately left to a future
+epic, out of the frozen-quality release.
+
+Known edge: a journal created unsigned and later given a key would flag its pre-key
+entries as `SignatureInvalid` under the required mode. This does not arise for a journal
+signed from first boot; lenient verification of a mixed-era journal would need an
+explicit opt-out.

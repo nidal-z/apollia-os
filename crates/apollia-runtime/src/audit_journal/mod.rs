@@ -718,6 +718,94 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
+    // S1 exploit: an attacker with file access drops the HMAC layer by setting
+    // every signature to NULL. The keyless hash chain and the mutable anchor
+    // stay internally consistent, so before the signatures-required fix this
+    // verified ok. It must now fail: a signed journal requires signatures.
+    #[tokio::test]
+    async fn test_signature_strip_fails_verification() {
+        // GIVEN a signed three-entry journal, closed
+        let (handle, path, key) = open_signed_temp().await;
+        for i in 0..3 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+        handle.shutdown().await;
+
+        // WHEN the attacker strips both the per-run and the global signatures,
+        // leaving the hashes, the chain linkage, and the head anchor untouched
+        raw_tamper(
+            &path,
+            "UPDATE audit_journal_entries SET \
+                 signature = NULL, signing_key_id = NULL, \
+                 global_signature = NULL, global_signing_key_id = NULL;",
+        );
+
+        // THEN reopening with the signer and verifying reports a signature break,
+        // even though nothing but the signatures changed
+        let store = MockStore {
+            value: Some(key.clone()),
+        };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "stripped signatures must fail, got {report:?}");
+        let brk = report.first_break.expect("break");
+        assert_eq!(
+            brk.reason,
+            verify::JournalBreakReason::GlobalSignatureInvalid
+        );
+
+        // AND a per-run verify of the same run also fails on the missing signature
+        let chain = handle.verify_chain("run-1").await.expect("verify chain");
+        assert!(!chain.ok, "stripped run signatures must fail");
+        assert_eq!(
+            chain.first_broken_link.expect("link").reason,
+            verify::BrokenLinkReason::SignatureInvalid
+        );
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Companion to the strip test: the same signed journal, untampered, verifies
+    // ok, so the required-signatures mode does not reject legitimate entries.
+    #[tokio::test]
+    async fn test_signed_journal_still_verifies_under_required_mode() {
+        // GIVEN a signed three-entry journal
+        let (handle, path, _key) = open_signed_temp().await;
+        for i in 0..3 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+
+        // WHEN verifying the whole journal and the run
+        let journal = handle.verify_journal().await.expect("verify");
+        let chain = handle.verify_chain("run-1").await.expect("verify chain");
+
+        // THEN both pass: required signatures are present and valid
+        assert!(
+            journal.ok,
+            "intact signed journal must verify, got {journal:?}"
+        );
+        assert_eq!(journal.entries_checked, 3);
+        assert!(chain.ok, "intact signed run must verify, got {chain:?}");
+        assert_eq!(chain.entries_checked, 3);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
     // Reopening continues the global chain monotonically without a gap
     #[tokio::test]
     async fn test_idempotent_reopen_continues_global_chain() {

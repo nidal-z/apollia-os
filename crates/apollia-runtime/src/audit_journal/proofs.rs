@@ -78,7 +78,7 @@ mod property {
             let signer = HmacSigner::from_key_bytes(b"prop-key".to_vec()).unwrap();
             let (mut rows, anchor) = build_chain(&signer, n);
             prop_assert!(
-                verify_journal(&rows, anchor.as_ref(), Some(&signer)).ok,
+                verify_journal(&rows, anchor.as_ref(), Some(&signer), true).ok,
                 "the pristine chain must verify"
             );
 
@@ -90,7 +90,7 @@ mod property {
             }
 
             // THEN whole-journal verification fails
-            let report = verify_journal(&rows, anchor.as_ref(), Some(&signer));
+            let report = verify_journal(&rows, anchor.as_ref(), Some(&signer), true);
             prop_assert!(!report.ok, "tampered chain must fail: {report:?}");
         }
     }
@@ -106,10 +106,10 @@ fn kani_global_chain_tamper_evident() {
     const N: usize = 3;
     let signer = HmacSigner::from_key_bytes(b"kani-key".to_vec()).unwrap();
     let (mut rows, anchor) = build_chain(&signer, N);
-    assert!(verify_journal(&rows, anchor.as_ref(), Some(&signer)).ok);
+    assert!(verify_journal(&rows, anchor.as_ref(), Some(&signer), true).ok);
 
     let idx: usize = kani::any();
     kani::assume(idx < N);
     rows.remove(idx);
-    assert!(!verify_journal(&rows, anchor.as_ref(), Some(&signer)).ok);
+    assert!(!verify_journal(&rows, anchor.as_ref(), Some(&signer), true).ok);
 }

@@ -50,12 +50,15 @@ pub(in crate::supervisor) async fn open_audit_journal(
                 Some(handle)
             }
             Err(e) => {
-                warn!(error = %e, "AuditJournal signer failed - opening unsigned");
+                // Signing is lost: the journal opens unsigned, so its
+                // tamper-evidence drops to the keyless hash chain. Surface it as
+                // a stable, greppable event, not a passing note.
+                warn!(error = %e, "audit.journal.unsigned_fallback");
                 open_unsigned_journal(&db_path).await
             }
         },
         None => {
-            warn!("audit journal: signing key unavailable - opening unsigned");
+            warn!("audit.journal.unsigned_fallback");
             open_unsigned_journal(&db_path).await
         }
     }
@@ -93,20 +96,42 @@ fn load_or_create_journal_key(data_dir: &std::path::Path) -> Option<Vec<u8>> {
     let mut key = [0u8; 32];
     rand::RngCore::fill_bytes(&mut rand::rng(), &mut key);
     let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-    if let Err(e) = std::fs::write(&key_path, &encoded) {
+    if let Err(e) = write_key_file(&key_path, encoded.as_bytes()) {
         // Sign this session with the in-memory key even if it cannot be
         // persisted (rare: data dir not writable, in which case the db write
         // would also fail).
         warn!(error = %e, "audit journal: could not persist signing key");
         return Some(key.to_vec());
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600));
-    }
     info!("Supervisor: audit journal signing key generated");
     Some(key.to_vec())
+}
+
+/// Write the signing key to a fresh file that is owner-only from creation.
+///
+/// On unix the file is created with mode `0600` before any byte is written, so
+/// the key material never lands on disk under a broader mode (the earlier
+/// write-then-chmod left a short world-readable window). Any prior key file
+/// (including an unreadable one being regenerated) is removed first so the
+/// `create_new` open always yields a fresh owner-only file. Non-unix relies on
+/// default filesystem ACLs; macOS, the primary desktop, is unix.
+fn write_key_file(key_path: &std::path::Path, contents: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    match std::fs::remove_file(key_path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e),
+    }
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(key_path)?;
+    file.write_all(contents)?;
+    file.flush()
 }
 
 /// Open the HITL task repository (`hitl.db`). Returns `None` (logged) on failure.

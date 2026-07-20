@@ -173,7 +173,12 @@ impl JournalActor {
                 }
                 JournalMessage::VerifyChain { run_id, reply } => {
                     let entries = self.query_run(&run_id).unwrap_or_default();
-                    let report = verify_entries(&run_id, &entries, self.signer.as_deref());
+                    let report = verify_entries(
+                        &run_id,
+                        &entries,
+                        self.signer.as_deref(),
+                        self.signer.is_some(),
+                    );
                     let _ = reply.send(report);
                 }
                 JournalMessage::VerifyJournal { reply } => {
@@ -333,10 +338,19 @@ impl JournalActor {
 
     /// Verify the whole journal from a consistent snapshot: the single-writer
     /// loop guarantees the previous append has committed before this runs.
+    ///
+    /// A configured signer means every entry is expected to be signed, so
+    /// verification requires signatures: stripping them off a recomputed chain
+    /// fails instead of silently passing.
     fn verify_journal_now(&self) -> VerifyJournalReport {
         let rows = anchor::query_global_chain(&self.conn).unwrap_or_default();
         let anchor_row = anchor::load_anchor(&self.conn).ok().flatten();
-        verify_journal(&rows, anchor_row.as_ref(), self.signer.as_deref())
+        verify_journal(
+            &rows,
+            anchor_row.as_ref(),
+            self.signer.as_deref(),
+            self.signer.is_some(),
+        )
     }
 
     /// Build the exportable head anchor from the persisted state row plus the

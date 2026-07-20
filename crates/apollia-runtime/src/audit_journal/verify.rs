@@ -23,7 +23,8 @@ pub enum BrokenLinkReason {
     /// The `prev_hash` does not match the previous entry (insert, delete, or
     /// reorder).
     PrevHashMismatch,
-    /// The signature did not verify under the active key.
+    /// The signature did not verify under the active key, or a required
+    /// signature is absent (signer configured, signatures mandatory).
     SignatureInvalid,
     /// The entry was signed by a key the verifier does not hold.
     UnknownSigningKey,
@@ -56,12 +57,17 @@ pub struct VerifyChainReport {
 /// Walks the chain from the sentinel, recomputing each hash and checking the
 /// `prev_hash` linkage. When `signer` is provided and an entry carries a
 /// signature, the signature is verified; an entry signed by a different key id
-/// yields [`BrokenLinkReason::UnknownSigningKey`]. Stops at and reports the
-/// first broken link.
+/// yields [`BrokenLinkReason::UnknownSigningKey`]. When `require_signatures` is
+/// set (a signer is configured, so every entry is expected to be signed), an
+/// entry with no signature fails with [`BrokenLinkReason::SignatureInvalid`]:
+/// this closes the strip-signature bypass, where the keyless hash chain is
+/// recomputed and the signature dropped. Stops at and reports the first broken
+/// link.
 pub fn verify_entries(
     run_id: &str,
     entries: &[JournalEntry],
     signer: Option<&dyn JournalSigner>,
+    require_signatures: bool,
 ) -> VerifyChainReport {
     let mut expected_prev = SENTINEL_PREV_HASH.to_string();
     let mut checked = 0u64;
@@ -80,26 +86,37 @@ pub fn verify_entries(
                 BrokenLinkReason::PrevHashMismatch,
             );
         }
-        if let (Some(signer), Some(sig)) = (signer, entry.signature.as_deref()) {
-            match entry.signing_key_id.as_deref() {
-                Some(kid) if kid == signer.key_id() => {
-                    if !signature_matches(signer, entry.hash.as_bytes(), sig) {
+        if let Some(signer) = signer {
+            match entry.signature.as_deref() {
+                Some(sig) => match entry.signing_key_id.as_deref() {
+                    Some(kid) if kid == signer.key_id() => {
+                        if !signature_matches(signer, entry.hash.as_bytes(), sig) {
+                            return broken(
+                                run_id,
+                                checked,
+                                entry.seq,
+                                BrokenLinkReason::SignatureInvalid,
+                            );
+                        }
+                    }
+                    _ => {
                         return broken(
                             run_id,
                             checked,
                             entry.seq,
-                            BrokenLinkReason::SignatureInvalid,
+                            BrokenLinkReason::UnknownSigningKey,
                         );
                     }
-                }
-                _ => {
+                },
+                None if require_signatures => {
                     return broken(
                         run_id,
                         checked,
                         entry.seq,
-                        BrokenLinkReason::UnknownSigningKey,
+                        BrokenLinkReason::SignatureInvalid,
                     );
                 }
+                None => {}
             }
         }
 
@@ -145,7 +162,8 @@ pub enum JournalBreakReason {
     GlobalPrevHashMismatch,
     /// The recomputed global hash differs from the stored one.
     GlobalHashMismatch,
-    /// The global signature did not verify under the active key.
+    /// The global signature did not verify under the active key, or a required
+    /// global signature is absent (signer configured, signatures mandatory).
     GlobalSignatureInvalid,
     /// The global link was signed by a key the verifier does not hold.
     UnknownSigningKey,
@@ -208,11 +226,16 @@ pub struct JournalAnchor {
 /// global chain checking `global_seq` contiguity from zero, `global_prev_hash`
 /// linkage, the recomputed global hash, and the global signature; verifies each
 /// run's per-run chain via [`verify_entries`]; and compares the terminal global
-/// head to `anchor`. Stops at and reports the first global break.
+/// head to `anchor`. When `require_signatures` is set, a global link with no
+/// signature fails with [`JournalBreakReason::GlobalSignatureInvalid`] and the
+/// per-run walk enforces the same rule, so stripping the signatures off a
+/// recomputed chain no longer verifies. Stops at and reports the first global
+/// break.
 pub(crate) fn verify_journal(
     rows: &[GlobalRow],
     anchor: Option<&AnchorRow>,
     signer: Option<&dyn JournalSigner>,
+    require_signatures: bool,
 ) -> VerifyJournalReport {
     let mut expected_prev = SENTINEL_PREV_HASH.to_string();
     let mut checked = 0u64;
@@ -234,20 +257,30 @@ pub(crate) fn verify_journal(
         if row.global_prev_hash != expected_prev {
             return journal_broken(row, checked, JournalBreakReason::GlobalPrevHashMismatch);
         }
-        if let (Some(signer), Some(sig)) = (signer, row.global_signature.as_deref()) {
-            match row.global_signing_key_id.as_deref() {
-                Some(kid) if kid == signer.key_id() => {
-                    if !signature_matches(signer, row.global_hash.as_bytes(), sig) {
-                        return journal_broken(
-                            row,
-                            checked,
-                            JournalBreakReason::GlobalSignatureInvalid,
-                        );
+        if let Some(signer) = signer {
+            match row.global_signature.as_deref() {
+                Some(sig) => match row.global_signing_key_id.as_deref() {
+                    Some(kid) if kid == signer.key_id() => {
+                        if !signature_matches(signer, row.global_hash.as_bytes(), sig) {
+                            return journal_broken(
+                                row,
+                                checked,
+                                JournalBreakReason::GlobalSignatureInvalid,
+                            );
+                        }
                     }
+                    _ => {
+                        return journal_broken(row, checked, JournalBreakReason::UnknownSigningKey);
+                    }
+                },
+                None if require_signatures => {
+                    return journal_broken(
+                        row,
+                        checked,
+                        JournalBreakReason::GlobalSignatureInvalid,
+                    );
                 }
-                _ => {
-                    return journal_broken(row, checked, JournalBreakReason::UnknownSigningKey);
-                }
+                None => {}
             }
         }
 
@@ -261,7 +294,7 @@ pub(crate) fn verify_journal(
     for (run_id, entries) in &per_run {
         let mut owned: Vec<JournalEntry> = entries.iter().map(|e| (*e).clone()).collect();
         owned.sort_by_key(|e| e.seq);
-        let report = verify_entries(run_id, &owned, signer);
+        let report = verify_entries(run_id, &owned, signer, require_signatures);
         if !report.ok {
             let seq = report.first_broken_link.as_ref().map_or(0, |b| b.seq);
             let global_seq = rows
@@ -354,7 +387,7 @@ mod tests {
         let s = HmacSigner::from_key_bytes(b"k1".to_vec()).unwrap();
         let entries = signed_chain(&s, 3);
         // WHEN verified with the same signer
-        let report = verify_entries("run-1", &entries, Some(&s));
+        let report = verify_entries("run-1", &entries, Some(&s), true);
         // THEN it is ok and all entries were checked
         assert!(report.ok);
         assert_eq!(report.entries_checked, 3);
@@ -369,7 +402,7 @@ mod tests {
         let mut entries = signed_chain(&s, 3);
         entries[1].payload = serde_json::json!({ "i": 999 });
         // WHEN verified
-        let report = verify_entries("run-1", &entries, Some(&s));
+        let report = verify_entries("run-1", &entries, Some(&s), true);
         // THEN the broken link is the hash mismatch at seq 1
         assert!(!report.ok);
         let link = report.first_broken_link.expect("link");
@@ -385,7 +418,7 @@ mod tests {
         let k2 = HmacSigner::from_key_bytes(b"k2".to_vec()).unwrap();
         let entries = signed_chain(&k1, 2);
         // WHEN verified with K2
-        let report = verify_entries("run-1", &entries, Some(&k2));
+        let report = verify_entries("run-1", &entries, Some(&k2), true);
         // THEN the first link is an unknown signing key (K2 != K1 id)
         assert!(!report.ok);
         let link = report.first_broken_link.expect("link");
@@ -426,7 +459,7 @@ mod tests {
         }
 
         // WHEN verified
-        let report = verify_entries("run-1", &entries, Some(&s));
+        let report = verify_entries("run-1", &entries, Some(&s), true);
 
         // THEN the whole mixed chain is intact
         assert!(report.ok);
@@ -442,10 +475,37 @@ mod tests {
         let mut entries = signed_chain(&s, 3);
         entries.remove(1);
         // WHEN verified
-        let report = verify_entries("run-1", &entries, Some(&s));
+        let report = verify_entries("run-1", &entries, Some(&s), true);
         // THEN the link after the gap fails on prev_hash
         assert!(!report.ok);
         let link = report.first_broken_link.expect("link");
         assert_eq!(link.reason, BrokenLinkReason::PrevHashMismatch);
+    }
+
+    // Stripping the signature off an otherwise-consistent entry fails only when
+    // signatures are required: this is the discriminator that closes the
+    // strip-signature bypass, while a keyless (hash-only) verify still passes.
+    #[test]
+    fn test_missing_signature_fails_when_required() {
+        // GIVEN a signed chain whose middle entry has its signature dropped,
+        // leaving the hash and prev_hash linkage intact
+        let s = HmacSigner::from_key_bytes(b"k1".to_vec()).unwrap();
+        let mut entries = signed_chain(&s, 3);
+        entries[1].signature = None;
+        entries[1].signing_key_id = None;
+
+        // WHEN verified with the signer and signatures required
+        let required = verify_entries("run-1", &entries, Some(&s), true);
+        // THEN the stripped entry is reported as a signature failure
+        assert!(!required.ok);
+        let link = required.first_broken_link.expect("link");
+        assert_eq!(link.seq, 1);
+        assert_eq!(link.reason, BrokenLinkReason::SignatureInvalid);
+
+        // WHEN the same chain is verified without requiring signatures
+        let lenient = verify_entries("run-1", &entries, Some(&s), false);
+        // THEN the hash-only walk still passes (proves the mode is the switch)
+        assert!(lenient.ok);
+        assert_eq!(lenient.entries_checked, 3);
     }
 }
