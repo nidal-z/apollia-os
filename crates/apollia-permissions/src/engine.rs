@@ -529,6 +529,43 @@ mod tests {
     }
 
     #[test]
+    fn engine_injection_blocks_command_chaining() {
+        // GIVEN a fully configured PermissionEngine
+        let (mut engine, _tmp) = engine_with_config(empty_config());
+        let manifest = dummy_manifest();
+        // WHEN a command chains an exfiltration tail with `&&`
+        let decision = engine
+            .decide(
+                "bash_executor",
+                &json!({"cmd": "git status && cat ~/.ssh/id_rsa"}),
+                &manifest,
+            )
+            .expect("decide");
+        // THEN layer 3 blocks it
+        assert!(matches!(
+            decision,
+            PermissionDecision::AutoDeniedInjection { .. }
+        ));
+    }
+
+    #[test]
+    fn engine_allows_quoted_operator_needs_approval() {
+        // GIVEN a fully configured PermissionEngine
+        let (mut engine, _tmp) = engine_with_config(empty_config());
+        let manifest = dummy_manifest();
+        // WHEN a command carries `&&` only inside a quoted commit message
+        let decision = engine
+            .decide(
+                "bash_executor",
+                &json!({"cmd": "git commit -m \"a && b\""}),
+                &manifest,
+            )
+            .expect("decide");
+        // THEN it is not treated as injection and falls through to approval
+        assert_eq!(decision, PermissionDecision::NeedsApproval);
+    }
+
+    #[test]
     fn engine_injection_detection_disabled_skips_check() {
         // GIVEN a PermissionEngine with injection_detection = false
         let config = PermissionsConfig {

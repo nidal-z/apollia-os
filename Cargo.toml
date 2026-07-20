@@ -194,9 +194,6 @@ open = "5"
 # --- Regular expressions ---
 regex = "1"
 
-# --- Shell word splitting (POSIX quoting) ---
-shell-words = "1"
-
 # --- Auth / OAuth2 PKCE ---
 base64      = "0.22"
 # `apple-native` + `linux-native` + `windows-native` route writes through

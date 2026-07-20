@@ -8,7 +8,6 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 apollia-core  = { workspace = true }
 rusqlite      = { workspace = true }
-shell-words   = { workspace = true }
 serde         = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
