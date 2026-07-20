@@ -27,7 +27,26 @@
     },
     {
       "kind": "click",
-      "testid": "companion-sidebar-toggle"
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
