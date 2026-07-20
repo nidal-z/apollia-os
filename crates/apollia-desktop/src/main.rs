@@ -803,6 +803,7 @@ fn main() {
             commands::observability::clear_plan_cache,
             commands::observability::get_global_timeline,
             commands::observability::get_llm_daily_costs,
+            commands::observability::list_mailbox_messages,
             commands::observability::get_plan_cache_stats,
             commands::observability::get_tool_audit_trail,
             commands::observability::verify_audit_run,

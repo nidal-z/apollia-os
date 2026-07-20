@@ -1,0 +1,97 @@
+{
+  "name": "mailbox-det (inter-agent mailbox observability surface; seeded mailbox.db, asserts populated rows on Observability > Mailbox)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-observability-page"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-mailbox"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-mailbox"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mailbox-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-mailbox-list"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mailbox-message-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "mailbox-message-from",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "mailbox-message-to",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "mailbox-message-payload",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "mailbox-message-state",
+      "nth": 0
+    },
+    {
+      "kind": "captureText",
+      "testid": "mailbox-message-from",
+      "nth": 0,
+      "as": "first-message-from"
+    },
+    {
+      "kind": "captureText",
+      "testid": "mailbox-message-payload",
+      "nth": 0,
+      "as": "first-message-payload"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-mailbox-first-row"
+    }
+  ]
+}
