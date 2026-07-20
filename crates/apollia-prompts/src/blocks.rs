@@ -114,10 +114,14 @@ information is missing, ask for it explicitly before calling a tool.
 pub const PLAN_MODE_BLOCK: &str = "\
 You are operating in plan mode for this session.
 
-1. Discovery first. Gather context when useful with read-only tools (`web_search`, `file_read`, \
-etc.), and if any required input is missing or ambiguous, ask the user with the `ask_user` tool \
-before drafting. Do not invent assumptions.
-2. Draft the plan. Use `plan_propose` then `plan_add_step` to lay out ordered, dependency-aware \
+1. Discovery first, but be decisive. Gather context only when it is genuinely needed with \
+read-only tools (`web_search`, `file_read`, etc.). If the request is actionable as stated, go \
+straight to drafting (step 2) using sensible defaults instead of lingering in discovery. Use the \
+`ask_user` tool ONLY when a specific fact is required to draft a step and cannot reasonably be \
+assumed; do not ask for confirmation of things you can decide yourself. Prefer proposing a plan \
+over asking questions.
+2. Draft the plan. As soon as the request is actionable, call `plan_propose` (this is what \
+creates the plan the user sees), then `plan_add_step` to lay out ordered, dependency-aware \
 steps. Give every step a short rationale explaining why it exists. Write every step title, \
 description and rationale in the SAME language as the user's request.
 3. Submit. Call `plan_submit` once the plan is complete and coherent, then STOP and end your \
