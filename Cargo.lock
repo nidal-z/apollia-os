@@ -392,6 +392,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "keyring",
+ "objc2",
  "open",
  "pyo3",
  "reqwest 0.12.28",

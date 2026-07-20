@@ -249,12 +249,12 @@ clean:
 # Run a gestural automation script against the real desktop app. Captures + a
 # report.json land in .apollia-automation/ (gitignored). macOS prompts for
 # Screen Recording once on the first capture.
-# Usage: just desktop-dev-automation scripts/automation/smoke-nav.json
+# Usage: just desktop-dev-automation scripts/automation/master-det.json
 desktop-dev-automation script: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
-      echo "script not found: {{script}} (try scripts/automation/smoke-nav.json)" >&2
+      echo "script not found: {{script}} (try scripts/automation/master-det.json)" >&2
       exit 1
     fi
     SCRIPT_ABS="$(cd "$(dirname "{{script}}")" >/dev/null 2>&1 && pwd)/$(basename "{{script}}")"
@@ -269,7 +269,7 @@ desktop-dev-automation script: runners-dev-macos
 # Same as desktop-dev-automation, plus a background llama-server (--jinja, :8899)
 # for real inference (chat / HITL / A2A scripts need a live backend). The model
 # is the 2nd positional arg (or export APOLLIA_LLAMA_MODEL). Usage:
-# just desktop-dev-automation-llama scripts/automation/chat-libre.json /path/to/model.gguf
+# just desktop-dev-automation-llama scripts/automation/chat-llm.json /path/to/model.gguf
 # Context/slots default to ctx=131072 np=1 (aligned with desktop-dev-qwen so a real
 # chat prompt fits the slot; np=8/ctx=16384 gave 2048 tokens/slot and a 400 overflow).
 # Override via CTX / NP env.
@@ -277,7 +277,7 @@ desktop-dev-automation-llama script model=llama_model: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
-      echo "script not found: {{script}} (try scripts/automation/chat-libre.json)" >&2
+      echo "script not found: {{script}} (try scripts/automation/chat-llm.json)" >&2
       exit 1
     fi
     # Model: the positional arg or $APOLLIA_LLAMA_MODEL; defaults to the baked
