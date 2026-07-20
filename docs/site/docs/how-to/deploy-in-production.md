@@ -82,6 +82,52 @@ sudo systemctl status apollia
   unprivileged user namespaces, enable them on the host, otherwise sandboxed shell
   execution fails.
 
+### Reverse proxy with TLS termination
+
+If your infrastructure already terminates TLS upstream (Caddy, nginx, an ingress),
+leave `[api].tls_cert` / `[api].tls_key` unset, keep the daemon on loopback, and
+forward to `127.0.0.1:7771`.
+
+```
+apollia.example.com {
+    reverse_proxy 127.0.0.1:7771
+    # SSE: disable buffering for the streaming endpoints
+    reverse_proxy /api/v1/tasks/*/stream 127.0.0.1:7771 {
+        flush_interval -1
+    }
+    reverse_proxy /api/v1/mailbox/stream 127.0.0.1:7771 {
+        flush_interval -1
+    }
+}
+```
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name apollia.example.com;
+    ssl_certificate     /etc/ssl/apollia/fullchain.pem;
+    ssl_certificate_key /etc/ssl/apollia/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:7771;
+        proxy_set_header Authorization $http_authorization;
+    }
+    # SSE: unbuffered streaming
+    location ~ ^/api/v1/(tasks/.*/stream|mailbox/stream)$ {
+        proxy_pass http://127.0.0.1:7771;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+The streaming endpoints `GET /api/v1/tasks/{id}/stream` and
+`GET /api/v1/mailbox/stream` push events as they happen. Without buffering
+disabled, the proxy holds them until the response closes and the host sees nothing
+live. The same caution applies client-side under native TLS: do not buffer the
+response.
+
 ## Verify after deploy
 
 ```sh
@@ -130,6 +176,8 @@ The release binary is cloud-only. To serve local GGUF models on the server, also
 build the `apollia-runner` sidecar with your hardware backend and co-locate it
 next to the installed `apollia-os` binary, exactly as described in
 [Install and run the runtime](/how-to/install-and-run#optional-enable-local-gguf-inference).
+For higher concurrent throughput or speculative decoding, see
+[Accelerate local inference](/how-to/accelerate-local-inference).
 
 ## Related
 

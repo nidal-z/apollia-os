@@ -157,7 +157,7 @@ if $is_cross; then
                     echo "ERROR: '$preset' requires a native Linux host with the GPU
        SDK installed (CUDA Toolkit / ROCm). Cross-compile from $host_os is
        not supported - the SDK doesn't run on macOS/Windows.
-       → Use GitHub Actions (.github/workflows/release-cli-binaries.yml)
+       → Use GitHub Actions (.github/workflows/release.yml)
          or SSH into a Linux machine." >&2
                     exit 1
                     ;;
