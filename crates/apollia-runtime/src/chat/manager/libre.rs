@@ -14,6 +14,11 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
             authorized_tools.insert(tool);
         }
     }
+    // A code executor is never blanket-authorized by name: whatever the source
+    // (legacy chat.db entry, live override), it must still go through
+    // per-invocation approval. This is the consumption-side backstop for the
+    // "always allow bash = blank check" finding.
+    authorized_tools.retain(|tool| !apollia_permissions::is_code_executor(tool));
     authorized_tools
 }
 
@@ -52,6 +57,13 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
     // They go into pre_authorized_tools, not available_tools: the LLM still
     // sees the whole registry, but these tools no longer trigger a popup.
     for tool in cfg.allowed_tools {
+        if apollia_permissions::is_code_executor(&tool) {
+            warn!(
+                tool = %tool,
+                "skipping pre-authorization of a code executor from chat config: per-invocation approval required"
+            );
+            continue;
+        }
         out.pre_authorized_tools.insert(tool);
     }
     if let Some(b) = cfg.llm_backend {
@@ -72,6 +84,13 @@ fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::pa
     };
     for r in rules {
         if matches!(r.action, RuleAction::Allow) {
+            if apollia_permissions::is_code_executor(&r.tool_name) {
+                warn!(
+                    tool = %r.tool_name,
+                    "ignoring persisted blanket allow-rule for a code executor: per-invocation approval required"
+                );
+                continue;
+            }
             out.pre_authorized_tools.insert(r.tool_name);
         }
     }
@@ -478,6 +497,17 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
     agent_id: Option<String>,
     tool_name: &str,
 ) {
+    // A code executor (bash/python) is never blanket-authorized: persisting an
+    // arg-prefix-less allow rule would grant a permanent blank check over the
+    // whole interpreter. Refuse it; each invocation keeps its per-call approval.
+    if apollia_permissions::is_code_executor(tool_name) {
+        warn!(
+            tool = %tool_name,
+            "refusing to persist a blanket allow-rule for a code executor; each invocation requires approval"
+        );
+        return;
+    }
+
     let home = match std::env::var("HOME") {
         Ok(h) => h,
         Err(e) => {
@@ -523,5 +553,53 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
             "persisted scoped allow rule from chat AlwaysAccept"
         ),
         Err(e) => warn!(error = %e, "failed to persist scoped allow rule"),
+    }
+}
+
+#[cfg(test)]
+mod code_executor_guard_tests {
+    use super::*;
+    use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
+
+    #[test]
+    fn merge_live_authorized_tools_filters_code_executors() {
+        // GIVEN a base authorization set holding a code executor and a normal tool
+        let mut base = std::collections::HashSet::new();
+        base.insert("bash_executor".to_string());
+        base.insert("web_read".to_string());
+        // WHEN the effective set is assembled (non-Libre mode: no HOME lookup)
+        let merged = merge_live_authorized_tools(&base, &ChatMode::Agent);
+        // THEN the code executor is dropped, the normal tool is kept
+        assert!(!merged.contains("bash_executor"));
+        assert!(merged.contains("web_read"));
+    }
+
+    #[test]
+    fn chat_prefix_allow_seeding_excludes_code_executors() {
+        // GIVEN a governance.db with agent-scoped Allow rules for a code
+        // executor and a normal tool
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let db_path = tmp.path().join("governance.db");
+        {
+            let mut engine = PrefixRuleEngine::new(&db_path).expect("engine");
+            for tool in ["bash_executor", "web_read"] {
+                engine
+                    .add_rule(&PrefixRule {
+                        tool_name: tool.to_string(),
+                        arg_prefix: None,
+                        action: RuleAction::Allow,
+                        scope: PermissionScope::Agent,
+                        agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
+                        ..PrefixRule::default()
+                    })
+                    .expect("add_rule");
+            }
+        }
+        // WHEN the chat pre-authorization seeding runs
+        let mut out = ChatLibreOverrides::default();
+        apply_chat_prefix_allow_rules(&mut out, &db_path);
+        // THEN the code executor is not pre-authorized, the normal tool is
+        assert!(!out.pre_authorized_tools.contains("bash_executor"));
+        assert!(out.pre_authorized_tools.contains("web_read"));
     }
 }

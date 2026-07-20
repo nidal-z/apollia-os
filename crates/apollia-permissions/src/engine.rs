@@ -421,6 +421,18 @@ mod tests {
         }
     }
 
+    /// Config with injection detection off, so a `decide()` test exercises the
+    /// prefix-rule layer (layer 2) in isolation rather than being pre-empted by
+    /// the injection detector (layer 3).
+    fn config_no_injection() -> PermissionsConfig {
+        PermissionsConfig {
+            safe_commands: vec![],
+            injection_detection: false,
+            prefix_rule_ttl_hours: 168,
+            db_path: PathBuf::from("/tmp/test.db"),
+        }
+    }
+
     #[test]
     fn engine_empty_safe_list_needs_approval() {
         // GIVEN a PermissionEngine with an empty SafeList (default)
@@ -506,6 +518,80 @@ mod tests {
             decision,
             PermissionDecision::AutoAllowedPrefixRule { .. }
         ));
+    }
+
+    #[test]
+    fn engine_blanket_rule_does_not_blank_check_code_executor() {
+        // GIVEN a persisted no-prefix Allow rule on bash_executor (what a legacy
+        // "always allow bash" click wrote) and injection detection off, so the
+        // prefix layer is exercised in isolation
+        let (mut engine, _tmp) = engine_with_config(config_no_injection());
+        use crate::prefix_rule_engine::{PrefixRule, RuleAction};
+        engine
+            .prefix_rules_mut()
+            .add_rule(&PrefixRule {
+                tool_name: "bash_executor".into(),
+                arg_prefix: None,
+                action: RuleAction::Allow,
+                ..PrefixRule::default()
+            })
+            .expect("add rule");
+        let manifest = dummy_manifest();
+        // WHEN an arbitrary command is decided
+        let decision = engine
+            .decide("bash_executor", &json!({"cmd": "rm -rf /"}), &manifest)
+            .expect("decide");
+        // THEN the blanket rule does not auto-allow it; approval is required
+        assert_eq!(decision, PermissionDecision::NeedsApproval);
+    }
+
+    #[test]
+    fn engine_prefix_rule_on_code_executor_rejects_chaining() {
+        // GIVEN a prefix rule bash_executor(git) and injection detection off
+        let (mut engine, _tmp) = engine_with_config(config_no_injection());
+        use crate::prefix_rule_engine::{PrefixRule, RuleAction};
+        engine
+            .prefix_rules_mut()
+            .add_rule(&PrefixRule {
+                tool_name: "bash_executor".into(),
+                arg_prefix: Some("git".into()),
+                action: RuleAction::Allow,
+                ..PrefixRule::default()
+            })
+            .expect("add rule");
+        let manifest = dummy_manifest();
+        // WHEN a chained command shares the `git` prefix
+        let chained = engine
+            .decide(
+                "bash_executor",
+                &json!({"cmd": "git status; rm -rf /"}),
+                &manifest,
+            )
+            .expect("decide");
+        // THEN it is not auto-allowed by the prefix rule
+        assert_eq!(chained, PermissionDecision::NeedsApproval);
+        // AND a single simple command sharing the prefix still is
+        let simple = engine
+            .decide("bash_executor", &json!({"cmd": "git status"}), &manifest)
+            .expect("decide");
+        assert!(matches!(
+            simple,
+            PermissionDecision::AutoAllowedPrefixRule { .. }
+        ));
+    }
+
+    #[test]
+    fn engine_safe_list_exact_match_still_allows_code_executor() {
+        // GIVEN a SafeList exact-match entry (layer 1) for "git status"
+        let (mut engine, _tmp) =
+            engine_with_config(config_with_safe_cmd("bash_executor(git status)"));
+        let manifest = dummy_manifest();
+        // WHEN the exact command is decided
+        // THEN layer 1 auto-allows it (exact-match semantics preserved)
+        let exact = engine
+            .decide("bash_executor", &json!({"cmd": "git status"}), &manifest)
+            .expect("decide");
+        assert_eq!(exact, PermissionDecision::AutoAllowedSafeList);
     }
 
     #[test]

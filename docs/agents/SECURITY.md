@@ -171,6 +171,46 @@ Decision outcomes :
 
 Scopes : `session`, `project`, `global`. The closest scope wins.
 
+The three layers, in evaluation order :
+
+1. **Injection detector** (highest priority, blocking). Scans every string
+   argument for dangerous shell patterns and auto-denies on a hit.
+2. **SafeList** (operator config, empty by default). Auto-approves an
+   invocation whose argument matches a configured pattern **exactly**
+   (`tool(exact arg)`), or any argument for a bare `tool` pattern.
+3. **Prefix rules** (persisted in `governance.db`). Auto-approve or auto-deny
+   by argument prefix (`arg.starts_with(prefix)`); a rule with no prefix
+   matches any argument. This is where the desktop "always allow" button writes
+   its rules.
+
+### Code executors are never blanket-authorized
+
+`bash_executor` and `python_executor` take a single argument that is an
+unparsed, arbitrary-code payload (a shell line, Python source). For those tools
+a grant scoped only by name is a blank check over an entire interpreter, and a
+raw-string prefix is escapable by chaining (`git` would match
+`git status; rm -rf ...`). The permission model enforces one invariant for them
+(the set is `apollia_permissions::CODE_EXECUTOR_TOOLS`) :
+
+- A no-prefix rule never auto-approves a code executor: "always allow" is
+  downgraded to a per-invocation approval, in the chat path and the agent path
+  alike. The current call is still approved once; the next one asks again.
+- A prefix rule on a code executor matches only when the argument is a single
+  simple command, with no chaining, pipe, redirection, substitution, or
+  backgrounding (`;`, `|`, `&`, `` ` ``, `>`, `<`, `(`, `)`, `{`, `}`, `$(`,
+  `${`, newline). So an approved prefix stays bound to the command the operator
+  reviewed.
+
+### Risk classifier is opt-in
+
+`bash_executor` also runs a `RiskClassifier` before spawning, but its pattern
+lists are **empty by default** (operator-configured in `apollia.toml`
+`[tools.bash]`). It is a case-sensitive substring matcher, easy to bypass
+(double spaces, quoting, variable expansion), so it is a defense-in-depth net,
+not the primary control. The primary control against an over-broad grant is the
+permission scoping above, not the classifier. Default patterns are deliberately
+left empty to preserve the opt-in, local-first posture.
+
 Audit table is append-only. Never delete a row programmatically.
 Retention is time-based via `[audit].retention_days` in the config, not a
 manual purge command.

@@ -493,7 +493,10 @@ impl ChatSessionManager {
 
         let executor = AgentChatExecutor::new(agent_runner, self.event_bus.clone());
         let session_clone = session.clone();
-        let authorized = session.authorized_tools.clone();
+        // A code executor is never pre-authorized (HITL always fires); drop any
+        // (e.g. legacy chat.db) entry before it can skip approval in the loop.
+        let mut authorized = session.authorized_tools.clone();
+        authorized.retain(|tool| !apollia_permissions::is_code_executor(tool));
         let pending = self.pending_chat_approvals.clone();
         let sid = session_id.to_string();
         let mid = message_id.to_string();
@@ -608,8 +611,16 @@ impl ChatSessionManager {
             }
         }
 
-        // Persist newly authorized tools
+        // Persist newly authorized tools. A code executor (bash/python) is never
+        // blanket-authorized by name: skip it so the next invocation still asks.
         for tool_name in &response.newly_authorized {
+            if apollia_permissions::is_code_executor(tool_name) {
+                warn!(
+                    tool = %tool_name,
+                    "'always accept' not honored for a code executor; each invocation requires approval"
+                );
+                continue;
+            }
             let auth_now = now_rfc3339();
             if let Err(e) = self
                 .repository
@@ -761,33 +772,45 @@ impl ChatSessionManager {
         // - ThisProject: scope='project' rule in governance.db (workspace_path of the current project).
         // - Global     : scope='global' rule in governance.db.
         if let ToolDecision::AlwaysAccept { scope } = &decision {
-            // Always update the current session (immediate authorization).
-            session.authorized_tools.insert(tool_name.to_string());
+            // A code executor (bash/python) is never blanket-authorized: the
+            // current call is still approved once (the pending request was
+            // resolved above), but "always" is downgraded to a one-time approval
+            // so the next invocation asks again. Closes the in-session branch of
+            // the "always allow bash = blank check" finding.
+            if apollia_permissions::is_code_executor(tool_name) {
+                warn!(
+                    tool = %tool_name,
+                    "'always accept' not honored for a code executor; treated as a one-time approval"
+                );
+            } else {
+                // Always update the current session (immediate authorization).
+                session.authorized_tools.insert(tool_name.to_string());
 
-            // Capture the scope-resolution inputs before releasing the session
-            // borrow, so governance.db persistence can use a disjoint &self.
-            let session_mode = session.mode.clone();
-            let session_agent_name = session.agent_name.clone();
-            let session_project_id = session.project_id.clone();
+                // Capture the scope-resolution inputs before releasing the session
+                // borrow, so governance.db persistence can use a disjoint &self.
+                let session_mode = session.mode.clone();
+                let session_agent_name = session.agent_name.clone();
+                let session_project_id = session.project_id.clone();
 
-            // chat.db.authorized_tools: written to preserve the authorization if
-            // the runtime crashes mid-session. Kept for the ThisTool/ThisSession
-            // scopes (otherwise they would be lost on restart). For the
-            // persistent scopes it is redundant with governance.db but has no
-            // side effect, to be cleaned up later.
-            let now = now_rfc3339();
-            if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
-                warn!(error = %e, "Failed to persist tool authorization");
+                // chat.db.authorized_tools: written to preserve the authorization if
+                // the runtime crashes mid-session. Kept for the ThisTool/ThisSession
+                // scopes (otherwise they would be lost on restart). For the
+                // persistent scopes it is redundant with governance.db but has no
+                // side effect, to be cleaned up later.
+                let now = now_rfc3339();
+                if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
+                    warn!(error = %e, "Failed to persist tool authorization");
+                }
+
+                self.persist_always_accept_scope(AlwaysAcceptScopeCtx {
+                    scope,
+                    session_mode,
+                    session_agent_name,
+                    session_project_id: session_project_id.as_deref(),
+                    session_id,
+                    tool_name,
+                });
             }
-
-            self.persist_always_accept_scope(AlwaysAcceptScopeCtx {
-                scope,
-                session_mode,
-                session_agent_name,
-                session_project_id: session_project_id.as_deref(),
-                session_id,
-                tool_name,
-            });
         }
 
         // Trace-log the enriched metadata (reason / scope) without breaking

@@ -401,6 +401,20 @@ impl Default for BashExecutor {
 mod tests {
     use super::*;
 
+    #[test]
+    fn code_executor_descriptor_names_stay_in_sync() {
+        // GIVEN the permission layer's arbitrary-code-executor guard
+        // WHEN checked against the native executor descriptor names
+        // THEN both stay members, so the "no blanket allow" invariant keeps
+        // covering them even if a descriptor name is later renamed.
+        assert!(apollia_permissions::is_code_executor(
+            &BashExecutor::descriptor().name
+        ));
+        assert!(apollia_permissions::is_code_executor(
+            &crate::tools::python_executor::PythonExecutor::descriptor().name
+        ));
+    }
+
     /// Returns `true` if the platform can actually execute shell commands
     /// through our `build_command` path. On Linux without `CAP_SYS_ADMIN`
     /// (e.g. GitHub Actions runners), `unshare --pid --mount` fails with

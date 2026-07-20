@@ -435,6 +435,100 @@ async fn test_resolve_tool_approval() {
 }
 
 #[tokio::test]
+async fn test_always_accept_not_honored_for_code_executor() {
+    // GIVEN a manager with pending approvals for a code executor and a normal tool
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db_path = dir.path().join("chat.db");
+    let (event_tx, _) = tokio::sync::broadcast::channel(128);
+    let tool_registry = ToolRegistryHandle::start();
+    let repository = ChatSessionRepository::open(&db_path).expect("open");
+    let pending = PendingChatApprovals::new();
+    let rx_bash = pending.register("sess-1::msg-1::bash_executor".to_string());
+    let rx_web = pending.register("sess-1::msg-1::web_read".to_string());
+
+    let (tx, _rx) = mpsc::channel(256);
+    let mut manager = ChatSessionManager {
+        sessions: HashMap::new(),
+        repository,
+        llm_router: fake_llm_router(),
+        tool_registry,
+        registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
+        agent_runner: None,
+        event_bus: event_tx,
+        runtime_budget: StepBudgetConfig::default(),
+        plan_mode_default: false,
+        pending_chat_approvals: pending,
+        pending_fs_approvals: PendingFilesystemApprovals::new(),
+        pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+        mcp_handle: None,
+        chat_tools_config: None,
+        pending_user_replies: HashMap::new(),
+        metrics: HashMap::new(),
+        user_memory: None,
+        enrichment_extractor: None,
+        tx,
+        a2a_invoker: None,
+        project_context: None,
+        project_repo: None,
+        mcp_loading: LoadingMode::Eager,
+        tool_search_limit: 20,
+        todo_handle: None,
+        plan_handle: None,
+        hook_executor: None,
+        pause_tokens: HashMap::new(),
+        pause_states: HashMap::new(),
+        pending_injections: HashMap::new(),
+    };
+
+    let session = ChatSession {
+        id: "sess-1".into(),
+        mode: ChatMode::Libre,
+        agent_name: None,
+        system_prompt: String::new(),
+        status: SessionStatus::Processing,
+        history: vec![],
+        authorized_tools: std::collections::HashSet::new(),
+        available_tools: vec!["bash_executor".into(), "web_read".into()],
+        created_at: "2026-03-20T10:00:00Z".into(),
+        active_exchange: None,
+        llm_backend: None,
+        title: None,
+        parent_session_id: None,
+        fork_depth: 0,
+        project_id: None,
+        force_project_context_inject: false,
+        fs_allow_rules: std::sync::Arc::new(
+            std::sync::Mutex::new(std::collections::HashSet::new()),
+        ),
+        plan_mode: false,
+        plan_phase: PlanPhase::Done,
+    };
+    manager.sessions.insert("sess-1".into(), session);
+
+    let always = ToolDecision::AlwaysAccept {
+        scope: crate::chat::AlwaysAcceptScope::ThisSession,
+    };
+
+    // WHEN "always accept" resolves for the code executor
+    manager
+        .handle_resolve_tool("sess-1", "msg-1", "bash_executor", always.clone())
+        .expect("resolve bash");
+    // AND for a normal tool
+    manager
+        .handle_resolve_tool("sess-1", "msg-1", "web_read", always.clone())
+        .expect("resolve web");
+
+    // THEN the current calls are still approved (the decisions are delivered)
+    assert!(rx_bash.await.expect("bash decision").is_always_accept());
+    assert!(rx_web.await.expect("web decision").is_always_accept());
+
+    // AND the code executor is NOT blanket-authorized, while the normal tool is
+    let session = manager.sessions.get("sess-1").expect("session");
+    assert!(!session.authorized_tools.contains("bash_executor"));
+    assert!(session.authorized_tools.contains("web_read"));
+}
+
+#[tokio::test]
 async fn test_shutdown() {
     // GIVEN a ChatSessionManager spawned
     let dir = tempfile::tempdir().expect("tempdir");

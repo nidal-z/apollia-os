@@ -43,6 +43,8 @@ Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'o
 
    Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md)).
 
+> **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation. Pour auto-approuver une commande précise, configurez une règle de préfixe ciblée dans **Paramètres → Autorisations** : elle ne s'applique qu'à une commande simple unique (sans enchaînement `;`, `&&`, pipe, redirection ni substitution).
+
 > **Cas particulier des tâches en pause** (« approbation de tâche ») : un agent qui se suspend lui-même via un point de contrôle HITL n'expose qu'**Autoriser** / **Refuser** (pas de *Toujours autoriser*) puisqu'il ne s'agit pas d'un outil mémorisable. Le dialog de raison reste obligatoire au refus.
 
 ## Étapes - résolution d'une demande

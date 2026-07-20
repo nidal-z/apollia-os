@@ -242,6 +242,10 @@ Three scope layers (ADR-015), stored in `~/.apollia/governance.db`:
 HITL approval prompts pause task execution and emit a `TaskPaused` event. The desktop app
 shows an approval card; CLI uses `apollia task resume <id> --approve|--reject`.
 
+Code executors (`bash_executor`, `python_executor`) are never blanket-authorized by name:
+"always allow" is downgraded to a per-invocation approval, and a prefix rule on them matches
+only a single simple command (no chaining, pipe, redirection, or substitution).
+
 ---
 
 ## CLI Reference

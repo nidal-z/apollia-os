@@ -25,6 +25,8 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - la **date d'expiration** ou la mention *Permanente*
    - l'**auteur** de la décision (agent ou utilisateur)
 
+> **Préfixe et exécuteurs de code :** pour un outil ordinaire, une règle de préfixe auto-approuve tout argument commençant par le préfixe. Pour un exécuteur de code (`bash_executor`, `python_executor`), elle est plus stricte : elle ne s'applique qu'à une **commande simple unique** partageant ce préfixe, sans enchaînement (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) ni substitution (`` ` ``, `$(...)`). Une règle sans préfixe n'auto-approuve jamais un exécuteur de code : chaque invocation redemande une confirmation.
+
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
    - **Portée** : *Toutes*, *Ce projet*, *Chat / agent*, *Partout*
    - **Outil** : sélectionnez un outil précis dans la liste des outils présents
@@ -59,7 +61,7 @@ Chaque entrée indique le nom de l'outil, la session concernée (titre ou identi
 
 ## Règles du chat (Apollia Chat)
 
-La section **Chat - Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat.
+La section **Chat - Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat. Les exécuteurs de code (`bash_executor`, `python_executor`) n'y figurent jamais : ils ne peuvent pas être auto-approuvés en bloc et repassent toujours par une confirmation par invocation.
 
 ## Consulter l'audit récent
 
