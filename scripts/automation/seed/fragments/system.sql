@@ -33,16 +33,29 @@
 -- models to backends/STT by file_name() (tilde-expanded), so this drives the
 -- installed-model-inuse-Qwen... badge on the Model Hub page.
 
--- LLM backends. Sorted by name in the UI (list ORDER BY name), so
--- "anthropic-claude" is nth 0. Exactly ONE row has is_default = 1 (local-qwen);
--- reload_llm_from_db requires a default backend to exist.
+-- LLM backends. Sorted by name in the UI (list ORDER BY name). Exactly ONE row
+-- has is_default = 1; reload_llm_from_db requires a default backend to exist.
+-- The default is an OpenAI-compatible backend pointing at the local llama-server
+-- the `desktop-dev-automation-seeded-llama` recipe starts on :8899. It builds a
+-- client without connecting, so deterministic runs (server down) are unaffected;
+-- the LLM/HITL/A2A scripts route real inference through it. `local-qwen` (the
+-- embedded runner) is kept as a non-default row: under the HOME-swap its model
+-- path resolves to the seed placeholder GGUF, which does not load.
 INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_default, created_at, updated_at) VALUES
+  ('local-llama-server',
+   'openai',
+   'local-model',
+   '{"base_url":"http://127.0.0.1:8899/v1","api_key":"sk-noauth","context_size":32768,"temperature":0.2}',
+   1,
+   1,
+   '2026-07-01T00:00:00Z',
+   '2026-07-01T00:00:00Z'),
   ('local-qwen',
    'llama-cpp',
    '~/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf',
    '{"model_path":"~/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf","context_size":8192,"temperature":0.7}',
    1,
-   1,
+   0,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
   ('openai-gpt4o-mini',
