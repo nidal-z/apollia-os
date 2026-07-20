@@ -111,12 +111,18 @@ CLI sweep. Do not regress.
 
 ## 5. End-to-end tests
 
-`tests/cli/cli-e2e.sh` at the repo root :
-- Phase A (LOCAL) : 180 ok / 0 ko / 15 skipped, ~6s wall clock.
-- Phase B (CLOUD, opt-in via `APOLLIA_E2E_CLOUD=1`) : 271 ok / 0 ko / 19
-  skipped, ~18s wall clock.
+`tests/cli/cli-e2e.sh` at the repo root : an orchestrator over a fixed,
+deterministically-seeded HOME (the shared `scripts/automation/seed` fixture),
+producing `tests/cli/report/report.{json,md}`. Three tracks :
+- Track 1 (OFFLINE) : every daemon-free command against the seeded HOME,
+  asserting KNOWN content + the exit-code contract. Runs on every PR.
+- Track 2 (RUNTIME, opt-in `APOLLIA_REQUIRE_RUNTIME=1`) : daemon on the seeded
+  HOME; seeded reads + CRUD + runtime-only leaves.
+- Track 3 (LLM CAPTURE, opt-in + `APOLLIA_TEST_MODEL_GGUF`) : non-deterministic
+  commands captured for human review (structure asserted, content not).
 
-Run Phase A on every PR. Run Phase B before releases.
+Run Track 1 on every PR. Run Tracks 2 and 3 before releases. Full layout in
+`tests/cli/README.md`.
 
 ---
 
@@ -191,7 +197,8 @@ specific error type. `anyhow` is forbidden everywhere except `main`.
 3. Add parsing tests in the same file.
 4. Add the route call via `client::*` helpers.
 5. Add `--json` output schema. Document in `docs/site/docs/reference/cli/`.
-6. Add an entry to Phase A of `tests/cli/cli-e2e.sh`.
+6. Add an assertion to the right track in `tests/cli/tracks/` (offline →
+   `track1`, runtime → `track2`, model-backed → `track3`).
 7. Update `docs/site/docs/reference/cli/`.
 
 ---

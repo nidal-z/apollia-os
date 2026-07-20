@@ -1,151 +1,108 @@
 # `tests/cli/` - Apollia OS CLI end-to-end suite
 
-Single file: [`cli-e2e.sh`](./cli-e2e.sh). One source of truth for smoke +
-E2E coverage of the `apollia-os` binary.
+Exercises the whole `apollia-os` CLI surface against a **fixed, isolated,
+deterministically-seeded** data profile, so read commands assert KNOWN content
+(not empty states), and produces a structured report (`report.json` +
+`report.md`). Regressions on any command path are caught by a single run.
 
 ## Quick start
 
 ```sh
-# Phase A only (LOCAL, no daemon - ~5–10 s):
+# Track 1 only (OFFLINE, no daemon, ~a few seconds):
 bash tests/cli/cli-e2e.sh
 
-# Phase A + Phase B (RUNTIME, spawns the daemon - ~60–90 s):
+# Tracks 1 + 2 (+ 3 if a model is wired), spawns the daemon (~90 s on a debug build):
 APOLLIA_REQUIRE_RUNTIME=1 bash tests/cli/cli-e2e.sh
 ```
 
-The suite exits 0 on full pass, 1 on the first failed assertion. Skips are
-documented inline (interactive REPL, OAuth browser flow, network calls,
-deferred v0.1.1 items).
+Exit 0 on a full pass, 1 on the first failed assertion. The run always writes
+`tests/cli/report/report.md` (human) and `report.json` (machine).
 
-## Coverage at a glance
+## Architecture
 
-| Domain | Phase A | Phase B | Skipped |
-|---|---|---|---|
-| start/stop/status, doctor, version, --help | 5 | 4 | - |
-| config (get/set/validate/edit/show/reset) | 13 | - | - |
-| project (CRUD + agents + templates + link/chats) | 16 | - | - |
-| user-memory (show/set/forget/reset/schema/export/import) | 10 | - | - |
-| chat-config (get/set/reset/permissions/authorizations) | 12 | - | 1 (deferred) |
-| permissions (list/add/audit/revoke) | 11 | - | - |
-| memory (inspect/list/clear/purge/learn/export/import/forget/search) | 14 | - | - |
-| connector (list/accounts/test/revoke + client-id/secret/api-key + Drive) | 19 | - | - |
-| mcp (list/approvals + secret + oauth + discover) | 18 | 1 | 2 (deferred + browser) |
-| chat hygiene (delete/rename/export) | 11 | - | 1 (REPL) |
-| llm (--threshold + setup --local + CRUD on backends) | 10 | ~15 | - |
-| daemon-off exit codes (37 cmds) | 32 | - | - |
-| agent lifecycle | - | ~14 | - |
-| task lifecycle (run + trace + approvals) | - | ~9 | - |
-| triggers (cron, interval, filewatch, webhook) | - | ~12 | - |
-| notify CRUD | - | ~5 | 1 (notify test) |
-| stt / model / resilience / plan-cache / digest / rollback | - | ~14 | - |
-| auth (login/status/logout), update, onboard, mcp-server | - | - | 5 (UI/network) |
+```
+tests/cli/
+  cli-e2e.sh            orchestrator: env, seed, tracks, report
+  lib/
+    seed.sh             build a fresh throwaway seeded HOME (per phase)
+    assert.sh           check / check_exit / check_json / check_grep /
+                        check_content / check_json_field / skip + capture_*
+    report.sh           TSV accumulator → render_report.py
+    render_report.py    assemble report.json + report.md
+    run_capture.py      run a command, capture I/O + timing + stream bursts
+    pty_run.py          drive an interactive REPL under a pty, capture the stream
+  tracks/
+    track1_offline.sh   OFFLINE deterministic (seeded content + exit contract)
+    track2_runtime.sh   RUNTIME deterministic (daemon on seeded HOME + CRUD)
+    track3_llm.sh       LLM capture (non-deterministic: structure only + capture)
+  report/               report.json + report.md (git-ignored output)
+```
 
-Totals (latest run on dev machine, 2026-05-27 post bug fixes):
+### The seed (fixed dataset)
 
-| Mode | PASS | FAIL | SKIP | Wall-clock |
-|---|---|---|---|---|
-| Phase A only | **180** | 0 | 15 | ~6 s |
-| Phase A + B | **271** | 0 | 19 | ~18 s |
+The suite does not build state from scratch; it loads the shared, committed seed
+builder at `scripts/automation/seed/` (one source of truth with the desktop
+automation suite, never a fork). `lib/seed.sh` rebuilds a throwaway `HOME` per
+phase, so the reference fixtures a later assertion depends on are never mutated,
+and the real `~/.apollia` is never touched. Isolation is a `HOME` swap: the CLI
+resolves everything from `$HOME/.apollia` and `$HOME/.config/apollia`.
+
+Seeded content asserted by the tracks (fixed ids, fixed `2026-07-01` data):
+2 projects, 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents
+(+ 1 package), 3 LLM backends (`local-qwen` default), 4 triggers, 2 notify
+channels, 2 live MCP servers (via a bundled stdio stub).
+
+### The three tracks
+
+| Track | Gate | What it does |
+|---|---|---|
+| 1 OFFLINE | always | Every command runnable without the daemon, against the seeded HOME. Content assertions (`project list` shows the 2 seeded projects, `permissions list` the 4 rules, `memory search` a known hit, …) plus the exit-code contract (daemon-off → 2, validation → 1, clap → 2). |
+| 2 RUNTIME | `APOLLIA_REQUIRE_RUNTIME=1` | Daemon booted on the seeded HOME, so `agent/trigger/notify/mcp/llm-backends list` return seeded state; full CRUD lifecycle; the runtime-only leaves (`a2a`, `audit verify/anchor`, `tools config`, `stt config`, `mcp show/test/restart`, `trigger fire`, `notify events set`, …). |
+| 3 LLM CAPTURE | `APOLLIA_REQUIRE_RUNTIME=1` + a real model | Non-deterministic commands (`run --stream`, `chat` REPL via pty, `llm chat`, `do`, `explain`). Asserts STRUCTURE ONLY (exit code, streaming happened, terminated in time); the full input/output is captured into `report.md` for human review. The content is never asserted, matching the "prove the stream, not the answer" intent. |
+
+Track 3 gracefully skips when no model is wired or the `apollia-runner` sidecar
+is unreachable; the skip and its reason are recorded in the report.
 
 ## Environment variables
 
 | Var | Default | Effect |
 |---|---|---|
-| `APOLLIA_BIN` | `./target/release/apollia-os` (fallback `./target/debug/apollia-os`) | Binary to test. |
-| `APOLLIA_TEST_MODEL_GGUF` | `~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf` | Local LLM model. The dev machine usually has this; override to another `.gguf` if needed. If the file is absent on disk, LLM-bound tests are SKIPped - never failed. |
-| `APOLLIA_REQUIRE_RUNTIME` | `0` | Set to `1` to run Phase B (daemon spawn). |
-| `APOLLIA_TEST_REVIEW` | `0` | Set to `1` to run `apollia-os review .` in Phase B (slow, opt-in). |
-| `APOLLIA_TEST_VERBOSE` | `0` | Set to `1` to dump stdout/stderr (truncated to 300 chars) on each FAILed assertion. |
+| `APOLLIA_BIN` | `target/release/apollia-os` (fallback `target/debug`) | binary under test |
+| `APOLLIA_REQUIRE_RUNTIME` | `0` | `1` runs Tracks 2 and 3 |
+| `APOLLIA_TEST_MODEL_GGUF` | `~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf` | real model for Track 3; absent → Track 3 SKIP, never FAIL |
+| `APOLLIA_TEST_REVIEW` | `0` | `1` captures `review .` in Track 3 (slow) |
+| `APOLLIA_TEST_VERBOSE` | `0` | `1` dumps stdout/stderr on FAIL |
+| `APOLLIA_E2E_REPORT_DIR` | `tests/cli/report` | report output directory |
+| `APOLLIA_TOKEN_STORAGE` / `APOLLIA_TOKEN_PASSPHRASE` / `RUST_LOG` | file / test passphrase / error | forced for hermeticity |
 
-The script also forces a hermetic secret-storage backend so it can run inside
-sub-shells that lack keychain access:
+## The report
 
-```sh
-export APOLLIA_TOKEN_STORAGE=file
-export APOLLIA_TOKEN_PASSPHRASE=cli-e2e-test-passphrase
-export RUST_LOG=warn  # silence INFO tracing leaking on stdout
-```
+`report.json` carries every assertion (`track`, `label`, `verdict`, `exit`) and
+the Track 3 captures (`input`, `output`, `stream_chunks`, `first_chunk_ms`,
+`duration_ms`). `report.md` renders a coverage-by-track table, the failures, the
+justified skips, and a **Non-deterministic captures** section that surfaces each
+LLM command's input/output/streaming for human review.
 
-These can be overridden by setting them in your shell before running the
-script - the defaults inside the script use the `:-` operator.
+## Justified skips (never automated)
 
-## Isolation
+The only remaining skips are genuinely non-automatable: browser OAuth
+(`auth login`, `mcp oauth login`), large HuggingFace downloads (`model search`,
+`stt model download`), git clones (`agent install <git-url>`), and masked-stdin
+credential prompts. Each is recorded in the report with its reason. The
+interactive `chat` REPL is NOT skipped: it is driven under a pty in Track 3.
 
-* `$HOME` is replaced with `mktemp -d -t apollia-cli-e2e.XXXXXX` for the
-  duration of the script. The user's real `~/.apollia` is never touched.
-* The `~/.apollia/models/` directory is **symlinked** to the real one (read
-  paths) to avoid copying GGUF files into tmp. Databases (`projects.db`,
-  `chat.db`, `governance.db`, `system.db`, `mcp.db`, `mcp_approvals.db`,
-  per-namespace `memory/*.db`) live inside the tmp `$HOME` and are wiped on
-  exit.
-* The daemon in Phase B binds an auto-picked free TCP port and a
-  tmp-located Unix socket - never `/tmp/apollia.sock:7771`.
-* `trap` ensures the daemon is stopped (graceful → SIGTERM fallback) and
-  the tmp dir is removed on EXIT / INT / TERM.
+## CI
 
-## What is **not** tested (and why)
-
-These are intentional skips documented inline in the script (`A.13` for
-Phase A skips; in-place reasons for Phase B environment skips). Each
-remaining skip falls in one of four categories: (a) interactive UI,
-(b) outbound network, (c) deferred v0.1.1 items, (d) environment limits
-the script can't synthesize.
-
-### Phase A SKIPs (15)
-
-| Cmd | Category | Reason |
-|---|---|---|
-| `chat` (REPL) | UI | rustyline editor needs a tty / pty |
-| `auth login <provider>` | UI | spawns the browser at the AS authorize URL |
-| `update` / `update --check` | Network | outbound HTTPS to api.github.com |
-| `onboard` / `onboard --topic` | UI | chat-based onboarding agent |
-| `mcp-server` / `--with-runtime` | Long-running | stdio JSON-RPC server, never returns |
-| `model search` / `model show` | Network | HTTPS to huggingface.co |
-| `stt transcribe` / `stt model download` | Network + model | needs Whisper model on disk (~1 GB HF download) |
-| `notify test` | Side-effect | dispatches a real desktop notif / webhook POST |
-| `agent install <git-url>` | Network | git clone |
-| `agent package install` | External | needs an `agent.toml` bundle to install from |
-| `mcp oauth login` | UI | AS authorize URL + browser callback |
-| `tools credentials set` / `test` | UI + side-effect | masked stdin prompt + live backend call |
-| `chat-config authorizations list` / `revoke` | Deferred v0.1.1 | in-memory daemon state, no HTTP route yet |
-| `mcp catalogue` / `mcp enrichments list` | Deferred v0.1.1 | backend (`McpRegistryClient` + `enrichments.json`) lives in `apollia-desktop`; exposing to CLI requires moving the modules into `apollia-mcp` |
-
-### Phase B SKIPs (4 additional, with daemon)
-
-| Cmd | Reason |
-|---|---|
-| `agent repair e2e-hello` | the E2E stub agent is standalone - `agent repair` only fixes agents installed as part of an `agent_packages` bundle |
-| `llm reload` + `llm ping` + `llm chat` | the `apollia-runner` sidecar isn't reachable inside the script's $HOME - the daemon falls back to UNAVAILABLE for model-bound ops. Pure metadata CRUD on backends still runs (created, updated, set-default, deleted in Phase B). |
-| `resilience show bash_executor` + `reset bash_executor` | circuit-breaker registry is empty - bash_executor isn't registered until a real agent invokes it; the stub agent never does |
-| `review .` | opt-in (`APOLLIA_TEST_REVIEW=1`) - spawns the heavy apollia-review agent, several minutes wall-clock |
-
-The Phase B skips that **were** issues before the 2026-05-27 bug fixes
-(trigger CRUD across kinds, notify CRUD, agent logs, auth status/logout)
-are now executed and asserted - see commits `bfe1ab0f` and `6bfcc854`.
-
-## When a test fails
-
-1. Re-run with `APOLLIA_TEST_VERBOSE=1` to dump stdout/stderr for the failing
-   command:
-   ```sh
-   APOLLIA_TEST_VERBOSE=1 APOLLIA_REQUIRE_RUNTIME=1 bash tests/cli/cli-e2e.sh
-   ```
-2. The script prints the resolved tmp `$HOME` at the top - the daemon's
-   stderr log lives at `$TMPDIR/daemon.log` for the duration of the run.
-3. Phase B failures often boil down to environment: the `apollia-runner`
-   sidecar not in `PATH`, no Python+SDK for the stub agent, the local LLM
-   model file missing or unreadable. The script auto-skips those branches
-   so a missing piece never blocks the suite; if you see a real FAIL it
-   likely points at a regression in the CLI itself.
+The offline track runs on every PR (`cli-e2e` job in `.github/workflows/ci.yml`),
+which builds `apollia-cli`, installs `sqlite3`, runs `bash tests/cli/cli-e2e.sh`,
+and uploads `report/` as an artifact. Tracks 2 and 3 stay opt-in (they need the
+daemon and a model) and are run before releases.
 
 ## Extending the suite
 
-* Use the inline helpers - `check`, `check_exit`, `check_json`,
-  `check_grep`, `skip` - for new assertions; they keep the PASS/FAIL/SKIP
-  counters consistent.
-* Add a new section under `Phase A` (LOCAL) for every new local-first
-  surface; place runtime-dependent tests under `Phase B`.
-* Update the coverage table above when adding domains.
-* Phase B sections should gracefully `skip` rather than `check` when their
-  hard dependencies (`AGENT_RUNNING`, `apollia-runner`, the model file) are
-  not satisfied - never let an environment gap fail the suite.
+Add assertions with the `lib/assert.sh` helpers so PASS/FAIL/SKIP and the report
+stay consistent. Put daemon-free commands in `track1_offline.sh`, runtime
+commands in `track2_runtime.sh`, and model-backed / streaming commands in
+`track3_llm.sh` via `capture_run` / `capture_stream` / `capture_pty`. When a
+read command asserts seeded content, cite the seeded id/value it depends on.
+```

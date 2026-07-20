@@ -16,7 +16,7 @@ apply.
 |---|---|---|---|---|---|---|---|
 | **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest + @testing-library/svelte | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
 | **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on built app, `tauri-driver` for native shell | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
-| **E2E** | delegated to CLI tests | n/a | full Playwright user journeys + screenshots | `tests/cli/cli-e2e.sh` Phase A (LOCAL) + Phase B (CLOUD, opt-in) | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
+| **E2E** | delegated to CLI tests | n/a | full Playwright user journeys + screenshots | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
 | **Property** | `proptest` | `hypothesis` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
 | **Snapshot** | `insta` | `syrupy` | Playwright screenshots, baseline-tracked | snapshot CLI human + `--json` output | `insta` on serialized response | event-stream traces | tool outputs |
 | **Benchmark** | `criterion` | `pytest-benchmark` | Lighthouse | `hyperfine` | `wrk` or criterion | criterion ops/sec | n/a |
@@ -151,14 +151,21 @@ Target : 150+ parsing tests workspace-wide (acquired in the CLI sprint).
 
 ### 5.2 End-to-end (`tests/cli/cli-e2e.sh`)
 
-Shell script with two phases :
-- **Phase A (LOCAL)** : 180 ok / 0 ko / 15 skipped, ~6s wall clock. Runs
-  on every PR.
-- **Phase B (CLOUD, opt-in)** : exercises Anthropic, OpenAI, Google, MCP
-  remote. Gated by `APOLLIA_E2E_CLOUD=1` and the relevant API keys.
+Orchestrator (bash) over a fixed, deterministically-seeded HOME (the shared
+`scripts/automation/seed` fixture), with a machine + human report
+(`tests/cli/report/report.{json,md}`). Three tracks :
+- **Track 1 (OFFLINE)** : every daemon-free command against the seeded HOME.
+  Asserts KNOWN seeded content (not empty states) + the exit-code contract.
+  Runs on every PR (`cli-e2e` job in `ci.yml`).
+- **Track 2 (RUNTIME, opt-in `APOLLIA_REQUIRE_RUNTIME=1`)** : daemon booted on
+  the seeded HOME; seeded runtime reads + CRUD + runtime-only leaves.
+- **Track 3 (LLM CAPTURE, opt-in + a real model `APOLLIA_TEST_MODEL_GGUF`)** :
+  non-deterministic commands (`run --stream`, `chat` REPL via pty, `llm chat`,
+  `do`, `explain`). Asserts STRUCTURE only (exit, streaming happened, timing);
+  the input/output is captured into `report.md` for human review.
 
 Exit codes 0-5 are tested explicitly. See `crates/apollia-cli/AGENTS.md`
-for the contract.
+for the contract, and `tests/cli/README.md` for the full layout.
 
 ---
 
@@ -407,7 +414,7 @@ Pre-commit hook enforces this locally. Do not bypass.
 
 Sequence : `cargo fmt --check` -> `cargo clippy --workspace -- -D warnings`
 -> `cargo nextest run --workspace` -> `cargo test --doc` -> `pytest` ->
-`pnpm test` (desktop) -> `bash tests/cli/cli-e2e.sh` (Phase A).
+`pnpm test` (desktop) -> `bash tests/cli/cli-e2e.sh` (Track 1, offline).
 
 ---
 
