@@ -9,6 +9,16 @@
       "timeoutMs": 30000
     },
     {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
       "kind": "goto",
       "route": "memory"
     },
@@ -698,7 +708,12 @@
     },
     {
       "kind": "click",
-      "testid": "factory-reset-confirm-confirm"
+      "testid": "factory-reset-confirm-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "factory-reset-confirm",
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",

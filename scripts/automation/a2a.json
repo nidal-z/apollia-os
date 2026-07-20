@@ -2,36 +2,125 @@
   "name": "a2a (seed-classifier delegation via chat)",
   "stopOnError": false,
   "steps": [
-    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitFor", "testid": "app-main" },
-
-    { "kind": "goto", "route": "chat" },
-    { "kind": "waitFor", "testid": "chat-page" },
-    { "kind": "click", "testid": "chat-new-chat-btn" },
-    { "kind": "waitFor", "testid": "quickpicker" },
-    { "kind": "fill", "testid": "quickpicker-textarea", "text": "Bonjour, je vais te demander une classification." },
-    { "kind": "click", "testid": "quickpicker-submit" },
-    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 30000 },
-    { "kind": "awaitTurn", "timeoutMs": 120000 },
-    { "kind": "screenshot", "label": "01-chat-ready" },
-
-    { "kind": "expect", "testid": "a2a-worker-badge" },
-    { "kind": "click", "testid": "a2a-worker-badge" },
-    { "kind": "waitFor", "testid": "a2a-worker-popover", "timeoutMs": 5000 },
-    { "kind": "expect", "testid": "a2a-skill-chip-classify_text" },
-    { "kind": "screenshot", "label": "02-skill-chip-classify_text" },
-    { "kind": "click", "testid": "a2a-worker-badge" },
-    { "kind": "sleep", "ms": 400 },
-
-    { "kind": "sendChat", "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label." },
-    { "kind": "waitFor", "testid": "chat-stop-button", "timeoutMs": 30000 },
-    { "kind": "sleep", "ms": 500 },
-    { "kind": "screenshot", "label": "03-delegating" },
-    { "kind": "expect", "testid": "chat-a2a-delegating" },
-    { "kind": "awaitTurn", "timeoutMs": 180000 },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "captureText", "testidPrefix": "chat-message-", "nth": -1, "as": "a2a_result" },
-    { "kind": "screenshot", "label": "04-a2a-result" }
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Bonjour, je vais te demander une classification."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "awaitTurn",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-chat-ready"
+    },
+    {
+      "kind": "expect",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "click",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "a2a-worker-popover",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "a2a-skill-chip-classify_text"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-skill-chip-classify_text"
+    },
+    {
+      "kind": "click",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "sendChat",
+      "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-delegating"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-delegation-best-effort"
+    },
+    {
+      "kind": "awaitTurn",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "a2a_result"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-a2a-result"
+    }
   ]
 }

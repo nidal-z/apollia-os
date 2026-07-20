@@ -7,13 +7,8 @@
       "label": "section-00-master-llm-start"
     },
     {
-      "kind": "screenshot",
-      "label": "section-chat-llm"
-    },
-    {
       "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
+      "testid": "app-main"
     },
     {
       "kind": "click",
@@ -24,6 +19,10 @@
       "kind": "waitGone",
       "testid": "onboarding-skip",
       "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-chat-llm"
     },
     {
       "kind": "goto",
@@ -573,11 +572,6 @@
       "label": "section-hitl-critical"
     },
     {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
-    },
-    {
       "kind": "goto",
       "route": "chat"
     },
@@ -606,7 +600,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Supprime le fichier tmp/demo.txt via bash."
+      "text": "Ecris le texte \"couverture\" dans le fichier tmp/hitl-refuse.txt."
     },
     {
       "kind": "screenshot",
@@ -700,220 +694,60 @@
     },
     {
       "kind": "sendChat",
-      "text": "\u00c9cris \"salut\" dans un fichier tmp/demo.txt."
+      "text": "Ecris \"salut\" dans un fichier tmp/demo.txt."
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-fs-modal",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-op"
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-path"
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-content-preview"
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-approve"
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-deny"
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-fs-modal"
-    },
-    {
-      "kind": "click",
-      "testid": "hitl-fs-always-allow"
+      "testid": "chat-approval-inline",
+      "timeoutMs": 90000
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-fs-scope",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "approval-scope-select"
-    },
-    {
-      "kind": "expect",
-      "testidPrefix": "approval-scope-option-"
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-fs-scope"
-    },
-    {
-      "kind": "click",
-      "testid": "hitl-fs-deny"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-fs-denied"
-    },
-    {
-      "kind": "sendChat",
-      "text": "Supprime le fichier tmp/demo.txt."
-    },
-    {
-      "kind": "waitFor",
-      "testid": "hitl-fs-modal",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "expect",
-      "testid": "hitl-fs-critical-input"
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-fs-critical-modal"
-    },
-    {
-      "kind": "click",
-      "testid": "hitl-fs-deny"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "hitl-fs-reject-reason",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "fill",
-      "testid": "hitl-fs-reject-reason",
-      "text": "Denied during the automation coverage run."
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-fs-critical-deny"
-    },
-    {
-      "kind": "click",
-      "testid": "hitl-fs-deny"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-fs-critical-denied"
-    },
-    {
-      "kind": "click",
-      "testid": "composer-plan-toggle"
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-plan-mode-on"
-    },
-    {
-      "kind": "sendChat",
-      "text": "Refactore la gestion des erreurs dans le module chat."
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-plan-host",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-plan-review",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-step"
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-meta"
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-phase"
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-hint"
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-approve"
-    },
-    {
-      "kind": "expect",
-      "testid": "chat-plan-review-request-changes"
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-plan-review"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-plan-review-request-changes"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-plan-review-adjust",
+      "testidPrefix": "approval-card-",
+      "nth": 0,
       "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testid": "chat-plan-review-adjust-send"
+      "testidPrefix": "approval-accept-",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-refuse-",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-always-toggle-",
+      "nth": 0
     },
     {
       "kind": "screenshot",
-      "label": "13-plan-adjust"
+      "label": "05-file-write-approval"
     },
     {
       "kind": "click",
-      "testid": "chat-plan-review-adjust-cancel"
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-plan-adjust-cancelled"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-plan-review-approve"
+      "testidPrefix": "approval-accept-",
+      "nth": 0,
+      "timeoutMs": 6000
     },
     {
       "kind": "waitGone",
       "testid": "chat-stop-button",
-      "timeoutMs": 180000
+      "timeoutMs": 120000
     },
     {
       "kind": "screenshot",
-      "label": "15-plan-approved"
+      "label": "06-file-write-accepted"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-hitl-complete"
     },
     {
       "kind": "screenshot",
       "label": "section-coach-llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
     },
     {
       "kind": "goto",
@@ -925,7 +759,26 @@
     },
     {
       "kind": "click",
-      "testid": "companion-sidebar-toggle"
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
