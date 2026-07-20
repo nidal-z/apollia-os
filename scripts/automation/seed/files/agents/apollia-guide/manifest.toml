@@ -1,0 +1,27 @@
+# Apollia OS - seed agent bundle manifest (automation verification only).
+
+[agent]
+name = "apollia-guide"
+version = "0.2.0"
+description = "Conversational coach for Apollia OS: knows product capabilities and suggests actionable deep-links."
+license = "MIT OR Apache-2.0"
+authors = ["Apollia <contact@apollia.fr>"]
+tags = ["coach", "system", "guide"]
+
+[agent.manifest]
+agent_type = "system"
+execution_mode = "conversational"
+tools_required = []
+tools_optional = ["navigate", "read_memory_namespace", "get_user_integrations", "get_installed_agents"]
+memory_namespace = "apollia-guide"
+supports_streaming = false
+supports_a2a = false
+max_concurrent_tasks = 1
+dangerous_tools_allowed = false
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.5,<0.6"
+
+[agent.dependencies]
+packages = []

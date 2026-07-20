@@ -1,0 +1,340 @@
+{
+  "name": "hitl-critical",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Supprime le fichier tmp/demo.txt via bash."
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-card-"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-approval-open-inbox"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-critical-approval-card"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-always-toggle-"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-scope-menu-",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-session-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-agent-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-project-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-global-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-approval-scope-menu"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-refuse-"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-approval-reject-dialog"
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Refused during the automation coverage run."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-critical-refused"
+    },
+    {
+      "kind": "sendChat",
+      "text": "\u00c9cris \"salut\" dans un fichier tmp/demo.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-op"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-path"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-content-preview"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-approve"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-fs-modal"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-always-allow"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-scope",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "approval-scope-select"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-option-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-fs-scope"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-fs-denied"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Supprime le fichier tmp/demo.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-critical-input"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-fs-critical-modal"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-reject-reason",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "hitl-fs-reject-reason",
+      "text": "Denied during the automation coverage run."
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-fs-critical-deny"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-fs-critical-denied"
+    },
+    {
+      "kind": "click",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-plan-mode-on"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Refactore la gestion des erreurs dans le module chat."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-host",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-step"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-meta"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-phase"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-hint"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-approve"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-plan-review"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-adjust",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-adjust-send"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-plan-adjust"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-adjust-cancel"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-plan-adjust-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-approve"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-plan-approved"
+    }
+  ]
+}

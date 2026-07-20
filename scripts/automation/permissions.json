@@ -1,0 +1,266 @@
+{
+  "name": "permissions",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-permissions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-permissions",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-permissions-overview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rules-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-permission-rules"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-filter-scope",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-filter-tool",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "permissions-filter-scope",
+      "text": "global"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-permission-filters"
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-add-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-form",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-tool",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-action",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-scope",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-arg-prefix",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-rule-add-form"
+    },
+    {
+      "kind": "fill",
+      "testid": "permission-rule-add-scope",
+      "text": "project"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-project-path",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "permission-rule-add-project-path",
+      "text": "/tmp/apollia-automation-demo"
+    },
+    {
+      "kind": "fill",
+      "testid": "permission-rule-add-arg-prefix",
+      "text": "ls"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-add-submit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-rule-add-project-scope"
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-add-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-session-auths",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-auths-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-auths-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-auths-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "session-auth-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-auth-revoke",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-session-auths"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-permission-rules-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-permissions-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-permissions-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-chat-permissions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-audit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-permissions-audit"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-reload"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-permissions-reloaded"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-revoke-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-revoke-all-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-revoke-all-scope-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-revoke-all-dialog"
+    },
+    {
+      "kind": "fill",
+      "testid": "permissions-revoke-all-scope-select",
+      "text": "all"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-revoke-all-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-revoke-all-scope-all-cancel-boundary"
+    }
+  ]
+}

@@ -1,0 +1,982 @@
+{
+  "name": "connections-mcp",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-connections-route"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-native-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-native-detail-accounts"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-connect-",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-disconnect-",
+      "nth": 0,
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-capabilities"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-capabilities",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-native-capabilities"
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-settings"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-native-settings"
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-accounts"
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "oauth-add-account-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-oauth-dialog-ext-boundary"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog-drive-folder",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-input",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-save",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-oauth-dialog-states"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-cancel-btn"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-last-activity",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-no-activity",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-mcp-overview"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-list",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "mcp-tool-",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-mcp-tools-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-loading",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-hint",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-url-input",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-init-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-call-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-success",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-reconnect",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "mcp-settings-env-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "mcp-settings-secret-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-mcp-settings-editor"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-mcp-disconnect-confirm-cancel-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-loading",
+      "timeoutMs": 1200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-all",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-installed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "catalogue-entry-",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-bg-load",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-more-hint",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-catalogue-discover"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-name-input",
+      "text": "automation-demo-mcp"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-transport-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-command-input",
+      "text": "npx"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-args-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-args-input",
+      "text": "-y @modelcontextprotocol/server-filesystem /tmp"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-env-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-env-input",
+      "text": "DEMO=1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-approval-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "custom-mcp-approval-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-custom-mcp-stdio"
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-transport-select",
+      "text": "streamable-http"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-url-input",
+      "text": "https://mcp.example.com/v1"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-custom-mcp-http"
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-transport-select",
+      "text": "stdio"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-custom-mcp-install-boundary-no-click"
+    },
+    {
+      "kind": "click",
+      "testid": "custom-mcp-test-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-custom-mcp-test-ext-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "catalogue-entry-",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "catalogue-entry-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "disclaimer-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-mcp-disclaimer-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "disclaimer-accept"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "disclaimer-learn-more",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "disclaimer-item-",
+      "nth": 0,
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-wizard-step-disclaimer"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "disclaimer-check-",
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "disclaimer-check-",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "disclaimer-check-",
+      "nth": 2
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "disclaimer-check-",
+      "nth": 3
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-probing",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-probe-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-client-id-input",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-client-id-field",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-client-id-save",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-client-id-error",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-preregistered-scope-note",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-scopes",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "auth-oauth-scope-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-success",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-reconnect-btn",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-signin-btn",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-local-loopback",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-help-i18n",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-help-link",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "env-input-",
+      "nth": 0,
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "env-toggle-",
+      "nth": 0,
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-args",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "arg-input-",
+      "nth": 0,
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-no-package",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-wizard-step-auth-signin-ext-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-connection-btn",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test-unavailable",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-fix-auth-btn",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-retry-btn",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-bypass-btn",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-wizard-step-test-ext-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-coaching",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-loading",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-examples",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-empty",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-error",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-dangerous-combo",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "capability-example-card",
+      "nth": 0,
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "capability-example-try",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-confirm-btn",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-finalize-error",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-wizard-step-coaching"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-wizard-back-nav"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-integrations-oauth",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-settings-error",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-settings-info",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-card-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-settings-integrations-oauth"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-input-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testidPrefix": "oauth-input-",
+      "nth": 0,
+      "text": "automation-demo-client-id.apps.googleusercontent.com"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-save-",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-clear-override-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-secret-input-",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testidPrefix": "oauth-secret-input-",
+      "nth": 0,
+      "text": "demo-secret-not-persisted"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-save-secret-",
+      "nth": 0,
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-clear-secret-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-api-key-input-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-save-api-key-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "oauth-clear-api-key-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "23-oauth-client-config-fields"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folders",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "drive-folder-input-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "drive-folder-save-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "drive-folder-reset-",
+      "nth": 0,
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-oauth-drive-folders"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "25-clean-exit"
+    }
+  ]
+}

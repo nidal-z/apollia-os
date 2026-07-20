@@ -1,0 +1,206 @@
+{
+  "name": "agents-a2a-llm",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-agents (precondition: start the yumni-classification worker to Active here (agent-list-toggle or package-list-toggle), and ensure a working LLM backend for Apollia Chat)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "click",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "a2a-worker-popover",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "a2a-skill-chip-esrs.match_entities"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-a2a-worker-popover-skills"
+    },
+    {
+      "kind": "click",
+      "testid": "a2a-worker-badge"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "sendChat",
+      "text": "Utilise l'agent de classification ESRS pour classer ces entit\u00e9s via le skill esrs.match_entities : crit\u00e8re \"\u00c9missions de gaz \u00e0 effet de serre (Scope 1)\", entit\u00e9s [\"Chaudi\u00e8re gaz du site A\", \"Flotte de v\u00e9hicules thermiques\", \"Serveur cloud h\u00e9berg\u00e9\"]. Rends le mapping."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-delegating-during"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-a2a-delegating"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "a2a_result"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "contains": "esrs.match_entities"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-a2a-result-with-worker-header"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "yumni"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-messages-panel",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-mailbox-panel-populated (AGT-29 requires builder mode + an A2A worker; message item appears after the delegation above)"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-messages-panel"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-message-item",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-message-item"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-mailbox-message-payload"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-activity"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-activity",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "agent-detail-task-row",
+      "nth": -1,
+      "as": "worker_task"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-worker-activity-crosscheck"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-director-deterministic (AGT-28 manual precondition: run a Python director agent that calls ctx.a2a.invoke on its sub-agents, trigger its task, then the director task + worker task appear in activity; this is the no-LLM deterministic path)"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "agent-detail-task-row",
+      "nth": -1,
+      "as": "director_task"
+    }
+  ]
+}

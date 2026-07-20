@@ -1,0 +1,7 @@
+# Seed apollia.toml for the automation verification ecosystem.
+# Placed by build-seed.sh at both <SEED_HOME>/.apollia/apollia.toml and
+# <SEED_HOME>/.config/apollia/apollia.toml. Backends live in system.db, so this
+# only pins the chat file-tool workspace to the repo so file tools resolve.
+
+[chat]
+default_workspace = "/Users/nidalzoumita/dev/apollia-v2"

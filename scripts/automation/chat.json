@@ -1,0 +1,519 @@
+{
+  "name": "chat",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-active-list"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-chat-route"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-search-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "zzz-no-match"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-session-search-filtered"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": ""
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-chat-picker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-quickpicker"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-toggle-templates"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-quickpicker-templates-collapsed"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-toggle-templates"
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker-templates"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-toggle-agents"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-toggle-agents"
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker-agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-textarea",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Sample prompt, not submitted."
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-quickpicker-filled"
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker-plan-mode-label"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-plan-mode"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-quickpicker-plan-on"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-close"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-quickpicker-closed"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "quickpicker-agent-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-conversation-open"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-meta"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-meta-mode"
+    },
+    {
+      "kind": "expect",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-plan-toggled"
+    },
+    {
+      "kind": "click",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-overflow-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-header-menu"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-menu-rename"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-menu-delete"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-menu-link-project"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-link-project"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-link-project-menu"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-header-link-project-item"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-link-project-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-delete"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-delete-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-delete-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-delete-confirm-cancel"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-overflow-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-rename"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-title-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-header-title-input",
+      "text": "Automation coverage title"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-title-input"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-config-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-config-panel",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-inspector-config"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-inspector-config-tab"
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-config-panel"
+    },
+    {
+      "kind": "expect",
+      "testid": "config-system-prompt"
+    },
+    {
+      "kind": "fill",
+      "testid": "config-system-prompt",
+      "text": "You are a test assistant."
+    },
+    {
+      "kind": "expect",
+      "testid": "config-step-budget"
+    },
+    {
+      "kind": "fill",
+      "testid": "config-step-budget",
+      "text": "5"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "config-backend-"
+    },
+    {
+      "kind": "expect",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-memory-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "config-save"
+    },
+    {
+      "kind": "click",
+      "testid": "config-save"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-config-saved"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-slash-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-slash-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-slash-menu-item"
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-slash-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-mention-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-mention-menu"
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-mention-menu"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-attach-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-attach-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-mic-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-send-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-composer-affordances"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-conversation-rows (needs an existing conversation)"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-conversation-row-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-rename"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-rename-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "conversation-row-rename-input",
+      "text": "Automation coverage rename"
+    },
+    {
+      "kind": "screenshot",
+      "label": "23-conversation-row-rename-input"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-conversation-row-configure"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-delete"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "25-conversation-row-delete-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-delete-cancel-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "26-conversation-row-delete-cancelled"
+    }
+  ]
+}

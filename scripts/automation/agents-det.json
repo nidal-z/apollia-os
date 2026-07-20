@@ -1,0 +1,448 @@
+{
+  "name": "agents-det (assistants page, operator + builder, deterministic against the seed)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-agents-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-list"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "apollia-chat-pinned"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-list-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "package-list-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "zzz-no-match",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-agents-search-empty"
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "press",
+      "testid": "agents-search",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-pinned"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "apollia-chat-config-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-apollia-chat-config"
+    },
+    {
+      "kind": "expect",
+      "testid": "apollia-chat-config-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "apollia-chat-system-prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "apollia-chat-llm-backend"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "apollia-chat-tool-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "apollia-chat-tools-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-tools-filter",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-tools-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-tools-none",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "selectOption",
+      "testid": "apollia-chat-llm-backend",
+      "index": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-config-reload",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-apollia-chat-config-after"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-tabbar",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-detail-tab-content"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-agent-detail-overview"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-tools",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-tab-content",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-agent-tools"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-detail-trigger-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-agent-activity"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-enabled-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-agent-settings"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-overview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 2500,
+      "nth": 1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-memory-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-agent-memory"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "package-list-row",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-detail-tab-content",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-package-overview"
+    },
+    {
+      "kind": "click",
+      "testid": "package-detail-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-detail-tab-content",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-package-agents"
+    },
+    {
+      "kind": "click",
+      "testid": "package-detail-tab-triggers",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-detail-tab-content",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-package-triggers"
+    },
+    {
+      "kind": "click",
+      "testid": "package-detail-tab-overview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-agents-builder"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-detail-tab-content"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-agent-detail-builder-overview"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-enabled-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-agent-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-detail-trigger-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-agent-activity-builder"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 2500,
+      "nth": 1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "agent-memory-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-agent-memory-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-back-operator"
+    }
+  ]
+}

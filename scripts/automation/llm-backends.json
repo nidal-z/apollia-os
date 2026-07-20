@@ -1,0 +1,342 @@
+{
+  "name": "llm-backends",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-llm-dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "llm-backend-card",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-llm-dashboard-cards"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-grid",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "llm-backend-badge",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "llm-backend-ping-btn",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-ping-result",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-llm-dashboard-ping"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-stats-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-llm-stats-table"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-section",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-settings-llm-panel"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-backend-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-reload-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-settings-llm-reloaded"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "llm-backend-card-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "set-default-",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-settings-llm-set-default"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "test-backend-",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-settings-llm-card-ping"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "edit-backend-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-llm-edit-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-test"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-test-result",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-llm-edit-test-result"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testid": "add-backend-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-name",
+      "text": "automation-dummy"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-model",
+      "text": "/tmp/automation-none.gguf"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-provider",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-browse",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-llm-add-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-scan"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-llm-add-scan"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-advanced-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-temperature",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-temperature",
+      "text": "0.7"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-top-k",
+      "text": "40"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-top-p",
+      "text": "0.9"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-repeat-penalty",
+      "text": "1.1"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-context-size",
+      "text": "4096"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-timeout",
+      "text": "60"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-extra",
+      "text": "{ \"device\": \"metal\" }"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-llm-add-advanced"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-hf-repo",
+      "text": "Qwen/Qwen3-30B-A3B-GGUF"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-hf-fetch"
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-llm-add-hf-fetch"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-test"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-test-result",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-llm-add-test-result"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "delete-backend-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-delete-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-llm-delete-dialog"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-delete-confirm-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-delete-confirm-input",
+      "text": "DELETE"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-llm-delete-confirm-typed"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-delete-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-llm-done"
+    }
+  ]
+}

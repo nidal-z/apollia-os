@@ -1,0 +1,218 @@
+{
+  "name": "notifications",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-notifications-page"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "global-events-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-global-events-section"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "global-event-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-global-events"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-history-moved",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-notifications-history-note"
+    },
+    {
+      "kind": "click",
+      "testid": "create-channel-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "create-channel-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "channel-label-input",
+      "text": "Automation demo channel"
+    },
+    {
+      "kind": "fill",
+      "testid": "channel-id-input",
+      "text": "automation-demo"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-create-channel-dialog"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-type-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-throttle-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "channel-enabled-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "channel-event-",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "channel-event-",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-create-channel-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "create-channel-cancel-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-create-channel-cancelled"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "channel-card-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-channel-card"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "channel-toggle-",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "channel-test-btn-",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-channel-card-controls"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "channel-edit-btn-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "edit-channel-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-edit-channel-dialog"
+    },
+    {
+      "kind": "fill",
+      "testid": "edit-channel-label-input",
+      "text": "Automation edited label"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-edit-channel-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "edit-channel-cancel-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "channel-delete-btn-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delete-channel-confirm",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-delete-channel-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "delete-channel-confirm-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-delete-channel-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-history-link"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-notifications-history-link"
+    }
+  ]
+}

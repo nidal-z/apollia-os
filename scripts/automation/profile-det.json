@@ -1,0 +1,364 @@
+{
+  "name": "profile-det (settings profile sub-page, operator + builder, autosave onblur, native selects exercised, fast-fail on data-dependent)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against routes/settings/Profile.svelte + ui/select/Select.svelte + ui/dialog/{Dialog,ConfirmDialog}.svelte + routes/Settings.svelte.",
+    "The profile is backed by SemanticMemory under __user__ (profile_schema.rs). The seed sets preferences.language=fr but NOT name/role, so name+role start empty and are filled here.",
+    "profile-select-* are native <select> (Select.svelte passes data-testid onto the <select>); each is exercised with selectOption using a valid static option value. The onchange handler persists the value via saveKey.",
+    "profile-radio-* testids sit on the RadioGroup container; individual RadioItem elements carry no testid and there is no radio-option primitive, so the group is asserted present only (an option cannot be picked).",
+    "profile-integ-github / profile-compliance-rgpd are <button role=checkbox> (Checkbox.svelte), NOT <input>; they are toggled with click (setChecked requires a native input and would throw).",
+    "settings-saved-hint renders whenever the sub-page is not dirty (Settings.svelte). Profile autosaves on blur so it is never dirty, hence the hint is a deterministic present-assert.",
+    "Autosave: consecutive fill steps focus the next field, which blurs (and saves) the previous one; the first selectOption focus blurs and saves the goals textarea.",
+    "showEnrichmentBanner is derived (calibrationDone AND tier2 has an empty field). It is treated as best-effort: observed by screenshot only, never hard-asserted and never used as a click target, so no step can fail on it.",
+    "Profile.svelte has zero uiMode-conditional rendering; the builder pass asserts mode-invariance of the same fields."
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-section",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-profile-operator"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-input-name",
+      "text": "Automation Tester"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-input-role",
+      "text": "Automation QA engineer"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-input-tech-stack",
+      "text": "Rust, Svelte, Python"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-input-tools-daily",
+      "text": "VSCode, Terminal, Figma"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-input-agent-domains",
+      "text": "email triage, reporting"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-textarea-goals",
+      "text": "Automate desktop UI regression coverage."
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-profile-inputs-filled"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "profile-select-sector",
+      "value": "fintech",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "selectOption",
+      "testid": "profile-select-team-size",
+      "value": "2-5",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "selectOption",
+      "testid": "profile-select-proficiency",
+      "value": "avance",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "selectOption",
+      "testid": "profile-select-language",
+      "value": "en",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "selectOption",
+      "testid": "profile-select-llm",
+      "value": "local",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-profile-selects-chosen"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-profile-saved-hint"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-radio-hitl",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-radio-trigger",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-radio-sovereignty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-profile-radios-present"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-integ-github",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-integ-github"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-profile-integ-on"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-integ-github"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-compliance-rgpd",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-compliance-rgpd"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-profile-compliance-on"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-compliance-rgpd"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-profile-enrichment-banner-best-effort"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-reset-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-profile-reset-confirm-open"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-reset-confirm-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-reset-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-profile-reset-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-section",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-profile-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-select-sector",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-select-llm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-radio-hitl",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-integ-github",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-profile-builder-fields-invariant"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-back-operator"
+    }
+  ]
+}

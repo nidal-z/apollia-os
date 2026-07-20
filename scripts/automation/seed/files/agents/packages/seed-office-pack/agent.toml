@@ -1,0 +1,12 @@
+# Apollia OS - seed package manifest (automation verification only).
+
+[package]
+name = "seed-office-pack"
+version = "0.1.0"
+description = "Seed office toolkit: bundled workers for classification tasks."
+author = "Apollia <contact@apollia.fr>"
+
+[[agents]]
+name = "seed-classifier"
+role = "worker"
+entry = "agents/seed_classifier/agent.py"

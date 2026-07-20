@@ -1,0 +1,206 @@
+{
+  "name": "inbox",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-inbox-page"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-inbox-pending"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-inbox-filter-approvals"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-ask_user"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-inbox-filter-questions"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-all"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-agent-filter",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-inbox-agent-filter"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "inbox-row-primary",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-inbox-row-expand-boundary"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ask-user-form",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-inbox-ask-user-form"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-inbox-activity"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-filter-all",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-failures"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-inbox-activity-failures"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-llm"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-all"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-inbox-activity-empty-cta"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-empty-cta"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-activity-cta-navigated"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-notifications"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-inbox-notifications"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-inbox-back-to-pending"
+    }
+  ]
+}

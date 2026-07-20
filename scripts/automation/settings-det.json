@@ -1,0 +1,886 @@
+{
+  "name": "settings-det (settings shell + Appearance/Configuration/System/Danger/Update, operator + builder, unsaved-guard, fast-fail on data-dependent)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against routes/Settings.svelte + settings/{Appearance,Configuration,System,Danger,UpdateChecker}.svelte + components/settings/{ConfigFileCard,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte.",
+    "13 nav keys from the CLUSTERS table: appearance, profile, stt, llm, model-hub, configuration, tools, permissions, integrations, system, shortcuts, observability, danger. CLUSTERS are static -> nav is identical in both modes (no uiMode gate).",
+    "plan-mode-default-toggle-switch and auto-install-python-deps-toggle-switch are <button role=switch> (Toggle.svelte), NOT <input>. setChecked would throw; we click the -switch instead.",
+    "config-file-card-copy-{section} lives inside {#if expanded} in ConfigFileCard.svelte, so the card header (config-file-card-{section}) is clicked first to expand it, then the copy button is asserted and clicked. Sections are a hardcoded vec (runtime/oria/observability, config.rs) and config_path is always set, so both are deterministic.",
+    "stt-trigger is a native <select> (Select.svelte) with static options (toggle, push-to-talk); it is exercised via selectOption in the STT save branch alongside the language field, then saved through the unsaved dialog.",
+    "UpdateChecker (rendered inside System.svelte) is an external-update boundary: update-checker + update-check-btn are asserted present only and never clicked. update-install-btn renders only when an update is available (data-dependent), so it is NOT asserted.",
+    "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json).",
+    "settings-mobile-nav-toggle / -sheet render only when sidebarState === 'drawer' (mobile); at desktop they are absent, so no waitFor is issued and the desktop state is captured by screenshot only."
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-settings-shell"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-nav-appearance"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-nav-profile"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-nav-llm"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-hub"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-nav-model-hub"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-configuration"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-nav-configuration"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-nav-tools"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-permissions"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-nav-permissions"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-integrations"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-nav-integrations"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-nav-system"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-shortcuts"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-nav-shortcuts"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-observability"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-nav-observability"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-nav-danger"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "theme-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-default-section",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-appearance"
+    },
+    {
+      "kind": "click",
+      "testid": "theme-light"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-theme-light"
+    },
+    {
+      "kind": "click",
+      "testid": "theme-dark"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-theme-dark"
+    },
+    {
+      "kind": "click",
+      "testid": "theme-system"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "language-fr"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-language-fr"
+    },
+    {
+      "kind": "click",
+      "testid": "language-en"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "mode-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-mode-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "mode-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-default-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-default-toggle-switch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-mode-default-toggle-switch"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-plan-mode-toggled"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-mode-default-toggle-switch"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-settings-saved-hint"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-configuration"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "runtime-config-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-operational-redirect-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-configuration"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "config-file-card-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "config-file-card-copy-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "config-file-card-copy-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "23-config-file-card-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "system-info-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-system"
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-refresh-btn"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "25-system-refreshed"
+    },
+    {
+      "kind": "click",
+      "testid": "system-cli-copy-path",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-copy-python",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auto-install-python-deps-toggle-switch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "auto-install-python-deps-toggle-switch"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "26-system-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "auto-install-python-deps-toggle-switch"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-install-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "27-agent-install-section"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-checker",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "update-check-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "28-update-checker-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-warning-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-card-reset-onboarding",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-card-clear-memories",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-card-clear-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-card-factory-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "29-danger-view-only"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-language-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "fill",
+      "testid": "stt-language-input",
+      "text": "de-automation"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30-stt-unsaved-badge"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "31-unsaved-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-unsaved-dialog-stay"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "32-unsaved-stay"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-unsaved-dialog-discard"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "33-unsaved-discard"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-language-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "fill",
+      "testid": "stt-language-input",
+      "text": "en-automation"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-trigger",
+      "value": "push-to-talk",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-unsaved-dialog-save"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-unsaved-save-with-select"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35-desktop-no-mobile-nav"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "36-settings-builder-shell"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "37-builder-nav-appearance"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "38-builder-nav-profile"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "39-builder-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "40-builder-nav-llm"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-hub"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-builder-nav-model-hub"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-configuration"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-builder-nav-configuration"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-builder-nav-tools"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-permissions"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "44-builder-nav-permissions"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-integrations"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "45-builder-nav-integrations"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "46-builder-nav-system"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-shortcuts"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "47-builder-nav-shortcuts"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-settings",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "48-builder-observability-settings"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49-builder-nav-danger"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "50-back-operator"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+Deterministic seed fragment for the MODEL HUB installed-models list.
+
+Unblocks the desktop Model Hub automation (model-hub-det.json):
+  * installed-models-section            (ModelHub.svelte, always present)
+  * installed-models-total              (rendered only when >= 1 model)
+  * installed-models-list               (rendered only when >= 1 model)
+  * installed-model-row-{name}          (one per .gguf/.bin file, nth 0 = Phi)
+  * installed-model-size-{name}         (formatted file size)
+  * installed-model-inuse-{name}        (only when a backend/STT references the file)
+  * installed-model-delete-{name}       (delete button; disabled when in_use)
+  * installed-model-delete-dialog       (opens on click of an ENABLED delete button)
+  * installed-model-delete-dialog-confirm / -cancel
+
+This is NOT a database seed. Installed models are files on disk, not rows.
+The builder must COPY the two files under files/models/ into the seeded home:
+
+    <SEED_HOME>/.apollia/models/Phi-3-mini-Q4.gguf
+    <SEED_HOME>/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf
+
+(Create <SEED_HOME>/.apollia/models/ first, then copy. No system.db write is
+performed by this fragment.)
+
+--- What the scanner requires (traced) -------------------------------------
+
+Source: crates/apollia-desktop/src/commands/model_hub.rs, fn
+collect_installed_models (list_installed_models command).
+
+The scanner reads models_dir() = <HOME>/.apollia/models/ with std::fs::read_dir
+and, per entry:
+  1. keeps it only if path.is_file();
+  2. classifies by extension ONLY: "gguf" -> Llm, "bin" -> Stt, else skipped;
+  3. reads size via entry.metadata().len();
+  4. takes the basename as the display name;
+  5. sorts the list by name ascending (bytewise): out.sort_by(a.name.cmp(b.name)).
+
+Requirement = STAT ONLY (name + extension + size). The scanner NEVER opens the
+file and NEVER parses the GGUF magic/header. It does NOT detect sharded models
+(*-00001-of-0000N.gguf), projectors (mmproj*), or sidecar/manifest files. A
+model appears as an installed row from a single correctly-named *.gguf file.
+
+Therefore a tiny placeholder is enough. As a low-cost hedge (in case any other
+code path ever opens these files), each placeholder still begins with a valid
+empty GGUF v3 header: magic "GGUF" | version u32=3 | tensor_count u64=0 |
+metadata_kv_count u64=0, zero-padded to a small size. This parses as a valid
+(empty) GGUF but is never loaded by the Model Hub view.
+
+--- File layout ------------------------------------------------------------
+
+  Phi-3-mini-Q4.gguf              4096 bytes  (nth 0, NOT in use, deletable)
+  Qwen3.6-35B-A3B-MXFP4_MOE.gguf  8192 bytes  (nth 1, in use, delete disabled)
+
+Ordering matters. Rows sort by name ascending. "Phi" (ASCII 'P' 0x50) sorts
+before "Qwen" (ASCII 'Q' 0x51), so Phi is nth 0. model-hub-det.json clicks
+installed-model-delete- at nth 0 and expects the delete dialog to open; the
+delete button is disabled when in_use, so the nth-0 row MUST be the NOT-in-use
+model. The automation cancels the dialog (boundary only), so no file is ever
+removed and the seed stays idempotent across re-runs.
+
+--- In-use badge (cross-agent coordination) --------------------------------
+
+installed-model-inuse-{name} renders only when an LLM backend or the STT config
+in <SEED_HOME>/.apollia/system.db references the SAME basename (conservative
+basename match, model_hub.rs used_by / collect_in_use_refs). system.db is owned
+by the llm-backends seed agent; this fragment only places the files.
+
+For the Qwen row to show "in use", the llm-backends seed must register a backend
+whose model (or config_json.model_path basename) equals exactly:
+
+    Qwen3.6-35B-A3B-MXFP4_MOE.gguf
+
+If that backend is absent, the inuse waitFor simply fails (model-hub-det.json
+runs with stopOnError:false) and both rows become deletable; the delete-dialog
+boundary step still passes because the nth-0 (Phi) button stays enabled.

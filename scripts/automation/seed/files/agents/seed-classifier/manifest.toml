@@ -1,0 +1,32 @@
+# Apollia OS - seed agent bundle manifest (automation verification only).
+
+[agent]
+name = "seed-classifier"
+version = "0.1.0"
+description = "Deterministic text classifier worker: routes text into labeled categories via an A2A skill."
+license = "MIT OR Apache-2.0"
+authors = ["Apollia <contact@apollia.fr>"]
+tags = ["worker", "nlp", "classification"]
+
+[agent.manifest]
+agent_type = "worker"
+execution_mode = "direct"
+tools_required = []
+tools_optional = ["llm"]
+memory_namespace = "seed-classifier"
+supports_streaming = false
+supports_a2a = true
+max_concurrent_tasks = 2
+dangerous_tools_allowed = false
+
+[[agent.skills]]
+id = "classify-text"
+name = "Classify text"
+description = "Classify a text into one of the provided labels."
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.5,<0.6"
+
+[agent.dependencies]
+packages = []

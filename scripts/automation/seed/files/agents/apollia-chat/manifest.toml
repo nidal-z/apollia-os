@@ -1,0 +1,27 @@
+# Apollia OS - seed agent bundle manifest (automation verification only).
+
+[agent]
+name = "apollia-chat"
+version = "1.0.0"
+description = "Apollia free-chat assistant: general-purpose conversational agent with tool access."
+license = "MIT OR Apache-2.0"
+authors = ["Apollia <contact@apollia.fr>"]
+tags = ["chat", "assistant", "system"]
+
+[agent.manifest]
+agent_type = "system"
+execution_mode = "auto"
+tools_required = []
+tools_optional = ["web_search", "file_read"]
+memory_namespace = "apollia-chat"
+supports_streaming = true
+supports_a2a = false
+max_concurrent_tasks = 1
+dangerous_tools_allowed = false
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.5,<0.6"
+
+[agent.dependencies]
+packages = []

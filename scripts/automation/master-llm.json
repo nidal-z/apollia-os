@@ -1,0 +1,967 @@
+{
+  "name": "master-llm (inference smoke, needs -llama backend)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "screenshot",
+      "label": "section-00-master-llm-start"
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-chat-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Combien font 17 x 23 ?"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "01-math"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "math"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-math-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "\u00c9cris une phrase qui contient le mot banane."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "02-banana"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "banana"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-banana-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Liste les fichiers du dossier courant."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "03-file_list"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "file_list"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-file_list-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Cherche le mot TODO dans les fichiers .rs du projet."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "04-grep"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "grep"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-grep-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Lis le fichier Cargo.toml et donne-moi le nom du package."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "05-file_read"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "file_read"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-file_read-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Lis le fichier /nonexistent/path.txt."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "06-tool_failure"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "tool_failure"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-tool_failure-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Cherche la date de sortie de Rust 1.80."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "07-web_search"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "web_search"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-web_search-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Retiens que mon plat pr\u00e9f\u00e9r\u00e9 est le couscous."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "08-memory_write"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "memory_write"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-memory_write-done"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Quel est mon plat pr\u00e9f\u00e9r\u00e9 ?"
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "09-memory_recall"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "memory_recall"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-memory_recall-done"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "chat-message-copy-"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "chat-message-edit-"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "chat-message-edit-input-",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-message-edit-open"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "chat-message-edit-cancel-"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-config-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-config-panel",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "config-tool-"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "config-tool-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-config-tool-toggle"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "config-group-toggle-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-config-group-toggle"
+    },
+    {
+      "kind": "expect",
+      "testid": "context-window-bar"
+    },
+    {
+      "kind": "expect",
+      "testid": "context-indicator-footer"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-config-button"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-plan-conv"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Bonjour."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "13-greeting"
+    },
+    {
+      "kind": "click",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-mode-chip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-plan-tab"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-plan-mode-on"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Pr\u00e9pare un plan en trois \u00e9tapes pour organiser une r\u00e9union d'\u00e9quipe hebdomadaire."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "14-plan",
+      "maxApprovals": 6
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-plan-turn-done"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-step"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-plan-review"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-adjust",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-plan-review-adjust",
+      "text": "Ajoute une quatri\u00e8me \u00e9tape de bilan \u00e0 la fin."
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-plan-adjust-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-adjust-send"
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "16-plan-revise",
+      "maxApprovals": 6
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-plan-revised"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Demande-moi mon pr\u00e9nom avec l'outil ask_user, puis r\u00e9p\u00e8te-le."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "16-ask-user"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-ask-user-inline",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "ask-user-card-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-ask-user-card"
+    },
+    {
+      "kind": "fill",
+      "testidPrefix": "ask-user-question-",
+      "text": "Nidal"
+    },
+    {
+      "kind": "click",
+      "testid": "ask-user-submit"
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "17-ask-user-done"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "ask_user"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-ask-user-answered"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Bonjour, pr\u00eat \u00e0 travailler ?"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "18-budget-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-config-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "config-step-budget",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "config-step-budget",
+      "text": "1"
+    },
+    {
+      "kind": "click",
+      "testid": "config-save"
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-step-budget-set"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-config-button"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Liste les fichiers du dossier docs/adr et lis le premier fichier seulement."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "19-step-budget"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "step_budget"
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-step-budget-result"
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-hitl-critical"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Supprime le fichier tmp/demo.txt via bash."
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-card-"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-approval-open-inbox"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-critical-approval-card"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-always-toggle-"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-scope-menu-",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-session-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-agent-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-project-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-global-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-approval-scope-menu"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-refuse-"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-approval-reject-dialog"
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Refused during the automation coverage run."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-critical-refused"
+    },
+    {
+      "kind": "sendChat",
+      "text": "\u00c9cris \"salut\" dans un fichier tmp/demo.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-op"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-path"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-content-preview"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-approve"
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-fs-modal"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-always-allow"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-scope",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "approval-scope-select"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-option-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-fs-scope"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-fs-denied"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Supprime le fichier tmp/demo.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-critical-input"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-fs-critical-modal"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-reject-reason",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "hitl-fs-reject-reason",
+      "text": "Denied during the automation coverage run."
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-fs-critical-deny"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-fs-critical-denied"
+    },
+    {
+      "kind": "click",
+      "testid": "composer-plan-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-plan-mode-on"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Refactore la gestion des erreurs dans le module chat."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-host",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-step"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-meta"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-phase"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-hint"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-approve"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-plan-review"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-adjust",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-plan-review-adjust-send"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-plan-adjust"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-adjust-cancel"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-plan-adjust-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-approve"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-plan-approved"
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-coach-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-sidebar-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-coach-ready"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Comment cr\u00e9er un agent ?"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-coach-asking"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "coach_answer"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-coach-answer"
+    }
+  ]
+}

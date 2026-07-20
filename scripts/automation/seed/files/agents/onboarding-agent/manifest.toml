@@ -1,0 +1,27 @@
+# Apollia OS - seed agent bundle manifest (automation verification only).
+
+[agent]
+name = "onboarding-agent"
+version = "2.4.0"
+description = "First user contact: short calibration on identity, supervision and sovereignty."
+license = "MIT OR Apache-2.0"
+authors = ["Apollia <contact@apollia.fr>"]
+tags = ["onboarding", "conversational", "system"]
+
+[agent.manifest]
+agent_type = "system"
+execution_mode = "conversational"
+tools_required = ["permission_rule_add", "permission_rule_list"]
+tools_optional = []
+memory_namespace = "onboarding"
+supports_streaming = false
+supports_a2a = false
+max_concurrent_tasks = 1
+dangerous_tools_allowed = false
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.5,<0.6"
+
+[agent.dependencies]
+packages = []

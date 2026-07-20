@@ -1,0 +1,214 @@
+{
+  "name": "projects",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-projects-page"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-sidebar-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "projects-sidebar-search",
+      "text": "a"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-sidebar-search"
+    },
+    {
+      "kind": "fill",
+      "testid": "projects-sidebar-search",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "project-row-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-tab-settings",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-project-open"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-conversations"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-project-conversations"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-tasks"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-project-tasks"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-context"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-project-context"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-name-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-project-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-workspace-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-workspace-pick-boundary"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-description-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "settings-description-input",
+      "text": "Automation coverage description."
+    },
+    {
+      "kind": "screenshot",
+      "label": "08a-project-description"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-instructions-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "settings-instructions-input",
+      "text": "Automation coverage instructions for the agent."
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-project-instructions"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "delete-project-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "delete-project-",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-delete-project-confirm"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-pinned-projects",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-dashboard-pinned-projects"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-project-",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-dashboard-project-card"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-projects-see-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-projects-see-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-dashboard-projects-see-all"
+    }
+  ]
+}
