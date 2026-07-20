@@ -111,6 +111,11 @@
       "testid": "trigger-type-card-cron"
     },
     {
+      "kind": "click",
+      "testid": "trigger-advanced-toggle",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "fill",
       "testid": "trigger-input-name",
       "text": "seed manual trigger (not saved)"

@@ -153,8 +153,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "conversation-row-menu-button",
-      "nth": 0,
+      "testid": "project-conversations-list",
       "timeoutMs": 2500
     },
     {

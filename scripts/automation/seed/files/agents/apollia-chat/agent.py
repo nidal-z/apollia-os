@@ -1,28 +1,28 @@
-"""apollia-chat - seed stub for automation verification.
+"""apollia-chat, seed stub for the automation verification suite.
 
-Minimal, self-contained module. Never loaded by the runtime during the
-automation suite: it exists so the install directory resolves on disk and the
-agents view can display an installed agent with a valid manifest.
+A minimal but VALID Apollia agent: the boot auto-loader imports it and requires
+the ``@agent`` decorator (which caches ``__apollia_manifest__``), so the old
+``manifest()``/``run()`` shape does not load. It never answers a real turn during
+the deterministic suite (no model), it only has to register cleanly so the
+free-chat agent surface resolves.
 """
 
+from apollia import agent, on_message
+from apollia.types import Ctx, Message
 
+
+@agent(
+    name="apollia-chat",
+    version="1.0.0",
+    description="Apollia free-chat assistant.",
+    tags=("chat", "assistant", "system"),
+    memory_namespace="apollia-chat",
+    agent_type="system",
+)
 class ApolliaChat:
-    """Free-chat assistant surrogate."""
-
-    def manifest(self) -> dict:
-        return {
-            "name": "apollia-chat",
-            "version": "1.0.0",
-            "description": "Apollia free-chat assistant.",
-            "tools_required": [],
-            "tools_optional": ["web_search", "file_read"],
-            "agent_type": "system",
-            "execution_mode": "auto",
-            "memory_namespace": "apollia-chat",
-        }
-
-    async def run(self, ctx, task):
-        return {"ok": True}
+    @on_message
+    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
+        return "Seed free-chat stub."
 
 
 agent = ApolliaChat()

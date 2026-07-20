@@ -1,36 +1,38 @@
-"""seed-classifier - seed worker stub for automation verification.
+"""seed-classifier, seed A2A worker stub for the automation verification suite.
 
-Minimal, self-contained A2A worker surrogate. Not loaded by the runtime during
-the automation suite; present so the install directory resolves on disk.
+A minimal but VALID Apollia worker: the boot auto-loader imports it and requires
+the ``@agent`` decorator (which caches ``__apollia_manifest__``), so the old
+``manifest()`` shape does not load. It exposes one ``@skill`` so the agent
+registers with a discoverable A2A surface. It never runs a real classification
+during the deterministic suite (no model); it returns the first label
+deterministically.
 """
 
+from apollia import agent, skill
+from apollia.types import Ctx
 
+
+@agent(
+    name="seed-classifier",
+    version="0.1.0",
+    description="Deterministic text classifier worker.",
+    tags=("worker", "classifier", "seed"),
+    memory_namespace="seed-classifier",
+    agent_type="worker",
+)
 class SeedClassifier:
-    """Single-skill classifier surrogate."""
-
-    def manifest(self) -> dict:
-        return {
-            "name": "seed-classifier",
-            "version": "0.1.0",
-            "description": "Deterministic text classifier worker.",
-            "tools_required": [],
-            "tools_optional": ["llm"],
-            "agent_type": "worker",
-            "execution_mode": "direct",
-            "supports_a2a": True,
-            "memory_namespace": "seed-classifier",
-            "skills": [
-                {
-                    "id": "classify-text",
-                    "name": "Classify text",
-                    "description": "Classify a text into one of the provided labels.",
-                }
-            ],
-        }
-
-    async def classify_text(self, ctx, payload):
-        labels = payload.get("labels", [])
-        return {"label": labels[0] if labels else None}
+    @skill(
+        "classify_text",
+        description="Classify a text into one of the provided labels.",
+    )
+    async def classify_text(
+        self,
+        text: str,
+        labels: list[str],
+        ctx: Ctx = None,  # type: ignore[assignment]
+    ) -> dict:
+        """Return the first candidate label (deterministic seed behaviour)."""
+        return {"label": labels[0] if labels else None, "text": text}
 
 
 agent = SeedClassifier()

@@ -754,7 +754,7 @@
                     {#snippet icon()}<FolderOpen size={20} />{/snippet}
                   </OperatorEmptyState>
                 {:else}
-                  <div class="border border-border rounded-xl overflow-hidden bg-card">
+                  <div class="border border-border rounded-xl overflow-hidden bg-card" data-testid="project-conversations-list">
                     {#each projectChats as chat (chat.id)}
                       <ConversationRow
                         title={chat.title ??

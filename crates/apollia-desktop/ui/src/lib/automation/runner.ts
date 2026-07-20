@@ -424,6 +424,32 @@ function keyToCode(key: string): string {
   return key;
 }
 
+// Persisted UI-state localStorage keys leak across runs (WKWebView localStorage
+// lives under the real ~/Library, not the swapped seed HOME), which makes
+// state-dependent gestures non-deterministic: a stale
+// `apollia.quickpicker.expanded` collapses the accordion the chat script asserts
+// on, a stale `apollia.delete_automation.skip` bypasses the delete dialog. Clear
+// the known non-deterministic UI-state keys so each component falls back to its
+// default. Deliberately does NOT touch the MCP disclaimer key: removing it would
+// re-trigger a blocking modal.
+function resetDeterministicUiState(): void {
+  if (typeof localStorage === "undefined") return;
+  const keys = [
+    "apollia.quickpicker.expanded",
+    "apollia.delete_automation.skip",
+    "apollia.next_steps.dismissed",
+    "apollia.next_steps.feedback",
+    "apollia.ui.sidebar",
+  ];
+  for (const key of keys) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Private mode / quota - ignore.
+    }
+  }
+}
+
 export async function runAutomation(scriptJson: string, allowDestructive: boolean): Promise<void> {
   let script: Script;
   try {
@@ -440,6 +466,8 @@ export async function runAutomation(scriptJson: string, allowDestructive: boolea
     );
     return;
   }
+
+  resetDeterministicUiState();
 
   console.info(`[automation] running "${script.name}" (${script.steps.length} steps)`);
   const overlay = mountOverlay(script.name);

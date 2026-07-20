@@ -1000,12 +1000,12 @@
     {
       "kind": "waitFor",
       "timeoutMs": 2500,
-      "testid": "quickpicker-agent-apollia-guide"
+      "testid": "quickpicker-agent-seed-classifier"
     },
     {
       "kind": "click",
       "timeoutMs": 2500,
-      "testid": "quickpicker-agent-apollia-guide"
+      "testid": "quickpicker-agent-seed-classifier"
     },
     {
       "kind": "waitFor",
@@ -1347,8 +1347,7 @@
     },
     {
       "kind": "press",
-      "key": "Escape",
-      "testid": "chat-header-title-input"
+      "key": "Escape"
     },
     {
       "kind": "waitGone",
@@ -1406,8 +1405,7 @@
     },
     {
       "kind": "press",
-      "key": "Escape",
-      "testid": "conversation-row-rename-input"
+      "key": "Escape"
     },
     {
       "kind": "waitGone",
@@ -1498,12 +1496,12 @@
     {
       "kind": "waitFor",
       "timeoutMs": 2500,
-      "testid": "quickpicker-agent-apollia-guide"
+      "testid": "quickpicker-agent-seed-classifier"
     },
     {
       "kind": "click",
       "timeoutMs": 2500,
-      "testid": "quickpicker-agent-apollia-guide"
+      "testid": "quickpicker-agent-seed-classifier"
     },
     {
       "kind": "waitFor",
@@ -1525,11 +1523,6 @@
     {
       "kind": "expect",
       "testid": "chat-header-meta-mode"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-open-context-button",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -2182,8 +2175,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "conversation-row-menu-button",
-      "nth": 0,
+      "testid": "project-conversations-list",
       "timeoutMs": 2500
     },
     {
@@ -2900,6 +2892,11 @@
     {
       "kind": "click",
       "testid": "trigger-type-card-cron"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-advanced-toggle",
+      "timeoutMs": 4000
     },
     {
       "kind": "fill",
@@ -5269,7 +5266,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "timeline-empty",
+      "testid": "timeline-controls",
       "timeoutMs": 4000
     },
     {
@@ -5418,7 +5415,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "timeline-empty",
+      "testid": "timeline-controls",
       "timeoutMs": 4000
     },
     {

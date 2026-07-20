@@ -1,26 +1,27 @@
-"""onboarding-agent - seed stub for automation verification.
+"""onboarding-agent, seed stub for the automation verification suite.
 
-Minimal, self-contained module. Not loaded by the runtime during the automation
-suite; present so the install directory resolves on disk.
+A minimal but VALID Apollia agent: the boot auto-loader imports it and requires
+the ``@agent`` decorator (which caches ``__apollia_manifest__``), so the old
+``manifest()``/``run()`` shape does not load. It never answers a real turn during
+the deterministic suite (no model), it only has to register cleanly.
 """
 
+from apollia import agent, on_message
+from apollia.types import Ctx, Message
 
+
+@agent(
+    name="onboarding-agent",
+    version="2.4.0",
+    description="First user contact calibration.",
+    tags=("onboarding", "system"),
+    memory_namespace="onboarding",
+    agent_type="system",
+)
 class OnboardingAgent:
-    """First-contact calibration surrogate."""
-
-    def manifest(self) -> dict:
-        return {
-            "name": "onboarding-agent",
-            "version": "2.4.0",
-            "description": "First user contact calibration.",
-            "tools_required": ["permission_rule_add", "permission_rule_list"],
-            "agent_type": "system",
-            "execution_mode": "conversational",
-            "memory_namespace": "onboarding",
-        }
-
-    async def run(self, ctx, task):
-        return {"ok": True}
+    @on_message
+    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
+        return "Seed onboarding stub."
 
 
 agent = OnboardingAgent()

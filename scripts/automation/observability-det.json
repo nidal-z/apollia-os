@@ -102,7 +102,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "timeline-empty",
+      "testid": "timeline-controls",
       "timeoutMs": 4000
     },
     {
@@ -251,7 +251,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "timeline-empty",
+      "testid": "timeline-controls",
       "timeoutMs": 4000
     },
     {

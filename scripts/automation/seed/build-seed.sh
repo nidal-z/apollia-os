@@ -56,9 +56,13 @@ fi
 
 # 3) Rewrite agent install_path + package root_path to the real seed location
 #    (fragment used a placeholder). Runs only if agents.db exists.
+#    install_path must point at the agent's .py entrypoint (agent.py): the boot
+#    loader validates it as a .py file (loader.rs), not the containing directory.
 if [ -f "$DATA/agents.db" ]; then
   sqlite3 "$DATA/agents.db" \
-    "UPDATE installed_agents SET install_path = '$DATA/agents/' || name WHERE 1;" 2>/dev/null || true
+    "UPDATE installed_agents SET install_path = '$DATA/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
+  sqlite3 "$DATA/agents.db" \
+    "UPDATE installed_agents SET source_path = '$DATA/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
   sqlite3 "$DATA/agents.db" \
     "UPDATE installed_packages SET root_path = '$DATA/agents/packages/' || name WHERE 1;" 2>/dev/null || true
 fi

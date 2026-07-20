@@ -20,7 +20,7 @@ max_concurrent_tasks = 2
 dangerous_tools_allowed = false
 
 [[agent.skills]]
-id = "classify-text"
+id = "classify_text"
 name = "Classify text"
 description = "Classify a text into one of the provided labels."
 
