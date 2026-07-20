@@ -146,3 +146,35 @@ tool payloads.
 
 The subprocess stderr drainer keeps its rolling-window semantics and is not
 bounded per line; that lower-severity path is tracked separately.
+
+## Addendum: tool field validation on untrusted servers (2026-07-20)
+
+The same review found that the byte cap bounded only the raw read: the parsed
+tool fields were still used verbatim. A `tools/list` response carries a tool
+`name`, an optional `description`, and the `initialize` handshake carries a
+server `instructions` string, all free text chosen by the server. The name
+became a tool registry key (`mcp:<server>/<tool>`) and a structured tracing
+field; the description and instructions flowed into the tool catalogue exposed
+to the model. A malicious server could inject control characters to forge
+tracing lines, break the registry key separator, plant instructions in the
+model context, or advertise thousands of tools to exhaust context and memory.
+
+Every such field is now validated and bounded at the ingestion boundary, before
+it reaches any consumer:
+
+- Tool names must be non-empty, at most 128 bytes, and drawn from
+  `[A-Za-z0-9_.-]`. A name is a registry key and a `tools/call` argument, so a
+  malformed one cannot be silently rewritten: the offending tool is dropped
+  (the server's well-formed tools are kept). The raw name is never logged, since
+  it is the forgery vector the guard exists to contain.
+- Descriptions and the server instructions string are stripped of control
+  characters and truncated on a UTF-8 boundary (8 KiB and 16 KiB respectively).
+- The number of tools retained from a server is capped by `max_tools` on the
+  server configuration (default 256, bounds [1, 8192], persisted with the server
+  record, same shape as `max_response_bytes`). Tools beyond the cap are dropped.
+
+Legitimate servers are unaffected: real tool names (`GetWeather`,
+`notion.search`) pass the charset, and normal descriptions round-trip unchanged.
+The bounding is applied once, where the session stores the discovered tools and
+instructions, so every downstream sink (the tool registry, the deferred tool
+search index, the connection-test API) receives already-bounded data.

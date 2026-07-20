@@ -278,6 +278,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,
+            max_tools: 256,
             tags: vec![],
         }
     }

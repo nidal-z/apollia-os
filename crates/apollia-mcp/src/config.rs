@@ -152,6 +152,16 @@ pub struct McpServerConfig {
     #[serde(default = "default_max_response_bytes")]
     pub max_response_bytes: u64,
 
+    /// Maximum number of tools retained from this server's `tools/list`.
+    ///
+    /// MCP servers are untrusted: a server advertising thousands of tools would
+    /// otherwise flood the tool registry and the model's tool catalogue,
+    /// exhausting context and memory. Tools beyond this cap are dropped at
+    /// discovery. Default: 256. Bounds: `[1, 8192]`. Raise it for aggregating
+    /// servers that legitimately expose many tools.
+    #[serde(default = "default_max_tools")]
+    pub max_tools: u32,
+
     /// Additional tags applied to every tool advertised by this server.
     #[serde(default)]
     pub tags: Vec<String>,
@@ -173,6 +183,10 @@ fn default_max_response_bytes() -> u64 {
     8 * 1024 * 1024
 }
 
+fn default_max_tools() -> u32 {
+    256
+}
+
 /// Lower bound for `max_response_bytes` (1 KiB): below this even a single
 /// JSON-RPC handshake line would not fit, which is a misconfiguration.
 const MIN_MAX_RESPONSE_BYTES: u64 = 1024;
@@ -180,6 +194,14 @@ const MIN_MAX_RESPONSE_BYTES: u64 = 1024;
 /// Upper bound for `max_response_bytes` (1 GiB): a ceiling generous enough for
 /// any realistic tool payload while still bounding memory.
 const MAX_MAX_RESPONSE_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// Lower bound for `max_tools`: a server must be allowed to expose at least one
+/// tool, and zero would silently disable it.
+const MIN_MAX_TOOLS: u32 = 1;
+
+/// Upper bound for `max_tools`: a ceiling generous enough for any realistic
+/// aggregating server while still bounding registry and context growth.
+const MAX_MAX_TOOLS: u32 = 8192;
 
 /// Errors that can occur while loading or validating MCP configuration.
 #[derive(Debug, Error)]
@@ -241,6 +263,15 @@ pub enum McpConfigError {
         server: String,
         /// The out-of-range value.
         value: u64,
+    },
+
+    /// `max_tools` is outside the valid range `[1, 8192]`.
+    #[error("server '{server}': max_tools must be in [1, 8192], got {value}")]
+    InvalidMaxTools {
+        /// Server name.
+        server: String,
+        /// The out-of-range value.
+        value: u32,
     },
 
     /// The `url` field does not carry an `http://` or `https://` scheme.
@@ -338,6 +369,7 @@ impl McpServerConfig {
     /// - `init_timeout_secs` is in `[1, 300]`
     /// - `call_timeout_secs` is in `[1, 600]`
     /// - `max_response_bytes` is in `[1024, 1_073_741_824]`
+    /// - `max_tools` is in `[1, 8192]`
     pub fn validate(&self) -> Result<(), McpConfigError> {
         if self.name.is_empty() {
             return Err(McpConfigError::EmptyServerName);
@@ -369,6 +401,13 @@ impl McpServerConfig {
             return Err(McpConfigError::InvalidMaxResponseBytes {
                 server: self.name.clone(),
                 value: self.max_response_bytes,
+            });
+        }
+
+        if !(MIN_MAX_TOOLS..=MAX_MAX_TOOLS).contains(&self.max_tools) {
+            return Err(McpConfigError::InvalidMaxTools {
+                server: self.name.clone(),
+                value: self.max_tools,
             });
         }
 
@@ -637,6 +676,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -661,6 +701,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN
@@ -685,6 +726,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -708,6 +750,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -735,6 +778,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN
@@ -758,6 +802,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -781,6 +826,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -805,6 +851,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN validation rejects with a guidance-bearing error.
@@ -830,6 +877,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -861,6 +909,7 @@ mod tests {
                 init_timeout_secs: 30,
                 call_timeout_secs: 60,
                 max_response_bytes: default_max_response_bytes(),
+                max_tools: 256,
                 tags: vec![],
             };
             // WHEN / THEN: must accept all of these.
@@ -921,6 +970,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         }
     }
@@ -1090,6 +1140,7 @@ mod tests {
             init_timeout_secs: 0,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1113,6 +1164,7 @@ mod tests {
             init_timeout_secs: 301,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1136,6 +1188,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 0,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1159,6 +1212,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1182,6 +1236,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1202,6 +1257,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1222,6 +1278,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1245,6 +1302,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
+            max_tools: 256,
             tags: vec![],
         };
         // WHEN / THEN
@@ -1344,5 +1402,54 @@ mod tests {
         let config = McpConfig::load(file.path()).unwrap();
         // THEN the serde default (8 MiB) is applied
         assert_eq!(config.servers[0].max_response_bytes, 8 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_mcp_max_tools_below_min_returns_validation_error() {
+        // GIVEN max_tools below the floor of 1 (zero would disable the server)
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_tools = 0;
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidMaxTools { value: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_max_tools_above_max_returns_validation_error() {
+        // GIVEN max_tools above the 8192 ceiling
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_tools = 8193;
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidMaxTools { value: 8193, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_max_tools_within_bounds_passes_validation() {
+        // GIVEN a max_tools inside [1, 8192]
+        let mut config = server_with_env("notion", HashMap::new());
+        config.max_tools = 1024;
+        // WHEN / THEN
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_max_tools_defaults_when_absent_from_toml() {
+        // GIVEN a mcp.toml entry that omits max_tools
+        let toml_content = r#"
+            [[servers]]
+            name = "notion"
+            command = "npx"
+        "#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN the config is loaded
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN the serde default (256) is applied
+        assert_eq!(config.servers[0].max_tools, 256);
     }
 }

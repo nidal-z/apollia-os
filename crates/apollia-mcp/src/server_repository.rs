@@ -66,6 +66,7 @@ impl McpServerRepository {
                 init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
                 call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
                 max_response_bytes INTEGER NOT NULL DEFAULT 8388608,
+                max_tools          INTEGER NOT NULL DEFAULT 256,
                 tags_json          TEXT NOT NULL DEFAULT '[]',
                 enabled            INTEGER NOT NULL DEFAULT 1,
                 created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -79,6 +80,15 @@ impl McpServerRepository {
         // which is expected; any other error is a real migration failure.
         if let Err(e) = conn.execute_batch(
             "ALTER TABLE mcp_servers ADD COLUMN max_response_bytes INTEGER NOT NULL DEFAULT 8388608;",
+        ) {
+            if !e.to_string().contains("duplicate column name") {
+                return Err(McpRepoError::Db(e));
+            }
+        }
+        // Additive migration for databases created before max_tools existed.
+        // Same idempotency contract as the max_response_bytes migration above.
+        if let Err(e) = conn.execute_batch(
+            "ALTER TABLE mcp_servers ADD COLUMN max_tools INTEGER NOT NULL DEFAULT 256;",
         ) {
             if !e.to_string().contains("duplicate column name") {
                 return Err(McpRepoError::Db(e));
@@ -105,8 +115,8 @@ impl McpServerRepository {
             "INSERT INTO mcp_servers
                 (name, command, args_json, env_json, transport, url,
                  requires_approval, init_timeout_secs, call_timeout_secs,
-                 max_response_bytes, tags_json, enabled, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1,
+                 max_response_bytes, max_tools, tags_json, enabled, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 1,
                      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(name) DO UPDATE SET
                 command            = excluded.command,
@@ -118,6 +128,7 @@ impl McpServerRepository {
                 init_timeout_secs  = excluded.init_timeout_secs,
                 call_timeout_secs  = excluded.call_timeout_secs,
                 max_response_bytes = excluded.max_response_bytes,
+                max_tools          = excluded.max_tools,
                 tags_json          = excluded.tags_json,
                 updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
@@ -131,6 +142,7 @@ impl McpServerRepository {
                 config.init_timeout_secs as i64,
                 config.call_timeout_secs as i64,
                 config.max_response_bytes as i64,
+                config.max_tools as i64,
                 tags_json,
             ],
         )?;
@@ -142,7 +154,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json, max_response_bytes
+                    tags_json, max_response_bytes, max_tools
              FROM mcp_servers
              ORDER BY name",
         )?;
@@ -156,7 +168,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json, max_response_bytes
+                    tags_json, max_response_bytes, max_tools
              FROM mcp_servers
              WHERE name = ?1",
         )?;
@@ -240,6 +252,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let init_timeout_secs: i64 = row.get(7)?;
     let call_timeout_secs: i64 = row.get(8)?;
     let max_response_bytes: i64 = row.get(10)?;
+    let max_tools: i64 = row.get(11)?;
 
     let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
     let env: HashMap<String, String> = serde_json::from_str(&env_json).unwrap_or_default();
@@ -256,6 +269,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
         init_timeout_secs: init_timeout_secs as u64,
         call_timeout_secs: call_timeout_secs as u64,
         max_response_bytes: max_response_bytes as u64,
+        max_tools: max_tools as u32,
         tags,
     })
 }
@@ -278,6 +292,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,
+            max_tools: 256,
             tags: vec![],
         }
     }
@@ -370,6 +385,7 @@ mod tests {
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,
+            max_tools: 256,
             tags: vec![],
         };
 
@@ -425,6 +441,7 @@ mod tests {
             init_timeout_secs: 45,
             call_timeout_secs: 90,
             max_response_bytes: 4 * 1024 * 1024,
+            max_tools: 42,
             tags: vec!["productivity".to_string()],
         };
 
@@ -440,6 +457,7 @@ mod tests {
         assert_eq!(found.init_timeout_secs, 45);
         assert_eq!(found.call_timeout_secs, 90);
         assert_eq!(found.max_response_bytes, 4 * 1024 * 1024);
+        assert_eq!(found.max_tools, 42);
         assert_eq!(found.tags, vec!["productivity"]);
     }
 
@@ -453,6 +471,47 @@ mod tests {
         // WHEN opened a second time
         // THEN no error (CREATE TABLE IF NOT EXISTS is idempotent)
         assert!(McpServerRepository::open(&path).is_ok());
+    }
+
+    #[test]
+    fn test_max_tools_column_backfills_on_legacy_db() {
+        // GIVEN a legacy db whose schema predates the max_tools column
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("mcp.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE mcp_servers (
+                    name               TEXT PRIMARY KEY,
+                    command            TEXT NOT NULL DEFAULT '',
+                    args_json          TEXT NOT NULL DEFAULT '[]',
+                    env_json           TEXT NOT NULL DEFAULT '{}',
+                    transport          TEXT NOT NULL DEFAULT 'stdio',
+                    url                TEXT,
+                    requires_approval  INTEGER NOT NULL DEFAULT 0,
+                    init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
+                    call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
+                    max_response_bytes INTEGER NOT NULL DEFAULT 8388608,
+                    tags_json          TEXT NOT NULL DEFAULT '[]',
+                    enabled            INTEGER NOT NULL DEFAULT 1,
+                    created_at         TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z',
+                    updated_at         TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z'
+                );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO mcp_servers (name, command) VALUES ('legacy', 'npx')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN the repository opens the db (running the additive migration)
+        let repo = McpServerRepository::open(&path).unwrap();
+
+        // THEN the pre-existing row reads back with the default max_tools
+        let found = repo.find_by_name("legacy").unwrap().unwrap();
+        assert_eq!(found.max_tools, 256);
     }
 
     #[test]

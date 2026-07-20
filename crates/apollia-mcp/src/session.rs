@@ -468,7 +468,10 @@ impl McpSession {
 
         self.capabilities = init_result.capabilities;
         self.server_info = init_result.server_info;
-        self.instructions = init_result.instructions;
+        self.instructions = crate::sanitize::sanitize_free_text(
+            init_result.instructions,
+            crate::sanitize::MAX_INSTRUCTIONS_LEN,
+        );
 
         self.send_notification("notifications/initialized", None)
             .await?;
@@ -500,7 +503,11 @@ impl McpSession {
             tracing::warn!(server = %self.config.name, "MCP server exposes no tools");
         }
 
-        self.tools = result.tools;
+        self.tools = crate::sanitize::sanitize_tool_definitions(
+            result.tools,
+            &self.config.name,
+            self.config.max_tools as usize,
+        );
         Ok(())
     }
 
@@ -521,8 +528,12 @@ impl McpSession {
                 cause: e.to_string(),
             })?;
 
-        self.tool_index = result
-            .tools
+        let sanitized = crate::sanitize::sanitize_tool_definitions(
+            result.tools,
+            &self.config.name,
+            self.config.max_tools as usize,
+        );
+        self.tool_index = sanitized
             .into_iter()
             .map(|tool| ToolIndexEntry {
                 name: tool.name,
@@ -1022,6 +1033,7 @@ mod tests {
             init_timeout_secs,
             call_timeout_secs,
             max_response_bytes: 8 * 1024 * 1024,
+            max_tools: 256,
             tags: vec![],
         }
     }

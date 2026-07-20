@@ -37,7 +37,33 @@ flow runs before a transport exists.
 
 ---
 
-## 2. Errors and configuration
+## 2. Tool fields are validated and bounded
+
+The byte cap bounds the raw read; it does not bound the parsed tool metadata.
+A server's `tools/list` names and descriptions, and the `initialize`
+`instructions` string, are untrusted free text that reaches sensitive sinks: a
+name becomes a tool registry key (`mcp:<server>/<tool>`) and a tracing field,
+descriptions and instructions flow into the model's tool catalogue. They are
+validated and bounded once, at the session ingestion boundary
+(`discover_tools`, `discover_tools_index`, the `initialize` handler), via
+`sanitize.rs`:
+
+- Tool names: non-empty, at most 128 bytes, charset `[A-Za-z0-9_.-]`. A bad
+  name is a bad registry key and a bad `tools/call` argument, so the tool is
+  dropped, not rewritten; the server's other tools survive. Never log a raw
+  tool name from an untrusted server: it is the tracing-forgery vector.
+- Descriptions and instructions: control characters stripped, truncated on a
+  UTF-8 boundary.
+- Tool count: capped by `max_tools` on `McpServerConfig` (default 256, bounds
+  `[1, 8192]`).
+
+Sanitize at ingestion, never at each sink. Every downstream consumer (registry,
+deferred tool-search index, `test_connection` API) reads the already-bounded
+session state, so a new sink needs no extra guard. See ADR-017 (addendum).
+
+---
+
+## 3. Errors and configuration
 
 - Errors use `thiserror` (`TransportError`, `McpConfigError`, `McpRepoError`).
   No `anyhow`, no `unwrap`/`expect`/`panic!` outside tests.
@@ -50,10 +76,13 @@ flow runs before a transport exists.
 
 ---
 
-## 3. Tests
+## 4. Tests
 
 Transport tests use a local axum server on an ephemeral TCP port (HTTP/SSE) or
 a real subprocess (`cat`, `sh`) for stdio; config tests use `tempfile`. Write
 them GIVEN / WHEN / THEN. Any new bounded read gets both a rejection test
 (oversized input aborts with the typed error) and a legitimate-path test
-(normal input still round-trips under a small cap).
+(normal input still round-trips under a small cap). The same rule applies to a
+new bounded or validated tool field (see section 2): a rejection test (malicious
+name dropped, control characters stripped, list capped) and a legitimate-path
+test (real names and descriptions pass through unchanged).

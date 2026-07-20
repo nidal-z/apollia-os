@@ -32,6 +32,7 @@ fn mock_server_config(name: &str) -> McpServerConfig {
         init_timeout_secs: 10,
         call_timeout_secs: 10,
         max_response_bytes: 8 * 1024 * 1024,
+        max_tools: 256,
         tags: vec![],
     }
 }
