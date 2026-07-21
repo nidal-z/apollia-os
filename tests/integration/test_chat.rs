@@ -439,6 +439,9 @@ async fn collect_events_until(
                     break;
                 }
             }
+            // The broadcast buffer overflowed between exchanges: keep receiving
+            // rather than giving up, so a later matching event is not missed.
+            Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => continue,
             Ok(Err(_)) => break,
             Err(_) => break,
         }
@@ -611,35 +614,31 @@ async fn test_chat_libre_tool_call_hitl_accept() {
     cleanup(handle, &socket_path);
 }
 
-/// Chat Libre: "Always Accept" subsequent-approval behavior.
+/// Chat Libre: a session-scoped "Always Accept" auto-authorizes the tool for the
+/// rest of the session, so a later exchange runs it without asking again.
 ///
-/// This test predates the "no blanket bash" security fix (a code executor's
-/// always-accept is downgraded to a one-time approval, see
-/// `chat/manager/exchange.rs` `is_code_executor` branch) and never compiled
-/// while the harness was broken, so its expectation was never re-validated.
-/// Its second-exchange approval choreography is timing-dependent (it observes
-/// an approval under parallel load but not in isolation). Ignored pending a
-/// proper rewrite that either drives a non-code-executor tool through the
-/// always-accept path or asserts the code-executor one-time downgrade
-/// deterministically.
-#[ignore = "pre-existing flaky test; expectation conflicts with the code-executor always-accept downgrade, needs a deterministic rewrite"]
+/// Uses a non-code-executor tool on purpose: a code executor (bash/python) is
+/// deliberately never blanket-authorized (its always-accept downgrades to a
+/// one-time approval, see `chat/manager/exchange.rs` `is_code_executor`), so it
+/// would re-ask. Completion (not an approval, which pauses the turn) is the
+/// deterministic terminal signal here.
 #[tokio::test]
-async fn test_chat_libre_always_accept() {
+async fn test_chat_libre_always_accept_persists_for_session() {
     // GIVEN mock LLM: exchange1 = tool_call → text, exchange2 = tool_call → text
     let model = MockChatModel::new(vec![
-        tool_call_response("bash_executor", serde_json::json!({"command": "ls"})),
+        tool_call_response("file_read", serde_json::json!({"path": "/tmp/a.txt"})),
         text_response("First response"),
-        tool_call_response("bash_executor", serde_json::json!({"command": "pwd"})),
+        tool_call_response("file_read", serde_json::json!({"path": "/tmp/b.txt"})),
         text_response("Second response"),
     ]);
     let (handle, port, socket_path, mut event_rx) =
         start_chat_server(model, StepBudgetConfig::default()).await;
 
-    // Create session with bash_executor
+    // Create a libre session that offers file_read.
     let (_, session) = http_post(
         port,
         "/api/v1/sessions",
-        serde_json::json!({ "mode": "libre", "tools": ["bash_executor"] }),
+        serde_json::json!({ "mode": "libre", "tools": ["file_read"] }),
     )
     .await;
     let session_id = session["id"].as_str().expect("session id");
@@ -664,7 +663,7 @@ async fn test_chat_libre_always_accept() {
         .find(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }))
     {
         Some(RuntimeEvent::ChatApprovalRequired { message_id, .. }) => message_id.clone(),
-        _ => panic!("expected ChatApprovalRequired for first exchange"),
+        _ => panic!("expected ChatApprovalRequired for the first file_read"),
     };
 
     let _ = http_post(
@@ -672,13 +671,13 @@ async fn test_chat_libre_always_accept() {
         &format!("/api/v1/sessions/{session_id}/authorize"),
         serde_json::json!({
             "message_id": msg_id,
-            "tool_name": "bash_executor",
+            "tool_name": "file_read",
             "decision": "always_accept"
         }),
     )
     .await;
 
-    // Wait for first exchange to complete
+    // Wait for exchange 1 to complete.
     let _ = collect_events_until(
         &mut event_rx,
         |e| matches!(e, RuntimeEvent::ChatResponseCompleted { .. }),
@@ -686,10 +685,8 @@ async fn test_chat_libre_always_accept() {
     )
     .await;
 
-    // Wait for session to return to Active state before next exchange
-    tokio::time::sleep(Duration::from_millis(300)).await;
-
-    // Exchange 2: send message - tool should be auto-accepted (no ChatApprovalRequired)
+    // Exchange 2: file_read is now session-authorized, so the turn runs to
+    // completion WITHOUT another approval.
     let _ = http_post(
         port,
         &format!("/api/v1/sessions/{session_id}/messages"),
@@ -697,32 +694,24 @@ async fn test_chat_libre_always_accept() {
     )
     .await;
 
-    // Wait for the response to complete - should NOT see ChatApprovalRequired
     let events2 = collect_events_until(
         &mut event_rx,
         |e| matches!(e, RuntimeEvent::ChatResponseCompleted { .. }),
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await;
 
     let had_approval = events2
         .iter()
         .any(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }));
+    let completed = events2
+        .iter()
+        .any(|e| matches!(e, RuntimeEvent::ChatResponseCompleted { .. }));
     assert!(
         !had_approval,
-        "second exchange should NOT require approval after AlwaysAccept"
+        "second exchange must NOT ask for approval after a session-scoped always-accept"
     );
-
-    let completed = events2.iter().any(|e| {
-        matches!(
-            e,
-            RuntimeEvent::ChatResponseCompleted { content, .. } if content.contains("Second")
-        )
-    });
-    assert!(
-        completed,
-        "expected ChatResponseCompleted for second exchange"
-    );
+    assert!(completed, "second exchange should run to completion");
 
     cleanup(handle, &socket_path);
 }

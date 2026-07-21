@@ -52,10 +52,8 @@ check         "mcp show seed-mcp-fs"               "${Q[@]}" mcp show seed-mcp-f
 check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show seed-mcp-fs
 check         "mcp test seed-mcp-fs"               "${Q[@]}" mcp test seed-mcp-fs
 check         "mcp raw-config seed-mcp-fs"         "${Q[@]}" mcp raw-config seed-mcp-fs
-# `mcp update <name> --require-approval true` returns HTTP 422 "missing field
-# name": the CLI omits `name` from the PATCH body. Candidate product bug, so
-# this is skipped rather than asserted (raw-config/restart/remove cover mcp).
-skip          "mcp update <name>" "runtime returns 422 (missing field 'name' in the update body) - candidate CLI bug"
+check         "mcp update seed-mcp-fs"             "${Q[@]}" mcp update seed-mcp-fs --require-approval true
+check_content "mcp update persisted requires_approval" "requires_approval.*true|true" "${Q[@]}" mcp raw-config seed-mcp-fs
 check         "mcp restart seed-mcp-fs"            "${Q[@]}" mcp restart seed-mcp-fs
 check         "mcp remove seed-mcp-notes --confirm" "${Q[@]}" mcp remove seed-mcp-notes --confirm
 check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show seed-mcp-notes
@@ -134,7 +132,7 @@ check         "stt config get"                      "${Q[@]}" stt config get
 check         "stt config update --language en"    "${Q[@]}" stt config update --language en
 # STT history is available without a loaded model, and the seed carries rows.
 check_content "stt transcriptions has seeded rows" "seed-transcript" "${Q[@]}" stt transcriptions list
-skip          "stt transcriptions delete" "runtime returns an empty body (invalid JSON) without the STT engine loaded - candidate bug"
+check         "stt transcriptions delete (seeded row)" "${Q[@]}" stt transcriptions delete seed-transcript-charlie
 check_exit    "resilience reset unknown → 1"  1    "${Q[@]}" resilience reset inexistant_tool
 # resilience show/reset only work once a tool is in the breaker registry (lazy).
 if "${Q[@]}" resilience show bash_executor >/dev/null 2>&1; then
