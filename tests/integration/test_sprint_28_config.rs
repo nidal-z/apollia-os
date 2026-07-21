@@ -92,6 +92,8 @@ fn mcp_server(name: &str) -> McpServerConfig {
         init_timeout_secs: 30,
         call_timeout_secs: 60,
         tags: vec![],
+        max_response_bytes: 8 * 1024 * 1024,
+        max_tools: 256,
     }
 }
 

@@ -68,13 +68,15 @@ mod tests {
     }
 
     #[test]
-    fn test_block_instructs_discovery_not_assumptions() {
+    fn test_block_instructs_discovery_and_respects_gates() {
         // GIVEN the static block (no session content interpolated)
         let block = plan_mode_block();
 
         // WHEN inspecting the safety wording
-        // THEN it tells the model not to invent assumptions and to respect gates
-        assert!(block.contains("Do not invent assumptions"));
+        // THEN it steers discovery decisively while respecting the step budget
+        // and all approval gates.
+        assert!(block.contains("Discovery first"));
         assert!(block.contains("step budget"));
+        assert!(block.contains("approval gates"));
     }
 }
