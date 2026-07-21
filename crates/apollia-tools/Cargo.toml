@@ -30,7 +30,7 @@ url          = "2"
 reqwest        = { workspace = true, optional = true }
 apollia-memory = { workspace = true, optional = true }
 scraper        = { version = "0.26", optional = true }
-dom_smoothie   = { version = "0.17", optional = true }
+dom_smoothie   = { version = "0.18", optional = true }
 
 # POSIX setrlimit for per-process resource limits on tool child processes.
 # The leanest path for the syscall (already transitive in the lock); see ADR-044.
