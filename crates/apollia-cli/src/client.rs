@@ -1650,6 +1650,11 @@ impl RuntimeClient {
                 body: extract_error(&resp.body, resp.status),
             });
         }
+        // The runtime returns 204 No Content (empty body) on success (delete is
+        // idempotent), so an empty body is success, not malformed JSON.
+        if resp.body.trim().is_empty() {
+            return Ok(serde_json::json!({ "deleted": id }));
+        }
         Ok(serde_json::from_str(&resp.body)?)
     }
 
