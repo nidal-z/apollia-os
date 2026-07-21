@@ -15,7 +15,7 @@ serde        = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
 cpal         = "0.15"
-rubato       = "0.15"
+rubato       = "4.0"
 tracing      = { workspace = true }
 
 [dev-dependencies]

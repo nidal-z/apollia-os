@@ -40,7 +40,7 @@ whisper-rs      = { version = "0.16", optional = true }
 
 # Audio (toujours nécessaire pour /stt/*)
 hound = { workspace = true }
-rubato = "0.15"
+rubato = "4.0"
 
 [dev-dependencies]
 tempfile = "3"
