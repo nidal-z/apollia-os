@@ -114,7 +114,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
 http-body-util = "0.1"
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.5", features = ["trace"] }
 # OpenAPI spec generation (apollia-runtime only; the spec is served by a plain
 # handler, so there is no axum version coupling). Build-time contract artifact.
