@@ -129,7 +129,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 
 # --- Cryptography ---
 sha2 = "0.10"
-hmac = "0.12"
+hmac = "0.13"
 aes-gcm = "0.10"
 
 # --- Random ---
