@@ -182,7 +182,7 @@ hf-hub = "0.3"
 indicatif = "0.17"
 
 # --- System information (RAM, OS, GPU detection - apollia-desktop onboarding) ---
-sysinfo = "0.31"
+sysinfo = "0.39"
 
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
 arboard = "3"
