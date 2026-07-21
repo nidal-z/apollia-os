@@ -80,7 +80,7 @@ do on its own. The tier is a deliberate dial an operator sets, not a property of
 the agent, so the same agent can run cautiously or freely depending on the
 context and the trust the operator extends.
 
-### Non-bypassable safeguards
+### Non-negotiable safeguards
 
 The runtime enforces a step budget on every autonomous run: a ceiling on
 reasoning steps, on tool calls, and on wall-clock time. It is enforced by the

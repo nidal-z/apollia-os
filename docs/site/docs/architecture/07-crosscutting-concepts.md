@@ -29,7 +29,7 @@ This concept has its own page, which also maps the controls to the EU AI Act.
 This section does not duplicate it: read
 [the accountability model](/explanation/accountability-model).
 
-## Non-bypassable safeguards
+## Non-negotiable safeguards
 
 The runtime enforces a step budget on every autonomous run: a ceiling on
 reasoning steps, on tool calls, and on wall-clock time. It is enforced by the

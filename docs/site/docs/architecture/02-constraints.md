@@ -25,7 +25,7 @@ from the eight principles that govern the project.
    with no shared mutable state between them. They communicate only by message.
 6. **Memory at agent initiative.** The runtime never auto-injects memory context
    into a prompt. An agent recalls when it chooses to.
-7. **Non-bypassable safeguards.** A step budget is enforced by the runtime and
+7. **Non-negotiable safeguards.** A step budget is enforced by the runtime and
    cannot be bypassed by an agent.
 8. **Human CLI, machine API.** The CLI is for people (TTY-aware, a global
    `--json`); the API is for programs.

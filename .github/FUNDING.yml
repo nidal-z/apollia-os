@@ -1,7 +1,8 @@
 # Funding rails for Apollia OS. Renders the "Sponsor" button on the repo.
 # Ref: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
-# Maintainer checklist before flipping the repo public: verify the three
-# funding handles below (GitHub org, Patreon, Ko-fi) resolve to live pages.
+# Confirmed rails: GitHub Sponsors (Apollia-OS org), Patreon, Ko-fi, plus the
+# apollia.fr support page. The GitHub Sponsors button renders once the org's
+# Sponsors profile is approved and live.
 github: [Apollia-OS]
 patreon: apollia
 ko_fi: apollia

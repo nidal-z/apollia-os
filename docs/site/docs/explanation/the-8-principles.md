@@ -67,7 +67,7 @@ attribute. Leaving recall to the agent's initiative keeps the record of what fed
 a decision honest. The memory layer itself is exportable and importable, which is
 why it belongs to sovereignty as much as to agency.
 
-## 7. Non-bypassable safeguards
+## 7. Non-negotiable safeguards
 
 Every autonomous run is bounded by a step budget the runtime enforces: a ceiling
 on reasoning steps, tool calls, and wall-clock time. An agent cannot raise or
