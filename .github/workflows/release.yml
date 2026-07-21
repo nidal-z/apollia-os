@@ -6,9 +6,11 @@
 # Produit, en parallèle :
 #   1. 13 binaires CLI self-contained (Python + CRT statique bundlés)
 #      → tarball/zip par preset OS × arch × accélérateur
-#   2. Desktop bundle macOS ARM64 (.dmg via Tauri 2)
-#      [Linux .deb/.AppImage + Windows .msi : à étendre - pour l'instant
-#       le binaire CLI + launcher couvre Windows/Linux pour les power-users]
+#   2. Desktop installers (Tauri 2), un job par OS :
+#        macOS ARM64  : .dmg
+#        Linux x86_64 : .deb + .AppImage
+#        Windows x86_64 : .msi + .exe (NSIS)
+#      Chaque job desktop embarque le meme bundle Python (PyO3) que le job CLI.
 #
 # Job final `release` agrège tout dans une GitHub Release draft (review manuel
 # avant publication).
@@ -554,9 +556,9 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev librsvg2-dev \
-            libsoup-3.0-dev javascriptcoregtk-4.1 \
-            python3-dev clang cmake \
-            file
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            libxdo-dev curl wget file \
+            python3-dev clang cmake
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
