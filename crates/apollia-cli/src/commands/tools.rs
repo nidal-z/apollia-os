@@ -15,7 +15,7 @@ use std::time::Instant;
 use apollia_core::{ToolsConfig, WebSearchBackend};
 use apollia_tools::{
     governance_db::GOVERNANCE_DB_FILENAME, CredentialEntry, NativeToolRegistry,
-    ToolCredentialStore, ToolGovernanceError, NATIVE_TOOL_NAMES,
+    ToolCredentialStore, ToolGovernanceError, AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
 };
 use clap::Subcommand;
 use toml_edit::{DocumentMut, Item, Value};
@@ -109,9 +109,9 @@ pub enum ToolsCredentialsCmd {
     },
     /// Store a credential `(tool, key)` after an interactive masked prompt.
     Set {
-        /// Owning tool name.
+        /// Owning tool name, or `agent` for a secret declared by an agent manifest.
         tool: String,
-        /// Logical key name (e.g. `brave.api_key`).
+        /// Logical key name (e.g. `brave.api_key`, or an agent's `hubspot_api_token`).
         key: String,
     },
     /// Delete the credential `(tool, key)`.
@@ -795,7 +795,7 @@ fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
 }
 
 fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
-    if !is_known_tool(tool) {
+    if !is_valid_credential_target(tool) {
         return emit_unknown_tool(tool, json);
     }
     let data_dir = match resolve_data_dir() {
@@ -1029,10 +1029,19 @@ fn is_known_tool(name: &str) -> bool {
     NATIVE_TOOL_NAMES.contains(&name)
 }
 
+/// A credential can be attached to a native tool or to the shared `agent`
+/// namespace (secrets an agent declares in its manifest).
+fn is_valid_credential_target(name: &str) -> bool {
+    is_known_tool(name) || name == AGENT_CREDENTIALS_NAMESPACE
+}
+
 fn emit_unknown_tool(name: &str, json: bool) -> i32 {
     let known = NATIVE_TOOL_NAMES.join(", ");
     emit_error(
-        format!("outil inconnu '{name}' - outils natifs disponibles : {known}"),
+        format!(
+            "cible inconnue '{name}' - outils natifs disponibles : {known} ; \
+             ou '{AGENT_CREDENTIALS_NAMESPACE}' pour un secret déclaré par un agent"
+        ),
         json,
     )
 }
@@ -1210,6 +1219,37 @@ mod tests {
         // THEN bash_executor is known, but "fake_tool" is not.
         assert!(is_known_tool("bash_executor"));
         assert!(!is_known_tool("fake_tool"));
+    }
+
+    #[test]
+    fn credential_target_accepts_agent_namespace() {
+        // GIVEN a credential target.
+        // WHEN it is a native tool, the agent namespace, or an unknown name.
+        // THEN native tools and the agent namespace are valid targets, others not.
+        assert!(is_valid_credential_target("web_search"));
+        assert!(is_valid_credential_target(AGENT_CREDENTIALS_NAMESPACE));
+        assert!(is_valid_credential_target("agent"));
+        assert!(!is_valid_credential_target("fake_tool"));
+        // The agent namespace is not itself a native tool.
+        assert!(!is_known_tool(AGENT_CREDENTIALS_NAMESPACE));
+    }
+
+    #[test]
+    fn agent_secret_roundtrips_through_the_credential_store() {
+        // GIVEN a fresh credential store (same path the CLI resolves).
+        let dir = TempDir::new().expect("tempdir");
+        apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
+        let mut store = ToolCredentialStore::new(&db_path(dir.path()), &keyfile_path(dir.path()))
+            .expect("open store");
+        // WHEN a secret is stored under the agent namespace and read back.
+        store
+            .set(AGENT_CREDENTIALS_NAMESPACE, "hubspot_api_token", "sk-demo")
+            .expect("set agent secret");
+        // THEN it is retrievable, proving the CLI path writes where agents read.
+        let got = store
+            .get(AGENT_CREDENTIALS_NAMESPACE, "hubspot_api_token")
+            .expect("get agent secret");
+        assert_eq!(got.as_deref(), Some("sk-demo"));
     }
 
     #[test]

@@ -48,6 +48,14 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "permission_rule_list",
 ];
 
+/// Credential-store namespace for secrets an agent declares in its manifest.
+/// All agents share this single namespace; the `AgentSecrets` interface in the
+/// Python bridge resolves lookups under the same name. It is a valid credential
+/// target alongside [`NATIVE_TOOL_NAMES`], so operators can provision an agent
+/// secret from the CLI (`apollia-os tools credentials set agent <key>`) as well
+/// as from the desktop credential manager.
+pub const AGENT_CREDENTIALS_NAMESPACE: &str = "agent";
+
 /// Error returned by [`ToolRegistry`] and [`ToolCredentialStore`].
 #[derive(Debug, thiserror::Error)]
 pub enum ToolGovernanceError {

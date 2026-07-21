@@ -430,12 +430,17 @@ secrets live in the operator-managed credential store under the fixed `agent`
 namespace; `ctx.secrets` reads them, never writes them. The operator provisions
 the value once, it is stored encrypted, and the worker only reads it at run time.
 
-The `apollia-os tools credentials set <tool> <key>` command provisions
-credentials for the native tools (`<tool>` must be a native tool name such as
-`web_search`); it takes the tool and key as positional arguments and prompts once
-for the value with the input masked. Secrets in the `agent` namespace are
-provisioned through the desktop credential manager. See
-[`ctx.secrets`](/reference/sdk/secrets) for how the worker reads the value.
+The `apollia-os tools credentials set <target> <key>` command provisions the
+value. The `<target>` is either a native tool name (such as `web_search`) or the
+literal `agent` namespace for a secret an agent declared in its manifest:
+
+```bash
+apollia-os tools credentials set agent hubspot_api_token
+# prompts once for the value, input masked, stored encrypted
+```
+
+The same value is also settable from the desktop credential manager. See
+[`ctx.secrets`](/reference/sdk/secrets) for how the worker reads it back.
 
 Confirm the three workers are active and their skills are exposed:
 

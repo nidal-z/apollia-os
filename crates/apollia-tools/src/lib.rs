@@ -75,7 +75,8 @@ pub use task_repository::{
 };
 pub use tool_registry::{
     load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,
-    ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus, NATIVE_TOOL_NAMES,
+    ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus,
+    AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
 };
 pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
 pub use tools::bash_validator::BashValidator;
