@@ -4,12 +4,12 @@
 > They run on your machine, you can prove everything they do,
 > and they are as capable as the model you plug in.
 
-Local-first. Zero cloud. Sovereign by design.
+Local-first. No cloud dependency. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-<!-- OpenSSF Best Practices badge. Activate by registering the project at
-     https://www.bestpractices.dev/, then replace PROJECT_ID below and uncomment:
+<!-- TODO(maintainer): register the project at https://www.bestpractices.dev/,
+     then replace PROJECT_ID below with the numeric id it assigns and uncomment.
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
 -->
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Apollia-OS/apollia-os/badge)](https://scorecard.dev/viewer/?uri=github.com/Apollia-OS/apollia-os)
@@ -31,54 +31,79 @@ Learn more at [apollia.fr](https://apollia.fr).
 
 ## What is Apollia OS?
 
-Apollia OS is a Rust runtime that executes autonomous Python AI agents (any object exposing `manifest()` and an async `run()`) in an isolated, local environment. No data leaves your machine. No cloud dependency. Python agents run in-process: the PyO3 bridge translates async Rust futures to Python coroutines directly, with no per-agent subprocess.
+Apollia OS is a Rust runtime that executes autonomous Python AI agents in an isolated, local environment. Agents run in-process: the PyO3 bridge translates async Rust futures to Python coroutines directly, with no per-agent subprocess.
+
+Sovereign means self-contained, not feature-poor. The runtime is a single binary, the Python SDK has zero third-party dependencies, SQLite is vendored, the API binds to loopback by default, and there is no telemetry and no phone-home. Nothing is required from the cloud to run an agent. Every external host Apollia can reach (Anthropic, OpenAI, Google, Microsoft, and so on) is a backend or connector you configure yourself.
 
 **Key capabilities:**
 
-- **Local-first LLM inference** - run GGUF models on CPU or Apple Silicon Metal GPU, or connect to Anthropic / OpenAI-compatible APIs
+- **Local-first LLM inference** - run GGUF models on CPU or Apple Silicon Metal GPU, or connect to Anthropic / OpenAI-compatible / Vertex APIs
 - **Persistent memory** - three-tier SQLite store (episodic, semantic, procedural) with FTS5 full-text search per agent
-- **Native tools** - bash (Linux PID/mount namespaces), file I/O (path-confined), and Python execution with per-agent venv isolation
+- **Native tools** - bash (Linux PID/mount namespaces), path-confined file I/O, Python execution with per-agent venv isolation, HTTP fetch, web search, and more
 - **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
 - **Circuit breaker** - per-tool resilience layer with exponential backoff and jitter
-- **Triggers** - cron, interval, file watch, and authenticated webhooks (HMAC-SHA256)
-- **Multi-agent pipelines** - topological execution with per-step conditions, HITL suspension, and fallback paths
-- **Human-in-the-Loop (HITL)** - any tool can require human approval before execution; runtime suspends and resumes transparently
+- **Triggers** - cron, interval, oneshot, file watch, and authenticated webhooks (HMAC-SHA256)
+- **Multi-agent orchestration** - directors coordinate specialized workers over the A2A skill protocol, with human-in-the-loop suspension and resume
+- **Human-in-the-Loop (HITL)** - any tool can require human approval before execution; the runtime suspends and resumes transparently
 - **Desktop app** - native Tauri v2 + Svelte 5 UI with live SSE dashboards for all subsystems
-- **REST API + CLI** - full management via `apollia-os` CLI or HTTP on `127.0.0.1:7771`
+- **REST API + CLI** - full management via the `apollia-os` CLI or HTTP on `127.0.0.1:7771`
 
 ---
 
 ## Quickstart
 
-**Prerequisites:** Rust 1.89+, Python 3.12+. See [the install guide](docs/site/docs/how-to/install-and-run.md) for full installation instructions.
+Apollia is source-available: you build it from a checkout, there is no package on
+crates.io or PyPI. This sequence takes you from a clean clone to a running agent.
+The demo `echo` agent needs no model, so it runs on any machine. Run every command
+from the repository root.
+
+**Prerequisites:** a Rust toolchain (stable), Python 3.12+ available as `python3`, and `git`.
 
 ```bash
-# 1. Build the workspace
-cargo build --workspace --release
+# 1. Clone and build the daemon.
+#    Build only the CLI crate: the default workspace build excludes the heavy
+#    Tauri desktop crate, so `--workspace` is not what you want here.
+git clone https://github.com/Apollia-OS/apollia-os.git
+cd apollia-os
+cargo build -p apollia-cli --release
 
-# 2. Start the runtime (background daemon)
-apollia-os start
+# 2. Put the binary on your PATH.
+#    The crate is `apollia-cli` but the binary it produces is `apollia-os`.
+export PATH="$PWD/target/release:$PATH"
 
-# 3. Deploy the demo agent
-apollia-os agent start agents/examples/hello/agent.py
+# 3. Install the Python SDK into the same interpreter the runtime embeds.
+pip install -e ./sdk
 
-# 4. Run a task
-apollia-os run hello "Bonjour"
+# 4. Start the runtime. It runs in the FOREGROUND, so leave this terminal
+#    running and open a second one for the remaining commands.
+apollia-os start --port 7771
 
-# 5. Stop the runtime
+# --- in a second terminal, from the same directory ---
+
+# 5. Install, enable, and run the no-LLM demo agent.
+apollia-os agent install clients/examples/echo_agent.py --skip-tests
+apollia-os agent enable echo
+apollia-os run echo "hello from Apollia"
+
+# 6. Stop the runtime (graceful drain).
 apollia-os stop
 ```
 
-Expected output for step 4:
+Expected output for step 5's `run` (the task id is a fresh UUID each time):
 
 ```
-  -> Task t-001 submitted to hello
-  Executing...
-  Done in 0.3s
-
-  RESULT
-  You said: Bonjour
+  -> Task 6f2a1c8e-... submitted to echo
+echo: hello from Apollia
+  * Completed in 0.2s
 ```
+
+macOS note: PyO3 must find the right interpreter at build time. If your default
+`python3` is not the one you want, export it before building, for example
+`export PYO3_PYTHON=$(brew --prefix python@3.13)/bin/python3.13`.
+
+For an agent that generates text, configure a model backend (see [LLM Backends](#llm-backends)).
+Full instructions, including local GGUF inference, are in
+[the install guide](docs/site/docs/how-to/install-and-run.md).
 
 ---
 
@@ -106,17 +131,17 @@ Apollia OS is built around independent Tokio actors communicating over channels.
 |  |   + SANDBOX        |  |  SQLite/FTS5   |  |  local · cloud     |   |
 |  +--------------------+  +----------------+  +--------------------+   |
 |                                                                        |
-|  TriggerEngine · PipelineEngine · NotificationEngine                  |
+|  TriggerEngine · NotificationEngine · PermissionsEngine               |
 |                                                                        |
 |  +------------------------------------------------------------------+  |
 |  |                    AIP BRIDGE (PyO3)                             |  |
-|  |             Rust ↔ Python async - ToolProxy · MemoryInterface   |  |
+|  |          Rust <-> Python async · ToolProxy · MemoryInterface    |  |
 |  +------------------------------+-----------------------------------+  |
 +-------------------------------- | --------------------------------------+
                                   | AIP contract
                       +-----------v-----------+
                       |     PYTHON AGENT      |
-                      |  manifest() + run()   |
+                      |  @agent / @on_message |
                       |     (duck-typed)      |
                       +-----------------------+
 ```
@@ -130,8 +155,8 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 | Platform | CPU | GPU | Status |
 |----------|-----|-----|--------|
 | Linux x86_64 | Builds | CUDA - planned | CI/multi-OS testing wanted |
-| macOS Apple Silicon | ✅ Tested | ✅ Metal tested | No Xcode required |
-| macOS Intel | ✅ Should work | - | Not explicitly tested |
+| macOS Apple Silicon | Tested | Metal tested | No Xcode required |
+| macOS Intel | Should work | - | Not explicitly tested |
 | Windows x86_64 | Planned | CUDA - planned | Not yet tested |
 | Linux (ROCm / AMD GPU) | - | Not planned | No timeline |
 
@@ -142,256 +167,241 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 
 ## LLM Backends
 
-Apollia OS ships three backend types. The default binary (`cargo build --release`) supports only API backends. Local inference requires a feature flag.
+The default `apollia-os` binary is cloud-capable: it talks to Anthropic,
+OpenAI-compatible, and Vertex backends out of the box. Local GGUF inference is
+served by a separate sidecar, so it needs one extra build step.
 
-### Embedded - local GGUF model
+### Cloud backends
 
-```bash
-# CPU (Linux, macOS, Windows)
-cargo build --release --features local
-
-# Apple Silicon GPU (Metal - no Xcode required)
-cargo build --release --features local-metal
-
-# NVIDIA GPU (CUDA - Linux and Windows, not yet tested)
-cargo build --release --features local-cuda
-```
-
-Place any GGUF model in `~/.apollia/models/` and configure `apollia.toml`:
-
-```toml
-[llm]
-default = "local"
-
-[[llm.backends]]
-type         = "embedded"
-name         = "local"
-model_path   = "~/.apollia/models/example.gguf"
-device       = "metal"     # "cpu" | "metal" | "cuda"
-quantization = "q8_0"
-```
-
-### Cloud - Anthropic
+Configure a provider from the CLI:
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+apollia-os auth login anthropic
+apollia-os llm backends create prod --provider anthropic --model claude-sonnet-4-6 --default
+apollia-os llm status
 ```
+
+Cloud API backends can also be declared in `apollia.toml`. Only `type = "api"`
+backends are file-representable:
 
 ```toml
 [llm]
 default = "anthropic"
 
 [[llm.backends]]
-type        = "api"
 name        = "anthropic"
-api_url     = "https://api.anthropic.com/v1"
+type        = "api"
+provider    = "anthropic"
 model       = "claude-haiku-4-5-20251001"
+api_url     = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 ```
 
-### Cloud - OpenAI-compatible
+Any OpenAI-compatible endpoint (OpenAI, Mistral, Ollama, LM Studio, vLLM, and so on)
+works the same way with `provider = "openai"` and the matching `api_url`.
 
-Any OpenAI-compatible endpoint (OpenAI, Mistral, Ollama, LM Studio, vLLM, etc.):
+### Local GGUF inference
 
-```toml
-[[llm.backends]]
-type        = "api"
-name        = "openai"
-api_url     = "https://api.openai.com/v1"
-model       = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
+Local models are not configured with a `type = "embedded"` block; they are
+registered through the CLI and served by the `apollia-runner` sidecar, which
+links llama.cpp with a hardware backend. Register the model:
+
+```bash
+apollia-os llm setup --local --model /path/to/model.gguf
+apollia-os llm reload
 ```
 
-Multiple backends can coexist. `default` selects which one agents use unless they override it in their manifest.
+Then build the runner for your hardware (choose one backend) and co-locate it
+next to the `apollia-os` binary as `apollia-runner-<backend>`:
+
+```bash
+# Apple Silicon (Metal, no Xcode required)
+cargo build -p apollia-runner --release --features local-metal
+cp target/release/apollia-runner target/release/apollia-runner-metal
+
+# Portable CPU
+cargo build -p apollia-runner --release --features local-cpu
+cp target/release/apollia-runner target/release/apollia-runner-cpu
+
+# NVIDIA (needs the CUDA toolkit)
+cargo build -p apollia-runner --release --features local-cuda
+cp target/release/apollia-runner target/release/apollia-runner-cuda
+```
+
+The other backends are `local-rocm` (AMD) and `local-vulkan` (cross-vendor).
+Building a runner requires CMake and a C/C++ compiler (llama.cpp compiles from
+source). Place any `.gguf` file under `~/.apollia/models/`. If a local backend is
+configured but no matching runner is found, LLM calls fail with a
+`503 BackendUnavailable`.
+
+Multiple backends can coexist. `default` selects which one agents use unless they
+override it in their manifest.
 
 ---
 
 ## Writing an Agent
 
-An Apollia agent is any Python object with two methods - no base class, no inheritance:
+An Apollia agent is an ordinary Python class. The SDK decorators declare the
+manifest and the entry points; no base class, no inheritance. Every agent module
+ends with `agent = MyClass()`, which is what the runtime loads. Use absolute
+imports (`from apollia import ...`), never relative ones.
+
+### Conversational agent
 
 ```python
-# my_agent.py
-class MyAgent:
-    def manifest(self):
-        return {
-            "name":                  "my-agent",
-            "version":               "1.0.0",
-            "description":           "My first Apollia agent",
-            "tools_required":        [],          # e.g. ["file_io", "bash_executor"]
-            "max_concurrent_tasks":  1,
-            "execution_mode":        "direct",    # "direct" | "orchestrated"
-        }
+# coach.py
+from apollia import agent, on_message
+from apollia.types import Ctx, Message
 
-    async def run(self, task, ctx):
-        parts = task.get("input", {}).get("parts", [])
-        user_input = parts[0]["text"] if parts else ""
-        return {
-            "task_id": task["task_id"],
-            "status":  "completed",
-            "output":  [{"type": "text", "text": f"Hello: {user_input}"}],
-        }
 
-agent = MyAgent()
+@agent(
+    name="coach",
+    version="0.1.0",
+    description="Friendly product coach.",
+)
+class Coach:
+    @on_message
+    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
+        response = await ctx.llm.complete(
+            messages=[
+                {"role": "system", "content": "You are a helpful coach."},
+                *history,
+                {"role": "user", "content": message},
+            ],
+        )
+        return response.content
+
+
+agent = Coach()
 ```
+
+- **`@agent(...)`** declares the manifest. `name`, `version`, and `description` are required.
+- **`@on_message`** marks the single conversational entry point. Its signature is fixed: `(self, message, history, ctx)` returning the reply as a string.
+
+Install, enable, and talk to it:
 
 ```bash
-apollia-os agent start ./my_agent.py
-apollia-os run my-agent "Hello world"
+apollia-os agent install ./coach.py
+apollia-os agent enable coach
+apollia-os run coach "How does the Director pattern work?"
 ```
 
-### ReAct agents - `BaseReActAgent`
+### Workers and directors
 
-For agents that need to reason and call tools in a loop, inherit from `BaseReActAgent` in `agents/apollia_base.py`. It implements the full ReAct cycle (`REASON → ACT → OBSERVE`) on top of `ctx.llm` and `ctx.tools`, with built-in HITL support and conversation history persistence across suspensions:
+- A **worker** exposes typed capabilities as A2A skills with `@skill`, invocable by any director.
+- A **director** orchestrates workers by calling `react(...)`, the ReAct (Reason + Act) loop utility exported from `apollia`:
 
 ```python
-from apollia_base import BaseReActAgent, AIPResult, resume_pending_tool
+from apollia import agent, on_message, react
 
-class CodeReviewer(BaseReActAgent):
-    SYSTEM_PROMPT = "You are an expert code reviewer."
-    MAX_STEPS = 8
 
-    def manifest(self):
-        return {
-            "name":                    "code-reviewer",
-            "version":                 "1.0.0",
-            "description":             "Reviews code and writes a report",
-            "tools_required":          ["bash_executor", "file_io"],
-            "tools_requiring_approval": ["file_io"],   # HITL before writes
-            "execution_mode":          "direct",
-            "dangerous_tools_allowed": False,
-        }
+@agent(name="director", version="0.1.0", description="Coordinates workers.")
+class Director:
+    @on_message
+    async def chat(self, message, history, ctx):
+        return await react(
+            ctx,
+            system="You are a director agent.",
+            user=message,
+            tools=[
+                await ctx.a2a.skill_as_tool("pdf.read_text"),
+                await ctx.a2a.skill_as_tool("web.search"),
+            ],
+            max_steps=10,
+        )
 
-    async def run(self, task, ctx):
-        user_msg = task["input"]["parts"][0]["text"]
-        pending  = resume_pending_tool(task)              # HITL resume
-        result   = await self.react(task, ctx, user_msg, pending_tool=pending)
-        if isinstance(result, dict):
-            return result                                 # input_required / failed
-        return AIPResult.completed(result)
 
-agent = CodeReviewer()
+agent = Director()
 ```
+
+`react` delegates the `LLM -> tool(s) -> LLM -> ... -> final answer` cycle to the
+runtime, enforces an explicit `max_steps` budget, and returns the final answer as
+a string. Full tutorials: [Your first agent](docs/site/docs/tutorials/your-first-agent.md)
+and the how-to guides for [workers](docs/site/docs/how-to/write-a-worker.md) and
+[directors](docs/site/docs/how-to/write-a-director.md).
 
 ### Runtime context (`ctx`)
 
-| Attribute | Type | Description |
-|---|---|---|
-| `ctx.llm` | `LlmProxy \| None` | Call `await ctx.llm.complete(messages)` |
-| `ctx.tools` | `ToolProxy \| None` | Call `await ctx.tools.call("tool_name", args)` |
-| `ctx.memory` | `MemoryInterface \| None` | `record`, `recall`, `search`, `forget` |
+The `ctx` object exposes the runtime's typed services to your handler. The most
+common ones:
 
-All three attributes degrade gracefully to `None` - always check before use.
+| Attribute | Description |
+|---|---|
+| `ctx.llm` | Text generation: `await ctx.llm.complete(messages)` |
+| `ctx.tools` | Native tool calls: `await ctx.tools.call("tool_name", args)` |
+| `ctx.memory` | Persistence: `record`, `recall`, `search`, `forget` (opt in per agent) |
+| `ctx.a2a` | Call other agents' skills |
+| `ctx.logger` | Structured logging routed to the runtime tracer |
+
+Several services degrade to `None` when the agent does not opt into them (for
+example `ctx.memory` without a `memory_namespace`); check before use. The full
+contract is documented in the [SDK / ctx reference](docs/site/docs/reference/sdk/).
 
 ### Native tools
 
-| Tool | Description |
+The runtime ships a set of native tools that agents call through `ctx.tools`.
+Run `apollia-os tools list` for the live catalog with feature-flag and credential
+status. The current set:
+
+| Category | Tools |
 |---|---|
-| `bash_executor` | Execute shell commands (timeout, Linux namespace sandbox) |
-| `file_io` | Read / write / list / exists on the local filesystem |
-| `python_executor` | Execute Python 3 code in an isolated per-agent venv |
+| Shell / code | `bash_executor`, `python_executor` |
+| Files | `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` |
+| Notebooks | `notebook_read`, `notebook_edit` |
+| Web | `http_fetch`, `web_search` |
+| Memory | `memory_search` |
+| Permissions | `permission_rule_add`, `permission_rule_list`, `permission_rule_remove` |
+| Human input | `ask_user` |
 
 ---
 
 ## Configuration
 
-All runtime behaviour is controlled by `apollia.toml` in the working directory. Paths support `~` expansion. Annotated reference:
+Runtime behaviour is controlled by an `apollia.toml` file. The CLI resolves it in
+this order: an explicit `--config` override, then `./apollia.toml` in the working
+directory, then `$XDG_CONFIG_HOME/apollia/apollia.toml` (defaulting to
+`~/.config/apollia/apollia.toml`). Runtime state (the API token, SQLite databases,
+downloaded models) lives separately under `~/.apollia/`. Paths in the file support
+`~` expansion.
 
-```toml
-[runtime]
-socket                = "/tmp/apollia.sock"
-port                  = 7771
-log_level             = "info"
-drain_timeout_seconds = 30
+Recognized top-level sections include `[llm]`, `[api]`, `[runtime]`, `[memory]`,
+`[tools]`, `[budget]`, `[hitl]`, `[a2a]`, `[oria]`, `[registry]`, `[mcp]`,
+`[permissions]`, `[filesystem]`, `[hooks]`, and `[chat]`. Triggers, notifications,
+speech-to-text, and installed agents are managed through the CLI and the desktop
+app (persisted in SQLite), not through this file.
 
-[memory]
-path             = "~/.apollia/data/memory.db"
-max_size_mb      = 512
-episode_ttl_days = 90
-fts5_enabled     = true
+Inspect and edit the live config with the `config` command:
 
-[tools]
-sandbox                = false          # Linux namespaces - macOS dev: false
-venv_base_path         = "~/.apollia/data/venvs"
-bash_timeout_seconds   = 30
-python_timeout_seconds = 60
-
-[budget]
-max_steps               = 20
-max_tool_calls          = 50
-wall_clock_timeout_secs = 300
-
-[agents]
-startup = ["agents/examples/hello/agent.py"]    # auto-started when the API is ready
-
-[notifications]
-events = ["task.input_required", "task.failed", "agent.degraded"]
-
-[[notifications.channels]]
-id      = "desktop"
-type    = "desktop"   # native OS notifications - "desktop" | "webhook"
-enabled = true
+```bash
+apollia-os config show
+apollia-os config show llm
 ```
 
-See the fully annotated `apollia.toml` at the root of this repository for all options including LLM backends, triggers, and pipelines.
+The full section-by-section surface is in the
+[configuration reference](docs/site/docs/reference/configuration.md) and the
+[CLI reference](docs/site/docs/reference/cli/).
 
 ---
 
 ## Triggers
 
-Triggers fire tasks automatically based on a schedule or an external event. Declared in `apollia.toml`:
-
-```toml
-# Cron - every day at 09:00
-[[triggers]]
-id             = "daily-report"
-agent          = "standup-scribe"
-enabled        = true
-on_busy        = "drop"             # "drop" | "queue" | "error"
-input_template = "Daily standup for {{date_iso}}"
-
-[triggers.source]
-type     = "cron"
-schedule = "0 9 * * *"
-
-# File watch - new file in an import folder
-[[triggers]]
-id             = "import-docs"
-agent          = "document-analyst"
-enabled        = true
-on_busy        = "queue"
-input_template = "Analyse {{filename}} ({{size_bytes}} bytes)"
-
-[triggers.source]
-type   = "file_watch"
-path   = "~/.apollia/imports/"
-events = ["create"]
-
-# Webhook - authenticated HTTP POST
-[[triggers]]
-id             = "ci-hook"
-agent          = "code-reviewer"
-enabled        = true
-on_busy        = "error"
-input_template = "{{webhook_body}}"
-
-[triggers.source]
-type   = "webhook"
-secret = "replace-with-a-strong-secret-min-32-chars"
-```
-
-Call `POST http://127.0.0.1:7771/webhooks/ci-hook` with header `X-Apollia-Signature: <hmac-sha256>`.
-
-Hot reload without restart:
+Triggers fire tasks automatically on a schedule or an external event. They are
+managed through the CLI (and the desktop app), which persists them:
 
 ```bash
-apollia-os trigger reload
+apollia-os trigger create   # interactive or flag-driven
 apollia-os trigger list
 apollia-os trigger fire daily-report
+apollia-os trigger enable daily-report
 apollia-os trigger logs daily-report
+apollia-os trigger reload
 ```
 
 **Source types:** `cron` · `interval` · `oneshot` · `file_watch` · `webhook`
+
+A webhook trigger authenticates with an HMAC-SHA256 signature. Call
+`POST http://127.0.0.1:7771/webhooks/<trigger-id>` with header
+`X-Apollia-Signature: <hmac-sha256>`.
 
 ---
 
@@ -400,11 +410,10 @@ apollia-os trigger logs daily-report
 Declare sensitive tools in `tools_requiring_approval`. The runtime suspends the task before execution and waits for a human decision:
 
 ```python
-def manifest(self):
-    return {
-        ...
-        "tools_requiring_approval": ["file_io", "bash_executor"],
-    }
+@agent(name="reviewer", version="0.1.0", description="Reviews and edits code.")
+class Reviewer:
+    # ... tools_requiring_approval declared in the @agent manifest ...
+    ...
 ```
 
 Approve or reject from the CLI:
@@ -415,9 +424,9 @@ apollia-os task resume <task-id> --approve
 apollia-os task resume <task-id> --reject --reason "Too broad a command"
 ```
 
-The agent receives the decision in `task["input_response"]` and resumes exactly where it stopped. Conversation history is persisted across the suspension via the memory engine.
-
-A configurable `TimeoutWatcher` auto-rejects approvals that exceed a deadline.
+The agent resumes exactly where it stopped; conversation history is persisted
+across the suspension by the memory engine. A configurable timeout watcher
+auto-rejects approvals that exceed a deadline.
 
 ---
 
@@ -435,7 +444,7 @@ not enforced:
   syscall filtering and no network namespace, so a shell command can still reach
   the network. Treat bash as an isolated process tree, not an untrusted-code
   container.
-- **File tools.** `file_io` is confined to a canonicalized sandbox root; any
+- **File tools.** File access is confined to a canonicalized sandbox root; any
   path that resolves outside the root is rejected (path-traversal safe).
 - **Step budget.** `max_steps`, `max_tool_calls`, and a wall-clock timeout are
   enforced by the runtime and cannot be bypassed by agent code.
@@ -450,16 +459,17 @@ For the threat model, scope, and private reporting, see [SECURITY.md](SECURITY.m
 
 ## Desktop App
 
-The Tauri v2 + Svelte 5 desktop application provides a native UI for all runtime subsystems. Launch it with:
+The Tauri v2 + Svelte 5 desktop application provides a native UI for all runtime subsystems. Build the UI once, then launch it (requires the `cargo tauri` CLI):
 
 ```bash
+just desktop-ui-install          # npm ci in crates/apollia-desktop/ui
 cd crates/apollia-desktop
 cargo tauri dev
 ```
 
-**Routes principales:** Dashboard · Agents · Tasks · Chat · Approvals · LLM · Automations · Memory · Notifications · Observability · Settings
+**Main routes:** Dashboard · Agents · Tasks · Chat · Approvals · LLM · Automations · Memory · Notifications · Observability · Settings
 
-All views update in real time via SSE streams. The system tray shows pending approval count and supports graceful quit.
+All views update in real time via SSE streams. The system tray shows the pending approval count and supports graceful quit.
 
 ---
 
@@ -469,29 +479,34 @@ All views update in real time via SSE streams. The system tray shows pending app
 
 | Command | Description |
 |---|---|
-| `apollia-os start` | Start the runtime daemon |
-| `apollia-os stop` | Graceful shutdown (30s task drain) |
+| `apollia-os start` | Start the runtime (foreground) |
+| `apollia-os stop` | Graceful shutdown (task drain) |
 | `apollia-os status` | Overview: agents, active tasks, tool health |
-| `apollia-os run <agent> "<input>"` | Submit a task and stream the result |
+| `apollia-os run <agent> "<input>"` | Submit a task and print the result |
+| `apollia-os doctor` | Diagnose the local environment (no runtime required) |
 
 ### Level 2 - Full management
 
 | Command | Description |
 |---|---|
-| `apollia-os agent list\|start\|stop\|info` | Manage registered agents |
-| `apollia-os task list\|status\|cancel\|resume` | Manage tasks and HITL approvals |
-| `apollia-os tools list\|describe` | Inspect available tools |
-| `apollia-os memory inspect <ns>` | Memory namespace overview |
-| `apollia-os audit list\|stats` | Tool call audit log |
+| `apollia-os agent list\|install\|enable\|disable\|start\|stop\|show` | Manage agents |
+| `apollia-os task list\|status\|cancel\|resume\|approvals` | Manage tasks and HITL approvals |
+| `apollia-os a2a skills\|invoke` | Discover and invoke worker skills |
+| `apollia-os tools list\|show\|enable\|disable\|credentials` | Inspect and govern native tools |
+| `apollia-os memory` | Memory management |
+| `apollia-os audit list\|stats\|verify\|export` | Tool-call audit log |
 | `apollia-os trigger list\|fire\|enable\|disable\|logs\|reload` | Manage triggers |
-| `apollia-os pipeline list\|run\|runs\|status` | Manage pipelines |
-| `apollia-os llm status\|ping\|chat` | LLM backend health and interactive chat |
-| `apollia-os model list` | List GGUF models in `~/.apollia/models/` |
-| `apollia-os notify test\|list\|logs` | Notification channels management |
+| `apollia-os llm status\|ping\|chat\|backends\|reload` | LLM backend health and interactive chat |
+| `apollia-os model list\|search\|show\|delete` | Local GGUF model files in `~/.apollia/models/` |
+| `apollia-os mcp list\|add\|remove\|test` | Manage MCP servers |
+| `apollia-os notify test\|list\|logs\|events` | Notification channel management |
+| `apollia-os config show\|set` | Inspect and edit `apollia.toml` |
 
 **Global flags:** `--json` (machine output) · `-q/--quiet` · `-v/--verbose` · `--debug` · `--socket <path>`
 
 **Exit codes:** `0` success · `1` usage error · `2` runtime error · `3` task failed · `4` timeout · `5` canceled
+
+Every flag on every command is in the [CLI reference](docs/site/docs/reference/cli/).
 
 ---
 
@@ -499,20 +514,32 @@ All views update in real time via SSE streams. The system tray shows pending app
 
 ```
 crates/
-  apollia-core/          # Shared types (AgentManifest, AIPTask, AIPResult, RuntimeEvent)
-  apollia-runtime/       # Runtime Core (Supervisor, AgentRegistry, TaskRouter, APIServer)
-  apollia-oria/          # ORIA Engine (Observer, StepBudget, ResilienceLayer, Reasoner)
-  apollia-tools/         # Tool Registry + native tools (file_io, bash_executor, python_executor)
-  apollia-memory/        # Memory Engine (SQLite, FTS5, episodic/semantic/procedural)
-  apollia-aip/           # AIP Bridge (PyO3, ToolProxy, MemoryInterface, LlmProxy)
-  apollia-llm/           # LLM Router + backends (embedded GGUF, Anthropic, OpenAI-compatible)
-  apollia-triggers/      # Trigger Engine (cron, interval, file_watch, webhook)
-  apollia-notifications/ # Notification Engine (desktop, webhook channels)
-  apollia-desktop/       # Desktop App (Tauri v2 + Svelte 5)
-  apollia-cli/           # CLI binary (clap v4)
-agents/                  # Example agents (hello_agent.py, apollia_base.py, ...)
-docs/                    # Architecture and design documentation
+  apollia-core/          # Shared types + config schema (AgentManifest, AIPTask, AIPResult, RuntimeEvent)
+  apollia-runtime/       # Runtime core (Supervisor, AgentRegistry, TaskRouter, EventBus, axum API)
+  apollia-oria/          # ORIA engine (Observer, Reasoner, Actor, StepBudget, ResilienceLayer)
+  apollia-aip/           # AIP bridge (PyO3, ctx services, ToolProxy, MemoryInterface, LlmProxy)
+  apollia-llm/           # LLM router + cloud backends (Anthropic, OpenAI-compatible, Vertex)
+  apollia-runner/        # Local GGUF inference sidecar (llama.cpp)
+  apollia-tools/         # Native tool registry + sandbox
+  apollia-memory/        # Memory engine (SQLite, FTS5, episodic/semantic/procedural)
+  apollia-triggers/      # Trigger engine (cron, interval, oneshot, file_watch, webhook)
+  apollia-notifications/ # Notification engine (desktop, webhook channels)
+  apollia-mcp/           # MCP client transports
+  apollia-stt/           # Speech-to-text (whisper)
+  apollia-permissions/   # Permissions engine (safelist, injection detection)
+  apollia-workspace/     # Workspace inspection and initialization
+  apollia-auth/          # OAuth2 PKCE authentication
+  apollia-connectors/    # Google / Microsoft / Notion / Slack connectors
+  apollia-prompts/       # Unified prompt corpus
+  apollia-eval/          # Evaluation harness
+  apollia-cli/           # CLI binary (clap v4, produces the `apollia-os` binary)
+  apollia-desktop/       # Desktop app (Tauri v2 + Svelte 5)
+sdk/                     # Python SDK (the `apollia` package)
+clients/                 # Generated client SDKs + example agents (echo_agent.py, demo_driver.py)
+agents/                  # Example agents (examples/hello/agent.py)
+docs/                    # Documentation (Docusaurus site, ADRs, LLM rulebook)
 tests/                   # End-to-end integration tests
+scripts/                 # Tooling and desktop E2E automation
 ```
 
 ---
