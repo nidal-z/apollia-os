@@ -534,10 +534,33 @@ pub(crate) async fn test_live_server<B: ExecutionBackend + Clone>(
 pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
-    Json(config): Json<McpServerConfig>,
+    Json(patch): Json<serde_json::Value>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
     let handle = require_mcp_handle(&state)?;
     let repo = require_mcp_repo(&state)?;
+
+    // The client sends a PARTIAL patch (only the fields it changes); merge it
+    // into the persisted config so untouched fields (and the path-scoped name)
+    // are preserved, then replace the running session.
+    let existing = {
+        let guard = repo.lock().map_err(|_| {
+            json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
+        })?;
+        guard
+            .find_by_name(&name)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
+            .ok_or_else(|| {
+                json_err(
+                    StatusCode::NOT_FOUND,
+                    format!("server '{}' not found", name),
+                )
+            })?
+    };
+    let config = merge_server_config_patch(existing, &patch)
+        .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
 
     handle.remove_server(&name).await.map_err(|_| {
         json_err(
@@ -564,6 +587,32 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
     }
 
     Ok(Json(status))
+}
+
+/// Merge a partial JSON patch into an existing [`McpServerConfig`]. Every key the
+/// patch carries (`command`, `url`, `requires_approval`, ...) overrides the base;
+/// the server `name` is taken from the path and is never patchable. Returns an
+/// error when the patch is not a JSON object or the merged result is not a valid
+/// config.
+fn merge_server_config_patch(
+    existing: McpServerConfig,
+    patch: &serde_json::Value,
+) -> Result<McpServerConfig, String> {
+    let patch_map = patch
+        .as_object()
+        .ok_or_else(|| "config patch must be a JSON object".to_string())?;
+    let mut base =
+        serde_json::to_value(&existing).map_err(|e| format!("serialize existing config: {e}"))?;
+    let base_map = base
+        .as_object_mut()
+        .ok_or_else(|| "config did not serialize to a JSON object".to_string())?;
+    for (key, value) in patch_map {
+        if key == "name" {
+            continue;
+        }
+        base_map.insert(key.clone(), value.clone());
+    }
+    serde_json::from_value(base).map_err(|e| format!("invalid merged config: {e}"))
 }
 
 /// Request body for `PATCH /api/v1/mcp/servers/:name/approval`.
@@ -676,6 +725,38 @@ mod tests {
         };
         // THEN the code is 400
         assert_eq!(code, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_merge_server_config_patch_preserves_name_and_merges_fields() {
+        // GIVEN an existing server config
+        let existing: McpServerConfig = serde_json::from_value(serde_json::json!({
+            "name": "srv",
+            "command": "/old/cmd",
+            "requires_approval": false,
+        }))
+        .expect("valid base config");
+        // WHEN a partial patch (no `name`) changes command + requires_approval
+        let patch = serde_json::json!({ "command": "/new/cmd", "requires_approval": true });
+        let merged = merge_server_config_patch(existing, &patch).expect("merge ok");
+        // THEN the path-scoped name is preserved and the patched fields apply
+        assert_eq!(merged.name, "srv");
+        assert_eq!(merged.command, "/new/cmd");
+        assert!(merged.requires_approval);
+    }
+
+    #[test]
+    fn test_merge_server_config_patch_ignores_name_key() {
+        // GIVEN an existing config and a patch that tries to rename it
+        let existing: McpServerConfig = serde_json::from_value(serde_json::json!({
+            "name": "srv",
+            "command": "/cmd",
+        }))
+        .expect("valid base config");
+        let patch = serde_json::json!({ "name": "evil" });
+        // WHEN merged THEN the name stays put (it comes from the path)
+        let merged = merge_server_config_patch(existing, &patch).expect("merge ok");
+        assert_eq!(merged.name, "srv");
     }
 
     #[test]

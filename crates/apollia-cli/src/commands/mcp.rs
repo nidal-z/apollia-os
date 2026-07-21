@@ -540,7 +540,7 @@ async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: bool) -> i3
     } = spec;
     let mut body = serde_json::json!({
         "name": name,
-        "require_approval": require_approval,
+        "requires_approval": require_approval,
     });
     if let Some(cmd) = command {
         body["command"] = serde_json::Value::String(cmd.to_string());
@@ -804,7 +804,10 @@ async fn run_update_server(client: &RuntimeClient, patch: ServerPatch<'_>, json:
         body.insert("url".to_string(), serde_json::Value::String(u.to_string()));
     }
     if let Some(req) = require_approval {
-        body.insert("require_approval".to_string(), serde_json::Value::Bool(req));
+        body.insert(
+            "requires_approval".to_string(),
+            serde_json::Value::Bool(req),
+        );
     }
 
     match client
