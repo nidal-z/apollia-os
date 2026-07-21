@@ -169,7 +169,7 @@ hound = "3.5"
 # --- Config parsing ---
 # toml reste en 0.8.x : le passage 1.0 declenche des conflits de resolution
 # (toml_datetime/toml_edit) sans gain reel ; 0.8.23 est deja recent.
-toml = "0.8"
+toml = "1.1"
 toml_edit = "0.22"
 
 # --- Interactive password prompt (apollia-cli credentials) ---
