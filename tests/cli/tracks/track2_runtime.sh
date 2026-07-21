@@ -123,6 +123,7 @@ check         "llm backends delete e2e2"           "${Q[@]}" llm backends delete
 check         "llm status"                          "${Q[@]}" llm status
 check_json    "llm status --json"                  "${Q[@]}" llm status --json
 check         "llm costs"                           "${Q[@]}" llm costs
+check         "llm reload"                          "${Q[@]}" llm reload
 
 # ── B.7 stt / resilience / plan cache / chat --list ─────────────────────────
 section "B.7 stt / resilience / plan cache"

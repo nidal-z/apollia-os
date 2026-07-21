@@ -250,6 +250,7 @@ skip "onboard"                "interactive chat-based onboarding agent"
 skip "notify test"            "dispatches a real desktop notification / webhook POST"
 skip "stt transcribe"         "needs an audio file + a loaded Whisper model"
 # Exact leaf paths below so the coverage report buckets them as justified-skip.
+skip "tools credentials set" "masked stdin passphrase prompt (no tty in the suite)"
 skip "tools credentials list" "reads the OS keychain; no seeded credentials"
 skip "tools credentials delete" "mutates the OS keychain"
 skip "tools credentials test" "live call to the credentialed backend"
