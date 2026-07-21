@@ -12,7 +12,7 @@
 
 1. Dans la sidebar **Connexions**, cliquez sur **+ Ajouter personnalisé** en haut. Le panneau s'ouvre sur l'onglet **Personnalisé**.
 
-   `[SCREENSHOT: page Connexions, bouton "+ Ajouter personnalisé" en haut, panneau Personnalisé ouvert avec form vide]`
+   ![Onglet Personnalisé du catalogue : le formulaire vierge](../_screenshots/integration-cabler-son-propre-serveur-mcp-1.png)
 
 2. Remplissez le formulaire selon le transport choisi (voir sous-sections).
 
@@ -28,7 +28,7 @@
 - **Arguments** : séparés par des espaces (par exemple `-y @modelcontextprotocol/server-filesystem ~/Documents`).
 - **Exiger approbation** : cochez si vous voulez une approbation HITL à chaque appel d'outil.
 
-`[SCREENSHOT: form Personnalisé avec Transport=stdio, champs Commande et Arguments remplis pour exemple filesystem]`
+![Formulaire Personnalisé en transport stdio, avec la commande et les arguments remplis](../_screenshots/integration-cabler-son-propre-serveur-mcp-2.png)
 
 ### Cas streamable-http (serveur distant)
 
@@ -37,7 +37,7 @@
 - **URL** : endpoint HTTP du serveur (`https://...`).
 - **En-têtes** (optionnel) : un par ligne au format `Nom-Header=valeur`. Exemple : `Authorization=Bearer sk-...` ou `X-API-Key=...`.
 
-`[SCREENSHOT: form Personnalisé avec Transport=streamable-http, champ URL rempli, zone En-têtes avec deux lignes d'auth]`
+![Formulaire Personnalisé en transport streamable-http, avec l'URL et les en-têtes d'authentification](../_screenshots/integration-cabler-son-propre-serveur-mcp-3.png)
 
 ### Cas SSE
 

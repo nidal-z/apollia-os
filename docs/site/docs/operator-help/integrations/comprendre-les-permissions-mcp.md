@@ -31,7 +31,7 @@ Ouvrez **Paramètres, Permissions**. Trois sections :
 
 Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'un scope d'un coup, le bouton **Révoquer tout** demande de taper votre nom en confirmation.
 
-`[SCREENSHOT: page Paramètres Permissions, 3 sections empilées avec exemples de règles et bouton Révoquer sur chaque ligne]`
+![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](../_screenshots/integration-comprendre-les-permissions-mcp-2.png)
 
 Note : en v0.1.0, on **ne crée pas** de règle depuis cette page, on les consulte et on les révoque. La création se fait dans le flux normal (popup HITL).
 

@@ -61,7 +61,7 @@ Plusieurs chemins, selon ce que vous voulez effacer.
 
 Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale.
 
-`[SCREENSHOT: Zone danger en bas de page (bordure rouge, icône AlertTriangle, bouton "Réinitialiser le profil") avec la modale de confirmation ouverte au premier plan]`
+![La zone de danger du profil avec la modale de confirmation Réinitialiser le profil au premier plan](../_screenshots/memoire-gerer-mon-profil-1.png)
 
 - Tout le profil est effacé (les 5 sections).
 - L'agent d'onboarding redémarre **immédiatement** pour reconstruire vos préférences depuis zéro.

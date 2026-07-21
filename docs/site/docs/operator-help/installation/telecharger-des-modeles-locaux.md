@@ -27,7 +27,7 @@
 6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
 
 7. (Optionnel) Cliquez sur **Définir par défaut** pour utiliser ce modèle automatiquement dans les nouveaux chats (GGUF) ou pour la dictée (Whisper).
-   `[SCREENSHOT: modèle téléchargé avec badge "Disponible" et bouton "Définir par défaut" actif]`
+   ![Hub de modèles : la section Modèles installés, avec le modèle actif marqué d'un badge Utilisé](../_screenshots/installation-telecharger-des-modeles-locaux-1.png)
 
 8. L'espace disque utilisé par tous vos modèles est affiché en bas de la page. Pour libérer de la place, cliquez sur **Supprimer** sur n'importe quel modèle déjà téléchargé.
 

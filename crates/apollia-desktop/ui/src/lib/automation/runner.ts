@@ -149,7 +149,30 @@ function mountOverlay(scriptName: string): Overlay {
 }
 
 async function captureWindow(label: string): Promise<string> {
-  return invoke<string>("automation_capture", { label });
+  // Hide the automation HUD and any transient product toast so neither bleeds
+  // into a screenshot destined for the operator-help documentation. The native
+  // `screencapture` runs out-of-process, so wait two frames for the browser to
+  // paint the hidden state before the capture is taken, then restore.
+  const chrome = document.querySelectorAll<HTMLElement>(
+    "[data-automation-overlay], [data-testid='toast-container']",
+  );
+  const restore: Array<[HTMLElement, string]> = [];
+  for (const el of chrome) {
+    restore.push([el, el.style.visibility]);
+    el.style.visibility = "hidden";
+  }
+  if (restore.length > 0) {
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))),
+    );
+  }
+  try {
+    return await invoke<string>("automation_capture", { label });
+  } finally {
+    for (const [el, prev] of restore) {
+      el.style.visibility = prev;
+    }
+  }
 }
 
 async function runStep(

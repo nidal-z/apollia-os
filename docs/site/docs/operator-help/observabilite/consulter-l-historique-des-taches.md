@@ -21,7 +21,7 @@
 2. En haut, **quatre KPIs** résument la fenêtre courante : Événements · Outils · Appels LLM · Erreurs (compteur en rouge si > 0). Les KPIs réagissent aux filtres : si vous masquez les outils, leur compteur reste mais le total **Événements** descend.
 
 3. Choisissez la **fenêtre temporelle** : **30 min / 1 h / 6 h / 24 h / 7 j**. Par défaut : 1 h. Les événements se rechargent automatiquement environ toutes les 15 secondes.
-   `[SCREENSHOT: onglet Chronologie - bande de 4 KPIs, barre de filtres (fenêtre + chips type + agent), puis groupes d'événements par jour avec en-têtes « Aujourd'hui » / « Hier »]`
+   ![Onglet Chronologie : la bande de KPIs, la barre de filtres, puis les événements groupés par jour](../_screenshots/observabilite-consulter-l-historique-des-taches-1.png)
 
 4. **Filtrez les événements** :
    - **Type** - 7 chips arrondies (Tâche / Outil / LLM / Approbation / Mémoire / Délégation / Erreur). Chaque chip active/désactive sa catégorie ; les chips grisés sont désactivés.

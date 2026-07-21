@@ -20,7 +20,7 @@
 1. Dans la sidebar, ouvrez **Paramètres**, puis la section **Backends LLM**.
 2. Cliquez sur **+ Ajouter un backend LLM** en haut. Une fenêtre de configuration s'ouvre.
 
-   `[SCREENSHOT: page Paramètres Backends LLM, bouton "+ Ajouter un backend LLM" en haut à droite, dialog vide ouvert avec champs Nom et Fournisseur]`
+   ![Dialogue Ajouter un backend LLM, vide, avec les champs Nom et Fournisseur](../_screenshots/installation-connecter-un-modele-distant-1.png)
 
 3. Donnez un **nom** unique (lettres minuscules, chiffres et tirets, par exemple `claude-anthropic`).
 4. Choisissez le **fournisseur** dans la liste déroulante.

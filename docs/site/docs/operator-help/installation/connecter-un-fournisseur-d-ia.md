@@ -19,7 +19,7 @@ Apollia distingue trois cas d'usage. Choisissez selon ce que vous voulez :
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Backends LLM**.
 
-   `[SCREENSHOT: page Paramètres, section Backends LLM active, liste vide ou avec backends existants]`
+   ![Page Paramètres, Backends LLM : la liste des backends configurés](../_screenshots/installation-connecter-un-fournisseur-d-ia-1.png)
 
 2. Cliquez sur **+ Ajouter un backend LLM** en haut à droite. Une fenêtre s'ouvre.
 

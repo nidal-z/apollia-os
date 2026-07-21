@@ -10,11 +10,11 @@
 
 1. Dans la sidebar **Connexions**, sélectionnez le serveur MCP à tester.
 
-   `[SCREENSHOT: page Connexions, sidebar avec un MCP sélectionné en surbrillance, panneau de détail à droite]`
+   ![Page Connexions : un serveur MCP sélectionné dans la barre latérale, sa fiche de détail à droite](../_screenshots/integration-tester-une-connexion-mcp-1.png)
 
 2. Dans le panneau de détail, cliquez sur l'icône **plug** (prise) à côté du nom du serveur, ou sur **Tester la connexion** dans le menu d'actions.
 
-   `[SCREENSHOT: vue détail d'un MCP installé, bouton Test (icône prise) mis en évidence dans la zone d'actions]`
+   ![Fiche d'un serveur MCP installé, avec le bouton Test dans la zone d'actions](../_screenshots/integration-tester-une-connexion-mcp-2.png)
 
 3. Pendant le test, l'icône pulse et le bouton est désactivé. Le test dure typiquement moins d'une seconde.
 

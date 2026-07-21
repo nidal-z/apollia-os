@@ -41,7 +41,7 @@ INSERT INTO mcp_servers
    requires_approval, init_timeout_secs, call_timeout_secs, tags_json,
    enabled, created_at, updated_at)
 VALUES
-  ('seed-mcp-fs',
+  ('filesystem',
    '/usr/bin/python3',
    '["__APOLLIA_SEED_MCP_STUB__"]',
    '{}',
@@ -50,11 +50,11 @@ VALUES
    0,
    30,
    60,
-   '["seed","demo"]',
+   '["fichiers"]',
    1,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
-  ('seed-mcp-notes',
+  ('notes',
    '/usr/bin/python3',
    '["__APOLLIA_SEED_MCP_STUB__"]',
    '{}',

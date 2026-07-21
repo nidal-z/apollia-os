@@ -17,13 +17,13 @@
 
    Le bouton est **grisé et non cliquable** tant qu'aucun fournisseur d'IA n'est prêt - au survol, un tooltip explicite : *« Configurez un modèle LLM pour activer l'aide contextuelle »*.
 
-   `[SCREENSHOT: sidebar avec bouton Aide Apollia visible en bas, logo Apollia en icône ; à droite un point vert visible à côté du mot Apollia dans le bandeau supérieur]`
+   ![Le tableau de bord, avec la barre latérale et l'accès à la compagnonne Apollia](../_screenshots/transversal-activer-la-compagnonne-ia-1.png)
 
 2. Cliquez sur le bouton. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
 
 3. Posez une question rapide. L'Aide Apollia répond sans interrompre votre travail sur la page principale.
 
-   `[SCREENSHOT: panneau Aide Apollia ouvert à droite, message de bienvenue de l'assistant, zone de saisie en bas, poignée de déplacement en haut, poignée de redimensionnement au coin inférieur gauche]`
+   ![Panneau de la compagnonne Apollia ouvert, avec son message d'accueil et la zone de saisie](../_screenshots/transversal-activer-la-compagnonne-ia-2.png)
 
 4. **Déplacer le panneau** : saisissez la **poignée en haut du panneau** (icône grip-handle) et glissez-le où vous voulez. Il s'aligne automatiquement aux bords de l'écran pour rester accessible.
 
