@@ -35,7 +35,7 @@ The authoritative statement of the principles lives in the project rulebook
 
 ## Technical constraints
 
-- **Language and runtime.** The core is Rust (1.85+) on Tokio. Errors use
+- **Language and runtime.** The core is Rust (1.89+) on Tokio. Errors use
   `thiserror` enums, not `anyhow`, so failures stay typed and map to exit codes
   and structured traces. No `unwrap`, `panic`, or `println` in production paths.
 - **Python bridge.** Agents are Python (3.12+), executed through a PyO3 bridge

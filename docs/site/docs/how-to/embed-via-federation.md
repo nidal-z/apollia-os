@@ -48,10 +48,9 @@ tool interface (tool names are namespaced with an `mcp:` prefix). Those calls go
 through the same governed path as native tools, so they are subject to
 permissions and land in the audit trail.
 
-See the operator help on
+For the desktop setup details, see the operator help (in French) on
 [connecting an MCP server](/operator-help/integrations/connecter-un-serveur-mcp)
-and [wiring your own MCP server](/operator-help/integrations/cabler-son-propre-serveur-mcp)
-for the setup details.
+and [wiring your own MCP server](/operator-help/integrations/cabler-son-propre-serveur-mcp).
 
 ## Step 3: gate writes with human approval
 
@@ -65,8 +64,8 @@ request, so an operator confirms before anything is written back. Approvals are
 recorded, so the decision is part of the trail alongside the action.
 
 For how approvals and autonomy levels shape this, see
-[Configure permissions, autonomy tiers and budgets](/how-to)
-and the explanation of [the accountability model](/explanation/accountability-model).
+[Autonomy tiers](/explanation/autonomy-tiers) and the explanation of
+[the accountability model](/explanation/accountability-model).
 
 ## Step 4: let Apollia write back through REST
 

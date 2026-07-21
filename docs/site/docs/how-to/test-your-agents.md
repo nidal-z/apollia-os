@@ -22,6 +22,10 @@ returns the agent instance plus a `MockContext` whose 14 service surfaces are al
 mocked. You queue what the services return, invoke a skill, and assert on the
 result and on the calls the agent made.
 
+The full `Ctx` contract has 15 services: the mail surface (`ctx.mail`) is not
+mocked. An agent that uses `ctx.mail` needs an integration test against a live
+runtime rather than a unit test with `MockContext`.
+
 Take a skill that summarizes text with the LLM and writes the summary to a file:
 
 ```python

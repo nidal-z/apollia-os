@@ -32,11 +32,3 @@ code:
 - the SDK contract from the typed `Ctx` services.
 
 Run `bash regen.sh` to refresh them.
-
-:::note Phase 1
-
-This is the documentation skeleton. Most pages are placeholders that list the
-content still to be migrated. The generated reference pages already carry real
-data.
-
-:::

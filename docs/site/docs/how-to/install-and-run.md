@@ -20,6 +20,10 @@ Every command runs from the repository root.
   agents, and the SDK installs into it.
 - `git`. It is required to clone the repository and to install agents from a Git
   URL later.
+- Only if you plan to build a local inference runner (the optional last section):
+  CMake and a C/C++ compiler (for example Apple Clang on macOS, or GCC/Clang on
+  Linux). The runner compiles llama.cpp from source, which needs both. The
+  default cloud-capable build does not.
 
 On macOS, PyO3 must find the right interpreter at build time. If the default
 `python3` is not the one you want, point it explicitly before building:
@@ -66,8 +70,11 @@ Cloud: authenticate to a provider and register a backend.
 
 ```sh
 apollia-os auth login anthropic
-apollia-os llm backends create prod --provider anthropic --model claude-sonnet-4-6 --default
+apollia-os llm backends create prod --provider anthropic --model claude-sonnet-4-20250514 --default
 ```
+
+Use your provider's current model id for `--model`; the value above is only an
+example.
 
 Local: point the runtime at a `.gguf` file on your machine. This registers the
 backend but does not itself run inference (see the last section for the local
@@ -77,9 +84,11 @@ inference engine).
 apollia-os llm setup --local --model /path/to/model.gguf
 ```
 
-Either way, confirm the backend is visible:
+Either way, reload the backend registry and confirm the backend is visible. A
+freshly configured backend does not appear in `llm status` until you reload:
 
 ```sh
+apollia-os llm reload
 apollia-os llm status
 ```
 
@@ -98,12 +107,15 @@ open a second one for the next steps.
 ## Step 5: run an agent
 
 The repository ships a no-LLM `echo` agent that runs on any machine. Install it,
-then send it a task:
+enable it so the runtime loads it, then send it a task:
 
 ```sh
 apollia-os agent install clients/examples/echo_agent.py --skip-tests
+apollia-os agent enable echo
 apollia-os run echo "hello from Apollia"
 ```
+
+Without the `enable` step, `run` reports `agent 'echo' not found`.
 
 You should see the echoed result. To write your own agent from scratch, follow
 [Your first agent](/tutorials/your-first-agent).
@@ -143,8 +155,11 @@ configured but no matching runner is found, LLM calls fail with a
 `503 Service Unavailable` and a `BackendUnavailable` reason; build and co-locate
 the runner to resolve it.
 
-To download and manage `.gguf` files, see the `model` commands in the
-[CLI reference](/reference/cli).
+There is no download command. Obtain a `.gguf` file yourself (for example from a
+model hub) and place it in `~/.apollia/models/`, then point a local backend at it
+with `apollia-os llm setup --local --model <path.gguf>`. The `model` subcommands
+(`list`, `search`, `show`, `hardware`, `delete`) inspect and manage the models
+already present; see the [CLI reference](/reference/cli).
 
 ## Next steps
 

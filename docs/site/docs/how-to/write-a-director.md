@@ -129,19 +129,18 @@ Use `react` when the sequence of calls depends on intermediate results; use
 
 ## Variation: handle a stalled loop
 
-`react` raises a `DomainError` with code `REACT_MAX_STEPS` if it runs out of
-steps. Catch it to degrade gracefully:
+If the loop exhausts `max_steps` without converging, `react` lets the underlying
+error bubble up as a `RuntimeError`. Catch it to degrade gracefully:
 
 ```python
-from apollia import DomainError
-
 try:
     return await react(ctx, system=SYSTEM_PROMPT, user=message, tools=tools, max_steps=5)
-except DomainError as exc:
-    if "REACT_MAX_STEPS" in exc.code:
-        return "I could not finish the analysis in time. Could you narrow the question?"
-    raise
+except RuntimeError:
+    return "I could not finish the analysis in time. Could you narrow the question?"
 ```
+
+`react` only raises `DomainError("REACT_MAX_STEPS")` for a misconfigured call
+(`max_steps <= 0`), which is a programming error, not a runtime outcome to catch.
 
 ## Next steps
 

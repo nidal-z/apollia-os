@@ -5,8 +5,11 @@ title: Accelerate local inference
 
 # Accelerate local inference with llama-server
 
-The embedded runner (`apollia-runner-*`, zero install) is the default local
-inference path and covers most workloads. This guide adds an optional, higher
+The embedded runner (`apollia-runner-*`) is the default local inference path and
+covers most workloads. It ships prebuilt with the desktop app, so there is
+nothing extra to install there; on a server you build it once and co-locate it
+next to the `apollia-os` binary (see
+[Install and run the runtime](/how-to/install-and-run#optional-enable-local-gguf-inference)). This guide adds an optional, higher
 throughput path for two cases: serving many concurrent requests, and speculative
 decoding for lower latency. It stays 100% local, is config-only (no engine code),
 and does not replace the embedded runner, it accelerates it where the deployment

@@ -25,9 +25,9 @@ Quand vous voyez la popup, vous pouvez cocher *"Toujours autoriser pour ce proje
 
 Ouvrez **Paramètres, Permissions**. Trois sections :
 
-- **Tool Approval Rules** : par MCP installé, vous pouvez régler le niveau d'approbation global (`auto` / `ask` / `readonly`).
-- **Always-Accept Rules** : règles persistantes créées via les popups HITL ou par les agents d'onboarding. Filtrables par origine (Onboarding, HITL utilisateur, Settings, Config import).
-- **Session Authorizations** : autorisations valables uniquement pour la session de chat en cours.
+- **Autorisations** : par MCP installé, vous pouvez régler le niveau d'approbation global (`auto` / `ask` / `readonly`).
+- **Règles de permission** : règles persistantes créées via les popups HITL ou par les agents d'onboarding. Filtrables par origine (Onboarding, HITL utilisateur, Settings, Config import).
+- **Sessions actives** : autorisations valables uniquement pour la session de chat en cours.
 
 Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'un scope d'un coup, le bouton **Révoquer tout** demande de taper votre nom en confirmation.
 
@@ -58,12 +58,12 @@ Les serveurs MCP ont trois capabilities qui passent par votre boîte de récepti
 
 - Ouvrez **Paramètres, Permissions**, les 3 sections s'affichent.
 - Dans le chat, déclenchez une écriture (envoi de mail), la popup apparaît.
-- Cochez *"Toujours autoriser pour ce projet"*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Always-Accept Rules**.
+- Cochez *"Toujours autoriser pour ce projet"*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles de permission**.
 
 ## Si ça ne marche pas
 
-- **Un outil read-only demande une approbation alors que ce n'est pas attendu** : la policy par défaut a été durcie. Vérifiez dans **Tool Approval Rules** et restaurez le mode `auto`.
-- **Un outil sensible s'exécute sans demande** : vous avez créé une always-accept rule en cochant la case un jour. Allez la révoquer.
+- **Un outil read-only demande une approbation alors que ce n'est pas attendu** : la policy par défaut a été durcie. Vérifiez dans **Autorisations** et restaurez le mode `auto`.
+- **Un outil sensible s'exécute sans demande** : vous avez créé une règle de permission persistante en cochant la case un jour. Allez la révoquer.
 - **`local_only` bloque mon MCP local** : vérifiez que votre MCP est bien en transport `stdio`. Un MCP en `http://localhost:...` est quand même bloqué (le profil filtre par transport, pas par host).
 
 > **Référence technique :** [Référence Apollia](../../reference/index.md) , gouvernance complète, audit trail, format des règles dans `governance.db`.

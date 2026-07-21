@@ -11,7 +11,7 @@ class SecretsInterface(Protocol):
 
     Secrets are resolved at task startup by ``apollia-auth`` (keyring +
     OAuth refresh).  Agents never write to this surface - credentials are
-    provisioned via the desktop UI or ``apollia auth`` CLI.
+    provisioned via the desktop UI or ``apollia-os auth`` CLI.
     """
 
     def get(self, key: str) -> str | None:

@@ -59,7 +59,7 @@ L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours
 Par défaut, un agent démarre en palier `assisted` : il demande votre approbation à chaque action sensible. Vous pouvez choisir un palier différent pour une exécution précise avec le flag `--autonomy` :
 
 ```
-apollia run --autonomy <palier>
+apollia-os run --autonomy <palier>
 ```
 
 Les quatre paliers disponibles :

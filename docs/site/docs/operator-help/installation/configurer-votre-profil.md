@@ -99,10 +99,10 @@ Les questions couvrent :
 
 Répondez naturellement, sans formulation précise. Après la dernière question, l'agent dérive un jeu de règles de permissions à partir de vos réponses et les propose **inline dans la fenêtre d'onboarding, juste avant le bouton « Terminer »**. Chaque proposition est une mini-carte avec deux boutons :
 
-- **Approuver** - la règle est enregistrée immédiatement dans la base `governance.db` avec l'auteur `onboarding-agent`.
-- **Refuser** - la règle est ignorée, aucune permission n'est créée. Vous pourrez toujours l'ajouter plus tard depuis **Paramètres → Permissions**.
+- **Appliquer** - la règle est enregistrée immédiatement dans la base `governance.db` avec l'auteur `onboarding-agent`.
+- **Ignorer** - la règle est écartée, aucune permission n'est créée. Vous pourrez toujours l'ajouter plus tard depuis **Paramètres → Permissions**.
 
-> Le bouton **Terminer** ne s'active que lorsque toutes les cartes ont été approuvées ou refusées - Apollia s'assure ainsi que vous avez vu chaque proposition.
+> Le bouton **Terminer** ne s'active que lorsque toutes les cartes ont été appliquées ou ignorées - Apollia s'assure ainsi que vous avez vu chaque proposition.
 
 Le nombre et la nature des cartes proposées dépendent de vos choix précédents :
 
@@ -140,7 +140,7 @@ Si vous avez significativement modifié votre profil (changement de rôle, de po
 
 Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien, basculer une intégration) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/gerer-mon-profil.md).
 
-::: warning Réinitialiser entièrement Apollia
+:::warning Réinitialiser entièrement Apollia
 Le bouton **Réinitialisation d'usine** (zone danger, bas de page) supprime **toutes** vos données - agents, mémoire, modèles téléchargés, backends LLM, intégrations. Cette action ne peut pas être annulée. Voir [Réinitialiser Apollia](../troubleshooting/reinitialiser-apollia-factory-reset.md).
 :::
 

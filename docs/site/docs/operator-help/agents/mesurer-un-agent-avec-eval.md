@@ -1,4 +1,4 @@
-# Mesurer les performances d'un agent avec apollia eval
+# Mesurer les performances d'un agent avec apollia-os eval
 
 > Pour tout operator qui veut quantifier la fiabilité d'un agent sur un ensemble de tâches reproductibles avant de l'utiliser en production.
 
@@ -59,7 +59,7 @@ Les quatre types d'assertions :
 ## Étapes - Lancer l'évaluation
 
 ```
-apollia eval run ma-suite.toml
+apollia-os eval run ma-suite.toml
 ```
 
 La commande affiche un tableau de résultats en temps réel pendant l'exécution. À la fin, elle écrit un fichier `.results.jsonl` dans le même répertoire que la suite.
@@ -67,13 +67,13 @@ La commande affiche un tableau de résultats en temps réel pendant l'exécution
 Pour obtenir une sortie JSON machine (intégration CI, scripting) :
 
 ```
-apollia eval run ma-suite.toml --json
+apollia-os eval run ma-suite.toml --json
 ```
 
 ## Étapes - Lire le rapport
 
 ```
-apollia eval report ma-suite.results.jsonl
+apollia-os eval report ma-suite.results.jsonl
 ```
 
 Affiche un résumé par tâche : taux de réussite, temps médian, assertions échouées. Utilisez `--json` pour obtenir le rapport en JSON.
@@ -81,12 +81,12 @@ Affiche un résumé par tâche : taux de réussite, temps médian, assertions é
 ## Vérification
 
 - Le fichier `ma-suite.results.jsonl` est créé dans le même répertoire que `suite.toml`.
-- La commande `apollia eval run` se termine avec le code de sortie `0` si toutes les assertions passent sur toutes les exécutions.
-- La commande `apollia eval report` affiche le taux de réussite global.
+- La commande `apollia-os eval run` se termine avec le code de sortie `0` si toutes les assertions passent sur toutes les exécutions.
+- La commande `apollia-os eval report` affiche le taux de réussite global.
 
 ## Si ca ne marche pas
 
-- **"runtime non joignable" au lancement :** le daemon Apollia n'est pas démarré. Lancez `apollia start` puis relancez l'évaluation.
+- **"runtime non joignable" au lancement :** le daemon Apollia n'est pas démarré. Lancez `apollia-os start` puis relancez l'évaluation.
 - **"suite invalide" :** vérifiez la syntaxe TOML de votre fichier (parenthèses, guillemets, nom de clé) et assurez-vous que le champ `type` de chaque assertion est l'une des quatre valeurs reconnues.
 - **Les assertions `llm_judge` échouent systématiquement :** vérifiez que le backend LLM par défaut est configuré et joignable. Le juge LLM utilise le même backend que l'agent évalué.
 - **Le fichier `.results.jsonl` n'est pas créé :** l'évaluation a échoué avant de produire des résultats. Relancez avec `--json` pour voir l'erreur brute.

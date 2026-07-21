@@ -37,7 +37,7 @@ Apollia crée automatiquement un canal **Bureau** par défaut au tout premier d�
    - Une **description courte** sous le libellé.
    - L'**identifiant technique** en monospace plus petit (utile si vous parsez le payload côté Slack/Discord).
 
-   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Voir la page [Choisir les événements notifiés](choisir-les-evenements-notifies.md) pour le détail des 6 types disponibles et la logique à deux niveaux (global vs par canal).
+   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Voir la page [Choisir les événements notifiés](choisir-les-evenements-notifies.md) pour le détail des 7 types disponibles et la logique à deux niveaux (global vs par canal).
 
 8. **Limiter les notifications** *(anti-spam, par canal et par type d'événement)* - un sélecteur déroulant :
    - **Aucune limite** (défaut).

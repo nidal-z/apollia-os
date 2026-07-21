@@ -425,13 +425,17 @@ apollia-os agent install ./crm_lookup.py
 apollia-os agent install ./meeting_prep.py
 ```
 
-Set the CRM credential the `crm-lookup` worker declared:
+Provide the CRM credential the `crm-lookup` worker declared. Agent-declared
+secrets live in the operator-managed credential store under the fixed `agent`
+namespace; `ctx.secrets` reads them, never writes them. The operator provisions
+the value once, it is stored encrypted, and the worker only reads it at run time.
 
-```bash
-apollia-os tools credentials set
-# key:   hubspot_api_token
-# value: pat-eu1-...
-```
+The `apollia-os tools credentials set <tool> <key>` command provisions
+credentials for the native tools (`<tool>` must be a native tool name such as
+`web_search`); it takes the tool and key as positional arguments and prompts once
+for the value with the input masked. Secrets in the `agent` namespace are
+provisioned through the desktop credential manager. See
+[`ctx.secrets`](/reference/sdk/secrets) for how the worker reads the value.
 
 Confirm the three workers are active and their skills are exposed:
 

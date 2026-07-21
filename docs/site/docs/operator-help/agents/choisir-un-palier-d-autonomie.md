@@ -6,7 +6,7 @@
 
 - Apollia lancé et le daemon actif.
 - Au moins un agent installé et démarré.
-- Familiarité avec la commande `apollia run`.
+- Familiarité avec la commande `apollia-os run`.
 
 ## Les quatre paliers
 
@@ -24,7 +24,7 @@
 Le palier se précise au lancement, avec `--autonomy`. Il s'applique uniquement à cette exécution et ne modifie pas `apollia.toml`.
 
 ```
-apollia run mon-agent "ma tâche" --autonomy supervised
+apollia-os run mon-agent "ma tâche" --autonomy supervised
 ```
 
 Remplacez `supervised` par l'une des quatre valeurs : `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
@@ -48,12 +48,12 @@ Après le lancement, les premières lignes de log de la tâche indiquent le pali
 autonomy.level=supervised agent=mon-agent "autonomy.activated"
 ```
 
-Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia logs mon-agent --tail`.
+Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent logs mon-agent --follow`.
 
 ## Si ca ne marche pas
 
 - **Valeur inconnue au lancement :** si vous passez une valeur incorrecte à `--autonomy`, la CLI rejette la commande et liste les quatre valeurs valides (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Vérifiez l'orthographe, les valeurs sont en `snake_case`.
-- **Le palier `--autonomy` est ignoré :** vérifiez que vous utilisez bien `apollia run`, pas `apollia start`. La commande `start` démarre le daemon sans exécuter de tâche ; `--autonomy` n'y a pas de sens.
+- **Le palier `--autonomy` est ignoré :** vérifiez que vous utilisez bien `apollia-os run`, pas `apollia-os start`. La commande `start` démarre le daemon sans exécuter de tâche ; `--autonomy` n'y a pas de sens.
 - **Le défaut global ne change pas :** redémarrez le daemon après avoir modifié `apollia.toml`. Un daemon déjà en cours de fonctionnement lit la config au démarrage uniquement.
 
 > **Référence technique :** [Référence Apollia](../../reference/index.md) - StepBudget, ResilienceLayer, comportement de chaque palier d'autonomie.

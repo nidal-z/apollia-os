@@ -7,14 +7,35 @@ title: How-to guides
 
 Task-oriented recipes. Each one solves a single, concrete problem.
 
-## Target pages (to migrate or write fresh)
+## Set up and run
 
-- **Integrate via the driving contract (OpenAPI + host SDK)** (write fresh, beachhead).
-- **Write a worker or director (A2A)** (migrate from the wiki agents guides).
-- **Connect a SaaS connector (Google or Microsoft)** (migrate from the connectors docs).
-- **Run a sovereign local model (GGUF)** (migrate from the model hub docs).
-- **Configure permissions, autonomy tiers and budgets** (migrate from the governance docs).
-- **Embed via federation (MCP + REST, the Yumni pattern)** (write fresh, beachhead).
-- **Audit, verify and roll back a run** (write fresh in English, beachhead).
+- [Install and run the runtime](/how-to/install-and-run): build from a checkout
+  and get a daemon running an agent.
+- [Accelerate local inference](/how-to/accelerate-local-inference): add an
+  optional `llama-server` path for concurrency and speculative decoding.
 
-_This is a phase 1 placeholder. Content migration happens in a later phase._
+## Build agents
+
+- [Write a director](/how-to/write-a-director): an agent that reasons and drives
+  workers.
+- [Write a worker](/how-to/write-a-worker): a single-skill agent exposed over
+  A2A.
+- [Run an orchestrated agent](/how-to/run-an-orchestrated-agent): let the engine
+  plan, gate, and verify a multi-step run.
+- [Test your agents](/how-to/test-your-agents): unit-test skills against a mock
+  context, then integration-test against a live runtime.
+- [Package and distribute an agent](/how-to/package-and-distribute-an-agent):
+  bundle, install, and share an agent.
+
+## Integrate and operate
+
+- [Integrate via the driving contract](/how-to/integrate-via-driving-contract):
+  control the runtime from a host application over the HTTP API.
+- [Embed via federation](/how-to/embed-via-federation): expose your product as
+  MCP tools and let an agent write back through your REST API.
+- [Keep a human in the loop](/how-to/human-in-the-loop): require approval before
+  a consequential action runs.
+- [Audit, verify, and roll back a run](/how-to/audit-verify-rollback): read the
+  trail, verify the journal, and reverse filesystem changes.
+- [Deploy in production](/how-to/deploy-in-production): run Apollia as a managed
+  service with TCP, authentication, and TLS.

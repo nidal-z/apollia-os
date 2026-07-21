@@ -41,7 +41,7 @@ Agents are Python; the runtime is Rust. The bridge is PyO3 with
 `pyo3-async-runtimes` for async interop. The runtime does not hand Python raw
 internals: it exposes a set of services (the `ctx` object) behind Rust traits,
 so the agent contract is decoupled from the implementation and can be mocked for
-testing. The agent side sees one typed context with fourteen services; the Rust
+testing. The agent side sees one typed context with fifteen services; the Rust
 side can evolve behind it.
 
 The bridge decision is ADR-002; the `ctx` contract is ADR-024 and is documented

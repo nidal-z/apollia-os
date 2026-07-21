@@ -16,7 +16,6 @@ les décisions (`docs/adr/`) et le rulebook pour agents IA (`docs/agents/`).
 | **Développeur expérimenté** | référence technique | [`docs/site/` reference](./site/docs/reference/) |
 | **Mainteneur** | comprendre une décision passée | [`docs/adr/`](./adr/) |
 | **LLM / agent IA** | règles de code, conventions, patterns | [`docs/agents/`](./agents/) |
-| **Toi en R&D** (consultation hors-code) | concepts digestibles avec analogies | Notion `PORTAIL TECH` (privé) |
 
 ---
 

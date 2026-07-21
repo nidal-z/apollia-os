@@ -16,7 +16,7 @@ Logique pratique : commencez par activer les événements qui vous intéressent 
 - Au moins un canal de notification est configuré (voir [Configurer un canal de notification](configurer-un-canal.md)).
 - Vous savez quels événements méritent une alerte pour vous.
 
-## Les 6 événements disponibles
+## Les 7 événements disponibles
 
 | Identifiant | Libellé | Description |
 |---|---|---|
@@ -26,13 +26,14 @@ Logique pratique : commencez par activer les événements qui vous intéressent 
 | `agent.degraded` | **Agent en mode dégradé** | Un outil optionnel est indisponible ; l'agent continue avec des capacités réduites. |
 | `trigger.error` | **Erreur de déclencheur** | Une automatisation programmée n'a pas pu se déclencher. |
 | `llm.backend_down` | **Fournisseur LLM indisponible** | Le fournisseur d'IA configuré ne répond plus. |
+| `chat.user_input_required` | **Question d'agent** | Un agent attend votre réponse à une question (ask_user). |
 
 ## Étapes - activer / désactiver un événement globalement
 
 1. Dans la sidebar, cliquez sur **Notifications**.
 
 2. Repérez la section **Événements globaux** en haut de la page. Elle affiche une grille de cases à cocher, une par type d'événement, avec libellé humain, description courte et identifiant technique en sous-texte muted.
-   ![section Événements globaux - grille de 6 cases à cocher avec libellé humain, description et identifiant en...](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
+   ![section Événements globaux - grille de 7 cases à cocher avec libellé humain, description et identifiant en...](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Cochez ou décochez les événements selon ce que vous voulez voir remonter.
 
@@ -42,7 +43,7 @@ Logique pratique : commencez par activer les événements qui vous intéressent 
 
 1. Dans la liste de canaux, cliquez sur **Modifier** sur la carte du canal voulu.
 
-2. Dans le dialog, descendez à la section **Événements**. Elle affiche **les mêmes 6 événements** que la section globale, sous forme de cases à cocher.
+2. Dans le dialog, descendez à la section **Événements**. Elle affiche **les mêmes 7 événements** que la section globale, sous forme de cases à cocher.
 
 3. Cochez les événements à router vers **ce canal**. Ne rien cocher = ce canal reçoit **tous les événements globaux** activés (mention *« Tous les événements »* affichée sur la carte).
 

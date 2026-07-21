@@ -89,8 +89,8 @@ Install runs these checks, in order:
 1. The source exists.
 2. The agent loads and satisfies the contract (a `manifest()` and an async
    `run()`), validated through the Python bridge.
-3. If a manifest declares `dangerous_tools_allowed`, the installer warns and asks
-   for confirmation.
+3. If a manifest declares `dangerous_tools_allowed`, the installer emits a
+   warning and continues; it does not block or prompt for confirmation.
 4. Declared Python packages are provisioned.
 5. If the agent ships a `tests/` directory, its tests run under `pytest`. A
    failure blocks the install. Skip this step with `--skip-tests` (not

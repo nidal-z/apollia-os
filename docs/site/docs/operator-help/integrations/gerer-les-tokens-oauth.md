@@ -73,7 +73,8 @@ La v0.1.0 ne supporte pas le step-up auth automatique (demander seulement les no
 - L'outil trousseau du système ne montre plus d'entrée correspondante.
 - Un appel d'outil natif sur le compte révoqué retourne `NotConnected`.
 
-::: details Configuration avancée
+<details>
+<summary>Configuration avancée</summary>
 
 ### Mode fichier chiffré, Linux headless
 
@@ -103,7 +104,7 @@ Les approbations MCP (acceptations HITL durables) sont stockées séparément da
 - **`NoRefreshToken`** au refresh : le compte a été connecté sans `offline_access` (Microsoft) ou sans `access_type=offline` (Google). Reconnectez.
 - **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
 
-:::
+</details>
 
 ## Si ça ne marche pas
 

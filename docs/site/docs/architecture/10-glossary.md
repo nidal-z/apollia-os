@@ -18,7 +18,7 @@ Key terms used across this section and the rest of the documentation.
 | **Direct vs orchestrated** | Two ORIA execution modes. Direct runs a single agent loop; orchestrated plans and drives governed tool steps with verification and re-planning. |
 | **ReAct** | The reason-then-act loop an agent runs: think, call a tool, observe, repeat. |
 | **StepBudget** | The non-bypassable ceiling on reasoning steps, tool calls, and wall-clock time the runtime enforces on every run. |
-| **ctx** | The runtime context passed to every agent handler, exposing fourteen typed services. The contract is `sdk/apollia/types.py`. See the [SDK reference](/reference/sdk). |
+| **ctx** | The runtime context passed to every agent handler, exposing fifteen typed services. The contract is `sdk/apollia/types.py`. See the [SDK reference](/reference/sdk). |
 | **AgentKit** | The Python SDK (`apollia`): the decorators, schemas, harness, and helpers an author writes against. |
 | **MCP** | Model Context Protocol. Apollia is an MCP client that discovers and calls external tools, and can expose a limited inbound MCP server. |
 | **Autonomy tier** | The operator-set dial for how much an agent may do without asking. Lower tiers keep a human in the loop on more actions. |

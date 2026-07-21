@@ -20,7 +20,11 @@
 4. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
    ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](../_screenshots/chat-activer-la-dictee-vocale-2.png)
 
-5. Activez l'interrupteur **Mode push-to-talk**. Avec ce mode, vous maintenez le raccourci pendant que vous parlez, et la transcription se déclenche au relâchement.
+5. Dans le sélecteur **Mode de déclenchement**, choisissez l'un des deux modes :
+   - **Toggle (appui = start/stop)** : un premier appui sur le raccourci démarre l'enregistrement, un second l'arrête.
+   - **Push-to-talk (maintien)** : vous maintenez le raccourci pendant que vous parlez, et la transcription se déclenche au relâchement.
+
+   Pour la suite de cette procédure, choisissez **Push-to-talk (maintien)**.
 
 6. Ouvrez un chat depuis la sidebar.
 

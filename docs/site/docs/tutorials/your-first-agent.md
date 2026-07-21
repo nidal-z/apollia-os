@@ -17,8 +17,12 @@ write a class, declare an entry point, install, enable, run.
 
 - Apollia installed, with the `apollia-os` command on your `PATH`.
 - An LLM backend configured. Check it with `apollia-os llm status`. If nothing
-  is set up yet, run `apollia-os llm setup` and follow the prompts. See the
-  [CLI reference](/reference/cli) for every `llm` subcommand.
+  is set up yet, register a local model with
+  `apollia-os llm setup --local --model /path/to/model.gguf`, or a cloud backend
+  with `apollia-os auth login <provider>` then
+  `apollia-os llm backends create`. See
+  [Install and run the runtime](/how-to/install-and-run#step-3-configure-a-model-backend)
+  and the [CLI reference](/reference/cli) for every `llm` subcommand.
 
 You do not need to know the SDK yet. This tutorial introduces one decorator and
 one service; the rest is ordinary Python.

@@ -44,7 +44,7 @@ reader trusts the stale version:
 
 - The SDK contract is `sdk/apollia/types.py`, not an `sdk/apollia/stubs/`
   directory (which does not exist).
-- The runtime context `ctx` is fourteen services, not the earlier flat shape.
+- The runtime context `ctx` is fifteen services, not the earlier flat shape.
   See the [SDK reference](/reference/sdk).
 - Sharded GGUF, runner auto-restart, and the actor restart policy were described
   as working; they are not, as stated above.

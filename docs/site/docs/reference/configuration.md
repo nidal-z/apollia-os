@@ -7,8 +7,37 @@ title: Configuration (apollia.toml)
 
 Reference for the `apollia.toml` configuration surface.
 
-_Phase 1 placeholder. Migrate from the existing configuration reference in a
-later phase._
+The runtime looks for `apollia.toml` in the working directory first, then in
+`~/.config/apollia/apollia.toml`. Every section is optional: an absent section
+falls back to its defaults. Runtime data (databases, the API token, models) lives
+separately under `~/.apollia/`.
+
+## Sections
+
+| Section | Purpose |
+|---|---|
+| `[llm]` | LLM backend configuration. |
+| `[api]` | TCP listener and authentication (`bind`, `require_token`, `tls_cert`, `tls_key`). |
+| `[runtime]` | EventBus and mailbox capacities. |
+| `[hitl]` | Human-in-the-loop timeout and scan interval. |
+| `[a2a]` | Inter-agent routing. |
+| `[oria]` | The Observer-Reasoner-Actor engine. |
+| `[registry]` | Community registry URL. |
+| `[tools]` | Native tools: limits, static disabling, and per-tool `[tools.web_search]` / `[tools.web_read]` configuration. |
+| `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
+| `[permissions]` | Permissions engine (SafeList, injection detection). |
+| `[filesystem]` | Reversible journal and filesystem configuration. |
+| `[hooks]` | Lifecycle hook handlers (command or HTTP). |
+| `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
+
+Sampling parameters are documented separately in
+[Sampling defaults](/reference/sampling-defaults). The `[tools.web_search]` and
+`[tools.web_read]` keys are also editable from the CLI with
+`apollia-os tools config set <tool>.<key> <value>`.
+
+The MCP section below is documented in full because its limits are
+security-relevant. The other sections are summarised above; consult the field
+defaults in the runtime configuration types.
 
 ## MCP servers (`[[mcp.servers]]`)
 
