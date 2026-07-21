@@ -64,9 +64,12 @@ impl CompletionModel for MockLlmBackend {
                 prompt_tokens: 10,
                 completion_tokens: 5,
                 cost_usd: Some(0.001),
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 1,
+            ttft_ms: None,
         })
     }
 
@@ -117,28 +120,16 @@ fn default_task() -> AIPTask {
 /// Le ctx est un objet Python pur (pas RuntimeContext Rust) avec un `llm` mock Python.
 #[tokio::test]
 async fn test_agent_llm_chat_completed() {
-    // GIVEN un agent Python qui appelle ctx.llm.chat()
+    // GIVEN un agent Python decorateur qui appelle ctx.llm.chat()
     let agent_code = concat!(
-        "class MockLlm:\n",
-        "    async def chat(self, system='', user='', backend=None):\n",
-        "        import asyncio\n",
-        "        await asyncio.sleep(0)\n",
-        "        class R:\n",
-        "            content = 'mock:' + user\n",
-        "            latency_ms = 0\n",
-        "        return R()\n",
+        "from apollia import agent, on_message\n",
         "\n",
+        "@agent(name='llm-chat-agent', version='1.0.0', description='test')\n",
         "class LlmChatAgent:\n",
-        "    def manifest(self):\n",
-        "        return {'name': 'llm-chat-agent', 'version': '1.0.0',\n",
-        "                'description': 'test', 'tools_required': []}\n",
-        "    async def run(self, task, ctx):\n",
+        "    @on_message\n",
+        "    async def handle(self, message, history, ctx):\n",
         "        response = await ctx.llm.chat(system='', user='hello')\n",
-        "        return {\n",
-        "            'task_id': task['task_id'],\n",
-        "            'status': 'completed',\n",
-        "            'output': [{'type': 'text', 'text': response.content}],\n",
-        "        }\n",
+        "        return response.content\n",
         "\n",
         "agent = LlmChatAgent()\n"
     );
@@ -174,8 +165,10 @@ async fn test_agent_llm_chat_completed() {
 
     let ctx: PyObject = Python::with_gil(|py| -> PyObject {
         // globals == locals pour que MockLlm soit visible dans MockCtx
-        let ns = pyo3::types::PyDict::new_bound(py);
-        py.run_bound(mock_ctx_code, Some(&ns), Some(&ns))
+        let ns = pyo3::types::PyDict::new(py);
+        let code =
+            std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
+        py.run(code.as_c_str(), Some(&ns), Some(&ns))
             .expect("mock ctx code should execute without error");
         ns.get_item("ctx_instance")
             .expect("get_item should not raise")
@@ -280,23 +273,20 @@ async fn test_llm_stream_yields_chunks() {
 /// Vérifie que l'agent retourne `Completed` après la boucle.
 #[tokio::test]
 async fn test_run_tools_full_react_cycle() {
-    // GIVEN un agent Python qui appelle ctx.llm.run_tools()
+    // GIVEN un agent Python decorateur qui appelle ctx.llm.run_tools()
     let agent_code = concat!(
+        "from apollia import agent, on_message\n",
+        "\n",
+        "@agent(name='run-tools-agent', version='1.0.0', description='ReAct test')\n",
         "class RunToolsAgent:\n",
-        "    def manifest(self):\n",
-        "        return {'name': 'run-tools-agent', 'version': '1.0.0',\n",
-        "                'description': 'ReAct test', 'tools_required': []}\n",
-        "    async def run(self, task, ctx):\n",
+        "    @on_message\n",
+        "    async def handle(self, message, history, ctx):\n",
         "        result = await ctx.llm.run_tools(\n",
         "            messages=[{'role': 'user', 'content': 'test'}],\n",
         "            tools=[{'name': 'echo', 'description': 'test', 'parameters': {}}],\n",
         "            max_iterations=5,\n",
         "        )\n",
-        "        return {\n",
-        "            'task_id': task['task_id'],\n",
-        "            'status': 'completed',\n",
-        "            'output': [{'type': 'text', 'text': str(result)}],\n",
-        "        }\n",
+        "        return str(result)\n",
         "\n",
         "agent = RunToolsAgent()\n"
     );
@@ -335,8 +325,10 @@ async fn test_run_tools_full_react_cycle() {
     );
 
     let ctx: PyObject = Python::with_gil(|py| -> PyObject {
-        let ns = pyo3::types::PyDict::new_bound(py);
-        py.run_bound(mock_ctx_code, Some(&ns), Some(&ns))
+        let ns = pyo3::types::PyDict::new(py);
+        let code =
+            std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
+        py.run(code.as_c_str(), Some(&ns), Some(&ns))
             .expect("mock ctx code should execute");
         ns.get_item("ctx_react")
             .expect("get_item should not raise")

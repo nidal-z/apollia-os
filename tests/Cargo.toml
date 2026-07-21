@@ -85,11 +85,6 @@ name = "test_webhook"
 path = "integration/test_webhook.rs"
 
 [[test]]
-name = "test_reviewer_agent"
-path = "integration/test_reviewer_agent.rs"
-required-features = ["python-tests"]
-
-[[test]]
 name = "test_oria_orchestrated"
 path = "integration/test_oria_orchestrated.rs"
 

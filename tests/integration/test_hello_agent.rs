@@ -1,7 +1,8 @@
-//! Integration tests - full chain with hello_agent.py.
+//! Integration tests - full chain with the decorator-built hello agent.
 //!
-//! Tests the complete path: AIPLoader → AIPBridge → TaskRouter → Coordinator.
-//! Requires Python environment. Gated behind the `python-tests` feature.
+//! Tests the complete path: AIPLoader -> AIPBridge -> TaskRouter -> Coordinator.
+//! Requires the Apollia SDK installed in the interpreter pointed to by
+//! PYO3_PYTHON. Gated behind the `python-tests` feature.
 //!
 //! Run with:
 //!   PYO3_PYTHON=/opt/homebrew/bin/python3.13 \
@@ -15,7 +16,7 @@ use std::time::Duration;
 
 use apollia_aip::{bridge::AIPBridge, loader::load_agent_module, validator::validate_agent};
 use apollia_core::{
-    AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent, TaskStatus,
+    AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent,
 };
 use apollia_runtime::{
     coordinator::{ExecutionBackend, ExecutionCoordinator},
@@ -24,6 +25,42 @@ use apollia_runtime::{
     router::TaskRouterHandle,
 };
 use pyo3::prelude::*;
+
+// --- Mock ctx ---
+
+/// A minimal Python `ctx` exposing the surface the hello agent touches.
+///
+/// The decorator-built hello agent calls `ctx.logger.info(msg, length=...)`.
+/// A plain dict would raise `AttributeError` on `ctx.logger`, so we build a
+/// small stand-in whose logger swallows structured keyword arguments (as the
+/// runtime's `KwargTolerantLogger` does) and whose `log()` method is a no-op.
+const MOCK_CTX_CODE: &str = concat!(
+    "class _MockLogger:\n",
+    "    def info(self, *a, **k): pass\n",
+    "    def debug(self, *a, **k): pass\n",
+    "    def warning(self, *a, **k): pass\n",
+    "    def error(self, *a, **k): pass\n",
+    "\n",
+    "class MockCtx:\n",
+    "    def __init__(self):\n",
+    "        self.logger = _MockLogger()\n",
+    "    def log(self, level, message):\n",
+    "        pass\n",
+    "\n",
+    "ctx_instance = MockCtx()\n"
+);
+
+/// Builds the mock `ctx` object from [`MOCK_CTX_CODE`].
+fn build_mock_ctx(py: Python<'_>) -> PyObject {
+    let ns = pyo3::types::PyDict::new(py);
+    let code = std::ffi::CString::new(MOCK_CTX_CODE).expect("mock ctx code contains NUL byte");
+    py.run(code.as_c_str(), Some(&ns), Some(&ns))
+        .expect("mock ctx code should execute without error");
+    ns.get_item("ctx_instance")
+        .expect("get_item should not raise")
+        .expect("ctx_instance must be defined")
+        .unbind()
+}
 
 // --- AIPBridge backend ---
 
@@ -40,8 +77,8 @@ impl ExecutionBackend for AIPBridgeBackend {
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
         let bridge = Arc::clone(&self.bridge);
         Box::pin(async move {
-            // Build a minimal context (empty dict - hello_agent doesn't use tools/memory)
-            let ctx: PyObject = Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
+            // The hello agent only reads ctx.logger; a mock ctx is enough.
+            let ctx: PyObject = Python::with_gil(build_mock_ctx);
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
     }
@@ -58,6 +95,8 @@ fn test_manifest_for(name: &str) -> AgentManifest {
         tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: false,
+        supports_mailbox: false,
+        mailbox_allowlist: None,
         memory_namespace: None,
         shared_memory_namespaces: vec![],
         max_concurrent_tasks: 1,
@@ -78,33 +117,41 @@ fn test_manifest_for(name: &str) -> AgentManifest {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
+        check_commands: vec![],
     }
 }
 
-/// Returns the absolute path to agents/hello_agent.py.
+/// Returns the absolute path to agents/examples/hello/agent.py.
 /// CARGO_MANIFEST_DIR is the `tests/` directory; agents/ is one level up.
 fn hello_agent_path() -> std::path::PathBuf {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir
         .parent()
         .expect("tests/ must be inside workspace root");
-    workspace_root.join("agents").join("hello_agent.py")
+    workspace_root
+        .join("agents")
+        .join("examples")
+        .join("hello")
+        .join("agent.py")
 }
 
-// full chain: AIPLoader → AIPBridge → TaskRouter → Coordinator → TaskCompleted
+// full chain: AIPLoader -> AIPBridge -> TaskRouter -> Coordinator -> TaskCompleted
 #[tokio::test]
 async fn test_hello_agent_full_chain() {
     let agent_path = hello_agent_path();
     assert!(
         agent_path.exists(),
-        "hello_agent.py must exist at: {}",
+        "hello agent must exist at: {}",
         agent_path.display()
     );
 
-    // GIVEN hello_agent.py loaded and validated
+    // GIVEN the decorator-built hello agent loaded and validated
     let agent_obj = load_agent_module(&agent_path).expect("load_agent_module should succeed");
     let validated =
-        validate_agent(&agent_obj).expect("hello_agent.py should pass duck-typing validation");
+        validate_agent(&agent_obj).expect("hello agent should pass decorator validation");
     let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
     // AND a full runtime stack (EventBus, AgentRegistry, TaskRouter)
@@ -161,7 +208,7 @@ async fn test_hello_agent_full_chain() {
 
     assert!(
         completed,
-        "Task should have completed successfully via hello_agent.py"
+        "Task should have completed successfully via the hello agent"
     );
 
     // Cleanup

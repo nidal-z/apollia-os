@@ -6,6 +6,7 @@
 #
 # Jobs :
 #   - e2e-desktop      : tests E2E Tauri (lents, parfois flaky)
+#   - python-tests     : suite AIP gated PyO3 (agents Python via le pont)
 #   - feature-matrix   : sanity-check des features GPU sur apollia-llm/stt
 #   - coverage         : rapport coverage HTML/LCOV (heavy)
 #   - deep-audit       : cargo audit avec advisory DB rechargée
@@ -30,6 +31,7 @@ on:
         options:
           - "all"
           - "e2e-desktop"
+          - "python-tests"
           - "multirunner-cpu-e2e"
           - "feature-matrix"
           - "coverage"
@@ -107,6 +109,55 @@ jobs:
       - name: Stop runtime
         if: always()
         run: ./target/debug/apollia-os stop || true
+
+  # ── Python bridge tests (PyO3-gated AIP suite) ─────────────────────────────
+  # The `python-tests` feature of apollia-e2e-tests gates the AIP integration
+  # binaries that load real decorator-built Python agents through the PyO3
+  # bridge. They need the Apollia SDK importable from the interpreter pointed
+  # to by PYO3_PYTHON, so we pip-install the editable SDK first. Never gates a
+  # PR: the heavy PyO3 link lives in nightly.
+  python-tests:
+    name: Python Bridge Tests
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'python-tests'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            python3-dev clang cmake
+
+      - name: Install Apollia SDK (editable)
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e ./sdk
+
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: python-tests
+
+      - name: Run PyO3-gated AIP suite
+        run: |
+          cargo test -p apollia-e2e-tests \
+            --features python-tests \
+            --no-fail-fast
 
   # ── Multi-runner CPU E2E ───────────────────────────────────────────────────
   # Spawn le daemon + le sidecar runner CPU sur les 3 OS, vérifie le
