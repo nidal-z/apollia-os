@@ -141,7 +141,7 @@ rand = "0.9"
 futures = "0.3"
 async-trait = "0.1"
 # cloud backends (OpenAI-compatible + Anthropic) - [feature = "cloud"]
-async-openai = "0.28"
+async-openai = "0.41"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 # llama-cpp-2 = bindings Rust safe pour llama.cpp
 # Compilation statique, binaire unique, 30+ architectures GGUF.
