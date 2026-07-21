@@ -65,7 +65,7 @@ semver             = { workspace = true }
 scopeguard         = { workspace = true }
 sha2               = { workspace = true }
 reqwest            = { workspace = true }
-rustyline          = "14"
+rustyline          = "18"
 dirs               = "5"
 open               = { workspace = true }
 
