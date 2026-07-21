@@ -29,7 +29,7 @@
 ## Lancer manuellement et suivre
 
 8. Pour vérifier que tout fonctionne sans attendre la prochaine échéance, passez la souris sur la ligne de l'automatisation et cliquez sur l'**icône lecture ▶︎** à droite. Une exécution démarre immédiatement et un toast confirme le lancement.
-   `[SCREENSHOT: ligne d'automatisation au hover, icône Play à droite visible, tooltip "Lancer maintenant"]`
+   *Figure : une ligne d'automatisation au survol, avec l'icône Play visible à droite et son infobulle Lancer maintenant.*
 
 9. Pour consulter l'historique d'exécution, cliquez sur l'icône **⋯** sur la ligne (visible au hover) → **Voir l'historique**. Voir la page [Suivre l'historique d'un trigger](suivre-l-historique-d-un-trigger.md).
 

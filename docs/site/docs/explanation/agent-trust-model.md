@@ -35,8 +35,10 @@ child process, not the agent, that Apollia confines:
 - On macOS, there is no OS sandbox for tools; Apollia emits a warning on every
   tool invocation so the absence is impossible to miss. Production tool isolation
   requires Linux.
-- On every Unix platform, tool child processes carry per-process resource limits
-  (CPU time, address space, open file descriptors) applied with `setrlimit`.
+- On every Unix, tool child processes carry per-process resource limits applied
+  with `setrlimit`: CPU time and open file descriptors everywhere, plus address
+  space on Linux (macOS rejects the address-space limit, so Apollia does not set
+  it there).
 
 The distinction matters: the sandbox protects the host from a tool call, not from
 the agent's own code.

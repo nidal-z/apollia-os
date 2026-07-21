@@ -6,6 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "apollia-sdk"
 version = "0.5.0"
 description = "Python SDK for Apollia OS agent development"
+# The SDK source runs on Python 3.10+ (no 3.11/3.12-only syntax; the 3.11+
+# typing.Required / NotRequired are imported behind an ImportError fallback in
+# apollia/_internal/inference.py). This is the true source floor. The tested and
+# supported configuration for Apollia as a whole is 3.12+, because the runtime
+# embeds a 3.12+ interpreter that the SDK installs into; that is what the docs'
+# "Python 3.12+" prerequisite refers to.
 requires-python = ">=3.10"
 license = {text = "MIT OR Apache-2.0"}
 authors = [{name = "Nidal Zoumita", email = "admin@apollia.fr"}]

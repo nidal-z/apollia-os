@@ -20,7 +20,7 @@
 
 Quatre cases à cocher rappellent les implications d'installer un MCP externe (du code tiers s'exécute sur votre machine, des données peuvent être transférées, vous pouvez révoquer à tout moment, les capabilities sont visibles avant install). Cochez les quatre, puis cliquez **Suivant**.
 
-`[SCREENSHOT: étape 1 du wizard, 4 cases à cocher avec leurs libellés, bouton Suivant grisé tant que tout n'est pas coché]`
+*Figure : l'étape 1 de l'assistant, avec les 4 cases à cocher et leurs libellés, et le bouton Suivant grisé tant que tout n'est pas coché.*
 
 ### Étape 2, Authentification
 
@@ -30,7 +30,7 @@ Apollia détecte automatiquement le type d'authentification requis par le serveu
 - **Clé API ou jeton statique** : un champ mot de passe apparaît. Collez votre clé.
 - **OAuth** : un bouton *"Se connecter avec [Provider]"* apparaît avec la liste des scopes demandés. Cliquez, votre navigateur ouvre la page de consentement, autorisez, le retour est automatique.
 
-`[SCREENSHOT: étape 2 du wizard exemple OAuth, bouton "Se connecter avec [Provider]" et liste des scopes en dessous]`
+*Figure : l'étape 2 de l'assistant dans le cas OAuth, avec le bouton Se connecter avec [Provider] et la liste des scopes demandés en dessous.*
 
 ### Étape 3, Test
 
@@ -41,13 +41,13 @@ Cliquez sur **Tester la connexion**. Pendant le test, l'icône pulse. À la fin,
 
 Si le test échoue, revenez à l'étape 2 pour corriger.
 
-`[SCREENSHOT: étape 3 du wizard, bouton "Tester la connexion" et badge vert "12 outils détectés"]`
+*Figure : l'étape 3 de l'assistant, avec le bouton Tester la connexion et un badge vert indiquant 12 outils détectés.*
 
 ### Étape 4, Coaching
 
 Apollia affiche quelques cartes d'exemples avec un bouton *"Essayer ce prompt"* qui pré-remplit la zone de chat. Cliquez **Terminer** pour clôturer l'assistant.
 
-`[SCREENSHOT: étape 4 du wizard, 3 cartes d'exemples avec bouton "Essayer ce prompt" et bouton Terminer]`
+*Figure : l'étape 4 de l'assistant, avec 3 cartes d'exemples portant chacune un bouton Essayer ce prompt, et le bouton Terminer.*
 
 ## Vérification
 

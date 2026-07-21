@@ -23,17 +23,17 @@ Voir les différences observables dans le tableau plus bas.
 
 1. Dans la sidebar, ouvrez **Connexions**, puis sélectionnez la carte **Microsoft 365**.
 
-   `[SCREENSHOT: page Connexions, carte Microsoft 365 mise en évidence avec bouton "Connecter un compte" dans le panneau de droite]`
+   *Figure : la page Connexions, avec la carte Microsoft 365 mise en évidence et le bouton Connecter un compte dans le panneau de droite.*
 
 2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre la page de consentement Microsoft.
 
 3. Authentifiez-vous avec votre compte Microsoft, puis acceptez les autorisations (Mail, Calendar, Files).
 
-   `[SCREENSHOT: page consent Microsoft, liste des accès Mail/Calendar/Files, boutons Non et Oui]`
+   *Figure : la page de consentement Microsoft, avec la liste des accès demandés (Mail, Calendar, Files) et les boutons Non et Oui.*
 
 4. De retour dans Apollia, la fenêtre détecte le retour automatiquement et se ferme. Votre compte apparaît dans la sidebar avec une pastille verte.
 
-   `[SCREENSHOT: sidebar Connexions, carte Microsoft 365 dépliée avec le compte connecté et badge vert]`
+   *Figure : la sidebar Connexions, avec la carte Microsoft 365 dépliée affichant le compte connecté et sa pastille verte.*
 
 ## Ce que vous pouvez faire
 

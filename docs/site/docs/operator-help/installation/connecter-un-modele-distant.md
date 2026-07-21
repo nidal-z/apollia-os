@@ -27,7 +27,7 @@
 5. Renseignez les champs spécifiques au fournisseur (voir sections ci-dessous).
 6. Cliquez sur **Tester** pour valider la connexion. Un badge vert *"OK · XXX ms"* confirme que le fournisseur répond.
 
-   `[SCREENSHOT: dialog avec champ Provider sélectionné, Endpoint et API Key remplis, bouton "Tester" et badge vert "OK · 312 ms" en dessous]`
+   *Capture : le dialogue de configuration avec le fournisseur sélectionné, les champs Endpoint et API Key remplis, et un badge vert « OK · 312 ms » affiché sous le bouton Tester.*
 
 7. Si le test passe, cliquez sur **Enregistrer**. Le backend apparaît dans la liste.
 8. (Optionnel) Cochez **Backend par défaut** pour qu'il soit sélectionné automatiquement à l'ouverture d'un nouveau chat.
@@ -36,10 +36,12 @@
 
 - **Endpoint par défaut** : `https://api.anthropic.com` (laissez tel quel sauf gateway custom).
 - **Où obtenir la clé** : https://console.anthropic.com, section **API Keys**.
-- **Modèles recommandés v0.1.0** :
-  - `claude-opus-4-7` pour la qualité maximale.
-  - `claude-3-5-sonnet-20241022` pour un bon rapport qualité/vitesse.
-  - `claude-3-5-haiku` pour la rapidité et un coût bas.
+- **Modèles recommandés v0.1.0** (identifiants datés, format exact attendu par l'API) :
+  - `claude-opus-4-20250514` pour la qualité maximale.
+  - `claude-sonnet-4-20250514` pour un bon rapport qualité/vitesse.
+  - `claude-3-5-haiku-20241022` pour la rapidité et un coût bas.
+
+  Les identifiants de modèles évoluent : reprenez toujours l'identifiant exact du modèle courant depuis la [liste des modèles Anthropic](https://docs.anthropic.com/en/docs/about-claude/models).
 
 Apollia applique automatiquement le prompt caching côté Anthropic.
 
