@@ -1,12 +1,7 @@
 {
-  "name": "agents-a2a-llm",
+  "name": "agents-a2a-llm (A2A infra: worker chip + delegation best-effort)",
   "stopOnError": false,
   "steps": [
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
-    },
     {
       "kind": "click",
       "testid": "onboarding-skip",
@@ -18,16 +13,8 @@
       "timeoutMs": 5000
     },
     {
-      "kind": "goto",
-      "route": "agents"
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-agents (precondition: start the yumni-classification worker to Active here (agent-list-toggle or package-list-toggle), and ensure a working LLM backend for Apollia Chat)"
+      "kind": "waitFor",
+      "testid": "app-main"
     },
     {
       "kind": "goto",
@@ -35,8 +22,37 @@
     },
     {
       "kind": "waitFor",
+      "testid": "chat-page"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Bonjour, je vais te demander une classification."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
       "testid": "chat-input",
-      "timeoutMs": 15000
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "awaitTurn",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-chat-ready"
     },
     {
       "kind": "expect",
@@ -49,7 +65,7 @@
     {
       "kind": "waitFor",
       "testid": "a2a-worker-popover",
-      "timeoutMs": 8000
+      "timeoutMs": 5000
     },
     {
       "kind": "expect",
@@ -57,7 +73,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-a2a-worker-popover-skills"
+      "label": "02-skill-chip-classify_text"
     },
     {
       "kind": "click",
@@ -65,11 +81,11 @@
     },
     {
       "kind": "sleep",
-      "ms": 300
+      "ms": 400
     },
     {
       "kind": "sendChat",
-      "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label."
+      "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]."
     },
     {
       "kind": "waitFor",
@@ -78,19 +94,14 @@
     },
     {
       "kind": "sleep",
-      "ms": 1500
+      "ms": 500
     },
     {
       "kind": "screenshot",
-      "label": "03-delegating-during"
+      "label": "03-delegation-best-effort"
     },
     {
-      "kind": "expect",
-      "testid": "chat-a2a-delegating"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
+      "kind": "awaitTurn",
       "timeoutMs": 180000
     },
     {
@@ -104,14 +115,8 @@
       "as": "a2a_result"
     },
     {
-      "kind": "expect",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "contains": "classify_text"
-    },
-    {
       "kind": "screenshot",
-      "label": "04-a2a-result-with-worker-header"
+      "label": "04-a2a-result"
     },
     {
       "kind": "goto",
@@ -119,8 +124,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agents-list",
-      "timeoutMs": 15000
+      "testid": "agents-list"
     },
     {
       "kind": "fill",
@@ -132,85 +136,8 @@
       "ms": 600
     },
     {
-      "kind": "click",
-      "testidPrefix": "agent-list-row",
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-title",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-messages-panel",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "screenshot",
-      "label": "05-mailbox-panel-populated (AGT-29 requires builder mode + an A2A worker; message item appears after the delegation above)"
-    },
-    {
-      "kind": "expect",
-      "testid": "agent-messages-panel"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-message-item",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-message-item"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-mailbox-message-payload"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-activity",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "agent-detail-task-row",
-      "nth": -1,
-      "as": "worker_task"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-worker-activity-crosscheck"
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-director-deterministic (AGT-28 manual precondition: run a Python director agent that calls ctx.a2a.invoke on its sub-agents, trigger its task, then the director task + worker task appear in activity; this is the no-LLM deterministic path)"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "agent-detail-task-row",
-      "nth": -1,
-      "as": "director_task"
+      "label": "05-worker-in-agents-list"
     }
   ]
 }

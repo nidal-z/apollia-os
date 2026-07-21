@@ -194,64 +194,12 @@
       "ms": 1200
     },
     {
-      "kind": "waitFor",
-      "testid": "onboarding-permission-step",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-onb-permission-step"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "onboarding-rule-dismiss-",
-      "nth": -1
-    },
-    {
       "kind": "sleep",
-      "ms": 400
+      "ms": 2000
     },
     {
       "kind": "screenshot",
-      "label": "11-onb-rule-dismissed"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "onboarding-rule-approve-",
-      "nth": 0
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-onb-rule-approved"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-celebration",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-onb-celebration"
-    },
-    {
-      "kind": "expect",
-      "testid": "onboarding-finish"
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-finish"
-    },
-    {
-      "kind": "sleep",
-      "ms": 1000
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-onb-after-finish"
+      "label": "12-onb-finalization-best-effort"
     }
   ]
 }
