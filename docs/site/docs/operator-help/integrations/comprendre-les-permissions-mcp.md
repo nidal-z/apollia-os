@@ -19,7 +19,7 @@ Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** 
 
 Quand vous voyez la popup, vous pouvez cocher *"Toujours autoriser pour ce projet"*. Cela crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
 
-`[SCREENSHOT: popup HITL d'approbation dans le chat, titre de l'outil, paramètres exposés, boutons Refuser et Approuver, checkbox "Toujours autoriser pour ce projet"]`
+![Popup d'approbation dans le chat : le titre de l'outil, les paramètres exposés, les boutons Autoriser une fois et Refuser, et le menu Toujours autoriser](../_screenshots/integration-comprendre-les-permissions-mcp-1.png)
 
 ## Voir et changer les règles
 

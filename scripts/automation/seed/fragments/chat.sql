@@ -36,19 +36,19 @@ VALUES
     ('seed-session-1', 'libre', NULL, '', 'active',
      '["fs.read","web.fetch"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Walkthrough of the sovereign runtime and local inference.',
-     'Sovereign runtime walkthrough', NULL, 0, NULL, 0, 'done'),
+     'Découverte du runtime souverain', NULL, 0, NULL, 0, 'done'),
     ('seed-session-2', 'agent', 'apollia-guide', '', 'active',
      '["a2a.delegate","fs.read"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Preparing the preview release checklist.',
-     'Draft release checklist', NULL, 0, NULL, 1, 'done'),
+     'Préparer la checklist de mise en production', NULL, 0, NULL, 1, 'done'),
     ('seed-session-3', 'companion', 'apollia-guide', '', 'active',
      '[]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Companion coaching thread for the alpha project.',
-     'Companion coaching thread', NULL, 0, 'seed-project-alpha', 0, 'done'),
+     'Séance avec la compagnonne', NULL, 0, 'seed-project-alpha', 0, 'done'),
     ('seed-session-4', 'libre', NULL, '', 'active',
      '["mcp.list"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Exploring the available MCP tools.',
-     'MCP tool exploration', NULL, 0, NULL, 0, 'done');
+     'Exploration des outils MCP', NULL, 0, NULL, 0, 'done');
 
 -- Conversation history for seed-session-1 (user + assistant turns).
 INSERT INTO chat_messages

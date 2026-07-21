@@ -1,0 +1,39 @@
+{
+  "name": "screenshots-fr-llm (operator-help HITL popup, French, needs model)",
+  "stopOnError": false,
+  "steps": [
+    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 8000 },
+    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 5000 },
+    { "kind": "click", "testid": "sidebar-mode-chip" },
+    { "kind": "waitFor", "testid": "sidebar-mode-menu" },
+    { "kind": "click", "testid": "sidebar-mode-option-operator" },
+    { "kind": "sleep", "ms": 400 },
+    { "kind": "waitFor", "testid": "app-main" },
+
+    { "kind": "goto", "route": "settings" },
+    { "kind": "waitFor", "testid": "settings-page" },
+    { "kind": "waitFor", "testid": "settings-nav" },
+    { "kind": "click", "testid": "settings-nav-appearance" },
+    { "kind": "waitFor", "testid": "settings-content" },
+    { "kind": "click", "testid": "language-fr" },
+    { "kind": "sleep", "ms": 600 },
+
+    { "kind": "goto", "route": "chat" },
+    { "kind": "waitFor", "testid": "chat-page" },
+    { "kind": "click", "testid": "chat-new-chat-btn" },
+    { "kind": "waitFor", "testid": "quickpicker" },
+    { "kind": "fill", "testid": "quickpicker-textarea", "text": "Écris le texte « Bonjour » dans le fichier notes/demo.txt." },
+    { "kind": "click", "testid": "quickpicker-submit" },
+    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 30000 },
+    { "kind": "waitFor", "testid": "chat-approval-inline", "timeoutMs": 120000 },
+    { "kind": "waitFor", "testidPrefix": "approval-card-", "timeoutMs": 5000 },
+    { "kind": "sleep", "ms": 1200 },
+    { "kind": "screenshot", "label": "integration-comprendre-les-permissions-mcp-1" },
+
+    { "kind": "click", "testidPrefix": "approval-refuse-", "nth": 0 },
+    { "kind": "waitFor", "testid": "inbox-reject-dialog", "timeoutMs": 5000 },
+    { "kind": "fill", "testid": "inbox-reject-reason", "text": "Capture de documentation" },
+    { "kind": "click", "testid": "inbox-reject-confirm" },
+    { "kind": "sleep", "ms": 500 }
+  ]
+}
