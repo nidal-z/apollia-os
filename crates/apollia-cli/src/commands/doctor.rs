@@ -129,7 +129,7 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
                 "{} does not exist (will be created on first use)",
                 data_dir.display()
             ),
-            "Run `apollia-os start` once to bootstrap the directory",
+            "Run `apollia-os start` once: it creates the directory before writing the API token",
         );
     }
     // Probe writability by attempting to create a tmpfile.
@@ -254,7 +254,7 @@ fn check_models_dir(data_dir: &Path) -> CheckResult {
             "models_dir",
             "Local models",
             "~/.apollia/models/ does not exist",
-            "Download a model with `apollia-os model download <name>`",
+            "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`",
         );
     }
     let entries = std::fs::read_dir(&dir).ok().map(|d| d.count()).unwrap_or(0);
@@ -263,7 +263,7 @@ fn check_models_dir(data_dir: &Path) -> CheckResult {
             "models_dir",
             "Local models",
             "directory is empty",
-            "Download a model with `apollia-os model download <name>`",
+            "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`",
         )
     } else {
         CheckResult::ok(

@@ -51,6 +51,9 @@ impl IntoResponse for AuthError {
 /// Errors that can occur when loading or generating the API token file.
 #[derive(Debug, thiserror::Error)]
 pub enum TokenFileError {
+    /// I/O error creating the parent data directory before the first write.
+    #[error("failed to create data directory: {0}")]
+    CreateDir(#[source] std::io::Error),
     /// I/O error reading the existing token file.
     #[error("failed to read api-token file: {0}")]
     Read(#[source] std::io::Error),
@@ -65,6 +68,7 @@ pub enum TokenFileError {
 /// Loads the API token from `<data_dir>/api-token`, generating it if absent.
 ///
 /// On first call (file absent):
+/// - `<data_dir>` is created if it does not exist yet.
 /// - 32 cryptographically random bytes are generated.
 /// - They are hex-encoded into a 64-character ASCII string.
 /// - The string is written to `<data_dir>/api-token` with permissions `0600`.
@@ -85,6 +89,11 @@ pub fn load_or_generate_token(data_dir: &Path) -> Result<String, TokenFileError>
         }
         return Ok(token);
     }
+
+    // On a clean machine the data directory does not exist yet: create it
+    // before the first write so the very first `start` cannot fail on a
+    // missing parent. create_dir_all is a no-op when the directory exists.
+    std::fs::create_dir_all(data_dir).map_err(TokenFileError::CreateDir)?;
 
     let token = generate_hex_token();
     write_token_file(&token_path, &token)?;
@@ -326,6 +335,31 @@ mod tests {
         assert_eq!(token.len(), 64);
         assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
         assert!(dir.path().join("api-token").exists());
+    }
+
+    #[tokio::test]
+    async fn test_token_generated_when_data_dir_absent() {
+        // GIVEN a data dir path whose parent does not exist yet (clean machine)
+        let tmp = tempfile::tempdir().unwrap();
+        let data_dir = tmp.path().join("missing-parent").join(".apollia");
+        assert!(!data_dir.exists());
+
+        // WHEN load_or_generate_token is called on the absent directory
+        let token = load_or_generate_token(&data_dir).unwrap();
+
+        // THEN the directory is created and the token file now exists
+        assert_eq!(token.len(), 64);
+        assert!(data_dir.exists());
+        let token_path = data_dir.join("api-token");
+        assert!(token_path.exists());
+
+        // AND the token file keeps its 0600 permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&token_path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "api-token file must have mode 0600, got {mode:o}");
+        }
     }
 
     #[tokio::test]
