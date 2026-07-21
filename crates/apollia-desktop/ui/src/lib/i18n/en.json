@@ -2071,7 +2071,7 @@
     "show_all_entries": "Show all entries",
     "profile_banner_prefix": "The user profile is edited in",
     "profile_banner_link": "Settings → Profile",
-    "profile_banner_suffix": "This view is read-only for debugging.",
+    "profile_banner_suffix": "This view is read-only.",
     "sheet_close": "Close",
     "value_label": "Value",
     "copy_label": "Copy",

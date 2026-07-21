@@ -2071,7 +2071,7 @@
     "show_all_entries": "Voir toutes les entrées",
     "profile_banner_prefix": "Le profil utilisateur s'édite dans",
     "profile_banner_link": "Paramètres → Profil",
-    "profile_banner_suffix": "Cette vue est en lecture seule pour le debug.",
+    "profile_banner_suffix": "Cette vue est en lecture seule.",
     "sheet_close": "Fermer",
     "value_label": "Valeur",
     "copy_label": "Copier",
