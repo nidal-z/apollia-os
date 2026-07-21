@@ -14,7 +14,7 @@ rusqlite     = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
-cpal         = "0.15"
+cpal         = "0.18"
 rubato       = "0.15"
 tracing      = { workspace = true }
 
