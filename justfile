@@ -218,16 +218,16 @@ cli-release target="":
 
 # Common release presets
 release-macos:
-    just cli-release target={{macos_target}}
-    just desktop-build target={{macos_target}} runners="cpu metal"
+    just cli-release {{macos_target}}
+    just desktop-build {{macos_target}} "cpu metal"
 
 release-linux:
-    just cli-release target=x86_64-unknown-linux-gnu
-    just desktop-build target=x86_64-unknown-linux-gnu runners="cpu"
+    just cli-release x86_64-unknown-linux-gnu
+    just desktop-build x86_64-unknown-linux-gnu "cpu"
 
 release-windows:
-    just cli-release target=x86_64-pc-windows-msvc
-    just desktop-build target=x86_64-pc-windows-msvc runners="cpu"
+    just cli-release x86_64-pc-windows-msvc
+    just desktop-build x86_64-pc-windows-msvc "cpu"
 
 # -----------------------------------------------------------------------------
 # Combined tasks
