@@ -179,7 +179,7 @@ rpassword = "7"
 hf-hub = "0.3"
 
 # --- Progress bars (CLI download) ---
-indicatif = "0.17"
+indicatif = "0.18"
 
 # --- System information (RAM, OS, GPU detection - apollia-desktop onboarding) ---
 sysinfo = "0.31"
