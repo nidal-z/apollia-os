@@ -135,7 +135,7 @@ aes-gcm = "0.10"
 # --- Random ---
 # rand 0.9 = dernier major stable largement adopte (0.10 tout juste sorti,
 # ecosysteme pas encore aligne : eviter les doublons de version).
-rand = "0.9"
+rand = "0.10"
 
 # --- LLM (apollia-llm) ---
 futures = "0.3"

@@ -258,7 +258,7 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "keyring",
- "rand 0.9.4",
+ "rand 0.10.2",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -571,7 +571,7 @@ dependencies = [
  "chrono",
  "futures",
  "proptest",
- "rand 0.9.4",
+ "rand 0.10.2",
  "rusqlite",
  "serde",
  "serde_json",
@@ -655,7 +655,7 @@ dependencies = [
  "http-body-util",
  "hyper-util",
  "proptest",
- "rand 0.9.4",
+ "rand 0.10.2",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",
@@ -704,7 +704,7 @@ dependencies = [
  "futures",
  "glob",
  "libc",
- "rand 0.9.4",
+ "rand 0.10.2",
  "regex",
  "reqwest 0.12.28",
  "rusqlite",
@@ -5403,7 +5403,7 @@ dependencies = [
  "bit-vec",
  "bitflags 2.13.0",
  "num-traits",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rand_chacha 0.9.0",
  "rand_xorshift",
  "regex-syntax",
@@ -5615,9 +5615,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
+checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.5",
@@ -7173,7 +7173,7 @@ checksum = "01fc2c5ff41105bd1f7242d8201fdf3efd70749b82fa013a17f2126357d194cc"
 dependencies = [
  "log",
  "notify-rust",
- "rand 0.9.4",
+ "rand 0.9.5",
  "serde",
  "serde_json",
  "serde_repr",
@@ -7357,7 +7357,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
