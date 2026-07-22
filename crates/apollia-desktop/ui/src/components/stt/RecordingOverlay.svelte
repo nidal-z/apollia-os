@@ -6,67 +6,39 @@
   let isRecording = $state(true);
   let hotkey = $state("…");
 
-  // Voice visualizer - time-domain waveform split into segments.
-  // 80 bars with flex:1 fill the full window width at ~2px each.
+  // Voice visualizer - a scrolling waveform driven by the real capture level.
+  // The Rust cpal stream (the same one the STT engine transcribes) emits a
+  // `stt-audio-level` event ~30x/sec with a 0..1 peak amplitude; each event
+  // pushes one new column so the bars move with actual input and sit flat on
+  // silence. 80 bars with space-between fill the full window width at ~2px each.
   const BAR_COUNT = 80;
-  let bars = $state<number[]>(Array(BAR_COUNT).fill(0.08));
-  let smoothed = Array(BAR_COUNT).fill(0.08);
+  const IDLE = 0.06;
+  let bars = $state<number[]>(Array(BAR_COUNT).fill(IDLE));
+  // Newest level lives at the right edge; older levels scroll left.
+  let history = Array(BAR_COUNT).fill(IDLE);
 
-  let animFrameId: number | null = null;
-  let analyser: AnalyserNode | null = null;
-  let audioCtx: AudioContext | null = null;
-  let stream: MediaStream | null = null;
+  // Last-resort fallback: only animate synthetically if no real level event
+  // has arrived shortly after recording starts (e.g. an older backend build
+  // that does not emit levels). A real event cancels it immediately.
+  let fallbackFrameId: number | null = null;
+  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let receivedLevel = false;
 
-  async function startVisualizer() {
-    // Start fallback immediately so bars are always animated.
-    // getUserMedia can hang forever in Tauri overlay windows - never reaching the catch.
-    animateFallback();
-
-    try {
-      const result = await Promise.race([
-        navigator.mediaDevices.getUserMedia({ audio: true }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("mic_timeout")), 800)
-        ),
-      ]);
-      // Mic access granted - cancel fallback and switch to real audio input.
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
-      stream = result;
-      audioCtx = new AudioContext();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0;
-      audioCtx.createMediaStreamSource(stream).connect(analyser);
-      tickVisualizer();
-    } catch {
-      // Fallback animation is already running - nothing to do.
-    }
+  function pushLevel(level: number) {
+    receivedLevel = true;
+    cancelFallback();
+    // Light gain so normal speech fills the bars; clamp to [IDLE, 1].
+    const v = Math.max(IDLE, Math.min(1, level * 1.8));
+    history = [...history.slice(1), v];
+    bars = history;
   }
 
-  function tickVisualizer() {
-    if (!analyser) return;
-
-    const data = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(data); // waveform, center=128
-
-    const segSize = Math.floor(data.length / BAR_COUNT);
-    for (let i = 0; i < BAR_COUNT; i++) {
-      let peak = 0;
-      for (let j = i * segSize; j < (i + 1) * segSize; j++) {
-        peak = Math.max(peak, Math.abs(data[j] - 128));
-      }
-      // 2.5× gain so normal speech fills the bars visually
-      const raw = Math.max(0.06, Math.min(1.0, (peak / 128) * 2.5));
-      // Fast attack, slow decay
-      const alpha = raw > smoothed[i] ? 0.65 : 0.12;
-      smoothed[i] = smoothed[i] * (1 - alpha) + raw * alpha;
-    }
-
-    bars = [...smoothed];
-    animFrameId = requestAnimationFrame(tickVisualizer);
+  function startFallbackWatch() {
+    receivedLevel = false;
+    cancelFallback();
+    fallbackTimer = setTimeout(() => {
+      if (!receivedLevel) animateFallback();
+    }, 600);
   }
 
   function animateFallback() {
@@ -74,25 +46,28 @@
     const tick = () => {
       phase += 0.06;
       bars = Array.from({ length: BAR_COUNT }, (_, i) =>
-        Math.max(0.06, 0.42 + 0.36 * Math.sin(phase + i * 0.35))
+        Math.max(IDLE, 0.42 + 0.36 * Math.sin(phase + i * 0.35))
       );
-      animFrameId = requestAnimationFrame(tick);
+      fallbackFrameId = requestAnimationFrame(tick);
     };
-    animFrameId = requestAnimationFrame(tick);
+    fallbackFrameId = requestAnimationFrame(tick);
   }
 
-  function stopVisualizer() {
-    if (animFrameId !== null) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
+  function cancelFallback() {
+    if (fallbackTimer !== null) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
     }
-    stream?.getTracks().forEach((t) => t.stop());
-    stream = null;
-    void audioCtx?.close();
-    audioCtx = null;
-    analyser = null;
-    smoothed = Array(BAR_COUNT).fill(0.08);
-    bars = Array(BAR_COUNT).fill(0.08);
+    if (fallbackFrameId !== null) {
+      cancelAnimationFrame(fallbackFrameId);
+      fallbackFrameId = null;
+    }
+  }
+
+  function resetVisualizer() {
+    cancelFallback();
+    history = Array(BAR_COUNT).fill(IDLE);
+    bars = history;
   }
 
   onMount(() => {
@@ -100,20 +75,24 @@
       listen<string>("stt-overlay-config", (event) => {
         hotkey = formatHotkey(event.payload);
       }),
+      listen<number>("stt-audio-level", (event) => {
+        if (isRecording) pushLevel(event.payload);
+      }),
       listen("stt-recording-started", () => {
         isRecording = true;
-        void startVisualizer();
+        resetVisualizer();
+        startFallbackWatch();
       }),
       listen("stt-recording-stopped", () => {
         isRecording = false;
-        stopVisualizer();
+        resetVisualizer();
       }),
     ];
 
-    if (isRecording) void startVisualizer();
+    if (isRecording) startFallbackWatch();
 
     return () => {
-      stopVisualizer();
+      cancelFallback();
       for (const p of unlisteners) void p.then((fn) => fn());
     };
   });

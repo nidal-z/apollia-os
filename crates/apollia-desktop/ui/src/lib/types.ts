@@ -1183,6 +1183,7 @@ export interface SttConfigView {
   max_recording_sec: number;
   language: string | null;
   trigger_mode: string;
+  input_device: string | null;
 }
 
 /** Configuration STT - vue CRUD avec types stricts (miroir de `SttConfigRow`). */
@@ -1196,6 +1197,7 @@ export interface SttConfig {
   max_recording_sec: number;
   language: string | null;
   trigger_mode: "toggle" | "push-to-talk";
+  input_device: string | null;
 }
 
 /** Current status of the STT engine reported by `get_stt_status`. */
@@ -1207,6 +1209,8 @@ export interface SttStatus {
   backend_name: string;
   metal_enabled: boolean;
   cuda_enabled: boolean;
+  /** Whether at least one audio input device (microphone) is present. */
+  input_available?: boolean;
 }
 
 /** A single transcription row returned by `list_transcriptions`. */

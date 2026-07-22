@@ -12,7 +12,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use apollia_core::{EventBusSender, RuntimeEvent, SttConfigRow};
-use apollia_stt::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
+use apollia_stt::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer, SttError};
+use tauri::Emitter;
 use tauri_plugin_notification::NotificationExt;
 
 use apollia_runtime::api::server::SharedSttEngine;
@@ -112,10 +113,18 @@ impl SttFlow {
         let active_buffer = Arc::clone(&self.active_buffer);
         let recording = Arc::clone(&self.recording);
         let event_bus = self.event_bus.clone();
+        let app = self.app.clone();
+        let input_device = self.config.input_device.clone();
 
         std::thread::spawn(move || {
-            let capture = match AudioCapture::default_input() {
+            let capture = match AudioCapture::open(input_device.as_deref()) {
                 Ok(c) => c,
+                Err(SttError::NoInputDevice) => {
+                    recording.store(false, Ordering::SeqCst);
+                    tracing::warn!("STT recording requested but no microphone is available");
+                    notify_no_microphone(&app);
+                    return;
+                }
                 Err(e) => {
                     recording.store(false, Ordering::SeqCst);
                     tracing::warn!(error = %e, "failed to open audio input device");
@@ -132,6 +141,10 @@ impl SttFlow {
                 }
             };
 
+            // Clone the lock-free level handle before the buffer is handed to
+            // the drain side, so the metering loop can poll input amplitude.
+            let level = buffer.level_handle();
+
             // Publish the buffer so the async side can drain it later.
             if let Ok(mut guard) = active_buffer.lock() {
                 *guard = Some(buffer);
@@ -140,9 +153,23 @@ impl SttFlow {
             let _ = event_bus.send(RuntimeEvent::SttRecordingStarted);
             tracing::info!("STT recording started");
 
-            // Block until stop signal, keeping the stream alive. When the
-            // sender is dropped (or an explicit () is sent), recv() unblocks.
-            let _ = stop_rx.recv();
+            // Meter the real captured level at ~30 Hz and push it to the overlay
+            // so the waveform reflects the same audio the STT engine records.
+            // recv_timeout returns Disconnected when signal_stop drops the
+            // sender, which ends both the loop and the stream.
+            loop {
+                match stop_rx.recv_timeout(std::time::Duration::from_millis(33)) {
+                    Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        if let Err(e) = app.emit("stt-audio-level", level.get()) {
+                            tracing::trace!(error = %e, "failed to emit stt-audio-level");
+                        }
+                    }
+                }
+            }
+
+            // Flatten the meter once capture ends.
+            let _ = app.emit("stt-audio-level", 0.0_f32);
 
             // stream is dropped here, releasing the audio device.
             drop(stream);
@@ -382,6 +409,23 @@ impl SttFlow {
         if let Err(e) = result {
             tracing::warn!(error = %e, "failed to send transcription notification");
         }
+    }
+}
+
+/// Sends a desktop notification explaining that no microphone is connected.
+///
+/// Called from the capture thread when [`AudioCapture::open`] reports
+/// [`SttError::NoInputDevice`] so a user whose dictation does nothing
+/// understands why instead of the overlay silently never appearing.
+fn notify_no_microphone(app: &tauri::AppHandle) {
+    let result = app
+        .notification()
+        .builder()
+        .title("Aucun microphone d\u{00e9}tect\u{00e9}")
+        .body("Branchez un microphone pour utiliser la dict\u{00e9}e vocale.")
+        .show();
+    if let Err(e) = result {
+        tracing::warn!(error = %e, "failed to send no-microphone notification");
     }
 }
 

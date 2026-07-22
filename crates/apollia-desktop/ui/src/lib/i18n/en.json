@@ -2877,6 +2877,12 @@
     "stt_max_recording": "Max recording duration",
     "stt_language": "Language (hint)",
     "stt_language_auto": "Auto-detect",
+    "stt_input_device": "Microphone",
+    "stt_input_device_default": "System default",
+    "stt_no_microphone": "No microphone detected. Connect one to use voice dictation.",
+    "stt_microphone": "Microphone",
+    "stt_microphone_ok": "Detected",
+    "stt_microphone_none": "No microphone",
     "stt_trigger_mode": "Trigger mode",
     "stt_trigger_toggle": "Toggle (press = start/stop)",
     "stt_trigger_push": "Push-to-talk (hold)",
@@ -4077,7 +4083,10 @@
     "test_start": "Test now",
     "test_stop": "Speak… (click to stop)",
     "test_empty": "(empty transcription)",
-    "test_error": "Error: {error}"
+    "test_error": "Error: {error}",
+    "mic_label": "Microphone",
+    "mic_default": "System default",
+    "no_microphone": "No microphone detected. Connect one to use voice dictation."
   },
   "tools": {
     "labels": {

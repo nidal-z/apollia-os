@@ -266,6 +266,41 @@
   let sttTestError = $state<string | null>(null);
   let sttTestUnlisten: (() => void) | null = null;
 
+  // ── Audio input device selection ─────────────────────────────────────
+  // Empty string = system default microphone. An empty device list means no
+  // microphone is connected, which we surface so the user is not left with a
+  // silent test.
+  let sttInputDevices = $state<string[]>([]);
+  let sttInputDevicesLoaded = $state(false);
+  let sttInputDevice = $state<string>("");
+  const noMicrophone = $derived(
+    sttInputDevicesLoaded && sttInputDevices.length === 0,
+  );
+
+  async function loadInputDevices(): Promise<void> {
+    try {
+      sttInputDevices = await invoke<string[]>("list_audio_input_devices");
+    } catch {
+      sttInputDevices = [];
+    } finally {
+      sttInputDevicesLoaded = true;
+    }
+  }
+
+  async function onSelectInputDevice(value: string): Promise<void> {
+    sttInputDevice = value;
+    try {
+      // Patch only input_device onto the persisted config so the other fields
+      // (enabled, model_path, hotkey, ...) are preserved.
+      const current = await invoke<Record<string, unknown>>("get_stt_config");
+      await invoke("update_stt_config", {
+        config: { ...current, input_device: value || null },
+      });
+    } catch (err) {
+      console.error("update_stt_config (input_device) failed", err);
+    }
+  }
+
   // Hotkey capture is delegated to the shared `HotkeyCaptureDialog`
   // (`crates/apollia-desktop/ui/src/components/settings/HotkeyCaptureDialog.svelte`)
   // which uses `event.code` rather than `event.key` - this fixes macOS
@@ -391,9 +426,9 @@
         invoke<SystemInfo>("get_ai_setup_info"),
         invoke<GgufModelInfo[]>("scan_for_gguf_models"),
         invoke<WhisperModelInfo[]>("scan_for_whisper_models"),
-        invoke<{ hotkey?: string }>("get_stt_config").catch(
-          () => ({}) as { hotkey?: string },
-        ),
+        invoke<{ hotkey?: string; input_device?: string | null }>(
+          "get_stt_config",
+        ).catch(() => ({}) as { hotkey?: string; input_device?: string | null }),
       ]);
       sysInfo = sys;
       ggufModels = gguf;
@@ -403,6 +438,8 @@
         sttEnabled = whisper[0].recommended;
       }
       sttHotkey = sttCfg?.hotkey ?? "ctrl+shift+space";
+      sttInputDevice = sttCfg?.input_device ?? "";
+      void loadInputDevices();
     } catch {
       /* leave empty */
     } finally {
@@ -456,14 +493,31 @@
     sttTestRecording = true;
     attachSttTestListener();
     try {
+      // Selecting a whisper model in onboarding does not persist it, so the
+      // engine (and the push-to-talk flow behind start_tour_recording) may not
+      // exist yet - hence the old "STT engine not available" error. Persist the
+      // selected model and hot-reload the engine before testing; a plain reload
+      // covers the case where a model is already configured in system.db.
+      if (selectedWhisper) {
+        await invoke("setup_whisper_model", { modelPath: selectedWhisper.path });
+      } else {
+        await invoke("reload_stt");
+      }
       await invoke("start_tour_recording");
     } catch (err) {
-      sttTestRecording = false;
-      sttTesting = false;
-      sttTestTranscript = null;
-      sttTestError = get(t)("onboarding_stt.test_error", {
-        values: { error: String(err) },
-      });
+      // Honest retry: rebuild the engine once, then surface the failure only
+      // if the reload genuinely could not bring the engine online.
+      try {
+        await invoke("reload_stt");
+        await invoke("start_tour_recording");
+      } catch (err2) {
+        sttTestRecording = false;
+        sttTesting = false;
+        sttTestTranscript = null;
+        sttTestError = get(t)("onboarding_stt.test_error", {
+          values: { error: String(err2) },
+        });
+      }
     }
   }
 
@@ -1034,6 +1088,12 @@
         </label>
       </div>
 
+      {#if noMicrophone}
+        <p class="stt-no-mic" role="alert" data-testid="stt-no-microphone">
+          <AlertCircle size={12} />{$t("onboarding_stt.no_microphone")}
+        </p>
+      {/if}
+
       {#if whisperModels.length === 0}
         <p class="empty-hint" data-testid="stt-empty-hint">
           {$t("onboarding.ai_setup.stt_empty_hint")}
@@ -1132,6 +1192,21 @@
 
         <!-- ── Raccourci (capture clavier) + Test live ────────────────── -->
         <div class="stt-hotkey-block" data-testid="stt-hotkey-block">
+          <div class="hotkey-row">
+            <span class="hotkey-label">{$t("onboarding_stt.mic_label")}</span>
+            <select
+              class="mic-select"
+              value={sttInputDevice}
+              onchange={(e) => onSelectInputDevice((e.currentTarget as HTMLSelectElement).value)}
+              disabled={noMicrophone}
+              data-testid="stt-input-device"
+            >
+              <option value="">{$t("onboarding_stt.mic_default")}</option>
+              {#each sttInputDevices as device (device)}
+                <option value={device}>{device}</option>
+              {/each}
+            </select>
+          </div>
           <div class="hotkey-row">
             <span class="hotkey-label">{$t("onboarding_stt.hotkey_label")}</span>
             <Button variant="ghost" size="sm"
@@ -1404,6 +1479,33 @@
     margin: 0;
     font-size: 0.6875rem;
     color: hsl(var(--muted-foreground));
+  }
+  .mic-select {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    cursor: pointer;
+  }
+  .mic-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .stt-no-mic {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(38 92% 50% / 0.3);
+    background: hsl(38 92% 50% / 0.1);
+    font-size: 0.6875rem;
+    color: hsl(32 81% 40%);
   }
   .hotkey-hint code {
     padding: 0 0.25rem;

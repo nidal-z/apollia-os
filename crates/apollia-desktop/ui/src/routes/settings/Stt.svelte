@@ -39,6 +39,21 @@
   let sttNeedsRestart = $state(false);
   let importingSttModel = $state(false);
 
+  // Audio input devices (microphones). Empty = no microphone detected.
+  let inputDevices = $state<string[]>([]);
+  let inputDevicesLoaded = $state(false);
+  const noMicrophone = $derived(inputDevicesLoaded && inputDevices.length === 0);
+
+  async function loadInputDevices() {
+    try {
+      inputDevices = await invoke<string[]>("list_audio_input_devices");
+    } catch {
+      inputDevices = [];
+    } finally {
+      inputDevicesLoaded = true;
+    }
+  }
+
   const sttState = $derived($settingsDirtyStore.stt ?? {
     dirty: false,
     savingState: "idle" as const,
@@ -264,6 +279,7 @@
   onMount(() => {
     void settingsLoaders.sttConfig();
     void settingsLoaders.sttModels();
+    void loadInputDevices();
     void refreshStatus();
   });
 </script>
@@ -357,6 +373,30 @@
             class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             data-testid="stt-language-input"
            />
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm text-muted-foreground" for="stt-input-device">{$t('settings.stt_input_device')}</label>
+          <Select
+            id="stt-input-device"
+            data-testid="stt-input-device"
+            value={sttConfig.input_device ?? ''}
+            onchange={(e: Event) => {
+              if (sttConfig) sttConfig.input_device = (e.currentTarget as HTMLSelectElement).value || null;
+            }}
+            disabled={noMicrophone}
+            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            <option value="">{$t('settings.stt_input_device_default')}</option>
+            {#each inputDevices as device (device)}
+              <option value={device}>{device}</option>
+            {/each}
+          </Select>
+          {#if noMicrophone}
+            <p class="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400" data-testid="stt-no-microphone">
+              {$t('settings.stt_no_microphone')}
+            </p>
+          {/if}
         </div>
 
         <div class="space-y-1.5">
@@ -576,6 +616,16 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <span class="text-sm text-muted-foreground">{$t('settings.stt_backend')}</span>
         <span class="text-sm font-mono text-foreground">{$sttStatus?.backend_name ?? "-"}</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <span class="text-sm text-muted-foreground">{$t('settings.stt_microphone')}</span>
+        <span class="text-sm font-mono text-foreground">
+          {#if $sttStatus?.input_available === false || noMicrophone}
+            <span class="inline-flex items-center gap-1.5" data-testid="stt-status-no-mic"><span class="h-2 w-2 rounded-full bg-amber-500"></span>{$t('settings.stt_microphone_none')}</span>
+          {:else}
+            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-green-500"></span>{$t('settings.stt_microphone_ok')}</span>
+          {/if}
+        </span>
       </div>
 
       {#snippet footer()}

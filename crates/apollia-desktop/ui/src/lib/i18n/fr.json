@@ -2877,6 +2877,12 @@
     "stt_max_recording": "Durée max d'enregistrement",
     "stt_language": "Langue (hint)",
     "stt_language_auto": "Détection automatique",
+    "stt_input_device": "Microphone",
+    "stt_input_device_default": "Périphérique par défaut",
+    "stt_no_microphone": "Aucun microphone détecté. Branchez-en un pour la dictée vocale.",
+    "stt_microphone": "Microphone",
+    "stt_microphone_ok": "Détecté",
+    "stt_microphone_none": "Aucun microphone",
     "stt_trigger_mode": "Mode de déclenchement",
     "stt_trigger_toggle": "Toggle (appui = start/stop)",
     "stt_trigger_push": "Push-to-talk (maintien)",
@@ -4077,7 +4083,10 @@
     "test_start": "Tester maintenant",
     "test_stop": "Parle… (clique pour arrêter)",
     "test_empty": "(transcription vide)",
-    "test_error": "Erreur : {error}"
+    "test_error": "Erreur : {error}",
+    "mic_label": "Microphone",
+    "mic_default": "Périphérique par défaut",
+    "no_microphone": "Aucun microphone détecté. Branchez-en un pour la dictée vocale."
   },
   "tools": {
     "labels": {

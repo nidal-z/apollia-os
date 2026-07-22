@@ -960,6 +960,7 @@ fn main() {
             commands::user_memory::get_conversation_stats,
             commands::stt::get_stt_config,
             commands::stt::update_stt_config,
+            commands::stt::list_audio_input_devices,
             commands::stt::reload_stt,
             commands::stt::get_stt_status,
             commands::stt::list_transcriptions,

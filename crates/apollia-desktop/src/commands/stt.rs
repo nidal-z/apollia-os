@@ -59,6 +59,9 @@ pub struct SttConfigView {
     pub language: Option<String>,
     /// Recording trigger mode: `"toggle"` or `"push-to-talk"`.
     pub trigger_mode: String,
+    /// Audio input device name, or `null` for the system default microphone.
+    #[serde(default)]
+    pub input_device: Option<String>,
 }
 
 impl Default for SttConfigView {
@@ -73,6 +76,7 @@ impl Default for SttConfigView {
             max_recording_sec: 60,
             language: Some("fr".to_owned()),
             trigger_mode: "toggle".to_owned(),
+            input_device: None,
         }
     }
 }
@@ -103,7 +107,22 @@ pub async fn get_stt_config() -> Result<SttConfigView, String> {
         max_recording_sec: row.max_recording_sec,
         language: row.language,
         trigger_mode: row.trigger_mode,
+        input_device: row.input_device,
     })
+}
+
+/// Lists the names of available audio input devices (microphones).
+///
+/// Returns an empty vector when the host exposes no microphone, which the UI
+/// uses to show a "no microphone detected" warning. The first UI choice is
+/// always the system default (represented as `null` / no selection), so this
+/// list contains only the explicitly named devices.
+#[tauri::command]
+pub async fn list_audio_input_devices() -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(apollia_stt::list_input_devices)
+        .await
+        .map_err(|e| format!("task error: {e}"))?
+        .map_err(|e| format!("failed to enumerate input devices: {e}"))
 }
 
 /// Persists the STT configuration to `~/.apollia/system.db`, then hot-reloads
@@ -138,6 +157,7 @@ pub async fn update_stt_config(
         max_recording_sec: config.max_recording_sec,
         language: config.language,
         trigger_mode: config.trigger_mode,
+        input_device: config.input_device,
     };
 
     tokio::task::spawn_blocking(move || {
@@ -278,7 +298,25 @@ pub async fn get_stt_status(
         .await
         .ok_or_else(|| "STT engine actor has stopped".to_owned())?;
 
-    serde_json::to_value(&status).map_err(|e| format!("serialization error: {e}"))
+    let mut value =
+        serde_json::to_value(&status).map_err(|e| format!("serialization error: {e}"))?;
+
+    // Enrich with live microphone availability so the UI can flag a machine
+    // whose STT engine is loaded but has no capture device, instead of the
+    // engine appearing armed while dictation silently does nothing.
+    let devices = tokio::task::spawn_blocking(apollia_stt::list_input_devices)
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert(
+            "input_available".to_owned(),
+            serde_json::Value::Bool(!devices.is_empty()),
+        );
+    }
+
+    Ok(value)
 }
 
 /// Lists transcription history with optional limit.
@@ -577,6 +615,7 @@ mod tests {
             max_recording_sec: 60,
             language: Some("fr".to_owned()),
             trigger_mode: "toggle".to_owned(),
+            input_device: None,
         };
         // WHEN formatted
         let block = format_stt_block(&config);
