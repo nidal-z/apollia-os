@@ -11,6 +11,6 @@ pub mod capture;
 pub mod resample;
 pub mod silence;
 
-pub use capture::{AudioCapture, CaptureBuffer};
+pub use capture::{list_input_devices, AudioCapture, AudioLevel, CaptureBuffer};
 pub use resample::to_whisper_format;
 pub use silence::trim_silence;

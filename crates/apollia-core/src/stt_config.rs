@@ -23,9 +23,18 @@ CREATE TABLE IF NOT EXISTS stt_config (
     max_recording_sec    INTEGER NOT NULL DEFAULT 60,
     language             TEXT,
     trigger_mode         TEXT    NOT NULL DEFAULT 'toggle',
+    input_device         TEXT,
     updated_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 ";
+
+/// Nullable column added after the initial `stt_config` schema shipped.
+///
+/// A fresh database gets it from [`MIGRATION_SQL`]; a database created before
+/// this column existed gets it via an additive `ALTER TABLE ... ADD COLUMN`
+/// guarded by a `PRAGMA table_info` check so upgrades never fail and existing
+/// rows keep their values (the new column defaults to `NULL` = system default).
+const ADDITIVE_COLUMNS: &[(&str, &str)] = &[("input_device", "TEXT")];
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -62,6 +71,9 @@ pub struct SttConfigRow {
     /// Recording trigger mode: `"toggle"` or `"push-to-talk"`.
     #[serde(default = "default_trigger_mode")]
     pub trigger_mode: String,
+    /// Audio input device name to capture from. `None` = system default.
+    #[serde(default)]
+    pub input_device: Option<String>,
 }
 
 impl Default for SttConfigRow {
@@ -76,6 +88,7 @@ impl Default for SttConfigRow {
             max_recording_sec: default_max_recording_sec(),
             language: None,
             trigger_mode: default_trigger_mode(),
+            input_device: None,
         }
     }
 }
@@ -138,7 +151,35 @@ impl SttConfigRepository {
     pub fn open(path: &Path) -> Result<Self, SttConfigError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(MIGRATION_SQL)?;
+        Self::apply_additive_columns(&conn)?;
         Ok(Self { conn })
+    }
+
+    /// Add any nullable column introduced after the initial schema shipped.
+    ///
+    /// Idempotent: each column is added only when `PRAGMA table_info` shows it
+    /// missing, so upgrading a pre-existing database never fails and never
+    /// rewrites existing rows.
+    fn apply_additive_columns(conn: &Connection) -> Result<(), SttConfigError> {
+        for (name, ty) in ADDITIVE_COLUMNS {
+            if !Self::column_exists(conn, name)? {
+                conn.execute_batch(&format!("ALTER TABLE stt_config ADD COLUMN {name} {ty};"))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns whether `column` already exists on the `stt_config` table.
+    fn column_exists(conn: &Connection, column: &str) -> Result<bool, SttConfigError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(stt_config)")?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let existing: String = row.get(1)?;
+            if existing == column {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Return the current configuration, inserting defaults if the table is empty.
@@ -151,7 +192,8 @@ impl SttConfigRepository {
     pub fn get_or_default(&self) -> Result<SttConfigRow, SttConfigError> {
         let mut stmt = self.conn.prepare(
             "SELECT enabled, model_path, hotkey, clipboard_mode, clipboard_restore,
-                    silence_threshold_db, max_recording_sec, language, trigger_mode
+                    silence_threshold_db, max_recording_sec, language, trigger_mode,
+                    input_device
              FROM stt_config WHERE id = 1",
         )?;
 
@@ -166,6 +208,7 @@ impl SttConfigRepository {
                 row.get::<_, i64>(6)?,
                 row.get::<_, Option<String>>(7)?,
                 row.get::<_, String>(8)?,
+                row.get::<_, Option<String>>(9)?,
             ))
         })?;
 
@@ -181,6 +224,7 @@ impl SttConfigRepository {
                     max_recording_sec,
                     language,
                     trigger_mode,
+                    input_device,
                 ) = row?;
                 Ok(SttConfigRow {
                     enabled: enabled != 0,
@@ -192,6 +236,7 @@ impl SttConfigRepository {
                     max_recording_sec: max_recording_sec as u32,
                     language,
                     trigger_mode,
+                    input_device,
                 })
             }
             None => {
@@ -213,8 +258,9 @@ impl SttConfigRepository {
         self.conn.execute(
             "INSERT INTO stt_config (
                 id, enabled, model_path, hotkey, clipboard_mode, clipboard_restore,
-                silence_threshold_db, max_recording_sec, language, trigger_mode, updated_at
-             ) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                silence_threshold_db, max_recording_sec, language, trigger_mode,
+                input_device, updated_at
+             ) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(id) DO UPDATE SET
                 enabled              = excluded.enabled,
@@ -226,6 +272,7 @@ impl SttConfigRepository {
                 max_recording_sec    = excluded.max_recording_sec,
                 language             = excluded.language,
                 trigger_mode         = excluded.trigger_mode,
+                input_device         = excluded.input_device,
                 updated_at           = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
                 config.enabled as i32,
@@ -237,6 +284,7 @@ impl SttConfigRepository {
                 config.max_recording_sec as i64,
                 config.language,
                 config.trigger_mode,
+                config.input_device,
             ],
         )?;
         Ok(())
@@ -345,5 +393,67 @@ mod tests {
         let path = dir.path().join("system.db");
         SttConfigRepository::open(&path).unwrap();
         SttConfigRepository::open(&path).unwrap();
+    }
+
+    // GIVEN a legacy database created before the input_device column existed,
+    //       holding a populated row
+    // WHEN the repository opens it with the additive migration
+    // THEN the input_device column is added (defaulting to NULL) and every
+    //      pre-existing value is preserved
+    #[test]
+    fn test_additive_input_device_migration_preserves_legacy_rows() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("system.db");
+
+        // GIVEN: build the pre-column schema by hand and insert a row.
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE stt_config (
+                    id                   INTEGER PRIMARY KEY CHECK (id = 1),
+                    enabled              INTEGER NOT NULL DEFAULT 0,
+                    model_path           TEXT    NOT NULL DEFAULT '',
+                    hotkey               TEXT    NOT NULL DEFAULT 'ctrl+shift+space',
+                    clipboard_mode       TEXT    NOT NULL DEFAULT 'paste',
+                    clipboard_restore    INTEGER NOT NULL DEFAULT 1,
+                    silence_threshold_db REAL    NOT NULL DEFAULT -40.0,
+                    max_recording_sec    INTEGER NOT NULL DEFAULT 60,
+                    language             TEXT,
+                    trigger_mode         TEXT    NOT NULL DEFAULT 'toggle',
+                    updated_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO stt_config (id, enabled, model_path, hotkey) VALUES (1, 1, '/legacy.bin', 'ctrl+alt+d')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN
+        let repo = SttConfigRepository::open(&path).unwrap();
+        let row = repo.get_or_default().unwrap();
+
+        // THEN legacy values survive and the new column reads as None.
+        assert!(row.enabled);
+        assert_eq!(row.model_path, "/legacy.bin");
+        assert_eq!(row.hotkey, "ctrl+alt+d");
+        assert!(row.input_device.is_none());
+    }
+
+    // GIVEN a config with an explicit input_device
+    // WHEN upsert() then get_or_default()
+    // THEN the device name round-trips
+    #[test]
+    fn test_input_device_roundtrip() {
+        let (repo, _dir) = make_repo();
+        let config = SttConfigRow {
+            input_device: Some("MacBook Pro Microphone".to_owned()),
+            ..Default::default()
+        };
+        repo.upsert(&config).unwrap();
+        let read = repo.get_or_default().unwrap();
+        assert_eq!(read.input_device.as_deref(), Some("MacBook Pro Microphone"));
     }
 }

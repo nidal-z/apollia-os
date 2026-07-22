@@ -84,6 +84,14 @@ pub enum SttError {
         reason: String,
     },
 
+    /// No audio input device (microphone) is available on the host.
+    ///
+    /// Distinct from [`SttError::InvalidAudio`]: the machine has no capture
+    /// device at all, so the UI can surface a clear "no microphone" state
+    /// instead of a generic audio failure.
+    #[error("no audio input device available")]
+    NoInputDevice,
+
     /// The requested STT backend is not available (feature not enabled, etc.).
     #[error("STT backend unavailable: {backend}")]
     BackendUnavailable {

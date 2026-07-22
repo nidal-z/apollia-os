@@ -16,7 +16,9 @@ pub mod backend;
 pub mod repository;
 pub mod types;
 
-pub use audio::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
+pub use audio::{
+    list_input_devices, to_whisper_format, trim_silence, AudioCapture, AudioLevel, CaptureBuffer,
+};
 pub use backend::SttBackend;
 pub use repository::{SttRepository, TranscriptRow};
 pub use types::{SttError, TranscriptResult, TranscriptSegment};
