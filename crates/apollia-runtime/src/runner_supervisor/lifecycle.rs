@@ -234,7 +234,9 @@ impl RunnerSupervisor {
 
 /// Locate the `apollia-runner-{backend}` binary next to the current executable
 /// (`apollia-os`).
-fn locate_runner_binary(backend: RunnerBackend) -> Result<std::path::PathBuf, RunnerError> {
+pub(super) fn locate_runner_binary(
+    backend: RunnerBackend,
+) -> Result<std::path::PathBuf, RunnerError> {
     let exe = std::env::current_exe().map_err(|e| {
         RunnerError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -250,6 +252,24 @@ fn locate_runner_binary(backend: RunnerBackend) -> Result<std::path::PathBuf, Ru
     let candidate = dir.join(format!("{bin_name}{ext}"));
     if candidate.exists() {
         return Ok(candidate);
+    }
+
+    // Packaged-bundle locations: the runners are staged under a `runners/`
+    // resource directory, not next to the executable. The desktop Tauri app
+    // ships them in `Contents/Resources/runners/` (macOS) while the CLI
+    // self-contained bundle and the Linux packages place them in a sibling or
+    // `lib/apollia-os/runners/` directory. Check each layout.
+    let bundled = [
+        // macOS .app: Contents/MacOS/apollia-desktop -> Contents/Resources/runners/
+        dir.join("../Resources/runners").join(format!("{bin_name}{ext}")),
+        // Same-dir `runners/` subdir (CLI bundle / Linux staging).
+        dir.join("runners").join(format!("{bin_name}{ext}")),
+        // Linux .deb/AppImage: usr/bin/apollia-desktop -> usr/lib/apollia-os/runners/
+        dir.join("../lib/apollia-os/runners")
+            .join(format!("{bin_name}{ext}")),
+    ];
+    if let Some(found) = bundled.iter().find(|c| c.exists()) {
+        return Ok(found.clone());
     }
 
     // Dev fallback (`cargo run -p apollia-cli`): the `apollia-runner` binary

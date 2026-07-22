@@ -313,18 +313,15 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
 /// environment: if we cannot resolve the current executable, we return `true`
 /// so as not to break tests that call `resolve_backend`.
 fn is_backend_available(backend: RunnerBackend) -> bool {
-    let exe_name = backend.binary_name();
-    let exe_path = match std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-    {
-        Some(dir) => dir,
-        None => return true,
-    };
-
-    let suffix = if cfg!(windows) { ".exe" } else { "" };
-    let candidate = exe_path.join(format!("{}{}", exe_name, suffix));
-    candidate.exists()
+    // Delegate to the spawn-path resolver so detection and spawning agree on
+    // every bundle layout (macOS .app `Contents/Resources/runners/`, the CLI
+    // self-contained bundle, and the Linux packages). If the current executable
+    // cannot be resolved (some test harnesses), assume available so
+    // `resolve_backend` keeps working.
+    if std::env::current_exe().is_err() {
+        return true;
+    }
+    super::lifecycle::locate_runner_binary(backend).is_ok()
 }
 
 // ─────────────────────────────────────────────
