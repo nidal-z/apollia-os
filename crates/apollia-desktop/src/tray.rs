@@ -18,6 +18,13 @@ const MENU_APPROVALS: &str = "approvals";
 /// Tray menu item identifier for "Quit".
 const MENU_QUIT: &str = "quit";
 
+/// Application (macOS menu bar) identifier for the "Quit" item.
+///
+/// Distinct from [`MENU_QUIT`] (the tray menu) so both menus can be handled by
+/// their own routers without collision. Handled at the `tauri::Builder` level
+/// in `main.rs`, which routes it to [`initiate_quit`].
+pub const MENU_QUIT_APP: &str = "quit-app";
+
 /// Tauri event name emitted by the frontend to update the tray badge.
 pub const EVENT_TRAY_UPDATE: &str = "tray-update";
 
@@ -90,7 +97,13 @@ fn show_main_window(app: &AppHandle) {
 /// The shutdown is triggered via HTTP POST to the embedded runtime API so
 /// the full graceful shutdown sequence (drain tasks, stop agents) runs before
 /// process exit.
-fn initiate_quit(app: &AppHandle) {
+///
+/// This is the single quit entry point shared by every surface: the tray
+/// "Quitter", the macOS app menu / Cmd+Q, the in-app user menu, and the
+/// command palette. It relies on [`AppHandle::exit`], which bypasses the
+/// window `CloseRequested` handler (the close-to-tray behaviour) so quitting
+/// is never swallowed by `prevent_close`.
+pub(crate) fn initiate_quit(app: &AppHandle) {
     // Release global hotkeys before the process exits so the OS reclaims them
     // immediately and other applications can register the same shortcuts.
     if let Err(e) = crate::stt::hotkey::unregister_all(app) {
@@ -184,6 +197,73 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    Ok(())
+}
+
+/// Builds and installs the macOS application menu bar.
+///
+/// Tauri auto-generates a default macOS menu whose "Quit" item invokes the
+/// native `terminate:` selector. That selector asks each window to close,
+/// which Apollia intercepts via `CloseRequested` + `prevent_close` (the
+/// close-to-tray behaviour), so the native quit is silently cancelled and
+/// Cmd+Q becomes a no-op. Replacing the menu with our own "Quit" item (id
+/// [`MENU_QUIT_APP`], bound to Cmd+Q) routes the quit through
+/// [`initiate_quit`] instead, which exits cleanly.
+///
+/// The Edit and Window submenus reinstate the standard editing accelerators
+/// (Cmd+C / V / X / A, undo/redo) that a fully custom menu would otherwise
+/// drop from the webview.
+///
+/// # Errors
+///
+/// Returns an error if menu construction or installation fails.
+#[cfg(target_os = "macos")]
+pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::menu::SubmenuBuilder;
+
+    let quit_item = MenuItemBuilder::new("Quitter Apollia OS")
+        .id(MENU_QUIT_APP)
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+
+    let app_menu = SubmenuBuilder::new(app, "Apollia OS")
+        .about(None)
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .item(&quit_item)
+        .build()?;
+
+    let edit_menu = SubmenuBuilder::new(app, "Édition")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+
+    let window_menu = SubmenuBuilder::new(app, "Fenêtre")
+        .minimize()
+        .maximize()
+        .separator()
+        .fullscreen()
+        .separator()
+        .close_window()
+        .build()?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&app_menu)
+        .item(&edit_menu)
+        .item(&window_menu)
+        .build()?;
+
+    app.set_menu(menu)?;
     Ok(())
 }
 

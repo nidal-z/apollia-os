@@ -320,7 +320,17 @@ export function buildPaletteActions(): PaletteAction[] {
       shortcut: [modKey, "Q"],
       kind: "help",
       execute: () => {
-        globalThis.dispatchEvent(new CustomEvent("apollia:app:quit"));
+        // Invoke the graceful quit command directly. A previous
+        // `apollia:app:quit` CustomEvent had no listener, so quitting from the
+        // palette was a silent no-op.
+        void (async () => {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("quit_app");
+          } catch {
+            // Web/dev fallback: no-op.
+          }
+        })();
       },
     },
 

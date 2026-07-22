@@ -52,9 +52,12 @@
   }
 
   async function quit() {
+    // Route through the `quit_app` command, not `window.close()`: closing the
+    // window only hides it (close-to-tray). The command exits the process
+    // gracefully via the shared quit path.
     try {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().close();
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("quit_app");
     } catch {
       // Web/dev fallback: no-op.
     }

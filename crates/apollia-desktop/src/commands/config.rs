@@ -487,6 +487,19 @@ pub async fn app_restart(app: tauri::AppHandle) -> Result<(), String> {
     app.restart();
 }
 
+/// Quits the application gracefully from a webview surface (in-app user menu,
+/// command palette).
+///
+/// Routes through the same shared quit as the tray and the macOS app menu:
+/// it drains the embedded runtime, then exits via `AppHandle::exit`, which
+/// bypasses the window `CloseRequested` handler (close-to-tray). Calling
+/// `window.close()` from the webview instead would only hide the window.
+#[tauri::command]
+pub async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
+    crate::tray::initiate_quit(&app);
+    Ok(())
+}
+
 /// System information shown in the Advanced section of Settings.
 #[derive(Debug, Serialize)]
 pub struct SystemInfo {

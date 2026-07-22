@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::path::Path;
 
 use regex::Regex;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -187,12 +187,34 @@ impl LlmBackendRepository {
     /// If `config.is_default` is `true`, all other backends are first cleared
     /// (`is_default = 0`) within the same transaction.
     ///
+    /// Invariant: whenever the table is non-empty, exactly one backend is the
+    /// default. If `config.is_default` is `false` but no *other* backend is
+    /// currently the default, this backend is promoted to default. Without this,
+    /// a backend created from the desktop UI without ticking the (collapsed)
+    /// "default" toggle would leave the table with no default, and the router
+    /// reload (`find_default`) would fail with "no default LLM backend
+    /// configured" even though a usable backend exists.
+    ///
     /// # Errors
     /// - [`LlmBackendError::InvalidName`] if the name does not match `[a-z0-9_-]+`.
     /// - [`LlmBackendError::Db`] for any SQLite error.
     /// - [`LlmBackendError::Serialization`] if `config_json` cannot be serialized.
     pub fn save(&self, config: &LlmBackendConfig) -> Result<(), LlmBackendError> {
         validate_name(&config.name)?;
+
+        // Promote to default when no other backend currently holds the flag, so
+        // the table never ends up with backends but no default.
+        let is_default = config.is_default || {
+            let conn = self.conn.borrow();
+            let existing_default: Option<String> = conn
+                .query_row(
+                    "SELECT name FROM llm_backends WHERE is_default = 1 AND name != ?1 LIMIT 1",
+                    params![config.name],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            existing_default.is_none()
+        };
 
         let provider_str = config.provider.to_string();
         let config_json_str = serde_json::to_string(&config.config_json)
@@ -210,7 +232,7 @@ impl LlmBackendRepository {
                 updated_at  = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         ";
 
-        if config.is_default {
+        if is_default {
             let mut conn = self.conn.borrow_mut();
             let tx = conn.transaction()?;
             tx.execute(
@@ -226,7 +248,7 @@ impl LlmBackendRepository {
                     config.model,
                     config_json_str,
                     config.enabled as i32,
-                    config.is_default as i32,
+                    is_default as i32,
                 ],
             )?;
             tx.commit()?;
@@ -239,7 +261,7 @@ impl LlmBackendRepository {
                     config.model,
                     config_json_str,
                     config.enabled as i32,
-                    config.is_default as i32,
+                    is_default as i32,
                 ],
             )?;
         }
@@ -708,7 +730,9 @@ mod tests {
         assert_eq!(list[0].name, "openai");
         assert_eq!(list[0].provider, LlmProvider::OpenAi);
         assert_eq!(list[0].model, "gpt-4o-mini");
-        assert!(!list[0].is_default);
+        // Saved with is_default=false, but auto-promoted: a sole backend is
+        // always the default (invariant enforced by save()).
+        assert!(list[0].is_default);
     }
 
     // GIVEN two backends, "a" is the default
@@ -756,27 +780,62 @@ mod tests {
         assert!(repo.find_by_name("ghost").unwrap().is_none());
     }
 
-    // GIVEN backends present but none with is_default=true
-    // WHEN  find_default()
-    // THEN  Ok(None) returned
+    // GIVEN an empty repository
+    // WHEN  save() a backend with is_default=false
+    // THEN  it is auto-promoted to default (invariant: a non-empty table always
+    //       has exactly one default), so the router reload can resolve it
     #[test]
-    fn test_find_default_none_when_no_default() {
+    fn test_first_backend_auto_promoted_to_default() {
         let (repo, _dir) = make_repo();
         repo.save(&make_config("a", false)).unwrap();
-        assert!(repo.find_default().unwrap().is_none());
+        let default = repo.find_default().unwrap();
+        assert!(default.is_some());
+        assert_eq!(default.unwrap().name, "a");
     }
 
-    // GIVEN a non-default backend
-    // WHEN  delete()
-    // THEN  backend removed, list() returns empty
+    // GIVEN a repository that already has a default backend
+    // WHEN  save() a second backend with is_default=false
+    // THEN  the existing default is preserved (no silent steal), and the new
+    //       backend stays non-default
+    #[test]
+    fn test_second_non_default_backend_does_not_steal_default() {
+        let (repo, _dir) = make_repo();
+        repo.save(&make_config("a", true)).unwrap();
+        repo.save(&make_config("b", false)).unwrap();
+
+        let default = repo.find_default().unwrap().expect("a default exists");
+        assert_eq!(default.name, "a");
+        assert!(!repo.find_by_name("b").unwrap().unwrap().is_default);
+    }
+
+    // GIVEN an empty table
+    // WHEN  the same backend is re-saved with is_default=false (idempotent edit)
+    // THEN  it remains the default (it was auto-promoted on first insert and no
+    //       other backend exists to hold the flag)
+    #[test]
+    fn test_resaving_sole_backend_keeps_default() {
+        let (repo, _dir) = make_repo();
+        repo.save(&make_config("a", false)).unwrap();
+        repo.save(&make_config("a", false)).unwrap();
+        let default = repo.find_default().unwrap();
+        assert_eq!(default.expect("still default").name, "a");
+    }
+
+    // GIVEN a default backend plus a separate non-default backend
+    // WHEN  delete() the non-default one
+    // THEN  it is removed and the default is left untouched
     #[test]
     fn test_delete_non_default_succeeds() {
         let (repo, _dir) = make_repo();
+        // "keeper" holds the default flag so "a" stays non-default (otherwise
+        // the sole-backend invariant would auto-promote "a").
+        repo.save(&make_config("keeper", true)).unwrap();
         repo.save(&make_config("a", false)).unwrap();
 
         repo.delete("a").unwrap();
 
-        assert!(repo.list().unwrap().is_empty());
+        assert!(repo.find_by_name("a").unwrap().is_none());
+        assert!(repo.find_by_name("keeper").unwrap().is_some());
     }
 
     // GIVEN a nonexistent backend

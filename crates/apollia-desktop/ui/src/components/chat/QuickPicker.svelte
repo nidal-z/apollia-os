@@ -60,6 +60,12 @@
 
   let prompt = $state("");
   let creating = $state(false);
+  // Surfaces a stable, human-readable reason when session creation fails. The
+  // most common case is a missing LLM backend: `create_chat_session` rejects
+  // with `NoLlmConfigured` for Libre/Companion mode, and this picker is opened
+  // fire-and-forget, so without this the rejection was an unhandled console
+  // error with no user feedback.
+  let createError = $state<string | null>(null);
   // Whether the free chat starts in plan mode. Seeded from the runtime default
   // so the picker reflects the configured behavior, and applied before the
   // first message so that turn already runs under the plan gate.
@@ -136,9 +142,23 @@
   }
 
   // ─── Actions ──────────────────────────────────────────────────────────────
+
+  /// Maps a `create_chat_session` rejection to a stable, human-readable
+  /// message. The backend rejects Libre/Companion creation with "no LLM
+  /// configured" when no model is set up; surface that as actionable guidance
+  /// rather than a raw error string.
+  function describeCreateError(err: unknown): string {
+    const raw = err instanceof Error ? err.message : String(err);
+    if (raw.toLowerCase().includes("no llm configured")) {
+      return $t("chat.quickpicker.error_no_llm");
+    }
+    return $t("chat.quickpicker.error_generic", { values: { error: raw } });
+  }
+
   async function createFreeChat(initialPrompt?: string, tools?: string[]): Promise<void> {
     if (creating) return;
     creating = true;
+    createError = null;
     try {
       const request: CreateSessionRequest = {
         mode: "libre",
@@ -165,6 +185,11 @@
         }).catch(() => { /* message can be retried manually */ });
       }
       oncreated(session);
+    } catch (err) {
+      // Keep the picker open and show why creation failed (e.g. no LLM
+      // configured) instead of letting the fire-and-forget caller drop the
+      // rejection into the console.
+      createError = describeCreateError(err);
     } finally {
       creating = false;
     }
@@ -173,6 +198,7 @@
   async function createAgentChat(agentName: string): Promise<void> {
     if (creating) return;
     creating = true;
+    createError = null;
     try {
       const request: CreateSessionRequest = {
         mode: "agent",
@@ -190,6 +216,8 @@
         }).catch(() => { /* user can retry */ });
       }
       oncreated(session);
+    } catch (err) {
+      createError = describeCreateError(err);
     } finally {
       creating = false;
     }
@@ -320,6 +348,16 @@
       {$t("chat.quickpicker.start_free")}
     </Button>
   </div>
+
+  {#if createError}
+    <div
+      class="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+      role="alert"
+      data-testid="quickpicker-error"
+    >
+      <span>{createError}</span>
+    </div>
+  {/if}
 
   <!-- Templates -->
   <section class="mt-4">

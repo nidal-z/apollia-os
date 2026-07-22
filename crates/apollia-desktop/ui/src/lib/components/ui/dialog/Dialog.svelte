@@ -38,6 +38,22 @@
 
   const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+  // Relocate the fixed-position overlay to <body>. A `position: fixed` element
+  // resolves against the viewport ONLY when no ancestor establishes a
+  // containing block; `transform`, `filter`, and `backdrop-filter` all do. The
+  // dialog can be instantiated deep inside such an ancestor (e.g. the topbar's
+  // `backdrop-blur`), which would trap and clip it. Portaling to <body> keeps
+  // it viewport-anchored everywhere. Svelte plays the out-transition before
+  // `destroy` runs, so the node stays mounted for its exit animation.
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        node.parentNode?.removeChild(node);
+      },
+    };
+  }
+
   let dialogContentRef = $state<HTMLDivElement | null>(null);
   let previouslyFocused: HTMLElement | null = null;
   let wasOpen = false;
@@ -102,6 +118,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
+    use:portal
     class="fixed inset-0 backdrop-warm"
     style="z-index: var(--z-backdrop);"
     role="presentation"
@@ -111,6 +128,7 @@
   <!-- Dialog -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
+    use:portal
     class="fixed inset-0 flex items-center justify-center p-4"
     style="z-index: var(--z-overlay);"
     role="dialog"

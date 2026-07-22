@@ -52,16 +52,24 @@ fn expand_tilde(s: &str) -> std::path::PathBuf {
 /// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
 ///
 /// Search order (first match wins):
-///   1. `~/.apollia/apollia.toml`        : standard user config
-///   2. `./apollia.toml`                 : CWD (useful when running from workspace root)
-///   3. `~/.config/apollia/apollia.toml` : XDG fallback
+///   1. `~/.apollia/apollia.toml` : canonical desktop config (the same file
+///      `commands::config` reads/writes and `sync_to_toml` mirrors backends to)
+///   2. `./apollia.toml`          : CWD (useful when running from workspace root)
+///
+/// The legacy XDG location `~/.config/apollia/apollia.toml` is deliberately NOT
+/// searched. It is not the desktop's canonical config path, yet a stale copy
+/// left there on a developer machine would be resolved on a clean profile
+/// (after `rm -rf ~/.apollia`) and its `[[llm.backends]]` entries would be
+/// silently imported into a fresh `system.db` by the supervisor's
+/// TOML-to-`system.db` migration, resurrecting a backend the user never
+/// configured. `system.db` is the source of truth for LLM backends; a clean
+/// install must start with none.
 ///
 /// Returns the config unchanged if no file is found.
 fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
     let candidates = [
         Some(expand_tilde("~/.apollia/apollia.toml")),
         std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-        Some(expand_tilde("~/.config/apollia/apollia.toml")),
     ];
 
     for maybe_path in candidates.into_iter().flatten() {
@@ -646,8 +654,22 @@ fn main() {
         ) as commands::model_hub::SharedDownloadManager)
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
         .manage(commands::llm::LlmPingCache::default())
+        // Route the macOS app-menu / Cmd+Q "Quit" (id `MENU_QUIT_APP`) to the
+        // shared graceful quit. Without this, the default native quit is
+        // swallowed by the window `CloseRequested` handler below.
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == tray::MENU_QUIT_APP {
+                tray::initiate_quit(app);
+            }
+        })
         .setup(move |app| {
             tray::setup_tray(app)?;
+
+            // Replace the default macOS menu so Cmd+Q / the app-menu "Quit"
+            // route through `initiate_quit` instead of the native `terminate:`
+            // that `prevent_close` cancels.
+            #[cfg(target_os = "macos")]
+            tray::setup_app_menu(app)?;
 
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
@@ -687,10 +709,14 @@ fn main() {
                 }
             }
 
-            // Closing the window hides it instead of quitting.
-            // The runtime keeps running in the background and the tray icon
-            // remains visible. The user re-opens via the tray "open" menu item
-            // or quits via "quit" which triggers graceful shutdown.
+            // Clicking the window close button (red traffic light) hides the
+            // window instead of quitting: the runtime keeps running in the
+            // background and the tray icon remains visible. The user re-opens
+            // via the tray "open" menu item. Every explicit quit surface (tray
+            // "Quitter", the macOS app menu / Cmd+Q, the in-app user menu, and
+            // the command palette) routes through `initiate_quit`, which calls
+            // `AppHandle::exit` and bypasses this handler, so quitting is never
+            // swallowed by `prevent_close`.
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found in tauri.conf.json");
@@ -816,6 +842,7 @@ fn main() {
             commands::config::clear_logs,
             commands::config::factory_reset,
             commands::config::app_restart,
+            commands::config::quit_app,
             commands::config::check_onboarded,
             commands::config::mark_onboarded,
             commands::config::get_system_info,

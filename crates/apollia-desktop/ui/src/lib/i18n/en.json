@@ -3897,7 +3897,9 @@
       "agents_section": "Agents",
       "empty_agents": "No agents are installed yet. Install one to start delegating work.",
       "install_agent": "Install an agent",
-      "docs_link": "Documentation"
+      "docs_link": "Documentation",
+      "error_no_llm": "No language model is configured yet. Open Settings and add an LLM backend (a local GGUF model or a cloud provider) before starting a conversation.",
+      "error_generic": "Could not start the conversation: {error}"
     },
     "agent_status": {
       "online": "Online",

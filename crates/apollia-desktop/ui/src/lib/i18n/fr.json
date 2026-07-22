@@ -3897,7 +3897,9 @@
       "agents_section": "Agents",
       "empty_agents": "Aucun agent n'est installé. Installes-en un pour commencer à déléguer.",
       "install_agent": "Installer un agent",
-      "docs_link": "Documentation"
+      "docs_link": "Documentation",
+      "error_no_llm": "Aucun modèle de langage n'est configuré. Ouvre les Réglages et ajoute un backend LLM (un modèle GGUF local ou un fournisseur cloud) avant de démarrer une conversation.",
+      "error_generic": "Impossible de démarrer la conversation : {error}"
     },
     "agent_status": {
       "online": "En ligne",

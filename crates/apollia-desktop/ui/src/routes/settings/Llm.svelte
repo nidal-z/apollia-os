@@ -162,6 +162,12 @@
     actionError = null;
     try {
       await invoke("set_default_llm_backend", { name: b.name });
+      // Rebuild the in-memory router from system.db so the new default takes
+      // effect immediately (parity with the create/edit save path), instead of
+      // only on the next reload triggered elsewhere.
+      await invoke("reload_llm_from_db").catch((e: unknown) => {
+        console.warn("[Llm] reload_llm_from_db failed after set-default:", e);
+      });
       await refresh();
     } catch (err) {
       actionError = err instanceof Error ? err.message : String(err);

@@ -257,6 +257,7 @@
   let sttTesting = $state(false);
   let sttTestRecording = $state(false);
   let sttTestTranscript = $state<string | null>(null);
+  let sttTestError = $state<string | null>(null);
   let sttTestUnlisten: (() => void) | null = null;
 
   // Hotkey capture is delegated to the shared `HotkeyCaptureDialog`
@@ -331,9 +332,22 @@
       if (p.id === llmDownloadId) {
         llmDownloadProgress = p;
         if (p.status === "completed") {
+          const downloadedFilename = llmDownloadingModel?.filename ?? null;
           llmDownloadId = null;
           llmDownloadingModel = null;
-          void loadData();
+          void (async () => {
+            await loadData();
+            // Auto-wire the freshly downloaded model as the default LLM backend
+            // so the user can chat immediately after onboarding. Without this,
+            // the download only lands the .gguf on disk and no backend is ever
+            // created in system.db, leaving the first chat with no model.
+            if (downloadedFilename && !llmSuccess) {
+              const model = ggufModels.find(
+                (m) => m.filename === downloadedFilename,
+              );
+              if (model) await selectGgufModel(model);
+            }
+          })();
         } else if (p.status === "cancelled" || p.status === "failed") {
           llmDownloadId = null;
           llmDownloadingModel = null;
@@ -417,6 +431,7 @@
           ? event.payload
           : event.payload?.text ?? "";
       sttTestTranscript = text || get(t)("onboarding_stt.test_empty");
+      sttTestError = null;
       sttTesting = false;
       sttTestRecording = false;
     }).then((unlisten) => {
@@ -426,6 +441,7 @@
 
   async function startSttTest(): Promise<void> {
     sttTestTranscript = null;
+    sttTestError = null;
     sttTesting = true;
     sttTestRecording = true;
     attachSttTestListener();
@@ -434,7 +450,8 @@
     } catch (err) {
       sttTestRecording = false;
       sttTesting = false;
-      sttTestTranscript = get(t)("onboarding_stt.test_error", {
+      sttTestTranscript = null;
+      sttTestError = get(t)("onboarding_stt.test_error", {
         values: { error: String(err) },
       });
     }
@@ -448,7 +465,8 @@
     } catch (err) {
       sttTestRecording = false;
       sttTesting = false;
-      sttTestTranscript = get(t)("onboarding_stt.test_error", {
+      sttTestTranscript = null;
+      sttTestError = get(t)("onboarding_stt.test_error", {
         values: { error: String(err) },
       });
     }
@@ -1069,7 +1087,11 @@
                 <Mic size={12} /> {$t("onboarding_stt.test_stop")}
               </Button>
             {/if}
-            {#if sttTestTranscript !== null}
+            {#if sttTestError !== null}
+              <span class="stt-test-error" role="alert" data-testid="stt-test-error">
+                <AlertCircle size={12} /> {sttTestError}
+              </span>
+            {:else if sttTestTranscript !== null}
               <span class="stt-test-transcript" data-testid="stt-test-transcript">
                 <Check size={12} /> «&nbsp;{sttTestTranscript}&nbsp;»
               </span>
@@ -1335,6 +1357,13 @@
     font-size: 0.75rem;
     color: hsl(142 71% 35%);
     font-style: italic;
+  }
+  .stt-test-error {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: hsl(var(--destructive));
   }
 
   /* Model list */

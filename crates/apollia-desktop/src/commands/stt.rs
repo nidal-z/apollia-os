@@ -164,10 +164,12 @@ pub async fn update_stt_config(
 }
 
 /// Rebuilds the STT engine from the persisted config and swaps it into the
-/// shared cell, shutting the previous engine down. Arms the global hotkey the
-/// first time a model comes online mid-session (an already-armed flow reads the
-/// shared cell, so a later swap needs no re-registration). Shared by the
-/// `reload_stt` command and `update_stt_config`.
+/// shared cell, shutting the previous engine down. Arms the global hotkey and
+/// recording flow whenever STT is enabled, matching the boot path: the flow
+/// reads the shared engine cell lazily on each trigger, so it is armed even
+/// before a model is loaded (a mid-session download plus reload then brings the
+/// engine online without re-registering). Shared by the `reload_stt` command
+/// and `update_stt_config`.
 pub(crate) async fn reload_stt_inner(
     runtime: &RuntimeHandle,
     app: &tauri::AppHandle,
@@ -209,14 +211,18 @@ pub(crate) async fn reload_stt_inner(
         old.shutdown().await;
     }
 
-    // Arm the hotkey when a model is online and enabled and the binding is not
-    // yet registered or has changed; tear it down on an explicit disable. Window
-    // + global-shortcut registration must run on the main thread.
+    // Arm the hotkey whenever STT is enabled and the binding is not yet
+    // registered or has changed; tear it down on an explicit disable. Arming
+    // does not require a loaded model: the flow reads the shared engine cell on
+    // each trigger and surfaces an honest "no model loaded" notification when it
+    // is empty, so the hotkey and tour-recording commands stay wired the moment
+    // the user enables dictation. Window + global-shortcut registration must run
+    // on the main thread.
     let armed_hotkey = stt_flow_state
         .lock()
         .ok()
         .and_then(|g| g.as_ref().map(|f| f.hotkey().to_owned()));
-    let want_armed = loaded && cfg.enabled;
+    let want_armed = cfg.enabled;
     if want_armed && armed_hotkey.as_deref() != Some(cfg.hotkey.as_str()) {
         let app_for_main = app.clone();
         let runtime_handle = runtime.clone();
