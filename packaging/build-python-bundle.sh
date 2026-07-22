@@ -42,6 +42,11 @@ echo "==> Step 2/4: install bundled requirements"
 # Use --no-cache-dir to keep the build cache out of the distributed bundle.
 "$PYTHON_BIN" -m pip install --no-cache-dir --no-compile --upgrade pip
 "$PYTHON_BIN" -m pip install --no-cache-dir --no-compile -r "$REQUIREMENTS"
+# The Apollia SDK itself: agents import `apollia`, so the package must live in
+# the bundled site-packages. Without this, every Python agent (onboarding,
+# guide, chat) fails to load with a ModuleNotFoundError surfaced to the user as
+# "onboarding-agent ... Check that Python is available".
+"$PYTHON_BIN" -m pip install --no-cache-dir --no-compile "${PACKAGING_DIR}/../sdk"
 
 echo "==> Step 3/4: prune unnecessary files"
 # Windows layout: site-packages at python/Lib/site-packages
