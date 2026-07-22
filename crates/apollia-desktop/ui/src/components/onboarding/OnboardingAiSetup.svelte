@@ -416,8 +416,12 @@
     if (!sttHotkey.trim()) return;
     sttHotkeySaving = true;
     try {
+      // update_stt_config requires the full config; fetch the persisted one and
+      // patch only the hotkey so we do not drop the other fields (enabled,
+      // model_path, ...), which previously failed with "missing field enabled".
+      const current = await invoke<Record<string, unknown>>("get_stt_config");
       await invoke("update_stt_config", {
-        config: { hotkey: sttHotkey.trim() },
+        config: { ...current, hotkey: sttHotkey.trim() },
       });
       sttHotkeyDirty = false;
     } catch (err) {
