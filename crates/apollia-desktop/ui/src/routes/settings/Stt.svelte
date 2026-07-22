@@ -13,6 +13,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
+  import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
@@ -30,7 +32,12 @@
   import type { SttConfigView } from "$lib/types";
 
   let sttConfig = $state<SttConfigView | null>(null);
-  let sttConfigSaved = $state(false);
+  // After a save, `update_stt_config` persists and hot-reloads the engine.
+  // `sttApplied` shows the change took effect live; `sttNeedsRestart` is the
+  // honest fallback shown only when the explicit reload afterwards fails.
+  let sttApplied = $state(false);
+  let sttNeedsRestart = $state(false);
+  let importingSttModel = $state(false);
 
   const sttState = $derived($settingsDirtyStore.stt ?? {
     dirty: false,
@@ -54,8 +61,21 @@
         initial: { ...loaded },
         autoSave: "explicit",
         onSave: async (values) => {
+          sttApplied = false;
+          sttNeedsRestart = false;
           await invoke("update_stt_config", { config: values });
-          sttConfigSaved = true;
+          // `update_stt_config` already reloads the engine, but it swallows any
+          // reload error internally. Reload explicitly (as the Reload button
+          // does) so a genuine hot-reload failure surfaces here; only then do
+          // we fall back to advising a restart.
+          try {
+            await invoke("reload_stt");
+            await refreshStatus();
+            sttApplied = true;
+          } catch (err) {
+            sttNeedsRestart = true;
+            addToast(err instanceof Error ? err.message : String(err), "error");
+          }
         },
       });
       unregister = registerSettingsForm<SttConfigView>("stt", form);
@@ -69,6 +89,38 @@
   async function save() {
     if (!form) return;
     await form.save();
+  }
+
+  // Open a native file picker and copy the chosen whisper weights into
+  // ~/.apollia/models/, then re-scan so the new file appears in the picker and
+  // preselect it.
+  async function loadSttModel() {
+    if (importingSttModel) return;
+    importingSttModel = true;
+    try {
+      const modelsDir = await pathJoin(await homeDir(), ".apollia", "models");
+      const selected = await openFilePicker({
+        multiple: false,
+        filters: [{ name: $t("settings.stt_model_filter"), extensions: ["bin", "gguf"] }],
+        title: $t("settings.stt_load_model_title"),
+        defaultPath: modelsDir,
+      });
+      if (!selected) return;
+      const filePath =
+        typeof selected === "string" ? selected : (selected as { path: string }).path;
+      const dest = await invoke<string>("import_model_file", {
+        sourcePath: filePath,
+        allowedExtensions: ["bin", "gguf"],
+      });
+      await settingsLoaders.sttModels(true);
+      const name = dest.split(/[\\/]/).pop() ?? "";
+      if (name && sttConfig) sttConfig.model_path = `~/.apollia/models/${name}`;
+      addToast($t("settings.stt_model_loaded_toast", { values: { name } }), "success");
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      importingSttModel = false;
+    }
   }
 
   onDestroy(() => {
@@ -281,6 +333,18 @@
               {$t('settings.stt_no_models')}
             </p>
           {/if}
+          <div class="flex items-center gap-2 pt-1">
+            <Button
+              size="sm"
+              onclick={loadSttModel}
+              disabled={importingSttModel}
+              loading={importingSttModel}
+              data-testid="stt-load-model-btn"
+            >
+              {$t('settings.stt_load_model')}
+            </Button>
+            <span class="text-xs text-muted-foreground">{$t('settings.stt_load_model_hint')}</span>
+          </div>
         </div>
 
         <div class="space-y-1.5">
@@ -519,7 +583,11 @@
       {/snippet}
     </SettingsSection>
 
-    {#if sttConfigSaved}
+    {#if sttApplied}
+      <div class="flex items-start gap-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400" data-testid="stt-applied-notice" role="status">
+        {$t('settings.stt_applied_notice')}
+      </div>
+    {:else if sttNeedsRestart}
       <div class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400" data-testid="stt-restart-notice" role="alert">
         {$t('settings.stt_restart_notice')}
       </div>

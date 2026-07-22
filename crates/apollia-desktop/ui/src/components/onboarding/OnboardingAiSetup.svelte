@@ -13,6 +13,8 @@
   import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
+  import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
@@ -32,6 +34,7 @@
     ArrowLeft,
     RefreshCw,
     Cloud,
+    Upload,
   } from "lucide-svelte";
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
@@ -243,6 +246,9 @@
 
   let advancing = $state(false);
   let advanceError = $state<string | null>(null);
+
+  let importingLlm = $state(false);
+  let importingStt = $state(false);
 
   // ── STT hotkey + live test ────────────────────────────────────────────
   // Lit la config courante (hotkey enregistré dans system.db), permet à
@@ -502,6 +508,67 @@
     }
   }
 
+  // ─── Load a model from disk (file picker + copy into models dir) ───────────
+
+  async function pickModelsDir(): Promise<string> {
+    return pathJoin(await homeDir(), ".apollia", "models");
+  }
+
+  async function loadLlmModel(): Promise<void> {
+    if (importingLlm || llmDownloadId) return;
+    importingLlm = true;
+    llmError = null;
+    try {
+      const selected = await openFilePicker({
+        multiple: false,
+        filters: [{ name: "GGUF", extensions: ["gguf"] }],
+        title: get(t)("onboarding.ai_setup.load_model_title"),
+        defaultPath: await pickModelsDir(),
+      });
+      if (!selected) return;
+      const filePath =
+        typeof selected === "string" ? selected : (selected as { path: string }).path;
+      const dest = await invoke<string>("import_model_file", {
+        sourcePath: filePath,
+        allowedExtensions: ["gguf"],
+      });
+      await loadData();
+      const name = dest.split(/[\\/]/).pop() ?? "";
+      const model = ggufModels.find((m) => m.filename === name);
+      if (model) await selectGgufModel(model);
+    } catch (err: unknown) {
+      llmError = err instanceof Error ? err.message : String(err);
+    } finally {
+      importingLlm = false;
+    }
+  }
+
+  async function loadSttModelFile(): Promise<void> {
+    if (importingStt) return;
+    importingStt = true;
+    sttDownloadError = null;
+    try {
+      const selected = await openFilePicker({
+        multiple: false,
+        filters: [{ name: "Whisper", extensions: ["bin", "gguf"] }],
+        title: get(t)("onboarding.ai_setup.load_model_title"),
+        defaultPath: await pickModelsDir(),
+      });
+      if (!selected) return;
+      const filePath =
+        typeof selected === "string" ? selected : (selected as { path: string }).path;
+      await invoke<string>("import_model_file", {
+        sourcePath: filePath,
+        allowedExtensions: ["bin", "gguf"],
+      });
+      await rescanStt();
+    } catch (err: unknown) {
+      sttDownloadError = err instanceof Error ? err.message : String(err);
+    } finally {
+      importingStt = false;
+    }
+  }
+
   // ─── LLM download (curated) ───────────────────────────────────────────────
 
   /**
@@ -750,6 +817,20 @@
           <Button variant="ghost" size="sm" class="inline-link" onclick={loadData}>{$t("onboarding.ai_setup.rescan")}</Button>.
         </p>
 
+        <div class="load-model-row">
+          <Button
+            variant="default"
+            size="sm"
+            onclick={loadLlmModel}
+            disabled={importingLlm || !!llmDownloadId}
+            loading={importingLlm}
+            data-testid="llm-load-model-btn"
+          >
+            <Upload size={12} strokeWidth={2} />
+            {$t("onboarding.ai_setup.load_model")}
+          </Button>
+        </div>
+
         {#if llmDownloadId}
           <div class="download-block" data-testid="llm-download-progress">
             <div class="dl-header">
@@ -953,6 +1034,20 @@
         <p class="empty-hint" data-testid="stt-empty-hint">
           {$t("onboarding.ai_setup.stt_empty_hint")}
         </p>
+
+        <div class="load-model-row">
+          <Button
+            variant="default"
+            size="sm"
+            onclick={loadSttModelFile}
+            disabled={importingStt}
+            loading={importingStt}
+            data-testid="stt-load-model-btn"
+          >
+            <Upload size={12} strokeWidth={2} />
+            {$t("onboarding.ai_setup.load_model")}
+          </Button>
+        </div>
 
         {#if sttDownloadId}
           <div class="download-block" data-testid="stt-download-progress">
@@ -1598,6 +1693,12 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-weight: 500;
+  }
+
+  /* Load a model from disk */
+  .load-model-row {
+    display: flex;
+    justify-content: center;
   }
 
   /* Alt row */

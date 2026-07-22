@@ -824,6 +824,7 @@ fn main() {
             commands::model_hub::list_model_downloads,
             commands::model_hub::list_installed_models,
             commands::model_hub::delete_installed_model,
+            commands::model_hub::import_model_file,
             commands::meta_automation::meta_parse_automation,
             commands::meta_digest::meta_generate_daily_digest,
             commands::meta_next_steps::meta_generate_next_steps,

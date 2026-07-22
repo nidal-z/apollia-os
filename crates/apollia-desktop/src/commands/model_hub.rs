@@ -420,3 +420,93 @@ pub async fn delete_installed_model(path: String) -> Result<(), String> {
         .await
         .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
+
+/// Error raised while importing a user-selected model file into the managed
+/// models directory.
+#[derive(Debug, thiserror::Error)]
+pub enum ImportModelError {
+    /// The chosen source path does not point to a regular file.
+    #[error("source file not found: {0}")]
+    NotFound(String),
+    /// The file extension is not among the accepted ones.
+    #[error("unsupported file type '{name}' (expected: {expected})")]
+    BadExtension {
+        /// Basename of the rejected file.
+        name: String,
+        /// Comma-separated list of accepted extensions.
+        expected: String,
+    },
+    /// The source path has no usable file name component.
+    #[error("invalid source file name")]
+    BadFileName,
+    /// The models directory could not be created.
+    #[error("failed to create models directory: {0}")]
+    CreateDir(#[source] std::io::Error),
+    /// The file copy into the models directory failed.
+    #[error("failed to copy model file: {0}")]
+    Copy(#[source] std::io::Error),
+}
+
+/// Copies a user-selected model file into `~/.apollia/models/`.
+///
+/// The native file picker lives on the frontend (Tauri dialog plugin); this
+/// command receives the chosen `source_path` and the `allowed_extensions` the
+/// caller expects (`gguf` for an LLM, `bin`/`gguf` for a Whisper model),
+/// validates the file, then copies it into the managed models directory
+/// (created if missing). The copy is deliberately non-destructive: the source
+/// is left in place. A source that already resides in the models directory is a
+/// no-op. Returns the destination path so the caller can select it after a
+/// re-scan.
+#[tauri::command]
+pub async fn import_model_file(
+    source_path: String,
+    allowed_extensions: Vec<String>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || import_model_file_inner(&source_path, &allowed_extensions))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())
+}
+
+fn import_model_file_inner(
+    source_path: &str,
+    allowed_extensions: &[String],
+) -> Result<String, ImportModelError> {
+    let source = PathBuf::from(source_path);
+    if !source.is_file() {
+        return Err(ImportModelError::NotFound(source_path.to_string()));
+    }
+
+    let ext = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !allowed_extensions
+        .iter()
+        .any(|a| a.eq_ignore_ascii_case(&ext))
+    {
+        let name = source
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return Err(ImportModelError::BadExtension {
+            name,
+            expected: allowed_extensions.join(", "),
+        });
+    }
+
+    let file_name = source.file_name().ok_or(ImportModelError::BadFileName)?;
+    let dir = models_dir();
+    std::fs::create_dir_all(&dir).map_err(ImportModelError::CreateDir)?;
+    let dest = dir.join(file_name);
+
+    // `std::fs::copy` streams the file (it does not buffer the whole payload in
+    // memory), which matters for multi-gigabyte GGUF weights.
+    if dest != source {
+        std::fs::copy(&source, &dest).map_err(ImportModelError::Copy)?;
+    }
+
+    tracing::info!(dest = %dest.display(), "imported model file into models directory");
+    Ok(dest.display().to_string())
+}
