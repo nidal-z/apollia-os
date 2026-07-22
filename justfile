@@ -201,13 +201,6 @@ desktop-dev-qwen: runners-dev-macos
 # Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS)
 desktop-build target="{{macos_target}}" runners="{{desktop_runners}}":
     cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" cargo tauri build --target "{{target}}"
-    # Rewrite the desktop binary's libpython install_name to the bundled,
-    # relocatable path (same post-bundle patch the CI runs). Without this the
-    # local build links the dev's Python and every embedded agent fails.
-    TAURI_TARGET_TRIPLE="{{target}}" bash crates/apollia-desktop/scripts/after-bundle.sh
-    # install_name_tool invalidates the signature; re-sign ad-hoc with the
-    # entitlements (microphone for STT), matching the CI post-bundle step.
-    codesign --force --deep --sign - --options runtime --entitlements crates/apollia-desktop/entitlements.plist "target/{{target}}/release/bundle/macos/Apollia OS.app" 2>/dev/null || true
 
 # Build desktop bundle for current host target
 desktop-build-host runners="{{desktop_runners}}":
