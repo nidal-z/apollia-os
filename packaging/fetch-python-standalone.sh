@@ -79,6 +79,12 @@ else
 fi
 
 PYTHON_DIR="${OUT_DIR}/python"
+# python-build-standalone ships some macOS files with the user-immutable (uchg)
+# flag, which makes `rm -rf` fail with "Directory not empty" on a rebuild.
+# Clear the flag on the existing tree before removing it.
+if [[ "$(uname)" == "Darwin" && -d "$PYTHON_DIR" ]]; then
+    chflags -R nouchg "$PYTHON_DIR" 2>/dev/null || true
+fi
 rm -rf "$PYTHON_DIR"
 echo "==> Extracting to $PYTHON_DIR"
 tar -xzf "$CACHED_ARCHIVE" -C "$OUT_DIR"
