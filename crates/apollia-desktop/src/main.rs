@@ -142,9 +142,34 @@ fn setup_bundled_python() {
         }
     };
 
-    let site_packages = python_root.join("lib/python3.13/site-packages");
+    // PYTHONPATH must list the stdlib, its C-extension dir (lib-dynload) and
+    // site-packages. The embedded interpreter does not reliably add the stdlib
+    // from PYTHONHOME alone, so setting PYTHONPATH to only site-packages left C
+    // stdlib modules (math, _opcode, ...) unresolvable and every Python agent
+    // failed to import with ModuleNotFoundError. Windows uses a flat Lib/DLLs
+    // layout; POSIX uses lib/python3.13.
+    let (stdlib, dynload, site_packages) = if python_root.join("lib/python3.13").is_dir() {
+        let base = python_root.join("lib/python3.13");
+        (
+            base.clone(),
+            base.join("lib-dynload"),
+            base.join("site-packages"),
+        )
+    } else {
+        (
+            python_root.join("Lib"),
+            python_root.join("DLLs"),
+            python_root.join("Lib/site-packages"),
+        )
+    };
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let pythonpath = [&stdlib, &dynload, &site_packages]
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect::<Vec<_>>()
+        .join(sep);
     std::env::set_var("PYTHONHOME", &python_root);
-    std::env::set_var("PYTHONPATH", &site_packages);
+    std::env::set_var("PYTHONPATH", &pythonpath);
 
     // Help dyld find libpython when the Python interpreter is invoked as a
     // subprocess (e.g. by the PythonExecutor tool or `python3 -m venv`).
