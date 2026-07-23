@@ -107,22 +107,24 @@ pub struct LlamaServerSupervisor {
 }
 
 impl LlamaServerSupervisor {
-    /// Locate and launch `llama-server` for `config`, waiting until it is healthy.
+    /// Create the supervisor without launching anything.
     ///
-    /// Returns the supervisor wrapped in an `Arc`; call
-    /// [`spawn_supervision`](Self::spawn_supervision) to enable auto-respawn.
-    pub async fn start(config: LlamaServerConfig) -> Result<Arc<Self>, LlamaServerError> {
+    /// Locates the `llama-server` binary (returning [`LlamaServerError::BinaryNotFound`]
+    /// when it is absent, so the caller can treat local inference as unavailable)
+    /// but does not spawn a process. The server starts lazily on the first
+    /// [`switch_model`](Self::switch_model), so a fresh install with no model yet
+    /// still yields a usable supervisor that the router factory can capture.
+    /// Call [`spawn_supervision`](Self::spawn_supervision) to enable auto-respawn.
+    pub fn new(config: LlamaServerConfig) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
-        let supervisor = Arc::new(Self {
+        Ok(Arc::new(Self {
             bin_path,
             config: Arc::new(Mutex::new(config)),
             inner: Arc::new(RwLock::new(None)),
             child: Arc::new(Mutex::new(None)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
-        });
-        supervisor.spawn_process().await?;
-        Ok(supervisor)
+        }))
     }
 
     /// OpenAI-compatible base URL of the running server, or `None` when down.
@@ -173,6 +175,14 @@ impl LlamaServerSupervisor {
             loop {
                 if *self.shutting_down.lock().await {
                     return;
+                }
+
+                // Nothing to supervise until a model has been requested: a fresh
+                // install may never start a local server. Respawning here would
+                // launch llama-server with no `-m` and crash-loop.
+                if self.config.lock().await.model_path.is_empty() {
+                    tokio::time::sleep(SUPERVISION_POLL).await;
+                    continue;
                 }
 
                 let dead = {
