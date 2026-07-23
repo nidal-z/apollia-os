@@ -129,6 +129,28 @@ for backend in $RUNNERS; do
     echo "    staged $(basename "$dst")"
 done
 
+# ── Step 2c - Embedded llama-server (local LLM engine) ────────────────
+# Bundle the upstream llama-server next to the STT runners; the daemon's
+# `locate_llama_server_binary` finds it there. Pick the GPU backend from
+# RUNNERS (metal/cuda/rocm/vulkan), else cpu. Non-fatal: set LLAMA_SERVER_DIR to
+# bundle a local build, or fill packaging/llama-server-checksums.txt to enable
+# the pinned download. Without either, the app falls back to a llama-server on
+# PATH (dev), which is why a failed fetch only warns.
+llama_backend="cpu"
+for backend in $RUNNERS; do
+    case "$backend" in
+        metal | cuda | rocm | vulkan)
+            llama_backend="$backend"
+            break
+            ;;
+    esac
+done
+if bash "${REPO_ROOT}/packaging/fetch-llama-server.sh" "$llama_backend" "${STAGING}/runners"; then
+    echo "==> llama-server bundled (${llama_backend})"
+else
+    echo "==> WARNING: llama-server not bundled; the app will look for it on PATH" >&2
+fi
+
 # ── Step 3 - Frontend ─────────────────────────────────────────────────────────
 
 echo "==> Building Svelte frontend..."

@@ -1,0 +1,16 @@
+# SHA256 checksums for the pinned llama.cpp release assets bundled as the local
+# LLM engine. One line per asset: "<sha256>  <asset-filename>".
+#
+# Fill these once per pinned LLAMA_CPP_TAG (see fetch-llama-server.sh):
+#   curl -fsSL <asset-url> -o <asset> && shasum -a 256 <asset>
+# then paste the "<hash>  <asset>" line here. Until filled, the download path
+# refuses to run (set ALLOW_UNVERIFIED=1 for a dev fetch, never for a release).
+#
+# Tag: b10092
+# <sha256>  llama-b10092-bin-macos-arm64.tar.gz
+# <sha256>  llama-b10092-bin-ubuntu-x64.tar.gz
+# <sha256>  llama-b10092-bin-ubuntu-vulkan-x64.tar.gz
+# <sha256>  llama-b10092-bin-ubuntu-rocm-7.2-x64.tar.gz
+# <sha256>  llama-b10092-bin-win-cpu-x64.zip
+# <sha256>  llama-b10092-bin-win-cuda-12.4-x64.zip
+# <sha256>  llama-b10092-bin-win-vulkan-x64.zip
