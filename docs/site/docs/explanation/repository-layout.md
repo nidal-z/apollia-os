@@ -52,8 +52,8 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `apollia-runtime` | The event bus, the Tokio actor supervisor, and the axum HTTP API (Unix socket + TCP 7771). |
 | `apollia-oria` | The ORIA execution engine: classify, plan, gate, execute, verify, with the enforced `StepBudget`. |
 | `apollia-aip` | The PyO3 bridge that runs Python agents in-process (`Bound<'py, T>`, `pyo3-async-runtimes`). |
-| `apollia-llm` | Local and cloud LLM routing (llama-cpp-2 for local GGUF inference; OpenAI-compatible and Anthropic cloud backends behind a feature). |
-| `apollia-runner` | The out-of-process inference runner sidecar. |
+| `apollia-llm` | Local and cloud LLM routing (the embedded llama-server, upstream llama.cpp, for local GGUF inference; OpenAI-compatible and Anthropic cloud backends behind a feature). |
+| `apollia-runner` | The out-of-process speech-to-text runner sidecar (whisper). Local LLM inference no longer runs here; it goes through the embedded llama-server. |
 | `apollia-stt` | Local speech-to-text (whisper). |
 | `apollia-mcp` | The Model Context Protocol client (stdio / HTTP / SSE transports, untrusted-response caps). |
 | `apollia-tools` | Built-in tool implementations. |

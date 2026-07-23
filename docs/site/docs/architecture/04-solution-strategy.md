@@ -23,15 +23,17 @@ See ADR-005 for the ORIA execution model that runs on top of this.
 
 ## Inference as a supervised sidecar
 
-Local LLM inference runs in a separate runner process, not in the daemon.
-`llama.cpp` is loaded through FFI in that runner, which the daemon spawns and
-holds a single-flight load lock over. Isolating inference keeps a model crash or
-an out-of-memory event from taking the runtime down, and lets the runtime speak
-to the runner over a narrow interface. The runner keeps persistent slots with a
-KV cache and fingerprint routing so repeated calls are cheap.
+Local LLM inference runs in a separate process, not in the daemon: the embedded
+`llama-server` (upstream llama.cpp), which the daemon spawns and speaks to over its
+OpenAI-compatible HTTP API. Native tool calling is driven by the model's chat
+template (`--jinja`), not a custom grammar path. Isolating inference keeps a model
+crash or an out-of-memory event from taking the runtime down, and lets the runtime
+speak to the engine over a narrow interface. Continuous batching decodes several
+requests in the same pass, and tracking upstream llama.cpp widens the range of
+supported model architectures.
 
-The current supervision is honest about its limits: the daemon spawns and
-load-locks the runner, but automatic health monitoring and restart are not yet
+The current supervision is honest about its limits: the daemon spawns the
+inference process, but automatic health monitoring and restart are not yet
 wired. See [Risks and technical debt](/architecture/risks-and-technical-debt).
 The decision itself is ADR-007.
 

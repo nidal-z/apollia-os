@@ -9,7 +9,7 @@ Apollia resolves the sampling parameters (`temperature`, `top_p`, `top_k`,
 `repetition_penalty`) for a local model at inference time, per model, so each
 family runs with sensible values without hand-tuning. This page documents how a
 value is chosen, how to override it, and how reproducibility works. It applies to
-the local llama.cpp backend served by the `apollia-runner` sidecar; cloud backends
+the local backend served by the embedded `llama-server` (upstream llama.cpp); cloud backends
 use their provider's own defaults.
 
 For the caller-facing API that accepts a per-call `temperature` and `seed`, see

@@ -26,7 +26,7 @@ for the escalation process.
 |---|---|
 | Async runtime | Rust 1.89+ , Tokio 1.x |
 | Python bridge | PyO3 0.24 , pyo3-async-runtimes |
-| Local LLM | llama-cpp-2 (GGUF, Metal, CUDA) |
+| Local LLM | embedded llama-server (upstream llama.cpp; GGUF, Metal, CUDA, OpenAI-compatible HTTP, `--jinja`) |
 | Local STT | whisper-rs (GGML) |
 | Persistence | SQLite + rusqlite + FTS5 (WAL mode) |
 | HTTP API | axum on Unix socket + TCP 7771 |

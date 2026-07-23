@@ -24,8 +24,8 @@ A 30-second tour of the repository.
 | `apollia-cli` | The `apollia-os` command-line interface. |
 | `apollia-desktop` | The Tauri desktop application (Rust side). |
 | `apollia-desktop/ui` | The Svelte frontend (TypeScript + Vite). |
-| `apollia-llm` | LLM router, backends (local llama-cpp-2, Anthropic, OpenAI), meta planner. |
-| `apollia-runner` | LLM runner sidecar process and supervisor. |
+| `apollia-llm` | LLM router, backends (local via the embedded llama-server, Anthropic, OpenAI), meta planner. |
+| `apollia-runner` | Speech-to-text runner sidecar process (whisper). No longer the local LLM engine. |
 | `apollia-oria` | ORIA orchestration: plan execution, replanning, step resilience. |
 | `apollia-memory` | Semantic + procedural + episodic memory layer (SQLite + FTS5 + vectors). |
 | `apollia-mcp` | Model Context Protocol client and server registry. |

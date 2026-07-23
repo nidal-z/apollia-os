@@ -24,12 +24,13 @@ default, and leaving it is the deliberate act.
 ## Inference runs local
 
 Apollia carries its own local inference. A model in GGUF format runs through a
-supervised runner process, so the reasoning that drives an agent can happen
-entirely on your machine with no external LLM call. This is the piece that makes
+supervised local engine (the embedded `llama-server`, upstream llama.cpp), so the
+reasoning that drives an agent can happen entirely on your machine with no external
+LLM call. This is the piece that makes
 the rest meaningful: local storage is not much of a guarantee if every thought
 the agent has is a round trip to someone else's server.
 
-Two honest bounds on the local inference available today. The runner loads a
+Two honest bounds on the local inference available today. The local engine loads a
 single-file GGUF model. And the delivered local capability is text generation:
 Apollia does not present a local embeddings pipeline as a shipped feature. Stated
 plainly so you can plan around what is there rather than around what a roadmap

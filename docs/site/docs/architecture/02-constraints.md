@@ -41,8 +41,9 @@ The authoritative statement of the principles lives in the project rulebook
 - **Python bridge.** Agents are Python (3.12+), executed through a PyO3 bridge
   with `pyo3-async-runtimes`. The Rust side owns the process; Python is the
   guest.
-- **Inference.** Local inference is `llama.cpp` via FFI, on GGUF models, with
-  Metal and CUDA backends. Local speech-to-text is `whisper`.
+- **Inference.** Local inference is the embedded `llama-server` (upstream
+  llama.cpp), on GGUF models, over its OpenAI-compatible HTTP API, with Metal and
+  CUDA backends. Local speech-to-text is `whisper`.
 - **Persistence.** SQLite with FTS5, in WAL mode. No external database.
 - **Transport.** The HTTP API is served on a Unix socket and, when explicitly
   enabled, on TCP with a bearer token. The embedded default is Unix-socket-only.

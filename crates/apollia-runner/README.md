@@ -1,8 +1,8 @@
 # apollia-runner
 
-Sidecar runner for Apollia OS local LLM and STT inference.
+Sidecar runner for Apollia OS local speech-to-text (STT) inference.
 
-Child process spawned by the `apollia-os` daemon at boot. Bundles `llama-cpp-2` and `whisper-rs` compiled with a single GPU backend at a time (CUDA, ROCm, Vulkan, Metal, or CPU). Communicates with the daemon over HTTP/JSON on a loopback TCP port.
+Child process spawned by the `apollia-os` daemon at boot. Bundles `whisper-rs` compiled with a single GPU backend at a time (CUDA, ROCm, Vulkan, Metal, or CPU). Communicates with the daemon over HTTP/JSON on a loopback TCP port. Local LLM inference no longer runs here; it goes through the embedded `llama-server` (upstream llama.cpp), which the daemon supervises and speaks to over its OpenAI-compatible HTTP API.
 
 ## Build
 

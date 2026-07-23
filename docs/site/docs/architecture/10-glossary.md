@@ -27,7 +27,7 @@ Key terms used across this section and the rest of the documentation.
 | **Verify** | Checking a run's audit hash chain and signatures to confirm the record was not altered. |
 | **Rollback** | Undoing filesystem changes made in a chat session by replaying the inverse of each mutation in reverse order. |
 | **Replay** | Re-executing and comparing a run. Abandoned by decision; not a capability. |
-| **Runner** | The inference sidecar process (`apollia-runner`) that loads a GGUF model through `llama.cpp` and serves completions. |
+| **Runner** | The out-of-process sidecar (`apollia-runner`) that runs local speech-to-text (whisper). Local LLM inference is served by the embedded `llama-server` (upstream llama.cpp), which the daemon supervises. |
 | **GGUF** | The single-file local model format the runner loads. |
 | **Driving contract** | The stable, versioned HTTP API plus generated host SDKs a host product uses to drive the runtime. See the [HTTP API reference](/reference/api/apollia-os-runtime-api). |
 | **EventBus** | The runtime's structured event stream, which the audit journal and observability share. |
