@@ -415,10 +415,28 @@ pub async fn reload_llm_from_db(
 
     // Drop the old router before writing the new one so the GGUF is freed from RAM
     // as soon as no other Arc references remain (e.g. in-flight agent requests).
-    let mut guard = shared.write().map_err(|e| format!("lock poisoned: {e}"))?;
-    let old = guard.take();
-    drop(old);
-    *guard = Some(new_router);
+    {
+        let mut guard = shared.write().map_err(|e| format!("lock poisoned: {e}"))?;
+        let old = guard.take();
+        drop(old);
+        *guard = Some(new_router);
+    }
+
+    // The runtime keeps its OWN LlmRouter cell, consumed by the REST API
+    // (`/api/v1/llm/ping`, `/chat`, `/complete`). It is rebuilt only by
+    // `POST /api/v1/llm/reload`; the desktop cell swap above does not touch it.
+    // Without this, Settings "test/ping" reports "no LLM router configured" even
+    // after a backend is created. Best-effort: a failure here must not fail the
+    // desktop reload, which already succeeded.
+    if let Err(e) = http_post_json(
+        runtime.api_port,
+        "/api/v1/llm/reload",
+        &serde_json::json!({}),
+    )
+    .await
+    {
+        tracing::warn!(error = %e, "failed to rebuild runtime LLM router after reload");
+    }
 
     tracing::info!("LLM router reloaded from system.db");
     Ok(())
