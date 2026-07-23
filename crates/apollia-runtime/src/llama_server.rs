@@ -92,6 +92,10 @@ const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 /// `Arc` by the runtime so the supervision task can respawn the child.
 pub struct LlamaServerSupervisor {
     bin_path: PathBuf,
+    /// Context window the server is launched with (`-c`), reported to the router
+    /// as the model's usable window so it can size compaction. Immutable: every
+    /// (re)spawn uses the same value.
+    n_ctx: u32,
     /// Desired launch configuration; updated by [`switch_model`](Self::switch_model)
     /// and read by every (re)spawn.
     config: Arc<Mutex<LlamaServerConfig>>,
@@ -119,6 +123,7 @@ impl LlamaServerSupervisor {
         let bin_path = locate_llama_server_binary()?;
         Ok(Arc::new(Self {
             bin_path,
+            n_ctx: config.n_ctx,
             config: Arc::new(Mutex::new(config)),
             inner: Arc::new(RwLock::new(None)),
             child: Arc::new(Mutex::new(None)),
@@ -136,6 +141,11 @@ impl LlamaServerSupervisor {
             .await
             .as_ref()
             .map(|s| format!("http://127.0.0.1:{}/v1", s.port))
+    }
+
+    /// Context window (`-c`) the server is launched with, in tokens.
+    pub fn n_ctx(&self) -> u32 {
+        self.n_ctx
     }
 
     /// Model path the server is currently serving, or `None` when down.

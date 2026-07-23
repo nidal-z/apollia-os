@@ -126,6 +126,13 @@ impl CompletionModel for LlamaServerBackend {
     fn model_id(&self) -> &str {
         &self.model_id
     }
+
+    fn context_window(&self) -> Option<usize> {
+        // The server is launched with `-c n_ctx`, so this is the usable window.
+        // Reporting it lets the router size context compaction and avoid sending
+        // a prompt that overflows the server (a hard 400 from llama-server).
+        Some(self.supervisor.n_ctx() as usize)
+    }
 }
 
 /// `LlamaCpp -> managed llama-server` override factory for the `LlmRouter`.
