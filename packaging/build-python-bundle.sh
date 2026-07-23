@@ -13,6 +13,15 @@
 # as `Contents/Resources/python/` (macOS) or `usr/lib/apollia-os/python/` (Linux).
 set -euo pipefail
 
+# Isolate the bundle build from the developer's per-user site-packages
+# (`~/.local/lib/python3.x/site-packages`). Without this, the standalone
+# interpreter honours the user-site, so pip both reports the user's unrelated
+# packages in its consistency check (a noisy but harmless warning) and, worse,
+# can consider a bundled requirement "already satisfied" from the user-site and
+# skip installing it into the bundle, shipping an incomplete site-packages. The
+# bundle must contain exactly what requirements-bundled.txt + the SDK declare.
+export PYTHONNOUSERSITE=1
+
 TARGET="${1:?usage: build-python-bundle.sh <target-triple> <output-dir>}"
 OUT_DIR="${2:?usage: build-python-bundle.sh <target-triple> <output-dir>}"
 
