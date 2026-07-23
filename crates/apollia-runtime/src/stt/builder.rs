@@ -77,8 +77,11 @@ pub async fn build_stt_engine(
         warn!("STT engine disabled (runner sidecar unavailable)");
         return (None, api_repo);
     };
-    let backend: Box<dyn apollia_stt::SttBackend> =
-        Box::new(RunnerSttBackend::new(proxy, model_id));
+    let backend: Box<dyn apollia_stt::SttBackend> = Box::new(RunnerSttBackend::new(
+        proxy,
+        model_id,
+        model_path.to_string_lossy().to_string(),
+    ));
 
     let handle = SttEngineHandle::start(backend, repository, cfg.clone(), event_sender.clone());
     info!("SttEngine ready");

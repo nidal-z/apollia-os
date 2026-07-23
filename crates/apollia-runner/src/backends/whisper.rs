@@ -91,21 +91,26 @@ impl WhisperBackend {
         guard.get(model_id).cloned()
     }
 
-    /// Lazily fetches the whisper model if `model_id` is not yet cached.
+    /// Returns the cached model, loading it on demand from `model_path`.
     ///
-    /// The model path is not derived from `audio_path`: whisper has no
-    /// separate `/stt/load_model` endpoint in the current spec. The
-    /// `model_id -> disk path` mapping is owned by the daemon; the runner
-    /// receives only `model_id` and assumes the model is already loaded.
-    ///
-    /// To support on-the-fly loading, add a `model_path` field to
-    /// `TranscribeParams` (a MINOR protocol extension).
+    /// The `model_id -> disk path` mapping is owned by the daemon, which sends
+    /// the path in [`TranscribeParams`]. When the model is already cached the
+    /// path is ignored; when it is not and a path is given, the runner loads it
+    /// once and caches it. Without a path an uncached model is an error.
     async fn ensure_loaded(
         &self,
         model_id: &str,
+        model_path: Option<&str>,
     ) -> Result<std::sync::Arc<LoadedWhisper>, ErrorBody> {
         if let Some(m) = self.get(model_id) {
             return Ok(m);
+        }
+        if let Some(path) = model_path {
+            self.load_model(model_id.to_string(), PathBuf::from(path))
+                .await?;
+            if let Some(m) = self.get(model_id) {
+                return Ok(m);
+            }
         }
         Err(ErrorBody::new(
             ErrorCode::ModelNotLoaded,
@@ -115,9 +120,8 @@ impl WhisperBackend {
 
     /// Explicitly loads a whisper GGML/GGUF model from a disk path.
     ///
-    /// The runner does not (yet) expose this call over HTTP: it will be
-    /// invoked by the daemon in a future IPC protocol extension. For now it
-    /// is used only by integration tests.
+    /// Called on demand by [`ensure_loaded`](Self::ensure_loaded) when the
+    /// daemon sends a `model_path`, and directly by integration tests.
     pub async fn load_model(&self, model_id: String, model_path: PathBuf) -> Result<(), ErrorBody> {
         if !model_path.exists() {
             return Err(bad_request(format!(
@@ -155,7 +159,9 @@ impl WhisperBackend {
 
     /// Transcribes a WAV file (`POST /stt/transcribe`).
     pub async fn transcribe(&self, params: TranscribeParams) -> Result<TranscribeData, ErrorBody> {
-        let entry = self.ensure_loaded(&params.model_id).await?;
+        let entry = self
+            .ensure_loaded(&params.model_id, params.model_path.as_deref())
+            .await?;
         let audio_path = params.audio_path.clone();
         let language = params.language.clone();
         let translate = params.task.eq_ignore_ascii_case("translate");

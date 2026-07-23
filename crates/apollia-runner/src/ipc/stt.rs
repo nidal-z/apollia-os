@@ -8,6 +8,12 @@ use std::path::PathBuf;
 pub struct TranscribeParams {
     pub model_id: String,
     pub audio_path: PathBuf,
+    /// Absolute path to the whisper model on disk. When set and the model is
+    /// not already cached, the runner loads it on demand (the daemon owns the
+    /// `model_id -> path` mapping and sends the path so the runner needs no
+    /// separate load call).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     #[serde(default = "default_task")]

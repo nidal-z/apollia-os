@@ -21,11 +21,18 @@ use super::proxy::RunnerProxy;
 pub struct RunnerSttBackend {
     proxy: RunnerProxy,
     model_id: String,
+    /// Absolute path to the whisper model, sent with each transcribe so the
+    /// runner loads it on demand (the runner has no separate load endpoint).
+    model_path: String,
 }
 
 impl RunnerSttBackend {
-    pub fn new(proxy: RunnerProxy, model_id: String) -> Self {
-        Self { proxy, model_id }
+    pub fn new(proxy: RunnerProxy, model_id: String, model_path: String) -> Self {
+        Self {
+            proxy,
+            model_id,
+            model_path,
+        }
     }
 }
 
@@ -52,6 +59,7 @@ impl SttBackend for RunnerSttBackend {
 
         let params = serde_json::json!({
             "model_id": self.model_id,
+            "model_path": self.model_path,
             "audio_path": tmp.path(),
             "language": language_hint,
             "task": "transcribe",
