@@ -169,13 +169,13 @@ impl Supervisor {
     }
 
     /// Phase 4: open `system.db`, migrate TOML backends on first boot, and
-    /// build the [`LlmRouter`] (LlamaCpp backends routed through the runner
-    /// sidecar). Returns `(router, backend_repo)`, either may be `None`.
+    /// build the [`LlmRouter`] (LlamaCpp backends routed through the managed
+    /// llama-server). Returns `(router, backend_repo)`, either may be `None`.
     #[allow(clippy::type_complexity)]
     pub(in crate::supervisor) async fn start_llm_router(
         &self,
         system_db_path: &std::path::Path,
-        runner_supervisor: &Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+        llama_server_supervisor: &Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
     ) -> (
         Option<Arc<LlmRouter>>,
         Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
@@ -195,12 +195,12 @@ impl Supervisor {
         self.migrate_llm_backends_from_toml(&repo);
 
         // Override instantiation of `LlamaCpp` backends so they route through
-        // the RunnerProxy. Cloud backends keep their standard
-        // `instantiate_from_config` path. The factory is shared with the
-        // reload paths (see `runner_supervisor::runner_llm_override`).
+        // the managed llama-server. Cloud backends keep their standard
+        // `instantiate_from_config` path. The factory is shared with the reload
+        // paths (see `llama_server_backend::llama_server_override`).
         let router_result = {
-            let runner_proxy = runner_supervisor.as_ref().map(|s| s.proxy());
-            let factory = crate::runner_supervisor::runner_llm_override(runner_proxy);
+            let factory =
+                crate::llama_server_backend::llama_server_override(llama_server_supervisor.clone());
             LlmRouter::from_repository_with_override(&repo, factory).await
         };
 

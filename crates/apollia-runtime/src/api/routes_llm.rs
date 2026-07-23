@@ -1145,11 +1145,12 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
         (all, default)
     };
 
-    // Re-inject the `LlamaCpp -> runner` override so the local backend stays
-    // wired through the sidecar; otherwise the rebuild would drop it and the
-    // runner would become unreachable from agents and chat. Shares the same
-    // factory used by the supervisor at boot.
-    let factory = crate::runner_supervisor::runner_llm_override(state.runner_proxy.clone());
+    // Re-inject the `LlamaCpp -> llama-server` override so the local backend
+    // stays wired through the managed server; otherwise the rebuild would drop
+    // it and local inference would become unreachable from agents and chat.
+    // Shares the same factory used by the supervisor at boot.
+    let factory =
+        crate::llama_server_backend::llama_server_override(state.llama_server_supervisor.clone());
     let new_router = apollia_llm::LlmRouter::from_backend_configs_with_override(
         all_configs,
         default_name,
@@ -1314,6 +1315,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         }
     }
 

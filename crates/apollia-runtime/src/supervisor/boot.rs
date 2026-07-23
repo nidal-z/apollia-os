@@ -74,10 +74,23 @@ impl Supervisor {
             Arc::clone(supervisor).spawn_supervision();
         }
 
+        // Embedded llama-server is the local LLM engine (the runner now serves
+        // STT only). Created lazily: it locates the binary but does not launch a
+        // process until a model is requested, so a fresh install with no default
+        // model still yields a supervisor the router factory can capture. `None`
+        // when the binary is absent, leaving local inference unconfigured.
+        let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
+            crate::llama_server::LlamaServerConfig::default(),
+        )
+        .ok();
+        if let Some(supervisor) = &llama_server_supervisor {
+            Arc::clone(supervisor).spawn_supervision();
+        }
+
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let system_db_path = self.config.data_dir.join("system.db");
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &runner_supervisor)
+            .start_llm_router(&system_db_path, &llama_server_supervisor)
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -413,6 +426,7 @@ impl Supervisor {
             a2a_invoker: Some(a2a_invoker),
             resilience_layer: Some(shared_resilience_layer.clone()),
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
+            llama_server_supervisor: llama_server_supervisor.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -532,6 +546,7 @@ impl Supervisor {
             mcp_handle,
             project_repository,
             runner_supervisor,
+            llama_server_supervisor,
         })
     }
 }

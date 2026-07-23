@@ -800,6 +800,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -853,6 +854,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         }
     }
 
@@ -969,6 +971,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -1040,6 +1043,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -1274,6 +1278,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

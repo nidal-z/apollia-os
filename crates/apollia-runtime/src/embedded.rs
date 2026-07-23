@@ -131,6 +131,10 @@ pub struct RuntimeHandle {
     /// can rebuild the router with the local backend wired through.
     pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
 
+    /// Managed embedded `llama-server` (local LLM engine). Exposed so the desktop
+    /// reload command can rebuild the router with local backends wired through it.
+    pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+
     /// Default plan-mode state for new chat sessions, read from the `[chat]`
     /// section of `apollia.toml` at boot.
     ///
@@ -505,6 +509,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tools_config,
         api_port: tcp_port.unwrap_or(0),
         runner_supervisor: handles.runner_supervisor,
+        llama_server_supervisor: handles.llama_server_supervisor,
         plan_mode_default,
         chat_default_workspace,
         chat_tool_turn_temperature,

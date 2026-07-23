@@ -295,6 +295,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// process alive: the supervisor owns the child `Child` with
     /// `kill_on_drop(true)`. Propagated to `RuntimeHandle` on the embedded path.
     pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+    /// Managed embedded `llama-server` (local LLM engine), or `None` when the
+    /// binary is absent. Whisper STT stays on `runner_supervisor`.
+    pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
 }
 
 /// Supervisor errors.

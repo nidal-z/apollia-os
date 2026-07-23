@@ -764,6 +764,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let router = Router::new()
             .route(
@@ -1311,6 +1312,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let router = Router::new()
             .route(

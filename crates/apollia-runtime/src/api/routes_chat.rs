@@ -1006,6 +1006,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
 
         APIServer::build_router_for_test(state)

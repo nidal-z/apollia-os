@@ -568,6 +568,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -717,6 +718,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -841,6 +843,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -960,6 +963,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1168,6 +1172,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

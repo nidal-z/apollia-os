@@ -401,11 +401,13 @@ pub async fn reload_llm_from_db(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    // Re-inject the runner override for local LlamaCpp backends, otherwise the
-    // reload would rebuild a router without the local backend (the runner would
-    // become unreachable). We reuse the same factory as the supervisor.
-    let runner_proxy = runtime.runner_supervisor.as_ref().map(|s| s.proxy());
-    let factory = apollia_runtime::runner_supervisor::runner_llm_override(runner_proxy);
+    // Re-inject the llama-server override for local LlamaCpp backends, otherwise
+    // the reload would rebuild a router without the local backend (local
+    // inference would become unreachable). We reuse the same factory as the
+    // supervisor at boot.
+    let factory = apollia_runtime::llama_server_backend::llama_server_override(
+        runtime.llama_server_supervisor.clone(),
+    );
 
     let new_router = Arc::new(
         LlmRouter::from_backend_configs_with_override(all_configs, default_name, factory)

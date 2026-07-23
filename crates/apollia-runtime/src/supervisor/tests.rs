@@ -511,6 +511,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
 
     // WHEN the AppState is cloned

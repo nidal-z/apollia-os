@@ -286,6 +286,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` in unit tests and when no runner is available; the reload still
     /// works for cloud-only backends in that case.
     pub runner_proxy: Option<crate::runner_supervisor::RunnerProxy>,
+
+    /// Managed embedded `llama-server` (local LLM engine), or `None` when the
+    /// binary is absent or in unit tests. The reload path rebuilds the router
+    /// with local `LlamaCpp` backends wired through this supervisor.
+    pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -326,6 +331,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             a2a_invoker: self.a2a_invoker.clone(),
             resilience_layer: self.resilience_layer.clone(),
             runner_proxy: self.runner_proxy.clone(),
+            llama_server_supervisor: self.llama_server_supervisor.clone(),
         }
     }
 }
@@ -1088,6 +1094,7 @@ mod tests {
             a2a_invoker: None,
             resilience_layer: None,
             runner_proxy: None,
+            llama_server_supervisor: None,
         }
     }
 
