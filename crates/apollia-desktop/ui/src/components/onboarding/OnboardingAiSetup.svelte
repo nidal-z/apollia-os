@@ -19,6 +19,7 @@
   import { t } from "svelte-i18n";
   import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
   import { formatCombo } from "$lib/keyboard/hotkeyCapture";
+  import { ensureMicPermission } from "$lib/stt/micPermission";
   import {
     Cpu,
     HardDrive,
@@ -493,6 +494,11 @@
     sttTestRecording = true;
     attachSttTestListener();
     try {
+      // Raise the microphone permission prompt before capturing. The cpal
+      // stream shares the app-level TCC grant, but nothing native triggers the
+      // prompt, so without this the capture reads silence (flat waveform, empty
+      // transcription) on a fresh install.
+      await ensureMicPermission();
       // Selecting a whisper model in onboarding does not persist it, so the
       // engine (and the push-to-talk flow behind start_tour_recording) may not
       // exist yet - hence the old "STT engine not available" error. Persist the

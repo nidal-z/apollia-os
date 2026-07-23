@@ -18,6 +18,7 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { ensureMicPermission } from "$lib/stt/micPermission";
   import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
@@ -215,6 +216,10 @@
         // testBusy stays true until the transcription event arrives.
       } else {
         testResult = null;
+        // Raise the microphone permission prompt before capturing so the cpal
+        // stream (which shares the app-level TCC grant) reads real audio instead
+        // of silence on a fresh install.
+        await ensureMicPermission();
         await invoke("start_tour_recording");
         testRecording = true;
         testBusy = false;

@@ -73,6 +73,19 @@
     const cleanup = createSSEConnection();
     const disposeShortcuts = installGlobalShortcuts();
 
+    // When dictation is enabled, prime the microphone permission at boot so the
+    // global hotkey (which starts a native cpal capture the WebView cannot
+    // precede) reads real audio instead of silence. The grant is app-wide and
+    // persists once accepted; ensureMicPermission never prompts twice.
+    void invoke<{ enabled?: boolean }>("get_stt_config")
+      .then(async (cfg) => {
+        if (cfg?.enabled) {
+          const { ensureMicPermission } = await import("$lib/stt/micPermission");
+          await ensureMicPermission();
+        }
+      })
+      .catch(() => {});
+
     // Design showcase pages - DEV-only, gated out of release builds.
     if (import.meta.env.DEV && typeof window !== "undefined") {
       if (window.location.hash === "#design") {
