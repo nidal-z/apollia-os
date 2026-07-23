@@ -31,17 +31,10 @@ fn supported_endpoints() -> Vec<String> {
         "/shutdown".to_string(),
     ];
 
-    // Endpoints LLM/STT exposés sur tous les builds avec backend local.
+    // Endpoint STT exposé sur les builds avec backend local (whisper).
     #[cfg(feature = "local-cpu")]
     {
-        endpoints.extend([
-            "/llm/load_model".to_string(),
-            "/llm/unload_model".to_string(),
-            "/llm/complete".to_string(),
-            "/llm/stream".to_string(),
-            "/llm/embed".to_string(),
-            "/stt/transcribe".to_string(),
-        ]);
+        endpoints.push("/stt/transcribe".to_string());
     }
 
     endpoints

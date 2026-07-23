@@ -2,7 +2,7 @@
 name = "apollia-runner"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS sidecar runner for local LLM and STT inference"
+description = "Apollia OS sidecar runner for local speech-to-text (STT) inference"
 license = "MIT OR Apache-2.0"
 
 # One binary per build, named after the active backend feature.
@@ -15,11 +15,14 @@ path = "src/main.rs"
 # Exclusif : une seule feature backend doit être active par compilation.
 # `cargo check --features local-cpu` etc. comme pour apollia-llm aujourd'hui.
 default = []
-local-cpu        = ["dep:llama-cpp-2", "dep:encoding_rs", "dep:whisper-rs"]
-local-cuda       = ["local-cpu", "llama-cpp-2/cuda",   "whisper-rs/cuda"]
-local-metal      = ["local-cpu", "llama-cpp-2/metal",  "whisper-rs/metal"]
-local-rocm       = ["local-cpu", "llama-cpp-2/rocm",   "whisper-rs/hipblas"]
-local-vulkan     = ["local-cpu", "llama-cpp-2/vulkan"]
+# The runner is STT-only (whisper). Each backend feature selects the whisper-rs
+# acceleration; local LLM inference runs through the embedded llama-server.
+local-cpu        = ["dep:whisper-rs"]
+local-cuda       = ["local-cpu", "whisper-rs/cuda"]
+local-metal      = ["local-cpu", "whisper-rs/metal"]
+local-rocm       = ["local-cpu", "whisper-rs/hipblas"]
+# whisper-rs has no Vulkan backend; STT runs on CPU when the GPU is Vulkan-only.
+local-vulkan     = ["local-cpu"]
 
 [dependencies]
 # IPC + serveur HTTP
@@ -33,9 +36,7 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 futures            = { workspace = true }
 tokio-stream       = { workspace = true }
 
-# Backends (optionnels selon feature)
-llama-cpp-2     = { workspace = true, optional = true }
-encoding_rs     = { workspace = true, optional = true }
+# STT backend (optional, selected by a local-* feature)
 whisper-rs      = { version = "0.16", optional = true }
 
 # Audio (toujours nécessaire pour /stt/*)

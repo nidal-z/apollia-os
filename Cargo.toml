@@ -143,23 +143,10 @@ async-trait = "0.1"
 # cloud backends (OpenAI-compatible + Anthropic) - [feature = "cloud"]
 async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-# llama-cpp-2 = bindings Rust safe pour llama.cpp
-# Compilation statique, binaire unique, 30+ architectures GGUF.
-# PIN EXACT 0.1.146 : la 0.1.151 a supprime l'API OAI-compat de tool-calling
-# (apply_chat_template_with_tools_oaicompat, ChatTemplateResult,
-# parse_response_oaicompat) dont depend le rendu/parsing des tool calls, en
-# particulier le format Mistral [TOOL_CALLS]. Ne pas bumper sans migrer ce chemin.
-llama-cpp-2 = "=0.1.146"
-# llama-cpp-sys-2 = bindings FFI bruts.
-# ATTENTION : aucune crate ne depend directement de ce dep workspace, donc ce pin
-# est INERTE (il ne contraint pas le sys transitif que llama-cpp-2 tire via son
-# propre `^`). Le wrapper 0.1.146 appelle des symboles FFI absents de sys 0.1.151
-# (chat-template OAI-compat) : un `cargo update` qui remonte sys a 0.1.151 casse
-# le build. Le vrai verrou est le Cargo.lock (sys epingle a 0.1.146). Ne pas
-# lancer `cargo update` non contraint sans re-verifier `cargo update -p
-# llama-cpp-sys-2 --precise 0.1.146`.
-llama-cpp-sys-2 = "=0.1.146"
-encoding_rs = "0.8"
+# Local LLM inference runs through the embedded upstream llama-server binary
+# (see crates/apollia-runtime/src/llama_server.rs), not in-process bindings, so
+# neither llama-cpp-2 nor its sys crate is a dependency anymore. The runner is
+# now STT-only (whisper-rs).
 # LRU cache (apollia-llm MetaLlmOrchestrator)
 lru = "0.18"
 
