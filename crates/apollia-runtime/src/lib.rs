@@ -21,6 +21,7 @@ pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
 pub mod hooks;
+pub mod llama_server;
 pub mod mailbox;
 pub mod observability;
 pub mod plan_approval;
