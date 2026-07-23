@@ -70,6 +70,28 @@ fn describe(error: &PlanStoreError) -> String {
     }
 }
 
+/// Like [`describe`] but, for an unknown-step error, lists the plan's valid step
+/// ids so a model that referenced a wrong one can retry with a real id instead
+/// of guessing again (small local models routinely mistype their own ids).
+async fn describe_with_steps(
+    handle: &PlanHandle,
+    session_id: &str,
+    error: &PlanStoreError,
+) -> String {
+    if let PlanStoreError::UnknownStep { step_id } = error {
+        if let Ok(Some(plan)) = handle.get_plan(session_id).await {
+            let ids: Vec<&str> = plan.steps.iter().map(|s| s.step_id.as_str()).collect();
+            if !ids.is_empty() {
+                return format!(
+                    "unknown step '{step_id}'. Use one of the plan's step ids: [{}]",
+                    ids.join(", ")
+                );
+            }
+        }
+    }
+    describe(error)
+}
+
 /// All `plan_*` tool specs, advertised only when the session is in plan mode.
 #[must_use]
 pub fn plan_tool_specs() -> Vec<ToolSpec> {
@@ -144,7 +166,7 @@ pub async fn run_plan_modify_step(
         .await
     {
         Ok(plan) => PlanToolResult::ok(plan),
-        Err(e) => PlanToolResult::failure(describe(&e)),
+        Err(e) => PlanToolResult::failure(describe_with_steps(handle, session_id, &e).await),
     }
 }
 
@@ -164,7 +186,7 @@ pub async fn run_plan_remove_step(
     };
     match handle.remove_step(session_id, &step_id, Some(reason)).await {
         Ok(plan) => PlanToolResult::ok(plan),
-        Err(e) => PlanToolResult::failure(describe(&e)),
+        Err(e) => PlanToolResult::failure(describe_with_steps(handle, session_id, &e).await),
     }
 }
 
@@ -211,7 +233,7 @@ pub async fn run_plan_set_step_status(
         .await
     {
         Ok(plan) => PlanToolResult::ok(plan),
-        Err(e) => PlanToolResult::failure(describe(&e)),
+        Err(e) => PlanToolResult::failure(describe_with_steps(handle, session_id, &e).await),
     }
 }
 
