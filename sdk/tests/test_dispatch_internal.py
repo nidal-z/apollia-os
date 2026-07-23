@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from apollia._internal.dispatch import (
+    _normalize_history,
     dispatch_message,
     dispatch_skill,
     dispatch_task,
@@ -263,6 +264,33 @@ async def test_dispatch_skill_returns_dict() -> None:
     )
     result = await dispatch_skill(agent, "x", {}, _Ctx())
     assert result["output"] == [{"type": "data", "data": {"k": "v"}}]
+
+
+# ────────────────────── _normalize_history ──────────────────────
+
+
+def test_normalize_history_flattens_aip_parts_to_content() -> None:
+    # GIVEN AIP-shaped history (role + text parts), as the runtime serializes it
+    raw = [
+        {"role": "user", "parts": [{"type": "text", "text": "Bonjour"}]},
+        {"role": "agent", "parts": [{"type": "text", "text": "Salut, ton prenom ?"}]},
+    ]
+    # WHEN normalizing for an @on_message handler
+    history = _normalize_history(raw)
+    # THEN each message is the SDK Message contract: role user/assistant + content
+    assert history == [
+        {"role": "user", "content": "Bonjour"},
+        {"role": "assistant", "content": "Salut, ton prenom ?"},
+    ]
+
+
+def test_normalize_history_passes_through_content_and_guards_bad_input() -> None:
+    # GIVEN an already-normalized message and non-list input
+    assert _normalize_history([{"role": "assistant", "content": "hi"}]) == [
+        {"role": "assistant", "content": "hi"}
+    ]
+    # THEN a non-list yields an empty history rather than raising
+    assert _normalize_history(None) == []
 
 
 # ────────────────────── dispatch_message ──────────────────────

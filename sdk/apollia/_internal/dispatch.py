@@ -56,6 +56,42 @@ def extract_task_message(task: dict[str, Any]) -> str:
     return ""
 
 
+def _normalize_history(raw: Any) -> list[dict[str, str]]:
+    """Convert AIP task history into the SDK ``Message`` contract.
+
+    The runtime serializes conversation history as AIP messages shaped
+    ``{"role": "user"|"agent", "parts": [{"type": "text", "text": ...}]}``, but
+    an ``@on_message`` handler receives ``history: list[Message]`` where each
+    ``Message`` is ``{"role": "user"|"assistant", "content": str}``. Without
+    this adaptation the handler reads an empty ``content`` and loses the whole
+    conversation, so a conversational agent restarts every turn (and drops the
+    language it had detected). Flatten the text parts into ``content`` and map
+    the ``"agent"`` role to ``"assistant"``. An already-normalized message
+    (``content`` present) is passed through unchanged.
+    """
+    if not isinstance(raw, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for message in raw:
+        if not isinstance(message, dict):
+            continue
+        raw_role = message.get("role")
+        role = "assistant" if raw_role in ("agent", "assistant") else "user"
+        content = message.get("content")
+        if not isinstance(content, str) or not content:
+            parts = message.get("parts")
+            texts: list[str] = []
+            if isinstance(parts, list):
+                for part in parts:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        text = part.get("text")
+                        if isinstance(text, str):
+                            texts.append(text)
+            content = "".join(texts)
+        normalized.append({"role": role, "content": content})
+    return normalized
+
+
 def extract_task_skill_id(task: dict[str, Any]) -> str | None:
     """Return ``task['skill_id']`` if present and non-empty, else ``None``."""
     sid = task.get("skill_id")
@@ -246,7 +282,7 @@ async def dispatch_task(
         )
         if has_on_message:
             message = extract_task_message(task)
-            history = task.get("history") if isinstance(task.get("history"), list) else []
+            history = _normalize_history(task.get("history"))
             return await dispatch_message(agent_instance, message, history, ctx)
 
         return failed(
