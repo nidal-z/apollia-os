@@ -147,6 +147,92 @@ impl RunnerSupervisor {
         Ok(())
     }
 
+    /// Monitor the runner child and respawn it if it dies unexpectedly.
+    ///
+    /// The runner can hard-abort (a `GGML_ASSERT` in llama.cpp calls `abort()`,
+    /// which cannot be caught in-process) when asked to load a model whose
+    /// architecture the pinned llama.cpp does not support, or on any other fatal
+    /// condition. Without supervision the cached handle would keep pointing at
+    /// the dead port and every later call would fail with a connection-refused
+    /// error until the app restarts. This task detects the exit, logs its
+    /// status, drops the stale handle, and respawns a fresh runner (with
+    /// backoff) so the system recovers, for example once the user switches back
+    /// to a supported model.
+    pub fn spawn_supervision(self: Arc<Self>) {
+        tokio::spawn(async move {
+            const POLL: Duration = Duration::from_secs(2);
+            const MIN_BACKOFF: Duration = Duration::from_secs(1);
+            const MAX_BACKOFF: Duration = Duration::from_secs(30);
+            let mut backoff = MIN_BACKOFF;
+
+            loop {
+                if *self.shutting_down.lock().await {
+                    return;
+                }
+
+                // Probe the child: `Some(_)` means it needs a (re)spawn (exited,
+                // errored, or absent); `None` means it is still running.
+                let needs_respawn = {
+                    let mut guard = self.child.lock().await;
+                    match guard.as_mut() {
+                        Some(child) => match child.try_wait() {
+                            Ok(Some(status)) => Some(Some(status)),
+                            Ok(None) => None,
+                            Err(e) => {
+                                tracing::warn!(error = %e, "runner try_wait failed");
+                                Some(None)
+                            }
+                        },
+                        None => Some(None),
+                    }
+                };
+
+                let Some(exit_status) = needs_respawn else {
+                    backoff = MIN_BACKOFF;
+                    tokio::time::sleep(POLL).await;
+                    continue;
+                };
+
+                if *self.shutting_down.lock().await {
+                    return;
+                }
+
+                match exit_status {
+                    Some(status) => tracing::error!(
+                        backend = ?self.backend,
+                        ?status,
+                        "runner exited unexpectedly, respawning"
+                    ),
+                    None => tracing::warn!(
+                        backend = ?self.backend,
+                        "runner handle missing, respawning"
+                    ),
+                }
+
+                // Drop the stale handle so in-flight calls fail fast rather than
+                // hanging on a dead port until the respawn lands.
+                *self.inner.write().await = None;
+                *self.child.lock().await = None;
+
+                tokio::time::sleep(backoff).await;
+                if *self.shutting_down.lock().await {
+                    return;
+                }
+
+                match self.spawn_runner().await {
+                    Ok(()) => {
+                        tracing::info!(backend = ?self.backend, "runner respawned");
+                        backoff = MIN_BACKOFF;
+                    }
+                    Err(e) => {
+                        tracing::error!(backend = ?self.backend, error = %e, "runner respawn failed");
+                        backoff = (backoff * 2).min(MAX_BACKOFF);
+                    }
+                }
+            }
+        });
+    }
+
     /// Return a `RunnerProxy` that makes HTTP calls to the runner.
     pub fn proxy(&self) -> super::proxy::RunnerProxy {
         super::proxy::RunnerProxy::new(self.inner.clone())
@@ -261,7 +347,8 @@ pub(super) fn locate_runner_binary(
     // `lib/apollia-os/runners/` directory. Check each layout.
     let bundled = [
         // macOS .app: Contents/MacOS/apollia-desktop -> Contents/Resources/runners/
-        dir.join("../Resources/runners").join(format!("{bin_name}{ext}")),
+        dir.join("../Resources/runners")
+            .join(format!("{bin_name}{ext}")),
         // Same-dir `runners/` subdir (CLI bundle / Linux staging).
         dir.join("runners").join(format!("{bin_name}{ext}")),
         // Linux .deb/AppImage: usr/bin/apollia-desktop -> usr/lib/apollia-os/runners/

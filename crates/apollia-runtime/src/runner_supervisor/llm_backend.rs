@@ -143,7 +143,19 @@ impl RunnerLlmBackend {
             .await
             .map_err(|e| LlmError::BackendUnavailable {
                 backend: self.backend_name.clone(),
-                reason: format!("load_model via runner: {e}"),
+                reason: match &e {
+                    // A dropped connection during load means the runner process
+                    // died mid-load. The most common cause is a model whose
+                    // architecture the bundled llama.cpp does not support, which
+                    // aborts the runner (an uncatchable GGML_ASSERT). Surface an
+                    // actionable message instead of the raw transport error.
+                    super::error::RunnerError::Http(_) => format!(
+                        "the local inference engine stopped while loading the model, \
+                         which usually means this model is not supported by the bundled \
+                         engine; try one of the recommended models ({e})"
+                    ),
+                    _ => format!("load_model via runner: {e}"),
+                },
             })?;
 
         let arch = data.get("arch").and_then(|v| v.as_str()).unwrap_or("");
@@ -164,6 +176,15 @@ impl RunnerLlmBackend {
 
         *self.loaded.lock().expect("loaded-state mutex poisoned") = true;
         Ok(())
+    }
+
+    /// Clear the loaded flag so the next call re-runs `load_model`.
+    ///
+    /// Called when a call fails with a transport error, which means the runner
+    /// process died: after the supervisor respawns it, the model is no longer
+    /// resident and must be reloaded before the next completion.
+    fn mark_unloaded(&self) {
+        *self.loaded.lock().expect("loaded-state mutex poisoned") = false;
     }
 
     /// Resolves per-model sampling defaults through the shared `model_defaults`
@@ -317,7 +338,14 @@ impl CompletionModel for RunnerLlmBackend {
             .proxy
             .post_json("/llm/complete", params)
             .await
-            .map_err(|e| LlmError::InferenceError(format!("runner /llm/complete: {e}")))?;
+            .map_err(|e| {
+                // A transport failure here means the runner died after a
+                // successful load. Clear the loaded flag so the next call
+                // reloads the model on the respawned runner instead of assuming
+                // it is still resident.
+                self.mark_unloaded();
+                LlmError::InferenceError(format!("runner /llm/complete: {e}"))
+            })?;
 
         let text = data
             .get("text")
@@ -376,7 +404,10 @@ impl CompletionModel for RunnerLlmBackend {
             .proxy
             .post_sse("/llm/stream", params)
             .await
-            .map_err(|e| LlmError::InferenceError(format!("runner /llm/stream: {e}")))?;
+            .map_err(|e| {
+                self.mark_unloaded();
+                LlmError::InferenceError(format!("runner /llm/stream: {e}"))
+            })?;
 
         // Parse the `text/event-stream` body incrementally: buffer raw bytes,
         // split on the SSE event boundary (blank line), and decode each complete

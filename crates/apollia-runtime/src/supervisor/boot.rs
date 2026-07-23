@@ -65,6 +65,15 @@ impl Supervisor {
         // a connection-refused error.
         let runner_supervisor = spawn_runner_supervisor().await.map(Arc::new);
 
+        // Supervise the runner: a fatal condition (e.g. a GGML_ASSERT abort in
+        // llama.cpp on an unsupported model architecture) kills the child, after
+        // which the cached handle would point at a dead port forever. The
+        // supervision task detects the exit and respawns a fresh runner so the
+        // system recovers once a supported model is selected.
+        if let Some(supervisor) = &runner_supervisor {
+            Arc::clone(supervisor).spawn_supervision();
+        }
+
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let system_db_path = self.config.data_dir.join("system.db");
         let (llm_router, llm_backend_repo) = self
