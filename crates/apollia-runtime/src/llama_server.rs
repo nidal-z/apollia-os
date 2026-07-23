@@ -380,13 +380,28 @@ fn pick_free_port() -> Result<u16, LlamaServerError> {
 
 /// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
 ///
-/// Checks the same bundle layouts as the runner (next to the executable, a
-/// `runners/` sibling, the macOS `Contents/Resources/runners/`, and the Linux
-/// `lib/apollia-os/runners/`), then the ambient `PATH` so a developer's system
-/// `llama-server` works without bundling.
+/// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the bundle
+/// layouts (next to the executable, a `runners/` sibling, the macOS
+/// `Contents/Resources/runners/`, and the Linux `lib/apollia-os/runners/`), then
+/// the ambient `PATH`, then the common install dirs. The override lets a
+/// developer whose `llama-server` lives in a non-standard directory (a llama.cpp
+/// build tree) point the app at it, which a GUI launch cannot reach via `PATH`.
 fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     let ext = if cfg!(windows) { ".exe" } else { "" };
     let name = format!("llama-server{ext}");
+
+    // Explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
+    if let Some(bin) = std::env::var_os("APOLLIA_LLAMA_SERVER_BIN") {
+        let path = PathBuf::from(bin);
+        if path.is_file() {
+            tracing::info!(path = %path.display(), "using llama-server from APOLLIA_LLAMA_SERVER_BIN");
+            return Ok(path);
+        }
+        tracing::warn!(
+            path = %path.display(),
+            "APOLLIA_LLAMA_SERVER_BIN is set but not a file, falling back to auto-detection"
+        );
+    }
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -410,8 +425,28 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
         return Ok(path);
     }
 
+    // A GUI launch (Finder / .desktop) inherits a minimal PATH that omits the
+    // usual install dirs, so a developer's system llama-server is invisible to
+    // `which_on_path`. Probe the common locations explicitly as a last resort.
+    let home = std::env::var("HOME").unwrap_or_default();
+    let common = [
+        format!("/opt/homebrew/bin/{name}"),
+        format!("/usr/local/bin/{name}"),
+        format!("/usr/bin/{name}"),
+        format!("{home}/.local/bin/{name}"),
+        format!("{home}/.cargo/bin/{name}"),
+    ];
+    if let Some(found) = common.iter().map(PathBuf::from).find(|c| c.is_file()) {
+        tracing::warn!(
+            path = %found.display(),
+            "bundled llama-server not found, using a system install (dev fallback)"
+        );
+        return Ok(found);
+    }
+
     Err(LlamaServerError::BinaryNotFound(format!(
-        "{name} not found next to the executable, in a bundled runners/ dir, or on PATH"
+        "{name} not found next to the executable, in a bundled runners/ dir, on PATH, \
+         or in the common install directories"
     )))
 }
 
