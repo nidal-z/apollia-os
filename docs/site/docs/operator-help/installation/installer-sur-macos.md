@@ -17,7 +17,7 @@ Apollia est distribué pour macOS en deux formats :
 1. Téléchargez `Apollia-OS_<version>.dmg` depuis la page Releases.
 2. Double-cliquez sur le fichier, glissez `Apollia OS.app` dans le dossier `Applications`.
 3. Premier lancement : `Cmd+clic` sur l'icône puis `Ouvrir` (Gatekeeper bloque les apps non-signées).
-4. L'app démarre le daemon `apollia-os` automatiquement et lance le sidecar runner Metal.
+4. L'app démarre le daemon `apollia-os` automatiquement. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT).
 
 ## Vérification
 
@@ -30,20 +30,14 @@ Depuis un terminal :
 
 Vous devriez voir `vendor: Apple`, `recommended_backend: Metal`.
 
-## Backends embarqués
+## Composants embarqués
 
 Le bundle macOS contient :
 
-- `apollia-runner-metal` : inférence GPU Apple Silicon (par défaut).
-- `apollia-runner-cpu` : fallback universel.
+- `llama-server` : le moteur d'inférence LLM local (modèles GGUF, accélération Metal). Le daemon le lance et le supervise automatiquement.
+- `apollia-runner-metal` et `apollia-runner-cpu` : le runner de reconnaissance vocale (STT, whisper), avec accélération Metal ou repli CPU.
 
-Le daemon sélectionne automatiquement Metal au boot. Forcer le CPU :
-
-```toml
-# ~/.apollia/apollia.toml
-[llm.runner]
-backend = "cpu"
-```
+Le daemon sélectionne automatiquement l'accélération Metal au démarrage.
 
 ## Désinstallation
 

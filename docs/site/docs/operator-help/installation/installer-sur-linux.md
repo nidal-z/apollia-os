@@ -19,7 +19,7 @@ chmod +x Apollia-OS_<version>_amd64.AppImage
 ./Apollia-OS_<version>_amd64.AppImage
 ```
 
-L'app démarre le daemon en arrière-plan et lance le runner adapté à votre GPU.
+L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT) adapté à votre GPU.
 
 ## Installation (.deb)
 
@@ -41,9 +41,9 @@ Sortie attendue :
 - AMD Radeon → `vendor: Amd, recommended_backend: Rocm`
 - Intel/autre → `vendor: ..., recommended_backend: Vulkan`
 
-## Backends GPU
+## Accélération GPU
 
-L'AppImage / paquet `.deb` embarque le runner CPU. Pour activer le GPU :
+L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'AppImage / paquet `.deb` embarque la variante CPU. Pour accélérer la dictée sur GPU :
 
 1. Téléchargez le bundle CLI dédié : `apollia-os-linux-x86-cuda.tar.gz` (ou rocm/vulkan).
 2. Décompressez et copiez `apollia-runner-<backend>` à côté du binaire `apollia-os`.

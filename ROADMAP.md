@@ -13,8 +13,8 @@ The first public release. Single-maintainer source-available preview.
 - Native PyO3 bridge for Python agents (no subprocess).
 - Full Model Context Protocol (MCP) support: 18-entry catalog, stdio and HTTP
   transports, custom server installation via the desktop UI.
-- LLM router with a local quantized backend (llama-cpp-2) plus optional
-  Anthropic and OpenAI providers.
+- LLM router with a local quantized backend (the embedded llama-server, upstream
+  llama.cpp) plus optional Anthropic and OpenAI providers.
 - ORIA orchestration engine for multi-step plans with replanning.
 - Desktop app (Tauri 2) and CLI (`apollia-os`) sharing the same runtime.
 - 40+ CLI subcommands at parity with the Desktop.

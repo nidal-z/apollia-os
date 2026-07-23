@@ -1,14 +1,13 @@
 # Le runner sidecar ne démarre pas
 
-Depuis v0.1.0, Apollia exécute l'inférence locale dans un process séparé : le **runner** (`apollia-runner-<backend>`). Le daemon le spawn au démarrage et communique avec lui en HTTP loopback.
+Le **runner** (`apollia-runner-<backend>`) est le sidecar de reconnaissance vocale (STT, whisper). Le daemon le spawn au démarrage et communique avec lui en HTTP loopback. L'inférence LLM locale, elle, ne passe pas par le runner : elle est servie par le moteur embarqué `llama-server`. Si c'est le LLM local qui ne répond pas, voir plutôt [Le fournisseur d'IA ne répond pas](le-fournisseur-d-ia-ne-repond-pas.md).
 
 Si vous voyez des messages comme :
 
 - `RUNNER_HANDSHAKE_TIMEOUT`
-- `runner sidecar not available (Phase 4.5 spawn failed)`
-- `no LLM backends configured`
+- `runner sidecar not available (spawn failed)`
 
-...le sidecar n'a pas pu démarrer. Voici les causes courantes.
+...le sidecar STT n'a pas pu démarrer et la dictée vocale est indisponible. Voici les causes courantes.
 
 ## 1. Le binaire runner est absent
 
@@ -28,7 +27,7 @@ Si `apollia-runner-cpu` est absent : ré-installez Apollia (le bundle a été al
 
 ## 2. Le driver GPU est manquant ou trop ancien
 
-Le daemon a détecté votre GPU et tenté de spawner le runner correspondant (ex `apollia-runner-cuda`), mais les libs runtime sont absentes.
+Le daemon a détecté votre GPU et tenté de spawner le runner STT correspondant (ex `apollia-runner-cuda`), mais les libs runtime sont absentes.
 
 **Symptômes :**
 
@@ -37,14 +36,7 @@ Le daemon a détecté votre GPU et tenté de spawner le runner correspondant (ex
 - Linux ROCm : `libhip.so not found`.
 - Vulkan : `libvulkan.so.1 not found`.
 
-**Fix :** mettez à jour le driver GPU ou forcez le backend CPU dans `~/.apollia/apollia.toml` :
-
-```toml
-[llm.runner]
-backend = "cpu"
-```
-
-Redémarrez : `apollia-os stop && apollia-os start`.
+**Fix :** mettez à jour le driver GPU, ou revenez au runner CPU en copiant `apollia-runner-cpu` à côté du binaire `apollia-os` (voir la page d'installation de votre système). Redémarrez ensuite : `apollia-os stop && apollia-os start`.
 
 ## 3. Pare-feu bloque la connexion loopback (Windows)
 

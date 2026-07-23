@@ -19,7 +19,7 @@ Apollia est distribué pour Windows x86_64 sous trois formats :
 2. Double-cliquez, suivez l'assistant.
 3. L'app apparaît dans le menu Démarrer.
 
-Le pare-feu Windows demandera à autoriser `apollia-os.exe` et `apollia-runner-*.exe` au premier lancement : **autorisez les deux pour les réseaux privés** (le runner communique avec le daemon en loopback 127.0.0.1).
+Le pare-feu Windows demandera à autoriser `apollia-os.exe`, le moteur d'inférence `llama-server.exe` et `apollia-runner-*.exe` (reconnaissance vocale) au premier lancement : **autorisez-les pour les réseaux privés** (ces composants communiquent avec le daemon en loopback 127.0.0.1).
 
 ## Vérification
 
@@ -30,9 +30,9 @@ Depuis PowerShell :
 & "C:\Program Files\Apollia OS\apollia-os.exe" doctor --json | ConvertFrom-Json | Select-Object -ExpandProperty gpu
 ```
 
-## Backends GPU
+## Accélération GPU
 
-L'installeur MSI embarque le runner CPU. Pour CUDA / Vulkan :
+L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'installeur MSI embarque la variante CPU. Pour accélérer la dictée sur GPU CUDA / Vulkan :
 
 1. Téléchargez `apollia-os-windows-x86-cuda.zip` (ou vulkan).
 2. Décompressez et copiez `apollia-runner-cuda.exe` (ou `apollia-runner-vulkan.exe`) dans `C:\Program Files\Apollia OS\`.

@@ -12,7 +12,7 @@
 ## Pour quel cas d'usage
 
 - **Modèle distant** = cloud (Anthropic, OpenAI, Mistral) ou serveur Ollama joignable par HTTP.
-- **Modèle local in-process** = fichier `.gguf` chargé directement par Apollia via llama.cpp. Voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
+- **Modèle local** = fichier `.gguf` servi par le moteur `llama-server` embarqué, géré automatiquement par Apollia. Voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
 - **Vue d'ensemble des backends** : voir [Connecter un fournisseur d'IA](connecter-un-fournisseur-d-ia.md).
 
 ## Étapes communes
@@ -65,7 +65,7 @@ Apollia applique automatiquement le prompt caching côté Anthropic.
 - **Prérequis service** : `ollama serve` doit tourner sur l'hôte cible.
 - **Modèles** : voir `ollama list` sur l'hôte. Exemples : `llama3.1:8b`, `qwen2.5:14b`.
 
-Pour un modèle GGUF géré directement par Apollia en in-process (sans daemon Ollama), voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
+Pour un modèle GGUF géré directement par Apollia via son moteur embarqué (sans daemon Ollama), voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
 
 ## Routage hybride : escalader vers un modèle frontier
 

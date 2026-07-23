@@ -1,111 +1,80 @@
 ---
 sidebar_position: 9
-title: Accelerate local inference
+title: Get the most from local inference
 ---
 
-# Accelerate local inference with llama-server
+# Get the most from local inference
 
-The embedded runner (`apollia-runner-*`) is the default local inference path and
-covers most workloads. It ships prebuilt with the desktop app, so there is
-nothing extra to install there; on a server you build it once and co-locate it
-next to the `apollia-os` binary (see
-[Install and run the runtime](/how-to/install-and-run#optional-enable-local-gguf-inference)). This guide adds an optional, higher
-throughput path for two cases: serving many concurrent requests, and speculative
-decoding for lower latency. It stays 100% local, is config-only (no engine code),
-and does not replace the embedded runner, it accelerates it where the deployment
-allows.
+Local LLM inference is served by an embedded `llama-server` (upstream
+llama.cpp) that the daemon spawns and supervises over its OpenAI-compatible HTTP
+API. This is the built-in and only local engine: there is no separate process to
+install, run, or point Apollia at. It ships prebuilt inside the desktop app, and
+on a source build the daemon finds `llama-server` on your `PATH` (see
+[Install and run the runtime](/how-to/install-and-run#local-gguf-inference)).
 
-You run one extra local process, `llama-server` from llama.cpp, and point Apollia
-at it over its OpenAI-compatible API. It is an external dependency the operator
-takes on, not the default distribution.
+Two capabilities that used to require an extra, hand-run server are now on by
+default, because the embedded engine is that server:
 
-## When to use it
+- **Continuous batching.** The engine decodes several sequences in the same GPU
+  pass, so concurrent and batch requests share the hardware instead of
+  serializing one behind another. Nothing to enable.
+- **Native tool calling.** The engine is driven with `--jinja`, so tool calls go
+  through the model's own chat template rather than a bespoke grammar path. Local
+  models call your tools reliably, with no tuning on your side.
 
-- **Concurrent or batch throughput.** The embedded runner drives llama.cpp with
-  independent contexts that serialize on a single GPU, so extra slots add no
-  measured throughput. `llama-server`'s continuous batching decodes several
-  sequences in the same GPU pass. Internal measurement, indicative only: up to
-  ~2.4x aggregate throughput on a 30B MoE model at 8 concurrent requests.
-- **Unit latency.** `llama-server` exposes speculative decoding
-  (`--spec-draft-n-max`), which the embedded runner does not at the pinned
-  llama-cpp version.
+Tracking upstream llama.cpp also widens model coverage: newer architectures land
+in the engine as they land upstream.
 
-## 1. Install llama-server
+## Configure a local backend
+
+Register a `.gguf` model as a local backend and let the daemon serve it. The
+provider name is `llama-cpp`:
 
 ```sh
-# macOS (Metal)
-brew install llama.cpp        # -> /opt/homebrew/bin/llama-server
-
-# Linux / build from source: github.com/ggml-org/llama.cpp
-#   cmake -B build -DGGML_CUDA=ON && cmake --build build
+apollia-os llm setup --local --model /path/to/model.gguf
+apollia-os llm reload
+apollia-os llm status
 ```
 
-## 2. Run the server
+The daemon starts the embedded `llama-server` for that model on demand and routes
+inference to it. SSE streaming and tool calls travel the same path, already wired
+and tested.
 
-Base recipe (continuous batching + flash attention):
+## Get good throughput
+
+The engine handles the mechanics (GPU offload, batching, KV cache). The choices
+that move throughput are upstream of it:
+
+- **Pick a model sized to your hardware.** A mixture-of-experts (MoE) model
+  activates only a fraction of its parameters per token, so it can beat a dense
+  model of similar quality on both speed and batch throughput. Prefer a
+  quantization that leaves headroom for the KV cache.
+- **Serve one model per server process.** The engine loads a single-file GGUF
+  model. Switching the default backend switches which model the daemon serves.
+- **Let concurrency ride the batch.** Because continuous batching is always on,
+  several agents (or several steps of one orchestrated run) can decode together
+  without you provisioning extra slots by hand.
+
+## Developer: run a tuned `llama-server`
+
+On a source build the daemon uses the `llama-server` it finds on your `PATH`
+rather than a bundled binary. The repository ships a recipe to start one for
+local testing:
 
 ```sh
-llama-server \
-  -m ~/.apollia/models/<model>.gguf \
-  -ngl 999          `# all layers on the GPU (Metal/CUDA)` \
-  -c 16384          `# TOTAL context; per slot = c / np` \
-  -np 8             `# parallel slots` \
-  -cb               `# continuous (dynamic) batching` \
-  --flash-attn on \
-  --host 127.0.0.1 --port 8080
+just llama-server /path/to/model.gguf
 ```
 
-`-c` is the total context; each slot gets `c / np`. For 8 slots of 2048 tokens
-each, use `-c 16384 -np 8`. Optional: quantize the KV cache to fit more context or
-more slots (`-ctk q8_0 -ctv q8_0`, requires `--flash-attn on`).
-
-## 3. Point Apollia at it (config-only)
-
-`llama-server` exposes an OpenAI-compatible API. Apollia consumes it through its
-existing OpenAI-compatible backend, no API key needed for a local server.
-
-```sh
-apollia-os llm backends create local-fast \
-  --provider openai \
-  --model <model-name> \
-  --base-url http://127.0.0.1:8080/v1 \
-  --default
-
-apollia-os llm reload        # switch the router without restarting the daemon
-```
-
-The backend name (`local-fast`) is positional; `--base-url` feeds
-`config_json.base_url`; `--default` makes it the default backend. SSE streaming and
-tool calls go through the same OpenAI-compatible path, already wired and tested.
-
-## 4. Speculative decoding (optional)
-
-Speculative decoding runs a small "draft" model that proposes tokens the target
-model verifies in one pass. The draft must share the target's tokenizer and vocab
-(same model family), otherwise verification fails.
-
-```sh
-llama-server \
-  -m ~/.apollia/models/<target>.gguf \
-  -md ~/.apollia/models/<draft>.gguf \
-  --spec-draft-n-max 8      `# tokens proposed per step` \
-  -ngl 999 -c 16384 -np 8 -cb --flash-attn on --host 127.0.0.1 --port 8080
-```
-
-Rule of thumb: a draft ~10x smaller than the target, same publisher and generation.
-
-## Caveats
-
-- **External process.** `llama-server` is yours to supervise and restart. Apollia
-  does not spawn it (unlike the embedded runner).
-- **Speculative helps predictable text** (code, structured formats). Typical gain
-  is a few tens of percent up to ~1.8x, and it can be neutral or negative on open
-  chat with an already-fast model. Treat the numbers here as indicative.
-- **Not a replacement.** This path accelerates deployments that accept an extra
-  process; the embedded runner remains the zero-install default.
+That recipe runs the upstream binary, so the usual llama.cpp options apply when
+you experiment locally: total context (`-c`) split across parallel slots (`-np`),
+GPU offload (`-ngl`), flash attention (`--flash-attn on`), and a quantized KV
+cache (`-ctk q8_0 -ctv q8_0`, which needs flash attention). These are upstream
+llama.cpp flags, useful for probing what your hardware sustains before you settle
+on a model and quantization.
 
 ## Related
 
-- [Install and run the runtime](/how-to/install-and-run) for the embedded runner.
+- [Install and run the runtime](/how-to/install-and-run) for the build and the
+  `PATH` requirement on a source build.
 - [Deploy in production](/how-to/deploy-in-production) for serving on a server.
-- The [CLI reference](/reference/cli) for the `llm backends` commands.
+- The [CLI reference](/reference/cli) for the `llm` commands.

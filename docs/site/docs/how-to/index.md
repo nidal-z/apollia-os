@@ -13,8 +13,8 @@ Task-oriented recipes. Each one solves a single, concrete problem.
   installer and run the app, no build required.
 - [Install and run the runtime](/how-to/install-and-run): build from a checkout
   and get a daemon (and the desktop dev app) running an agent.
-- [Accelerate local inference](/how-to/accelerate-local-inference): add an
-  optional `llama-server` path for concurrency and speculative decoding.
+- [Get the most from local inference](/how-to/accelerate-local-inference): how the
+  embedded `llama-server` engine serves local GGUF models, and how to feed it.
 
 ## Build agents
 

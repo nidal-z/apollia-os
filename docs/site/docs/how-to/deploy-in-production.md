@@ -172,12 +172,13 @@ sudo systemctl start apollia
 
 ## Local inference on a server
 
-The release binary is cloud-only. To serve local GGUF models on the server, also
-build the `apollia-runner` sidecar with your hardware backend and co-locate it
-next to the installed `apollia-os` binary, exactly as described in
-[Install and run the runtime](/how-to/install-and-run#optional-enable-local-gguf-inference).
-For higher concurrent throughput or speculative decoding, see
-[Accelerate local inference](/how-to/accelerate-local-inference).
+To serve local GGUF models on the server, make `llama-server` (upstream llama.cpp)
+available to the daemon: the daemon spawns and supervises it, and finds it on the
+service user's `PATH`. Install it once where the service runs, exactly as described
+in [Install and run the runtime](/how-to/install-and-run#local-gguf-inference).
+Continuous batching and native tool calling are built into that engine, so a
+single local backend already serves concurrent requests; see
+[Get the most from local inference](/how-to/accelerate-local-inference).
 
 ## Related
 

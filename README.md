@@ -167,9 +167,9 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 
 ## LLM Backends
 
-The default `apollia-os` binary is cloud-capable: it talks to Anthropic,
-OpenAI-compatible, and Vertex backends out of the box. Local GGUF inference is
-served by a separate sidecar, so it needs one extra build step.
+The `apollia-os` binary talks to Anthropic, OpenAI-compatible, and Vertex cloud
+backends, and serves local GGUF models through an embedded `llama-server`
+(upstream llama.cpp) that the daemon spawns and supervises.
 
 ### Cloud backends
 
@@ -203,36 +203,28 @@ works the same way with `provider = "openai"` and the matching `api_url`.
 ### Local GGUF inference
 
 Local models are not configured with a `type = "embedded"` block; they are
-registered through the CLI and served by the `apollia-runner` sidecar, which
-links llama.cpp with a hardware backend. Register the model:
+registered through the CLI, and the daemon serves them through the embedded
+`llama-server` (upstream llama.cpp) over its OpenAI-compatible HTTP API, with
+native tool calling (`--jinja`) and continuous batching. The provider name is
+`llama-cpp`. Register the model:
 
 ```bash
 apollia-os llm setup --local --model /path/to/model.gguf
 apollia-os llm reload
 ```
 
-Then build the runner for your hardware (choose one backend) and co-locate it
-next to the `apollia-os` binary as `apollia-runner-<backend>`:
+A packaged build stages `llama-server` automatically. On a source build the
+daemon looks for `llama-server` on your `PATH`; the repository provides a recipe
+to run one for local testing:
 
 ```bash
-# Apple Silicon (Metal, no Xcode required)
-cargo build -p apollia-runner --release --features local-metal
-cp target/release/apollia-runner target/release/apollia-runner-metal
-
-# Portable CPU
-cargo build -p apollia-runner --release --features local-cpu
-cp target/release/apollia-runner target/release/apollia-runner-cpu
-
-# NVIDIA (needs the CUDA toolkit)
-cargo build -p apollia-runner --release --features local-cuda
-cp target/release/apollia-runner target/release/apollia-runner-cuda
+just llama-server /path/to/model.gguf
 ```
 
-The other backends are `local-rocm` (AMD) and `local-vulkan` (cross-vendor).
-Building a runner requires CMake and a C/C++ compiler (llama.cpp compiles from
-source). Place any `.gguf` file under `~/.apollia/models/`. If a local backend is
-configured but no matching runner is found, LLM calls fail with a
-`503 BackendUnavailable`.
+An upstream install works too (for example `brew install llama.cpp` on macOS, or
+a llama.cpp build on Linux). Place any `.gguf` file under `~/.apollia/models/`. If
+a local backend is configured but no `llama-server` is reachable, LLM calls fail
+with a `503 BackendUnavailable`.
 
 Multiple backends can coexist. `default` selects which one agents use unless they
 override it in their manifest.
@@ -518,8 +510,8 @@ crates/
   apollia-runtime/       # Runtime core (Supervisor, AgentRegistry, TaskRouter, EventBus, axum API)
   apollia-oria/          # ORIA engine (Observer, Reasoner, Actor, StepBudget, ResilienceLayer)
   apollia-aip/           # AIP bridge (PyO3, ctx services, ToolProxy, MemoryInterface, LlmProxy)
-  apollia-llm/           # LLM router + cloud backends (Anthropic, OpenAI-compatible, Vertex)
-  apollia-runner/        # Local GGUF inference sidecar (llama.cpp)
+  apollia-llm/           # LLM router (embedded llama-server for local GGUF + Anthropic, OpenAI-compatible, Vertex cloud)
+  apollia-runner/        # Out-of-process speech-to-text runner sidecar (whisper)
   apollia-tools/         # Native tool registry + sandbox
   apollia-memory/        # Memory engine (SQLite, FTS5, episodic/semantic/procedural)
   apollia-triggers/      # Trigger engine (cron, interval, oneshot, file_watch, webhook)

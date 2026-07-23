@@ -31,9 +31,9 @@ reality.
 
 | Area | Reality |
 |---|---|
-| **Sharded GGUF loading** | Missing. The runner is single-file GGUF only. A code comment suggesting sharded loading does not reflect a wired path. |
+| **Sharded GGUF loading** | Missing. The embedded `llama-server` engine loads a single-file GGUF model per server process. A code comment suggesting sharded loading does not reflect a wired path. |
 | **Embeddings** | Missing. The embeddings path is a stub, not a delivered capability. |
-| **Runner health monitor and auto-restart** | Missing. The daemon spawns and load-locks the runner, but there is no health monitoring or automatic restart. A code comment claiming otherwise is wrong. |
+| **Inference health monitor and auto-restart** | Missing. The daemon spawns and load-locks the embedded `llama-server` inference process, but there is no health monitoring or automatic restart. A code comment claiming otherwise is wrong. |
 | **Actor restart policy** | The actor supervisor defines a restart policy, but it is not enforced. It is effectively dead code today. |
 | **Direct execute via the unified path** | The `execute()` direct-via-unified path is a stub. The real direct path runs through a separate entry point; the stub is secondary. |
 

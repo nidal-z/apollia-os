@@ -41,9 +41,11 @@ Install the shared tools first, then the OS-specific section for your machine.
   cargo install tauri-cli --version "^2"
   ```
 
-- **For a local inference runner only** (the optional last section): CMake and a
-  C/C++ compiler. The runner compiles llama.cpp from source, which needs both. The
-  default cloud-capable build does not.
+- **For local inference:** the daemon serves local GGUF models through an embedded
+  `llama-server`. A packaged build bundles it; on a source build you need
+  `llama-server` on your `PATH` (see the last section), no compiler required.
+  Building the optional speech-to-text runner from source additionally needs CMake
+  and a C/C++ compiler.
 
 ### macOS
 
@@ -62,8 +64,8 @@ Install the shared tools first, then the OS-specific section for your machine.
   export PYO3_PYTHON=$(brew --prefix python@3.13)/bin/python3.13
   ```
 
-- The optional local runner needs CMake (`brew install cmake`); the compiler comes
-  from the Command Line Tools above.
+- Building the optional speech-to-text runner from source needs CMake
+  (`brew install cmake`); the compiler comes from the Command Line Tools above.
 - The desktop app requires macOS 13 (Ventura) or newer.
 
 ### Linux (Debian / Ubuntu)
@@ -91,11 +93,11 @@ What each group is for:
 - `libasound2-dev libpulse-dev libjack-jackd2-dev`: audio headers for the desktop
   app's speech-to-text capture. Needed only for the desktop app.
 - `python3-dev`: headers for the embedded Python.
-- `clang cmake`: needed only if you build a local inference runner.
+- `clang cmake`: needed only if you build the speech-to-text runner from source.
 
 If you are building only the command-line runtime and not the desktop app, you can
 skip the webview and audio groups and install just `build-essential pkg-config
-libssl-dev python3-dev` (plus `clang cmake` for a local runner).
+libssl-dev python3-dev` (plus `clang cmake` for the speech-to-text runner).
 
 On other distributions install the equivalents of the same libraries. Package
 names differ (for example WebKitGTK 4.1, GTK 3, libayatana-appindicator, and
@@ -110,7 +112,7 @@ against the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/).
   and updated Windows 10. If it is missing, install the "Evergreen Bootstrapper"
   from Microsoft's WebView2 Runtime download page. Needed only for the desktop
   app.
-- **CMake**, only if you build a local inference runner.
+- **CMake**, only if you build the speech-to-text runner from source.
 - Run the commands below from a shell where `cargo`, `python`, `git`, and (for the
   desktop app) `npm` are on `PATH`. The runtime primitives are tested on macOS and
   Linux; on Windows, verify the daemon commands on your machine and prefer a
@@ -141,9 +143,9 @@ export PATH="$PWD/target/debug:$PATH"
 On Windows the binary is `target\debug\apollia-os.exe`; add `target\debug` to your
 `PATH` the equivalent way.
 
-This default build is cloud-capable: it talks to Anthropic, OpenAI-compatible, or
-Vertex backends. Local GGUF inference needs one extra component, covered in the
-last section.
+This build talks to Anthropic, OpenAI-compatible, or Vertex cloud backends, and
+serves local GGUF models through the embedded `llama-server`. On a source build
+that engine has to be on your `PATH`, covered in the last section.
 
 ## Step 2: install the SDK
 
@@ -169,8 +171,8 @@ Use your provider's current model id for `--model`; the value above is only an
 example.
 
 Local: point the runtime at a `.gguf` file on your machine. This registers the
-backend but does not itself run inference (see the last section for the local
-inference engine).
+backend; the daemon serves it through the embedded `llama-server` (see the last
+section for the `llama-server` requirement).
 
 ```sh
 apollia-os llm setup --local --model /path/to/model.gguf
@@ -246,47 +248,44 @@ subsequent runs are incremental. The window uses the system webview (WebKit on
 macOS and Linux, WebView2 on Windows), so make sure your platform's webview
 prerequisites are installed.
 
-For local inference inside the dev app, build a runner (next section) and place it
-next to the desktop's `apollia-os` binary, or drive the desktop against an
-external `llama-server`; see [Accelerate local inference](/how-to/accelerate-local-inference).
+For local inference inside the dev app, make sure `llama-server` is on your `PATH`
+(next section); the daemon the app embeds serves local GGUF models through it. See
+[Get the most from local inference](/how-to/accelerate-local-inference).
 
-## Optional: enable local GGUF inference
+## Local GGUF inference
 
-The default `apollia-os` binary is cloud-only. Local inference is served by a
-separate sidecar, `apollia-runner`, which links llama.cpp with a hardware
-backend. The daemon spawns it on demand and looks for a runner binary named
-`apollia-runner-<backend>` sitting in the same directory as `apollia-os`.
+Local models run through an embedded `llama-server` (upstream llama.cpp) that the
+daemon spawns and supervises over its OpenAI-compatible HTTP API, with native tool
+calling (`--jinja`) and continuous batching. The provider name stays `llama-cpp`.
 
-Building the runner compiles llama.cpp from source, so CMake and a C/C++ compiler
-must be installed (see the prerequisites for your platform).
+A packaged desktop build stages `llama-server` automatically, next to the
+speech-to-text runners, so nothing is needed there. On a source build the daemon
+looks for `llama-server` on your `PATH`. Provide one of:
 
-Build the runner for your hardware (choose exactly one backend) and co-locate it:
+- the repository recipe, which runs an upstream binary for local testing:
 
-```sh
-# Apple Silicon
-cargo build -p apollia-runner --release --features local-metal
-cp target/release/apollia-runner target/release/apollia-runner-metal
+  ```sh
+  just llama-server /path/to/model.gguf
+  ```
 
-# Portable CPU
-cargo build -p apollia-runner --release --features local-cpu
-cp target/release/apollia-runner target/release/apollia-runner-cpu
+- or an upstream install that puts `llama-server` on your `PATH`, for example
+  `brew install llama.cpp` on macOS or a llama.cpp build on Linux.
 
-# NVIDIA (needs the CUDA toolkit)
-cargo build -p apollia-runner --release --features local-cuda
-cp target/release/apollia-runner target/release/apollia-runner-cuda
-```
+If a local backend is configured but no `llama-server` is reachable, LLM calls
+fail with a `503 Service Unavailable` and a `BackendUnavailable` reason; put the
+engine on your `PATH` to resolve it.
 
-The other backends are `local-rocm` (AMD) and `local-vulkan` (cross-vendor). Put
-the suffixed runner next to the `apollia-os` binary you run. If a local backend is
-configured but no matching runner is found, LLM calls fail with a
-`503 Service Unavailable` and a `BackendUnavailable` reason; build and co-locate
-the runner to resolve it.
+There is no download command for models. Obtain a `.gguf` file yourself (for
+example from a model hub) and place it in `~/.apollia/models/`, then point a local
+backend at it with `apollia-os llm setup --local --model <path.gguf>`. The `model`
+subcommands (`list`, `search`, `show`, `hardware`, `delete`) inspect and manage the
+models already present; see the [CLI reference](/reference/cli).
 
-There is no download command. Obtain a `.gguf` file yourself (for example from a
-model hub) and place it in `~/.apollia/models/`, then point a local backend at it
-with `apollia-os llm setup --local --model <path.gguf>`. The `model` subcommands
-(`list`, `search`, `show`, `hardware`, `delete`) inspect and manage the models
-already present; see the [CLI reference](/reference/cli).
+Speech-to-text is a separate, optional component. The `apollia-runner` sidecar,
+built with a `local-*` feature (`local-metal`, `local-cpu`, `local-cuda`,
+`local-rocm`, `local-vulkan`), runs whisper out of process; it no longer serves
+LLM inference. A packaged build bundles it, and from source you build it only if
+you want local dictation.
 
 ## Next steps
 
