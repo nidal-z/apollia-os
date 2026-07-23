@@ -75,7 +75,7 @@
       {$t("chat.planMode.empty")}
     </p>
   {:else}
-    <ol class="mb-4 space-y-2">
+    <ol class="mb-4 max-h-[50vh] space-y-2 overflow-y-auto pr-1">
       {#each steps as step (step.step_id)}
         {@const provenanceChip = originToChip(step.provenance.origin)}
         <li class="rounded-md border border-border/60 bg-muted/30 p-2.5 text-sm">
