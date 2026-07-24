@@ -444,14 +444,15 @@ impl AgentRunner for BridgeRunner {
                 .clone()
                 .map(|mid| (task.context_id.clone(), mid));
 
-            // Build a dedicated MemoryManager for the __user__ namespace so we
-            // can expose ctx.profile alongside ctx.memory.
+            // Expose ctx.profile against the canonical user-profile database
+            // (`~/.apollia/user_memory.db`), the same file the desktop
+            // `get_profile` command and the CLI read, so writes land where
+            // Settings > Profile looks.
             let profile_interface = {
-                let user_manager =
-                    MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
+                let user_memory_db = default_data_dir().join("user_memory.db");
                 let is_onboarding = agent_id == "onboarding-agent";
                 Some(apollia_aip::profile::ProfileInterface::new(
-                    user_manager,
+                    user_memory_db,
                     agent_id.clone(),
                     user_memory_write,
                     is_onboarding,

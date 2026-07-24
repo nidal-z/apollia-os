@@ -156,6 +156,7 @@ pub(in crate::supervisor) fn open_user_memory(
 ) -> Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>> {
     match apollia_memory::user_memory::UserMemoryRepository::new(&data_dir.join("user_memory.db")) {
         Ok(repo) => {
+            migrate_legacy_user_profile(data_dir, &repo);
             info!("Supervisor: UserMemoryRepository ready");
             Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
         }
@@ -163,6 +164,63 @@ pub(in crate::supervisor) fn open_user_memory(
             warn!(error = %e, "UserMemoryRepository failed to open - user memory disabled");
             None
         }
+    }
+}
+
+/// One-time migration of the historical `ctx.profile` store.
+///
+/// Before the profile write path was unified, agent writes landed in a separate
+/// `memory/__user__.db` while the desktop and CLI read `user_memory.db`. This
+/// copies any entry from the legacy file into the canonical repository (without
+/// clobbering an existing key, so the canonical value always wins), then retires
+/// the legacy file so the migration runs only once. Every failure is non-fatal
+/// and logged.
+fn migrate_legacy_user_profile(
+    data_dir: &std::path::Path,
+    canonical: &apollia_memory::user_memory::UserMemoryRepository,
+) {
+    let legacy_path = data_dir.join("memory").join("__user__.db");
+    if !legacy_path.exists() {
+        return;
+    }
+    let legacy = match apollia_memory::user_memory::UserMemoryRepository::new(&legacy_path) {
+        Ok(repo) => repo,
+        Err(e) => {
+            warn!(error = %e, "legacy __user__.db present but unreadable - skipping profile migration");
+            return;
+        }
+    };
+    let entries = match legacy.list_all() {
+        Ok(entries) => entries,
+        Err(e) => {
+            warn!(error = %e, "failed to read legacy user profile - skipping migration");
+            return;
+        }
+    };
+    let mut migrated = 0usize;
+    for entry in entries {
+        match canonical.get(&entry.key) {
+            Ok(Some(_)) => continue,
+            Ok(None) => match canonical.set(&entry.key, &entry.value, entry.written_by) {
+                Ok(()) => migrated += 1,
+                Err(e) => {
+                    warn!(key = %entry.key, error = %e, "failed to migrate a legacy profile entry")
+                }
+            },
+            Err(e) => {
+                warn!(key = %entry.key, error = %e, "failed to probe canonical profile entry")
+            }
+        }
+    }
+    let retired = legacy_path.with_extension("db.migrated");
+    if let Err(e) = std::fs::rename(&legacy_path, &retired) {
+        warn!(error = %e, "migrated legacy user profile but could not retire the old db file");
+    }
+    if migrated > 0 {
+        info!(
+            count = migrated,
+            "migrated legacy user profile entries into user_memory.db"
+        );
     }
 }
 

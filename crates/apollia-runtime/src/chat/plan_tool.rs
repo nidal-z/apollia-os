@@ -577,7 +577,7 @@ mod tests {
 
         // THEN it succeeds, returns the snapshot, and the plan is readable
         assert!(result.ok);
-        assert_eq!(result.plan.expect("plan").steps.len(), 1);
+        assert_eq!(result.steps.expect("steps").len(), 1);
         assert!(h.get_plan("s1").await.expect("get").is_some());
     }
 
@@ -593,8 +593,8 @@ mod tests {
 
         // THEN the snapshot contains the new step and the plan persists it
         assert!(result.ok);
-        let plan = result.plan.expect("plan");
-        assert!(plan.steps.iter().any(|s| s.step_id == "b"));
+        let steps = result.steps.expect("steps");
+        assert!(steps.iter().any(|s| s.step_id == "b"));
     }
 
     #[tokio::test]
@@ -653,8 +653,8 @@ mod tests {
 
         // THEN it succeeds and the step is gone from the snapshot
         assert!(result.ok);
-        let plan = result.plan.expect("plan");
-        assert!(!plan.steps.iter().any(|s| s.step_id == "b"));
+        let steps = result.steps.expect("steps");
+        assert!(!steps.iter().any(|s| s.step_id == "b"));
     }
 
     #[tokio::test]
@@ -668,8 +668,8 @@ mod tests {
             run_plan_propose(&h, "s1", &serde_json::json!({ "steps": [step_json("z")] })).await;
 
         // THEN only the new step remains
-        let plan = result.plan.expect("plan");
-        let ids: Vec<&str> = plan.steps.iter().map(|s| s.step_id.as_str()).collect();
+        let steps = result.steps.expect("steps");
+        let ids: Vec<&str> = steps.iter().map(|s| s.step_id.as_str()).collect();
         assert_eq!(ids, vec!["z"]);
     }
 
@@ -686,7 +686,7 @@ mod tests {
         // THEN the snapshot reflects the new status
         assert!(result.ok);
         assert_eq!(
-            result.plan.expect("plan").steps[0].status,
+            result.steps.expect("steps")[0].status,
             StepStatus::InProgress
         );
     }
@@ -700,10 +700,11 @@ mod tests {
         // WHEN submitting it
         let result = run_plan_submit(&h, "s1").await;
 
-        // THEN the snapshot status is awaiting approval
+        // THEN the operation succeeds and the stored plan is awaiting approval
         assert!(result.ok);
+        let plan = h.get_plan("s1").await.expect("get").expect("plan");
         assert_eq!(
-            result.plan.expect("plan").status,
+            plan.status,
             apollia_core::plan::PlanStatus::AwaitingApproval
         );
     }

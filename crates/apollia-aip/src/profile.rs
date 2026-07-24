@@ -15,22 +15,25 @@
 //! [`crate::memory::MemoryInterface::remember_user`].
 //!
 //! Implementation forwards to
-//! [`apollia_memory::user_memory::UserMemoryRepository`] via the shared
-//! [`MemoryManager`] held by the runtime.
-
-use std::sync::{Arc, Mutex};
+//! [`apollia_memory::user_memory::UserMemoryRepository`], opened against the
+//! canonical `<data_dir>/user_memory.db` file (the same one the desktop and CLI
+//! read), so a fact stored through `ctx.profile` is immediately visible there.
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use apollia_memory::manager::MemoryManager;
-use apollia_memory::user_memory::{ProfileEntry, WrittenBy, USER_NAMESPACE};
+use apollia_memory::user_memory::{ProfileEntry, WrittenBy};
 
 /// Python-facing handle on the global user profile.
 #[pyclass]
 pub struct ProfileInterface {
-    user_manager: Arc<Mutex<MemoryManager>>,
+    /// Canonical user-profile database (`<data_dir>/user_memory.db`), the SAME
+    /// file the desktop `get_profile` command and the CLI `apollia profile`
+    /// read. Writing here (instead of a separate `memory/__user__.db`) makes the
+    /// facts an agent stores through `ctx.profile` show up in Settings > Profile,
+    /// a single source of truth with no duplicate/orphaned copy.
+    db_path: std::path::PathBuf,
     user_memory_writable: bool,
     /// Agent name used as the [`WrittenBy::Agent`] tag on writes coming from
     /// non-onboarding agents.  Onboarding agent writes use
@@ -45,9 +48,9 @@ pub struct ProfileInterface {
 impl ProfileInterface {
     /// Returns the value of a profile field by key, or `None` when absent.
     fn get<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
-        let user_manager = Arc::clone(&self.user_manager);
+        let db_path = self.db_path.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let value = tokio::task::spawn_blocking(move || profile_get(&user_manager, &key))
+            let value = tokio::task::spawn_blocking(move || profile_get(&db_path, &key))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?;
@@ -60,9 +63,9 @@ impl ProfileInterface {
 
     /// Returns `True` when the given key is present in the profile.
     fn has<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
-        let user_manager = Arc::clone(&self.user_manager);
+        let db_path = self.db_path.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let present = tokio::task::spawn_blocking(move || profile_get(&user_manager, &key))
+            let present = tokio::task::spawn_blocking(move || profile_get(&db_path, &key))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?
@@ -76,9 +79,9 @@ impl ProfileInterface {
 
     /// Returns a dict mapping every profile key to its value.
     fn all<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let user_manager = Arc::clone(&self.user_manager);
+        let db_path = self.db_path.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let entries = tokio::task::spawn_blocking(move || profile_list_all(&user_manager))
+            let entries = tokio::task::spawn_blocking(move || profile_list_all(&db_path))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?;
@@ -112,19 +115,17 @@ impl ProfileInterface {
                 "user profile write not permitted: manifest must declare user_memory_write = true",
             ));
         }
-        let user_manager = Arc::clone(&self.user_manager);
+        let db_path = self.db_path.clone();
         let written_by = if self.is_onboarding {
             WrittenBy::Onboarding
         } else {
             WrittenBy::Agent(self.agent_name.clone())
         };
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            tokio::task::spawn_blocking(move || {
-                profile_set(&user_manager, &key, &value, written_by)
-            })
-            .await
-            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
-            .map_err(PyRuntimeError::new_err)?;
+            tokio::task::spawn_blocking(move || profile_set(&db_path, &key, &value, written_by))
+                .await
+                .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
+                .map_err(PyRuntimeError::new_err)?;
             Ok(Python::with_gil(|py| py.None()))
         })
     }
@@ -149,7 +150,7 @@ impl ProfileInterface {
             let value: String = v.extract()?;
             pairs.push((key, value));
         }
-        let user_manager = Arc::clone(&self.user_manager);
+        let db_path = self.db_path.clone();
         let written_by = if self.is_onboarding {
             WrittenBy::Onboarding
         } else {
@@ -158,7 +159,7 @@ impl ProfileInterface {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             tokio::task::spawn_blocking(move || {
                 for (key, value) in &pairs {
-                    profile_set(&user_manager, key, value, written_by.clone())?;
+                    profile_set(&db_path, key, value, written_by.clone())?;
                 }
                 Ok::<(), String>(())
             })
@@ -190,13 +191,13 @@ impl ProfileInterface {
     /// field.  `is_onboarding` tags writes with [`WrittenBy::Onboarding`];
     /// set this to `true` only for the onboarding agent.
     pub fn new(
-        user_manager: MemoryManager,
+        db_path: std::path::PathBuf,
         agent_name: String,
         user_memory_writable: bool,
         is_onboarding: bool,
     ) -> Self {
         Self {
-            user_manager: Arc::new(Mutex::new(user_manager)),
+            db_path,
             user_memory_writable,
             agent_name,
             is_onboarding,
@@ -208,58 +209,33 @@ impl ProfileInterface {
 // Pure Rust internals, testable without PyO3
 // ---------------------------------------------------------------------------
 
-fn lock_manager(
-    mgr: &Arc<Mutex<MemoryManager>>,
-) -> Result<std::sync::MutexGuard<'_, MemoryManager>, String> {
-    mgr.lock()
-        .map_err(|e| format!("user memory mutex poisoned: {e}"))
+fn open_repo(
+    db_path: &std::path::Path,
+) -> Result<apollia_memory::user_memory::UserMemoryRepository, String> {
+    apollia_memory::user_memory::UserMemoryRepository::new(db_path)
+        .map_err(|e| format!("open user memory repo: {e}"))
 }
 
-fn profile_get(
-    user_manager: &Arc<Mutex<MemoryManager>>,
-    key: &str,
-) -> Result<Option<String>, String> {
-    let flat_key = key.strip_prefix("user.").unwrap_or(key).to_owned();
-    let mut mgr = lock_manager(user_manager)?;
-    let store = match mgr.store(USER_NAMESPACE) {
-        Ok(s) => s,
-        Err(_) => return Ok(None),
-    };
-    let sem = apollia_memory::semantic::SemanticMemory::new(store);
-    let entry = sem
-        .recall(USER_NAMESPACE, &flat_key)
-        .map_err(|e| format!("recall failed: {e}"))?;
-    Ok(entry.map(|e| match e.value {
-        serde_json::Value::String(s) => s,
-        other => other.to_string(),
-    }))
+fn profile_get(db_path: &std::path::Path, key: &str) -> Result<Option<String>, String> {
+    let flat_key = key.strip_prefix("user.").unwrap_or(key);
+    let repo = open_repo(db_path)?;
+    let entry = repo.get(flat_key).map_err(|e| format!("get: {e}"))?;
+    Ok(entry.map(|e| e.value))
 }
 
-fn profile_list_all(user_manager: &Arc<Mutex<MemoryManager>>) -> Result<Vec<ProfileEntry>, String> {
-    let db_path = {
-        let mgr = lock_manager(user_manager)?;
-        mgr.db_path_for(USER_NAMESPACE)
-            .ok_or_else(|| "__user__ db path not available".to_owned())?
-    };
-    let repo = apollia_memory::user_memory::UserMemoryRepository::new(&db_path)
-        .map_err(|e| format!("open user memory repo: {e}"))?;
+fn profile_list_all(db_path: &std::path::Path) -> Result<Vec<ProfileEntry>, String> {
+    let repo = open_repo(db_path)?;
     repo.list_all().map_err(|e| format!("list_all: {e}"))
 }
 
 fn profile_set(
-    user_manager: &Arc<Mutex<MemoryManager>>,
+    db_path: &std::path::Path,
     key: &str,
     value: &str,
     written_by: WrittenBy,
 ) -> Result<(), String> {
-    let flat_key = key.strip_prefix("user.").unwrap_or(key).to_owned();
-    let db_path = {
-        let mgr = lock_manager(user_manager)?;
-        mgr.db_path_for(USER_NAMESPACE)
-            .ok_or_else(|| "__user__ db path not available".to_owned())?
-    };
-    let repo = apollia_memory::user_memory::UserMemoryRepository::new(&db_path)
-        .map_err(|e| format!("open user memory repo: {e}"))?;
-    repo.set(&flat_key, value, written_by)
+    let flat_key = key.strip_prefix("user.").unwrap_or(key);
+    let repo = open_repo(db_path)?;
+    repo.set(flat_key, value, written_by)
         .map_err(|e| format!("set: {e}"))
 }

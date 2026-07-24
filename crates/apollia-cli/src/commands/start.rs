@@ -313,10 +313,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             });
 
         let profile_interface = {
-            let user_manager =
-                MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
+            let user_memory_db = self.data_dir.join("user_memory.db");
             apollia_aip::profile::ProfileInterface::new(
-                user_manager,
+                user_memory_db,
                 agent_name.to_string(),
                 manifest.user_memory_write,
                 agent_name == "onboarding-agent",
@@ -961,10 +960,13 @@ impl AgentRunner for BridgeRunner {
                 });
 
             let profile_interface = {
-                let user_manager =
-                    MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
+                let data_dir = secrets_data_dir.clone().unwrap_or_else(|| {
+                    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                    PathBuf::from(home).join(".apollia")
+                });
+                let user_memory_db = data_dir.join("user_memory.db");
                 apollia_aip::profile::ProfileInterface::new(
-                    user_manager,
+                    user_memory_db,
                     agent_id.clone(),
                     user_memory_write,
                     agent_id == "onboarding-agent",
