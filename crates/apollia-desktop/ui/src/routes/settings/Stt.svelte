@@ -45,6 +45,37 @@
   let inputDevicesLoaded = $state(false);
   const noMicrophone = $derived(inputDevicesLoaded && inputDevices.length === 0);
 
+  // Curated, deterministic language list. Each `code` is the ISO 639-1 hint
+  // passed to the Whisper engine; the auto-detect entry (empty value, persisted
+  // as `null`) is rendered separately with a localized label. Autonyms are
+  // proper nouns shown identically in every locale.
+  const STT_LANGUAGES: ReadonlyArray<{ code: string; label: string }> = [
+    { code: "fr", label: "Français" },
+    { code: "en", label: "English" },
+    { code: "es", label: "Español" },
+    { code: "de", label: "Deutsch" },
+    { code: "it", label: "Italiano" },
+    { code: "pt", label: "Português" },
+    { code: "nl", label: "Nederlands" },
+    { code: "ru", label: "Русский" },
+    { code: "zh", label: "中文" },
+    { code: "ja", label: "日本語" },
+  ];
+
+  // The persisted `model_path` can be an absolute path (from onboarding) or a
+  // `~`-prefixed path (from the settings picker), while the `<option>` values
+  // are always `~/.apollia/models/<name>`. Match by file name so the select
+  // reflects the configured model regardless of how the path was stored.
+  function fileName(p: string): string {
+    return p.split(/[\\/]/).pop() ?? "";
+  }
+
+  const selectedModelValue = $derived.by(() => {
+    const currentName = fileName(sttConfig?.model_path ?? "");
+    const match = ($sttModelsStore.data ?? []).find((m) => m.name === currentName);
+    return match ? `~/.apollia/models/${match.name}` : "";
+  });
+
   async function loadInputDevices() {
     try {
       inputDevices = await invoke<string[]>("list_audio_input_devices");
@@ -339,7 +370,10 @@
           {#if ($sttModelsStore.data ?? []).length > 0}
             <Select
               id="stt-model-select"
-              bind:value={sttConfig.model_path}
+              value={selectedModelValue}
+              onchange={(e: Event) => {
+                if (sttConfig) sttConfig.model_path = (e.currentTarget as HTMLSelectElement).value;
+              }}
               class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               data-testid="stt-model-select"
             >
@@ -370,14 +404,20 @@
 
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-language">{$t('settings.stt_language')}</label>
-          <Input
+          <Select
             id="stt-language"
-            type="text"
-            placeholder={$t('settings.stt_language_auto')}
-            bind:value={sttConfig.language}
-            class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            data-testid="stt-language-input"
-           />
+            data-testid="stt-language-select"
+            value={sttConfig.language ?? ''}
+            onchange={(e: Event) => {
+              if (sttConfig) sttConfig.language = (e.currentTarget as HTMLSelectElement).value || null;
+            }}
+            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            <option value="">{$t('settings.stt_language_auto')}</option>
+            {#each STT_LANGUAGES as lang (lang.code)}
+              <option value={lang.code}>{lang.label}</option>
+            {/each}
+          </Select>
         </div>
 
         <div class="space-y-1.5">

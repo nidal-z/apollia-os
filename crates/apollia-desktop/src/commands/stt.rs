@@ -775,7 +775,10 @@ pub async fn stop_tour_recording(flow_state: tauri::State<'_, SttFlowState>) -> 
 
     match maybe_flow {
         Some(flow) => {
-            flow.stop_and_transcribe().await;
+            // In-app recording (mic button, onboarding test): the webview
+            // consumes the `stt-transcribed` event, so skip the OS paste to
+            // avoid a double insertion when the Apollia window is focused.
+            flow.stop_and_transcribe(false).await;
             Ok(())
         }
         None => Err("STT engine not available".to_owned()),

@@ -254,12 +254,16 @@
     };
   });
 
-  // STT event listener: when the user records (via the mic button OR via
-  // the global hotkey), the Rust pipeline broadcasts `stt-transcribed`
-  // with the resulting text. We append it to the input textarea.
+  // STT event listener: the Rust pipeline broadcasts `stt-transcribed` for
+  // every transcription. Only the in-app mic button feeds the composer here,
+  // gated on `recording` (set solely by `toggleMic`). The global hotkey
+  // delivers its text through the OS-level clipboard paste
+  // (see `SttFlow::dispatch_result`); appending it again would double-insert
+  // the text when the Apollia window is focused.
   onMount(() => {
     let cancelled = false;
     void listen<{ text?: string } | string>("stt-transcribed", (event) => {
+      if (!recording) return;
       const text =
         typeof event.payload === "string"
           ? event.payload

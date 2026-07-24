@@ -412,7 +412,8 @@ pub(crate) fn setup_stt_hotkey(
         move || {
             let flow = Arc::clone(&flow_stop);
             tauri::async_runtime::spawn(async move {
-                flow.stop_and_transcribe().await;
+                // Global hotkey: paste into the focused application.
+                flow.stop_and_transcribe(true).await;
             });
         },
     ) {

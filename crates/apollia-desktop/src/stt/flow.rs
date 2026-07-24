@@ -202,9 +202,16 @@ impl SttFlow {
     /// 16 kHz mono → trim silence → transcribe via SttEngine → inject into
     /// clipboard and/or send notification depending on `clipboard_mode`.
     ///
+    /// `dispatch_to_clipboard` gates the OS-level clipboard/paste injection.
+    /// The global hotkey sets it to `true` so dictation lands in whatever
+    /// application is focused. In-app recordings (mic button, onboarding test)
+    /// set it to `false`: they consume the broadcast `stt-transcribed` event in
+    /// the webview instead, so an additional OS paste would double-insert the
+    /// text when the Apollia window is focused.
+    ///
     /// Emits [`RuntimeEvent::SttRecordingStopped`] with the raw audio duration.
     /// Recordings shorter than 100 ms are discarded without calling the STT engine.
-    pub async fn stop_and_transcribe(&self) {
+    pub async fn stop_and_transcribe(&self, dispatch_to_clipboard: bool) {
         if !self.recording.swap(false, Ordering::SeqCst) {
             tracing::debug!("stop_and_transcribe called while not recording");
             return;
@@ -304,7 +311,11 @@ impl SttFlow {
             return;
         }
 
-        self.dispatch_result(&transcript.full_text).await;
+        // In-app recordings rely on the broadcast `stt-transcribed` event to
+        // fill the composer, so the OS paste is skipped for them.
+        if dispatch_to_clipboard {
+            self.dispatch_result(&transcript.full_text).await;
+        }
     }
 
     /// Takes and drains the active capture buffer.
