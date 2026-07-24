@@ -102,22 +102,13 @@ const TOOL_STATUS_MAP: Record<ToolCallView["status"], ReasoningStatus> = {
   refused: "rejected",
 };
 
-function safeParseObject<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    const v = JSON.parse(raw) as T;
-    return v && typeof v === "object" ? v : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Convert one runtime tool call into a reasoning item.
  *
- * Promotes `web_search` / `web_read` to their specialized kinds when the
- * output parses cleanly; otherwise falls back to a generic `tool_call` so the
- * raw JSON remains visible.
+ * Every tool, including `web_search` / `web_read`, maps to the flat `tool_call`
+ * row so the whole reasoning stream is visually uniform. The web tools' rich
+ * result JSON stays visible in the expandable output, exactly like any other
+ * tool.
  */
 export function toReasoningItem(
   toolCall: ToolCallView,
@@ -126,59 +117,6 @@ export function toReasoningItem(
 ): ReasoningItem {
   const id = `${idPrefix}-${index}`;
   const status = TOOL_STATUS_MAP[toolCall.status];
-
-  if (toolCall.tool_name === "web_search") {
-    const parsed = safeParseObject<{
-      query?: string;
-      backend?: string;
-      results?: WebSearchResult[];
-      total_results?: number;
-      duration_ms?: number;
-    }>(toolCall.output);
-    if (parsed && Array.isArray(parsed.results)) {
-      return {
-        id,
-        kind: "web_search",
-        status,
-        query:
-          (typeof toolCall.input.query === "string"
-            ? toolCall.input.query
-            : parsed.query) ?? "",
-        backend: parsed.backend,
-        results: parsed.results,
-        total_results: parsed.total_results,
-        duration_ms: parsed.duration_ms ?? toolCall.duration_ms,
-      };
-    }
-  }
-
-  if (toolCall.tool_name === "web_read") {
-    const parsed = safeParseObject<{
-      url?: string;
-      title?: string | null;
-      byline?: string | null;
-      content?: string;
-      chars_total?: number;
-      truncated?: boolean;
-      duration_ms?: number;
-    }>(toolCall.output);
-    if (parsed && typeof parsed.content === "string") {
-      return {
-        id,
-        kind: "web_read",
-        status,
-        url:
-          parsed.url ??
-          (typeof toolCall.input.url === "string" ? toolCall.input.url : ""),
-        title: parsed.title ?? null,
-        byline: parsed.byline ?? null,
-        extracted: parsed.content,
-        chars_total: parsed.chars_total,
-        truncated: parsed.truncated,
-        duration_ms: parsed.duration_ms ?? toolCall.duration_ms,
-      };
-    }
-  }
 
   return {
     id,
@@ -195,11 +133,28 @@ export function toReasoningItem(
 }
 
 /**
+ * Separator the runtime uses to join per-step reasoning fragments into the
+ * single `thinking_trace` blob (`react_loop.rs`). Splitting on it recovers each
+ * step's fragment so they render as separate collapsible captions instead of
+ * one dumped block.
+ */
+const THINKING_FRAGMENT_SEPARATOR = "\n\n---\n\n";
+
+/** Split a joined `thinking_trace` blob back into its per-step fragments. */
+function splitThinkingFragments(trace: string): string[] {
+  return trace
+    .split(THINKING_FRAGMENT_SEPARATOR)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
  * Build the full reasoning sequence for an assistant message.
  *
- * Order: thinking (if any) → tool calls (mapped in-order).
- * Pending tool calls are returned as-is so the caller can render them via
- * the approval cards instead of a `ReasoningCard` if needed.
+ * Order: each thinking fragment (split from the joined trace) as its own
+ * caption, then the tool calls (mapped in-order). Pending tool calls are
+ * returned as-is so the caller can render them via the approval cards instead
+ * of a `ReasoningCard` if needed.
  */
 export function buildReasoningSequence(
   message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">,
@@ -209,27 +164,24 @@ export function buildReasoningSequence(
   const thinking =
     (message.metadata?.thinking_trace as string | null | undefined) ?? null;
 
+  let fragments: string[] = [];
   if (thinking) {
-    items.push({
-      id: `${message.id}-think`,
-      kind: "thinking",
-      status: "success",
-      content: thinking,
-    });
+    fragments = splitThinkingFragments(thinking);
   } else if (content) {
     // Models like Qwen3 235B embed thinking in <think>...</think> tags inside content.
-    const thinkingBlocks = parseStream(content).filter(
-      (b) => b.type === "thinking" && b.closed,
-    );
-    if (thinkingBlocks.length > 0) {
-      items.push({
-        id: `${message.id}-think`,
-        kind: "thinking",
-        status: "success",
-        content: thinkingBlocks.map((b) => b.content).join("\n\n"),
-      });
-    }
+    fragments = parseStream(content)
+      .filter((b) => b.type === "thinking" && b.closed)
+      .map((b) => b.content.trim())
+      .filter((s) => s.length > 0);
   }
+  fragments.forEach((fragment, i) => {
+    items.push({
+      id: `${message.id}-think-${i}`,
+      kind: "thinking",
+      status: "success",
+      content: fragment,
+    });
+  });
 
   const calls = message.tool_calls ?? [];
   for (let i = 0; i < calls.length; i += 1) {

@@ -60,8 +60,8 @@ describe("toReasoningItem - generic tool_call kind", () => {
   });
 });
 
-describe("toReasoningItem - web_search promotion", () => {
-  test("promotes to web_search kind when output parses", () => {
+describe("toReasoningItem - web tools fold into the flat tool row", () => {
+  test("web_search renders as a tool_call, not a specialized kind", () => {
     const call = makeCall({
       tool_name: "web_search",
       input: { query: "rust async" },
@@ -76,46 +76,29 @@ describe("toReasoningItem - web_search promotion", () => {
       }),
     });
     const item = toReasoningItem(call, "msg", 3);
-    expect(item.kind).toBe("web_search");
-    if (item.kind === "web_search") {
-      expect(item.query).toBe("rust async");
-      expect(item.results).toHaveLength(1);
-      expect(item.backend).toBe("ddg");
+    expect(item.kind).toBe("tool_call");
+    if (item.kind === "tool_call") {
+      expect(item.tool).toBe("web_search");
+      // The rich result JSON stays visible in the tool output, like any tool.
+      expect(item.output).toContain("tokio.rs");
     }
   });
 
-  test("falls back to tool_call kind when output is not parseable", () => {
-    const call = makeCall({
-      tool_name: "web_search",
-      input: { query: "x" },
-      output: "not-json",
-    });
-    const item = toReasoningItem(call, "msg", 0);
-    expect(item.kind).toBe("tool_call");
-  });
-});
-
-describe("toReasoningItem - web_read promotion", () => {
-  test("promotes to web_read kind with extracted content", () => {
+  test("web_read renders as a tool_call, keeping its output", () => {
     const call = makeCall({
       tool_name: "web_read",
       input: { url: "https://example.com" },
       output: JSON.stringify({
         url: "https://example.com",
         title: "Example",
-        byline: null,
         content: "Hello world",
-        chars_total: 11,
-        truncated: false,
-        duration_ms: 88,
       }),
     });
     const item = toReasoningItem(call, "msg", 1);
-    expect(item.kind).toBe("web_read");
-    if (item.kind === "web_read") {
-      expect(item.url).toBe("https://example.com");
-      expect(item.extracted).toBe("Hello world");
-      expect(item.title).toBe("Example");
+    expect(item.kind).toBe("tool_call");
+    if (item.kind === "tool_call") {
+      expect(item.tool).toBe("web_read");
+      expect(item.output).toContain("Hello world");
     }
   });
 });
@@ -141,6 +124,23 @@ describe("buildReasoningSequence", () => {
       metadata: null,
     });
     expect(items).toEqual([]);
+  });
+
+  test("splits a multi-fragment thinking_trace into separate captions", () => {
+    const items = buildReasoningSequence({
+      id: "m2",
+      tool_calls: [makeCall({ tool_name: "file_read" })],
+      metadata: { thinking_trace: "First I plan.\n\n---\n\nThen I act." },
+    });
+    const thinking = items.filter((i) => i.kind === "thinking");
+    expect(thinking).toHaveLength(2);
+    expect(thinking[0].kind === "thinking" && thinking[0].content).toBe(
+      "First I plan.",
+    );
+    expect(thinking[1].kind === "thinking" && thinking[1].content).toBe(
+      "Then I act.",
+    );
+    expect(items[items.length - 1]?.kind).toBe("tool_call");
   });
 });
 

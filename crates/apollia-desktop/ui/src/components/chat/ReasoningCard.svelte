@@ -38,6 +38,7 @@
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
   import RetryTimeline from "./RetryTimeline.svelte";
+  import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
 
@@ -705,8 +706,8 @@
       </span>
     </button>
     {#if expanded}
-      <div class="mt-0.5 whitespace-pre-wrap text-[12px] italic leading-relaxed text-muted-foreground/70">
-        {item.content}
+      <div class="reasoning-md mt-0.5 text-[12px] leading-relaxed text-muted-foreground/70">
+        <MarkdownContent content={item.content} />
       </div>
     {/if}
   </div>
