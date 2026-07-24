@@ -683,30 +683,33 @@
     {/snippet}
   </ReasoningCardShell>
 {:else if item.kind === "thinking" || item.kind === "rationale"}
-  <!-- Thinking/rationale share the canonical ReasoningCardShell (primary accent),
-       so reasoning reads as a premium card like every other block. -->
-  <ReasoningCardShell
-    status={item.status}
-    accent="primary"
-    testid={testid}
-    collapsible
-    {expanded}
-    onToggle={toggle}
-    ariaLabel={item.kind === "thinking"
-      ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
-      : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
-    monoTitle={false}
-  >
-    {#snippet icon()}<Brain size={12} class="text-primary" />{/snippet}
-    {#snippet title()}
-      {item.kind === "thinking"
+  <!-- Reasoning as a flat caption (not a boxed card): a thin left rule plus a
+       small toggle label and muted italic text, so reasoning reads as a side
+       note in the flat thread rather than a message bubble. Collapsed by
+       default; click the label to reveal the full text. -->
+  <div class="my-1 border-l-2 border-border/40 pl-2.5" data-testid={testid}>
+    <button
+      type="button"
+      class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 transition-colors hover:text-muted-foreground/80"
+      onclick={toggle}
+      aria-expanded={expanded}
+      aria-label={item.kind === "thinking"
         ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
         : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
-    {/snippet}
-    {#snippet body()}
-      <div class="text-[12px] leading-relaxed text-muted-foreground/85 whitespace-pre-wrap">{item.content}</div>
-    {/snippet}
-  </ReasoningCardShell>
+    >
+      <Brain size={11} class="text-muted-foreground/50" />
+      <span>
+        {item.kind === "thinking"
+          ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
+          : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
+      </span>
+    </button>
+    {#if expanded}
+      <div class="mt-0.5 whitespace-pre-wrap text-[12px] italic leading-relaxed text-muted-foreground/70">
+        {item.content}
+      </div>
+    {/if}
+  </div>
 {:else if item.kind === "retry"}
   <ReasoningCardShell
     status={item.status}
