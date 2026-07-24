@@ -22,6 +22,21 @@
   import ActivityStrip from "./ActivityStrip.svelte";
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
+  import { resolveToolDisplay } from "$lib/tools/tool-display";
+
+  // i18n label key for a tool's clear, human name (e.g. "Recherche web" rather
+  // than the raw "web_search"). The compact live row reads as plain language;
+  // the raw technical name stays available as the row's title tooltip and in the
+  // finalized, expandable trace for builders.
+  function toolLabelKey(name: string): string {
+    return resolveToolDisplay({
+      tool_name: name,
+      input: {},
+      output: null,
+      status: "executed",
+      duration_ms: null,
+    }).labelKey;
+  }
 
   /** One tool invocation as reported by the runtime, tagged with the number of
    *  closed reasoning fragments already streamed when it started. */
@@ -160,7 +175,10 @@
                       <X size={11} class="text-destructive/70" />
                     {/if}
                   </span>
-                  <span class="truncate font-mono text-[11px] text-foreground/75">{entry.name}</span>
+                  <span
+                    class="truncate text-[11.5px] text-foreground/80"
+                    title={entry.name}
+                  >{$t(toolLabelKey(entry.name), { default: entry.name })}</span>
                   {#if entry.durationMs && entry.durationMs > 0}
                     <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{entry.durationMs}ms</span>
                   {/if}
