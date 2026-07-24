@@ -1,0 +1,136 @@
+<script lang="ts">
+  /**
+   * Quiet activity strip - zone 1 of the assistant turn.
+   *
+   * A single subtle summary line (spark glyph + "Reasoned and consulted N
+   * sources" + duration + chevron) that collapses the agent's reasoning and
+   * tool trace by default. During a live turn it is expanded so the user can
+   * watch it work; once the turn finalizes it stays collapsed. The trace body
+   * (reasoning captions + compact tool rows) is supplied by the caller as the
+   * default snippet.
+   */
+
+  import type { Snippet } from "svelte";
+  import { t, locale } from "svelte-i18n";
+  import { Sparkles, ChevronRight } from "lucide-svelte";
+
+  interface Props {
+    /** Trace body: reasoning captions + compact tool rows. */
+    children: Snippet;
+    /** Expanded on mount. Live turns pass `true`; finalized turns stay closed. */
+    open?: boolean;
+    /** Live streaming turn: shows a working label, hides counts and duration. */
+    live?: boolean;
+    /** At least one thinking fragment is present in the trace. */
+    hasThinking?: boolean;
+    /** Deduplicated web source count (see `extractSources`). */
+    sourceCount?: number;
+    /** Non-pending tool call count, used when no web sources ran. */
+    toolCount?: number;
+    /** Summed tool duration in ms; 0 omits the figure gracefully. */
+    durationMs?: number;
+  }
+
+  let {
+    children,
+    open = false,
+    live = false,
+    hasThinking = false,
+    sourceCount = 0,
+    toolCount = 0,
+    durationMs = 0,
+  }: Props = $props();
+
+  // Bold lead verb + muted rest, mirroring the mockup's summary hierarchy.
+  const summary = $derived.by<{ lead: string; rest: string }>(() => {
+    if (live) {
+      return { lead: $t("chat.activity.live_lead"), rest: "" };
+    }
+    if (sourceCount > 0) {
+      return hasThinking
+        ? {
+            lead: $t("chat.activity.lead_reflected"),
+            rest: $t("chat.activity.rest_and_sources", {
+              values: { n: sourceCount },
+            }),
+          }
+        : {
+            lead: $t("chat.activity.lead_consulted"),
+            rest: $t("chat.activity.rest_sources", {
+              values: { n: sourceCount },
+            }),
+          };
+    }
+    if (toolCount > 0) {
+      return hasThinking
+        ? {
+            lead: $t("chat.activity.lead_reflected"),
+            rest: $t("chat.activity.rest_and_tools", {
+              values: { n: toolCount },
+            }),
+          }
+        : {
+            lead: $t("chat.activity.lead_used"),
+            rest: $t("chat.activity.rest_tools", { values: { n: toolCount } }),
+          };
+    }
+    return { lead: $t("chat.activity.lead_reflected"), rest: "" };
+  });
+
+  // Locale-aware seconds, one decimal (e.g. "3,2" in fr, "3.2" in en).
+  const durationLabel = $derived.by<string>(() => {
+    if (live || durationMs <= 0) return "";
+    const seconds = durationMs / 1000;
+    const loc = $locale ?? "en";
+    try {
+      return new Intl.NumberFormat(loc, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(seconds);
+    } catch {
+      return seconds.toFixed(1);
+    }
+  });
+</script>
+
+<details
+  class="activity-strip mb-3 w-full overflow-hidden rounded-lg border border-border/60 bg-surface-1/50"
+  {open}
+  data-testid="activity-strip"
+>
+  <summary
+    class="flex cursor-pointer list-none select-none items-center gap-2.5 px-3 py-2
+      text-[12.5px] text-muted-foreground outline-none
+      focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+    aria-label={$t("chat.activity.toggle")}
+  >
+    <Sparkles size={14} class="flex-none text-primary" aria-hidden="true" />
+    <span class="min-w-0">
+      <span class="font-semibold text-foreground">{summary.lead}</span><span
+        >{summary.rest ? ` ${summary.rest}` : ""}</span
+      >
+    </span>
+    {#if durationLabel}
+      <span class="flex-none text-muted-foreground/60" data-testid="activity-duration"
+        >· {durationLabel} s</span
+      >
+    {/if}
+    <ChevronRight
+      size={14}
+      class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-150"
+      aria-hidden="true"
+    />
+  </summary>
+  <div class="border-t border-border/60 px-3 pb-3 pt-1" data-testid="activity-trace">
+    {@render children()}
+  </div>
+</details>
+
+<style>
+  details.activity-strip > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.activity-strip[open] :global(.chev) {
+    transform: rotate(90deg);
+  }
+</style>

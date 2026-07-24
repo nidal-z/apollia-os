@@ -24,9 +24,22 @@
     sessionId: string;
     isOperator: boolean;
     content?: string;
+    /**
+     * Which part of the sequence to render. `trace` renders only the reasoning
+     * captions and tool rows (meant to live inside a collapsed `ActivityStrip`);
+     * `approvals` renders only the pending HITL cards (which must stay visible,
+     * never hidden in a collapsed strip); `all` renders both (default).
+     */
+    section?: "all" | "trace" | "approvals";
   }
 
-  let { message, sessionId, isOperator, content }: Props = $props();
+  let {
+    message,
+    sessionId,
+    isOperator,
+    content,
+    section = "all",
+  }: Props = $props();
 
   const toolCalls = $derived<ToolCallView[]>(message.tool_calls ?? []);
   const pendingCalls = $derived(
@@ -93,10 +106,11 @@
   );
 </script>
 
-{#if items.length > 0 || pendingCalls.length > 0}
-  <div class="mt-2 space-y-1.5" data-testid="reasoning-sequence">
+{#if (section !== "approvals" && items.length > 0) || (section !== "trace" && pendingCalls.length > 0)}
+  <div class="space-y-1.5 {section === 'all' ? 'mt-2' : ''}" data-testid="reasoning-sequence">
     <!-- Non-pending items rendered via the unified ReasoningCard. Each block
          flies in as it appears, so live reasoning streams in progressively. -->
+    {#if section !== "approvals"}
     {#each visibleItems as item (item.id)}
       <div in:fly={{ x: -12, duration: 260 }}>
         <ReasoningCard {item} {skin} />
@@ -130,8 +144,11 @@
         })}
       </Button>
     {/if}
+    {/if}
 
-    <!-- Pending approvals keep the dedicated cards (kept for) -->
+    <!-- Pending approvals keep the dedicated cards. They stay outside any
+         collapsed activity strip so a HITL request is never hidden. -->
+    {#if section !== "trace"}
     {#each pendingCalls as toolCall, i (toolCall.tool_name + "-pending-" + i)}
       <div transition:slide={{ duration: 150 }}>
         {#if isOperator}
@@ -152,5 +169,6 @@
         {/if}
       </div>
     {/each}
+    {/if}
   </div>
 {/if}

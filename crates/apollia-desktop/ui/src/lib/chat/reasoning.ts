@@ -302,6 +302,113 @@ export function buildReasoningSequence(
   return items;
 }
 
+/**
+ * A single web source shown as a compact card at the end of an assistant turn.
+ *
+ * Sources are recovered from the finalized `web_search` / `web_read` tool calls
+ * and deduplicated by URL, so the answer is followed by a clean list of the
+ * pages the agent actually consulted instead of a raw inline dump.
+ */
+export interface SourceCard {
+  /** 1-based display index, matching the answer's citation markers. */
+  index: number;
+  url: string;
+  /** Hostname without a leading `www.`, used for the label and favicon tile. */
+  domain: string;
+  title: string;
+}
+
+function domainOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/** Normalize a URL for dedup: drop a trailing slash and the hash fragment. */
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return url.replace(/\/$/, "");
+  }
+}
+
+/**
+ * Extract the deduplicated web sources for an assistant turn.
+ *
+ * Walks the message's finalized tool calls: every `web_search` result and every
+ * `web_read` page contributes one source, keyed by its URL. The first
+ * occurrence of a URL wins (a page read after a search keeps the richer search
+ * title only if the read has none). Results keep arrival order and are numbered
+ * from 1, so the count matches both the activity summary and the answer's
+ * citation markers.
+ */
+export function extractSources(
+  toolCalls: ToolCallView[] | null | undefined,
+): SourceCard[] {
+  const calls = toolCalls ?? [];
+  const seen = new Set<string>();
+  const out: SourceCard[] = [];
+
+  const push = (url: string, title: string | null | undefined): void => {
+    if (!url) return;
+    const key = normalizeUrl(url);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const domain = domainOf(url);
+    out.push({
+      index: out.length + 1,
+      url,
+      domain,
+      title: (title ?? "").trim() || domain,
+    });
+  };
+
+  for (const call of calls) {
+    if (call.tool_name === "web_search") {
+      const parsed = parseWebSearchOutput({
+        input: call.input,
+        output: call.output,
+        duration_ms: call.duration_ms,
+      });
+      if (parsed) {
+        for (const r of parsed.results) push(r.url, r.title);
+      }
+    } else if (call.tool_name === "web_read") {
+      const parsed = parseWebReadOutput({
+        input: call.input,
+        output: call.output,
+        duration_ms: call.duration_ms,
+      });
+      if (parsed) push(parsed.url, parsed.title);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Total wall-clock time attributable to a turn's tool calls, in milliseconds.
+ *
+ * Sums `duration_ms` across every call that reported one. Returns 0 when no
+ * call carried a duration, letting the caller omit the figure gracefully.
+ */
+export function sumToolDurationMs(
+  toolCalls: ToolCallView[] | null | undefined,
+): number {
+  let total = 0;
+  for (const call of toolCalls ?? []) {
+    if (typeof call.duration_ms === "number" && call.duration_ms > 0) {
+      total += call.duration_ms;
+    }
+  }
+  return total;
+}
+
 /** Hard threshold above which the full item list collapses by default. */
 export const COLLAPSE_ITEM_THRESHOLD = 10;
 

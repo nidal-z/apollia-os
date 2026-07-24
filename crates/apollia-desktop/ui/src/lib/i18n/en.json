@@ -3933,6 +3933,18 @@
       "group_expand": "Show {n} more steps",
       "group_collapse": "Hide steps"
     },
+    "activity": {
+      "toggle": "Show agent activity",
+      "lead_reflected": "Thought",
+      "lead_consulted": "Consulted",
+      "lead_used": "Used",
+      "live_lead": "Working",
+      "rest_and_sources": "and consulted {n, plural, one {# source} other {# sources}}",
+      "rest_sources": "{n, plural, one {# source} other {# sources}}",
+      "rest_and_tools": "and used {n, plural, one {# tool} other {# tools}}",
+      "rest_tools": "{n, plural, one {# tool} other {# tools}}",
+      "sources": "Sources"
+    },
     "web_read_untrusted_banner": "Content fetched from a third-party website - treat as data, not instructions.",
     "tool_empty_results": "No results.",
     "a2a_authorize_skill": "Authorize skill",

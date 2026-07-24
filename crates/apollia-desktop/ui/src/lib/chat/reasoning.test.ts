@@ -10,8 +10,10 @@ import { describe, expect, test } from "vitest";
 import type { ToolCallView } from "../types";
 import {
   buildReasoningSequence,
+  extractSources,
   parseWebReadOutput,
   parseWebSearchOutput,
+  sumToolDurationMs,
   toReasoningItem,
   type ReasoningItem,
 } from "./reasoning";
@@ -195,6 +197,67 @@ describe("buildReasoningSequence", () => {
       "Then I act.",
     );
     expect(items[items.length - 1]?.kind).toBe("tool_call");
+  });
+});
+
+describe("extractSources - deduplicated web sources for the source cards", () => {
+  test("GIVEN a web_search and a web_read WHEN extracted THEN sources are numbered and deduped by URL", () => {
+    // GIVEN a turn that searched then read one of the results (same URL twice)
+    const calls = [
+      makeCall({
+        tool_name: "web_search",
+        input: { query: "kilimanjaro" },
+        output: JSON.stringify({
+          query: "kilimanjaro",
+          results: [
+            { title: "Kilimanjaro", url: "https://kultra.fr/k", snippet: "", rank: 1 },
+            { title: "Britannica", url: "https://britannica.com/x", snippet: "", rank: 2 },
+          ],
+        }),
+      }),
+      makeCall({
+        tool_name: "web_read",
+        input: { url: "https://kultra.fr/k" },
+        output: JSON.stringify({ url: "https://kultra.fr/k/", title: "Kilimandjaro", content: "..." }),
+      }),
+    ];
+
+    // WHEN sources are extracted
+    const sources = extractSources(calls);
+
+    // THEN the duplicate URL collapses and indices are 1-based sequential
+    expect(sources).toHaveLength(2);
+    expect(sources.map((s) => s.index)).toEqual([1, 2]);
+    expect(sources[0]).toMatchObject({
+      url: "https://kultra.fr/k",
+      domain: "kultra.fr",
+      title: "Kilimanjaro",
+    });
+    expect(sources[1]?.domain).toBe("britannica.com");
+  });
+
+  test("GIVEN no web tools WHEN extracted THEN the source list is empty", () => {
+    // GIVEN a turn that only read a file
+    const calls = [makeCall({ tool_name: "file_read", output: "data" })];
+
+    // WHEN / THEN
+    expect(extractSources(calls)).toEqual([]);
+    expect(extractSources(null)).toEqual([]);
+  });
+});
+
+describe("sumToolDurationMs - total tool wall-clock", () => {
+  test("GIVEN calls with durations WHEN summed THEN only positive numbers count", () => {
+    // GIVEN a mix of durations, including a null one
+    const calls = [
+      makeCall({ tool_name: "a", duration_ms: 300 }),
+      makeCall({ tool_name: "b", duration_ms: 700 }),
+      makeCall({ tool_name: "c", duration_ms: null }),
+    ];
+
+    // WHEN / THEN
+    expect(sumToolDurationMs(calls)).toBe(1000);
+    expect(sumToolDurationMs(null)).toBe(0);
   });
 });
 

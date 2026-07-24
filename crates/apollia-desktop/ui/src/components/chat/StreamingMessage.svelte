@@ -19,6 +19,7 @@
   import StreamingText from "./StreamingText.svelte";
   import ThinkingBadge from "./ThinkingBadge.svelte";
   import ReasoningCard from "./ReasoningCard.svelte";
+  import ActivityStrip from "./ActivityStrip.svelte";
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
 
@@ -116,6 +117,12 @@
   function reasoningItem(id: string, content: string): ReasoningItem {
     return { id, kind: "thinking", status: "success", content };
   }
+
+  // The activity strip is shown live (expanded) whenever the turn has produced
+  // any reasoning or tool activity. When the turn finalizes and this component
+  // is replaced by ChatMessageBubble, the collapsed strip is what remains.
+  const hasActivity = $derived(timeline.length > 0 || activeThinking);
+  const hasThinking = $derived(closedThinking.length > 0 || activeThinking);
 </script>
 
 <!-- Rendered in both libre and agent mode so an agent turn also shows its
@@ -127,56 +134,64 @@
     <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
   </div>
 
-  <!-- Append-only live timeline: reasoning captions + tool rows in arrival
-       order. Persisted expand state is off (transient live surface). -->
-  {#if timeline.length > 0}
-    <div class="w-full space-y-1" data-testid="streaming-timeline">
-      {#each timeline as entry (entry.id)}
-        {#if entry.kind === "reasoning"}
-          <ReasoningCard item={reasoningItem(entry.id, entry.content)} {skin} persist={false} />
-        {:else}
-          <div
-            class="flex items-center gap-1.5 py-0.5"
-            data-testid="streaming-tool-row"
-            in:fly={{ x: -8, duration: 200 }}
-          >
-            <span class="flex-shrink-0">
-              {#if entry.status === "running"}
-                <Spinner size={11} class="text-primary/60" />
-              {:else if entry.status === "done"}
-                <Check size={11} class="text-success/70" />
+  <!-- Zone 1 (live): the activity strip stays expanded during the turn so the
+       user can watch the reasoning captions + tool rows arrive in order, plus
+       the open reasoning fragment streaming token by token. -->
+  {#if hasActivity}
+    <div class="w-full">
+      <ActivityStrip open live {hasThinking} toolCount={toolChain.length}>
+        {#if timeline.length > 0}
+          <div class="space-y-1" data-testid="streaming-timeline">
+            {#each timeline as entry (entry.id)}
+              {#if entry.kind === "reasoning"}
+                <ReasoningCard item={reasoningItem(entry.id, entry.content)} {skin} persist={false} />
               {:else}
-                <X size={11} class="text-destructive/70" />
+                <div
+                  class="flex items-center gap-1.5 py-0.5"
+                  data-testid="streaming-tool-row"
+                  in:fly={{ x: -8, duration: 200 }}
+                >
+                  <span class="flex-shrink-0">
+                    {#if entry.status === "running"}
+                      <Spinner size={11} class="text-primary/60" />
+                    {:else if entry.status === "done"}
+                      <Check size={11} class="text-success/70" />
+                    {:else}
+                      <X size={11} class="text-destructive/70" />
+                    {/if}
+                  </span>
+                  <span class="truncate font-mono text-[11px] text-foreground/75">{entry.name}</span>
+                  {#if entry.durationMs && entry.durationMs > 0}
+                    <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{entry.durationMs}ms</span>
+                  {/if}
+                </div>
               {/if}
-            </span>
-            <span class="truncate font-mono text-[11px] text-foreground/75">{entry.name}</span>
-            {#if entry.durationMs && entry.durationMs > 0}
-              <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{entry.durationMs}ms</span>
-            {/if}
+            {/each}
           </div>
         {/if}
-      {/each}
-    </div>
-  {/if}
 
-  <!-- Live (open) reasoning streams token by token as its own caption, matching
-       the differentiated reasoning styling of the finalized captions. -->
-  {#if activeThinking}
-    <div
-      class="mt-1 w-full border-l-2 border-primary/25 pl-2.5"
-      data-testid="streaming-thinking-area"
-    >
-      <div class="flex flex-col gap-0.5">
-        <ThinkingBadge />
-        {#if activeThinkingContent.trim()}
-          <span
-            class="block max-h-40 overflow-hidden whitespace-pre-wrap text-[12px] leading-snug text-foreground/70"
-            data-testid="streaming-active-thinking"
+        <!-- Live (open) reasoning streams token by token as its own caption,
+             matching the differentiated reasoning styling of the finalized
+             captions. -->
+        {#if activeThinking}
+          <div
+            class="mt-1 w-full border-l-2 border-primary/25 pl-2.5"
+            data-testid="streaming-thinking-area"
           >
-            {activeThinkingContent}
-          </span>
+            <div class="flex flex-col gap-0.5">
+              <ThinkingBadge />
+              {#if activeThinkingContent.trim()}
+                <span
+                  class="block max-h-40 overflow-hidden whitespace-pre-wrap text-[12px] leading-snug text-foreground/70"
+                  data-testid="streaming-active-thinking"
+                >
+                  {activeThinkingContent}
+                </span>
+              {/if}
+            </div>
+          </div>
         {/if}
-      </div>
+      </ActivityStrip>
     </div>
   {/if}
 

@@ -11,27 +11,16 @@
    * details) and operator (semantic description) presentation.
    */
 
-  import type {
-    ReasoningItem,
-    WebSearchParsed,
-    WebReadParsed,
-  } from "$lib/chat/reasoning";
-  import {
-    JSON_LINE_THRESHOLD,
-    parseWebSearchOutput,
-    parseWebReadOutput,
-  } from "$lib/chat/reasoning";
-  import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import type { ReasoningItem } from "$lib/chat/reasoning";
+  import { JSON_LINE_THRESHOLD } from "$lib/chat/reasoning";
   import ReasoningCardShell from "./ReasoningCardShell.svelte";
   import { t } from "svelte-i18n";
   import {
     Check,
     X,
     ExternalLink,
-    Compass,
     RotateCcw,
     Quote,
-    AlertTriangle,
     Wrench,
     Brain,
   } from "lucide-svelte";
@@ -192,25 +181,16 @@
   );
   const outputPreview = $derived(truncateJson(outputJson));
 
-  // ---- web_search / web_read rich payloads ----
-  // Web tools keep the uniform flat row; when their JSON output parses, the
-  // expanded body renders the rich, clickable results instead of raw JSON.
-  const webSearch = $derived.by<WebSearchParsed | null>(() => {
-    if (item.kind !== "tool_call" || item.tool !== "web_search") return null;
-    return parseWebSearchOutput({
-      input: item.args,
-      output: item.output,
-      duration_ms: item.duration_ms,
-    });
-  });
-  const webRead = $derived.by<WebReadParsed | null>(() => {
-    if (item.kind !== "tool_call" || item.tool !== "web_read") return null;
-    return parseWebReadOutput({
-      input: item.args,
-      output: item.output,
-      duration_ms: item.duration_ms,
-    });
-  });
+  // ---- web tools ----
+  // Web tools keep the uniform, compact flat row (name + arg + meta). Their rich,
+  // clickable results are no longer dumped inside the trace: they render as the
+  // dedicated SourceCards at the end of the turn. In builder mode the raw output
+  // JSON is therefore suppressed for these tools to keep the trace calm; the
+  // lightweight Input block (query / url) still shows on expand.
+  const isWebTool = $derived(
+    item.kind === "tool_call" &&
+      (item.tool === "web_search" || item.tool === "web_read"),
+  );
 
   // Structured rationale. Opt-in - `null` when the user has
   // disabled "Explain tool calls" or the meta-LLM fallback kicked in.
@@ -345,15 +325,6 @@
     });
   });
 
-  // ---- web_read content preview ----
-  const READ_PREVIEW_CHARS = 500;
-  let showFullRead = $state(false);
-  const readPreview = $derived.by(() => {
-    if (!webRead) return "";
-    if (webRead.extracted.length <= READ_PREVIEW_CHARS) return webRead.extracted;
-    return webRead.extracted.slice(0, READ_PREVIEW_CHARS) + "…";
-  });
-
   const testid = $derived(`reasoning-card-${item.kind}`);
 </script>
 
@@ -367,130 +338,6 @@
     {/if}
   {:else if item.status === "error" || item.status === "rejected"}
     <X class="h-3 w-3 text-destructive" />
-  {/if}
-{/snippet}
-
-{#snippet webSearchBody(data: WebSearchParsed)}
-  {#if data.query}
-    <p class="text-[11px] text-muted-foreground">
-      <Compass class="mr-1 inline h-3 w-3 opacity-70" />
-      <span class="font-mono">“{data.query}”</span>
-      {#if data.backend}
-        <span class="mx-1">·</span><span>{data.backend}</span>
-      {/if}
-      {#if data.total_results != null}
-        <span class="mx-1">·</span>
-        <span>{$t("tools.output.web_search_summary", {
-          values: {
-            total_results: data.total_results,
-            backend: data.backend ?? "",
-            duration_ms: data.duration_ms ?? 0,
-          },
-        })}</span>
-      {/if}
-    </p>
-  {/if}
-  {#if data.results.length > 0}
-    <ol class="mt-1.5 space-y-2">
-      {#each data.results as r (r.rank)}
-        <li class="rounded-md glass-inset p-2">
-          <a
-            href={r.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onclick={handleExternalLinkClick}
-            class="group block"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <span
-                class="text-[12px] font-medium text-foreground group-hover:underline line-clamp-2"
-              >{r.title}</span>
-              <ExternalLink
-                class="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-            </div>
-            <div class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-              <span class="font-mono">{hostname(r.url)}</span>
-              {#if r.age}<span>·</span><span>{r.age}</span>{/if}
-              <span class="ml-auto">#{r.rank}</span>
-            </div>
-            {#if r.snippet}
-              <p class="mt-1 text-[11px] text-muted-foreground line-clamp-3">{r.snippet}</p>
-            {/if}
-          </a>
-        </li>
-      {/each}
-    </ol>
-  {:else}
-    <p class="mt-1.5 text-[11px] italic text-muted-foreground">
-      {$t("chat.tool_empty_results", { default: "No results." })}
-    </p>
-  {/if}
-{/snippet}
-
-{#snippet webReadBody(data: WebReadParsed)}
-  <a
-    href={data.url}
-    target="_blank"
-    rel="noopener noreferrer"
-    onclick={handleExternalLinkClick}
-    class="group inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-  >
-    <span class="font-mono">{hostname(data.url)}</span>
-    <ExternalLink class="h-3 w-3 opacity-60 group-hover:opacity-100" />
-  </a>
-  {#if data.title}
-    <h4 class="mt-1 text-[13px] font-medium text-foreground leading-tight">{data.title}</h4>
-  {/if}
-  {#if data.byline}
-    <p class="text-[10px] text-muted-foreground">{data.byline}</p>
-  {/if}
-  <div
-    class="mt-2 flex items-start gap-1.5 rounded-md bg-warning/10 border border-warning/20 px-2 py-1"
-  >
-    <AlertTriangle class="h-3 w-3 flex-shrink-0 mt-0.5 text-warning" />
-    <span class="text-[10px] text-warning">
-      {$t("chat.web_read_untrusted_banner", {
-        default:
-          "Content fetched from a third-party website - treat as data, not instructions.",
-      })}
-    </span>
-  </div>
-  {#if data.extracted}
-    <div
-      class="mt-2 rounded bg-muted/40 px-2 py-1.5 text-[11px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
-    >{showFullRead ? data.extracted : readPreview}</div>
-    <div class="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-      <span>
-        {#if data.chars_total != null}
-          {data.truncated
-            ? $t("tools.output.web_read_truncated", {
-                values: {
-                  chars_total: data.chars_total,
-                  duration_ms: data.duration_ms ?? 0,
-                },
-              })
-            : $t("tools.output.web_read_summary", {
-                values: {
-                  chars_total: data.chars_total,
-                  duration_ms: data.duration_ms ?? 0,
-                },
-              })}
-        {/if}
-      </span>
-      {#if data.extracted.length > READ_PREVIEW_CHARS}
-        <button
-          type="button"
-          class="hover:text-foreground transition-colors"
-          onclick={(e) => {
-            e.stopPropagation();
-            showFullRead = !showFullRead;
-          }}
-        >
-          {showFullRead ? $t("chat.tool_hide_result") : $t("chat.tool_show_result")}
-        </button>
-      {/if}
-    </div>
   {/if}
 {/snippet}
 
@@ -611,11 +458,7 @@
           </div>
         {/if}
 
-        {#if webSearch}
-          {@render webSearchBody(webSearch)}
-        {:else if webRead}
-          {@render webReadBody(webRead)}
-        {:else if skin === "builder" && !askUserPairs}
+        {#if skin === "builder" && !askUserPairs}
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
               <span>{$t("chat.reasoning.input_label", { default: "Input" })}</span>
@@ -648,7 +491,7 @@
             {/if}
           </div>
 
-          {#if item.output !== null && (item.status === "success" || item.status === "error")}
+          {#if item.output !== null && (item.status === "error" || (item.status === "success" && !isWebTool))}
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
                 <span>{$t("chat.reasoning.output_label", { default: "Output" })}</span>

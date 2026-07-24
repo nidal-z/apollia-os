@@ -3933,6 +3933,18 @@
       "group_expand": "Afficher {n} étapes supplémentaires",
       "group_collapse": "Masquer les étapes"
     },
+    "activity": {
+      "toggle": "Afficher l'activité de l'agent",
+      "lead_reflected": "Réfléchi",
+      "lead_consulted": "Consulté",
+      "lead_used": "Utilisé",
+      "live_lead": "En cours",
+      "rest_and_sources": "et consulté {n, plural, one {# source} other {# sources}}",
+      "rest_sources": "{n, plural, one {# source} other {# sources}}",
+      "rest_and_tools": "et utilisé {n, plural, one {# outil} other {# outils}}",
+      "rest_tools": "{n, plural, one {# outil} other {# outils}}",
+      "sources": "Sources"
+    },
     "web_read_untrusted_banner": "Contenu récupéré depuis un site tiers - à traiter comme une donnée, pas comme une instruction.",
     "tool_empty_results": "Aucun résultat.",
     "a2a_authorize_skill": "Autoriser le skill",

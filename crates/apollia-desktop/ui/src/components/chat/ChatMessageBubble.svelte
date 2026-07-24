@@ -7,8 +7,11 @@
   import MessageRenderer from "./MessageRenderer.svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
+  import ActivityStrip from "./ActivityStrip.svelte";
+  import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
   import { parseStream } from "$lib/chat/streamParser";
+  import { extractSources, sumToolDurationMs } from "$lib/chat/reasoning";
   import {
     parseApolliaActions,
     sanitizeActionButtons,
@@ -48,8 +51,19 @@
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   });
 
-  const hasToolCalls = $derived(
-    message.tool_calls !== null && message.tool_calls.length > 0,
+  // Split the turn's tool calls: pending/authorized ones drive the always-
+  // visible HITL approval cards; the rest form the collapsed activity trace and
+  // the source cards.
+  const toolCalls = $derived(message.tool_calls ?? []);
+  const pendingCalls = $derived(
+    toolCalls.filter(
+      (c) => c.status === "pending" || c.status === "authorized",
+    ),
+  );
+  const nonPendingCalls = $derived(
+    toolCalls.filter(
+      (c) => c.status !== "pending" && c.status !== "authorized",
+    ),
   );
 
   // Strip <think>...</think> blocks from rendered content - they are shown via ReasoningSequence.
@@ -64,6 +78,18 @@
     !message.metadata?.thinking_trace &&
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
+
+  // Activity strip inputs (zone 1). The trace exists when the turn produced any
+  // reasoning or at least one finalized tool call.
+  const hasThinking = $derived(
+    !!message.metadata?.thinking_trace || hasInlineThinking,
+  );
+  const hasTrace = $derived(hasThinking || nonPendingCalls.length > 0);
+  const activityDurationMs = $derived(sumToolDurationMs(nonPendingCalls));
+
+  // Source cards (zone 3): deduplicated web pages the agent consulted. Their
+  // count also feeds the strip summary so both zones agree.
+  const sources = $derived(extractSources(nonPendingCalls));
 
   // The apollia-guide agent may append an ```apollia-actions``` block. Split it
   // out of the visible text and keep the validated navigate/invoke buttons.
@@ -148,9 +174,31 @@
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
-  {#if hasToolCalls || message.metadata?.thinking_trace || hasInlineThinking}
+  <!-- Zone 1: quiet activity strip - the reasoning and tool trace, collapsed by
+       default in both modes. -->
+  {#if hasTrace}
     <div class="{widthClass}">
-      <ReasoningSequence {message} {sessionId} {isOperator} content={message.content ?? undefined} />
+      <ActivityStrip
+        {hasThinking}
+        sourceCount={sources.length}
+        toolCount={nonPendingCalls.length}
+        durationMs={activityDurationMs}
+      >
+        <ReasoningSequence
+          {message}
+          {sessionId}
+          {isOperator}
+          content={message.content ?? undefined}
+          section="trace"
+        />
+      </ActivityStrip>
+    </div>
+  {/if}
+
+  <!-- Pending HITL approvals stay outside the collapsed strip, always visible. -->
+  {#if pendingCalls.length > 0}
+    <div class="{widthClass}">
+      <ReasoningSequence {message} {sessionId} {isOperator} section="approvals" />
     </div>
   {/if}
 
@@ -261,11 +309,16 @@
       </p>
     {:else}
       {#if displayContent.trim() !== ""}
+        <!-- Zone 2: the answer, the hero. -->
         <MessageRenderer
           content={displayContent}
           citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
         />
         <LinkPreviewList content={displayContent} />
+      {/if}
+      <!-- Zone 3: source cards for the web pages consulted. -->
+      {#if sources.length > 0}
+        <SourceCards {sources} />
       {/if}
       {#if actionButtons.length > 0}
         <div
