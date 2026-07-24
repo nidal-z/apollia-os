@@ -17,6 +17,8 @@
     Check,
     Menu,
     PlugZap,
+    LifeBuoy,
+    BadgeInfo,
   } from "lucide-svelte";
   import {
     settingsSubRoute,
@@ -61,6 +63,8 @@
     system: () => import("./settings/System.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),
     observability: () => import("./settings/Observability.svelte"),
+    help: () => import("./settings/Help.svelte"),
+    about: () => import("./settings/About.svelte"),
     danger: () => import("./settings/Danger.svelte"),
   };
 
@@ -279,6 +283,13 @@
       ],
     },
     {
+      labelKey: "settings.nav.cluster_help",
+      entries: [
+        { key: "help", labelKey: "settings.nav.help", icon: LifeBuoy },
+        { key: "about", labelKey: "settings.nav.about", icon: BadgeInfo },
+      ],
+    },
+    {
       labelKey: "settings.nav.cluster_danger",
       danger: true,
       entries: [
@@ -355,6 +366,16 @@
       title: $t("settings.observability.title"),
       subtitle: $t("settings.observability.subtitle"),
       kicker: "SYSTÈME",
+    },
+    help: {
+      title: $t("settings.help.title"),
+      subtitle: $t("settings.help.subtitle"),
+      kicker: $t("settings.nav.cluster_help"),
+    },
+    about: {
+      title: $t("settings.about.title"),
+      subtitle: $t("settings.about.subtitle"),
+      kicker: $t("settings.nav.cluster_help"),
     },
     danger: {
       title: "Zone dangereuse",

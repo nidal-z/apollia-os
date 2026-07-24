@@ -1,21 +1,18 @@
 <script lang="ts">
   /**
    * Topbar user menu. Avatar/initials trigger → dropdown
-   * with Settings, Keyboard shortcuts, Reset Onboarding, About, Quit.
+   * with Settings, Keyboard shortcuts, Reset Onboarding, Help, About, Quit.
    *
    * NOTE: there is no dedicated `DropdownMenu` primitive in the codebase
    * yet - the shared `Popover` already supports the required semantics
    * (portal, transition, keyboard dismissal) and is used here.
    */
   import { t } from "svelte-i18n";
-  import { UserRound, Settings, Keyboard, RotateCcw, Info, LogOut } from "lucide-svelte";
+  import { UserRound, Settings, Keyboard, RotateCcw, LifeBuoy, BadgeInfo, LogOut } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
-  import { Dialog } from "$lib/components/ui/dialog";
-  import { Button } from "$lib/components/ui/button";
   import { navigateToSettings } from "$lib/router";
 
   let open = $state(false);
-  let aboutOpen = $state(false);
 
   function close() {
     open = false;
@@ -44,10 +41,13 @@
     close();
   }
 
-  function showAbout() {
-    // In-app dialog instead of a native browser alert, which blocks the
-    // webview and cannot be dismissed from automation.
-    aboutOpen = true;
+  function goHelp() {
+    navigateToSettings("help");
+    close();
+  }
+
+  function goAbout() {
+    navigateToSettings("about");
     close();
   }
 
@@ -119,10 +119,22 @@
           role="menuitem"
           type="button"
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
-          onclick={showAbout}
+          onclick={goHelp}
+          data-testid="user-menu-help"
+        >
+          <LifeBuoy size={14} strokeWidth={1.75} />
+          <span>{$t('userMenu.help')}</span>
+        </button>
+      </li>
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+          onclick={goAbout}
           data-testid="user-menu-about"
         >
-          <Info size={14} strokeWidth={1.75} />
+          <BadgeInfo size={14} strokeWidth={1.75} />
           <span>{$t('userMenu.about')}</span>
         </button>
       </li>
@@ -142,25 +154,3 @@
     </ul>
   {/snippet}
 </Popover>
-
-<Dialog
-  open={aboutOpen}
-  onclose={() => (aboutOpen = false)}
-  size="sm"
-  title={$t('userMenu.about_title')}
-  data-testid="user-menu-about-dialog"
->
-  <div class="flex flex-col gap-4">
-    <p class="text-sm text-muted-foreground">Apollia OS</p>
-    <div class="flex justify-end">
-      <Button
-        variant="primary-solid"
-        size="sm"
-        onclick={() => (aboutOpen = false)}
-        data-testid="user-menu-about-close"
-      >
-        {$t('common.close')}
-      </Button>
-    </div>
-  </div>
-</Dialog>

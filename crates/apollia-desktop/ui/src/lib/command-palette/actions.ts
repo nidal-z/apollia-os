@@ -291,14 +291,23 @@ export function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "help.help",
+      label: tr("commandPalette.help.help"),
+      keywords: ["help", "aide", "guide", "getting started", "docs"],
+      icon: Info,
+      kind: "help",
+      execute: () => {
+        navigateToSettings("help");
+      },
+    },
+    {
       id: "help.about",
       label: tr("commandPalette.help.about"),
       keywords: ["about", "apollia", "version"],
       icon: Info,
       kind: "help",
       execute: () => {
-        navigateTo("settings");
-        globalThis.dispatchEvent(new CustomEvent("apollia:settings:goto", { detail: "system" }));
+        navigateToSettings("about");
       },
     },
     // Removed: help.docs action (was navigating to obsolete onboarding route)

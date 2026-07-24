@@ -44,6 +44,7 @@ export const COMMAND_PALETTE_KEYS = {
   },
   help: {
     shortcuts: "commandPalette.help.shortcuts",
+    help: "commandPalette.help.help",
     about: "commandPalette.help.about",
     docs: "commandPalette.help.docs",
     resetOnboarding: "commandPalette.help.resetOnboarding",

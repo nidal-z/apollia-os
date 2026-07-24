@@ -24,6 +24,8 @@ export type SettingsSubRoute =
   | "system"
   | "shortcuts"
   | "observability"
+  | "help"
+  | "about"
   | "danger";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
@@ -39,6 +41,8 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "system",
   "shortcuts",
   "observability",
+  "help",
+  "about",
   "danger",
 ];
 
