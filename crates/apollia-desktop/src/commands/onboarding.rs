@@ -1565,11 +1565,12 @@ pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> 
 #[tauri::command]
 pub async fn setup_whisper_model(
     model_path: String,
+    language: Option<String>,
     state: State<'_, RuntimeHandle>,
     app: tauri::AppHandle,
     stt_flow_state: State<'_, crate::commands::stt::SttFlowState>,
 ) -> Result<OnboardingState, String> {
-    let result = setup_whisper_model_inner(model_path, &state)
+    let result = setup_whisper_model_inner(model_path, language, &state)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "setup_whisper_model failed");
@@ -1587,6 +1588,7 @@ pub async fn setup_whisper_model(
 
 async fn setup_whisper_model_inner(
     model_path: String,
+    language: Option<String>,
     state: &RuntimeHandle,
 ) -> Result<OnboardingState, OnboardingError> {
     let db_path = {
@@ -1605,6 +1607,14 @@ async fn setup_whisper_model_inner(
             .map_err(|e| OnboardingError::PersistenceError(format!("read STT config: {e}")))?;
         row.model_path = mp;
         row.enabled = true;
+        // Pre-set the transcription language from the user's app locale so
+        // dictation transcribes in their language instead of defaulting to
+        // English. Only when unset, to preserve an explicit Settings choice.
+        if row.language.is_none() {
+            if let Some(lang) = language.filter(|l| !l.trim().is_empty()) {
+                row.language = Some(lang);
+            }
+        }
         repo.upsert(&row)
             .map_err(|e| OnboardingError::PersistenceError(format!("persist STT config: {e}")))?;
         Ok(())

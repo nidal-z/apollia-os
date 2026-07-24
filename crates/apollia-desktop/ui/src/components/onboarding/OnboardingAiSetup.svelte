@@ -16,7 +16,14 @@
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { get } from "svelte/store";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
+
+  /** Base app locale (e.g. "fr", "en") to seed the STT transcription language,
+   * so dictation transcribes in the user's language instead of English. */
+  function currentLocale(): string | undefined {
+    const l = get(locale);
+    return l ? l.split("-")[0] : undefined;
+  }
   import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
   import { formatCombo } from "$lib/keyboard/hotkeyCapture";
   import { ensureMicPermission } from "$lib/stt/micPermission";
@@ -505,7 +512,10 @@
       // selected model and hot-reload the engine before testing; a plain reload
       // covers the case where a model is already configured in system.db.
       if (selectedWhisper) {
-        await invoke("setup_whisper_model", { modelPath: selectedWhisper.path });
+        await invoke("setup_whisper_model", {
+        modelPath: selectedWhisper.path,
+        language: currentLocale(),
+      });
       } else {
         await invoke("reload_stt");
       }
@@ -785,7 +795,10 @@
     advanceError = null;
     try {
       if (sttEnabled && selectedWhisper) {
-        await invoke("setup_whisper_model", { modelPath: selectedWhisper.path });
+        await invoke("setup_whisper_model", {
+        modelPath: selectedWhisper.path,
+        language: currentLocale(),
+      });
       }
       onnext();
     } catch (err: unknown) {
