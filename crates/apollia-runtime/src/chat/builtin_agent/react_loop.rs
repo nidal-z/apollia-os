@@ -93,9 +93,11 @@ impl BuiltInChatAgent {
             tool_specs.push(todo_write_spec());
         }
         // Advertise the plan_* tool surface only while the session is in plan
-        // mode, mirroring how todo_write is gated.
+        // mode, mirroring how todo_write is gated. The surface is phase-aware:
+        // once a plan is approved (Executing) the proposal tools are withheld so
+        // the agent executes the approved plan instead of re-proposing it.
         if self.plan_mode_active() {
-            tool_specs.extend(plan_tool::plan_tool_specs());
+            tool_specs.extend(plan_tool::plan_tool_specs_for_phase(self.session_plan_phase));
         }
         // Authoritative set of callable names for the turn: every advertised
         // spec, every session-declared tool, and every deferred MCP tool the

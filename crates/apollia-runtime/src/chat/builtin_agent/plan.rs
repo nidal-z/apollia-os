@@ -110,7 +110,14 @@ impl BuiltInChatAgent {
         records: &[ToolCallRecord],
         session_id: &str,
     ) -> bool {
-        if tracker.phase == PlanPhase::AwaitingApproval {
+        // A submit must not re-arm the approval gate once the plan is already
+        // awaiting approval or executing. Without the Executing guard a stray
+        // plan_submit during execution flips the phase back to AwaitingApproval,
+        // re-showing the approval card, so approving loops forever.
+        if matches!(
+            tracker.phase,
+            PlanPhase::AwaitingApproval | PlanPhase::Executing
+        ) {
             return false;
         }
         let submitted = records.iter().any(|r| {
@@ -219,7 +226,7 @@ impl BuiltInChatAgent {
             other => plan_tool::PlanToolResult {
                 ok: false,
                 error: Some(format!("unknown plan tool: {other}")),
-                plan: None,
+                steps: None,
             },
         };
         tracing::info!(

@@ -39,17 +39,40 @@ pub struct PlanToolResult {
     /// Error message when `ok` is false; omitted otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Snapshot of the resulting plan when `ok` is true; omitted otherwise.
+    /// Compact per-step summary when `ok` is true; omitted otherwise.
+    ///
+    /// The full plan reaches the desktop via `RuntimeEvent::PlanUpdated`, so the
+    /// tool result echoes only `{step_id, title, status}` per step. Returning the
+    /// whole plan JSON on every call (descriptions, rationale, provenance,
+    /// dependencies) bloated the context (a driver of the context-overflow 400)
+    /// and confused small models into re-stating the plan.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub plan: Option<Plan>,
+    pub steps: Option<Vec<PlanStepSummary>>,
+}
+
+/// Compact per-step summary echoed back to the model in a [`PlanToolResult`].
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PlanStepSummary {
+    pub step_id: String,
+    pub title: String,
+    pub status: StepStatus,
 }
 
 impl PlanToolResult {
     fn ok(plan: Plan) -> Self {
+        let steps = plan
+            .steps
+            .iter()
+            .map(|s| PlanStepSummary {
+                step_id: s.step_id.clone(),
+                title: s.title.clone(),
+                status: s.status,
+            })
+            .collect();
         Self {
             ok: true,
             error: None,
-            plan: Some(plan),
+            steps: Some(steps),
         }
     }
 
@@ -57,7 +80,7 @@ impl PlanToolResult {
         Self {
             ok: false,
             error: Some(message.into()),
-            plan: None,
+            steps: None,
         }
     }
 }
@@ -104,6 +127,33 @@ pub fn plan_tool_specs() -> Vec<ToolSpec> {
         plan_set_step_status_spec(),
         plan_submit_spec(),
     ]
+}
+
+/// Plan tools advertised for the current plan phase.
+///
+/// While preparing (discovery / drafting / awaiting approval) the full surface
+/// is offered. Once the plan is approved and the turn runs in
+/// [`PlanPhase::Executing`], the proposal tools (`plan_propose`, `plan_submit`)
+/// are withheld: leaving them advertised makes a weak model re-propose the plan
+/// it just got approved instead of executing it, which loops forever. The
+/// step-status and adjust tools stay so the agent can execute and mark
+/// progress, and legitimately amend the plan mid-run. `Done` offers nothing.
+#[must_use]
+pub fn plan_tool_specs_for_phase(phase: crate::chat::types::PlanPhase) -> Vec<ToolSpec> {
+    use crate::chat::types::PlanPhase;
+    match phase {
+        PlanPhase::Executing => vec![
+            plan_set_step_status_spec(),
+            plan_add_step_spec(),
+            plan_modify_step_spec(),
+            plan_remove_step_spec(),
+            plan_reorder_spec(),
+        ],
+        PlanPhase::Done => Vec::new(),
+        PlanPhase::Discovery | PlanPhase::Drafting | PlanPhase::AwaitingApproval => {
+            plan_tool_specs()
+        }
+    }
 }
 
 /// Executes `plan_propose`: replaces the session's draft plan.

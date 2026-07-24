@@ -120,10 +120,12 @@ straight to drafting (step 2) using sensible defaults instead of lingering in di
 `ask_user` tool ONLY when a specific fact is required to draft a step and cannot reasonably be \
 assumed; do not ask for confirmation of things you can decide yourself. Prefer proposing a plan \
 over asking questions.
-2. Draft the plan. As soon as the request is actionable, call `plan_propose` (this is what \
-creates the plan the user sees), then `plan_add_step` to lay out ordered, dependency-aware \
-steps. Give every step a short rationale explaining why it exists. Write every step title, \
-description and rationale in the SAME language as the user's request.
+2. Draft the plan in ONE call. When the request is actionable, call `plan_propose` a SINGLE \
+time with the COMPLETE `steps` array: each step with a unique `step_id`, a title, a description, \
+its `depends_on` ids, and a short rationale. `plan_propose` REPLACES the whole plan, so do NOT \
+follow it with `plan_add_step` or `plan_modify_step` to build the same plan (those are only for \
+adjusting an already-submitted plan). Write every step title, description and rationale in the \
+SAME language as the user's request.
 3. Submit. Call `plan_submit` once the plan is complete and coherent, then STOP and end your \
 turn. The system shows the user an approval card and resumes you on approval, so do NOT use \
 `ask_user` to request approval and do NOT keep calling tools after submitting. Until the user \
