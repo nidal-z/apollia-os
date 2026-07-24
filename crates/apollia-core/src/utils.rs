@@ -35,7 +35,14 @@ pub fn truncate_middle(s: &str, max_chars: usize) -> (String, Option<usize>) {
 
     let half = max_chars / 2;
     let start_end = floor_char_boundary(s, half);
-    let end_start = s.len() - floor_char_boundary(s, half);
+    // Clamp the tail start to a real char boundary. Computing `len - floor(half)`
+    // subtracts a floored value from the length, which lands at an arbitrary byte
+    // that is not guaranteed to be a boundary (it panics mid-code-point on
+    // multi-byte chars like '─'). Flooring `len - half` instead always yields a
+    // valid slice position, and `len - half >= half >= start_end` here (the
+    // function only runs when `len > max_chars = 2 * half`), so the middle slice
+    // stays well-ordered.
+    let end_start = floor_char_boundary(s, s.len() - half);
 
     let start = &s[..start_end];
     let end = &s[end_start..];
@@ -171,6 +178,20 @@ mod tests {
         // WHEN truncating at a limit that may fall in the middle of an é
         let (result, truncated) = truncate_middle(&s, 101);
         // THEN no panic, the result is valid UTF-8
+        assert!(truncated.is_some());
+        assert!(std::str::from_utf8(result.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn test_truncate_middle_multibyte_at_tail_boundary() {
+        // GIVEN an ASCII head then 3-byte box-drawing chars, sized so the tail
+        // start (`len - half`) lands INSIDE a '─' (U+2500, 3 bytes). Regression:
+        // the old `len - floor(half)` produced a non-boundary offset and panicked
+        // mid-code-point. This is the shape that crashed on a long tool output.
+        let s = format!("{}{}", "a".repeat(50), "\u{2500}".repeat(50));
+        // WHEN truncating (half = 50; the tail would start at byte 150, inside a char)
+        let (result, truncated) = truncate_middle(&s, 100);
+        // THEN no panic and the result is valid UTF-8
         assert!(truncated.is_some());
         assert!(std::str::from_utf8(result.as_bytes()).is_ok());
     }
