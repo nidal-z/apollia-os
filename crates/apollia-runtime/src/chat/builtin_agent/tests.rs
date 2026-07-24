@@ -865,8 +865,10 @@ async fn test_tool_call_hitl_accept() {
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
 
-    // Pre-resolve the approval to Accept before execute (simulates user action)
-    let key = "sess-1::msg-1::file_read".to_string();
+    // Pre-resolve the approval to Accept before execute (simulates user action).
+    // The pending key is scoped by the unique tool-call id ("c1"), not the tool
+    // name, so back-to-back calls to the same tool never collide.
+    let key = "sess-1::msg-1::c1".to_string();
     tokio::spawn({
         let approvals = approvals.clone();
         async move {
@@ -941,7 +943,9 @@ async fn test_tool_call_hitl_refuse() {
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
 
-    let key = "sess-1::msg-1::file_read".to_string();
+    // Key scoped by the unique tool-call id ("c1"), not the tool name, so the
+    // refusal resolves the real pending slot rather than relying on the timeout.
+    let key = "sess-1::msg-1::c1".to_string();
     tokio::spawn({
         let approvals = approvals.clone();
         async move {
@@ -1019,7 +1023,8 @@ async fn test_tool_call_hitl_always_accept() {
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
 
-    let key = "sess-1::msg-1::file_read".to_string();
+    // Key scoped by the unique tool-call id ("c1"), not the tool name.
+    let key = "sess-1::msg-1::c1".to_string();
     tokio::spawn({
         let approvals = approvals.clone();
         async move {
