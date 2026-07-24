@@ -224,31 +224,9 @@
     { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
   >([]);
 
-  // Dedup tool-name entries in the live chain.  Keep the latest status
-  // + cumulative duration, track invocation count so repeat calls surface
-  // compactly as "tool_name · ×N".
-  const groupedLiveToolChain = $derived.by(() => {
-    const byName = new Map<
-      string,
-      { name: string; status: "running" | "done" | "refused"; count: number; totalDurationMs: number }
-    >();
-    for (const step of liveToolChain) {
-      const existing = byName.get(step.name);
-      if (existing) {
-        existing.status = step.status;
-        existing.count += 1;
-        existing.totalDurationMs += step.durationMs ?? 0;
-      } else {
-        byName.set(step.name, {
-          name: step.name,
-          status: step.status,
-          count: 1,
-          totalDurationMs: step.durationMs ?? 0,
-        });
-      }
-    }
-    return Array.from(byName.values());
-  });
+  // The live chain is rendered in invocation order (no dedup): each tool call
+  // is its own row, so the real-time sequence of actions is preserved instead of
+  // being collapsed into a "tool_name · ×N" summary that hid the ordering.
 
   onMount(async () => {
     await loadSession();
@@ -392,7 +370,9 @@
             { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string } | undefined;
           const p = inner ?? evt.payload as { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string };
           if (!p.session_id || p.session_id === sessionId) {
-            isStreaming = false;
+            // Keep isStreaming: the approval pauses the turn but the streamed
+            // reasoning/answer so far must stay on screen (it is the context the
+            // user judges the approval on), not be torn down under the card.
             pendingApproval = {
               sessionId: sessionId,
               messageId: p.message_id ?? "",
@@ -422,7 +402,8 @@
             { request_id?: string; session_id?: string; questions_json?: string; context?: string } | undefined;
           const p = inner ?? evt.payload as { request_id?: string; session_id?: string; questions_json?: string; context?: string };
           if (!p.session_id || p.session_id === sessionId || p.session_id === "") {
-            isStreaming = false;
+            // Keep isStreaming so the streamed reasoning stays visible above the
+            // ask_user card (the turn is paused, not finished).
             try {
               const questions = JSON.parse(p.questions_json ?? "[]");
               pendingUserInput = {
@@ -1265,7 +1246,7 @@
                 <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
               </div>
               <div class="space-y-0.5">
-                {#each groupedLiveToolChain as step (step.name)}
+                {#each liveToolChain as step, i (step.startedAt + "-" + i)}
                   <div class="flex items-center gap-1.5">
                     <div class="flex-shrink-0">
                       {#if step.status === "running"}
@@ -1277,11 +1258,8 @@
                       {/if}
                     </div>
                     <span class="truncate font-mono text-[11px] text-muted-foreground">{step.name}</span>
-                    {#if step.count > 1}
-                      <span class="flex-shrink-0 text-[10px] text-muted-foreground/50">×{step.count}</span>
-                    {/if}
-                    {#if step.totalDurationMs > 0}
-                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.totalDurationMs}ms</span>
+                    {#if step.durationMs && step.durationMs > 0}
+                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
                     {/if}
                   </div>
                 {/each}
