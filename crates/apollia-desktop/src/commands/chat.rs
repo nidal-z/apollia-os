@@ -11,6 +11,8 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::SharedLlmRouter;
+
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSessionRequest {
@@ -308,6 +310,7 @@ const TITLE_MAX_CHARS: usize = 60;
 #[tauri::command]
 pub async fn generate_chat_session_name(
     state: State<'_, RuntimeHandle>,
+    shared: State<'_, SharedLlmRouter>,
     session_id: String,
     first_message: String,
 ) -> Result<String, String> {
@@ -318,9 +321,13 @@ pub async fn generate_chat_session_name(
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
-    let llm = state
-        .llm_router
-        .as_ref()
+    // Use the live desktop router (rebuilt by reload_llm_from_db), not the
+    // boot-time RuntimeHandle snapshot, which stays None when the backend is
+    // configured after startup (e.g. during onboarding).
+    let llm = shared
+        .read()
+        .map_err(|e| format!("lock poisoned: {e}"))?
+        .clone()
         .ok_or_else(|| "no LLM router configured".to_string())?;
 
     if first_message.trim().is_empty() {
