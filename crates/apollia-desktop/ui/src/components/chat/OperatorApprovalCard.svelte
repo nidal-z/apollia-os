@@ -37,6 +37,15 @@
   let scopeOpen = $state(false);
   let rejectDialogOpen = $state(false);
 
+  // Reset the busy state when this card is reused for a different approval, so
+  // consecutive HITL prompts do not stay greyed out from a prior decision.
+  $effect(() => {
+    void messageId;
+    void toolCall.tool_name;
+    isProcessing = false;
+    error = null;
+  });
+
   async function handleAccept(): Promise<void> {
     isProcessing = true;
     error = null;

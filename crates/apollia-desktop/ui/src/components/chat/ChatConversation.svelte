@@ -1289,12 +1289,17 @@
         {#if pendingApproval}
           <div class="flex flex-col items-start gap-1" data-testid="chat-approval-inline">
             <div class="w-full">
-              <ApprovalCard
-                sessionId={pendingApproval.sessionId}
-                messageId={pendingApproval.messageId}
-                toolName={pendingApproval.toolName}
-                inputPreview={pendingApproval.inputPreview}
-              />
+              <!-- Key on the approval identity so back-to-back HITL prompts each
+                   mount a fresh card, never inheriting the previous card's busy
+                   (greyed) state. -->
+              {#key `${pendingApproval.messageId}:${pendingApproval.toolName}`}
+                <ApprovalCard
+                  sessionId={pendingApproval.sessionId}
+                  messageId={pendingApproval.messageId}
+                  toolName={pendingApproval.toolName}
+                  inputPreview={pendingApproval.inputPreview}
+                />
+              {/key}
             </div>
             <Button variant="ghost" size="sm"
               type="button"

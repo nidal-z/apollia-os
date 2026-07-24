@@ -33,6 +33,18 @@
   let scopeOpen = $state(false);
   let rejectDialogOpen = $state(false);
 
+  // Consecutive HITL prompts reuse this same card instance (the parent holds a
+  // single approval slot). isProcessing is only cleared on error, so without
+  // this the buttons stay disabled (greyed out) from the previous approval,
+  // forcing the user to the inbox. Reset the busy state whenever the card is
+  // pointed at a different approval (its message/tool identity changes).
+  $effect(() => {
+    void messageId;
+    void toolName;
+    isProcessing = false;
+    error = null;
+  });
+
   /** True when this is an A2A worker-agent delegation. */
   const isA2A = $derived(toolName.startsWith("a2a:"));
   /** Skill ID (e.g. "read-excel") extracted from "a2a:read-excel". */
