@@ -455,11 +455,52 @@ impl BuiltInChatAgent {
                     session_id = %session_id,
                     "chat.escalation.requested"
                 );
-                backend.stream(request).await
+                // Race Stop against the setup await. This is the "thinking"
+                // window: the backend blocks here until the first token (prompt
+                // prefill / time-to-first-token), with nothing in `consume_stream`
+                // yet, so without this a Stop is ignored during "réflexion". On
+                // cancel, end the turn paused with no partial text.
+                tokio::select! {
+                    biased;
+                    () = ids.cancel.cancelled() => {
+                        tracing::info!(session_id = %session_id, "chat.react.paused_before_stream");
+                        return Ok(self.paused_text_response(
+                            "",
+                            &mut reasoning_fragments,
+                            ResponseContext {
+                                acc,
+                                total_usage,
+                                session_id,
+                                message_id,
+                                run_id,
+                                frontier_ceiling_reached,
+                                final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                            },
+                        ));
+                    }
+                    r = backend.stream(request) => r,
+                }
             } else {
-                self.llm_router
-                    .stream_with_observability(None, request, &obs)
-                    .await
+                tokio::select! {
+                    biased;
+                    () = ids.cancel.cancelled() => {
+                        tracing::info!(session_id = %session_id, "chat.react.paused_before_stream");
+                        return Ok(self.paused_text_response(
+                            "",
+                            &mut reasoning_fragments,
+                            ResponseContext {
+                                acc,
+                                total_usage,
+                                session_id,
+                                message_id,
+                                run_id,
+                                frontier_ceiling_reached,
+                                final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                            },
+                        ));
+                    }
+                    r = self.llm_router.stream_with_observability(None, request, &obs) => r,
+                }
             };
             let stream = stream_result.map_err(|e| ChatError::InternalError(e.to_string()))?;
 
