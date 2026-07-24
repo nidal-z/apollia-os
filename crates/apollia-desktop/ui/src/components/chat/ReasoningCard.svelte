@@ -35,6 +35,10 @@
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
   import RetryTimeline from "./RetryTimeline.svelte";
+  import WebSearchBody from "./tool-bodies/WebSearchBody.svelte";
+  import FileListBody from "./tool-bodies/FileListBody.svelte";
+  import BashBody from "./tool-bodies/BashBody.svelte";
+  import FileReadBody from "./tool-bodies/FileReadBody.svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
@@ -325,6 +329,16 @@
     });
   });
 
+  // Tools that own a bespoke per-tool expanded body (operator + builder
+  // layers). Every other tool keeps the generic input/output rendering below.
+  const dispatchedTool = $derived(
+    item.kind === "tool_call" &&
+      (item.tool === "web_search" ||
+        item.tool === "file_list" ||
+        item.tool === "bash_executor" ||
+        item.tool === "file_read"),
+  );
+
   const testid = $derived(`reasoning-card-${item.kind}`);
 </script>
 
@@ -407,6 +421,15 @@
 
     {#if expanded}
       <div class="mt-1 space-y-1.5 pl-4 text-[11px] leading-relaxed">
+        {#if dispatchedTool && item.tool === "web_search"}
+          <WebSearchBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "file_list"}
+          <FileListBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "bash_executor"}
+          <BashBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "file_read"}
+          <FileReadBody {item} {skin} />
+        {:else}
         {#if askUserPairs}
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
@@ -562,6 +585,8 @@
               })}
             </p>
           {/if}
+        {/if}
+
         {/if}
 
         {#if retryAttempts.length > 0 && (skin === "builder" || retryCount > 0)}

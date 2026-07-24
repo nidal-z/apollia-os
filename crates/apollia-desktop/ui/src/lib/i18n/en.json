@@ -3931,7 +3931,9 @@
       "retry_label": "Retry ({n} attempts)",
       "see_all": "See all",
       "group_expand": "Show {n} more steps",
-      "group_collapse": "Hide steps"
+      "group_collapse": "Hide steps",
+      "input_label": "Input",
+      "output_label": "Output"
     },
     "activity": {
       "toggle": "Show agent activity",
@@ -4328,6 +4330,25 @@
       "title_operator": "Capabilities",
       "title_builder": "Available tools",
       "group_partial": "{count}/{total} enabled"
+    },
+    "body": {
+      "search_label": "Search",
+      "folder_label": "Folder",
+      "file_label": "File",
+      "raw_content": "Raw content",
+      "results_count": "{n, plural, one {# result} other {# results}}",
+      "entries_count": "{n, plural, one {# item} other {# items}}",
+      "output_lines": "{n, plural, one {# line of output} other {# lines of output}}",
+      "more_lines": "… {n, plural, one {# more line} other {# more lines}}",
+      "unit_bytes": "B",
+      "unit_kb": "KB",
+      "unit_mb": "MB",
+      "unit_gb": "GB",
+      "bash_generic": "System command executed",
+      "bash_ok": "Completed without errors",
+      "bash_failed": "Command failed",
+      "bash_failed_code": "Failed (code {code})",
+      "exit_code": "exit {code}"
     }
   },
   "onboarding_v2": {

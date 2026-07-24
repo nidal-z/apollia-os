@@ -13,6 +13,8 @@
   import type { Snippet } from "svelte";
   import { t, locale } from "svelte-i18n";
   import { Sparkles, ChevronRight } from "lucide-svelte";
+  import { slide } from "svelte/transition";
+  import { quintOut } from "svelte/easing";
 
   interface Props {
     /** Trace body: reasoning captions + compact tool rows. */
@@ -40,6 +42,20 @@
     toolCount = 0,
     durationMs = 0,
   }: Props = $props();
+
+  // Controlled disclosure: the caller's `open` prop seeds the state and keeps
+  // driving it (live turns start open, then collapse on finalize), while a click
+  // lets the user override until the next prop change. A controlled panel plus
+  // Svelte `slide` gives a smooth height animation in WKWebView, where the
+  // native <details> grid-rows trick snaps instead of easing.
+  let expanded = $state(open);
+  $effect(() => {
+    expanded = open;
+  });
+
+  function toggle(): void {
+    expanded = !expanded;
+  }
 
   // Bold lead verb + muted rest, mirroring the mockup's summary hierarchy.
   const summary = $derived.by<{ lead: string; rest: string }>(() => {
@@ -93,16 +109,18 @@
   });
 </script>
 
-<details
+<div
   class="activity-strip mb-3 w-full overflow-hidden rounded-lg border border-border/60 bg-surface-1/50"
-  {open}
   data-testid="activity-strip"
 >
-  <summary
-    class="flex cursor-pointer list-none select-none items-center gap-2.5 px-3 py-2
-      text-[12.5px] text-muted-foreground outline-none
-      focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+  <button
+    type="button"
+    class="flex w-full cursor-pointer select-none items-center gap-2.5 px-3 py-2
+      text-left text-[12.5px] text-muted-foreground outline-none transition-colors
+      hover:bg-surface-2/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+    aria-expanded={expanded}
     aria-label={$t("chat.activity.toggle")}
+    onclick={toggle}
   >
     <Sparkles size={14} class="flex-none text-primary" aria-hidden="true" />
     <span class="min-w-0">
@@ -117,20 +135,18 @@
     {/if}
     <ChevronRight
       size={14}
-      class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-150"
+      class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-200"
+      style={expanded ? "transform: rotate(90deg);" : ""}
       aria-hidden="true"
     />
-  </summary>
-  <div class="border-t border-border/60 px-3 pb-3 pt-1" data-testid="activity-trace">
-    {@render children()}
-  </div>
-</details>
-
-<style>
-  details.activity-strip > summary::-webkit-details-marker {
-    display: none;
-  }
-  details.activity-strip[open] :global(.chev) {
-    transform: rotate(90deg);
-  }
-</style>
+  </button>
+  {#if expanded}
+    <div
+      class="border-t border-border/60 px-3 pb-3 pt-1"
+      data-testid="activity-trace"
+      transition:slide={{ duration: 280, easing: quintOut }}
+    >
+      {@render children()}
+    </div>
+  {/if}
+</div>

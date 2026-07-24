@@ -3931,7 +3931,9 @@
       "retry_label": "Tentatives ({n})",
       "see_all": "Tout afficher",
       "group_expand": "Afficher {n} étapes supplémentaires",
-      "group_collapse": "Masquer les étapes"
+      "group_collapse": "Masquer les étapes",
+      "input_label": "Entrée",
+      "output_label": "Sortie"
     },
     "activity": {
       "toggle": "Afficher l'activité de l'agent",
@@ -4328,6 +4330,25 @@
       "title_operator": "Capacités",
       "title_builder": "Outils disponibles",
       "group_partial": "{count}/{total} activés"
+    },
+    "body": {
+      "search_label": "Recherche",
+      "folder_label": "Dossier",
+      "file_label": "Fichier",
+      "raw_content": "Contenu brut",
+      "results_count": "{n, plural, one {# résultat} other {# résultats}}",
+      "entries_count": "{n, plural, one {# élément} other {# éléments}}",
+      "output_lines": "{n, plural, one {# ligne en sortie} other {# lignes en sortie}}",
+      "more_lines": "… {n, plural, one {# ligne de plus} other {# lignes de plus}}",
+      "unit_bytes": "o",
+      "unit_kb": "Ko",
+      "unit_mb": "Mo",
+      "unit_gb": "Go",
+      "bash_generic": "Commande système exécutée",
+      "bash_ok": "Terminé sans erreur",
+      "bash_failed": "Échec de la commande",
+      "bash_failed_code": "Échec (code {code})",
+      "exit_code": "exit {code}"
     }
   },
   "onboarding_v2": {

@@ -13,6 +13,8 @@
   import type { SourceCard } from "$lib/chat/reasoning";
   import { avatarHue } from "$lib/components/ui/avatar/Avatar.svelte";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { fly } from "svelte/transition";
+  import { quintOut } from "svelte/easing";
 
   interface Props {
     sources: SourceCard[];
@@ -29,14 +31,16 @@
       {$t("chat.activity.sources")}
     </h4>
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {#each sources as source (source.url)}
+      {#each sources as source, i (source.url)}
         <a
           href={source.url}
           target="_blank"
           rel="noopener noreferrer"
           onclick={handleExternalLinkClick}
+          in:fly={{ y: 8, duration: 220, delay: i * 30, easing: quintOut }}
           class="group flex items-start gap-2.5 rounded-lg border border-border bg-surface-1 px-3 py-2.5
-            no-underline transition-all hover:-translate-y-px hover:border-primary/50
+            no-underline transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/50
+            hover:shadow-[0_8px_22px_-14px_hsl(var(--primary)/0.5)]
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           data-testid="source-card-{source.index}"
         >
