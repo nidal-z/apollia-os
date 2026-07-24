@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, MessageSquare, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
+  import { X, MessageSquare, Link, Zap, Check } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -26,6 +26,7 @@
   } from "$lib/types";
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
+  import { parseStream } from "$lib/chat/streamParser";
   import ChatInput from "./ChatInput.svelte";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
@@ -206,7 +207,6 @@
   let unlistenChanged: UnlistenFn | undefined;
   let unlistenA2A: UnlistenFn | undefined;
   let unlistenTaskChanged: UnlistenFn | undefined;
-  let activeToolName = $state<string | null>(null);
   /** Non-null while an A2A delegation is in progress. */
   let activeA2A = $state<{ target: string; skill_id: string } | null>(null);
   /** Steps reported by the sub-agent during A2A delegation. */
@@ -219,10 +219,26 @@
   let a2aStartTime = $state<number | null>(null);
   /** Elapsed seconds of current A2A delegation (updated every second). */
   let a2aElapsed = $state<number>(0);
-  /** Live tool call chain for the current LLM turn - cleared on response completion. */
+  /**
+   * Live tool call chain for the current LLM turn - cleared on response
+   * completion. `reasoningCursor` records how many closed reasoning fragments
+   * had streamed when the tool started, so `StreamingMessage` can interleave
+   * reasoning captions and tool rows in true arrival order.
+   */
   let liveToolChain = $state<
-    { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
+    {
+      name: string;
+      status: "running" | "done" | "refused";
+      startedAt: number;
+      durationMs?: number;
+      reasoningCursor: number;
+    }[]
   >([]);
+
+  /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
+  const liveSkin = $derived<"builder" | "operator">(
+    $uiMode === "builder" ? "builder" : "operator",
+  );
 
   // The live chain is rendered in invocation order (no dedup): each tool call
   // is its own row, so the real-time sequence of actions is preserved instead of
@@ -237,7 +253,6 @@
       "chat-token",
       (event) => {
         if (event.payload.session_id !== sessionId) return;
-        activeToolName = null;
         tokenBuffer += event.payload.token;
         isStreaming = true;
         isProcessing = false;
@@ -341,10 +356,14 @@
         if (evt.event_type === "ChatToolCallStarted") {
           const p = evt.payload as { session_id?: string; tool_name?: string };
           if (p.session_id === sessionId) {
-            activeToolName = p.tool_name ?? null;
+            // Snapshot how many reasoning fragments have closed so the live
+            // timeline can place this tool after them, preserving arrival order.
+            const reasoningCursor = parseStream(tokenBuffer).filter(
+              (b) => b.type === "thinking" && b.closed,
+            ).length;
             liveToolChain = [
               ...liveToolChain,
-              { name: p.tool_name ?? "?", status: "running", startedAt: Date.now() },
+              { name: p.tool_name ?? "?", status: "running", startedAt: Date.now(), reasoningCursor },
             ];
             pendingApproval = null;
             scrollToBottom();
@@ -354,7 +373,6 @@
         if (evt.event_type === "ChatToolCallCompleted") {
           const p = evt.payload as { session_id?: string; success?: boolean };
           if (p.session_id === sessionId) {
-            activeToolName = null;
             const now = Date.now();
             liveToolChain = liveToolChain.map((step, i) =>
               i === liveToolChain.length - 1 && step.status === "running"
@@ -488,7 +506,6 @@
       isStreaming = false;
       isProcessing = false;
       tokenBuffer = "";
-      activeToolName = null;
       activeA2A = null;
       a2aSteps = [];
       a2aGuardMessage = null;
@@ -1183,12 +1200,20 @@
           </div>
         {/each}
 
-        {#if isStreaming}
-          <!-- Streaming bubble is isolated in its own component so only this
-               subtree re-renders per token. The committed
-               MessageGroup list above depends on the immutable `messages`
-               array, so it does NOT re-render on each token. -->
-          <StreamingMessage text={tokenBuffer} {sessionMode} agentName={sessionAgentName} />
+        {#if isStreaming || liveToolChain.length > 0}
+          <!-- Streaming turn is isolated in its own component so only this
+               subtree re-renders per token. It renders the append-only live
+               timeline (reasoning captions + tool rows in arrival order) plus
+               the streaming answer, so nothing is torn down when a tool call or
+               approval card appears. Rendered while streaming OR while any tool
+               row is live (a tool can precede the first token). -->
+          <StreamingMessage
+            text={tokenBuffer}
+            {sessionMode}
+            agentName={sessionAgentName}
+            toolChain={liveToolChain}
+            skin={liveSkin}
+          />
         {/if}
 
         {#if activeA2A}
@@ -1206,7 +1231,7 @@
 
               {#if a2aSteps.length > 0}
                 <div class="mt-1.5 space-y-0.5">
-                  {#each a2aSteps as step, _i (step.step_id)}
+                  {#each a2aSteps as step (step.step_id)}
                     <div class="flex items-center gap-1.5">
                       <div class="flex-shrink-0">
                         {#if step.status === "running"}
@@ -1234,43 +1259,6 @@
                   {a2aGuardMessage}
                 </div>
               {/if}
-            </div>
-          </div>
-        {/if}
-
-        {#if liveToolChain.length > 0}
-          <div class="flex justify-start" data-testid="chat-live-reasoning">
-            <div class="w-full overflow-hidden rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-primary px-2.5 py-2">
-              <div class="mb-1.5 flex items-center gap-1.5">
-                <BrainCircuit size={10} class="text-primary/50" />
-                <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
-              </div>
-              <div class="space-y-0.5">
-                {#each liveToolChain as step, i (step.startedAt + "-" + i)}
-                  <div class="flex items-center gap-1.5">
-                    <div class="flex-shrink-0">
-                      {#if step.status === "running"}
-                        <Spinner size={9} class="text-primary/60" />
-                      {:else if step.status === "done"}
-                        <Check size={9} class="text-success/70" />
-                      {:else}
-                        <X size={9} class="text-destructive/70" />
-                      {/if}
-                    </div>
-                    <span class="truncate font-mono text-[11px] text-muted-foreground">{step.name}</span>
-                    {#if step.durationMs && step.durationMs > 0}
-                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </div>
-          </div>
-        {:else if activeToolName}
-          <div class="flex justify-start" data-testid="chat-tool-executing">
-            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              <Spinner size={11} />
-              <span>{$t("chat.tool_executing", { values: { tool: activeToolName } })}</span>
             </div>
           </div>
         {/if}
@@ -1323,6 +1311,13 @@
           </div>
         {/if}
 
+        <!-- Plan gate flows below the assistant message in normal document
+             flow (inside the scroll), so the "Proposed plan" card sits under
+             the streamed turn instead of overlapping it. -->
+        {#if sessionId && sessionStatus !== "closed"}
+          <ChatPlanHost {sessionId} />
+        {/if}
+
         {#if isProcessing && sessionMode === "agent"}
           <div class="flex justify-start" data-testid="chat-agent-loading">
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
@@ -1360,10 +1355,6 @@
         title={$t("next_steps.session_title")}
       />
     </div>
-  {/if}
-
-  {#if sessionId && sessionStatus !== "closed"}
-    <ChatPlanHost {sessionId} />
   {/if}
 
   {#if !inputHidden}

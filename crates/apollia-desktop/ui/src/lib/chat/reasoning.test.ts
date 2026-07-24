@@ -1,14 +1,17 @@
 /**
  * Tests for the ReasoningItem normalizer.
  *
- * Covers the 7 discriminated kinds + the tool-call → web_search/web_read
- * promotion path used by `ReasoningCard.svelte`.
+ * Covers the discriminated kinds, the uniform tool-call row that web tools fold
+ * into, and the `web_search` / `web_read` rich-output parsers that restore the
+ * clickable results body in `ReasoningCard.svelte`.
  */
 
 import { describe, expect, test } from "vitest";
 import type { ToolCallView } from "../types";
 import {
   buildReasoningSequence,
+  parseWebReadOutput,
+  parseWebSearchOutput,
   toReasoningItem,
   type ReasoningItem,
 } from "./reasoning";
@@ -81,6 +84,11 @@ describe("toReasoningItem - web tools fold into the flat tool row", () => {
       expect(item.tool).toBe("web_search");
       // The rich result JSON stays visible in the tool output, like any tool.
       expect(item.output).toContain("tokio.rs");
+      // ...and parses back into a clickable results body.
+      const parsed = parseWebSearchOutput(item);
+      expect(parsed?.results).toHaveLength(1);
+      expect(parsed?.results[0]?.url).toBe("https://tokio.rs");
+      expect(parsed?.query).toBe("rust async");
     }
   });
 
@@ -99,7 +107,20 @@ describe("toReasoningItem - web tools fold into the flat tool row", () => {
     if (item.kind === "tool_call") {
       expect(item.tool).toBe("web_read");
       expect(item.output).toContain("Hello world");
+      const parsed = parseWebReadOutput(item);
+      expect(parsed?.title).toBe("Example");
+      expect(parsed?.extracted).toBe("Hello world");
+      expect(parsed?.url).toBe("https://example.com");
     }
+  });
+
+  test("parseWebSearchOutput returns null on non-JSON output", () => {
+    expect(
+      parseWebSearchOutput({ input: {}, output: "not json", duration_ms: null }),
+    ).toBeNull();
+    expect(
+      parseWebReadOutput({ input: {}, output: null, duration_ms: null }),
+    ).toBeNull();
   });
 });
 
@@ -177,7 +198,7 @@ describe("buildReasoningSequence", () => {
   });
 });
 
-describe("ReasoningItem - all 7 kinds are constructible", () => {
+describe("ReasoningItem - all kinds are constructible", () => {
   test("snapshot: one instance of each kind", () => {
     const items: ReasoningItem[] = [
       {
@@ -187,20 +208,6 @@ describe("ReasoningItem - all 7 kinds are constructible", () => {
         tool: "file_read",
         args: {},
         output: null,
-      },
-      {
-        id: "b",
-        kind: "web_search",
-        status: "success",
-        query: "q",
-        results: [],
-      },
-      {
-        id: "c",
-        kind: "web_read",
-        status: "success",
-        url: "https://ex.com",
-        extracted: "text",
       },
       {
         id: "d",
@@ -233,8 +240,6 @@ describe("ReasoningItem - all 7 kinds are constructible", () => {
     ];
     expect(items.map((i) => i.kind)).toEqual([
       "tool_call",
-      "web_search",
-      "web_read",
       "thinking",
       "rationale",
       "retry",

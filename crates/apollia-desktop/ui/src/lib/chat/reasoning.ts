@@ -2,10 +2,14 @@
  * Unified reasoning item model.
  *
  * `ReasoningItem` is a discriminated union describing a single step of the
- * assistant's reasoning trace: a tool call, a web search/read, a thinking or
- * rationale paragraph, a retry chain, or a citation. A whole message's trace
- * is rendered as an ordered `ReasoningItem[]`, each displayed by
- * `ReasoningCard.svelte`.
+ * assistant's reasoning trace: a tool call, a thinking or rationale paragraph,
+ * a retry chain, or a citation. A whole message's trace is rendered as an
+ * ordered `ReasoningItem[]`, each displayed by `ReasoningCard.svelte`.
+ *
+ * Web tools (`web_search` / `web_read`) fold into the flat `tool_call` row so
+ * every reasoning step shares one uniform header; their rich, clickable results
+ * are restored in the expanded body via `parseWebSearchOutput` /
+ * `parseWebReadOutput` below.
  */
 
 import type {
@@ -56,24 +60,6 @@ export type ReasoningItem =
       rationale?: ToolCallRationale | null;
       /** Structured retry chain. Empty on first-try success. */
       retry_attempts?: StructuredRetryAttempt[];
-    })
-  | (ReasoningItemBase & {
-      kind: "web_search";
-      query: string;
-      backend?: string;
-      results: WebSearchResult[];
-      total_results?: number;
-      duration_ms?: number | null;
-    })
-  | (ReasoningItemBase & {
-      kind: "web_read";
-      url: string;
-      title?: string | null;
-      byline?: string | null;
-      extracted: string;
-      chars_total?: number;
-      truncated?: boolean;
-      duration_ms?: number | null;
     })
   | (ReasoningItemBase & {
       kind: "thinking";
@@ -129,6 +115,96 @@ export function toReasoningItem(
     exit_code: toolCall.exit_code,
     rationale: toolCall.rationale ?? null,
     retry_attempts: toolCall.retry_attempts ?? [],
+  };
+}
+
+/** Minimal slice of a tool call needed to recover a rich web-tool payload. */
+export interface WebToolCall {
+  input?: Record<string, unknown> | null;
+  output: string | null;
+  duration_ms?: number | null;
+}
+
+/** Parsed `web_search` result payload for the rich, clickable results body. */
+export interface WebSearchParsed {
+  query: string;
+  backend?: string;
+  results: WebSearchResult[];
+  total_results?: number;
+  duration_ms?: number | null;
+}
+
+/** Parsed `web_read` result payload for the extracted-article body. */
+export interface WebReadParsed {
+  url: string;
+  title?: string | null;
+  byline?: string | null;
+  extracted: string;
+  chars_total?: number;
+  truncated?: boolean;
+  duration_ms?: number | null;
+}
+
+function safeParseObject<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as T;
+    return v && typeof v === "object" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recover the structured `web_search` payload from a tool call's raw output.
+ *
+ * Returns `null` when the output is absent or does not parse into a results
+ * array, so the caller can fall back to the generic raw-output rendering.
+ */
+export function parseWebSearchOutput(call: WebToolCall): WebSearchParsed | null {
+  const parsed = safeParseObject<{
+    query?: string;
+    backend?: string;
+    results?: WebSearchResult[];
+    total_results?: number;
+    duration_ms?: number;
+  }>(call.output);
+  if (!parsed || !Array.isArray(parsed.results)) return null;
+  const input = call.input ?? {};
+  return {
+    query:
+      (typeof input.query === "string" ? input.query : parsed.query) ?? "",
+    backend: parsed.backend,
+    results: parsed.results,
+    total_results: parsed.total_results,
+    duration_ms: parsed.duration_ms ?? call.duration_ms,
+  };
+}
+
+/**
+ * Recover the extracted-article `web_read` payload from a tool call's raw
+ * output. Returns `null` when the output is absent or carries no `content`.
+ */
+export function parseWebReadOutput(call: WebToolCall): WebReadParsed | null {
+  const parsed = safeParseObject<{
+    url?: string;
+    title?: string | null;
+    byline?: string | null;
+    content?: string;
+    chars_total?: number;
+    truncated?: boolean;
+    duration_ms?: number;
+  }>(call.output);
+  if (!parsed || typeof parsed.content !== "string") return null;
+  const input = call.input ?? {};
+  return {
+    url: parsed.url ?? (typeof input.url === "string" ? input.url : ""),
+    title: parsed.title ?? null,
+    byline: parsed.byline ?? null,
+    extracted: parsed.content,
+    chars_total: parsed.chars_total,
+    truncated: parsed.truncated,
+    duration_ms: parsed.duration_ms ?? call.duration_ms,
   };
 }
 

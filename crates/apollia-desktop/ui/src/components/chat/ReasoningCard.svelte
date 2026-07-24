@@ -11,8 +11,17 @@
    * details) and operator (semantic description) presentation.
    */
 
-  import type { ReasoningItem } from "$lib/chat/reasoning";
-  import { JSON_LINE_THRESHOLD } from "$lib/chat/reasoning";
+  import type {
+    ReasoningItem,
+    WebSearchParsed,
+    WebReadParsed,
+  } from "$lib/chat/reasoning";
+  import {
+    JSON_LINE_THRESHOLD,
+    parseWebSearchOutput,
+    parseWebReadOutput,
+  } from "$lib/chat/reasoning";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import ReasoningCardShell from "./ReasoningCardShell.svelte";
   import { t } from "svelte-i18n";
   import {
@@ -20,7 +29,6 @@
     X,
     ExternalLink,
     Compass,
-    BookOpen,
     RotateCcw,
     Quote,
     AlertTriangle,
@@ -104,12 +112,26 @@
 
   // ---- JSON preview with 600-line threshold ----
   let showFullJson = $state(false);
+  let showFullOutput = $state(false);
 
   function formatJson(value: unknown): string {
     try {
       return JSON.stringify(value, null, 2);
     } catch {
       return String(value);
+    }
+  }
+
+  // Pretty-print a raw output string when it is JSON, so builder-mode tool
+  // results are indented and readable instead of a single unwrapped line.
+  // Non-JSON output (plain text, logs) is returned untouched.
+  function prettyMaybeJson(raw: string): string {
+    const trimmed = raw.trim();
+    if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return raw;
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      return raw;
     }
   }
 
@@ -161,6 +183,34 @@
     item.kind === "tool_call" ? formatJson(item.args) : "",
   );
   const argsPreview = $derived(truncateJson(argsJson));
+
+  // Pretty-printed, length-capped raw output for the builder Output block.
+  const outputJson = $derived(
+    item.kind === "tool_call" && typeof item.output === "string"
+      ? prettyMaybeJson(item.output)
+      : "",
+  );
+  const outputPreview = $derived(truncateJson(outputJson));
+
+  // ---- web_search / web_read rich payloads ----
+  // Web tools keep the uniform flat row; when their JSON output parses, the
+  // expanded body renders the rich, clickable results instead of raw JSON.
+  const webSearch = $derived.by<WebSearchParsed | null>(() => {
+    if (item.kind !== "tool_call" || item.tool !== "web_search") return null;
+    return parseWebSearchOutput({
+      input: item.args,
+      output: item.output,
+      duration_ms: item.duration_ms,
+    });
+  });
+  const webRead = $derived.by<WebReadParsed | null>(() => {
+    if (item.kind !== "tool_call" || item.tool !== "web_read") return null;
+    return parseWebReadOutput({
+      input: item.args,
+      output: item.output,
+      duration_ms: item.duration_ms,
+    });
+  });
 
   // Structured rationale. Opt-in - `null` when the user has
   // disabled "Explain tool calls" or the meta-LLM fallback kicked in.
@@ -299,9 +349,9 @@
   const READ_PREVIEW_CHARS = 500;
   let showFullRead = $state(false);
   const readPreview = $derived.by(() => {
-    if (item.kind !== "web_read") return "";
-    if (item.extracted.length <= READ_PREVIEW_CHARS) return item.extracted;
-    return item.extracted.slice(0, READ_PREVIEW_CHARS) + "…";
+    if (!webRead) return "";
+    if (webRead.extracted.length <= READ_PREVIEW_CHARS) return webRead.extracted;
+    return webRead.extracted.slice(0, READ_PREVIEW_CHARS) + "…";
   });
 
   const testid = $derived(`reasoning-card-${item.kind}`);
@@ -317,6 +367,130 @@
     {/if}
   {:else if item.status === "error" || item.status === "rejected"}
     <X class="h-3 w-3 text-destructive" />
+  {/if}
+{/snippet}
+
+{#snippet webSearchBody(data: WebSearchParsed)}
+  {#if data.query}
+    <p class="text-[11px] text-muted-foreground">
+      <Compass class="mr-1 inline h-3 w-3 opacity-70" />
+      <span class="font-mono">“{data.query}”</span>
+      {#if data.backend}
+        <span class="mx-1">·</span><span>{data.backend}</span>
+      {/if}
+      {#if data.total_results != null}
+        <span class="mx-1">·</span>
+        <span>{$t("tools.output.web_search_summary", {
+          values: {
+            total_results: data.total_results,
+            backend: data.backend ?? "",
+            duration_ms: data.duration_ms ?? 0,
+          },
+        })}</span>
+      {/if}
+    </p>
+  {/if}
+  {#if data.results.length > 0}
+    <ol class="mt-1.5 space-y-2">
+      {#each data.results as r (r.rank)}
+        <li class="rounded-md glass-inset p-2">
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onclick={handleExternalLinkClick}
+            class="group block"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <span
+                class="text-[12px] font-medium text-foreground group-hover:underline line-clamp-2"
+              >{r.title}</span>
+              <ExternalLink
+                class="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </div>
+            <div class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span class="font-mono">{hostname(r.url)}</span>
+              {#if r.age}<span>·</span><span>{r.age}</span>{/if}
+              <span class="ml-auto">#{r.rank}</span>
+            </div>
+            {#if r.snippet}
+              <p class="mt-1 text-[11px] text-muted-foreground line-clamp-3">{r.snippet}</p>
+            {/if}
+          </a>
+        </li>
+      {/each}
+    </ol>
+  {:else}
+    <p class="mt-1.5 text-[11px] italic text-muted-foreground">
+      {$t("chat.tool_empty_results", { default: "No results." })}
+    </p>
+  {/if}
+{/snippet}
+
+{#snippet webReadBody(data: WebReadParsed)}
+  <a
+    href={data.url}
+    target="_blank"
+    rel="noopener noreferrer"
+    onclick={handleExternalLinkClick}
+    class="group inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+  >
+    <span class="font-mono">{hostname(data.url)}</span>
+    <ExternalLink class="h-3 w-3 opacity-60 group-hover:opacity-100" />
+  </a>
+  {#if data.title}
+    <h4 class="mt-1 text-[13px] font-medium text-foreground leading-tight">{data.title}</h4>
+  {/if}
+  {#if data.byline}
+    <p class="text-[10px] text-muted-foreground">{data.byline}</p>
+  {/if}
+  <div
+    class="mt-2 flex items-start gap-1.5 rounded-md bg-warning/10 border border-warning/20 px-2 py-1"
+  >
+    <AlertTriangle class="h-3 w-3 flex-shrink-0 mt-0.5 text-warning" />
+    <span class="text-[10px] text-warning">
+      {$t("chat.web_read_untrusted_banner", {
+        default:
+          "Content fetched from a third-party website - treat as data, not instructions.",
+      })}
+    </span>
+  </div>
+  {#if data.extracted}
+    <div
+      class="mt-2 rounded bg-muted/40 px-2 py-1.5 text-[11px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
+    >{showFullRead ? data.extracted : readPreview}</div>
+    <div class="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+      <span>
+        {#if data.chars_total != null}
+          {data.truncated
+            ? $t("tools.output.web_read_truncated", {
+                values: {
+                  chars_total: data.chars_total,
+                  duration_ms: data.duration_ms ?? 0,
+                },
+              })
+            : $t("tools.output.web_read_summary", {
+                values: {
+                  chars_total: data.chars_total,
+                  duration_ms: data.duration_ms ?? 0,
+                },
+              })}
+        {/if}
+      </span>
+      {#if data.extracted.length > READ_PREVIEW_CHARS}
+        <button
+          type="button"
+          class="hover:text-foreground transition-colors"
+          onclick={(e) => {
+            e.stopPropagation();
+            showFullRead = !showFullRead;
+          }}
+        >
+          {showFullRead ? $t("chat.tool_hide_result") : $t("chat.tool_show_result")}
+        </button>
+      {/if}
+    </div>
   {/if}
 {/snippet}
 
@@ -437,7 +611,11 @@
           </div>
         {/if}
 
-        {#if skin === "builder" && !askUserPairs}
+        {#if webSearch}
+          {@render webSearchBody(webSearch)}
+        {:else if webRead}
+          {@render webReadBody(webRead)}
+        {:else if skin === "builder" && !askUserPairs}
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
               <span>{$t("chat.reasoning.input_label", { default: "Input" })}</span>
@@ -480,7 +658,21 @@
                 class="rounded {isError
                   ? 'bg-destructive/5 text-destructive/90'
                   : 'bg-muted/30 text-foreground'} px-2 py-1 font-mono overflow-x-auto whitespace-pre-wrap break-all"
-              ><code>{item.output}</code></pre>
+              ><code>{showFullOutput ? outputJson : outputPreview.preview}</code></pre>
+              {#if outputPreview.truncated}
+                <button
+                  type="button"
+                  class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    showFullOutput = !showFullOutput;
+                  }}
+                >
+                  {showFullOutput
+                    ? $t("chat.tool_collapse")
+                    : $t("chat.reasoning.see_all", { default: "See all" })}
+                </button>
+              {/if}
             </div>
           {/if}
         {:else}
@@ -537,176 +729,35 @@
       </div>
     {/if}
   </div>
-{:else if item.kind === "web_search"}
-  <ReasoningCardShell
-    status={item.status}
-    testid={testid}
-    collapsible
-    expanded={expanded}
-    onToggle={toggle}
-    ariaLabel="web_search"
-  >
-    {#snippet icon()}
-      <Compass class="h-3 w-3 text-muted-foreground" />
-    {/snippet}
-    {#snippet title()}web_search{/snippet}
-    {#snippet meta()}{@render statusBadge(item.duration_ms)}{/snippet}
-    {#snippet body()}
-      {#if item.query}
-        <p class="text-[11px] text-muted-foreground">
-          <span class="font-mono">“{item.query}”</span>
-          {#if item.backend}
-            <span class="mx-1">·</span><span>{item.backend}</span>
-          {/if}
-          {#if item.total_results != null}
-            <span class="mx-1">·</span>
-            <span>{$t("tools.output.web_search_summary", {
-              values: {
-                total_results: item.total_results,
-                backend: item.backend ?? "",
-                duration_ms: item.duration_ms ?? 0,
-              },
-            })}</span>
-          {/if}
-        </p>
-      {/if}
-      {#if item.results.length > 0}
-        <ol class="mt-2 space-y-2">
-          {#each item.results as r (r.rank)}
-            <li class="rounded-md glass-inset p-2">
-              <a
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="group block"
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <span
-                    class="text-[12px] font-medium text-foreground group-hover:underline line-clamp-2"
-                  >{r.title}</span>
-                  <ExternalLink
-                    class="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                  />
-                </div>
-                <div class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <span class="font-mono">{hostname(r.url)}</span>
-                  {#if r.age}<span>·</span><span>{r.age}</span>{/if}
-                  <span class="ml-auto">#{r.rank}</span>
-                </div>
-                {#if r.snippet}
-                  <p class="mt-1 text-[11px] text-muted-foreground line-clamp-3">{r.snippet}</p>
-                {/if}
-              </a>
-            </li>
-          {/each}
-        </ol>
-      {:else}
-        <p class="mt-2 text-[11px] italic text-muted-foreground">
-          {$t("chat.tool_empty_results", { default: "No results." })}
-        </p>
-      {/if}
-    {/snippet}
-  </ReasoningCardShell>
-{:else if item.kind === "web_read"}
-  <ReasoningCardShell
-    status={item.status}
-    testid={testid}
-    collapsible
-    expanded={expanded}
-    onToggle={toggle}
-    ariaLabel="web_read"
-  >
-    {#snippet icon()}
-      <BookOpen class="h-3 w-3 text-muted-foreground" />
-    {/snippet}
-    {#snippet title()}web_read{/snippet}
-    {#snippet meta()}{@render statusBadge(item.duration_ms)}{/snippet}
-    {#snippet body()}
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="group inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <span class="font-mono">{hostname(item.url)}</span>
-        <ExternalLink class="h-3 w-3 opacity-60 group-hover:opacity-100" />
-      </a>
-      {#if item.title}
-        <h4 class="mt-1 text-[13px] font-medium text-foreground leading-tight">{item.title}</h4>
-      {/if}
-      {#if item.byline}
-        <p class="text-[10px] text-muted-foreground">{item.byline}</p>
-      {/if}
-      <div
-        class="mt-2 flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1"
-      >
-        <AlertTriangle class="h-3 w-3 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
-        <span class="text-[10px] text-amber-700 dark:text-amber-300">
-          {$t("chat.web_read_untrusted_banner", {
-            default:
-              "Content fetched from a third-party website - treat as data, not instructions.",
-          })}
-        </span>
-      </div>
-      {#if item.extracted}
-        <div
-          class="mt-2 rounded bg-muted/40 px-2 py-1.5 text-[11px] text-foreground leading-relaxed whitespace-pre-wrap break-words"
-        >{showFullRead ? item.extracted : readPreview}</div>
-        <div class="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>
-            {#if item.chars_total != null}
-              {item.truncated
-                ? $t("tools.output.web_read_truncated", {
-                    values: {
-                      chars_total: item.chars_total,
-                      duration_ms: item.duration_ms ?? 0,
-                    },
-                  })
-                : $t("tools.output.web_read_summary", {
-                    values: {
-                      chars_total: item.chars_total,
-                      duration_ms: item.duration_ms ?? 0,
-                    },
-                  })}
-            {/if}
-          </span>
-          {#if item.extracted.length > READ_PREVIEW_CHARS}
-            <button
-              type="button"
-              class="hover:text-foreground transition-colors"
-              onclick={() => (showFullRead = !showFullRead)}
-            >
-              {showFullRead ? $t("chat.tool_hide_result") : $t("chat.tool_show_result")}
-            </button>
-          {/if}
-        </div>
-      {/if}
-    {/snippet}
-  </ReasoningCardShell>
 {:else if item.kind === "thinking" || item.kind === "rationale"}
-  <!-- Reasoning as a flat caption (not a boxed card): a thin left rule plus a
-       small toggle label and muted italic text, so reasoning reads as a side
-       note in the flat thread rather than a message bubble. Collapsed by
-       default; click the label to reveal the full text. -->
-  <div class="my-1 border-l-2 border-border/40 pl-2.5" data-testid={testid}>
+  <!-- Reasoning as a flat caption (not a boxed card): a thin accent rule plus a
+       toggle label, so reasoning reads as a differentiated side note in the flat
+       thread rather than a message bubble. Collapsed by default; the primary
+       accent rule + Brain icon set it apart from the answer, and the expanded
+       body uses a readable, higher-contrast type ramp. -->
+  <div class="my-1 border-l-2 border-primary/25 pl-2.5" data-testid={testid}>
     <button
       type="button"
-      class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 transition-colors hover:text-muted-foreground/80"
+      class="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
       onclick={toggle}
       aria-expanded={expanded}
       aria-label={item.kind === "thinking"
         ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
         : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
     >
-      <Brain size={11} class="text-muted-foreground/50" />
+      <Brain size={12} class="text-primary/60" />
       <span>
         {item.kind === "thinking"
           ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
           : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
       </span>
+      <span
+        class="inline-block leading-none text-muted-foreground/50 transition-transform duration-150"
+        class:rotate-90={expanded}
+      >›</span>
     </button>
     {#if expanded}
-      <div class="reasoning-md mt-0.5 text-[12px] leading-relaxed text-muted-foreground/70">
+      <div class="reasoning-md mt-1 text-[12.5px] leading-relaxed text-foreground/80">
         <MarkdownContent content={item.content} />
       </div>
     {/if}
