@@ -146,6 +146,24 @@ impl BuiltInChatAgent {
         // their precomputed result; everything else (write tools, read-only calls
         // awaiting HITL approval) goes through the sequential path.
         for (i, call) in effective_calls.iter().enumerate() {
+            // Stop requested mid-turn: skip the remaining sequential calls rather
+            // than run them, pairing each with a synthetic result so the frozen
+            // history stays well-formed. Checked between calls, never mid-tool, so
+            // no write tool is left half-applied; the react loop's next checkpoint
+            // returns the paused response. Phase-A read-only calls already ran.
+            if ids.cancel.is_cancelled() {
+                let synthetic = "tool call skipped: generation stopped by user".to_string();
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &synthetic));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(synthetic),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                continue;
+            }
             // Enforce the tool-call ceiling mid-turn: once the allowance is
             // spent, the remaining calls are not executed. A synthetic result
             // keeps each tool_call id paired with a tool_result so the model's

@@ -32,14 +32,23 @@ impl BuiltInChatAgent {
         } = params;
         let mut tool_calls = Vec::new();
 
-        while let Some(chunk_result) = stream.next().await {
-            // Cooperative stop while tokens are streaming: the user hit Stop.
-            // Drop the just-received chunk and end the stream, keeping the text
-            // accumulated so far as the frozen partial. The caller detects the
-            // cancellation and returns a paused response.
-            if cancel.is_cancelled() {
-                break;
-            }
+        loop {
+            // Race the stop token against the next chunk so a Stop takes effect
+            // immediately, even while the model is "thinking" (a slow completion
+            // with no chunks arriving yet). Without the select, we would be
+            // parked on `stream.next().await` and the cooperative check would
+            // only fire once the next token lands, so Stop appeared to work
+            // during streaming but not during the thinking phase. `biased`
+            // checks the token first. The accumulated text stays as the frozen
+            // partial; the caller returns a paused response.
+            let chunk_result = tokio::select! {
+                biased;
+                () = cancel.cancelled() => break,
+                next = stream.next() => match next {
+                    Some(chunk) => chunk,
+                    None => break,
+                },
+            };
             match chunk_result {
                 Ok(StreamChunk::Text(token)) => {
                     // Emit ChatToken and accumulate
