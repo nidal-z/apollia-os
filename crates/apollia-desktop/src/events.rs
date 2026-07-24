@@ -902,18 +902,21 @@ mod tests {
             RuntimeEvent::ChatApprovalRequired {
                 session_id: "s".into(),
                 message_id: "m".into(),
+                tool_call_id: "c".into(),
                 tool_name: "t".into(),
                 prompt: "p".into(),
             },
             RuntimeEvent::ChatApprovalResolved {
                 session_id: "s".into(),
                 message_id: "m".into(),
+                tool_call_id: "c".into(),
                 tool_name: "t".into(),
                 decision: "accept".into(),
             },
             RuntimeEvent::ChatApprovalTimeout {
                 session_id: "s".into(),
                 message_id: "m".into(),
+                tool_call_id: "c".into(),
                 tool_name: "t".into(),
             },
             RuntimeEvent::PlanCacheHit {

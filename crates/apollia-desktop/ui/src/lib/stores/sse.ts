@@ -304,6 +304,7 @@ function handleChatApprovalRequired(event: TauriRuntimeEvent): void {
   addPendingChatApproval({
     sessionId,
     messageId: asString(p.message_id),
+    toolCallId: asString(p.tool_call_id),
     toolName: asString(p.tool_name),
     inputPreview: asString(p.prompt),
     receivedAt: new Date().toISOString(),
@@ -322,7 +323,7 @@ function handleChatApprovalCleared(
   removePendingChatApproval(
     sessionId,
     asOptionalString(p.message_id),
-    asOptionalString(p.tool_name),
+    asOptionalString(p.tool_call_id),
   );
 }
 

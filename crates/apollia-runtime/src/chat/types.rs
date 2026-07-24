@@ -598,7 +598,7 @@ pub enum ChatError {
 
 /// Parameters for [`PendingChatApprovals::start_timeout`].
 pub struct ApprovalTimeoutParams {
-    /// Pending-approval key (`"session_id::message_id::tool_name"`).
+    /// Pending-approval key (`"session_id::message_id::tool_call_id"`).
     pub key: String,
     /// Delay after which the approval is auto-refused.
     pub duration: Duration,
@@ -608,6 +608,8 @@ pub struct ApprovalTimeoutParams {
     pub session_id: String,
     /// Message that triggered the approval.
     pub message_id: String,
+    /// Unique id of the tool call awaiting approval.
+    pub tool_call_id: String,
     /// Name of the tool awaiting approval.
     pub tool_name: String,
 }
@@ -713,6 +715,7 @@ impl PendingChatApprovals {
             event_bus,
             session_id,
             message_id,
+            tool_call_id,
             tool_name,
         } = params;
         let inner = Arc::clone(&self.inner);
@@ -734,6 +737,7 @@ impl PendingChatApprovals {
                 let _ = event_bus.send(RuntimeEvent::ChatApprovalTimeout {
                     session_id,
                     message_id,
+                    tool_call_id,
                     tool_name,
                 });
             }
@@ -1183,6 +1187,7 @@ mod tests {
             event_bus: event_tx,
             session_id: "sess-1".to_string(),
             message_id: "msg-1".to_string(),
+            tool_call_id: "bash_executor".to_string(),
             tool_name: "bash_executor".to_string(),
         });
 
@@ -1196,10 +1201,12 @@ mod tests {
             RuntimeEvent::ChatApprovalTimeout {
                 session_id,
                 message_id,
+                tool_call_id,
                 tool_name,
             } => {
                 assert_eq!(session_id, "sess-1");
                 assert_eq!(message_id, "msg-1");
+                assert_eq!(tool_call_id, "bash_executor");
                 assert_eq!(tool_name, "bash_executor");
             }
             other => panic!("unexpected event: {other:?}"),
@@ -1219,6 +1226,7 @@ mod tests {
             event_bus: event_tx,
             session_id: "sess-1".to_string(),
             message_id: "msg-1".to_string(),
+            tool_call_id: "bash".to_string(),
             tool_name: "bash".to_string(),
         });
 

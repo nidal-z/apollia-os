@@ -424,7 +424,8 @@ async fn test_resolve_tool_approval() {
     manager.sessions.insert("sess-1".into(), session);
 
     // WHEN resolve_tool Accept
-    let result = manager.handle_resolve_tool("sess-1", "msg-1", "bash", ToolDecision::Accept);
+    let result =
+        manager.handle_resolve_tool("sess-1", "msg-1", "bash", "bash", ToolDecision::Accept);
 
     // THEN ok, approval resolved
     assert!(result.is_ok());
@@ -511,11 +512,17 @@ async fn test_always_accept_not_honored_for_code_executor() {
 
     // WHEN "always accept" resolves for the code executor
     manager
-        .handle_resolve_tool("sess-1", "msg-1", "bash_executor", always.clone())
+        .handle_resolve_tool(
+            "sess-1",
+            "msg-1",
+            "bash_executor",
+            "bash_executor",
+            always.clone(),
+        )
         .expect("resolve bash");
     // AND for a normal tool
     manager
-        .handle_resolve_tool("sess-1", "msg-1", "web_read", always.clone())
+        .handle_resolve_tool("sess-1", "msg-1", "web_read", "web_read", always.clone())
         .expect("resolve web");
 
     // THEN the current calls are still approved (the decisions are delivered)

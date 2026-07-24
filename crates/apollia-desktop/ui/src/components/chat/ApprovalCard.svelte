@@ -10,11 +10,12 @@
   interface Props {
     sessionId: string;
     messageId: string;
+    toolCallId: string;
     toolName: string;
     inputPreview: string;
   }
 
-  let { sessionId, messageId, toolName, inputPreview }: Props = $props();
+  let { sessionId, messageId, toolCallId, toolName, inputPreview }: Props = $props();
 
   /** True quand la session courante est rattachée à un projet - sert à griser
    *  l'option "Toujours pour ce projet" hors contexte projet. */
@@ -40,7 +41,7 @@
   // pointed at a different approval (its message/tool identity changes).
   $effect(() => {
     void messageId;
-    void toolName;
+    void toolCallId;
     isProcessing = false;
     error = null;
   });
@@ -57,6 +58,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId,
         toolName,
         decision: "accept",
       });
@@ -75,6 +77,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId,
         toolName,
         decision: "refuse",
         reason,
@@ -93,6 +96,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId,
         toolName,
         decision: "always_accept",
         scope,

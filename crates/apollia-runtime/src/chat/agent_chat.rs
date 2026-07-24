@@ -256,9 +256,12 @@ impl AgentChatExecutor {
             .map(|d| d.prompt.clone())
             .unwrap_or_else(|| "Agent requires approval".into());
 
+        // One agent-level approval per message, so `agent_action` doubles as the
+        // stable tool-call id here (the key stays unique per message).
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
             session_id: session.id.clone(),
             message_id: message_id.to_string(),
+            tool_call_id: "agent_action".into(),
             tool_name: "agent_action".into(),
             prompt: prompt.clone(),
         });
@@ -271,6 +274,7 @@ impl AgentChatExecutor {
             event_bus: self.event_bus.clone(),
             session_id: session.id.clone(),
             message_id: message_id.to_string(),
+            tool_call_id: "agent_action".to_string(),
             tool_name: "agent_action".to_string(),
         });
 

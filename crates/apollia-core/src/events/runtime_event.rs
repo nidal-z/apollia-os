@@ -739,6 +739,11 @@ pub enum RuntimeEvent {
         session_id: String,
         /// Identifier of the message containing the tool call.
         message_id: String,
+        /// Unique id of the tool call requiring approval. Correlates this
+        /// request with its resolution/timeout and with the frontend card, so
+        /// the same tool invoked twice in one turn never collides on
+        /// `(message_id, tool_name)`.
+        tool_call_id: String,
         /// Name of the tool requiring approval.
         tool_name: String,
         /// Prompt shown to the user.
@@ -750,6 +755,9 @@ pub enum RuntimeEvent {
         session_id: String,
         /// Identifier of the message containing the tool call.
         message_id: String,
+        /// Unique id of the resolved tool call (see
+        /// [`Self::ChatApprovalRequired`]).
+        tool_call_id: String,
         /// Name of the tool concerned.
         tool_name: String,
         /// Decision taken (`"accept"`, `"refuse"`, `"always_accept"`).
@@ -761,6 +769,9 @@ pub enum RuntimeEvent {
         session_id: String,
         /// Identifier of the message containing the tool call.
         message_id: String,
+        /// Unique id of the timed-out tool call (see
+        /// [`Self::ChatApprovalRequired`]).
+        tool_call_id: String,
         /// Name of the tool concerned.
         tool_name: String,
     },

@@ -895,6 +895,9 @@ export interface ToolAuthorizationRequest {
 export interface PendingChatApproval {
   sessionId: string;
   messageId: string;
+  /** Unique id of the tool call, correlating the request with its resolution
+   *  so the same tool invoked twice in one turn never collides. */
+  toolCallId: string;
   toolName: string;
   inputPreview: string;
   receivedAt: string;

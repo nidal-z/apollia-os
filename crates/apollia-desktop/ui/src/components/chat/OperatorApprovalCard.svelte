@@ -12,10 +12,16 @@
   interface Props {
     sessionId: string;
     messageId: string;
+    /** Unique id of the tool call, correlating this card with its backend
+     *  pending-approval slot. Falls back to the tool name when the surface has
+     *  no per-call id (historical/reopened messages). */
+    toolCallId?: string;
     toolCall: ToolCallView;
   }
 
-  let { sessionId, messageId, toolCall }: Props = $props();
+  let { sessionId, messageId, toolCallId, toolCall }: Props = $props();
+
+  const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
 
   /** Cf. ApprovalCard : grise « Toujours pour ce projet » hors contexte projet. */
   const hasProject = $derived(
@@ -41,7 +47,7 @@
   // consecutive HITL prompts do not stay greyed out from a prior decision.
   $effect(() => {
     void messageId;
-    void toolCall.tool_name;
+    void resolvedToolCallId;
     isProcessing = false;
     error = null;
   });
@@ -53,6 +59,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId: resolvedToolCallId,
         toolName: toolCall.tool_name,
         decision: "accept",
       });
@@ -69,6 +76,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId: resolvedToolCallId,
         toolName: toolCall.tool_name,
         decision: "refuse",
         reason,
@@ -87,6 +95,7 @@
       await invoke("authorize_chat_tool", {
         sessionId,
         messageId,
+        toolCallId: resolvedToolCallId,
         toolName: toolCall.tool_name,
         decision: "always_accept",
         scope,

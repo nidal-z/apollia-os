@@ -91,7 +91,7 @@
 
   function chatToInbox(c: PendingChatApproval): InboxItem {
     return {
-      id: `chat:${c.sessionId}:${c.messageId}:${c.toolName}`,
+      id: `chat:${c.sessionId}:${c.messageId}:${c.toolCallId}`,
       kind: "tool",
       agentName: c.sessionId.slice(0, 8),
       sessionId: c.sessionId,

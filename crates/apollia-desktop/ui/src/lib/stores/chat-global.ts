@@ -40,11 +40,14 @@ export const pendingChatApprovalCount = derived(
 /** Add a pending chat approval. */
 export function addPendingChatApproval(approval: PendingChatApproval): void {
   pendingChatApprovals.update((list) => {
+    // Dedup on the unique tool-call id: the same tool invoked twice in one turn
+    // must yield two distinct rows, so keying on the tool name would drop the
+    // second approval.
     const exists = list.some(
       (a) =>
         a.sessionId === approval.sessionId &&
         a.messageId === approval.messageId &&
-        a.toolName === approval.toolName,
+        a.toolCallId === approval.toolCallId,
     );
     return exists ? list : [...list, approval];
   });
@@ -54,13 +57,13 @@ export function addPendingChatApproval(approval: PendingChatApproval): void {
 export function removePendingChatApproval(
   sessionId: string,
   messageId?: string,
-  toolName?: string,
+  toolCallId?: string,
 ): void {
   pendingChatApprovals.update((list) =>
     list.filter((a) => {
       if (a.sessionId !== sessionId) return true;
       if (messageId && a.messageId !== messageId) return true;
-      if (toolName && a.toolName !== toolName) return true;
+      if (toolCallId && a.toolCallId !== toolCallId) return true;
       return false;
     }),
   );

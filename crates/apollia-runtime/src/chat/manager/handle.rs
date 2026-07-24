@@ -261,10 +261,14 @@ impl ChatSessionManagerHandle {
     }
 
     /// Resolve a pending tool approval.
+    // Session/message/tool-call/tool identifiers plus the decision map one-to-one
+    // onto the actor command; a struct would only add indirection.
+    #[allow(clippy::too_many_arguments)]
     pub async fn resolve_tool(
         &self,
         session_id: SessionId,
         message_id: MessageId,
+        tool_call_id: String,
         tool_name: String,
         decision: ToolDecision,
     ) -> Result<(), ChatError> {
@@ -273,6 +277,7 @@ impl ChatSessionManagerHandle {
             .send(ChatCommand::ResolveTool {
                 session_id,
                 message_id,
+                tool_call_id,
                 tool_name,
                 decision,
                 reply: reply_tx,

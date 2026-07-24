@@ -163,7 +163,7 @@
 
   function chatToInbox(c: PendingChatApproval): InboxItem {
     return {
-      id: `chat:${c.sessionId}:${c.messageId}:${c.toolName}`,
+      id: `chat:${c.sessionId}:${c.messageId}:${c.toolCallId}`,
       kind: chatKind(c.toolName),
       agentName: c.sessionId.slice(0, 8),
       sessionId: c.sessionId,
@@ -485,6 +485,7 @@
       await invoke("authorize_chat_tool", {
         sessionId: item.source.sessionId,
         messageId: item.source.messageId,
+        toolCallId: (item.source as PendingChatApproval).toolCallId,
         toolName: item.source.toolName,
         decision: approved ? "accept" : "refuse",
         reason: reason ?? null,
@@ -497,6 +498,7 @@
     await invoke("authorize_chat_tool", {
       sessionId: item.source.sessionId,
       messageId: item.source.messageId,
+      toolCallId: (item.source as PendingChatApproval).toolCallId,
       toolName: item.source.toolName,
       decision: "always_accept",
       scope,

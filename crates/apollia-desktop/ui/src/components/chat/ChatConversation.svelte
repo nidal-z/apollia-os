@@ -172,6 +172,7 @@
   let pendingApproval = $state<{
     sessionId: string;
     messageId: string;
+    toolCallId: string;
     toolName: string;
     inputPreview: string;
   } | null>(null);
@@ -388,13 +389,14 @@
         if (evt.event_type === "ChatApprovalRequired") {
           // Payload is externally-tagged serde: { ChatApprovalRequired: { session_id, ... } }
           const inner = (evt.payload as Record<string, unknown>)?.ChatApprovalRequired as
-            { session_id?: string; message_id?: string; tool_name?: string; prompt?: string } | undefined;
-          const p = inner ?? evt.payload as { session_id?: string; message_id?: string; tool_name?: string; prompt?: string };
+            { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string } | undefined;
+          const p = inner ?? evt.payload as { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string };
           if (!p.session_id || p.session_id === sessionId) {
             isStreaming = false;
             pendingApproval = {
               sessionId: sessionId,
               messageId: p.message_id ?? "",
+              toolCallId: p.tool_call_id ?? p.tool_name ?? "",
               toolName: p.tool_name ?? "",
               inputPreview: p.prompt ?? "",
             };
@@ -403,8 +405,16 @@
           return;
         }
         if (evt.event_type === "ChatApprovalResolved" || evt.event_type === "ChatApprovalTimeout") {
-          pendingApproval = null;
-          removePendingChatApproval(sessionId);
+          const inner = (evt.payload as Record<string, unknown>)?.[evt.event_type] as
+            { tool_call_id?: string } | undefined;
+          const resolvedId = inner?.tool_call_id ?? (evt.payload as { tool_call_id?: string }).tool_call_id;
+          // Only clear the visible card when the resolution matches it. A stale
+          // resolve for a previous call (arriving after the next card is shown)
+          // must not grey out or dismiss the live approval.
+          if (!resolvedId || !pendingApproval || pendingApproval.toolCallId === resolvedId) {
+            pendingApproval = null;
+          }
+          removePendingChatApproval(sessionId, undefined, resolvedId);
           return;
         }
         if (evt.event_type === "ChatUserInputRequired") {
@@ -978,6 +988,7 @@
       pendingApproval = {
         sessionId: approval.sessionId,
         messageId: approval.messageId,
+        toolCallId: approval.toolCallId,
         toolName: approval.toolName,
         inputPreview: approval.inputPreview,
       };
@@ -1292,10 +1303,11 @@
               <!-- Key on the approval identity so back-to-back HITL prompts each
                    mount a fresh card, never inheriting the previous card's busy
                    (greyed) state. -->
-              {#key `${pendingApproval.messageId}:${pendingApproval.toolName}`}
+              {#key pendingApproval.toolCallId}
                 <ApprovalCard
                   sessionId={pendingApproval.sessionId}
                   messageId={pendingApproval.messageId}
+                  toolCallId={pendingApproval.toolCallId}
                   toolName={pendingApproval.toolName}
                   inputPreview={pendingApproval.inputPreview}
                 />
@@ -1307,7 +1319,7 @@
               onclick={() => {
                 const pa = pendingApproval;
                 if (!pa) return;
-                const id = `chat:${pa.sessionId}:${pa.messageId}:${pa.toolName}`;
+                const id = `chat:${pa.sessionId}:${pa.messageId}:${pa.toolCallId}`;
                 if (typeof window !== "undefined") {
                   history.replaceState(null, "", `#inbox?item=${encodeURIComponent(id)}`);
                 }

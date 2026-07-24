@@ -35,12 +35,18 @@ impl ChatSessionManager {
                 ChatCommand::ResolveTool {
                     session_id,
                     message_id,
+                    tool_call_id,
                     tool_name,
                     decision,
                     reply,
                 } => {
-                    let result =
-                        self.handle_resolve_tool(&session_id, &message_id, &tool_name, decision);
+                    let result = self.handle_resolve_tool(
+                        &session_id,
+                        &message_id,
+                        &tool_call_id,
+                        &tool_name,
+                        decision,
+                    );
                     let _ = reply.send(result);
                 }
                 ChatCommand::ListSessions {

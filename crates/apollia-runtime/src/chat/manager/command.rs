@@ -32,6 +32,9 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Message that triggered the tool call.
         message_id: MessageId,
+        /// Unique id of the tool call being resolved (correlates with the
+        /// pending-approval key and the frontend card).
+        tool_call_id: String,
         /// Name of the tool.
         tool_name: String,
         /// User decision.

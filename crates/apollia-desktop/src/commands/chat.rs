@@ -565,6 +565,7 @@ pub async fn authorize_chat_tool(
     state: State<'_, RuntimeHandle>,
     session_id: String,
     message_id: String,
+    tool_call_id: Option<String>,
     tool_name: String,
     decision: String,
     reason: Option<String>,
@@ -577,8 +578,17 @@ pub async fn authorize_chat_tool(
 
     let tool_decision = parse_tool_decision(&decision, reason, scope)?;
 
+    // Fall back to the tool name when the caller omits the id (matches the
+    // pre-correlation key), so single-approval turns keep resolving.
+    let tool_call_id = tool_call_id.unwrap_or_else(|| tool_name.clone());
     manager
-        .resolve_tool(session_id, message_id, tool_name, tool_decision)
+        .resolve_tool(
+            session_id,
+            message_id,
+            tool_call_id,
+            tool_name,
+            tool_decision,
+        )
         .await
         .map_err(|e| e.to_string())
 }

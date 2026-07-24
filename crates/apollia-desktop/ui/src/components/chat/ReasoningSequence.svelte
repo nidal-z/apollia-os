@@ -138,12 +138,14 @@
           <OperatorApprovalCard
             {sessionId}
             messageId={message.id}
+            toolCallId={toolCall.tool_name}
             {toolCall}
           />
         {:else}
           <ApprovalCard
             {sessionId}
             messageId={message.id}
+            toolCallId={toolCall.tool_name}
             toolName={toolCall.tool_name}
             inputPreview={JSON.stringify(toolCall.input, null, 2)}
           />

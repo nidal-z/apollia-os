@@ -745,10 +745,15 @@ impl ChatSessionManager {
     }
 
     /// Resolve a pending tool approval.
+    // The session/message/tool-call/tool identifiers plus the decision map
+    // one-to-one onto the resolve request; grouping them into a struct would
+    // only add indirection.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::chat::manager) fn handle_resolve_tool(
         &mut self,
         session_id: &str,
         message_id: &str,
+        tool_call_id: &str,
         tool_name: &str,
         decision: ToolDecision,
     ) -> Result<(), ChatError> {
@@ -757,7 +762,7 @@ impl ChatSessionManager {
             .get_mut(session_id)
             .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
 
-        let key = format!("{session_id}::{message_id}::{tool_name}");
+        let key = format!("{session_id}::{message_id}::{tool_call_id}");
         let resolved = self.pending_chat_approvals.resolve(&key, decision.clone());
 
         if !resolved {
@@ -840,6 +845,7 @@ impl ChatSessionManager {
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalResolved {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
+            tool_call_id: tool_call_id.to_string(),
             tool_name: tool_name.to_string(),
             decision: decision_str.to_string(),
         });

@@ -142,14 +142,18 @@ describe("OperatorApprovalCard - authorize command shape", () => {
     const toolCall = makeCall("file_write", { path: "out.txt", content: "hello" });
     const sessionId = "sess-123";
     const messageId = "msg-456";
+    const toolCallId = "call-789";
     // WHEN building the invoke payload
     const payload = {
       sessionId,
       messageId,
+      toolCallId,
       toolName: toolCall.tool_name,
       decision: "accept" as const,
     };
-    // THEN the payload is well-typed and uses the tool_name from the call
+    // THEN the payload is well-typed, carries the correlation id, and uses the
+    // tool_name from the call
+    expect(payload.toolCallId).toBe("call-789");
     expect(payload.toolName).toBe("file_write");
     expect(payload.decision).toBe("accept");
     expect(payload.sessionId).toBe("sess-123");

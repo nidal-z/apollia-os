@@ -356,14 +356,18 @@ impl BuiltInChatAgent {
             };
         }
 
-        // HITL approval
-        let key = format!("{session_id}::{message_id}::{}", call.name);
+        // HITL approval. The key is scoped by the unique tool-call id (not the
+        // tool name) so the same tool invoked twice in one turn gets two
+        // distinct pending slots: without it, the first call's timeout task
+        // would evict the second call's live approval under a shared key.
+        let key = format!("{session_id}::{message_id}::{}", call.id);
         let input_preview =
             truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
 
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
+            tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
             prompt: format!(
                 "L'outil '{}' demande à être exécuté avec: {}",
@@ -378,6 +382,7 @@ impl BuiltInChatAgent {
             event_bus: self.event_bus.clone(),
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
+            tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
         });
         let decision = rx.await.unwrap_or(ToolDecision::refuse());

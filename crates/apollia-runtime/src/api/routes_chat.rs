@@ -65,6 +65,12 @@ pub struct SendMessageResponse {
 pub struct AuthorizeToolRequest {
     /// ID of the message that triggered the tool call.
     pub message_id: String,
+    /// Unique id of the tool call being resolved. Correlates with the
+    /// `approval_required` event so the same tool invoked twice in one turn
+    /// resolves the right pending slot. Defaults to the tool name for legacy
+    /// clients that do not yet send it.
+    #[serde(default)]
+    pub tool_call_id: Option<String>,
     /// Name of the tool.
     pub tool_name: String,
     /// Decision: `"accept"`, `"refuse"`, or `"always_accept"`.
@@ -448,8 +454,11 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
         }
     };
 
+    // Fall back to the tool name when a legacy client omits the id (matches the
+    // pre-correlation key, so single-approval turns keep working).
+    let tool_call_id = body.tool_call_id.unwrap_or_else(|| body.tool_name.clone());
     match manager
-        .resolve_tool(id, body.message_id, body.tool_name, decision)
+        .resolve_tool(id, body.message_id, tool_call_id, body.tool_name, decision)
         .await
     {
         Ok(()) => (
@@ -644,6 +653,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatE
         RuntimeEvent::ChatApprovalRequired {
             session_id: sid,
             message_id,
+            tool_call_id,
             tool_name,
             prompt,
         } if sid == session_id => (
@@ -651,6 +661,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatE
                 event: "approval_required".into(),
                 data: serde_json::json!({
                     "message_id": message_id,
+                    "tool_call_id": tool_call_id,
                     "tool_name": tool_name,
                     "prompt": prompt,
                 }),
@@ -660,6 +671,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatE
         RuntimeEvent::ChatApprovalResolved {
             session_id: sid,
             message_id,
+            tool_call_id,
             tool_name,
             decision,
         } if sid == session_id => (
@@ -667,6 +679,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatE
                 event: "approval_resolved".into(),
                 data: serde_json::json!({
                     "message_id": message_id,
+                    "tool_call_id": tool_call_id,
                     "tool_name": tool_name,
                     "decision": decision,
                 }),

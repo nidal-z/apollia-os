@@ -275,18 +275,21 @@ fn test_all_variants_exist_and_clone() {
         RuntimeEvent::ChatApprovalRequired {
             session_id: "sess-001".into(),
             message_id: "msg-005".into(),
+            tool_call_id: "call-005".into(),
             tool_name: "bash_executor".into(),
             prompt: "Allow bash execution?".into(),
         },
         RuntimeEvent::ChatApprovalResolved {
             session_id: "sess-001".into(),
             message_id: "msg-005".into(),
+            tool_call_id: "call-005".into(),
             tool_name: "bash_executor".into(),
             decision: "accept".into(),
         },
         RuntimeEvent::ChatApprovalTimeout {
             session_id: "sess-001".into(),
             message_id: "msg-005".into(),
+            tool_call_id: "call-005".into(),
             tool_name: "bash_executor".into(),
         },
         // ── User Input (ask_user) ────────────────────────
