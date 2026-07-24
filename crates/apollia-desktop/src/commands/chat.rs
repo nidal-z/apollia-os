@@ -406,26 +406,44 @@ fn sanitize_session_title(raw: &str) -> String {
 
 /// Removes `<think>…</think>` and `<reasoning>…</reasoning>` blocks.
 ///
-/// Handles the common reasoning-model truncation case: if the response is
-/// cut off inside an unterminated `<think>` block, everything from that tag
-/// onward is dropped (yielding an empty string - caller will reject it).
+/// Handles three reasoning-model shapes:
+/// - Well-formed paired block (`<think>…</think>Title`): the block is dropped.
+/// - Truncation: a response cut off inside an unterminated `<think>` block has
+///   everything from that tag onward dropped (yielding an empty string - caller
+///   rejects it).
+/// - Pre-filled opening tag (Qwen3 family): the chat template injects `<think>`
+///   into the prompt, so the model's raw output begins with reasoning text
+///   terminated by a lone `</think>` with no matching opening tag. Everything up
+///   to and including that dangling closing tag is dropped.
 fn strip_reasoning_blocks(raw: &str) -> String {
     fn drop_block(text: &str, open: &str, close: &str) -> String {
         let mut out = String::with_capacity(text.len());
         let mut rest = text;
-        while let Some(start) = rest.find(open) {
-            out.push_str(&rest[..start]);
-            let after_open = &rest[start + open.len()..];
-            match after_open.find(close) {
-                Some(end) => rest = &after_open[end + close.len()..],
-                None => {
-                    // Unterminated block - drop everything from the opening tag.
+        loop {
+            match (rest.find(open), rest.find(close)) {
+                // A closing tag precedes any opening tag (or none exists): the
+                // reasoning block was opened by the template, not the model.
+                // Drop everything up to and including that closing tag.
+                (None, Some(c)) => rest = &rest[c + close.len()..],
+                (Some(o), Some(c)) if c < o => rest = &rest[c + close.len()..],
+                // Well-formed paired block: keep text before the opening tag,
+                // resume after the matching closing tag.
+                (Some(o), _) => {
+                    out.push_str(&rest[..o]);
+                    let after_open = &rest[o + open.len()..];
+                    match after_open.find(close) {
+                        Some(end) => rest = &after_open[end + close.len()..],
+                        // Unterminated block: drop everything from the opening tag.
+                        None => return out,
+                    }
+                }
+                // No tags left.
+                (None, None) => {
+                    out.push_str(rest);
                     return out;
                 }
             }
         }
-        out.push_str(rest);
-        out
     }
     let s = drop_block(raw, "<think>", "</think>");
     drop_block(&s, "<reasoning>", "</reasoning>")
@@ -1186,6 +1204,19 @@ mod tests {
                    Aide rédaction CV";
         // WHEN sanitised
         // THEN only the post-think title remains
+        assert_eq!(sanitize_session_title(raw), "Aide rédaction CV");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_drops_prefilled_think_block() {
+        // GIVEN a Qwen3-style response whose opening <think> tag was pre-filled by
+        // the chat template, so the raw output starts with reasoning and ends the
+        // block with a lone </think>
+        let raw = "Okay, the user wants a short title for a CV request. \
+                   Aide rédaction CV is concise.</think>\n\n\
+                   Aide rédaction CV";
+        // WHEN sanitised
+        // THEN the dangling reasoning is dropped and only the title remains
         assert_eq!(sanitize_session_title(raw), "Aide rédaction CV");
     }
 
