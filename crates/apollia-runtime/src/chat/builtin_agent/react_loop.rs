@@ -97,7 +97,9 @@ impl BuiltInChatAgent {
         // once a plan is approved (Executing) the proposal tools are withheld so
         // the agent executes the approved plan instead of re-proposing it.
         if self.plan_mode_active() {
-            tool_specs.extend(plan_tool::plan_tool_specs_for_phase(self.session_plan_phase));
+            tool_specs.extend(plan_tool::plan_tool_specs_for_phase(
+                self.session_plan_phase,
+            ));
         }
         // Authoritative set of callable names for the turn: every advertised
         // spec, every session-declared tool, and every deferred MCP tool the
@@ -334,6 +336,15 @@ impl BuiltInChatAgent {
         // local. Surfaced on the terminal response so the caller can warn.
         let mut frontier_ceiling_reached = false;
 
+        // Token cost of the tool schemas advertised every turn, computed once
+        // since `tool_specs` is fixed for the loop. Reserved from the context
+        // window on each compaction check below.
+        // clippy::needless_borrow is a false positive here: `tool_specs` is an
+        // owned Vec reused inside the loop (the request builder), so it cannot be
+        // moved into the estimator.
+        #[allow(clippy::needless_borrow)]
+        let tool_reserve = apollia_llm::estimate_tool_specs_tokens(&tool_specs);
+
         loop {
             // Cooperative pause checkpoint: a pause request cancels the token; we
             // exit before spending the next step. Step statuses are already
@@ -372,10 +383,16 @@ impl BuiltInChatAgent {
             budget.increment_steps();
 
             // Compact context if messages approach the model's context limit.
-            // When a compaction drops the history, re-inject the todo list so
-            // the agent never loses track of pending work (principle: memory at
-            // the agent's initiative; nothing is injected when the list is empty).
-            let was_compacted = self.maybe_compact_context(llm_messages, session_id).await;
+            // The tool schemas travel in the same request, so `tool_reserve`
+            // (their estimated token cost) is folded in: a large tool surface
+            // must not silently push the combined prompt over the window (a hard
+            // 400 from llama-server). When a compaction drops the history,
+            // re-inject the todo list so the agent never loses track of pending
+            // work (principle: memory at the agent's initiative; nothing is
+            // injected when the list is empty).
+            let was_compacted = self
+                .maybe_compact_context(llm_messages, session_id, tool_reserve)
+                .await;
             if was_compacted {
                 if let Some(todo) = self.todo.as_ref() {
                     Self::inject_todo_after_compaction(todo, session_id, llm_messages).await;

@@ -57,14 +57,19 @@ impl BuiltInChatAgent {
     ///
     /// Returns `true` when a compaction actually occurred, so the caller can
     /// re-inject any state (such as the todo list) that the truncation dropped.
+    /// `reserve_tokens` is the estimated token cost of the tool schemas sent
+    /// alongside the messages in the same request. Folding it into the window
+    /// measurement makes compaction fire before the combined prompt (history +
+    /// tools + response headroom) overflows the model.
     pub(in crate::chat::builtin_agent) async fn maybe_compact_context(
         &self,
         llm_messages: &mut Vec<LlmChatMessage>,
         session_id: &str,
+        reserve_tokens: usize,
     ) -> bool {
         let (compacted, was_compacted) = self
             .context_manager
-            .maybe_compact(llm_messages, &self.llm_router)
+            .maybe_compact_with_reserve(llm_messages, &self.llm_router, reserve_tokens)
             .await;
         if !was_compacted {
             return false;

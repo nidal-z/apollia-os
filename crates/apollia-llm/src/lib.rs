@@ -65,6 +65,7 @@ pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
-    BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,
-    FinishReason, LlmError, MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
+    estimate_tool_specs_tokens, BackendInfo, CacheControl, ChatMessage, CompletionModel,
+    CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent, Role,
+    StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };

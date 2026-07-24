@@ -332,6 +332,23 @@ pub struct ToolSpec {
     pub parameters: serde_json::Value,
 }
 
+/// Estimate the token cost of the tool schemas advertised to the model.
+///
+/// The tools array travels in the same request as the messages, so its size
+/// must be reserved when deciding whether to compact the history; otherwise a
+/// large tool surface silently eats the window and the request overflows. Uses
+/// the same conservative `(chars / 4) * 1.2` proxy as the default token
+/// estimate, applied to the serialized specs (an over-estimate, biased toward
+/// compacting early rather than overflowing).
+#[must_use]
+pub fn estimate_tool_specs_tokens(specs: &[ToolSpec]) -> usize {
+    if specs.is_empty() {
+        return 0;
+    }
+    let chars = serde_json::to_string(specs).map(|s| s.len()).unwrap_or(0);
+    ((chars as f32) / 4.0 * 1.2) as usize
+}
+
 /// Tool call requested by the LLM in a `CompletionResponse`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ToolCall {

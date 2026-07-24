@@ -123,6 +123,25 @@ impl ContextManager {
         messages: &[ChatMessage],
         llm: &LlmRouter,
     ) -> (Vec<ChatMessage>, bool) {
+        self.maybe_compact_with_reserve(messages, llm, 0).await
+    }
+
+    /// Like [`Self::maybe_compact`], but treats `reserve_tokens` as already
+    /// consumed from the context window when deciding whether to compact.
+    ///
+    /// The compaction check only measures the message history, yet the request
+    /// also carries the tool schemas advertised for the turn. A large tool
+    /// surface can silently eat the remaining window and overflow the model (a
+    /// hard 400 from llama-server) even though the messages alone were under the
+    /// threshold. Passing the estimated tool-schema token cost as
+    /// `reserve_tokens` folds it into the measurement, so compaction fires early
+    /// enough to leave room for both the tools and the response.
+    pub async fn maybe_compact_with_reserve(
+        &self,
+        messages: &[ChatMessage],
+        llm: &LlmRouter,
+        reserve_tokens: usize,
+    ) -> (Vec<ChatMessage>, bool) {
         if messages.len() < 2 {
             return (messages.to_vec(), false);
         }
@@ -137,7 +156,8 @@ impl ContextManager {
 
         let limit = llm.context_limit();
         let over_threshold = |msgs: &[ChatMessage]| {
-            (llm.count_tokens(msgs) as f32 / limit as f32) >= self.compact_threshold
+            ((llm.count_tokens(msgs) + reserve_tokens) as f32 / limit as f32)
+                >= self.compact_threshold
         };
 
         if !over_threshold(&messages) {
@@ -553,6 +573,32 @@ mod tests {
         };
         assert!(summary_text.contains("[Résumé de la conversation précédente]"));
         assert!(summary_text.contains("résumé du contexte"));
+    }
+
+    /// GIVEN a history at ~60% of the window (under the 0.80 threshold on its own)
+    /// WHEN maybe_compact_with_reserve adds a tool-schema reserve that pushes the
+    ///      combined footprint over the threshold
+    /// THEN compaction fires, whereas the zero-reserve path leaves it untouched
+    #[tokio::test]
+    async fn test_reserve_triggers_compaction_below_message_threshold() {
+        // GIVEN 400_000 chars / 4 * 1.2 = 120_000 tokens = 60% of 200_000.
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
+        let messages = vec![
+            ChatMessage::system("system"),
+            ChatMessage::user("x".repeat(400_000)),
+        ];
+        let llm = make_llm(MockSummaryModel::with_response("résumé"));
+
+        // WHEN no reserve: 60% < 80% threshold.
+        let (_, without_reserve) = manager.maybe_compact_with_reserve(&messages, &llm, 0).await;
+        // AND WHEN a 50_000-token reserve lifts the footprint to 85%.
+        let (_, with_reserve) = manager
+            .maybe_compact_with_reserve(&messages, &llm, 50_000)
+            .await;
+
+        // THEN only the reserved path compacts.
+        assert!(!without_reserve);
+        assert!(with_reserve);
     }
 
     /// GIVEN 4000 chars of content
