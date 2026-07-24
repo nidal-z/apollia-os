@@ -367,6 +367,7 @@ def _strip_tags(text: str) -> str:
 # Guards
 # ---------------------------------------------------------------------------
 
+
 def _is_suspicious_value(value: str) -> bool:
     low = value.lower()
     return any(pat in low for pat in INJECTION_PATTERNS)
@@ -440,15 +441,40 @@ def _normalise_select_value(key: str, value: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 _TECH_KEYWORDS: tuple[str, ...] = (
-    "dev", "développeur", "developpeur", "developer",
-    "engineer", "ingénieur", "ingenieur",
-    "data", "scientist", "analyst", "analyste",
-    "ml", "machine learning", "ai", "ia",
-    "devops", "sre", "backend", "frontend", "fullstack", "full-stack",
-    "architect", "architecte", "programmer", "coder",
+    "dev",
+    "développeur",
+    "developpeur",
+    "developer",
+    "engineer",
+    "ingénieur",
+    "ingenieur",
+    "data",
+    "scientist",
+    "analyst",
+    "analyste",
+    "ml",
+    "machine learning",
+    "ai",
+    "ia",
+    "devops",
+    "sre",
+    "backend",
+    "frontend",
+    "fullstack",
+    "full-stack",
+    "architect",
+    "architecte",
+    "programmer",
+    "coder",
 )
 
-_RSE_KEYWORDS: tuple[str, ...] = ("rse", "esg", "sustainability", "durabilité", "durabilite")
+_RSE_KEYWORDS: tuple[str, ...] = (
+    "rse",
+    "esg",
+    "sustainability",
+    "durabilité",
+    "durabilite",
+)
 
 
 def _infer_profile_type(role: str | None) -> str:
@@ -476,6 +502,7 @@ def _compute_suggested_agents(role: str | None, hitl: str | None) -> list[str]:
 # ---------------------------------------------------------------------------
 # Memory persistence
 # ---------------------------------------------------------------------------
+
 
 async def _remember(
     ctx: Any,
@@ -595,27 +622,44 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
 
     if key == "user.agents.hitl":
         # "Critical-only" → keywords + Q-option (2)
-        if any(w in text for w in ("critical-only", "critique", "important", "sensible")):
+        if any(
+            w in text for w in ("critical-only", "critique", "important", "sensible")
+        ):
             return "critical-only"
         if "2" in tokens or any(
             w in text for w in ("(2)", "deuxième", "deuxieme", "second")
         ):
             return "critical-only"
         # "Never" → autonomy keywords + (3)
-        if any(w in text for w in (
-            "never", "jamais", "autonomie", "autonome", "sans valider",
-            "sans confirmation", "laisser faire",
-        )):
+        if any(
+            w in text
+            for w in (
+                "never",
+                "jamais",
+                "autonomie",
+                "autonome",
+                "sans valider",
+                "sans confirmation",
+                "laisser faire",
+            )
+        ):
             return "never"
         if "3" in tokens or any(
             w in text for w in ("(3)", "troisième", "troisieme", "third")
         ):
             return "never"
         # "Always" → most cautious; check last so single-digit "1" doesn't win.
-        if any(w in text for w in (
-            "always", "toujours", "valider tout", "valider tous",
-            "tout valider", "chaque action",
-        )):
+        if any(
+            w in text
+            for w in (
+                "always",
+                "toujours",
+                "valider tout",
+                "valider tous",
+                "tout valider",
+                "chaque action",
+            )
+        ):
             return "always"
         if "1" in tokens or any(
             w in text for w in ("(1)", "première", "premiere", "first")
@@ -625,26 +669,58 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
 
     if key == "user.constraints.sovereignty":
         # "Local-preferred" first because it overlaps with "local-only".
-        if any(w in text for w in (
-            "local par défaut", "local par defaut", "local préféré",
-            "local prefere", "local preferred", "préférer local",
-            "preferer local", "local en priorité", "local en priorite",
-            "local d'abord", "local d abord",
-        )):
+        if any(
+            w in text
+            for w in (
+                "local par défaut",
+                "local par defaut",
+                "local préféré",
+                "local prefere",
+                "local preferred",
+                "préférer local",
+                "preferer local",
+                "local en priorité",
+                "local en priorite",
+                "local d'abord",
+                "local d abord",
+            )
+        ):
             return "local-preferred"
         # "Cloud-ok"
-        if any(w in text for w in (
-            "cloud ok", "cloud autorisé", "cloud autorise",
-            "cloud accepté", "cloud accepte", "openai", "anthropic",
-            "apis cloud", "api cloud", "cloud d'accord", "cloud allowed",
-        )):
+        if any(
+            w in text
+            for w in (
+                "cloud ok",
+                "cloud autorisé",
+                "cloud autorise",
+                "cloud accepté",
+                "cloud accepte",
+                "openai",
+                "anthropic",
+                "apis cloud",
+                "api cloud",
+                "cloud d'accord",
+                "cloud allowed",
+            )
+        ):
             return "cloud-ok"
         # "Local-only" - checked last so "local par défaut" doesn't fall here.
-        if any(w in text for w in (
-            "local-only", "local only", "local uniquement", "local seulement",
-            "tout en local", "que en local", "rien sortir", "rester local",
-            "reste local", "machine locale uniquement", "strictement local",
-        )):
+        if any(
+            w in text
+            for w in (
+                "local-only",
+                "local only",
+                "local uniquement",
+                "local seulement",
+                "tout en local",
+                "que en local",
+                "rien sortir",
+                "rester local",
+                "reste local",
+                "machine locale uniquement",
+                "strictement local",
+            )
+        ):
             return "local-only"
         if " local" in text or text.strip() == "local":
             # Bare "local" defaults to local-only - the strictest reasonable
@@ -664,27 +740,175 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
 _NEXT_QUESTION: dict[str, str] = {
     "user.name": (
         "Turn 1: ask ONE open question for first name + role "
-        "(e.g. \"To start, your first name and what you do day to day?\")."
+        '(e.g. "To start, your first name and what you do day to day?").'
     ),
     "user.role": (
         "Turn 1: ask ONE open question for first name + role "
-        "(e.g. \"To start, your first name and what you do day to day?\")."
+        '(e.g. "To start, your first name and what you do day to day?").'
     ),
     "user.agents.hitl": (
-        "Turn 2: ask the EXACT question: \"When an agent is about to send an "
+        'Turn 2: ask the EXACT question: "When an agent is about to send an '
         "email or change a file, do you prefer to (1) always approve, "
         "(2) approve only critical actions, or (3) let the agent act "
-        "autonomously?\" Map the answer to always | critical-only | never and "
+        'autonomously?" Map the answer to always | critical-only | never and '
         "emit [REMEMBER user.agents.hitl=...]."
     ),
     "user.constraints.sovereignty": (
-        "Turn 3: ask the EXACT question: \"Can your agents use cloud APIs "
+        'Turn 3: ask the EXACT question: "Can your agents use cloud APIs '
         "(OpenAI, Anthropic...), or must everything stay on your machine? "
-        "(local only / local preferred / cloud OK)\" Map the answer to "
+        '(local only / local preferred / cloud OK)" Map the answer to '
         "local-only | local-preferred | cloud-ok and emit "
         "[REMEMBER user.constraints.sovereignty=...]."
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# Wrap-up intent + non-empty-turn safety net (Tier 2)
+# ---------------------------------------------------------------------------
+
+# User utterances that signal "I'm done, wrap up" during the optional Tier 2
+# phase. The desktop "finish" button sends
+# ``onboarding_chat.finish_early_message`` verbatim ("That's good for me, let's
+# wrap up." / "C'est bon pour moi, terminons."), so we match its content in
+# both languages plus the common free-text variants. Matching is deliberately
+# permissive: acting on a false positive only closes an already-calibrated
+# profile one turn early, which is harmless.
+_WRAPUP_INTENT_MARKERS: tuple[str, ...] = (
+    "let's wrap up",
+    "lets wrap up",
+    "wrap up",
+    "that's good for me",
+    "thats good for me",
+    "i'm done",
+    "im done",
+    "we're done",
+    "were done",
+    "that's all",
+    "thats all",
+    "no more question",
+    "nothing else",
+    "skip the rest",
+    "skip everything",
+    "c'est bon pour moi",
+    "c est bon pour moi",
+    "terminons",
+    "on termine",
+    "on peut terminer",
+    "j'ai fini",
+    "j ai fini",
+    "c'est fini",
+    "on a fini",
+    "rien d'autre",
+    "rien d autre",
+    "plus rien",
+    "passe le reste",
+    "passer le reste",
+)
+
+
+def _wants_to_wrap_up(user_text: str) -> bool:
+    """True when the user's message asks to end the optional phase."""
+    low = user_text.lower()
+    return any(marker in low for marker in _WRAPUP_INTENT_MARKERS)
+
+
+# Short, user-facing phrasing for each optional Tier 2 topic. Used only by the
+# deterministic safety net below, never in the normal LLM path.
+_TIER2_PROMPTS: dict[str, str] = {
+    "user.goals": "what would you like to accomplish with Apollia?",
+    "user.domain.sector": "what industry or field do you work in?",
+    "user.tech.proficiency": (
+        "how comfortable are you with technical tools "
+        "(beginner, intermediate, advanced, expert)?"
+    ),
+    "user.tools.daily": "which tools do you use daily?",
+    "user.domain.team_size": "are you solo, a small team, or a larger organization?",
+    "user.tech.stack": "what is your technical stack (languages, frameworks)?",
+    "user.tech.integrations": (
+        "which services would you like to connect (e.g. GitHub, Slack, Notion)?"
+    ),
+    "user.constraints.compliance": (
+        "any compliance constraints to keep in mind (e.g. GDPR, HIPAA)?"
+    ),
+    "user.preferences.language": "which language do you prefer, French or English?",
+    "user.preferences.llm": "do you have a preferred LLM model?",
+    "user.agents.domains": "in which domains would agents help you most?",
+    "user.agents.trigger": "how should agents be triggered (manually, scheduled...)?",
+}
+
+# Deterministic closing line used when the model finalized (or onboarding was
+# already finalized) but produced no user-facing prose this turn.
+_CLOSURE_FALLBACK_TEXT: str = (
+    "Thanks, your profile is set and your agents are calibrated to match your "
+    "preferences. You can browse the available agents in /agents. A few "
+    "permission rules matching your choices will be proposed next, each with a "
+    "confirmation."
+)
+
+
+async def _has_key(ctx: Any, key: str) -> bool:
+    """True iff ``key`` resolves to a non-empty stored value.
+
+    Routes ``user.*`` to ``ctx.profile`` and every other key to the agent's
+    own memory namespace. Never raises: a backend hiccup reads as "absent".
+    """
+    try:
+        if key.startswith("user."):
+            return bool(await ctx.profile.get(key))
+        return bool(await ctx.memory.recall(key))
+    except Exception:
+        return False
+
+
+def _tier2_followup_text(next_keys: list[str]) -> str:
+    """Acknowledgement + next optional question (deterministic safety net).
+
+    Used only when the model handled an optional answer but produced no
+    user-facing prose (e.g. its whole reply was a bare ``[REMEMBER ...]`` tag,
+    which ``_strip_tags`` reduces to an empty string). Guarantees the turn
+    always ends on a natural-language question so the conversation never
+    stalls on an empty agent turn.
+    """
+    if not next_keys:
+        return (
+            "Thanks, that is noted. That covers the optional questions, "
+            "you are all set."
+        )
+    topic = _TIER2_PROMPTS.get(next_keys[0], "a bit more about your setup")
+    return (
+        "Thanks, that is noted. One more optional question, skip it if you "
+        f"like: {topic}"
+    )
+
+
+async def _fallback_reply(ctx: Any, *, did_finalize: bool) -> str:
+    """Compute a non-empty, phase-aware reply from authoritative state.
+
+    Invoked when the stripped model output is empty. It reflects the real
+    progress rather than the (missing) model prose: re-ask the pending Tier 1
+    question, close if onboarding just finalized, else offer the next optional
+    topic.
+    """
+    tier1_missing = [key for key in TIER1_KEYS if not await _has_key(ctx, key)]
+    if tier1_missing:
+        next_key = tier1_missing[0]
+        if next_key in _DETERMINISTIC_QUESTION:
+            return "Thanks for that. " + _DETERMINISTIC_QUESTION[next_key]
+        return (
+            "Thanks. To start, could you tell me your first name and what you "
+            "do day to day?"
+        )
+    if did_finalize:
+        return _CLOSURE_FALLBACK_TEXT
+    try:
+        already_done = bool(await ctx.memory.recall("onboarding.completed_at"))
+    except Exception:
+        already_done = False
+    if already_done:
+        return _CLOSURE_FALLBACK_TEXT
+    tier2_missing = [key for key in TIER2_KEYS if not await _has_key(ctx, key)]
+    return _tier2_followup_text(tier2_missing[:1])
 
 
 async def _build_progress_note(ctx: Any) -> str:
@@ -696,6 +920,7 @@ async def _build_progress_note(ctx: Any) -> str:
     local models on rails - they are unreliable at multi-step planning,
     but very reliable at executing an explicit instruction.
     """
+
     async def _has(key: str) -> bool:
         try:
             if key.startswith("user."):
@@ -793,29 +1018,29 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     hitl = await ctx.profile.get("user.agents.hitl")
     integrations_raw = await ctx.profile.get("user.tech.integrations") or ""
     integrations = {
-        item.strip().lower()
-        for item in integrations_raw.split(",")
-        if item.strip()
+        item.strip().lower() for item in integrations_raw.split(",") if item.strip()
     }
 
     proposals: list[dict[str, object]] = []
 
     # ── Sovereignty: frames outbound network access. ──────────────────────
     if sovereignty == "local-only":
-        proposals.extend([
-            {
-                "tool_name": "http_fetch",
-                "action": "deny",
-                "arg_prefix": "https://",
-                "scope": "global",
-            },
-            {
-                "tool_name": "http_fetch",
-                "action": "deny",
-                "arg_prefix": "http://",
-                "scope": "global",
-            },
-        ])
+        proposals.extend(
+            [
+                {
+                    "tool_name": "http_fetch",
+                    "action": "deny",
+                    "arg_prefix": "https://",
+                    "scope": "global",
+                },
+                {
+                    "tool_name": "http_fetch",
+                    "action": "deny",
+                    "arg_prefix": "http://",
+                    "scope": "global",
+                },
+            ]
+        )
     elif sovereignty == "local-preferred":
         # Close the most common cloud LLM endpoints by default. Integrations
         # explicitly enabled below re-open what is needed (a more specific
@@ -824,28 +1049,34 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
             "https://api.openai.com",
             "https://api.anthropic.com",
         ):
-            proposals.append({
-                "tool_name": "http_fetch",
-                "action": "deny",
-                "arg_prefix": endpoint,
-                "scope": "global",
-            })
+            proposals.append(
+                {
+                    "tool_name": "http_fetch",
+                    "action": "deny",
+                    "arg_prefix": endpoint,
+                    "scope": "global",
+                }
+            )
     # cloud-ok -> no network rule (status quo).
 
     # ── HITL level: reduces friction on read-only tools. ───────────────────
     if hitl in {"critical-only", "never"}:
-        proposals.append({
-            "tool_name": "file_read",
-            "action": "allow",
-            "scope": "global",
-        })
-        for safe_cmd in ("ls", "cat", "grep", "pwd", "head", "tail"):
-            proposals.append({
-                "tool_name": "shell_exec",
+        proposals.append(
+            {
+                "tool_name": "file_read",
                 "action": "allow",
-                "arg_prefix": safe_cmd,
                 "scope": "global",
-            })
+            }
+        )
+        for safe_cmd in ("ls", "cat", "grep", "pwd", "head", "tail"):
+            proposals.append(
+                {
+                    "tool_name": "shell_exec",
+                    "action": "allow",
+                    "arg_prefix": safe_cmd,
+                    "scope": "global",
+                }
+            )
     # always -> no allow; every sensitive action goes through HITL.
 
     # ── Explicitly enabled integrations: open the matching API endpoints. ──
@@ -857,17 +1088,21 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     }
     for integ, endpoint in INTEGRATION_ENDPOINTS.items():
         if integ in integrations:
-            proposals.append({
-                "tool_name": "http_fetch",
-                "action": "allow",
-                "arg_prefix": endpoint,
-                "scope": "global",
-            })
+            proposals.append(
+                {
+                    "tool_name": "http_fetch",
+                    "action": "allow",
+                    "arg_prefix": endpoint,
+                    "scope": "global",
+                }
+            )
 
     if not proposals:
         _logger.info(
             "no permission rule to propose (sovereignty=%s hitl=%s integrations=%s)",
-            sovereignty, hitl, sorted(integrations),
+            sovereignty,
+            hitl,
+            sorted(integrations),
         )
         # Explicitly clear the key so no residue from a previous session
         # lingers. We bypass _remember to avoid truncating at 500 chars (the
@@ -885,7 +1120,10 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
 
     _logger.info(
         "persisting %d proposed permission rules in memory (sovereignty=%s hitl=%s integrations=%s)",
-        len(proposals), sovereignty, hitl, sorted(integrations),
+        len(proposals),
+        sovereignty,
+        hitl,
+        sorted(integrations),
     )
 
     # Write the serialized list. The desktop consumes it via the Tauri
@@ -901,7 +1139,9 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     )
 
 
-async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str]) -> None:
+async def _finalize(
+    ctx: Any, profile_hint: str | None, suggested_hint: list[str]
+) -> None:
     """Write the meta keys in strict order - completed_at LAST.
 
     The strict ordering matters: ``onboarding.completed_at`` is the desktop's
@@ -917,12 +1157,18 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     role = await ctx.profile.get("user.role")
     hitl = await ctx.profile.get("user.agents.hitl")
 
-    profile_type = profile_hint if profile_hint in {"operator", "builder"} else _infer_profile_type(role)
+    profile_type = (
+        profile_hint
+        if profile_hint in {"operator", "builder"}
+        else _infer_profile_type(role)
+    )
     await _remember(ctx, "onboarding.profile_type", profile_type)
 
     await _remember(ctx, "onboarding.version", ONBOARDING_VERSION)
 
-    suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
+    suggested = (
+        suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
+    )
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
 
     # Serialize the rule proposals. The desktop renders them as approval
@@ -1000,6 +1246,7 @@ class OnboardingAgent:
                 # behaviour, just less robust against premature closure.
                 # Logged so flakey persistence surfaces rather than hiding.
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "onboarding progress note skipped: %s", exc
                 )
@@ -1014,6 +1261,10 @@ class OnboardingAgent:
         inferred_pairs = _extract_infer(raw_text)
         profile_hint = _extract_profile(raw_text)
         suggested_hint = _extract_suggests(raw_text)
+
+        # True once this turn writes ``onboarding.completed_at`` (drives the
+        # deterministic closing line in the empty-turn safety net below).
+        did_finalize = False
 
         # --- Persist Tier 1 / inferred facts (with guards) ------------------
         if ctx.memory is not None:
@@ -1050,24 +1301,35 @@ class OnboardingAgent:
                 if recovered is not None:
                     _logger.info(
                         "heuristic recovery: %s=%s from user text",
-                        key, recovered,
+                        key,
+                        recovered,
                     )
                     await _remember(ctx, key, recovered, explicit=False)
 
             # --- Conditional finalize ---------------------------------------
-            # Finalize only at *true closure*: the full Tier 1 set is collected
-            # AND the agent emitted a [PROFILE ...] tag this turn. The prompt
-            # emits [PROFILE ...] only in the final closing message, so the
-            # conversation continues into the optional Tier 2 enrichment instead
-            # of closing the moment Tier 1 is done. This writes
+            # Finalize at closure: the full Tier 1 set is collected AND there is
+            # an explicit end signal. Any of three signals closes the flow:
+            #   1. the model emitted a [PROFILE ...] tag (its normal closure),
+            #   2. the user asked to stop (the desktop "finish" button sends a
+            #      wrap-up message, and free-text "that's all"/"j'ai fini" count),
+            #   3. every optional Tier 2 field has been collected.
+            # Decoupling closure from a model-emitted [PROFILE] tag is what
+            # guarantees the permissions phase can run: small local models
+            # frequently drop the tag during Tier 2, which previously left
+            # onboarding unfinalized (no ``completed_at``, no proposed rules, so
+            # the desktop never surfaced the permission cards). This writes
             # ``onboarding.completed_at`` LAST (the desktop completion signal).
             already_done = await ctx.memory.recall("onboarding.completed_at")
+            tier1_complete = await _all_keys_present(ctx, FINALIZE_KEYS)
+            tier2_missing = [key for key in TIER2_KEYS if not await _has_key(ctx, key)]
+            wants_stop = _wants_to_wrap_up(user_message)
             if (
                 not already_done
-                and profile_hint is not None
-                and await _all_keys_present(ctx, FINALIZE_KEYS)
+                and tier1_complete
+                and (profile_hint is not None or wants_stop or not tier2_missing)
             ):
                 await _finalize(ctx, profile_hint, suggested_hint)
+                did_finalize = True
 
         # --- Premature-closure override --------------------------------------
         # Small local models routinely jump to Turn 4 the moment they have
@@ -1100,6 +1362,22 @@ class OnboardingAgent:
         # user-facing transcript (private contract between this agent and the
         # local memory backend).
         processed_text = _strip_tags(raw_text)
+
+        # --- Empty-turn safety net ------------------------------------------
+        # When the model's whole reply was tags (routine on small local models
+        # during the optional Tier 2 phase), ``_strip_tags`` yields an empty
+        # string and the harness reports "No text response was produced" with
+        # tokens=0. Never return an empty turn: substitute a deterministic,
+        # phase-aware acknowledgement + next question (or the closing line when
+        # the flow just finalized), computed from authoritative memory state.
+        if not processed_text and ctx.memory is not None:
+            try:
+                processed_text = await _fallback_reply(ctx, did_finalize=did_finalize)
+            except Exception as exc:  # never let the safety net crash the turn
+                _logger.warning("onboarding fallback reply failed: %s", exc)
+                processed_text = (
+                    "Thanks. We can continue from Settings whenever you like."
+                )
 
         if ctx.memory is not None:
             try:

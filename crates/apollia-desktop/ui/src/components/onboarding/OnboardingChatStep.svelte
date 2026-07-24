@@ -32,9 +32,16 @@
     onback: () => void;
     /** Called when the user clicks "Terminer" or auto-close fires. */
     onclose: () => void;
+    /**
+     * Incremented by the orchestrator's footer to request an early wrap-up:
+     * skip the remaining OPTIONAL questions and route forward to the
+     * permissions phase. It must never abandon onboarding (that would skip
+     * permissions). Each increment triggers one wrap-up nudge.
+     */
+    skipSignal?: number;
   }
 
-  const { onback, onclose }: Props = $props();
+  const { onback, onclose, skipSignal = 0 }: Props = $props();
 
   let sessionId = $state<string | null>(null);
   let bootstrapping = $state(false);
@@ -130,14 +137,30 @@
     }
   });
 
-  // The moment the agent finalises, enter the permissions sub-step. The
-  // OnboardingPermissionStep component will load the proposals list and
-  // call oncomplete() if it's empty (no cards to show), unblocking wrap-up.
+  // The moment the flow completes, enter the permissions sub-step. Keyed on
+  // `completed` (not just `agentFinalized`) so the permissions phase ALWAYS
+  // runs before the wrap-up, including the safety-net completion path. The
+  // OnboardingPermissionStep component loads the proposals list and calls
+  // oncomplete() immediately if it's empty (no cards to show), which unblocks
+  // the wrap-up. This is what guarantees permissions are never skipped.
   let permissionsEntered = false;
   $effect(() => {
-    if (agentFinalized && !permissionsEntered) {
+    if (completed && !permissionsEntered) {
       permissionsEntered = true;
       permissionsPending = true;
+    }
+  });
+
+  // Forward wrap-up requested from the orchestrator footer ("skip the optional
+  // questions"). Nudge the agent to close: once the mandatory keys are present
+  // it finalises, which writes `onboarding.completed_at` and routes the flow
+  // into the permissions phase. Never dismisses onboarding.
+  let lastSkipSignal = 0;
+  $effect(() => {
+    const signal = skipSignal;
+    if (signal > lastSkipSignal) {
+      lastSkipSignal = signal;
+      if (sessionId && !completed) void finishEarly();
     }
   });
 

@@ -48,6 +48,9 @@
   let currentStep = $state<Step>("welcome");
   let unlistenRuntime: UnlistenFn | null = null;
   let rootEl = $state<HTMLDivElement | null>(null);
+  // Bumped by the footer during the chat step to ask the chat to skip the
+  // remaining OPTIONAL questions and move forward to the permissions phase.
+  let chatSkipSignal = $state(0);
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
@@ -194,20 +197,36 @@
       {:else if currentStep === "chat"}
         <OnboardingChatStep
           onback={() => goTo("ai-setup")}
+          skipSignal={chatSkipSignal}
           {onclose}
         />
       {/if}
     </div>
 
     <footer class="onboarding-card-footer">
-      <button
-        type="button"
-        class="onboarding-skip"
-        data-testid="onboarding-skip"
-        onclick={handleSkip}
-      >
-        Configurer plus tard
-      </button>
+      {#if currentStep === "chat"}
+        <!-- During the conversation the only remaining questions are OPTIONAL.
+             "Configure later" here must skip just those and still route to the
+             permissions phase, never abandon onboarding (which would skip
+             permissions entirely). -->
+        <button
+          type="button"
+          class="onboarding-skip"
+          data-testid="onboarding-skip-optional"
+          onclick={() => (chatSkipSignal += 1)}
+        >
+          {$t("onboarding_modal.skip_optional")}
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="onboarding-skip"
+          data-testid="onboarding-skip"
+          onclick={handleSkip}
+        >
+          {$t("onboarding_modal.skip_later")}
+        </button>
+      {/if}
     </footer>
   </div>
 </div>
