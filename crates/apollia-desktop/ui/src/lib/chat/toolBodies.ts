@@ -203,3 +203,355 @@ export function basename(path: string): string {
   const parts = path.split(sep).filter((p) => p.length > 0);
   return parts.at(-1) ?? path;
 }
+
+/** Directory portion of a path (everything before the basename), or "". */
+export function dirname(path: string): string {
+  const sep = path.includes("/") ? "/" : "\\";
+  const parts = path.split(sep).filter((p) => p.length > 0);
+  if (parts.length <= 1) return "";
+  return parts.slice(0, -1).join(sep);
+}
+
+/** Parse an unknown string as a JSON object, returning `null` on any failure. */
+function parseJsonObject(output: string | null): Record<string, unknown> | null {
+  if (!output) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * Recover a `file_glob` match list from a tool call's raw output.
+ *
+ * The runtime serializes `{ matches: string[] }`, but a bare array is also
+ * accepted. Returns `null` when the output is absent, unparseable, or empty so
+ * the body degrades to the raw string.
+ */
+export function parseFileGlob(output: string | null): string[] | null {
+  if (!output) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return null;
+  }
+  let raw: unknown[] | null = null;
+  if (Array.isArray(parsed)) {
+    raw = parsed;
+  } else if (typeof parsed === "object" && parsed !== null) {
+    const m = (parsed as Record<string, unknown>).matches;
+    if (Array.isArray(m)) raw = m;
+  }
+  if (!raw) return null;
+  const paths = raw.filter((p): p is string => typeof p === "string" && p.length > 0);
+  return paths.length > 0 ? paths : null;
+}
+
+/** One matched line inside a `file_grep` file group. */
+export interface GrepRow {
+  line: number;
+  text: string;
+}
+
+/** All `file_grep` matches that fall inside a single file. */
+export interface GrepFileGroup {
+  file: string;
+  rows: GrepRow[];
+}
+
+/** Normalized `file_grep` result: matches grouped by file plus the counters. */
+export interface GrepParsed {
+  groups: GrepFileGroup[];
+  totalMatches: number;
+  filesSearched: number;
+  truncated: boolean;
+}
+
+/**
+ * Recover a `file_grep` result from a tool call's raw output.
+ *
+ * The runtime serializes
+ * `{ matches: [{ file, line_number, content, ... }], truncated, files_searched }`.
+ * Matches are grouped by file, preserving first-seen order. Returns `null` when
+ * the shape does not match so the body falls back to the raw output.
+ */
+export function parseGrep(output: string | null): GrepParsed | null {
+  const obj = parseJsonObject(output);
+  if (!obj || !Array.isArray(obj.matches)) return null;
+  const order: string[] = [];
+  const byFile = new Map<string, GrepRow[]>();
+  for (const raw of obj.matches) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const m = raw as Record<string, unknown>;
+    const file = typeof m.file === "string" ? m.file : "";
+    const line =
+      typeof m.line_number === "number"
+        ? m.line_number
+        : typeof m.line === "number"
+          ? m.line
+          : 0;
+    const text =
+      typeof m.content === "string"
+        ? m.content
+        : typeof m.text === "string"
+          ? m.text
+          : "";
+    if (!file) continue;
+    if (!byFile.has(file)) {
+      byFile.set(file, []);
+      order.push(file);
+    }
+    byFile.get(file)?.push({ line, text });
+  }
+  if (order.length === 0) return null;
+  const groups = order.map((file) => ({ file, rows: byFile.get(file) ?? [] }));
+  const totalMatches = groups.reduce((n, g) => n + g.rows.length, 0);
+  const filesSearched =
+    typeof obj.files_searched === "number" ? obj.files_searched : order.length;
+  return {
+    groups,
+    totalMatches,
+    filesSearched,
+    truncated: obj.truncated === true,
+  };
+}
+
+/** Normalized `http_fetch` response, with content-type and size teased out. */
+export interface HttpParsed {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  durationMs: number | null;
+  contentType: string | null;
+  byteSize: number | null;
+}
+
+/** Coarse status class for the operator badge colour and label. */
+export type HttpStatusClass =
+  | "info"
+  | "success"
+  | "redirect"
+  | "client"
+  | "server"
+  | "unknown";
+
+/** Map an HTTP status code to its coarse class bucket. */
+export function httpStatusClass(status: number): HttpStatusClass {
+  if (status >= 100 && status < 200) return "info";
+  if (status >= 200 && status < 300) return "success";
+  if (status >= 300 && status < 400) return "redirect";
+  if (status >= 400 && status < 500) return "client";
+  if (status >= 500 && status < 600) return "server";
+  return "unknown";
+}
+
+/**
+ * Recover an `http_fetch` response from a tool call's raw output.
+ *
+ * The runtime serializes `{ status, headers, body, duration_ms }`. Header
+ * lookups are case-insensitive so `content-type` / `Content-Length` are found
+ * regardless of casing. Returns `null` when no numeric `status` is present.
+ */
+export function parseHttp(output: string | null): HttpParsed | null {
+  const obj = parseJsonObject(output);
+  if (!obj || typeof obj.status !== "number") return null;
+  const headers: Record<string, string> = {};
+  if (typeof obj.headers === "object" && obj.headers !== null) {
+    for (const [k, v] of Object.entries(obj.headers)) {
+      if (typeof v === "string") headers[k] = v;
+    }
+  }
+  const lower = new Map(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
+  );
+  const contentType = lower.get("content-type") ?? null;
+  const body = typeof obj.body === "string" ? obj.body : "";
+  const lenHeader = lower.get("content-length");
+  const byteSize =
+    lenHeader !== undefined && /^\d+$/.test(lenHeader)
+      ? Number(lenHeader)
+      : body
+        ? new TextEncoder().encode(body).length
+        : null;
+  return {
+    status: obj.status,
+    headers,
+    body,
+    durationMs: typeof obj.duration_ms === "number" ? obj.duration_ms : null,
+    contentType: contentType ? contentType.split(";")[0].trim() : null,
+    byteSize,
+  };
+}
+
+/** One recalled entry of a `memory_search` result. */
+export interface MemoryEntry {
+  content: string;
+  source: string;
+  score: number | null;
+  relevance: number | null;
+  createdAt: string | null;
+}
+
+/** Normalized `memory_search` result. */
+export interface MemoryParsed {
+  entries: MemoryEntry[];
+  totalFound: number;
+}
+
+/**
+ * Recover a `memory_search` result from a tool call's raw output.
+ *
+ * The runtime serializes
+ * `{ results: [{ score, source, content, relevance?, created_at }], total_found }`.
+ * Returns `null` when no usable entry is present.
+ */
+export function parseMemory(output: string | null): MemoryParsed | null {
+  const obj = parseJsonObject(output);
+  if (!obj || !Array.isArray(obj.results)) return null;
+  const entries: MemoryEntry[] = [];
+  for (const raw of obj.results) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.content !== "string" || r.content.length === 0) continue;
+    entries.push({
+      content: r.content,
+      source: typeof r.source === "string" ? r.source : "",
+      score: typeof r.score === "number" ? r.score : null,
+      relevance: typeof r.relevance === "number" ? r.relevance : null,
+      createdAt: typeof r.created_at === "string" ? r.created_at : null,
+    });
+  }
+  if (entries.length === 0) return null;
+  const totalFound =
+    typeof obj.total_found === "number" ? obj.total_found : entries.length;
+  return { entries, totalFound };
+}
+
+/** A plan step reduced to what the per-call body renders. */
+export interface PlanStepLite {
+  stepId: string;
+  title: string;
+  status: string | null;
+}
+
+/**
+ * Normalized view of a single `plan_*` call: what the call changed, drawn from
+ * its arguments, plus the resulting step summaries echoed in the output.
+ *
+ * Every field is optional and defensively typed: the full plan renders in the
+ * dedicated plan host, so this only reflects the delta of THIS call.
+ */
+export interface PlanCallInfo {
+  ok: boolean;
+  /** `output.steps` summaries when the call succeeded. */
+  outputSteps: PlanStepLite[] | null;
+  /** The step object carried in `args.step` (add / modify). */
+  argStep: PlanStepLite | null;
+  /** `args.step_id` (remove / modify / set_status). */
+  stepId: string | null;
+  /** `args.status` (set_status). */
+  status: string | null;
+  /** `args.steps.length` (propose). */
+  proposeCount: number | null;
+  /** `args.ordered_ids.length` (reorder). */
+  orderCount: number | null;
+}
+
+function coercePlanStep(raw: unknown): PlanStepLite | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const s = raw as Record<string, unknown>;
+  const stepId =
+    typeof s.step_id === "string"
+      ? s.step_id
+      : typeof s.stepId === "string"
+        ? s.stepId
+        : "";
+  const title =
+    typeof s.title === "string" && s.title.length > 0
+      ? s.title
+      : typeof s.description === "string"
+        ? s.description
+        : "";
+  const status = typeof s.status === "string" ? s.status : null;
+  if (!stepId && !title) return null;
+  return { stepId, title, status };
+}
+
+/**
+ * Parse a `plan_*` tool call into a {@link PlanCallInfo}. Never returns `null`:
+ * a plan call always renders a friendly action line, degrading to just the
+ * action verb when neither args nor output carry usable detail.
+ */
+export function parsePlanCall(
+  args: Record<string, unknown>,
+  output: string | null,
+): PlanCallInfo {
+  const obj = parseJsonObject(output);
+  const ok = obj ? obj.ok !== false : true;
+  const outputSteps = Array.isArray(obj?.steps)
+    ? (obj.steps as unknown[])
+        .map(coercePlanStep)
+        .filter((s): s is PlanStepLite => s !== null)
+    : null;
+  const argStep = coercePlanStep(args.step);
+  const stepId = typeof args.step_id === "string" ? args.step_id : null;
+  const status = typeof args.status === "string" ? args.status : null;
+  const proposeCount = Array.isArray(args.steps) ? args.steps.length : null;
+  const orderCount = Array.isArray(args.ordered_ids)
+    ? args.ordered_ids.length
+    : null;
+  return {
+    ok,
+    outputSteps: outputSteps && outputSteps.length > 0 ? outputSteps : null,
+    argStep,
+    stepId,
+    status,
+    proposeCount,
+    orderCount,
+  };
+}
+
+/** One item of a `todo_write` list, normalized for the operator rendering. */
+export interface TodoItemLite {
+  id: string;
+  content: string;
+  status: string;
+}
+
+/**
+ * Recover the `todo_write` list from a tool call's arguments.
+ *
+ * The full list travels in `args.items` (`{ id, content, status }`); the output
+ * only carries a count. Returns `null` when no usable item is present.
+ */
+export function parseTodos(
+  args: Record<string, unknown>,
+): TodoItemLite[] | null {
+  const raw = args.items;
+  if (!Array.isArray(raw)) return null;
+  const items: TodoItemLite[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const o = entry as Record<string, unknown>;
+    if (typeof o.content !== "string" || o.content.length === 0) continue;
+    items.push({
+      id: typeof o.id === "string" ? o.id : "",
+      content: o.content,
+      status: typeof o.status === "string" ? o.status : "pending",
+    });
+  }
+  return items.length > 0 ? items : null;
+}
+
+/** Total line count of a text blob (unlike `countOutputLines`, counts blanks). */
+export function totalLines(text: string | null): number {
+  if (!text) return 0;
+  return text.replace(/\n$/, "").split("\n").length;
+}

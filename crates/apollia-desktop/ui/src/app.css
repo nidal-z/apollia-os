@@ -1064,6 +1064,152 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Status badge (http_fetch) and status pill (plan / todo steps). Both derive
+   every colour from a semantic token, so light and dark are covered centrally. */
+.tb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border-soft));
+  background: hsl(var(--surface-2));
+  color: hsl(var(--foreground));
+}
+.tb-badge.tb-ok    { color: hsl(var(--success)); border-color: hsl(var(--success) / 0.35); background: hsl(var(--success) / 0.08); }
+.tb-badge.tb-warn  { color: hsl(var(--warning)); border-color: hsl(var(--warning) / 0.35); background: hsl(var(--warning) / 0.08); }
+.tb-badge.tb-error { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.35); background: hsl(var(--destructive) / 0.08); }
+.tb-badge.tb-info  { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.35); background: hsl(var(--primary) / 0.08); }
+
+.tb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border-soft));
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--surface-2));
+}
+.tb-pill.tb-ok     { color: hsl(var(--success)); border-color: hsl(var(--success) / 0.35); }
+.tb-pill.tb-warn   { color: hsl(var(--warning)); border-color: hsl(var(--warning) / 0.35); }
+.tb-pill.tb-error  { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.35); }
+.tb-pill.tb-active { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.35); }
+
+/* Step / todo listing: glyph + text + trailing status pill. */
+.tb-steps { display: flex; flex-direction: column; gap: 4px; }
+.tb-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  background: hsl(var(--surface-2) / 0.5);
+}
+.tb-step .tb-step-glyph {
+  flex: none;
+  color: hsl(var(--muted-foreground));
+  display: grid;
+  place-items: center;
+}
+.tb-step .tb-step-glyph.tb-ok     { color: hsl(var(--success)); }
+.tb-step .tb-step-glyph.tb-active { color: hsl(var(--primary)); }
+.tb-step .tb-step-glyph.tb-error  { color: hsl(var(--destructive)); }
+.tb-step .tb-step-title {
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-step .tb-step-title.tb-done {
+  color: hsl(var(--muted-foreground));
+  text-decoration: line-through;
+}
+.tb-step .tb-step-pill { margin-left: auto; }
+
+/* Memory recall cards. */
+.tb-cards { display: flex; flex-direction: column; gap: 6px; }
+.tb-card {
+  border: 1px solid hsl(var(--border-soft));
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: hsl(var(--surface-2) / 0.4);
+}
+.tb-card .tb-card-body {
+  color: hsl(var(--foreground) / 0.9);
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tb-card .tb-card-meta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: hsl(var(--faint-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Grep matches grouped by file. */
+.tb-grep { display: flex; flex-direction: column; gap: 8px; }
+.tb-grep-group { display: flex; flex-direction: column; gap: 2px; }
+.tb-grep-file {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.tb-grep-file .tb-grep-dir {
+  color: hsl(var(--faint-foreground));
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-grep-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tb-grep-row .tb-grep-ln {
+  color: hsl(var(--primary) / 0.75);
+  flex: none;
+  min-width: 2.5em;
+  text-align: right;
+  user-select: none;
+}
+.tb-grep-row .tb-grep-text {
+  color: hsl(var(--foreground) / 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Readable article extract (web_read). */
+.tb-extract {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: hsl(var(--foreground) / 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: 13px; }
+.tb-extract-byline { font-size: 11px; color: hsl(var(--faint-foreground)); }
+
 /* ═══════════════════════════════════════════════════════════
    Reduced motion - honour OS preference by
    collapsing every animation and transition to a near-instant

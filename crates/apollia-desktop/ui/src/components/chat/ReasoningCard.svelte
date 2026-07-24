@@ -36,9 +36,18 @@
   import PerformanceHint from "./PerformanceHint.svelte";
   import RetryTimeline from "./RetryTimeline.svelte";
   import WebSearchBody from "./tool-bodies/WebSearchBody.svelte";
+  import WebReadBody from "./tool-bodies/WebReadBody.svelte";
   import FileListBody from "./tool-bodies/FileListBody.svelte";
   import BashBody from "./tool-bodies/BashBody.svelte";
+  import PythonBody from "./tool-bodies/PythonBody.svelte";
   import FileReadBody from "./tool-bodies/FileReadBody.svelte";
+  import FileWriteBody from "./tool-bodies/FileWriteBody.svelte";
+  import FileGlobBody from "./tool-bodies/FileGlobBody.svelte";
+  import FileGrepBody from "./tool-bodies/FileGrepBody.svelte";
+  import HttpFetchBody from "./tool-bodies/HttpFetchBody.svelte";
+  import MemorySearchBody from "./tool-bodies/MemorySearchBody.svelte";
+  import PlanToolBody from "./tool-bodies/PlanToolBody.svelte";
+  import TodoBody from "./tool-bodies/TodoBody.svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
@@ -330,13 +339,37 @@
   });
 
   // Tools that own a bespoke per-tool expanded body (operator + builder
-  // layers). Every other tool keeps the generic input/output rendering below.
+  // layers). Every other tool - including `ask_user`, which keeps its dedicated
+  // Q/A rendering below - falls through to the generic input/output block.
+  const DISPATCHED_TOOLS = new Set<string>([
+    "web_search",
+    "web_read",
+    "file_list",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "file_glob",
+    "file_grep",
+    "bash_executor",
+    "python_executor",
+    "http_fetch",
+    "memory_search",
+    "todo_write",
+    "plan_propose",
+    "plan_add_step",
+    "plan_modify_step",
+    "plan_remove_step",
+    "plan_reorder",
+    "plan_submit",
+    "plan_set_step_status",
+  ]);
+
   const dispatchedTool = $derived(
-    item.kind === "tool_call" &&
-      (item.tool === "web_search" ||
-        item.tool === "file_list" ||
-        item.tool === "bash_executor" ||
-        item.tool === "file_read"),
+    item.kind === "tool_call" && DISPATCHED_TOOLS.has(item.tool),
+  );
+
+  const isPlanTool = $derived(
+    item.kind === "tool_call" && item.tool.startsWith("plan_"),
   );
 
   const testid = $derived(`reasoning-card-${item.kind}`);
@@ -423,12 +456,30 @@
       <div class="mt-1 space-y-1.5 pl-4 text-[11px] leading-relaxed">
         {#if dispatchedTool && item.tool === "web_search"}
           <WebSearchBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "web_read"}
+          <WebReadBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "file_list"}
           <FileListBody {item} {skin} />
-        {:else if dispatchedTool && item.tool === "bash_executor"}
-          <BashBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "file_read"}
           <FileReadBody {item} {skin} />
+        {:else if dispatchedTool && (item.tool === "file_write" || item.tool === "file_edit")}
+          <FileWriteBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "file_glob"}
+          <FileGlobBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "file_grep"}
+          <FileGrepBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "bash_executor"}
+          <BashBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "python_executor"}
+          <PythonBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "http_fetch"}
+          <HttpFetchBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "memory_search"}
+          <MemorySearchBody {item} {skin} />
+        {:else if dispatchedTool && item.tool === "todo_write"}
+          <TodoBody {item} {skin} />
+        {:else if dispatchedTool && isPlanTool}
+          <PlanToolBody {item} {skin} />
         {:else}
         {#if askUserPairs}
           <div class="space-y-1">
