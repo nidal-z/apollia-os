@@ -327,7 +327,10 @@ impl BuiltInChatAgent {
             authorized: authorized_tools.clone(),
         };
         let obs = ObservabilityConfig::default();
-        let mut reasoning_fragments: Vec<String> = Vec::new();
+        // Each entry is (reasoning text, number of tool calls already made when
+        // the fragment was captured), so the UI can interleave a step's
+        // reasoning with that step's tool calls.
+        let mut reasoning_fragments: Vec<(String, usize)> = Vec::new();
         // Conservative escalation heuristic: count consecutive failed tool calls
         // and, past the threshold, ask the router to escalate the next LLM call to
         // the frontier backend. Reset to 0 on the first successful tool call.
@@ -721,7 +724,7 @@ impl BuiltInChatAgent {
     /// state.
     fn paused_response(
         &self,
-        reasoning_fragments: &[String],
+        reasoning_fragments: &[(String, usize)],
         ctx: ResponseContext<'_>,
     ) -> ChatAgentResponse {
         let ResponseContext {
@@ -732,11 +735,8 @@ impl BuiltInChatAgent {
             final_plan_phase,
             ..
         } = ctx;
-        let thinking_trace = if reasoning_fragments.is_empty() {
-            None
-        } else {
-            Some(reasoning_fragments.join("\n\n---\n\n"))
-        };
+        let (thinking_trace, reasoning_boundaries) =
+            Self::build_thinking_trace(reasoning_fragments);
         tracing::info!(
             session_id = %session_id,
             tool_calls = acc.all_tool_calls.len(),
@@ -748,11 +748,28 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace,
+            reasoning_boundaries,
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
             paused: true,
         }
+    }
+
+    /// Join the per-step reasoning fragments into the `thinking_trace` blob and
+    /// return the parallel tool-call boundaries. `(None, empty)` when there is
+    /// no reasoning.
+    fn build_thinking_trace(fragments: &[(String, usize)]) -> (Option<String>, Vec<usize>) {
+        if fragments.is_empty() {
+            return (None, Vec::new());
+        }
+        let trace = fragments
+            .iter()
+            .map(|(text, _)| text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n---\n\n");
+        let boundaries = fragments.iter().map(|(_, before)| *before).collect();
+        (Some(trace), boundaries)
     }
 
     /// Build a paused response that freezes the partial streamed text as the
@@ -766,7 +783,7 @@ impl BuiltInChatAgent {
     fn paused_text_response(
         &self,
         accumulated_text: &str,
-        reasoning_fragments: &mut Vec<String>,
+        reasoning_fragments: &mut Vec<(String, usize)>,
         ctx: ResponseContext<'_>,
     ) -> ChatAgentResponse {
         let ResponseContext {
@@ -780,13 +797,10 @@ impl BuiltInChatAgent {
         let final_thinking = Self::extract_think_blocks(accumulated_text);
         let clean = Self::strip_think_blocks(accumulated_text);
         if let Some(ft) = &final_thinking {
-            reasoning_fragments.push(ft.clone());
+            reasoning_fragments.push((ft.clone(), acc.all_tool_calls.len()));
         }
-        let thinking_trace = if reasoning_fragments.is_empty() {
-            None
-        } else {
-            Some(reasoning_fragments.join("\n\n---\n\n"))
-        };
+        let (thinking_trace, reasoning_boundaries) =
+            Self::build_thinking_trace(reasoning_fragments);
         tracing::info!(
             session_id = %session_id,
             partial_len = clean.len(),
@@ -798,6 +812,7 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace,
+            reasoning_boundaries,
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
@@ -812,7 +827,7 @@ impl BuiltInChatAgent {
     fn finalize_text_response(
         &self,
         accumulated_text: &str,
-        reasoning_fragments: &mut Vec<String>,
+        reasoning_fragments: &mut Vec<(String, usize)>,
         ctx: ResponseContext<'_>,
     ) -> ChatAgentResponse {
         let ResponseContext {
@@ -836,13 +851,10 @@ impl BuiltInChatAgent {
 
         // Combine accumulated reasoning fragments with final thinking.
         if let Some(ft) = &final_thinking {
-            reasoning_fragments.push(ft.clone());
+            reasoning_fragments.push((ft.clone(), acc.all_tool_calls.len()));
         }
-        let thinking_trace = if reasoning_fragments.is_empty() {
-            None
-        } else {
-            Some(reasoning_fragments.join("\n\n---\n\n"))
-        };
+        let (thinking_trace, reasoning_boundaries) =
+            Self::build_thinking_trace(reasoning_fragments);
 
         tracing::info!(
             fragment_count = reasoning_fragments.len(),
@@ -858,10 +870,37 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace,
+            reasoning_boundaries,
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
             paused: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// GIVEN two per-step fragments captured at tool-call counts 0 and 1
+    /// WHEN build_thinking_trace runs
+    /// THEN the trace joins them with the separator and the boundaries are kept
+    #[test]
+    fn test_build_thinking_trace_carries_boundaries() {
+        let fragments = vec![("plan".to_string(), 0), ("act".to_string(), 1)];
+        let (trace, boundaries) = BuiltInChatAgent::build_thinking_trace(&fragments);
+        assert_eq!(trace.as_deref(), Some("plan\n\n---\n\nact"));
+        assert_eq!(boundaries, vec![0, 1]);
+    }
+
+    /// GIVEN no fragments
+    /// WHEN build_thinking_trace runs
+    /// THEN it yields no trace and empty boundaries
+    #[test]
+    fn test_build_thinking_trace_empty() {
+        let (trace, boundaries) = BuiltInChatAgent::build_thinking_trace(&[]);
+        assert!(trace.is_none());
+        assert!(boundaries.is_empty());
     }
 }

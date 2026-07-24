@@ -463,6 +463,10 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
             ..Default::default()
         },
         thinking_trace,
+        // This agent-backed path makes no tool calls, so there is nothing to
+        // interleave the reasoning with; the empty boundary list renders the
+        // trace as a plain leading caption.
+        reasoning_boundaries: Vec::new(),
         verification_report: None,
         // Frontier escalation is wired into the built-in ReAct loop, not this
         // agent-backed executor, so the ceiling can never be hit on this path.

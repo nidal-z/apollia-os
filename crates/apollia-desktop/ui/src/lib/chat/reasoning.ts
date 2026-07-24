@@ -148,13 +148,25 @@ function splitThinkingFragments(trace: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+/** Read `metadata.reasoning_boundaries` as a numeric array, or null when absent. */
+function readBoundaries(
+  metadata: ChatMessageView["metadata"],
+): number[] | null {
+  const raw = metadata?.reasoning_boundaries;
+  if (!Array.isArray(raw)) return null;
+  const nums = raw.filter((n): n is number => typeof n === "number");
+  return nums.length === raw.length ? nums : null;
+}
+
 /**
  * Build the full reasoning sequence for an assistant message.
  *
- * Order: each thinking fragment (split from the joined trace) as its own
- * caption, then the tool calls (mapped in-order). Pending tool calls are
- * returned as-is so the caller can render them via the approval cards instead
- * of a `ReasoningCard` if needed.
+ * Each thinking fragment (split from the joined trace) renders as its own
+ * caption. When the runtime supplied per-fragment tool-call boundaries, each
+ * fragment is interleaved with the tool calls of its ReAct step (fragment k
+ * before the tool call at index `boundaries[k]`); otherwise fragments are
+ * emitted first, then the tool calls in order. Pending tool calls are returned
+ * as-is so the caller can render them via the approval cards.
  */
 export function buildReasoningSequence(
   message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">,
@@ -165,8 +177,10 @@ export function buildReasoningSequence(
     (message.metadata?.thinking_trace as string | null | undefined) ?? null;
 
   let fragments: string[] = [];
+  let boundaries: number[] | null = null;
   if (thinking) {
     fragments = splitThinkingFragments(thinking);
+    boundaries = readBoundaries(message.metadata);
   } else if (content) {
     // Models like Qwen3 235B embed thinking in <think>...</think> tags inside content.
     fragments = parseStream(content)
@@ -174,18 +188,40 @@ export function buildReasoningSequence(
       .map((b) => b.content.trim())
       .filter((s) => s.length > 0);
   }
-  fragments.forEach((fragment, i) => {
-    items.push({
-      id: `${message.id}-think-${i}`,
-      kind: "thinking",
-      status: "success",
-      content: fragment,
-    });
-  });
 
   const calls = message.tool_calls ?? [];
+  const thinkingItem = (fragment: string, i: number): ReasoningItem => ({
+    id: `${message.id}-think-${i}`,
+    kind: "thinking",
+    status: "success",
+    content: fragment,
+  });
+  const toolItem = (i: number): ReasoningItem =>
+    toReasoningItem(calls[i], `${message.id}-tc`, i);
+
+  // Interleave only when the boundaries line up with the fragments; any
+  // mismatch (older messages, a fragment that itself contained the separator)
+  // falls back to the safe fragments-then-tools order.
+  if (boundaries && boundaries.length === fragments.length) {
+    let ti = 0;
+    fragments.forEach((fragment, k) => {
+      const upto = Math.min(boundaries[k], calls.length);
+      while (ti < upto) {
+        items.push(toolItem(ti));
+        ti += 1;
+      }
+      items.push(thinkingItem(fragment, k));
+    });
+    while (ti < calls.length) {
+      items.push(toolItem(ti));
+      ti += 1;
+    }
+    return items;
+  }
+
+  fragments.forEach((fragment, i) => items.push(thinkingItem(fragment, i)));
   for (let i = 0; i < calls.length; i += 1) {
-    items.push(toReasoningItem(calls[i], `${message.id}-tc`, i));
+    items.push(toolItem(i));
   }
   return items;
 }

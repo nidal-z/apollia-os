@@ -126,6 +126,39 @@ describe("buildReasoningSequence", () => {
     expect(items).toEqual([]);
   });
 
+  test("interleaves fragments with tool calls per reasoning_boundaries", () => {
+    // Two steps: think -> tool0, think -> tool1. Boundaries [0, 1] mean
+    // fragment 0 precedes tool 0 and fragment 1 precedes tool 1.
+    const items = buildReasoningSequence({
+      id: "m3",
+      tool_calls: [
+        makeCall({ tool_name: "file_read" }),
+        makeCall({ tool_name: "file_write" }),
+      ],
+      metadata: {
+        thinking_trace: "Plan read.\n\n---\n\nNow write.",
+        reasoning_boundaries: [0, 1],
+      },
+    });
+    expect(
+      items.map((i) => (i.kind === "thinking" ? "T" : "C")).join(""),
+    ).toBe("TCTC");
+  });
+
+  test("falls back to fragments-then-tools when boundaries mismatch", () => {
+    const items = buildReasoningSequence({
+      id: "m4",
+      tool_calls: [makeCall({ tool_name: "file_read" })],
+      metadata: {
+        thinking_trace: "a\n\n---\n\nb",
+        reasoning_boundaries: [0], // length 1 != 2 fragments
+      },
+    });
+    expect(
+      items.map((i) => (i.kind === "thinking" ? "T" : "C")).join(""),
+    ).toBe("TTC");
+  });
+
   test("splits a multi-fragment thinking_trace into separate captions", () => {
     const items = buildReasoningSequence({
       id: "m2",

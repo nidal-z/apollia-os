@@ -13,7 +13,7 @@ impl BuiltInChatAgent {
     pub(in crate::chat::builtin_agent) async fn record_tool_turn(
         &self,
         input: RecordTurnInput<'_>,
-        reasoning_fragments: &mut Vec<String>,
+        reasoning_fragments: &mut Vec<(String, usize)>,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
         consecutive_tool_failures: &mut u32,
@@ -37,7 +37,9 @@ impl BuiltInChatAgent {
             "ReAct turn: captured reasoning before tool calls"
         );
         if !reasoning_text.trim().is_empty() {
-            reasoning_fragments.push(reasoning_text.trim().to_string());
+            // Captured before this step's tool calls are dispatched, so the
+            // current tool-call count is the boundary that precedes it.
+            reasoning_fragments.push((reasoning_text.trim().to_string(), acc.all_tool_calls.len()));
         }
 
         // Strip think blocks before re-injecting into the LLM context

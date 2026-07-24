@@ -13,6 +13,12 @@ pub struct ChatAgentResponse {
     pub tokens_used: TokenUsage,
     /// Concatenated thinking/reasoning blocks extracted from `<think>...</think>` tags.
     pub thinking_trace: Option<String>,
+    /// Per-fragment tool-call boundary, parallel to the `\n\n---\n\n`-joined
+    /// fragments in [`Self::thinking_trace`]: entry `k` is the number of tool
+    /// calls that precede reasoning fragment `k`. Lets the UI interleave each
+    /// fragment with the tool calls of its ReAct step instead of dumping all
+    /// reasoning before all tools. Empty when there is no reasoning trace.
+    pub reasoning_boundaries: Vec<usize>,
     /// Present when verification ran: at supervised and above, or at the assisted
     /// tier when the agent declares check commands. `None` when verification is
     /// skipped (assisted tier with no declared checks).

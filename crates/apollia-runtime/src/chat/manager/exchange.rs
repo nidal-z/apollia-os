@@ -570,11 +570,20 @@ impl ChatSessionManager {
             serde_json::to_string(&response.tool_calls).ok()
         };
 
-        // Serialize thinking trace as JSON metadata.
-        let metadata_json = response
-            .thinking_trace
-            .as_ref()
-            .map(|t| serde_json::json!({ "thinking_trace": t }).to_string());
+        // Serialize thinking trace (and its per-fragment tool-call boundaries,
+        // when present) as JSON metadata so the UI can interleave each reasoning
+        // fragment with the tool calls of its step.
+        let metadata_json = response.thinking_trace.as_ref().map(|t| {
+            if response.reasoning_boundaries.is_empty() {
+                serde_json::json!({ "thinking_trace": t }).to_string()
+            } else {
+                serde_json::json!({
+                    "thinking_trace": t,
+                    "reasoning_boundaries": response.reasoning_boundaries,
+                })
+                .to_string()
+            }
+        });
 
         // Persist assistant response message
         match self.repository.append_message(&AppendMessageParams {

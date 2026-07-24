@@ -45,6 +45,7 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace: None,
+            reasoning_boundaries: Vec::new(),
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
