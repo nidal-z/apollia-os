@@ -17,7 +17,7 @@
   import {
     LayoutDashboard, MessageSquare, Bot, FolderKanban, ListChecks, ShieldCheck, Plug,
     Settings, X, Plus, Repeat,
-    Brain, Database, Activity, Mic, Bell,
+    Brain, Database, Activity, Mic, Bell, User,
   } from "lucide-svelte";
 
   // Each entry's `labelKey` resolves through svelte-i18n at render time. Keeping
@@ -338,10 +338,10 @@
     <!-- User avatar -->
     <div class="mt-1">
       <span
-        class="flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-semibold text-white shadow-elev-1"
+        class="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-elev-1"
         style="background: var(--avatar-gradient-warm);"
-        title="Nidal Z"
-      >NZ</span>
+        title={$t("settings.profile.title", { default: "Profil" })}
+      ><User size={14} /></span>
     </div>
   </aside>
 {/if}

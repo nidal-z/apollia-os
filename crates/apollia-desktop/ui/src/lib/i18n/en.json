@@ -2667,7 +2667,7 @@
         "llm": "Preferred LLM backend"
       },
       "placeholder": {
-        "name": "Nidal",
+        "name": "Your first name",
         "role": "CTO, fullstack dev, ops…",
         "goals": "E.g. Automate my competitive watch and pre-process my emails.",
         "agent_domains": "watch, email, reporting",

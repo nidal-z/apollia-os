@@ -2667,7 +2667,7 @@
         "llm": "Backend LLM préféré"
       },
       "placeholder": {
-        "name": "Nidal",
+        "name": "Votre prénom",
         "role": "CTO, dev fullstack, ops…",
         "goals": "Ex. Automatiser ma veille concurrentielle et pré-traiter mes emails.",
         "agent_domains": "veille, email, reporting",
