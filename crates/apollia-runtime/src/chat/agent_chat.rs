@@ -27,6 +27,11 @@ use crate::eventbus::EventBusSender;
 /// Default timeout for chat tool approval requests (5 minutes).
 const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Hard wall-clock cap on a single agent `run()`. A stalled or runaway backend
+/// call (e.g. an unbounded local completion) otherwise leaves the UI stuck on
+/// "Agent en cours..." forever; this turns it into a surfaced error instead.
+const CHAT_AGENT_RUN_TIMEOUT: Duration = Duration::from_secs(600);
+
 // ─────────────────────────────────────────────
 // ChatAgentRunner, trait for Python agent execution
 // ─────────────────────────────────────────────
@@ -149,11 +154,18 @@ impl AgentChatExecutor {
             "Chat Agent: executing run()"
         );
 
-        let result = self
-            .agent_runner
-            .run_agent(agent_name, task)
-            .await
-            .map_err(ChatError::AgentLoadFailed)?;
+        let result = tokio::time::timeout(
+            CHAT_AGENT_RUN_TIMEOUT,
+            self.agent_runner.run_agent(agent_name, task),
+        )
+        .await
+        .map_err(|_| {
+            ChatError::InternalError(format!(
+                "agent '{agent_name}' timed out after {}s",
+                CHAT_AGENT_RUN_TIMEOUT.as_secs()
+            ))
+        })?
+        .map_err(ChatError::AgentLoadFailed)?;
 
         self.process_result(
             &result,
@@ -326,10 +338,18 @@ impl AgentChatExecutor {
             responded_at: now_rfc3339(),
         });
 
-        self.agent_runner
-            .run_agent(agent_name, resume_task)
-            .await
-            .map_err(ChatError::AgentLoadFailed)
+        tokio::time::timeout(
+            CHAT_AGENT_RUN_TIMEOUT,
+            self.agent_runner.run_agent(agent_name, resume_task),
+        )
+        .await
+        .map_err(|_| {
+            ChatError::InternalError(format!(
+                "agent '{agent_name}' timed out after {}s",
+                CHAT_AGENT_RUN_TIMEOUT.as_secs()
+            ))
+        })?
+        .map_err(ChatError::AgentLoadFailed)
     }
 
     /// Emit a ChatResponseCompleted event.

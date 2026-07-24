@@ -468,7 +468,11 @@ impl LlmProxy {
             let req = CompletionRequest {
                 messages,
                 temperature,
-                max_tokens,
+                // Default a cap when the agent does not set one: an unbounded
+                // completion lets a local model run to context-fill and appear
+                // to hang forever (the onboarding-agent symptom). An agent that
+                // needs a longer answer passes max_tokens explicitly.
+                max_tokens: max_tokens.or(Some(4096)),
                 seed,
                 ..Default::default()
             };
