@@ -19,9 +19,11 @@
   interface Props {
     item: ToolCallItem;
     skin: "builder" | "operator";
+    /** Session id, so a relative path resolves against the working directory. */
+    sessionId?: string;
   }
 
-  let { item, skin }: Props = $props();
+  let { item, skin, sessionId }: Props = $props();
 
   const pattern = $derived(
     typeof item.args.pattern === "string" ? item.args.pattern : "",
@@ -84,7 +86,7 @@
               {#each parsed.groups as group (group.file)}
                 <div class="tb-grep-group">
                   <div class="tb-grep-file font-mono">
-                    <FileRef path={group.file} label={basename(group.file)} />
+                    <FileRef path={group.file} label={basename(group.file)} {sessionId} />
                     {#if dirname(group.file)}
                       <span class="tb-grep-dir">{dirname(group.file)}</span>
                     {/if}

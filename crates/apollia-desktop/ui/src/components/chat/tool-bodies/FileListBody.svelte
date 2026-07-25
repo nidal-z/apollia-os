@@ -28,9 +28,11 @@
   interface Props {
     item: ToolCallItem;
     skin: "builder" | "operator";
+    /** Session id, so a relative path resolves against the working directory. */
+    sessionId?: string;
   }
 
-  let { item, skin }: Props = $props();
+  let { item, skin, sessionId }: Props = $props();
 
   const path = $derived(
     typeof item.args.dir === "string"
@@ -76,7 +78,7 @@
           {#if path}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.folder_label")}</span>
-              <FileRef {path} mono class="tb-chip-val" />
+              <FileRef {path} mono class="tb-chip-val" {sessionId} />
             </span>
           {/if}
           {#if entries}
@@ -97,6 +99,7 @@
                     path={joinPath(path, entry.name)}
                     label={entry.name}
                     class="tb-fname"
+                    {sessionId}
                   />
                   {#if metaLabel(entry)}
                     <span class="tb-fmeta">{metaLabel(entry)}</span>

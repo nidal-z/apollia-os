@@ -927,6 +927,7 @@ fn main() {
             commands::chat::list_a2a_step_provenance,
             commands::chat::check_a2a_compatibility,
             commands::chat::export_conversation,
+            commands::chat::reveal_session_path,
             commands::artifacts::save_artifact,
             commands::artifacts::list_artifacts,
             commands::artifacts::get_artifact,

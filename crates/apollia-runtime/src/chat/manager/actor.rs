@@ -60,6 +60,10 @@ impl ChatSessionManager {
                     let result = self.handle_get_session(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::ResolveSessionWorkspace { session_id, reply } => {
+                    let result = self.handle_resolve_session_workspace(&session_id);
+                    let _ = reply.send(result);
+                }
                 ChatCommand::GetSessionTodo { session_id, reply } => {
                     // Resolve synchronously so no SQLite borrow is held across
                     // the await, then read through the owned handle clone.

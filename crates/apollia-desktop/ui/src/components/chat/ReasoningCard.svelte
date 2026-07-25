@@ -62,6 +62,12 @@
     persist?: boolean;
     /** Opens the citation side panel - consumer wires the actual slide-over. */
     onCitation?: (item: Extract<ReasoningItem, { kind: "citation" }>) => void;
+    /**
+     * Chat session id, forwarded to the file_* tool bodies so a relative file
+     * path can be revealed against the session working directory. Optional: the
+     * live-stream context renders only reasoning items (no file bodies).
+     */
+    sessionId?: string;
   }
 
   let {
@@ -70,6 +76,7 @@
     defaultExpanded,
     persist = true,
     onCitation,
+    sessionId,
   }: Props = $props();
 
   const storageKey = $derived(`apollia.reasoning.expanded.${item.id}`);
@@ -459,15 +466,15 @@
         {:else if dispatchedTool && item.tool === "web_read"}
           <WebReadBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "file_list"}
-          <FileListBody {item} {skin} />
+          <FileListBody {item} {skin} {sessionId} />
         {:else if dispatchedTool && item.tool === "file_read"}
-          <FileReadBody {item} {skin} />
+          <FileReadBody {item} {skin} {sessionId} />
         {:else if dispatchedTool && (item.tool === "file_write" || item.tool === "file_edit")}
-          <FileWriteBody {item} {skin} />
+          <FileWriteBody {item} {skin} {sessionId} />
         {:else if dispatchedTool && item.tool === "file_glob"}
-          <FileGlobBody {item} {skin} />
+          <FileGlobBody {item} {skin} {sessionId} />
         {:else if dispatchedTool && item.tool === "file_grep"}
-          <FileGrepBody {item} {skin} />
+          <FileGrepBody {item} {skin} {sessionId} />
         {:else if dispatchedTool && item.tool === "bash_executor"}
           <BashBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "python_executor"}

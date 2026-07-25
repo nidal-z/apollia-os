@@ -442,6 +442,31 @@ impl ChatSessionManagerHandle {
         reply_rx.await.ok().flatten()
     }
 
+    /// Resolve the effective working directory for a session.
+    ///
+    /// Mirrors the sandbox root the agent uses for its file tools, so a caller
+    /// can reveal a relative path against the exact directory the agent used.
+    /// Returns `None` when the actor is unreachable or no directory resolves;
+    /// the caller then reveals the raw path best-effort.
+    pub async fn resolve_session_workspace(
+        &self,
+        session_id: SessionId,
+    ) -> Option<std::path::PathBuf> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::ResolveSessionWorkspace {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return None;
+        }
+        reply_rx.await.ok().flatten()
+    }
+
     /// Read the todo list for a session.
     ///
     /// # Errors

@@ -56,6 +56,19 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Option<SessionDetail>>,
     },
+    /// Resolve the effective working directory for a session.
+    ///
+    /// Mirrors the sandbox-root resolution applied per message when the agent
+    /// runs its file tools, so a caller can reveal a relative path against the
+    /// exact directory the agent used. Returns `None` for an unknown session,
+    /// or a free chat with neither a configured default workspace nor an
+    /// existing `~/.apollia`.
+    ResolveSessionWorkspace {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Option<std::path::PathBuf>>,
+    },
     /// Read the todo list for a session.
     GetSessionTodo {
         /// Target session.

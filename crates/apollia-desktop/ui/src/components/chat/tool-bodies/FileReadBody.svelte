@@ -18,9 +18,11 @@
   interface Props {
     item: ToolCallItem;
     skin: "builder" | "operator";
+    /** Session id, so a relative path resolves against the working directory. */
+    sessionId?: string;
   }
 
-  let { item, skin }: Props = $props();
+  let { item, skin, sessionId }: Props = $props();
 
   const PREVIEW_LINES = 4;
   const BUILDER_MAX_LINES = 500;
@@ -48,7 +50,7 @@
           {#if fileName}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.file_label")}</span>
-              <FileRef path={filePath} label={fileName} mono class="tb-chip-val" />
+              <FileRef path={filePath} label={fileName} mono class="tb-chip-val" {sessionId} />
             </span>
           {/if}
           {#if item.output}

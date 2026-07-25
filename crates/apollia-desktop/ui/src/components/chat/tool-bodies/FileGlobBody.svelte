@@ -19,9 +19,11 @@
   interface Props {
     item: ToolCallItem;
     skin: "builder" | "operator";
+    /** Session id, so a relative path resolves against the working directory. */
+    sessionId?: string;
   }
 
-  let { item, skin }: Props = $props();
+  let { item, skin, sessionId }: Props = $props();
 
   const pattern = $derived(
     typeof item.args.pattern === "string" ? item.args.pattern : "",
@@ -49,7 +51,7 @@
               {#each matches as path (path)}
                 <div class="tb-frow">
                   <span class="tb-fi" aria-hidden="true"><FileText size={14} /></span>
-                  <FileRef {path} label={basename(path)} class="tb-fname" />
+                  <FileRef {path} label={basename(path)} class="tb-fname" {sessionId} />
                   {#if dirname(path)}
                     <span class="tb-fmeta font-mono">{dirname(path)}</span>
                   {/if}

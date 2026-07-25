@@ -113,7 +113,7 @@
     {#if section !== "approvals"}
     {#each visibleItems as item (item.id)}
       <div in:fly={{ x: -12, duration: 260 }}>
-        <ReasoningCard {item} {skin} />
+        <ReasoningCard {item} {skin} {sessionId} />
       </div>
     {/each}
 
