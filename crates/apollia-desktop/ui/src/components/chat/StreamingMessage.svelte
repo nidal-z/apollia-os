@@ -1,26 +1,20 @@
 <!--
   StreamingMessage - the live assistant turn.
 
-  Renders an append-only timeline that keeps reasoning captions AND tool-call
-  rows on screen in true arrival order (reasoning fragment, tool, reasoning
-  fragment, tool, ...) throughout the turn. Nothing is torn down when a tool
-  call runs or a HITL approval card appears: the closed reasoning fragments are
-  reconstructed from the token stream and interleaved with the tool events by
-  the reasoning cursor captured at each tool's start. The currently-streaming
-  (open) reasoning renders live below the timeline, and the answer text renders
-  last, mirroring the finalized layout (header -> reasoning -> answer).
+  Two zones, mirroring the finalized layout: a quiet reasoning strip (thoughts
+  as flat narrated captions, shown open while streaming) and, below it, the tool
+  calls as visible rows in the thread flow. Nothing is torn down when a tool
+  runs or a HITL approval appears. The open (still-streaming) reasoning fragment
+  renders live at the end of the strip, and the answer text renders last.
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import { Avatar } from "$lib/components/ui/avatar";
   import { Spinner } from "$lib/components/ui/progress";
-  import { Check, X } from "lucide-svelte";
+  import { Check, X, Brain } from "lucide-svelte";
   import StreamingText from "./StreamingText.svelte";
-  import ThinkingBadge from "./ThinkingBadge.svelte";
-  import ReasoningCard from "./ReasoningCard.svelte";
   import ActivityStrip from "./ActivityStrip.svelte";
-  import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
   import { resolveToolDisplay } from "$lib/tools/tool-display";
 
@@ -57,7 +51,11 @@
     agentName?: string | null;
     /** Ordered tool invocations for the current turn (append-only). */
     toolChain?: ToolStep[];
-    /** `builder` shows raw reasoning; `operator` shows the semantic caption. */
+    /**
+     * Accepted for API parity with the finalized turn, but unused live: the
+     * streaming reasoning captions and compact tool rows carry no builder/
+     * operator split (no per-tool body is rendered until the turn finalizes).
+     */
     skin?: "builder" | "operator";
   }
 
@@ -66,7 +64,6 @@
     sessionMode,
     agentName = null,
     toolChain = [],
-    skin = "builder",
   }: Props = $props();
 
   const displayName = $derived(agentName ?? $t("chat.assistant", { default: "Assistant" }));
@@ -92,51 +89,21 @@
       .join(""),
   );
 
-  type TimelineEntry =
-    | { kind: "reasoning"; id: string; content: string }
-    | {
-        kind: "tool";
-        id: string;
-        name: string;
-        status: ToolStep["status"];
-        durationMs?: number;
-      };
+  // Live rows for the tool chain, in arrival order. These render as visible
+  // rows in the thread flow (below the reasoning strip), mirroring the two-zone
+  // finalized layout where the tool calls sit outside the collapsed strip.
+  const toolRows = $derived(
+    toolChain.map((tool, idx) => ({
+      id: `live-tool-${idx}-${tool.startedAt}`,
+      name: tool.name,
+      status: tool.status,
+      durationMs: tool.durationMs,
+    })),
+  );
 
-  // Interleave closed reasoning fragments with tool rows: a tool started after
-  // `reasoningCursor` fragments had closed, so every fragment up to that cursor
-  // precedes it. Remaining fragments flush after the last tool.
-  const timeline = $derived.by<TimelineEntry[]>(() => {
-    const out: TimelineEntry[] = [];
-    let ti = 0;
-    toolChain.forEach((tool, idx) => {
-      const upto = Math.min(tool.reasoningCursor, closedThinking.length);
-      while (ti < upto) {
-        out.push({ kind: "reasoning", id: `live-think-${ti}`, content: closedThinking[ti]! });
-        ti += 1;
-      }
-      out.push({
-        kind: "tool",
-        id: `live-tool-${idx}-${tool.startedAt}`,
-        name: tool.name,
-        status: tool.status,
-        durationMs: tool.durationMs,
-      });
-    });
-    while (ti < closedThinking.length) {
-      out.push({ kind: "reasoning", id: `live-think-${ti}`, content: closedThinking[ti]! });
-      ti += 1;
-    }
-    return out;
-  });
-
-  function reasoningItem(id: string, content: string): ReasoningItem {
-    return { id, kind: "thinking", status: "success", content };
-  }
-
-  // The activity strip is shown live (expanded) whenever the turn has produced
-  // any reasoning or tool activity. When the turn finalizes and this component
-  // is replaced by ChatMessageBubble, the collapsed strip is what remains.
-  const hasActivity = $derived(timeline.length > 0 || activeThinking);
+  // The reasoning strip is shown live (expanded) whenever the turn has produced
+  // any thinking. When the turn finalizes and this component is replaced by
+  // ChatMessageBubble, the collapsed strip is what remains.
   const hasThinking = $derived(closedThinking.length > 0 || activeThinking);
 </script>
 
@@ -149,67 +116,75 @@
     <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
   </div>
 
-  <!-- Zone 1 (live): the activity strip stays expanded during the turn so the
-       user can watch the reasoning captions + tool rows arrive in order, plus
-       the open reasoning fragment streaming token by token. -->
-  {#if hasActivity}
+  <!-- Zone 1 (live): the reasoning strip stays expanded during the turn so the
+       user can watch the thoughts arrive as flat narrated captions, plus the
+       open fragment streaming token by token. -->
+  {#if hasThinking}
     <div class="w-full">
-      <ActivityStrip open live {hasThinking} toolCount={toolChain.length}>
-        {#if timeline.length > 0}
-          <div class="space-y-1" data-testid="streaming-timeline">
-            {#each timeline as entry (entry.id)}
-              {#if entry.kind === "reasoning"}
-                <ReasoningCard item={reasoningItem(entry.id, entry.content)} {skin} persist={false} />
-              {:else}
-                <div
-                  class="flex items-center gap-1.5 py-0.5"
-                  data-testid="streaming-tool-row"
-                  in:fly={{ x: -8, duration: 200 }}
-                >
-                  <span class="flex-shrink-0">
-                    {#if entry.status === "running"}
-                      <Spinner size={11} class="text-primary/60" />
-                    {:else if entry.status === "done"}
-                      <Check size={11} class="text-success/70" />
-                    {:else}
-                      <X size={11} class="text-destructive/70" />
-                    {/if}
-                  </span>
-                  <span
-                    class="truncate text-[11.5px] text-foreground/80"
-                    title={entry.name}
-                  >{$t(toolLabelKey(entry.name), { default: entry.name })}</span>
-                  {#if entry.durationMs && entry.durationMs > 0}
-                    <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{entry.durationMs}ms</span>
-                  {/if}
-                </div>
-              {/if}
-            {/each}
-          </div>
-        {/if}
-
-        <!-- Live (open) reasoning streams token by token as its own caption,
-             matching the differentiated reasoning styling of the finalized
-             captions. -->
-        {#if activeThinking}
-          <div
-            class="mt-1 w-full border-l-2 border-primary/25 pl-2.5"
-            data-testid="streaming-thinking-area"
-          >
-            <div class="flex flex-col gap-0.5">
-              <ThinkingBadge />
-              {#if activeThinkingContent.trim()}
-                <span
-                  class="block max-h-40 overflow-hidden whitespace-pre-wrap text-[12px] leading-snug text-foreground/70"
-                  data-testid="streaming-active-thinking"
-                >
-                  {activeThinkingContent}
-                </span>
-              {/if}
+      <ActivityStrip open live>
+        <div class="flex flex-col gap-0.5" data-testid="streaming-timeline">
+          {#each closedThinking as frag, i (`live-think-${i}`)}
+            <div
+              class="flex items-start gap-2.5 py-1"
+              in:fly={{ x: -8, duration: 200 }}
+            >
+              <span class="tb-think-ico mt-[3px] flex-none" aria-hidden="true">
+                <Brain size={13} />
+              </span>
+              <div
+                class="min-w-0 flex-1 whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
+              >{frag}</div>
             </div>
-          </div>
-        {/if}
+          {/each}
+
+          <!-- Live (open) reasoning streams token by token as its own caption,
+               matching the finalized flat caption styling. -->
+          {#if activeThinking && activeThinkingContent.trim()}
+            <div
+              class="flex items-start gap-2.5 py-1"
+              data-testid="streaming-active-thinking"
+            >
+              <span class="tb-think-ico mt-[3px] flex-none" aria-hidden="true">
+                <Brain size={13} />
+              </span>
+              <div
+                class="min-w-0 flex-1 max-h-40 overflow-hidden whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
+              >{activeThinkingContent}</div>
+            </div>
+          {/if}
+        </div>
       </ActivityStrip>
+    </div>
+  {/if}
+
+  <!-- Zone 2 (live): tool rows appear visible in the flow as they run, below
+       the reasoning strip, mirroring the finalized two-zone layout. -->
+  {#if toolRows.length > 0}
+    <div class="w-full space-y-0.5" data-testid="streaming-tools">
+      {#each toolRows as row (row.id)}
+        <div
+          class="flex items-center gap-1.5 py-0.5"
+          data-testid="streaming-tool-row"
+          in:fly={{ x: -8, duration: 200 }}
+        >
+          <span class="flex-shrink-0">
+            {#if row.status === "running"}
+              <Spinner size={11} class="text-primary/60" />
+            {:else if row.status === "done"}
+              <Check size={11} class="text-success/70" />
+            {:else}
+              <X size={11} class="text-destructive/70" />
+            {/if}
+          </span>
+          <span
+            class="truncate text-[11.5px] text-foreground/80"
+            title={row.name}
+          >{$t(toolLabelKey(row.name), { default: row.name })}</span>
+          {#if row.durationMs && row.durationMs > 0}
+            <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{row.durationMs}ms</span>
+          {/if}
+        </div>
+      {/each}
     </div>
   {/if}
 

@@ -79,12 +79,12 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
-  // Activity strip inputs (zone 1). The trace exists when the turn produced any
-  // reasoning or at least one finalized tool call.
+  // Reasoning strip input (zone 1). The strip exists only when the turn
+  // produced reasoning; finalized tool calls now render as their own visible
+  // rows in the flow (zone 2), not inside the strip.
   const hasThinking = $derived(
     !!message.metadata?.thinking_trace || hasInlineThinking,
   );
-  const hasTrace = $derived(hasThinking || nonPendingCalls.length > 0);
   const activityDurationMs = $derived(sumToolDurationMs(nonPendingCalls));
 
   // Source cards (zone 3): deduplicated web pages the agent consulted. Their
@@ -174,24 +174,33 @@
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
-  <!-- Zone 1: quiet activity strip - the reasoning and tool trace, collapsed by
-       default in both modes. -->
-  {#if hasTrace}
+  <!-- Zone 1: quiet reasoning strip - thoughts only, as flat narrated captions,
+       collapsed by default in both modes. -->
+  {#if hasThinking}
     <div class="{widthClass}">
-      <ActivityStrip
-        {hasThinking}
-        sourceCount={sources.length}
-        toolCount={nonPendingCalls.length}
-        durationMs={activityDurationMs}
-      >
+      <ActivityStrip durationMs={activityDurationMs}>
         <ReasoningSequence
           {message}
           {sessionId}
           {isOperator}
           content={message.content ?? undefined}
-          section="trace"
+          section="reasoning"
         />
       </ActivityStrip>
+    </div>
+  {/if}
+
+  <!-- Zone 2: the tool calls, visible in the thread flow. Each row expands to
+       its bespoke per-tool body (operator abstraction / builder raw). -->
+  {#if nonPendingCalls.length > 0}
+    <div class="{widthClass}">
+      <ReasoningSequence
+        {message}
+        {sessionId}
+        {isOperator}
+        content={message.content ?? undefined}
+        section="tools"
+      />
     </div>
   {/if}
 
@@ -309,14 +318,14 @@
       </p>
     {:else}
       {#if displayContent.trim() !== ""}
-        <!-- Zone 2: the answer, the hero. -->
+        <!-- Zone 3: the answer, the hero. -->
         <MessageRenderer
           content={displayContent}
           citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
         />
         <LinkPreviewList content={displayContent} />
       {/if}
-      <!-- Zone 3: source cards for the web pages consulted. -->
+      <!-- Zone 4: source cards for the web pages consulted. -->
       {#if sources.length > 0}
         <SourceCards {sources} />
       {/if}

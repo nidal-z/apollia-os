@@ -1267,6 +1267,14 @@
   stroke: url(#apollia-grad);
 }
 
+/* ── Reasoning thought marker ── gradient-stroked brain glyph without the
+   summary's radial halo, for the flat narrated reasoning captions inside the
+   activity strip. The <linearGradient id="apollia-grad"> lives in
+   ActivityStrip and resolves document-globally. */
+.tb-think-ico :global(svg) {
+  stroke: url(#apollia-grad);
+}
+
 /* ── Faint gradient hairline under strip / section headers ──
    A quiet signature rule that fades indigo -> violet -> transparent. */
 .tb-header-rule {

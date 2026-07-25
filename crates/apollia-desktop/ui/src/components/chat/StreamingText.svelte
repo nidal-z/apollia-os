@@ -3,7 +3,6 @@
   import "$lib/components/ui/markdown/markdown-prose.css";
   import { t } from "svelte-i18n";
   import { parseStream, isThinking as isThinkingBlocks } from "$lib/chat/streamParser";
-  import ThinkingBadge from "./ThinkingBadge.svelte";
   import StreamingCursor from "./StreamingCursor.svelte";
 
   interface Props {
@@ -41,7 +40,9 @@
       <span class="thinking-segment" data-testid="streaming-thinking-segment">
         <span class="thinking-header">
           {#if !block.closed && thinkingNow && status === "streaming"}
-            <ThinkingBadge />
+            <span class="thinking-label" role="status" aria-live="polite"
+              >{$t("chat.status.thinking")}</span
+            >
           {:else}
             <span class="thinking-label">{$t("chat.status.streaming_thought")}</span>
           {/if}

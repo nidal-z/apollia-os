@@ -1,13 +1,14 @@
 <script lang="ts">
   /**
-   * Quiet activity strip - zone 1 of the assistant turn.
+   * Quiet reasoning strip - zone 1 of the assistant turn.
    *
-   * A single subtle summary line (spark glyph + "Reasoned and consulted N
-   * sources" + duration + chevron) that collapses the agent's reasoning and
-   * tool trace by default. During a live turn it is expanded so the user can
-   * watch it work; once the turn finalizes it stays collapsed. The trace body
-   * (reasoning captions + compact tool rows) is supplied by the caller as the
-   * default snippet.
+   * A single subtle summary line (spark glyph + "Reasoned" + duration +
+   * chevron) that collapses the agent's reasoning (thoughts only) by default.
+   * During a live turn it is expanded so the user can watch it think; once the
+   * turn finalizes it stays collapsed. The trace body (flat reasoning captions)
+   * is supplied by the caller as the default snippet. Tool calls and sources
+   * are no longer part of the strip: they render as their own visible rows and
+   * cards in the thread flow.
    */
 
   import type { Snippet } from "svelte";
@@ -17,18 +18,12 @@
   import { quintOut } from "svelte/easing";
 
   interface Props {
-    /** Trace body: reasoning captions + compact tool rows. */
+    /** Trace body: flat reasoning captions. */
     children: Snippet;
     /** Expanded on mount. Live turns pass `true`; finalized turns stay closed. */
     open?: boolean;
-    /** Live streaming turn: shows a working label, hides counts and duration. */
+    /** Live streaming turn: shows a working label, hides the duration. */
     live?: boolean;
-    /** At least one thinking fragment is present in the trace. */
-    hasThinking?: boolean;
-    /** Deduplicated web source count (see `extractSources`). */
-    sourceCount?: number;
-    /** Non-pending tool call count, used when no web sources ran. */
-    toolCount?: number;
     /** Summed tool duration in ms; 0 omits the figure gracefully. */
     durationMs?: number;
   }
@@ -37,9 +32,6 @@
     children,
     open = false,
     live = false,
-    hasThinking = false,
-    sourceCount = 0,
-    toolCount = 0,
     durationMs = 0,
   }: Props = $props();
 
@@ -57,41 +49,12 @@
     expanded = !expanded;
   }
 
-  // Bold lead verb + muted rest, mirroring the mockup's summary hierarchy.
-  const summary = $derived.by<{ lead: string; rest: string }>(() => {
-    if (live) {
-      return { lead: $t("chat.activity.live_lead"), rest: "" };
-    }
-    if (sourceCount > 0) {
-      return hasThinking
-        ? {
-            lead: $t("chat.activity.lead_reflected"),
-            rest: $t("chat.activity.rest_and_sources", {
-              values: { n: sourceCount },
-            }),
-          }
-        : {
-            lead: $t("chat.activity.lead_consulted"),
-            rest: $t("chat.activity.rest_sources", {
-              values: { n: sourceCount },
-            }),
-          };
-    }
-    if (toolCount > 0) {
-      return hasThinking
-        ? {
-            lead: $t("chat.activity.lead_reflected"),
-            rest: $t("chat.activity.rest_and_tools", {
-              values: { n: toolCount },
-            }),
-          }
-        : {
-            lead: $t("chat.activity.lead_used"),
-            rest: $t("chat.activity.rest_tools", { values: { n: toolCount } }),
-          };
-    }
-    return { lead: $t("chat.activity.lead_reflected"), rest: "" };
-  });
+  // Reasoning-only summary: a single lead verb ("Reasoned" / "Working"). The
+  // per-tool and per-source counts moved out of the strip with the rows and
+  // cards themselves.
+  const summaryLead = $derived(
+    live ? $t("chat.activity.live_lead") : $t("chat.activity.lead_reflected"),
+  );
 
   // Locale-aware seconds, one decimal (e.g. "3,2" in fr, "3.2" in en).
   const durationLabel = $derived.by<string>(() => {
@@ -142,9 +105,7 @@
       <Sparkles size={14} />
     </span>
     <span class="min-w-0">
-      <span class="font-semibold text-foreground">{summary.lead}</span><span
-        >{summary.rest ? ` ${summary.rest}` : ""}</span
-      >
+      <span class="font-semibold text-foreground">{summaryLead}</span>
     </span>
     {#if durationLabel}
       <span
