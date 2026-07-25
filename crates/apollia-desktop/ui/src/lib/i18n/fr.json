@@ -4393,7 +4393,9 @@
       "plan_status_changed": "Étape {id} → {status}",
       "plan_generic": "Plan mis à jour",
       "plan_failed": "Action de plan échouée",
-      "todo_count": "{n, plural, one {# tâche} other {# tâches}}"
+      "todo_count": "{n, plural, one {# tâche} other {# tâches}}",
+      "progress_fraction": "{done} / {total}",
+      "reveal_aria": "Afficher dans le gestionnaire de fichiers"
     }
   },
   "onboarding_v2": {

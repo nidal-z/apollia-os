@@ -11,6 +11,7 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseMemory, prettyJson } from "$lib/chat/toolBodies";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { t, locale } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
 
@@ -29,14 +30,22 @@
   const parsed = $derived(parseMemory(item.output));
   const rawJson = $derived(prettyJson(item.output));
 
+  function relevanceClamp(value: number): number {
+    return Math.round(Math.max(0, Math.min(1, value)) * 100);
+  }
+
   function relevancePct(value: number): string {
     const loc = $locale ?? "en";
-    const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+    const pct = relevanceClamp(value);
     try {
       return new Intl.NumberFormat(loc).format(pct);
     } catch {
       return String(pct);
     }
+  }
+
+  function isUrl(value: string): boolean {
+    return /^https?:\/\//i.test(value);
   }
 </script>
 
@@ -52,7 +61,7 @@
             </span>
           {/if}
           {#if parsed}
-            <p class="text-[11px] text-muted-foreground">
+            <p class="tb-metric">
               {$t("tools.body.memory_results", {
                 values: { n: parsed.totalFound },
               })}
@@ -64,13 +73,30 @@
                   <p class="tb-card-body">{entry.content}</p>
                   {#if entry.source || rel != null}
                     <div class="tb-card-meta">
-                      {#if entry.source}<span>{entry.source}</span>{/if}
+                      {#if entry.source}
+                        {#if isUrl(entry.source)}
+                          <a
+                            href={entry.source}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onclick={handleExternalLinkClick}
+                            class="link-inline">{entry.source}</a
+                          >
+                        {:else}
+                          <span>{entry.source}</span>
+                        {/if}
+                      {/if}
                       {#if rel != null}
-                        <span
+                        <span class="tb-mrel"
                           >{relevancePct(rel)}% {$t("tools.body.relevance_label")}</span
                         >
                       {/if}
                     </div>
+                    {#if rel != null}
+                      <div class="tb-mbar" aria-hidden="true">
+                        <span style="width: {relevanceClamp(rel)}%"></span>
+                      </div>
+                    {/if}
                   {/if}
                 </div>
               {/each}

@@ -23,6 +23,14 @@
     --primary-gradient-from: 237 47% 57%;
     --primary-gradient-to: 261 36% 61%;
 
+    /* ── Brand signature gradient stops (indigo -> violet) ──
+       Deployed sparingly as a semantic signature: the reasoning spark, its
+       soft halo, and a faint hairline under strip/section headers. Solid
+       --primary stays the quieter tier. Aliased onto the primary gradient
+       triples so both themes resolve automatically (.dark redefines those). */
+    --grad-a: var(--primary-gradient-from);
+    --grad-b: var(--primary-gradient-to);
+
     /* ── Surfaces - V4 warm gray (greige), vibe Vercel/Arc ── */
     --background: 33 11% 95%;
     --foreground: 33 13% 9%;
@@ -989,6 +997,11 @@
   color: hsl(var(--foreground) / 0.85);
   white-space: pre;
   margin: 0;
+  /* Mono ramp: ligatures off, tight tracking, tabular figures so JSON columns
+     and numbers align. */
+  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .tb-term {
@@ -1002,13 +1015,16 @@
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
+  font-variant-ligatures: none;
+  letter-spacing: -0.01em;
 }
-.tb-term .tb-prompt { color: hsl(var(--primary)); }
+.tb-term .tb-prompt { color: hsl(var(--primary)); font-weight: 600; }
 .tb-term .tb-out { color: hsl(var(--term-fg) / 0.82); }
 .tb-term .tb-err { color: hsl(var(--destructive)); }
-.tb-term .tb-exit { color: hsl(var(--success)); }
-.tb-term .tb-exit-nonzero { color: hsl(var(--warning)); }
-.tb-term .tb-meta { color: hsl(var(--term-fg) / 0.55); }
+.tb-term .tb-exit { color: hsl(var(--success)); font-variant-numeric: tabular-nums; }
+.tb-term .tb-exit-nonzero { color: hsl(var(--warning)); font-variant-numeric: tabular-nums; }
+/* Timings dimmed + tabular so successive runs line up. */
+.tb-term .tb-meta { color: hsl(var(--term-fg) / 0.5); font-variant-numeric: tabular-nums; }
 
 .tb-preview {
   font-size: 12px;
@@ -1021,6 +1037,8 @@
   overflow-x: auto;
   white-space: pre;
   margin: 0;
+  font-variant-ligatures: none;
+  letter-spacing: -0.01em;
 }
 .tb-preview .tb-ln {
   color: hsl(var(--faint-foreground) / 0.7);
@@ -1029,7 +1047,12 @@
   display: inline-block;
   min-width: 1.5em;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
+/* file_edit before/after coloured by diff convention, using the real
+   semantic tokens (both themes covered). */
+.tb-preview .tb-diff-del { color: hsl(var(--destructive)); }
+.tb-preview .tb-diff-add { color: hsl(var(--success)); }
 .tb-preview .tb-more { color: hsl(var(--faint-foreground)); }
 
 .tb-flist { display: flex; flex-direction: column; gap: 1px; }
@@ -1192,6 +1215,7 @@
   min-width: 2.5em;
   text-align: right;
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 .tb-grep-row .tb-grep-text {
   color: hsl(var(--foreground) / 0.85);
@@ -1207,8 +1231,125 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: 13px; }
+.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: 13px; letter-spacing: -0.005em; }
 .tb-extract-byline { font-size: 11px; color: hsl(var(--faint-foreground)); }
+
+/* ── Honest, neutral metric ──
+   Counts, durations, sizes: tabular, muted, never coloured. Green stays
+   reserved for genuine success (exit 0, http-2xx, the shared success check). */
+.tb-metric {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+}
+
+/* ── Reasoning spark ── the one gradient hero glyph: gradient stroke +
+   soft radial halo. The gradient <linearGradient id="apollia-grad"> lives in
+   ActivityStrip; SVG url() refs resolve document-globally. */
+.tb-spark {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.tb-spark::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--grad-b) / 0.3), transparent 68%);
+  z-index: 0;
+}
+.tb-spark :global(svg) {
+  position: relative;
+  z-index: 1;
+  stroke: url(#apollia-grad);
+}
+
+/* ── Faint gradient hairline under strip / section headers ──
+   A quiet signature rule that fades indigo -> violet -> transparent. */
+.tb-header-rule {
+  padding-bottom: 7px;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--grad-a) / 0.5),
+    hsl(var(--grad-b) / 0.25) 32%,
+    hsl(var(--border-soft) / 0) 74%
+  );
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1.5px;
+}
+
+/* Same signature at the top edge, for the activity strip's trace panel: a
+   faint gradient hairline sits under the strip header when it expands. */
+.tb-strip-rule {
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--grad-a) / 0.45),
+    hsl(var(--grad-b) / 0.22) 34%,
+    hsl(var(--border-soft) / 0) 76%
+  );
+  background-repeat: no-repeat;
+  background-position: left top;
+  background-size: 100% 1.5px;
+}
+
+/* ── file_grep matched-token highlight ── quieter primary tier. */
+.tb-grep-row .tb-hit {
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--foreground));
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* ── memory_search slim relevance meter ── */
+.tb-mbar {
+  height: 3px;
+  border-radius: 999px;
+  background: hsl(var(--border-soft));
+  margin-top: 6px;
+  overflow: hidden;
+}
+.tb-mbar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+}
+.tb-mrel {
+  margin-left: auto;
+  color: hsl(var(--primary));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Clickable file reference ── reveals the file in the OS file manager.
+   Inline, underline-on-hover affordance; the global focus rule supplies the
+   ring on :focus-visible. The static variant (relative paths) stays inert. */
+.tb-fileref {
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: hsl(var(--border));
+  text-underline-offset: 3px;
+  transition: color 0.12s var(--ease-standard),
+    text-decoration-color 0.12s var(--ease-standard);
+}
+.tb-fileref:hover {
+  color: hsl(var(--primary));
+  text-decoration-color: hsl(var(--primary) / 0.6);
+}
+.tb-fileref.tb-fileref-static {
+  cursor: default;
+  text-decoration: none;
+}
 
 /* ═══════════════════════════════════════════════════════════
    Reduced motion - honour OS preference by

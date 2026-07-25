@@ -9,6 +9,7 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseFileGlob, basename, dirname, prettyJson } from "$lib/chat/toolBodies";
+  import FileRef from "./FileRef.svelte";
   import { t } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
   import { FileText } from "lucide-svelte";
@@ -41,14 +42,14 @@
             </span>
           {/if}
           {#if matches}
-            <p class="text-[11px] text-muted-foreground">
+            <p class="tb-metric">
               {$t("tools.body.matches_count", { values: { n: matches.length } })}
             </p>
             <div class="tb-flist">
               {#each matches as path (path)}
                 <div class="tb-frow">
                   <span class="tb-fi" aria-hidden="true"><FileText size={14} /></span>
-                  <span class="tb-fname">{basename(path)}</span>
+                  <FileRef {path} label={basename(path)} class="tb-fname" />
                   {#if dirname(path)}
                     <span class="tb-fmeta font-mono">{dirname(path)}</span>
                   {/if}

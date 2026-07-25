@@ -24,6 +24,9 @@
   let { item, skin }: Props = $props();
 
   const items = $derived(parseTodos(item.args));
+  const doneCount = $derived(
+    items ? items.filter((todo) => todo.status === "completed").length : 0,
+  );
 
   function statusKey(status: string): string {
     switch (status) {
@@ -57,8 +60,10 @@
       {#if skin === "operator"}
         <div class="flex flex-col gap-2">
           {#if items}
-            <p class="text-[11px] text-muted-foreground">
-              {$t("tools.body.todo_count", { values: { n: items.length } })}
+            <p class="tb-metric">
+              {$t("tools.body.progress_fraction", {
+                values: { done: doneCount, total: items.length },
+              })} · {$t("tools.body.todo_count", { values: { n: items.length } })}
             </p>
             <div class="tb-steps">
               {#each items as todo (todo.id || todo.content)}

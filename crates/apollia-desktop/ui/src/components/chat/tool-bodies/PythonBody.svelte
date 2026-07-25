@@ -73,7 +73,7 @@
       {#if skin === "operator"}
         <div class="flex flex-col gap-1">
           <p class="text-foreground">{outcome}</p>
-          <p class="text-[11px] text-muted-foreground">
+          <p class="tb-metric">
             {statusLabel}{#if lineCount > 0}
               · {$t("tools.body.output_lines", { values: { n: lineCount } })}{/if}
           </p>

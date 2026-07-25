@@ -381,7 +381,7 @@
   {:else if item.status === "success" || item.status === "approved"}
     <Check class="h-3 w-3 text-success" />
     {#if duration != null}
-      <span class="text-[10px] text-muted-foreground">{duration}ms</span>
+      <span class="text-[10px] tabular-nums text-muted-foreground">{duration}ms</span>
     {/if}
   {:else if item.status === "error" || item.status === "rejected"}
     <X class="h-3 w-3 text-destructive" />
@@ -441,7 +441,7 @@
       <span class="ml-auto flex flex-shrink-0 items-center gap-1.5">
         {@render statusBadge(item.duration_ms)}
         {#if isError && item.exit_code != null}
-          <span class="text-[10px] text-destructive">exit {item.exit_code}</span>
+          <span class="text-[10px] tabular-nums text-destructive">exit {item.exit_code}</span>
         {/if}
         {#if rationale?.performance_hint}
           <PerformanceHint hint={rationale.performance_hint} />
@@ -706,10 +706,10 @@
                 ? 'bg-destructive/5 text-destructive'
                 : 'bg-muted/30 text-muted-foreground'}"
           >
-            <span class="font-mono text-[10px] opacity-70">#{a.index}</span>
+            <span class="font-mono text-[10px] tabular-nums opacity-70">#{a.index}</span>
             <span class="flex-1 truncate">{a.error ?? a.status}</span>
             {#if a.duration_ms != null}
-              <span class="text-[10px] opacity-70">{a.duration_ms}ms</span>
+              <span class="text-[10px] tabular-nums opacity-70">{a.duration_ms}ms</span>
             {/if}
           </li>
         {/each}

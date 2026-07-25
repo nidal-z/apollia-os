@@ -26,7 +26,7 @@
 {#if sources.length > 0}
   <section class="mt-4 w-full" data-testid="source-cards">
     <h4
-      class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
+      class="tb-header-rule mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
     >
       {$t("chat.activity.sources")}
     </h4>
@@ -53,7 +53,9 @@
             {source.domain.charAt(0).toUpperCase()}
           </span>
           <span class="min-w-0">
-            <span class="block text-[10.5px] font-semibold text-muted-foreground/60">
+            <span
+              class="block text-[10.5px] font-semibold tabular-nums text-muted-foreground/60"
+            >
               {source.index} · {source.domain}
             </span>
             <span

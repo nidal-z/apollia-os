@@ -12,6 +12,7 @@
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseWebReadOutput } from "$lib/chat/reasoning";
   import { stringifyValue, prettyJson } from "$lib/chat/toolBodies";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { t, locale } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
 
@@ -73,7 +74,13 @@
           {#if url}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.url_label")}</span>
-              <span class="tb-chip-val font-mono">{url}</span>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick={handleExternalLinkClick}
+                class="tb-chip-val link-inline font-mono">{url}</a
+              >
             </span>
           {/if}
           {#if parsed}
@@ -91,7 +98,7 @@
                 <p>{extractLines.join("\n")}</p>
               {/if}
             </div>
-            <p class="text-[11px] text-muted-foreground">
+            <p class="tb-metric">
               {charsLabel}{#if parsed.truncated}
                 · {$t("tools.body.truncated_hint")}{/if}
             </p>

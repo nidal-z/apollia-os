@@ -17,6 +17,8 @@
     type FileListEntry,
     type HumanSize,
   } from "$lib/chat/toolBodies";
+  import { joinPath } from "$lib/utils/fileRef";
+  import FileRef from "./FileRef.svelte";
   import { t, locale } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
   import { Folder, FileText } from "lucide-svelte";
@@ -74,7 +76,7 @@
           {#if path}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.folder_label")}</span>
-              <span class="tb-chip-val font-mono">{path}</span>
+              <FileRef {path} mono class="tb-chip-val" />
             </span>
           {/if}
           {#if entries}
@@ -91,7 +93,11 @@
                       <FileText size={14} />
                     {/if}
                   </span>
-                  <span class="tb-fname">{entry.name}</span>
+                  <FileRef
+                    path={joinPath(path, entry.name)}
+                    label={entry.name}
+                    class="tb-fname"
+                  />
                   {#if metaLabel(entry)}
                     <span class="tb-fmeta">{metaLabel(entry)}</span>
                   {/if}

@@ -55,7 +55,7 @@
             </span>
           {/if}
           {#if parsed}
-            <p class="text-muted-foreground">
+            <p class="tb-metric">
               {$t("tools.body.results_count", {
                 values: { n: resultCount },
               })}

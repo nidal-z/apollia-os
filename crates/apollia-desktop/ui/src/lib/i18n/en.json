@@ -4393,7 +4393,9 @@
       "plan_status_changed": "Step {id} → {status}",
       "plan_generic": "Plan updated",
       "plan_failed": "Plan action failed",
-      "todo_count": "{n, plural, one {# task} other {# tasks}}"
+      "todo_count": "{n, plural, one {# task} other {# tasks}}",
+      "progress_fraction": "{done} / {total}",
+      "reveal_aria": "Reveal in file manager"
     }
   },
   "onboarding_v2": {

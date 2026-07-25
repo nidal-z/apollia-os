@@ -109,6 +109,15 @@
     }
   });
 
+  // Progress "done / total" when this call returned the whole plan (propose /
+  // submit). Delta-only calls (add / modify / status) carry no full list.
+  const planProgress = $derived.by<{ done: number; total: number } | null>(() => {
+    const steps = info.outputSteps;
+    if (!steps || steps.length === 0) return null;
+    const done = steps.filter((s) => s.status === "completed").length;
+    return { done, total: steps.length };
+  });
+
   const inputJson = $derived(stringifyValue(item.args));
   const outputJson = $derived(prettyJson(item.output));
 </script>
@@ -119,6 +128,13 @@
       {#if skin === "operator"}
         <div class="flex flex-col gap-2">
           <p class="text-foreground">{actionLine}</p>
+          {#if planProgress}
+            <p class="tb-metric">
+              {$t("tools.body.progress_fraction", {
+                values: { done: planProgress.done, total: planProgress.total },
+              })}
+            </p>
+          {/if}
           {#if shownSteps.length > 0}
             <div class="tb-steps">
               {#each shownSteps as step (step.stepId)}

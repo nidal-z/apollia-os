@@ -18,6 +18,7 @@
     prettyJson,
     type HumanSize,
   } from "$lib/chat/toolBodies";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { t, locale } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
 
@@ -78,7 +79,13 @@
           {#if url}
             <span class="tb-chip">
               <span class="tb-chip-key font-mono">{method}</span>
-              <span class="tb-chip-val font-mono">{url}</span>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick={handleExternalLinkClick}
+                class="tb-chip-val link-inline font-mono">{url}</a
+              >
             </span>
           {/if}
           {#if parsed && statusMeta}
@@ -87,12 +94,12 @@
                 {parsed.status} {statusMeta.label}
               </span>
               {#if parsed.contentType}
-                <span class="text-[11px] text-muted-foreground">
+                <span class="tb-metric">
                   {$t("tools.body.content_type_label")}: {parsed.contentType}
                 </span>
               {/if}
               {#if parsed.byteSize != null}
-                <span class="text-[11px] text-muted-foreground">
+                <span class="tb-metric">
                   {$t("tools.body.size_label")}: {formatSize(humanSize(parsed.byteSize))}
                 </span>
               {/if}

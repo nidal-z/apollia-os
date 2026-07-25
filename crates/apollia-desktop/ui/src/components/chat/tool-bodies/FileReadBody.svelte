@@ -9,6 +9,7 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { basename } from "$lib/chat/toolBodies";
+  import FileRef from "./FileRef.svelte";
   import { t } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
 
@@ -24,9 +25,10 @@
   const PREVIEW_LINES = 4;
   const BUILDER_MAX_LINES = 500;
 
-  const fileName = $derived(
-    typeof item.args.path === "string" ? basename(item.args.path) : "",
+  const filePath = $derived(
+    typeof item.args.path === "string" ? item.args.path : "",
   );
+  const fileName = $derived(filePath ? basename(filePath) : "");
 
   const lines = $derived((item.output ?? "").replace(/\n$/, "").split("\n"));
   const totalLines = $derived(item.output ? lines.length : 0);
@@ -46,7 +48,7 @@
           {#if fileName}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.file_label")}</span>
-              <span class="tb-chip-val font-mono">{fileName}</span>
+              <FileRef path={filePath} label={fileName} mono class="tb-chip-val" />
             </span>
           {/if}
           {#if item.output}

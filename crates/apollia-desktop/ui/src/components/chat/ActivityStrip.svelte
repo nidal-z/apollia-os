@@ -109,6 +109,22 @@
   });
 </script>
 
+<!-- Shared brand-signature gradient def. SVG url() refs resolve document-
+     globally, so this single def also feeds any gradient-stroked glyph in the
+     trace below. Identical duplicate defs across strips are harmless. -->
+<svg
+  class="pointer-events-none absolute h-0 w-0"
+  aria-hidden="true"
+  focusable="false"
+>
+  <defs>
+    <linearGradient id="apollia-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="hsl(var(--grad-a))" />
+      <stop offset="1" stop-color="hsl(var(--grad-b))" />
+    </linearGradient>
+  </defs>
+</svg>
+
 <div
   class="activity-strip mb-3 w-full overflow-hidden rounded-lg border border-border/60 bg-surface-1/50"
   data-testid="activity-strip"
@@ -122,15 +138,18 @@
     aria-label={$t("chat.activity.toggle")}
     onclick={toggle}
   >
-    <Sparkles size={14} class="flex-none text-primary" aria-hidden="true" />
+    <span class="tb-spark" aria-hidden="true">
+      <Sparkles size={14} />
+    </span>
     <span class="min-w-0">
       <span class="font-semibold text-foreground">{summary.lead}</span><span
         >{summary.rest ? ` ${summary.rest}` : ""}</span
       >
     </span>
     {#if durationLabel}
-      <span class="flex-none text-muted-foreground/60" data-testid="activity-duration"
-        >· {durationLabel} s</span
+      <span
+        class="flex-none tabular-nums text-muted-foreground/60"
+        data-testid="activity-duration">· {durationLabel} s</span
       >
     {/if}
     <ChevronRight
@@ -142,7 +161,7 @@
   </button>
   {#if expanded}
     <div
-      class="border-t border-border/60 px-3 pb-3 pt-1"
+      class="tb-strip-rule px-3 pb-3 pt-2"
       data-testid="activity-trace"
       transition:slide={{ duration: 280, easing: quintOut }}
     >

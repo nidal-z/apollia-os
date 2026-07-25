@@ -13,6 +13,7 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { basename, totalLines, prettyJson, stringifyValue } from "$lib/chat/toolBodies";
+  import FileRef from "./FileRef.svelte";
   import { t } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
 
@@ -30,9 +31,10 @@
 
   const isEdit = $derived(item.tool === "file_edit");
 
-  const fileName = $derived(
-    typeof item.args.path === "string" ? basename(item.args.path) : "",
+  const filePath = $derived(
+    typeof item.args.path === "string" ? item.args.path : "",
   );
+  const fileName = $derived(filePath ? basename(filePath) : "");
 
   // ---- file_write ----
   const content = $derived(
@@ -80,11 +82,11 @@
           {#if fileName}
             <span class="tb-chip">
               <span class="tb-chip-key">{$t("tools.body.file_label")}</span>
-              <span class="tb-chip-val font-mono">{fileName}</span>
+              <FileRef path={filePath} label={fileName} mono class="tb-chip-val" />
             </span>
           {/if}
           {#if isEdit}
-            <p class="text-muted-foreground">
+            <p class="tb-metric">
               {$t("tools.body.replacements_count", {
                 values: { n: replacements },
               })}
@@ -94,19 +96,19 @@
                 {#if oldText}
                   <div class="flex flex-col gap-0.5">
                     <span class="tb-iolabel">{$t("tools.body.edit_before_label")}</span>
-                    <pre class="tb-preview font-mono"><code>{snippet(oldText)}</code></pre>
+                    <pre class="tb-preview font-mono"><code class="tb-diff-del">{snippet(oldText)}</code></pre>
                   </div>
                 {/if}
                 {#if newText}
                   <div class="flex flex-col gap-0.5">
                     <span class="tb-iolabel">{$t("tools.body.edit_after_label")}</span>
-                    <pre class="tb-preview font-mono"><code>{snippet(newText)}</code></pre>
+                    <pre class="tb-preview font-mono"><code class="tb-diff-add">{snippet(newText)}</code></pre>
                   </div>
                 {/if}
               </div>
             {/if}
           {:else}
-            <p class="text-muted-foreground">
+            <p class="tb-metric">
               {$t("tools.body.lines_written", { values: { n: writtenLines } })}
             </p>
             {#if content}
