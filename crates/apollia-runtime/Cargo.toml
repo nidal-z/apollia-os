@@ -39,7 +39,7 @@ async-trait           = { workspace = true }
 futures            = { workspace = true }
 chrono             = { workspace = true }
 hmac               = "0.12"
-sha2               = "0.10"
+sha2               = "0.11"
 hex                = "0.4"
 constant_time_eq   = "0.3"
 rand               = { workspace = true }
