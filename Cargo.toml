@@ -125,7 +125,7 @@ clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 
 # --- SQLite - bundled = zero external system dependency (Principe #2) ---
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # --- Cryptography ---
 sha2 = "0.10"
