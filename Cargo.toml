@@ -176,7 +176,7 @@ toml_edit = "0.22"
 rpassword = "7"
 
 # --- HuggingFace model download ---
-hf-hub = "0.3"
+hf-hub = "1.0"
 
 # --- Progress bars (CLI download) ---
 indicatif = "0.17"
