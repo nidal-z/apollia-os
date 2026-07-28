@@ -1,6 +1,10 @@
 {
   "name": "permissions-det (settings > permissions page against the seeded governance.db, operator + builder, selectOption drives every native <select>, never confirms revoke)",
   "stopOnError": false,
+  "notes": [
+    "permission-rule-add-action is a segmented <button role=group>, not a <select>: the branch is picked by clicking permission-rule-add-action-allow / -deny.",
+    "permission-rule-add-toggle only OPENS the form (RulesSection.openAddForm re-seeds it and sets addOpen = true); clicking it twice re-mounts the form instead of closing it. The form is dismissed with its own permission-rule-add-cancel."
+  ],
   "steps": [
     { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
     { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
@@ -53,7 +57,7 @@
     { "kind": "waitFor", "testid": "permission-rule-add-arg-prefix", "timeoutMs": 4000 },
     { "kind": "screenshot", "label": "05-rule-add-form" },
     { "kind": "selectOption", "testid": "permission-rule-add-tool", "value": "web_search", "timeoutMs": 4000 },
-    { "kind": "selectOption", "testid": "permission-rule-add-action", "value": "deny", "timeoutMs": 4000 },
+    { "kind": "click", "testid": "permission-rule-add-action-deny", "timeoutMs": 4000 },
     { "kind": "selectOption", "testid": "permission-rule-add-scope", "value": "project", "timeoutMs": 4000 },
     { "kind": "waitFor", "testid": "permission-rule-add-project-path", "timeoutMs": 4000 },
     { "kind": "fill", "testid": "permission-rule-add-project-path", "text": "/Users/nidalzoumita/dev/apollia-v2", "timeoutMs": 4000 },
@@ -61,7 +65,7 @@
     { "kind": "waitFor", "testid": "permission-rule-add-submit", "timeoutMs": 4000 },
     { "kind": "expect", "testid": "permission-rule-add-submit" },
     { "kind": "screenshot", "label": "06-rule-add-filled (tool/action/scope set via selectOption, scope=project revealed project-path; submit persists via add_permission_prefix_rule so it is NEVER clicked)" },
-    { "kind": "click", "testid": "permission-rule-add-toggle" },
+    { "kind": "click", "testid": "permission-rule-add-cancel" },
     { "kind": "sleep", "ms": 300 },
     { "kind": "waitGone", "testid": "permission-rule-add-form", "timeoutMs": 4000 },
 
@@ -117,7 +121,7 @@
     { "kind": "selectOption", "testid": "permission-rule-add-scope", "value": "project", "timeoutMs": 4000 },
     { "kind": "waitFor", "testid": "permission-rule-add-project-path", "timeoutMs": 4000 },
     { "kind": "screenshot", "label": "15-rule-add-form-builder (scope=project reveals project-path)" },
-    { "kind": "click", "testid": "permission-rule-add-toggle" },
+    { "kind": "click", "testid": "permission-rule-add-cancel" },
     { "kind": "sleep", "ms": 300 },
     { "kind": "waitGone", "testid": "permission-rule-add-form", "timeoutMs": 4000 },
 

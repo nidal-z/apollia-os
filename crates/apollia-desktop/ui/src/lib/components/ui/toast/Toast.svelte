@@ -1,13 +1,21 @@
 <script lang="ts">
+  /**
+   * Transient notification. Six variants; the progress bar drains over the
+   * dismiss window and pauses on hover / focus. Error + urgent escalate to
+   * `role="alert"` / `aria-live="assertive"`. Colors, elevation and the
+   * progress tint all resolve from design tokens (no raw palette).
+   */
   import { cn } from "$lib/utils";
   import { fly } from "svelte/transition";
-  import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-svelte";
+  import { X, CheckCircle, AlertCircle, Info, AlertTriangle, Loader2 } from "lucide-svelte";
   import { t } from "svelte-i18n";
+  import { Button } from "$lib/components/ui/button";
   import { rm } from "$lib/design/motion";
   import type { ToastVariant } from "./store";
 
   interface Props {
     message: string;
+    description?: string;
     variant?: ToastVariant;
     visible?: boolean;
     ondismiss?: () => void;
@@ -20,6 +28,7 @@
 
   let {
     message,
+    description,
     variant = "info",
     visible = $bindable(true),
     ondismiss,
@@ -40,34 +49,21 @@
     info: Info,
     loading: Loader2,
     urgent: AlertCircle,
-    warning: AlertCircle,
+    warning: AlertTriangle,
   } as const;
 
   const iconClassByVariant: Record<ToastVariant, string> = {
-    success: "text-emerald-600 dark:text-emerald-400",
+    success: "text-success",
     error: "text-destructive",
-    info: "text-sky-600 dark:text-sky-400",
+    info: "text-info",
     loading: "text-primary animate-spin",
     urgent: "text-destructive",
-    warning: "text-amber-600 dark:text-amber-400",
+    warning: "text-warning",
   };
 
-  const progressColorByVariant: Record<ToastVariant, string> = {
-    success: "rgb(16 185 129)",
-    error: "hsl(var(--destructive))",
-    info: "rgb(14 165 233)",
-    loading: "hsl(var(--primary))",
-    urgent: "hsl(var(--destructive))",
-    warning: "rgb(217 119 6)",
-  };
-
-  const isUrgent = $derived(variant === "urgent");
-  const ariaRole = $derived(
-    variant === "error" || variant === "urgent" ? "alert" : "status",
-  );
-  const ariaLive = $derived(
-    variant === "error" || variant === "urgent" ? "assertive" : "polite",
-  );
+  const isTinted = $derived(variant === "error" || variant === "urgent");
+  const ariaRole = $derived(isTinted ? "alert" : "status");
+  const ariaLive = $derived(isTinted ? "assertive" : "polite");
 
   let paused = $state(false);
   let remaining = $state(0);
@@ -87,7 +83,10 @@
   function handlePause() {
     if (resolvedDuration <= 0 || paused) return;
     const elapsed = Date.now() - startedAt;
-    remaining = Math.max(0, (remaining > 0 ? remaining : resolvedDuration) - elapsed);
+    remaining = Math.max(
+      0,
+      (remaining > 0 ? remaining : resolvedDuration) - elapsed,
+    );
     paused = true;
   }
 
@@ -108,14 +107,13 @@
 
   const IconComponent = $derived(iconByVariant[variant]);
   const iconClass = $derived(iconClassByVariant[variant]);
-  const progressColor = $derived(progressColorByVariant[variant]);
 </script>
 
 {#if visible}
   <div
     class={cn(
-      "pointer-events-auto relative flex items-center gap-3 overflow-hidden rounded-lg border border-border bg-card px-4 py-3 shadow-lg",
-      isUrgent && "bg-destructive/10 border-destructive/40",
+      "toast pointer-events-auto relative flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-card px-3.5 py-3 shadow-elev-2",
+      isTinted && "border-destructive/40 bg-destructive/[0.08]",
     )}
     role={ariaRole}
     aria-live={ariaLive}
@@ -127,31 +125,42 @@
     onfocusout={handleResume}
     {...restProps}
   >
-    <IconComponent size={18} class={iconClass} aria-hidden="true" />
-    <p class="flex-1 text-sm text-card-foreground">{message}</p>
+    <IconComponent size={18} class={cn("shrink-0", iconClass)} aria-hidden="true" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm text-card-foreground">{message}</p>
+      {#if description}
+        <p class="desc text-muted-foreground">{description}</p>
+      {/if}
+    </div>
     {#if actionLabel}
-      <button
-        class="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-secondary hover:bg-secondary/10 transition-colors"
+      <Button
+        variant="ghost"
+        size="sm"
+        class="shrink-0 px-2.5 text-primary hover:bg-primary/10"
         onclick={handleAction}
         data-testid="toast-action"
       >
         {actionLabel}
-      </button>
+      </Button>
     {/if}
     {#if variant !== "loading"}
-      <button
-        class="rounded-md p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="shrink-0 text-muted-foreground hover:text-foreground"
         onclick={handleDismiss}
         aria-label={$t("toast.dismiss")}
       >
-        <X size={14} />
-      </button>
+        <X size={14} aria-hidden="true" />
+      </Button>
     {/if}
 
     {#if showProgress && resolvedDuration > 0}
       <span
-        class="toast-progress"
-        style="--toast-duration: {resolvedDuration}ms; --toast-progress-color: {progressColor}; animation-play-state: {paused ? 'paused' : 'running'};"
+        class={cn("progress", iconClass)}
+        style="--toast-duration: {resolvedDuration}ms; animation-play-state: {paused
+          ? 'paused'
+          : 'running'};"
         aria-hidden="true"
       ></span>
     {/if}
@@ -159,19 +168,33 @@
 {/if}
 
 <style>
-  .toast-progress {
+  .desc {
+    margin-top: 0.125rem;
+    font-size: 0.71875rem;
+  }
+
+  .progress {
     position: absolute;
     left: 0;
     bottom: 0;
-    height: 2px;
+    height: 0.125rem;
     width: 100%;
-    background-color: var(--toast-progress-color);
+    background-color: currentColor;
     transform-origin: left center;
     animation: toast-progress var(--toast-duration) linear forwards;
   }
 
+  @keyframes toast-progress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .toast-progress {
+    .progress {
       animation: none;
       transform: scaleX(1);
     }

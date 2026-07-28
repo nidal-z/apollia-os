@@ -111,13 +111,16 @@ impl BuiltInChatAgent {
         session_id: &str,
     ) -> bool {
         // A submit must not re-arm the approval gate once the plan is already
-        // awaiting approval or executing. Without the Executing guard a stray
-        // plan_submit during execution flips the phase back to AwaitingApproval,
-        // re-showing the approval card, so approving loops forever.
-        if matches!(
-            tracker.phase,
-            PlanPhase::AwaitingApproval | PlanPhase::Executing
-        ) {
+        // executing. Without the Executing guard a stray plan_submit during
+        // execution flips the phase back to AwaitingApproval, re-showing the
+        // approval card, so approving loops forever.
+        //
+        // AwaitingApproval is deliberately NOT guarded out here: a revision turn
+        // is entered already in AwaitingApproval, and a successful re-submit must
+        // end the turn exactly like the first submit. Guarding it out made the
+        // re-submit return false, so the turn never ended and the model kept
+        // re-proposing / re-submitting until the budget was exhausted.
+        if tracker.phase == PlanPhase::Executing {
             return false;
         }
         let submitted = records.iter().any(|r| {
@@ -128,7 +131,11 @@ impl BuiltInChatAgent {
                     .and_then(|v| v.get("ok").and_then(serde_json::Value::as_bool))
                     .unwrap_or(false)
         });
-        if submitted {
+        if submitted && tracker.phase != PlanPhase::AwaitingApproval {
+            // Only move + announce the phase on the first submit. On a revision
+            // re-submit the phase is already AwaitingApproval; PlanActor::submit
+            // re-emits PlanSubmitted so the card refreshes without a redundant
+            // ChatPlanPhaseChanged broadcast here.
             tracker.phase = PlanPhase::AwaitingApproval;
             self.emit_plan_phase(session_id, PlanPhase::AwaitingApproval);
         }
@@ -173,6 +180,34 @@ impl BuiltInChatAgent {
                 false
             }
         }
+    }
+
+    /// Return the assistant text for a turn that ended by submitting a plan.
+    ///
+    /// Keeps non-empty text untouched. When the model produced no prose (blank or
+    /// whitespace-only), reads the submitted plan's step count through the
+    /// [`PlanHandle`] and builds [`plan_ready_message`], so the user never sees an
+    /// empty assistant turn after a submit. Purely runtime-generated: it never
+    /// depends on the model emitting text.
+    pub(in crate::chat::builtin_agent) async fn plan_submit_text(
+        &self,
+        session_id: &str,
+        accumulated_text: &str,
+    ) -> String {
+        if !accumulated_text.trim().is_empty() {
+            return accumulated_text.to_string();
+        }
+        let step_count = match self.plan.as_ref() {
+            Some(plan) => plan
+                .get_plan(session_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|p| p.steps.len())
+                .unwrap_or(0),
+            None => 0,
+        };
+        plan_ready_message(step_count)
     }
 
     /// Run a `plan_*` built-in tool inside the ReAct loop.

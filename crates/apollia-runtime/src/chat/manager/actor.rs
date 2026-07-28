@@ -101,7 +101,7 @@ impl ChatSessionManager {
                     let _ = reply.send(result);
                 }
                 ChatCommand::ApprovePlan { session_id, reply } => {
-                    let result = self.handle_approve_plan(&session_id);
+                    let result = self.handle_approve_plan(&session_id).await;
                     let _ = reply.send(result);
                 }
                 ChatCommand::RejectPlan {
@@ -109,7 +109,7 @@ impl ChatSessionManager {
                     reason,
                     reply,
                 } => {
-                    let result = self.handle_reject_plan(&session_id, reason);
+                    let result = self.handle_reject_plan(&session_id, reason).await;
                     let _ = reply.send(result);
                 }
                 ChatCommand::ReadPlanMutations { session_id, reply } => {

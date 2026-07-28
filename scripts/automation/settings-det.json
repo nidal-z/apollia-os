@@ -4,9 +4,9 @@
   "notes": [
     "Code-verified against routes/Settings.svelte + settings/{Appearance,Configuration,System,Danger,UpdateChecker}.svelte + components/settings/{ConfigFileCard,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte.",
     "13 nav keys from the CLUSTERS table: appearance, profile, stt, llm, model-hub, configuration, tools, permissions, integrations, system, shortcuts, observability, danger. CLUSTERS are static -> nav is identical in both modes (no uiMode gate).",
-    "plan-mode-default-toggle-switch and auto-install-python-deps-toggle-switch are <button role=switch> (Toggle.svelte), NOT <input>. setChecked would throw; we click the -switch instead.",
-    "config-file-card-copy-{section} lives inside {#if expanded} in ConfigFileCard.svelte, so the card header (config-file-card-{section}) is clicked first to expand it, then the copy button is asserted and clicked. Sections are a hardcoded vec (runtime/oria/observability, config.rs) and config_path is always set, so both are deterministic.",
-    "stt-trigger is a native <select> (Select.svelte) with static options (toggle, push-to-talk); it is exercised via selectOption in the STT save branch alongside the language field, then saved through the unsaved dialog.",
+    "plan-mode-default-toggle and auto-install-python-deps-toggle ARE the <button role=switch> (Toggle.svelte spreads data-testid onto it), NOT <input> wrappers. They are clicked directly; setChecked would also work, click keeps the two-way boundary explicit.",
+    "Configuration.svelte passes defaultExpanded={i === 0}, so the FIRST card (runtime) is already open on arrival: its copy button is asserted directly, and the expand interaction is exercised on the second card (oria) instead. Exact testids are used rather than the config-file-card- prefix, because an expanded card also renders config-file-card-copy/reveal/entries/raw-{section}, which the prefix would match ahead of the next card.",
+    "stt-trigger and stt-language-select are native <select> (Select.svelte) with static options (toggle/push-to-talk; the STT_LANGUAGES codes). Both are exercised via selectOption in the STT save branch, then saved through the unsaved dialog. The language values (de discarded, es saved) stay distinct from the one stt-det.json picks later, so each script still produces a real change.",
     "UpdateChecker (rendered inside System.svelte) is an external-update boundary: update-checker + update-check-btn are asserted present only and never clicked. update-install-btn renders only when an update is available (data-dependent), so it is NOT asserted.",
     "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json).",
     "settings-mobile-nav-toggle / -sheet render only when sidebarState === 'drawer' (mobile); at desktop they are absent, so no waitFor is issued and the desktop state is captured by screenshot only."
@@ -243,7 +243,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-section",
+      "testid": "plan-mode-default-toggle",
       "timeoutMs": 4000
     },
     {
@@ -329,12 +329,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-toggle-switch",
+      "testid": "plan-mode-default-toggle",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "plan-mode-default-toggle-switch"
+      "testid": "plan-mode-default-toggle"
     },
     {
       "kind": "sleep",
@@ -346,7 +346,7 @@
     },
     {
       "kind": "click",
-      "testid": "plan-mode-default-toggle-switch"
+      "testid": "plan-mode-default-toggle"
     },
     {
       "kind": "sleep",
@@ -367,7 +367,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "runtime-config-section",
+      "testid": "configuration-subpage",
       "timeoutMs": 6000
     },
     {
@@ -380,25 +380,13 @@
       "label": "22-configuration"
     },
     {
-      "kind": "click",
-      "testidPrefix": "config-file-card-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
       "kind": "waitFor",
-      "testidPrefix": "config-file-card-copy-",
-      "nth": 0,
+      "testid": "config-file-card-copy-runtime",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testidPrefix": "config-file-card-copy-",
-      "nth": 0,
+      "testid": "config-file-card-copy-runtime",
       "timeoutMs": 4000
     },
     {
@@ -408,6 +396,24 @@
     {
       "kind": "screenshot",
       "label": "23-config-file-card-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "config-file-card-oria",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "waitFor",
+      "testid": "config-file-card-copy-oria",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "23b-config-file-card-expanded"
     },
     {
       "kind": "click",
@@ -454,12 +460,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "auto-install-python-deps-toggle-switch",
+      "testid": "auto-install-python-deps-toggle",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle-switch"
+      "testid": "auto-install-python-deps-toggle"
     },
     {
       "kind": "sleep",
@@ -471,7 +477,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle-switch"
+      "testid": "auto-install-python-deps-toggle"
     },
     {
       "kind": "sleep",
@@ -543,7 +549,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 8000
     },
     {
@@ -551,9 +557,10 @@
       "ms": 600
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "de-automation"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "de",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -616,7 +623,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 8000
     },
     {
@@ -624,9 +631,10 @@
       "ms": 400
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "en-automation"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "es",
+      "timeoutMs": 4000
     },
     {
       "kind": "selectOption",

@@ -6,6 +6,7 @@ import {
   prettyJson,
   parseBashOutput,
   countOutputLines,
+  describeBashCommand,
   basename,
   dirname,
   totalLines,
@@ -14,7 +15,6 @@ import {
   parseHttp,
   httpStatusClass,
   parseMemory,
-  parsePlanCall,
   parseTodos,
 } from "./toolBodies";
 
@@ -120,6 +120,39 @@ describe("countOutputLines", () => {
   it("counts only non-empty lines", () => {
     expect(countOutputLines("a\n\nb\n")).toBe(2);
     expect(countOutputLines(null)).toBe(0);
+  });
+});
+
+describe("describeBashCommand", () => {
+  it("maps a known program to its description key", () => {
+    // GIVEN common shell invocations
+    // WHEN describing them
+    // THEN the leading program picks the plain-language key
+    expect(describeBashCommand("ls -la /tmp")).toBe(
+      "tools.body.bash_describe.list_files",
+    );
+    expect(describeBashCommand("grep -r foo .")).toBe(
+      "tools.body.bash_describe.search_text",
+    );
+    expect(describeBashCommand("/usr/bin/python3 script.py")).toBe(
+      "tools.body.bash_describe.run_program",
+    );
+  });
+
+  it("skips sudo and env-assignment prefixes", () => {
+    expect(describeBashCommand("sudo rm -rf build")).toBe(
+      "tools.body.bash_describe.delete",
+    );
+    expect(describeBashCommand("FOO=bar cat file")).toBe(
+      "tools.body.bash_describe.read_file",
+    );
+  });
+
+  it("falls back to the generic key for unknown or empty commands", () => {
+    expect(describeBashCommand("frobnicate --now")).toBe(
+      "tools.body.bash_describe.generic",
+    );
+    expect(describeBashCommand("   ")).toBe("tools.body.bash_describe.generic");
   });
 });
 
@@ -265,57 +298,6 @@ describe("parseMemory", () => {
     const raw = JSON.stringify({ results: [{ score: 1, source: "s" }] });
     expect(parseMemory(raw)).toBeNull();
     expect(parseMemory("nope")).toBeNull();
-  });
-});
-
-describe("parsePlanCall", () => {
-  it("reads a propose call's step summaries from the output", () => {
-    // GIVEN a plan_propose output snapshot
-    const args = { steps: [{ step_id: "a" }, { step_id: "b" }] };
-    const output = JSON.stringify({
-      ok: true,
-      steps: [
-        { step_id: "a", title: "First", status: "pending" },
-        { step_id: "b", title: "Second", status: "in_progress" },
-      ],
-    });
-
-    // WHEN parsed
-    const info = parsePlanCall(args, output);
-
-    // THEN the propose count and output steps are recovered
-    expect(info.ok).toBe(true);
-    expect(info.proposeCount).toBe(2);
-    expect(info.outputSteps).toHaveLength(2);
-    expect(info.outputSteps?.[0]).toEqual({
-      stepId: "a",
-      title: "First",
-      status: "pending",
-    });
-  });
-
-  it("reads an add-step call's affected step from the args", () => {
-    // GIVEN a plan_add_step call
-    const args = { step: { step_id: "c", description: "Do the thing" } };
-    const info = parsePlanCall(args, null);
-
-    // THEN the arg step is normalized, falling back to description for the title
-    expect(info.argStep).toEqual({
-      stepId: "c",
-      title: "Do the thing",
-      status: null,
-    });
-  });
-
-  it("flags a failed call and reads status changes", () => {
-    // GIVEN a failed result and a set-status call
-    expect(parsePlanCall({}, JSON.stringify({ ok: false })).ok).toBe(false);
-    const info = parsePlanCall(
-      { step_id: "a", status: "completed" },
-      JSON.stringify({ ok: true }),
-    );
-    expect(info.stepId).toBe("a");
-    expect(info.status).toBe("completed");
   });
 });
 

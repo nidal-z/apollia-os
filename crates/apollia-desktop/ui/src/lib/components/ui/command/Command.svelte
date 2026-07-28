@@ -3,8 +3,8 @@
    * Headless command palette dialog.
    *
    * Bind `open`, feed `groups`, and handle `onexecute` for telemetry.
-   * The caller owns registration; this component only filters + renders
-   * the already-grouped `CommandItem` list.
+   * The panel is the expressive focal point: `.glass-panel-strong`
+   * + `.glow-primary` + brand rim. Fuzzy ranking lives in `./filter`.
    */
   import { tick } from "svelte";
   import { fade, scale, type TransitionConfig } from "svelte/transition";
@@ -15,9 +15,12 @@
   import { prefersReducedMotion } from "$lib/design/motion";
   import { Separator } from "$lib/components/ui/separator";
   import type { CommandItem } from "$lib/stores/commandPalette";
-  import { fuzzyMatch } from "$lib/utils/fuzzy";
+  import { rankGroups } from "./filter";
   import CommandItemRow from "./CommandItem.svelte";
   import CommandGroup from "./CommandGroup.svelte";
+  import CommandEmpty from "./CommandEmpty.svelte";
+  import CommandFooter from "./CommandFooter.svelte";
+  import Keycap from "./Keycap.svelte";
   import type { CommandPaletteGroup } from "./types";
 
   interface Props {
@@ -42,40 +45,12 @@
   let wasOpen = false;
   let previouslyFocused: HTMLElement | null = null;
 
-  interface RankedItem {
-    item: CommandItem;
-    score: number;
-  }
+  const filteredGroups = $derived(rankGroups(groups, query));
+  const flatItems = $derived(filteredGroups.flatMap((g) => g.items));
 
-  interface RankedGroup {
-    label: string;
-    items: RankedItem[];
-  }
-
-  // Filter + rank each group; drop groups with no matches.
-  const filteredGroups = $derived.by<RankedGroup[]>(() => {
-    const q = query.trim();
-    const out: RankedGroup[] = [];
-    for (const g of groups) {
-      const ranked: RankedItem[] = [];
-      for (const item of g.items) {
-        const score = fuzzyMatch(item.label, item.keywords, q);
-        if (score !== null) ranked.push({ item, score });
-      }
-      if (q) ranked.sort((a, b) => b.score - a.score);
-      if (ranked.length > 0) out.push({ label: g.label, items: ranked });
-    }
-    return out;
-  });
-
-  // Flat list for keyboard navigation - same order as rendering.
-  const flatItems = $derived(
-    filteredGroups.flatMap((g) => g.items.map((r) => r.item)),
-  );
-
-  const resolvedPlaceholder = $derived(
-    placeholder ?? $t("command.placeholder"),
-  );
+  const resolvedPlaceholder = $derived(placeholder ?? $t("command.placeholder"));
+  const recentLabel = $derived($t("commandPalette.groups.recent"));
+  const isSearching = $derived(query.trim().length > 0);
   const activeId = $derived(
     flatItems[activeIndex]
       ? `command-item-${flatItems[activeIndex].id}`
@@ -110,31 +85,20 @@
     if (event.key === "Escape") {
       event.preventDefault();
       open = false;
-      return;
-    }
-    if (event.key === "ArrowDown") {
+    } else if (event.key === "ArrowDown" && flatItems.length > 0) {
       event.preventDefault();
-      if (flatItems.length === 0) return;
       activeIndex = (activeIndex + 1) % flatItems.length;
       scrollActiveIntoView();
-      return;
-    }
-    if (event.key === "ArrowUp") {
+    } else if (event.key === "ArrowUp" && flatItems.length > 0) {
       event.preventDefault();
-      if (flatItems.length === 0) return;
-      activeIndex =
-        (activeIndex - 1 + flatItems.length) % flatItems.length;
+      activeIndex = (activeIndex - 1 + flatItems.length) % flatItems.length;
       scrollActiveIntoView();
-      return;
-    }
-    if (event.key === "Enter") {
+    } else if (event.key === "Enter") {
       event.preventDefault();
       const target = flatItems[activeIndex];
       if (target) execute(target);
-      return;
-    }
-    if (event.key === "Tab") {
-      // Keep focus trapped in the input - Tab must not escape the palette.
+    } else if (event.key === "Tab") {
+      // Trap focus in the input - Tab must not escape the palette.
       event.preventDefault();
     }
   }
@@ -142,8 +106,9 @@
   function scrollActiveIntoView() {
     tick().then(() => {
       if (!listboxRef || !activeId) return;
-      const el = listboxRef.querySelector<HTMLElement>(`#${CSS.escape(activeId)}`);
-      el?.scrollIntoView({ block: "nearest" });
+      listboxRef
+        .querySelector<HTMLElement>(`#${CSS.escape(activeId)}`)
+        ?.scrollIntoView({ block: "nearest" });
     });
   }
 
@@ -187,16 +152,14 @@
   >
     <div
       class={cn(
-        "flex w-[min(640px,90vw)] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+        "glass-panel-strong glow-primary flex w-[min(40rem,90vw)] flex-col overflow-hidden rounded-lg border border-border text-card-foreground",
       )}
       onclick={(e) => e.stopPropagation()}
       role="presentation"
     >
-      <label
-        class="flex items-center gap-2 px-3.5 py-2.5 text-sm text-card-foreground"
-      >
+      <label class="flex items-center gap-2.5 px-3.5 py-3 text-sm">
         <span class="text-muted-foreground" aria-hidden="true">
-          <SearchIcon size={14} strokeWidth={1.75} />
+          <SearchIcon size={15} strokeWidth={1.75} />
         </span>
         <input
           bind:this={inputRef}
@@ -208,9 +171,18 @@
           aria-autocomplete="list"
           placeholder={resolvedPlaceholder}
           bind:value={query}
-          class="flex-1 bg-transparent text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none"
+          class="min-w-0 flex-1 bg-transparent text-sm text-card-foreground caret-primary placeholder:text-muted-foreground focus:outline-none"
           data-testid="command-palette-input"
         />
+        {#if isSearching}
+          <span class="count" aria-hidden="true">
+            {$t("command.results_count", {
+              values: { count: flatItems.length },
+            })}
+          </span>
+        {:else}
+          <span aria-hidden="true"><Keycap label="esc" /></span>
+        {/if}
       </label>
 
       <Separator variant="subtle" />
@@ -220,29 +192,30 @@
         id="command-palette-listbox"
         role="listbox"
         aria-label={resolvedPlaceholder}
-        class="max-h-[min(50vh,420px)] overflow-y-auto p-1"
+        class="max-h-[min(50vh,26.25rem)] overflow-y-auto p-1.5"
       >
         {#if filteredGroups.length === 0}
-          <div
-            class="px-3 py-10 text-center text-sm text-muted-foreground"
-            role="status"
-          >
-            {$t("command.empty")}
-          </div>
+          <CommandEmpty />
         {:else}
           {#each filteredGroups as group, gi (group.label)}
             {@const baseOffset = itemIndexOffset(gi)}
             {#if gi > 0}
               <Separator variant="subtle" class="my-1" />
             {/if}
-            <CommandGroup label={group.label}>
-              {#each group.items as entry, ii (entry.item.id)}
+            <CommandGroup
+              label={group.label}
+              badge={!isSearching && group.label === recentLabel
+                ? "MRU"
+                : undefined}
+            >
+              {#each group.items as item, ii (item.id)}
                 {@const absIndex = baseOffset + ii}
                 <CommandItemRow
-                  id={`command-item-${entry.item.id}`}
-                  item={entry.item}
+                  id={`command-item-${item.id}`}
+                  {item}
+                  {query}
                   active={absIndex === activeIndex}
-                  onselect={() => execute(entry.item)}
+                  onselect={() => execute(item)}
                   onhover={() => (activeIndex = absIndex)}
                 />
               {/each}
@@ -250,6 +223,17 @@
           {/each}
         {/if}
       </div>
+
+      <CommandFooter />
     </div>
   </div>
 {/if}
+
+<style>
+  .count {
+    flex: none;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    font-size: 0.65625rem;
+    color: hsl(var(--faint-foreground));
+  }
+</style>

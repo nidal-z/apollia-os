@@ -14,6 +14,7 @@ import { t } from "svelte-i18n";
 import {
   LayoutDashboard,
   Bot,
+  Compass,
   ListChecks,
   MessageSquare,
   ShieldCheck,
@@ -52,6 +53,7 @@ import { navigateToSettings } from "$lib/router";
 import { uiMode, type UIMode } from "$lib/stores/mode";
 import { themeMode } from "$lib/stores/theme";
 import { companionStore } from "$lib/stores/companion";
+import { restoreBand } from "$lib/tour/persistence";
 import { onboardingModalOpen } from "$lib/stores/onboarding";
 import { openNewChatRequested } from "$lib/stores/chat";
 import { openNewTaskRequested } from "$lib/stores/tasks";
@@ -311,6 +313,20 @@ export function buildPaletteActions(): PaletteAction[] {
       },
     },
     // Removed: help.docs action (was navigating to obsolete onboarding route)
+    {
+      // Restores the Getting started band and lands on it. Modelled on
+      // `help.onboarding_reset`, which likewise flips a store rather than
+      // navigating on its own.
+      id: "help.tour_replay",
+      label: tr("tour.palette.replay"),
+      keywords: ["tour", "visite", "guide", "onboarding", "getting started"],
+      icon: Compass,
+      kind: "help",
+      execute: () => {
+        restoreBand();
+        navigateTo("dashboard");
+      },
+    },
     {
       id: "help.onboarding_reset",
       label: tr("commandPalette.help.resetOnboarding"),

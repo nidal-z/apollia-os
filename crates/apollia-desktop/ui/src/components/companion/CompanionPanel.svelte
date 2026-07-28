@@ -13,11 +13,14 @@
   import { addToast } from "$lib/components/ui/toast";
   import {
     clampPosition,
+    clampSize,
     edgeDistances,
     edgeGuides,
     snapToEdges,
     validateGeometry,
   } from "$lib/companion/snapGeometry";
+  import { focusTrap } from "$lib/shortcuts/focusTrap";
+  import { Button } from "$lib/components/ui/button";
   import ChatConversation from "../chat/ChatConversation.svelte";
   import CompanionDragHandle from "./CompanionDragHandle.svelte";
   import CompanionResizeHandle from "./CompanionResizeHandle.svelte";
@@ -236,31 +239,12 @@
     window.addEventListener("pointercancel", onUp);
   }
 
-  // ── Keyboard nudge (Cmd/Alt + arrows for 20 px) ───────────────────────────
+  // ── Keyboard geometry (move + resize via arrows) ──────────────────────────
 
-  function onPanelKeyDown(event: KeyboardEvent) {
+  const NUDGE_STEP = 20;
+
+  function nudgePosition(dx: number, dy: number) {
     if (fullscreen) return;
-    if (!event.metaKey || !event.altKey) return;
-    const STEP = 20;
-    let dx = 0;
-    let dy = 0;
-    switch (event.key) {
-      case "ArrowLeft":
-        dx = -STEP;
-        break;
-      case "ArrowRight":
-        dx = STEP;
-        break;
-      case "ArrowUp":
-        dy = -STEP;
-        break;
-      case "ArrowDown":
-        dy = STEP;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
     const next = clampPosition(
       { x: computedPos.x + dx, y: computedPos.y + dy },
       computedSize,
@@ -269,6 +253,52 @@
     const { position: snapped } = snapToEdges(next, computedSize, viewport());
     computedPos = snapped;
     companionStore.setPosition(snapped);
+  }
+
+  function nudgeSize(dw: number, dh: number) {
+    if (fullscreen) return;
+    const next = clampSize(
+      { width: computedSize.width + dw, height: computedSize.height + dh },
+      viewport(),
+    );
+    computedSize = next;
+    companionStore.setSize(next);
+  }
+
+  const ARROW_DELTAS: Record<string, [number, number]> = {
+    ArrowLeft: [-NUDGE_STEP, 0],
+    ArrowRight: [NUDGE_STEP, 0],
+    ArrowUp: [0, -NUDGE_STEP],
+    ArrowDown: [0, NUDGE_STEP],
+  };
+
+  // Whole-panel shortcuts: Escape closes (focus trap restores the trigger),
+  // Cmd/Alt + arrows move, Ctrl/Alt + arrows resize. The focusable toolbar
+  // and resize handle expose the same gestures with bare arrows when focused.
+  function onPanelKeyDown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleClose();
+      return;
+    }
+    if (fullscreen) return;
+    const delta = ARROW_DELTAS[event.key];
+    if (!delta) return;
+    if (event.altKey && event.metaKey) {
+      event.preventDefault();
+      nudgePosition(delta[0], delta[1]);
+    } else if (event.altKey && event.ctrlKey) {
+      event.preventDefault();
+      nudgeSize(delta[0], delta[1]);
+    }
+  }
+
+  function onToolbarKeyDown(event: KeyboardEvent) {
+    if (fullscreen) return;
+    const delta = ARROW_DELTAS[event.key];
+    if (!delta) return;
+    event.preventDefault();
+    nudgePosition(delta[0], delta[1]);
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -311,11 +341,14 @@
 </script>
 
 {#if panelVisible}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
-    role="complementary"
+    role="dialog"
+    aria-modal="true"
     aria-label={$t("companion.aria_label")}
-    class="fixed flex flex-col overflow-hidden border border-border bg-background shadow-2xl focus:outline-none"
+    use:focusTrap={{
+      initialFocus: fullscreen ? undefined : "[data-companion-toolbar]",
+    }}
+    class="glass-panel-strong glow-primary fixed flex flex-col overflow-hidden border border-border focus:outline-none"
     class:companion-fullscreen={fullscreen}
     class:rounded-xl={!fullscreen}
     class:companion-snap={snapAnimating}
@@ -330,43 +363,50 @@
     data-fullscreen={fullscreen ? "true" : "false"}
     data-dragging={dragging ? "true" : "false"}
   >
-    <!-- Title bar (drag zone) -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- Title bar: a focusable toolbar that doubles as the pointer drag zone. -->
     <div
-      class="flex shrink-0 items-center gap-2 border-b border-border bg-muted/50 px-3 py-2 select-none"
+      role="toolbar"
+      aria-label={$t("companion.header_toolbar")}
+      data-companion-toolbar
+      tabindex={fullscreen ? undefined : 0}
+      class="flex shrink-0 select-none items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
       class:cursor-grab={!fullscreen}
       class:active:cursor-grabbing={!fullscreen}
       onpointerdown={fullscreen ? undefined : onDragPointerDown}
+      onkeydown={fullscreen ? undefined : onToolbarKeyDown}
     >
       {#if !fullscreen}
-        <CompanionDragHandle />
+        <CompanionDragHandle
+          onpointerdown={onDragPointerDown}
+          onmove={nudgePosition}
+        />
       {/if}
       <img src="/logo.svg" alt="Apollia" class="h-4 w-4 shrink-0" />
       <span class="flex-1 truncate text-sm font-medium text-foreground">
         {$t("companion.title")}
       </span>
-      <button
-        class="inline-flex items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground {fullscreen
-          ? 'h-11 w-11'
-          : 'h-6 w-6'}"
-        onpointerdown={(e) => e.stopPropagation()}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class={fullscreen ? "h-11 w-11" : "h-6 w-6"}
+        onpointerdown={(e: PointerEvent) => e.stopPropagation()}
         onclick={handleMinimize}
         aria-label={$t("companion.minimize")}
         data-testid="companion-minimize"
       >
         <Minus size={fullscreen ? 18 : 14} />
-      </button>
-      <button
-        class="inline-flex items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground {fullscreen
-          ? 'h-11 w-11'
-          : 'h-6 w-6'}"
-        onpointerdown={(e) => e.stopPropagation()}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class={fullscreen ? "h-11 w-11" : "h-6 w-6"}
+        onpointerdown={(e: PointerEvent) => e.stopPropagation()}
         onclick={handleClose}
         aria-label={$t("companion.close")}
         data-testid="companion-close"
       >
         <X size={fullscreen ? 18 : 14} />
-      </button>
+      </Button>
     </div>
 
     <!-- Chat content / skeleton / error -->
@@ -395,7 +435,10 @@
     </div>
 
     {#if !fullscreen}
-      <CompanionResizeHandle onpointerdown={onResizePointerDown} />
+      <CompanionResizeHandle
+        onpointerdown={onResizePointerDown}
+        onresize={nudgeSize}
+      />
     {/if}
   </div>
 

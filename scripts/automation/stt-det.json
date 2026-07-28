@@ -1,6 +1,12 @@
 {
   "name": "stt-det (settings STT + transcriptions, operator + builder; seeded config + transcripts assert populated, mic + file-picker + delete drive to boundary only)",
   "stopOnError": false,
+  "notes": [
+    "The STT page saves through SettingsSubPage (route='stt', onSave): one shared footer (settings-subpage-footer / settings-subpage-save) and a toast (settings-save-toast-success). The page-local sticky bar and inline saved status are gone.",
+    "stt-language-select is a native <select> over STT_LANGUAGES, driven with selectOption. It is set to 'it' before the first save because the save button only enables on a real change, and neither the seed ('en') nor settings-det.json ('de' discarded, 'es' saved) leaves that value, so the dirty state holds whether this script runs standalone or inside master-det.",
+    "TranscriptCard no longer anchors the source label (it became the EntityCard title); the card metadata row is asserted on transcript-time + transcript-duration + transcript-text.",
+    "Saving hot-reloads the engine: Stt.svelte's onSave sets sttApplied on a successful reloadStt() and only falls back to sttNeedsRestart when the reload throws. The seeded run reloads fine, so the deterministic assertion is stt-applied-notice, not the restart banner."
+  ],
   "steps": [
     {
       "kind": "click",
@@ -49,17 +55,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "stt-config-form",
       "timeoutMs": 15000
     },
     {
       "kind": "screenshot",
       "label": "01-stt-settings-operator"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "stt-config-form",
-      "timeoutMs": 6000
     },
     {
       "kind": "expect",
@@ -71,12 +72,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
       "testid": "stt-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "it",
       "timeoutMs": 3000
     },
     {
@@ -87,20 +94,25 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-sticky-save",
+      "testid": "settings-subpage-footer",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
       "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "02-stt-dirty-sticky-save"
+      "label": "02-stt-dirty-save-footer"
     },
     {
       "kind": "click",
-      "testid": "stt-save-btn"
+      "testid": "settings-subpage-save"
     },
     {
       "kind": "waitFor",
-      "testid": "stt-save-status-saved",
+      "testid": "settings-save-toast-success",
       "timeoutMs": 15000
     },
     {
@@ -109,17 +121,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-restart-notice",
+      "testid": "stt-applied-notice",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "04-stt-restart-notice"
+      "label": "04-stt-applied-notice"
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "en"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "en",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -202,11 +215,11 @@
     },
     {
       "kind": "click",
-      "testid": "stt-save-btn"
+      "testid": "settings-subpage-save"
     },
     {
       "kind": "waitFor",
-      "testid": "stt-save-status-saved",
+      "testid": "settings-save-toast-success",
       "timeoutMs": 15000
     },
     {
@@ -303,7 +316,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "transcript-source",
+      "testid": "transcript-duration",
       "timeoutMs": 2000
     },
     {
@@ -384,12 +397,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "stt-config-form",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "expect",
-      "testid": "stt-config-form"
     },
     {
       "kind": "expect",

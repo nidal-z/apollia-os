@@ -18,7 +18,7 @@
   import ApprovalCard from "./ApprovalCard.svelte";
   import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
-  import { Brain, ChevronDown, ChevronRight } from "lucide-svelte";
+  import { ChevronDown, ChevronRight } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { slide, fly } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
@@ -114,24 +114,18 @@
 {#if section === "reasoning"}
   {#if reasoningItems.length > 0}
     <!-- Flat narrated captions: a quiet, single-log reading of the agent's
-         thoughts. No per-item chevron, label, or left rule, so nothing reads as
-         a second collapsible system inside the strip. -->
-    <div class="flex flex-col gap-0.5" data-testid="reasoning-sequence">
+         thoughts. No per-item chevron, label, icon, or left rule, so nothing
+         reads as a second collapsible system inside the strip and no glyph
+         competes with the action emojis the model writes in its narration. -->
+    <div class="flex flex-col gap-1" data-testid="reasoning-sequence">
       {#each reasoningItems as item (item.id)}
         {#if item.kind === "thinking" || item.kind === "rationale"}
           <div
-            class="flex items-start gap-2.5 py-1"
+            class="reasoning-caption min-w-0 text-[12.5px] italic leading-relaxed text-muted-foreground"
             data-testid="reasoning-thought"
             in:fly={{ x: -12, duration: 260 }}
           >
-            <span class="tb-think-ico mt-[3px] flex-none" aria-hidden="true">
-              <Brain size={13} />
-            </span>
-            <div
-              class="reasoning-caption min-w-0 flex-1 text-[12.5px] italic leading-relaxed text-muted-foreground"
-            >
-              <MarkdownContent content={item.content} />
-            </div>
+            <MarkdownContent content={item.content} />
           </div>
         {/if}
       {/each}
@@ -141,7 +135,7 @@
   {#if toolItems.length > 0}
     <!-- Tool calls visible in the thread flow. Each row expands to its bespoke
          per-tool body (operator abstraction / builder raw) via ReasoningCard. -->
-    <div class="space-y-1.5" data-testid="reasoning-sequence">
+    <div class="chat-flow-tools" data-testid="reasoning-sequence">
       {#each visibleTools as item (item.id)}
         <div in:fly={{ x: -12, duration: 260 }}>
           <ReasoningCard {item} {skin} {sessionId} />

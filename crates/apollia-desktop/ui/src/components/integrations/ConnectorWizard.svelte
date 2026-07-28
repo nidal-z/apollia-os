@@ -18,11 +18,6 @@
   import WizardStepAuth from "./WizardStepAuth.svelte";
   import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
-  import {
-    isFirstConnectionTourDone,
-    markFirstConnectionTourDone,
-  } from "$lib/tour/FirstConnectionTour";
-  import FirstConnectionTourRunner from "./FirstConnectionTourRunner.svelte";
   import type {
     McpConnectionTestResponse,
     McpOAuthAccount,
@@ -77,7 +72,6 @@
   let testBypassed = $state(false);
   let finalizing = $state(false);
   let finalizeError = $state<string | null>(null);
-  let showFirstTour = $state(false);
 
   // ── Auth-step probe + OAuth state ────────────────────────
   // When the user enters the Auth step on a `remote` connector, we probe the
@@ -689,12 +683,10 @@
       }
       await invoke("add_mcp_server", { config: builtConfig });
       oncomplete();
-      // Launch the 4-step first-connection tour on the first successful setup.
-      if (!isFirstConnectionTourDone()) {
-        showFirstTour = true;
-      } else {
-        onclose();
-      }
+      // The first-connection walkthrough moved out of the wizard: it used to run
+      // while this dialog was closed, pointing at a sheet that was never open.
+      // It is now the "connect" micro-tour, launched from Getting started.
+      onclose();
     } catch (err: unknown) {
       finalizeError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -702,15 +694,10 @@
     }
   }
 
-  function handleTourClose(): void {
-    markFirstConnectionTourDone();
-    showFirstTour = false;
-    onclose();
-  }
 </script>
 
 <Dialog
-  open={open && !showFirstTour}
+  {open}
   onclose={handleRequestClose}
   size="lg"
   title={$t("integrations.wizard.title", {
@@ -856,7 +843,3 @@
     {/if}
   </div>
 </Dialog>
-
-{#if showFirstTour}
-  <FirstConnectionTourRunner onclose={handleTourClose} />
-{/if}

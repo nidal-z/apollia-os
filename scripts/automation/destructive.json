@@ -2,6 +2,9 @@
   "name": "destructive",
   "stopOnError": false,
   "destructive": true,
+  "notes": [
+    "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into."
+  ],
   "steps": [
     {
       "kind": "waitFor",
@@ -173,6 +176,23 @@
       "label": "09-chat-after"
     },
     {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
       "kind": "goto",
       "route": "settings"
     },
@@ -196,7 +216,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "delete-backend-",
+      "testid": "delete-backend",
       "nth": 0
     },
     {

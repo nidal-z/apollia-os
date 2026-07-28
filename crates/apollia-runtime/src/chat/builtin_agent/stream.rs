@@ -14,9 +14,11 @@ impl BuiltInChatAgent {
     /// Consume a token stream, emitting [`RuntimeEvent::ChatToken`] for each token
     /// and accumulating text in `accumulated_text`.
     ///
-    /// Returns the list of tool calls found in the stream (empty if none).
-    /// On stream error, returns the error message; the caller can use the
-    /// partially accumulated text.
+    /// Returns the list of tool calls found in the stream (empty if none). Any
+    /// terminal [`StreamChunk::Usage`] is merged into `usage`, so the caller can
+    /// fold this call's token accounting into the exchange total. On stream error,
+    /// returns the error message; the caller can use the partially accumulated
+    /// text (and whatever usage was reported before the error).
     pub(in crate::chat::builtin_agent) async fn consume_stream(
         &self,
         mut stream: std::pin::Pin<
@@ -24,6 +26,7 @@ impl BuiltInChatAgent {
         >,
         params: StreamConsumeParams<'_>,
         accumulated_text: &mut String,
+        usage: &mut TokenUsage,
     ) -> Result<Vec<ToolCall>, String> {
         let StreamConsumeParams {
             session_id,
@@ -62,6 +65,10 @@ impl BuiltInChatAgent {
                 Ok(StreamChunk::ToolCall(call)) => {
                     // Tool call detected in stream
                     tool_calls.push(call);
+                }
+                Ok(StreamChunk::Usage(chunk_usage)) => {
+                    // Terminal token accounting for this call; fold it in.
+                    usage.merge(&chunk_usage);
                 }
                 Err(e) => {
                     // Stream interrupted

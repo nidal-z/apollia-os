@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Check } from "lucide-svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { getNotificationEvents, setNotificationEvents } from "$lib/ipc/notifications";
   import {
     NOTIFICATION_EVENT_TYPES,
     eventLabelKey,
@@ -22,7 +22,7 @@
   async function loadEvents(): Promise<void> {
     loading = true;
     try {
-      const events: string[] = await invoke("get_notification_events");
+      const events = await getNotificationEvents();
       checkedEvents = new Set(events);
     } catch {
       checkedEvents = new Set();
@@ -41,7 +41,7 @@
     checkedEvents = next;
     savingEvent = event;
     try {
-      await invoke("set_notification_events", { events: [...next] });
+      await setNotificationEvents([...next]);
       onsaved();
     } catch (err: unknown) {
       const reverted = new Set(checkedEvents);
@@ -59,8 +59,8 @@
 </script>
 
 <section data-testid="global-events-section">
-  <h2 class="text-[13px] font-medium text-foreground">{$t("notifications.scope_title")}</h2>
-  <p class="mb-2.5 mt-0.5 text-[11.5px] text-muted-foreground">{$t("notifications.scope_desc")}</p>
+  <h2 class="text-body-sm font-medium text-foreground">{$t("notifications.scope_title")}</h2>
+  <p class="mb-2.5 mt-0.5 text-caption text-muted-foreground">{$t("notifications.scope_desc")}</p>
 
   {#if loading}
     <div class="flex flex-wrap gap-1.5">
@@ -76,7 +76,7 @@
           type="button"
           onclick={() => toggleEvent(event)}
           disabled={savingEvent === event}
-          class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors disabled:opacity-60 {active
+          class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption transition-colors disabled:opacity-60 {active
             ? 'border-primary/40 bg-primary/10 text-primary'
             : 'border-border bg-surface-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground'}"
           title={$t(eventDescriptionKey(event))}

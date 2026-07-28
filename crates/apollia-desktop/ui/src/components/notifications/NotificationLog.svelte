@@ -85,20 +85,20 @@
 </script>
 
 {#snippet timestampCell(entry: NotificationLogEntry)}
-  <span class="whitespace-nowrap text-[11px] text-muted-foreground">{formatRelativeTime(entry.sent_at)}</span>
+  <span class="whitespace-nowrap text-caption text-muted-foreground">{formatRelativeTime(entry.sent_at)}</span>
 {/snippet}
 
 {#snippet channelCell(entry: NotificationLogEntry)}
   <div class="flex flex-wrap gap-1">
     {#each entryChannelIds(entry) as cid}
-      <Badge variant="outline" class="text-[11px]" title={cid}>{channelDisplay(cid)}</Badge>
+      <Badge variant="outline" class="text-caption" title={cid}>{channelDisplay(cid)}</Badge>
     {/each}
   </div>
 {/snippet}
 
 {#snippet eventCell(entry: NotificationLogEntry)}
-  <span class="block text-[12px]">{eventDisplay(entry.event_name)}</span>
-  <span class="block text-[10px] font-mono text-muted-foreground/70">{entry.event_name}</span>
+  <span class="block text-body-xs">{eventDisplay(entry.event_name)}</span>
+  <span class="block text-caption font-mono text-muted-foreground/70">{entry.event_name}</span>
 {/snippet}
 
 {#snippet statusCell(entry: NotificationLogEntry)}
@@ -117,7 +117,7 @@
       inline
       id="channel-filter"
       label={$t('notifications.filter_by_channel')}
-      labelClass="text-[11px] font-normal"
+      labelClass="text-caption font-normal"
     >
       <Select
         id="channel-filter"
@@ -138,7 +138,7 @@
       data={filteredLogs}
       {columns}
       rowKey={(e) => e.id}
-      class="min-w-[520px]"
+      class="min-w-[32rem]"
       emptyLabel={$t('notifications.empty_history')}
     />
   </div>

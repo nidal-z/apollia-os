@@ -141,7 +141,7 @@
 <section class="border-t border-border px-3 py-2" data-testid="plan-history-scrubber">
   <button
     type="button"
-    class="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+    class="inline-flex items-center gap-1.5 text-caption font-medium text-muted-foreground transition-colors hover:text-foreground"
     aria-expanded={open}
     onclick={toggleOpen}
   >
@@ -152,15 +152,15 @@
   {#if open}
     <div class="mt-2">
       {#if loading}
-        <p class="text-[11px] text-muted-foreground">
+        <p class="text-caption text-muted-foreground">
           {$t(PLAN_MODE_KEYS.historyLoading)}
         </p>
       {:else if errored}
-        <p class="text-[11px] text-destructive" role="alert">
+        <p class="text-caption text-destructive" role="alert">
           {$t(PLAN_MODE_KEYS.historyError)}
         </p>
       {:else if !hasHistory}
-        <p class="text-[11px] text-muted-foreground" data-testid="plan-history-empty">
+        <p class="text-caption text-muted-foreground" data-testid="plan-history-empty">
           {$t(PLAN_MODE_KEYS.historyEmpty)}
         </p>
       {:else}
@@ -210,21 +210,21 @@
           </button>
         </div>
 
-        <p class="mt-1 text-[10.5px] text-muted-foreground">
+        <p class="mt-1 text-overline text-muted-foreground">
           {$t(PLAN_MODE_KEYS.historyRevisionPosition, {
             values: { current: revision, total },
           })}
         </p>
 
         {#if currentReason}
-          <p class="mt-1 text-[11px] text-muted-foreground">
+          <p class="mt-1 text-caption text-muted-foreground">
             <span class="font-medium">{$t(PLAN_MODE_KEYS.historyReasonLabel)}:</span>
             {currentReason}
           </p>
         {/if}
 
         {#if reconstructed.skipped.length > 0}
-          <p class="mt-1 text-[11px] text-destructive" role="alert" data-testid="plan-history-corrupt">
+          <p class="mt-1 text-caption text-destructive" role="alert" data-testid="plan-history-corrupt">
             {$t(PLAN_MODE_KEYS.historyCorruptMarker, {
               values: { count: reconstructed.skipped.length },
             })}

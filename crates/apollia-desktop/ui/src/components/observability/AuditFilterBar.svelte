@@ -25,7 +25,7 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
-  <FormField inline id="filter-tool" label={$t('observability.tool_filter')} labelClass="text-[12px] font-normal">
+  <FormField inline id="filter-tool" label={$t('observability.tool_filter')} labelClass="text-body-xs font-normal">
     <Select id="filter-tool" size="sm" class="w-auto" bind:value={filterTool}>
       <option value="all">{$t('observability.all_tools')}</option>
       {#each uniqueTools as tool (tool)}
@@ -34,7 +34,7 @@
     </Select>
   </FormField>
 
-  <FormField inline id="filter-agent" label={$t('observability.agent_filter')} labelClass="text-[12px] font-normal">
+  <FormField inline id="filter-agent" label={$t('observability.agent_filter')} labelClass="text-body-xs font-normal">
     <Select id="filter-agent" size="sm" class="w-auto" bind:value={filterAgent}>
       <option value="all">{$t('observability.all_agents')}</option>
       {#each uniqueAgents as agentName (agentName)}

@@ -1,29 +1,23 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Select } from "$lib/components/ui/select";
+  import { ErrorBanner } from "$lib/components/operator";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
+  import {
+    listDelegationTasks,
+    getDelegationTree,
+    type DelegationNode,
+    type DelegationTaskOption,
+  } from "$lib/ipc/delegation";
 
-  interface DelegationNode {
-    agent_id: string;
-    agent_name: string;
-    status: string;
-    started_at: string | null;
-    children: DelegationNode[];
-  }
-
-  interface TaskOption {
-    id: string;
-    agent_name: string;
-    status: string;
-  }
-
-  let tasks = $state<TaskOption[]>([]);
+  let tasks = $state<DelegationTaskOption[]>([]);
   let selectedTaskId = $state<string>("");
   let tree = $state<DelegationNode | null>(null);
   let loadingTasks = $state(true);
   let loadingTree = $state(false);
-  let error = $state<string | null>(null);
+  let errState = $state<HumanizedError | null>(null);
 
   const STATUS_COLORS: Record<string, string> = {
     running: "bg-info/15 text-info border-info/30",
@@ -43,14 +37,14 @@
   async function loadTasks() {
     loadingTasks = true;
     try {
-      const summaries = await invoke<TaskOption[]>("list_tasks", { filter: null });
+      const summaries = await listDelegationTasks();
       tasks = summaries;
       if (!selectedTaskId && summaries.length > 0) {
         selectedTaskId = summaries[0].id;
         void loadTree(selectedTaskId);
       }
     } catch (e) {
-      error = String(e);
+      errState = reportError(e, { surface: "inline" });
     } finally {
       loadingTasks = false;
     }
@@ -59,11 +53,11 @@
   async function loadTree(taskId: string) {
     if (!taskId) return;
     loadingTree = true;
-    error = null;
+    errState = null;
     try {
-      tree = await invoke<DelegationNode>("get_delegation_tree", { taskId });
+      tree = await getDelegationTree(taskId);
     } catch (e) {
-      error = String(e);
+      errState = reportError(e, { surface: "inline" });
       tree = null;
     } finally {
       loadingTree = false;
@@ -106,8 +100,13 @@
     <p class="text-sm text-muted-foreground">{$t("observability.delegation_no_tasks")}</p>
   {:else if loadingTree}
     <p class="text-sm text-muted-foreground">{$t("observability.delegation_loading")}</p>
-  {:else if error}
-    <p class="text-sm text-destructive" data-testid="delegation-error">{error}</p>
+  {:else if errState}
+    <ErrorBanner
+      message={errState.friendly_message}
+      onretry={() => void loadTasks()}
+      retryLabel={$t('common.retry')}
+      data-testid="delegation-error"
+    />
   {:else if tree}
     <div class="rounded-lg border border-border bg-card p-4">
       <div class="flex items-center gap-2">

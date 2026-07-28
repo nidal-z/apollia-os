@@ -13,6 +13,14 @@ import {
   Plug,
   Compass,
   BookOpen,
+  Mail,
+  Calendar,
+  HardDrive,
+  Table,
+  Presentation,
+  ClipboardList,
+  ListChecks,
+  Youtube,
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
@@ -62,7 +70,97 @@ function httpFetchDescriptionKey(method: string): string {
   return "tools.descriptions.http_fetch";
 }
 
-const TOOL_ICONS: Record<string, SvelteComponentType> = {
+/**
+ * Friendly brand names for the connector tool families (Google / Microsoft /
+ * media). Connector tools are named `provider.action` (dot-separated), unlike
+ * the underscored native tools. The prefix before the first dot picks the brand;
+ * the rest is the action. Brand names are product names, kept identical across
+ * locales.
+ */
+const CONNECTOR_LABELS: Record<string, string> = {
+  gmail: "Gmail",
+  gcal: "Google Calendar",
+  gdrive: "Google Drive",
+  gdocs: "Google Docs",
+  gsheets: "Google Sheets",
+  gslides: "Google Slides",
+  gforms: "Google Forms",
+  gtasks: "Google Tasks",
+  youtube: "YouTube",
+  outlook: "Outlook",
+  outlook_cal: "Outlook Calendar",
+  onedrive: "OneDrive",
+};
+
+/** Lucide icon per connector family, falling back to the generic plug. */
+const CONNECTOR_ICONS: Record<string, SvelteComponentType> = {
+  gmail: Mail,
+  gcal: Calendar,
+  gdrive: HardDrive,
+  gdocs: FileText,
+  gsheets: Table,
+  gslides: Presentation,
+  gforms: ClipboardList,
+  gtasks: ListChecks,
+  youtube: Youtube,
+  outlook: Mail,
+  outlook_cal: Calendar,
+  onedrive: HardDrive,
+};
+
+/** Splits a `provider.action` connector name into its brand and humanized action. */
+function splitConnector(toolName: string): { provider: string; action: string } {
+  const dot = toolName.indexOf(".");
+  const prefix = dot >= 0 ? toolName.slice(0, dot) : toolName;
+  const rest = dot >= 0 ? toolName.slice(dot + 1) : "";
+  const provider = CONNECTOR_LABELS[prefix] ?? titleCaseWords(prefix);
+  const action = rest ? rest.replace(/[._]/g, " ") : "";
+  return { provider, action };
+}
+
+/** Title-cases an underscore/dot separated identifier for a readable fallback. */
+function titleCaseWords(raw: string): string {
+  return raw
+    .split(/[._]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/**
+ * Human-readable fallback name for any tool that lacks a dedicated i18n label,
+ * so a missing translation key never surfaces as a raw `tools.descriptions.*`
+ * string. Connector tools resolve to their brand plus action; every other tool
+ * is title-cased from its identifier.
+ */
+export function humanizeToolName(toolName: string): string {
+  if (toolName.startsWith("mcp:")) {
+    const raw = toolName.slice("mcp:".length);
+    return titleCaseWords(raw.replace("/", " "));
+  }
+  if (toolName.includes(".")) {
+    const { provider, action } = splitConnector(toolName);
+    return action ? `${provider}: ${action}` : provider;
+  }
+  return titleCaseWords(toolName);
+}
+
+/** Resolves display info for a `provider.action` connector tool. */
+function resolveConnectorDisplay(toolCall: ToolCallView): ToolDisplayInfo {
+  const dot = toolCall.tool_name.indexOf(".");
+  const prefix = dot >= 0 ? toolCall.tool_name.slice(0, dot) : toolCall.tool_name;
+  const { provider, action } = splitConnector(toolCall.tool_name);
+  return {
+    icon: CONNECTOR_ICONS[prefix] ?? Plug,
+    labelKey: "tools.labels.connector",
+    descriptionKey: "tools.descriptions.connector",
+    templateParams: { provider, action },
+    outputSummaryKey: null,
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+export const TOOL_ICONS: Record<string, SvelteComponentType> = {
   file_read: FileText,
   file_write: FilePen,
   file_edit: FilePenLine,
@@ -328,8 +426,14 @@ export function resolveToolDisplay(toolCall: ToolCallView): ToolDisplayInfo {
   const resolver = TOOL_RESOLVERS[tool_name];
   if (resolver) return resolver(toolCall, icon);
 
+  // Connector tools (`provider.action`, dot-separated) get a friendly brand +
+  // action rendering instead of a raw i18n key.
+  if (tool_name.includes(".")) {
+    return resolveConnectorDisplay(toolCall);
+  }
+
   return {
-    icon: Terminal,
+    icon: TOOL_ICONS[tool_name] ?? Terminal,
     labelKey: `tools.labels.${tool_name}`,
     descriptionKey: `tools.descriptions.${tool_name}`,
     templateParams: {},

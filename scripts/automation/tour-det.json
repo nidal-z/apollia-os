@@ -1,0 +1,133 @@
+{
+  "name": "tour-det (getting-started band + guided tour: entry points, steps, back, anchorless fallback, exit confirmation, finish)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against lib/tour/{catalog,engine,anchor,persistence,milestones}.ts, lib/components/tour/{TourHost,TourSpotlight,TourStepCard}.svelte, components/dashboard/GettingStartedBand.svelte, components/settings/help/HelpTopics.svelte and lib/command-palette/actions.ts.",
+    "Nothing in the tour system launches on its own. Every tour here is started by an explicit click, which is exactly the product behaviour: the band is the single entry point.",
+    "The band is reached through Aide, not by assuming it is on screen: help-topic-tour calls restoreBand() then navigates to the dashboard, so the script works whether or not a previous section dismissed it.",
+    "The seeded ecosystem already holds chat sessions, projects, automations and an MCP server, so four milestones out of five are ticked at boot and the fifth flips as soon as any section visits observability. The band only runs its closing sequence when the last milestone lands WHILE it is on screen (GettingStartedBand.completeOnMount), so a fully-ticked band stays usable. That is what makes this script deterministic wherever it sits in master-det.",
+    "The landmarks tour has route null and anchors only on permanent chrome (sidebar, topbar-search, sidebar-mode-chip, topbar-inbox), so it never navigates and never depends on page data.",
+    "The frame tour is used to exercise the anchorless fallback: its third step declares anchor null in the catalogue, so tour-anchorless is asserted deterministically and tour-spotlight is asserted ABSENT at that point.",
+    "tour-prev is not rendered at index 0 (not merely disabled), so its absence is asserted with waitGone rather than with a disabled check.",
+    "The exit confirmation is a Dialog carrying data-testid tour-exit; its two buttons are tour-exit-cancel and tour-exit-confirm. The cancel path is exercised before the confirm path.",
+    "The landmarks walk counts clicks to reach the last step, which assumes pre-flight retains all four. That holds because the four anchors are permanent chrome present in both modes; if a future refactor drops one, the surplus click fails loudly here, which is the intended signal."
+  ],
+  "steps": [
+    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
+    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
+
+    { "kind": "screenshot", "label": "01-tour-start" },
+
+    { "kind": "goto", "route": "settings" },
+    { "kind": "waitFor", "testid": "settings-page", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "settings-nav-help", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "help-section", "timeoutMs": 8000 },
+    { "kind": "expect", "testid": "help-topic-tour" },
+    { "kind": "screenshot", "label": "02-help-topic-tour" },
+
+    { "kind": "click", "testid": "help-topic-tour", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 8000 },
+    { "kind": "expect", "testid": "getting-started-milestone-chat" },
+    { "kind": "expect", "testid": "getting-started-milestone-frame" },
+    { "kind": "expect", "testid": "getting-started-milestone-automate" },
+    { "kind": "expect", "testid": "getting-started-milestone-connect" },
+    { "kind": "expect", "testid": "getting-started-milestone-follow" },
+    { "kind": "expect", "testid": "getting-started-landmarks" },
+    { "kind": "expect", "testid": "getting-started-hide" },
+    { "kind": "screenshot", "label": "03-band-restored" },
+
+    { "kind": "click", "testid": "getting-started-landmarks", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-step-card", "timeoutMs": 8000 },
+    { "kind": "expect", "testid": "tour-spotlight" },
+    { "kind": "expect", "testid": "tour-counter" },
+    { "kind": "expect", "testid": "tour-next" },
+    { "kind": "waitGone", "testid": "tour-prev", "timeoutMs": 2000 },
+    { "kind": "screenshot", "label": "04-landmarks-step-1" },
+
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-prev", "timeoutMs": 4000 },
+    { "kind": "screenshot", "label": "05-landmarks-step-2" },
+
+    { "kind": "click", "testid": "tour-prev", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-prev", "timeoutMs": 4000 },
+    { "kind": "screenshot", "label": "06-landmarks-back-to-1" },
+
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-prev", "timeoutMs": 4000 },
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "sleep", "ms": 500 },
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "sleep", "ms": 500 },
+    { "kind": "screenshot", "label": "07-landmarks-last-step" },
+
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-step-card", "timeoutMs": 6000 },
+    { "kind": "waitGone", "testid": "tour-spotlight", "timeoutMs": 6000 },
+    { "kind": "screenshot", "label": "08-landmarks-finished" },
+
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 6000 },
+    { "kind": "click", "testid": "getting-started-landmarks", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-step-card", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "tour-skip", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-exit", "timeoutMs": 6000 },
+    { "kind": "screenshot", "label": "09-exit-confirmation" },
+
+    { "kind": "click", "testid": "tour-exit-cancel", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-exit", "timeoutMs": 6000 },
+    { "kind": "expect", "testid": "tour-step-card" },
+    { "kind": "screenshot", "label": "10-exit-cancelled-tour-still-running" },
+
+    { "kind": "click", "testid": "tour-skip", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-exit", "timeoutMs": 6000 },
+    { "kind": "click", "testid": "tour-exit-confirm", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-step-card", "timeoutMs": 6000 },
+    { "kind": "waitGone", "testid": "tour-spotlight", "timeoutMs": 6000 },
+    { "kind": "screenshot", "label": "11-exit-confirmed" },
+
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 6000 },
+    { "kind": "click", "testid": "getting-started-milestone-frame", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-step-card", "timeoutMs": 8000 },
+    { "kind": "waitFor", "testid": "projects-page", "timeoutMs": 8000 },
+    { "kind": "screenshot", "label": "12-frame-step-1-on-projects" },
+
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "sleep", "ms": 500 },
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-anchorless", "timeoutMs": 6000 },
+    { "kind": "waitGone", "testid": "tour-spotlight", "timeoutMs": 4000 },
+    { "kind": "screenshot", "label": "13-frame-anchorless-fallback" },
+
+    { "kind": "click", "testid": "tour-next", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-step-card", "timeoutMs": 6000 },
+    { "kind": "screenshot", "label": "14-frame-finished" },
+
+    { "kind": "goto", "route": "dashboard" },
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "getting-started-milestone-connect", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-step-card", "timeoutMs": 8000 },
+    { "kind": "waitFor", "testid": "connections-route", "timeoutMs": 8000 },
+    { "kind": "expect", "testid": "tour-spotlight" },
+    { "kind": "screenshot", "label": "15-connect-micro-tour" },
+    { "kind": "click", "testid": "tour-skip", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "tour-exit", "timeoutMs": 6000 },
+    { "kind": "click", "testid": "tour-exit-confirm", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "tour-step-card", "timeoutMs": 6000 },
+
+    { "kind": "goto", "route": "dashboard" },
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "getting-started-hide", "timeoutMs": 4000 },
+    { "kind": "waitGone", "testid": "getting-started-card", "timeoutMs": 6000 },
+    { "kind": "screenshot", "label": "16-band-hidden" },
+
+    { "kind": "goto", "route": "settings" },
+    { "kind": "waitFor", "testid": "settings-page", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "settings-nav-help", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "help-section", "timeoutMs": 8000 },
+    { "kind": "click", "testid": "help-topic-tour", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "getting-started-card", "timeoutMs": 8000 },
+    { "kind": "screenshot", "label": "17-band-restored-from-help" },
+
+    { "kind": "goto", "route": "dashboard" },
+    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 8000 }
+  ]
+}

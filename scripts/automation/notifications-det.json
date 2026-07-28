@@ -125,6 +125,16 @@
       "testid": "channel-label-input"
     },
     {
+      "kind": "click",
+      "testid": "disc-technical-id-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-id-input",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "expect",
       "testid": "channel-id-input"
     },
@@ -381,6 +391,16 @@
       "ms": 400
     },
     {
+      "kind": "click",
+      "testid": "disc-technical-id-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-id-input",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "expect",
       "testid": "channel-id-error"
     },
@@ -529,5 +549,8 @@
       "kind": "screenshot",
       "label": "21-back-operator"
     }
+  ],
+  "notes": [
+    "The technical identifier field moved into a collapsed Disclosure (disc-technical-id) in CreateChannelDialog.svelte. Its toggle button carries disc-technical-id-toggle (the Disclosure root testid only marks the wrapper, clicking it does nothing), so the panel is opened before channel-id-input / channel-id-error are asserted."
   ]
 }

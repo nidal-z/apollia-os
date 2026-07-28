@@ -8,6 +8,10 @@
   import { Button } from "$lib/components/ui/button";
   import { Shield } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
+  import { ErrorBanner, SkeletonList } from "$lib/components/operator";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
+  import { listNavigation } from "$lib/components/operator/listNavigation";
   import AuditPurposeBanner from "./AuditPurposeBanner.svelte";
   import AuditStatsStrip from "./AuditStatsStrip.svelte";
   import AuditFilterBar from "./AuditFilterBar.svelte";
@@ -29,7 +33,7 @@
 
   let rows = $state<AuditRow[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
+  let errState = $state<HumanizedError | null>(null);
   let expandedRows = $state<Set<string>>(new Set());
   let hasMore = $state(false);
   let loadingMore = $state(false);
@@ -104,9 +108,9 @@
       const result = await getToolAuditTrail(PAGE_SIZE);
       rows = result.map(mapAuditRow);
       hasMore = result.length >= PAGE_SIZE;
-      error = null;
+      errState = null;
     } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
+      errState = reportError(err, { surface: "inline" });
     } finally {
       loading = false;
     }
@@ -120,7 +124,9 @@
       rows = result.map(mapAuditRow);
       hasMore = result.length >= nextLimit;
     } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
+      // A failed "load more" keeps the existing rows and surfaces a transient
+      // toast rather than replacing the table with the inline error banner.
+      reportError(err, { surface: "toast" });
     } finally {
       loadingMore = false;
     }
@@ -135,9 +141,14 @@
   <AuditPurposeBanner />
 
   {#if loading}
-    <p class="text-sm text-muted-foreground">{$t('observability.loading_audit')}</p>
-  {:else if error}
-    <p class="text-sm text-destructive">{error}</p>
+    <SkeletonList count={6} avatar={false} rowClass="py-1" />
+  {:else if errState}
+    <ErrorBanner
+      message={errState.friendly_message}
+      onretry={() => void loadEntries()}
+      retryLabel={$t('common.retry')}
+      data-testid="audit-error"
+    />
   {:else}
     <AuditStatsStrip {stats} />
 
@@ -155,52 +166,52 @@
         <div class="rounded-full glass-inset p-4 mb-4">
           <Shield class="h-8 w-8 text-muted-foreground/60" />
         </div>
-        <p class="text-[13px] text-muted-foreground">{$t('observability.empty_audit')}</p>
+        <p class="text-body-sm text-muted-foreground">{$t('observability.empty_audit')}</p>
       </Card>
     {:else}
       <Card class="overflow-hidden" data-testid="audit-trail-table">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[720px] text-[13px]">
+          <table class="w-full min-w-[720px] text-body-sm">
             <thead>
               <tr class="border-b border-border/40">
                 <th
                   scope="col"
-                  class="section-meta text-left px-5 py-3 text-[10px] tracking-[1.4px]"
+                  class="section-meta text-left px-5 py-3"
                 >
                   {$t('observability.table.timestamp')}
                 </th>
                 <th
                   scope="col"
-                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                  class="section-meta text-left px-3 py-3"
                 >
                   {$t('observability.table.tool')}
                 </th>
                 <th
                   scope="col"
-                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                  class="section-meta text-left px-3 py-3"
                 >
                   {$t('observability.table.agent')}
                 </th>
                 <th
                   scope="col"
-                  class="section-meta text-right px-3 py-3 text-[10px] tracking-[1.4px]"
+                  class="section-meta text-right px-3 py-3"
                 >
                   {$t('observability.table.duration')}
                 </th>
                 <th
                   scope="col"
-                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                  class="section-meta text-left px-3 py-3"
                 >
                   {$t('observability.table.status')}
                 </th>
                 <th
                   scope="col"
-                  class="section-meta text-right px-5 py-3 text-[10px] tracking-[1.4px] w-8"
+                  class="section-meta text-right px-5 py-3 w-8"
                   aria-label="expand"
                 ></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody use:listNavigation={{ rowSelector: "tr[data-audit-row]", idPrefix: "audit-row" }}>
               {#each filteredRows as row (row.type === "tool" ? `tool:${row.entry.id}` : `plan:${row.entry.ordinal}`)}
                 {#if row.type === "plan_mutation"}
                   <PlanMutationRow entry={row.entry} />

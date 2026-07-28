@@ -31,7 +31,7 @@
         <button
           {...props}
           type="button"
-          class="text-[11px] text-muted-foreground underline transition-colors hover:text-foreground"
+          class="text-caption text-muted-foreground underline transition-colors hover:text-foreground"
         >
           {$t(PLAN_SESSION_KEYS.alternativesTrigger, {
             values: { count: ghosts.length },
@@ -40,14 +40,14 @@
       {/snippet}
       {#snippet content()}
         {#if chosen}
-          <p class="mb-1 text-[11px] text-success">
+          <p class="mb-1 text-caption text-success">
             <span class="font-medium">{$t(PLAN_SESSION_KEYS.chosenLabel)}:</span>
             {chosen}
           </p>
         {/if}
         <ul class="space-y-2">
           {#each ghosts as ghost (ghost.id)}
-            <li class="rounded border px-2 py-1 text-[11px] {ghost.tokenClass}">
+            <li class="rounded border px-2 py-1 text-caption {ghost.tokenClass}">
               <p class="font-medium">{ghost.label}</p>
               <p>
                 <span class="font-medium"

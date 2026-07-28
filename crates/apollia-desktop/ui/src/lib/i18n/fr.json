@@ -1,4 +1,46 @@
 {
+  "errors": {
+    "permission": {
+      "title": "Autorisation requise",
+      "friendly_message": "Une règle d'autorisation ou de bac à sable a bloqué cette action.",
+      "suggested_action": "Vérifiez la règle concernée dans Réglages, Autorisations, puis réessayez ou accordez une exception."
+    },
+    "ipc": {
+      "title": "Moteur indisponible",
+      "friendly_message": "L'application n'a pas pu joindre le moteur Apollia pour terminer cette action.",
+      "suggested_action": "Patientez un instant et réessayez. Si le problème persiste, redémarrez Apollia."
+    },
+    "validation": {
+      "title": "Saisie invalide",
+      "friendly_message": "La requête a été refusée car une ou plusieurs valeurs sont manquantes ou mal formées.",
+      "suggested_action": "Vérifiez les champs signalés et corrigez les valeurs, puis renvoyez."
+    },
+    "auth": {
+      "title": "Authentification nécessaire",
+      "friendly_message": "Le service a refusé la requête car les identifiants sont manquants, expirés ou non acceptés.",
+      "suggested_action": "Reconnectez-vous ou réassociez l'intégration, puis réessayez."
+    },
+    "rate_limit": {
+      "title": "Trop de requêtes",
+      "friendly_message": "Le service limite les requêtes car un trop grand nombre a été envoyé en peu de temps.",
+      "suggested_action": "Patientez quelques instants avant de réessayer."
+    },
+    "not_found": {
+      "title": "Introuvable",
+      "friendly_message": "L'élément demandé n'existe pas ou n'est plus disponible.",
+      "suggested_action": "Actualisez la liste, ou vérifiez que l'élément n'a pas été déplacé ou supprimé."
+    },
+    "conflict": {
+      "title": "Conflit",
+      "friendly_message": "Cette modification entre en conflit avec l'état actuel, par exemple un élément qui existe déjà.",
+      "suggested_action": "Rechargez le dernier état, puis réappliquez votre modification."
+    },
+    "generic": {
+      "title": "Une erreur est survenue",
+      "friendly_message": "Une erreur inattendue a empêché cette action d'aboutir.",
+      "suggested_action": "Réessayez l'action. Si l'échec persiste, consultez les détails ci-dessous."
+    }
+  },
   "next_steps": {
     "title": "Prochaines étapes",
     "refresh": "Actualiser",
@@ -59,7 +101,8 @@
     "worker_badge": "Worker",
     "saving": "Enregistrement…",
     "finalize": "Finaliser",
-    "finalizing": "Finalisation…"
+    "finalizing": "Finalisation…",
+    "error_details": "Détails"
   },
   "companion": {
     "toggle_label": "Aide Apollia",
@@ -121,7 +164,8 @@
         "cause_2": "La configuration est invalide",
         "cause_3": "Une erreur interne est survenue"
       }
-    }
+    },
+    "header_toolbar": "Barre d'outils du Companion"
   },
   "a11y": {
     "skip_to_content": "Aller au contenu principal",
@@ -264,7 +308,8 @@
       "no_llm": "Runtime connecté · aucun fournisseur LLM configuré",
       "runtime_down": "Runtime hors ligne - reconnexion en cours"
     },
-    "search_aria": "Recherche et palette de commandes"
+    "search_aria": "Recherche et palette de commandes",
+    "agents_at_work": "{count} agents au travail"
   },
   "userMenu": {
     "open_label": "Ouvrir le menu utilisateur",
@@ -600,7 +645,9 @@
       "hint_postgres": "URI de connexion PostgreSQL (`postgres://user:pass@host:5432/db`) en premier argument.",
       "hint_sqlite": "Chemin absolu vers le fichier `.sqlite` à exposer."
     },
-    "add_connector": "Ajouter un connecteur"
+    "add_connector": "Ajouter un connecteur",
+    "ctx_configure": "Configurer",
+    "tool_schema": "Schéma"
   },
   "integrations": {
     "title_operator": "Connexions",
@@ -699,16 +746,6 @@
       "checkbox": "J'ai lu et compris ces informations",
       "learn_more": "En savoir plus : Sécurité des connexions",
       "continue": "Continuer"
-    },
-    "first_connection_tour": {
-      "step_1_title": "Voici votre connexion",
-      "step_1_body": "Votre nouvelle connexion apparaît ici. Elle est active et prête à être utilisée par vos assistants.",
-      "step_2_title": "Ces outils sont disponibles",
-      "step_2_body": "Le nombre d'outils exposés par cette connexion. Chaque outil correspond à une action possible sur le service.",
-      "step_3_title": "Gérez-la ici",
-      "step_3_body": "Depuis ce panneau, vous pouvez tester, reconnecter, modifier les autorisations ou déconnecter ce service.",
-      "step_4_title": "Essayez un exemple",
-      "step_4_body": "Cliquez sur « Essayer » pour lancer un chat pré-rempli et voir la connexion en action."
     },
     "trust": {
       "verified_official": "Officiel",
@@ -976,7 +1013,14 @@
     "inbox_more_one": "+ {count} autre dans la boîte de réception →",
     "inbox_more_other": "+ {count} autres dans la boîte de réception →",
     "open_task_aria": "Ouvrir la tâche {name}",
-    "agent_detail_aria": "Détails de l'agent {name}"
+    "agent_detail_aria": "Détails de l'agent {name}",
+    "pending_untitled": "(sans titre)",
+    "ctx_open_inbox": "Ouvrir dans la boite de reception",
+    "ctx_open_deliverable": "Ouvrir le livrable",
+    "ctx_agent_detail": "Ouvrir le détail de l'agent",
+    "ctx_agent_logs": "Voir les journaux",
+    "ctx_open_task": "Ouvrir la tâche",
+    "ctx_open_project": "Ouvrir le projet"
   },
   "agents": {
     "title": "Agents",
@@ -1031,7 +1075,8 @@
       "done_agents_many": "{n} agents",
       "done_triggers_one": "{n} trigger",
       "done_triggers_many": "{n} triggers",
-      "trigger_every": "toutes les {every}"
+      "trigger_every": "toutes les {every}",
+      "secret_placeholder": "Ex. : ma-clé-secrète-d-au-moins-32-caractères"
     },
     "installing": "Installation...",
     "register": "Enregistrer un agent",
@@ -1216,7 +1261,8 @@
       "model_default_with_backend": "Modèle par défaut ({name} - {model})",
       "model_default_suffix": "(défaut)",
       "model_empty": "Aucun modèle configuré. Ajoutez-en un dans Réglages › Modèles.",
-      "revert": "Annuler les modifications"
+      "revert": "Annuler les modifications",
+      "personality_placeholder": "Ex. : Tu es Apollia, un assistant local concis et pragmatique. Tu réponds en français, tu poses une question si quelque chose est ambigu, et tu privilégies les réponses courtes."
     },
     "memory_relative_future": "à l'instant"
   },
@@ -1323,7 +1369,19 @@
     "tech_agent_id": "Agent ID",
     "tech_agent_name": "Agent name",
     "tech_status_timing": "Statut & timing",
-    "tech_raw_status": "Statut brut"
+    "tech_raw_status": "Statut brut",
+    "ctx_run": "Ouvrir",
+    "ctx_retry": "Relancer",
+    "ctx_cancel": "Annuler",
+    "stop": "Arrêter",
+    "retry": "Relancer",
+    "error_details": "Détails",
+    "live_working_hint": "L'agent travaille. Un résultat partiel apparaît dès la fin de l'étape en cours.",
+    "ctx_delete": "Supprimer",
+    "delete": "Supprimer",
+    "delete_confirm_title": "Supprimer la tâche",
+    "delete_confirm_message": "Voulez-vous vraiment supprimer cette tâche ? Cette action est irréversible.",
+    "delete_confirm_yes": "Supprimer"
   },
   "inbox": {
     "row": {
@@ -1337,7 +1395,9 @@
       "action_allow": "Autoriser",
       "action_reply": "Répondre",
       "action_resolve": "Résoudre",
-      "open_conversation": "Ouvrir la conversation"
+      "open_conversation": "Ouvrir la conversation",
+      "action_review": "Revoir",
+      "copy_id": "Copier l'identifiant"
     },
     "title_operator": "Boîte de réception",
     "title_builder": "Inbox",
@@ -1454,12 +1514,17 @@
       "always_accepted": "Règle enregistrée - futurs appels auto-approuvés",
       "ask_user_replied": "Réponses envoyées à l'agent",
       "bulk_approved": "{count} actions approuvées",
-      "bulk_rejected": "{count} actions refusées"
+      "bulk_rejected": "{count} actions refusées",
+      "copied": "Copié dans le presse-papiers"
     },
     "history_title": "Historique récent (14 jours)",
     "ask_user_gate": {
       "title": "L'agent veut vous poser une question",
       "body": "Approuvez pour laisser l'agent continuer. Il vous posera ensuite ses questions directement dans la conversation."
+    },
+    "error": {
+      "details": "Détails techniques",
+      "learn_more": "En savoir plus"
     }
   },
   "permissions": {
@@ -1600,7 +1665,21 @@
     "history_scrubber_label": "Révision du plan",
     "history_revision_position": "Révision {current} / {total}",
     "history_reason_label": "Raison",
-    "history_corrupt_marker": "{count} mutation(s) ignorée(s) (corrompue(s))"
+    "history_corrupt_marker": "{count} mutation(s) ignorée(s) (corrompue(s))",
+    "approve_and_launch": "Approuver et lancer",
+    "request_changes": "Demander des ajustements",
+    "request_changes_label": "Qu'ajuster ?",
+    "request_changes_placeholder": "Ex : garde une compatibilité avec l'ancien token pendant 30 jours, et ajoute une étape de rollback.",
+    "send": "Envoyer",
+    "cancel": "Annuler",
+    "revise_hint": "Ou continuez à écrire pour affiner le plan.",
+    "awaiting_approval": "En attente d'approbation",
+    "step_count": "{count} étapes",
+    "revision_label": "rév. {n}",
+    "raw_plan": "Plan brut (JSON)",
+    "launch_failed_title": "Le lancement n'a pas abouti",
+    "launch_failed_hint": "Aucune étape n'a démarré. Détails techniques",
+    "retry_approval": "Réessayer l'approbation"
   },
   "plan_session": {
     "tab_journal": "Journal",
@@ -1756,7 +1835,9 @@
       "tokens": "Tokens",
       "cost_usd": "Coût USD",
       "total": "Total"
-    }
+    },
+    "default_set_toast": "'{name}' défini comme modèle par défaut",
+    "details": "Détails"
   },
   "automations": {
     "title": "Automatisations",
@@ -1841,7 +1922,8 @@
       "history_note": "L'historique d'exécution sera conservé, mais la règle ne se déclenchera plus.",
       "skip_next": "Ne plus me demander",
       "confirm": "Supprimer"
-    }
+    },
+    "technical_details": "Détails techniques"
   },
   "triggers": {
     "title": "Triggers",
@@ -2089,7 +2171,32 @@
     "ttl_in_days": "Expire dans {days}j (le {date})",
     "delete_confirm_question": "Confirmer la suppression ?",
     "cancel": "Annuler",
-    "confirm": "Confirmer"
+    "confirm": "Confirmer",
+    "namespaces": {
+      "title": "Namespaces",
+      "filter_placeholder": "Filtrer…",
+      "category_filter": "Filtrer par catégorie",
+      "cat_all": "Tous",
+      "cat_agent": "Agents",
+      "cat_project": "Projets",
+      "cat_user": "Profil",
+      "cat_other": "Autres",
+      "cat_user_header": "Profil utilisateur",
+      "cat_agent_header": "Agents",
+      "cat_project_header": "Projets",
+      "cat_other_header": "Autres",
+      "no_match": "Aucun namespace ne correspond.",
+      "empty_category": "Aucun namespace dans cette catégorie.",
+      "empty": "Aucun namespace."
+    },
+    "value_empty": "vide",
+    "action_open": "Ouvrir le détail",
+    "entry_actions": "Actions de l'entrée",
+    "error_details": "Détails techniques",
+    "embeddings": {
+      "vector": "vecteur · nomic-embed-text 768-d · FTS5",
+      "none": "aucun vecteur · texte brut"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -2222,7 +2329,9 @@
     "native": {
       "approval_title": "Action requise",
       "approval_body": "Agent {agentName} attend une approbation"
-    }
+    },
+    "toggle_action": "Activer / désactiver",
+    "error_details": "Détails techniques"
   },
   "trace": {
     "header": "Exécution",
@@ -2343,7 +2452,6 @@
     "agent_filter": "Agent :",
     "all_tools": "Tous les outils",
     "all_agents": "Tous les agents",
-    "loading_audit": "Chargement de la piste d'audit...",
     "empty_audit": "Aucune invocation d'outil enregistrée.",
     "load_more_audit": "Charger {count} de plus",
     "verify_ok": "Trace intègre - aucun maillon rompu.",
@@ -2423,7 +2531,13 @@
       "dialog_message": "Voulez-vous vider les {count} entrées du cache ? Les prochaines exécutions orchestrées devront régénérer leurs plans via LLM.",
       "dialog_confirm": "Purger",
       "toast_purged": "Cache purgé ({count} entrées supprimées)"
-    }
+    },
+    "audit_menu_copy_row": "Copier la ligne",
+    "audit_menu_copy_json": "Copier le JSON brut",
+    "audit_menu_inspect": "Inspecter le détail",
+    "audit_row_copied": "Ligne copiée dans le presse-papiers",
+    "audit_json_copied": "JSON copié dans le presse-papiers",
+    "audit_copy_failed": "Échec de la copie"
   },
   "settings": {
     "title": "Paramètres",
@@ -2485,14 +2599,41 @@
       "topic_profile_body": "Les informations qu'Apollia connaît sur vous se trouvent dans votre profil. Consultez-le, modifiez-le ou effacez-le à tout moment.",
       "topic_profile_action": "Ouvrir le profil",
       "docs_title": "Documentation complète",
-      "docs_desc": "Guides, références et tutoriels sur le wiki Apollia OS."
+      "docs_desc": "Guides, références et tutoriels sur le wiki Apollia OS.",
+      "hero_title": "Premiers pas avec Apollia",
+      "hero_body": "Un parcours guidé pour installer un modèle, lancer votre premier agent et lire le journal d'exécution.",
+      "hero_cta": "Ouvrir le guide",
+      "resources": "Ressources et support",
+      "shortcuts_title": "Raccourcis clavier",
+      "shortcuts_desc": "La liste complète des raccourcis, disponible hors ligne dans l'application.",
+      "community_title": "Communauté",
+      "community_desc": "Posez vos questions et partagez vos agents avec les autres utilisateurs sur GitHub Discussions.",
+      "report_title": "Signaler un problème",
+      "report_desc": "Ouvrir un ticket. Vos diagnostics restent locaux tant que vous ne choisissez pas de les joindre.",
+      "opens_external": "Ouvre le navigateur",
+      "opens_in_app": "Ouvre le panneau",
+      "available_soon": "Disponible prochainement",
+      "offline_badge": "Hors ligne",
+      "offline_title": "Vous êtes hors ligne",
+      "offline_body": "La documentation et la communauté s'ouvriront dès le retour de la connexion. Le reste de la page d'aide reste accessible.",
+      "faq_title": "Questions fréquentes",
+      "faq_search_placeholder": "Rechercher dans l'aide",
+      "faq_search_aria": "Rechercher dans les questions fréquentes",
+      "faq_empty_title": "Aucune réponse trouvée",
+      "faq_empty_body": "Aucune question ne correspond à « {query} ». Reformulez, ou consultez la documentation complète.",
+      "faq_q_offline": "Apollia fonctionne-t-il sans connexion internet ?",
+      "faq_a_offline": "Oui. L'inférence, la transcription et vos données restent sur la machine. Seuls les liens externes de cette page et les connecteurs OAuth que vous activez explicitement quittent votre poste.",
+      "faq_q_model": "Où sont stockés les modèles téléchargés ?",
+      "faq_a_model": "Dans le dossier ~/.apollia/models. Le Hub de modèles affiche l'espace disque utilisé et permet de supprimer un modèle pour libérer de la place.",
+      "faq_q_data": "Mes conversations quittent-elles la machine ?",
+      "faq_a_data": "Jamais sans une action explicite de votre part. Le local d'abord est le premier des huit principes d'Apollia.",
+      "faq_q_shortcuts": "Quels sont les raccourcis clavier essentiels ?",
+      "faq_a_shortcuts": "Ouvrez la page Raccourcis clavier depuis les ressources ci-dessus pour la liste complète, hors ligne, regroupée par contexte."
     },
     "about": {
       "title": "À propos",
       "subtitle": "Version, liens et licence de cette installation.",
-      "logo_alt": "Logo Apollia OS",
       "tagline": "Un runtime souverain pour agents IA autonomes, exécuté en local sans dépendance au cloud.",
-      "description": "Apollia OS exécute n'importe quel agent Python en isolation, sur votre propre machine, avec vos propres modèles et outils. Aucune donnée utilisateur ne quitte l'appareil sans action explicite. Apollia est libre et open source.",
       "docs_title": "Documentation",
       "docs_desc": "Guides, références et tutoriels.",
       "github_title": "Code source",
@@ -2500,10 +2641,37 @@
       "license_title": "Licence",
       "license_body": "Apollia OS est libre et open source, sous double licence MIT ou Apache 2.0, au choix.",
       "contact_title": "Contact",
-      "contact_body": "Vos questions, retours ou demandes de partenariat sont les bienvenus.",
-      "copy_email": "Copier l'adresse",
-      "email_copied": "Adresse copiée",
-      "email_copy_failed": "Échec de la copie"
+      "channel_stable": "Canal stable",
+      "channel_prerelease": "Canal préliminaire",
+      "version_unknown": "Version inconnue",
+      "copy_success": "Copié dans le presse-papiers",
+      "copied": "Copié",
+      "copy_field": "Copier : {field}",
+      "build_title": "Version et build",
+      "build_desc": "Utile pour un rapport de bug ou une demande de support.",
+      "info_unavailable": "Les informations système n'ont pas pu être chargées. Vérifiez qu'Apollia est bien lancé, puis rouvrez cette page.",
+      "kv_version": "Version",
+      "kv_platform": "Plateforme",
+      "kv_python": "Interpréteur Python",
+      "kv_engine": "Moteur d'inférence",
+      "kv_stt": "Transcription",
+      "kv_license": "Identifiant SPDX",
+      "copy_diagnostics": "Copier le rapport de diagnostic",
+      "copy_hint": "Un clic copie la valeur au format brut.",
+      "updates_title": "Mises à jour",
+      "updates_desc": "Vérification manuelle uniquement. Aucune télémétrie ni vérification automatique en arrière-plan.",
+      "updates_idle": "Vous pouvez vérifier la présence d'une nouvelle version à tout moment.",
+      "updates_checking": "Vérification en cours…",
+      "up_to_date": "Vous utilisez la dernière version.",
+      "update_available": "La version {version} est disponible.",
+      "check_updates": "Vérifier les mises à jour",
+      "recheck": "Revérifier",
+      "install_update": "Installer et redémarrer",
+      "links_title": "Ressources",
+      "credits_title": "Bâti sur",
+      "credits_desc": "Les briques open-source embarquées dans Apollia. Merci à leurs auteurs.",
+      "license_public_domain": "Domaine public",
+      "ethos": "Tout tourne sur votre machine. Aucun compte, aucun cloud, aucune télémétrie. Vos données ne quittent jamais l'appareil sans une action explicite de votre part."
     },
     "observability": {
       "title": "Observabilité",
@@ -2520,8 +2688,36 @@
       "capture_agent_logs_desc": "Persiste les messages debug/info/warn/error émis par les agents.",
       "retention_days": "Rétention",
       "retention_days_desc": "Nombre de jours pendant lesquels les événements sont conservés avant purge automatique.",
-      "edit_via_toml_hint": "Modifiez les valeurs directement dans apollia.toml. L'édition depuis cette page arrive bientôt.",
-      "open_toml": "Ouvrir apollia.toml"
+      "capture_section_title": "Capture des traces",
+      "capture_section_desc": "Ce qui est persisté dans `runtime_events.db` à chaque tour d'agent. Désactiver un poste vide les éléments correspondants dans la chronologie.",
+      "privacy_section_title": "Confidentialité",
+      "privacy_section_desc": "Journalisation additionnelle de débogage. Distincte de la capture des traces : elle écrit dans `llm_calls.db`.",
+      "truncation_section_title": "Troncature",
+      "truncation_section_desc": "Taille maximale conservée par enregistrement. Au-delà, le contenu est tronqué pour borner la taille de la base.",
+      "retention_section_title": "Rétention",
+      "retention_section_desc": "Durée de conservation des événements avant purge automatique, cohérente avec le journal d'audit.",
+      "debug_log_prompt": "Journaliser le texte brut des prompts",
+      "debug_log_prompt_desc": "Écrit `prompt_text` dans `llm_calls.db`. Utile pour le débogage, désactivé par défaut. N'affecte pas la chronologie.",
+      "max_input_bytes": "Entrées de tâche et d'étape",
+      "max_input_bytes_desc": "Taille maximale des entrées conservées. Défaut 32 Kio.",
+      "max_output_bytes": "Sorties et complétions",
+      "max_output_bytes_desc": "Taille maximale des sorties conservées. Défaut 32 Kio.",
+      "max_tool_output_bytes": "Stdout / stderr d'outil",
+      "max_tool_output_bytes_desc": "Taille maximale de la sortie standard d'un outil conservée. Défaut 10 Kio.",
+      "sensitive_badge": "Sensible",
+      "state_on": "Activé",
+      "state_off": "Désactivé",
+      "unit_bytes": "octets",
+      "unit_days": "jours",
+      "view_data_label": "Consulter les traces capturées",
+      "view_data_desc": "Chronologie, coûts LLM et journal d'audit sur la page Observabilité dédiée.",
+      "view_data_link": "Ouvrir Observabilité",
+      "editable_note": "Modifiez la politique d'observabilité collectée sur l'exécution des agents. Tout reste local, rien n'est envoyé.",
+      "restart_note": "Les modifications s'appliquent au prochain redémarrage de l'application. Le moteur ne recharge pas cette politique à chaud.",
+      "kib_display": "{kib} Kio",
+      "sensitive_confirm_title": "Activer une capture sensible ?",
+      "sensitive_confirm_message": "Ceci conserve un contenu potentiellement sensible (prompts et réponses bruts) dans la base de données locale. Rien ne quitte votre machine, mais toute personne ayant un accès local peut le lire. À n'activer que si le débogage l'exige.",
+      "sensitive_confirm_enable": "Activer la capture"
     },
     "shortcuts": {
       "subtitle": "Raccourcis clavier disponibles dans Apollia.",
@@ -2547,7 +2743,9 @@
         "chat": "Dans le Chat",
         "settings": "Dans les Réglages",
         "dialog": "Dans une fenêtre",
-        "approvals": "Dans la file d'approbations"
+        "approvals": "Dans la file d'approbations",
+        "global_label": "Global",
+        "contextual_label": "Contextuel"
       },
       "items": {
         "palette_open": "Ouvrir la palette de commandes",
@@ -2569,7 +2767,12 @@
         "approvals_accept": "Accepter l'approbation courante",
         "approvals_refuse": "Refuser l'approbation courante",
         "approvals_next": "Approbation suivante / précédente"
-      }
+      },
+      "reserved": "Réservé OS",
+      "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
+      "overlaps_global": "Chevauche global",
+      "overlaps_hint": "Partage cette combinaison avec un raccourci global ; le raccourci contextuel l'emporte quand sa surface est active.",
+      "count": "{count} raccourcis"
     },
     "danger": {
       "title": "Zone dangereuse",
@@ -2610,8 +2813,13 @@
         "button": "Réinitialisation d'usine",
         "dialog_title": "Réinitialiser complètement cette installation ?",
         "dialog_desc": "Tous les fichiers sous ~/.apollia seront supprimés. Vous repartirez d'un wizard de bienvenue vierge. Cette action est irréversible.",
-        "warning": "Supprime mémoires, chats, agents, identifiants, modèles et config. Aucune sauvegarde."
-      }
+        "warning": "Supprime mémoires, chats, agents, identifiants, modèles et config. Aucune sauvegarde.",
+        "restart_manual": "Réinitialisation terminée. Veuillez redémarrer Apollia manuellement pour terminer."
+      },
+      "irreversible": "Irréversible",
+      "confirm_match": "Confirmé. Le bouton est déverrouillé.",
+      "confirm_mismatch": "Le texte ne correspond pas encore.",
+      "locked_hint": "Déverrouillage dans {seconds} s"
     },
     "preferences": "Préférences",
     "runtime_config": "Configuration du runtime",
@@ -2691,7 +2899,9 @@
       },
       "identity": {
         "title": "Identité",
-        "subtitle": "Qui tu es et ce que tu cherches à faire."
+        "subtitle": "Qui tu es et ce que tu cherches à faire.",
+        "unnamed": "Sans nom",
+        "fill_prompt": "Renseigne ton identité ci-dessous"
       },
       "fields": {
         "name": "Prénom / alias",
@@ -2820,6 +3030,20 @@
         "updated": "Profil mis à jour",
         "updated_sensitive": "Profil mis à jour. Relancez l'onboarding pour adapter vos règles de permissions à ce changement.",
         "reset_done": "Profil réinitialisé"
+      },
+      "avatar_change": "Changer l'avatar",
+      "memory": {
+        "title": "Faits de mémoire",
+        "subtitle": "Détails retenus par tes agents au fil des conversations. Clic droit pour éditer ou supprimer.",
+        "empty": {
+          "title": "Aucun fait pour l'instant",
+          "detail": "Tes agents noteront ici les détails utiles au fil des conversations."
+        },
+        "add": "Ajouter un fait",
+        "key_placeholder": "Clé (ex. prefs.horaires)",
+        "value_placeholder": "Valeur",
+        "edit": "Éditer le fait",
+        "copy_value": "Copier la valeur"
       }
     },
     "profile_subtitle": "Ce que le système sait de vous. Ces informations aident les agents à s'adapter à votre contexte.",
@@ -2873,7 +3097,8 @@
         "captured": "Capturé : {combo}",
         "updated_toast": "Raccourci mis à jour : {combo}",
         "cancelled_toast": "Capture annulée",
-        "timeout_toast": "Aucune touche - capture annulée"
+        "timeout_toast": "Aucune touche - capture annulée",
+        "hint": "Actif même quand Apollia n'a pas le focus."
       },
       "status_refresh": "Rafraîchir",
       "reload_btn": "Recharger",
@@ -2883,7 +3108,13 @@
         "start": "Tester",
         "stop": "Arrêter et transcrire",
         "transcribing": "Transcription...",
-        "empty": "(aucune parole détectée)"
+        "empty": "(aucune parole détectée)",
+        "hint": "Enregistrez une phrase et vérifiez la transcription.",
+        "idle_hint": "Appuyez sur Démarrer pour dicter.",
+        "listening": "En écoute...",
+        "redo": "Refaire",
+        "result_label": "Texte transcrit",
+        "threshold_label": "seuil {db} dB"
       },
       "status_updated": "Mis à jour {relative}",
       "status_never": "Jamais rafraîchi",
@@ -2891,7 +3122,13 @@
       "status_last_transcription": "Dernière transcription",
       "status_avg_latency": "Latence moyenne",
       "status_recent_errors": "Erreurs récentes",
-      "status_none": "Aucune"
+      "status_none": "Aucune",
+      "enable_hint": "Arme le raccourci global et charge le modèle au démarrage.",
+      "language_hint": "Indice ISO 639-1 transmis au moteur, ou détection automatique.",
+      "input_hint": "Microphone capté par le flux cpal.",
+      "silence_hint": "En dessous de ce niveau, l'audio est traité comme du silence.",
+      "clipboard_restore_hint": "Restaure le contenu précédent du presse-papiers après avoir collé.",
+      "acceleration_hint": "Détectée au chargement du moteur."
     },
     "stt_subtitle": "Configurez le moteur de transcription vocale embarqué (whisper.cpp).",
     "stt_engine_status": "État du moteur",
@@ -2979,7 +3216,8 @@
       "delete_type_prompt": "Saisissez DELETE pour confirmer la suppression du backend par défaut.",
       "delete_toast": "Backend « {name} » supprimé",
       "reload_btn": "Recharger",
-      "reload_toast": "Moteur LLM rechargé"
+      "reload_toast": "Moteur LLM rechargé",
+      "subtitle": "Backends de modèle de langage utilisés par Apollia et vos agents."
     },
     "llm_dialog": {
       "title_add": "Ajouter un backend LLM",
@@ -3036,7 +3274,8 @@
         "delete": "Supprimer",
         "delete_title": "Supprimer le modèle ?",
         "delete_message": "Supprimer définitivement « {name} » du disque ? Cette action est irréversible.",
-        "deleted_toast": "Modèle « {name} » supprimé"
+        "deleted_toast": "Modèle « {name} » supprimé",
+        "help": "Fichiers présents dans votre dossier de modèles local."
       },
       "hardware": {
         "label": "Votre matériel",
@@ -3046,13 +3285,16 @@
         "gpu": "GPU / Accélérateur",
         "budget": "Budget d'inférence",
         "cpu_info": "CPU : {cpu} · {cores} cœurs",
-        "cpu_only": "CPU uniquement"
+        "cpu_only": "CPU uniquement",
+        "help": "Détermine quels modèles tiennent en mémoire."
       },
       "downloads": {
         "active": "Téléchargements en cours",
         "cancel_aria": "Annuler le téléchargement",
         "downloading_toast": "Téléchargement de {filename}…",
-        "completed_toast": "Modèle téléchargé dans {path}"
+        "completed_toast": "Modèle téléchargé dans {path}",
+        "failed": "Échec",
+        "failed_toast": "Échec du téléchargement. Libérez de l'espace ou vérifiez votre connexion, puis réessayez."
       },
       "token": {
         "label": "Jeton HuggingFace (modèles soumis à acceptation)",
@@ -3132,7 +3374,17 @@
         "load_more": "Charger plus de modèles",
         "no_match": "Aucun modèle ne correspond à vos filtres.",
         "clear_filters": "Réinitialiser les filtres",
-        "no_results": "Aucun modèle trouvé pour « {query} »."
+        "no_results": "Aucun modèle trouvé pour « {query} ».",
+        "retry": "Réessayer",
+        "no_match_desc": "{total} modèles trouvés, tous masqués par les filtres actifs.",
+        "no_results_desc": "Vérifiez l'orthographe, ou cherchez par famille de modèle (par ex. qwen, llama, mistral).",
+        "idle_title": "Trouvez un modèle à exécuter",
+        "idle_desc": "Cherchez par nom, famille ou auteur. Seuls les modèles GGUF compatibles avec votre matériel sont proposés."
+      },
+      "ctx": {
+        "open_hf": "Ouvrir sur HuggingFace",
+        "copy_repo": "Copier l'identifiant du dépôt",
+        "copied_toast": "Identifiant du dépôt copié"
       }
     },
     "config": {
@@ -3145,7 +3397,10 @@
       "show_raw": "Afficher la vue brute",
       "hide_raw": "Masquer la vue brute",
       "empty": "Aucune entrée dans cette section.",
-      "path_label": "Fichier de configuration"
+      "path_label": "Fichier de configuration",
+      "reveal_in_finder": "Afficher dans le Finder",
+      "empty_title": "Aucune section à afficher",
+      "toggle_section": "Afficher ou masquer les détails de la section"
     },
     "system": {
       "refresh": "Rafraîchir",
@@ -3158,7 +3413,8 @@
       "agent_install_section_title": "Installation des packages d'agents",
       "agent_install_section_desc": "Comportement par défaut lors de l'installation de packages qui déclarent des dépendances Python (pip).",
       "auto_install_python_deps_label": "Installer automatiquement les dépendances Python",
-      "auto_install_python_deps_desc": "Lorsque cette option est activée, les packages déclarant des dépendances pip sont installés directement, sans étape de confirmation. Désactivée par défaut pour garder un contrôle explicite sur chaque téléchargement depuis PyPI."
+      "auto_install_python_deps_desc": "Lorsque cette option est activée, les packages déclarant des dépendances pip sont installés directement, sans étape de confirmation. Désactivée par défaut pour garder un contrôle explicite sur chaque téléchargement depuis PyPI.",
+      "subtitle": "Détails de l'installation et chemins de configuration."
     },
     "update": {
       "check": "Vérifier les mises à jour",
@@ -3166,7 +3422,12 @@
       "up_to_date": "Apollia OS est à jour",
       "available": "Version {version} disponible",
       "install": "Installer et relancer",
-      "error": "Impossible de vérifier les mises à jour"
+      "error": "Impossible de vérifier les mises à jour",
+      "section_title": "Mises à jour du logiciel",
+      "changelog_title": "Nouveautés",
+      "show_details": "Détails techniques",
+      "downloading": "Téléchargement de la mise à jour…",
+      "installed": "Mise à jour installée. Redémarrage d'Apollia OS…"
     },
     "planMode": {
       "title": "Toujours planifier",
@@ -3221,7 +3482,23 @@
       "toast_chat_deleted": "Règle chat {tool} supprimée",
       "toast_rule_revoked": "Règle {tool} révoquée",
       "toast_rules_revoked": "{count, plural, one {# règle révoquée} other {# règles révoquées}}",
-      "toast_reloaded": "Permissions rechargées"
+      "toast_reloaded": "Permissions rechargées",
+      "rules_title": "Règles",
+      "executor_note": "Les exécuteurs de code (bash, python) ne peuvent jamais être autorisés en bloc : une règle d'autorisation les concernant exige un préfixe d'argument. Sans préfixe, seule l'approbation par invocation s'applique.",
+      "executor_badge": "Exécuteur de code",
+      "executor_blanket_error": "Un exécuteur de code ({tool}) ne peut pas être autorisé sans préfixe d'argument. Ajoutez un préfixe, ou laissez l'approbation par invocation.",
+      "rule_prefix": "Préfixe :",
+      "rule_project": "Projet :",
+      "rule_agent": "Agent :",
+      "rule_author": "Auteur :",
+      "rule_permanent": "Permanente",
+      "rule_expires": "Expire le {date}",
+      "rule_created": "Créé le {date}",
+      "rule_all_allowed": "Toutes les invocations autorisées",
+      "rule_all_denied": "Toutes les invocations refusées",
+      "action_duplicate": "Dupliquer",
+      "error_details": "Détails",
+      "error_learn_more": "En savoir plus"
     },
     "tools_page": {
       "heading": "Outils natifs",
@@ -3261,7 +3538,30 @@
       "memory_search_title": "Mémoire",
       "memory_search_desc": "Recherche dans la mémoire épisodique/sémantique de l'agent.",
       "ask_user_title": "Demande utilisateur",
-      "ask_user_desc": "Sollicite une réponse humaine via un dialogue HITL."
+      "ask_user_desc": "Sollicite une réponse humaine via un dialogue HITL.",
+      "cat_web": "Web et réseau",
+      "cat_exec": "Système et code",
+      "cat_files": "Fichiers",
+      "cat_notebooks": "Carnets Jupyter",
+      "cat_memory": "Mémoire et interaction",
+      "cat_other": "Autres",
+      "status_on": "Actif",
+      "status_off": "Désactivé",
+      "status_attention": "Clé requise",
+      "status_toggling": "Application…",
+      "configure": "Configurer",
+      "filter_placeholder": "Filtrer les outils…",
+      "filter_aria": "Filtrer les outils",
+      "count_active": "{active} actifs sur {total}",
+      "empty_title": "Aucun outil disponible",
+      "no_results": "Aucun outil ne correspond à votre filtre",
+      "ctx_enable": "Activer",
+      "ctx_disable": "Désactiver",
+      "ctx_configure": "Configurer",
+      "ctx_copy_id": "Copier l'identifiant",
+      "ctx_reset": "Réinitialiser la configuration",
+      "copied_toast": "Identifiant copié",
+      "reset_toast": "Configuration réinitialisée"
     },
     "tool_config": {
       "title": "Configurer {name}",
@@ -3302,6 +3602,108 @@
       "col_creator": "Auteur",
       "col_creator_title": "Auteur ayant créé la règle (HITL, agent, config…)",
       "empty_filter": "Aucune règle pour ce filtre."
+    },
+    "all_saved": "Tous les changements enregistrés",
+    "save": "Enregistrer",
+    "reset": "Annuler",
+    "save_hint": "pour enregistrer",
+    "save_shortcut_hint": "⌘S",
+    "appearance": {
+      "subtitle": "Langue, thème et mode d'interface.",
+      "options_title": "Options",
+      "preview_message": "Bonjour Apollia",
+      "preview_active_now": "Actif maintenant"
+    },
+    "configuration": {
+      "subtitle": "Préférences générales du système."
+    },
+    "integrations": {
+      "subtitle": "Identifiants OAuth des connecteurs Google et Microsoft pour les builds personnalisés.",
+      "required": "Requis",
+      "optional": "Optionnel",
+      "source": {
+        "env": "Variable d'environnement",
+        "file": "Fichier",
+        "builtin": "Build officiel",
+        "none": "Non résolu"
+      },
+      "status": {
+        "ready": "Prêt à connecter",
+        "partial": "Incomplet",
+        "none": "Non configuré"
+      },
+      "field": {
+        "client_id": "Client ID",
+        "client_secret": "Secret client",
+        "api_key": "Clé API (Picker)"
+      },
+      "provider": {
+        "google": "Google Workspace",
+        "microsoft": "Microsoft 365"
+      },
+      "provider_meta": {
+        "google": "Gmail, Agenda, Drive · type « Desktop app »",
+        "microsoft": "Outlook, Calendrier · public client (PKCE)"
+      },
+      "placeholder": {
+        "client_id_google": "1234567890-abcdefgh.apps.googleusercontent.com",
+        "client_id_microsoft": "00000000-0000-0000-0000-000000000000",
+        "client_secret": "GOCSPX-…",
+        "api_key": "AIzaSy…"
+      },
+      "help": {
+        "client_secret": "À côté du Client ID dans Google Cloud Console › Credentials. Google traite ce secret comme non confidentiel pour les apps natives, mais son point de terminaison de jeton l'exige quand même.",
+        "api_key": "Google Cloud Console › APIs & Services › Credentials › Clé API. Restreignez-la aux API Google Picker et Drive.",
+        "ms_builtin": "Un client_id public compilé dans Apollia est utilisé par défaut. Renseignez le vôtre pour utiliser votre propre inscription d'application Azure. Microsoft, en public client conforme, ne demande aucun secret."
+      },
+      "redirect_note": "Cet identifiant doit autoriser la redirection en boucle locale d'Apollia. Ajoutez cette URI aux « Authorized redirect URIs » du client :",
+      "copied": "Copié",
+      "stored_note": "Stocké chiffré localement, jamais transmis en clair",
+      "ms_no_secret": "Aucun secret client requis pour Microsoft",
+      "explain_intro": "Ordre de résolution de chaque identifiant : la première source non vide gagne. Laissez un champ vide pour retomber sur l'étape suivante.",
+      "empty_title": "Aucun connecteur OAuth disponible",
+      "empty_body": "Cette version d'Apollia n'expose aucun connecteur Google ou Microsoft. Les identifiants apparaîtront ici dès qu'un connecteur sera actif.",
+      "load_error_title": "Impossible de lire la configuration OAuth",
+      "load_error_body": "Le service n'a pas répondu. Vérifiez qu'Apollia tourne, puis réessayez.",
+      "raw_detail": "Détail technique",
+      "drive": {
+        "title": "Dossiers Google Drive",
+        "description": "Par compte connecté, le dossier Drive dans lequel les agents Apollia travaillent.",
+        "effective": "Effectif :",
+        "drive_root": "(racine de votre Drive)",
+        "explicit": "choix explicite",
+        "default_tag": "(défaut)",
+        "custom_tag": "(personnalisé)",
+        "placeholder": "Apollia",
+        "reset": "Défaut",
+        "help": "L'espace de travail d'Apollia dans votre Drive. Les agents y créent et y listent leurs fichiers par défaut. Saisissez un chemin, ou laissez vide et enregistrez pour utiliser la racine du Drive. Le scope drive.file n'expose que les fichiers créés par Apollia ou que vous lui avez ouverts.",
+        "saved": "Dossier Drive enregistré.",
+        "reset_done": "Dossier Drive remis au défaut."
+      },
+      "test_config": "Tester la configuration",
+      "test_valid": "La configuration semble valide.",
+      "test_invalid": "Problème de configuration."
+    },
+    "language_help": "Langue de l'interface et des réponses par défaut.",
+    "language_label": "Langue de l'interface",
+    "language_field_help": "Appliquée immédiatement, aucun redémarrage requis.",
+    "theme_help": "Apparence claire, sombre ou synchronisée au système.",
+    "mode_help": "Niveau de détail affiché dans le chat et les vues d'outils.",
+    "credential": {
+      "configured": "Configuré",
+      "absent": "Absent",
+      "not_configured": "Non configuré",
+      "edit": "Modifier",
+      "add": "Ajouter",
+      "override": "Remplacer",
+      "delete": "Supprimer",
+      "test": "Tester",
+      "reveal": "Afficher",
+      "hide": "Masquer",
+      "placeholder": "Saisir la valeur",
+      "validation_empty": "Collez une valeur avant d'enregistrer. Pour retirer un secret existant, utilisez Supprimer.",
+      "test_valid": "Valide",
+      "test_valid_ms": "Valide ({ms} ms)"
     }
   },
   "onboarding": {
@@ -3379,135 +3781,6 @@
     "explore_triggers_desc": "Automatiser l'exécution des agents",
     "explore_observability_desc": "Surveiller les performances et les coûts",
     "explore_done": "Aller au tableau de bord",
-    "tour": {
-      "op": {
-        "dashboard_header": {
-          "title": "Votre centre de commande",
-          "message": "Bienvenue sur votre tableau de bord. C'est le point central d'Apollia OS pour surveiller l'ensemble de votre système."
-        },
-        "dashboard_agents": {
-          "title": "Vos agents actifs",
-          "message": "Cette section affiche vos agents en cours d'exécution. Vous voyez leur statut et leurs métriques clés d'un coup d'œil."
-        },
-        "dashboard_activity": {
-          "title": "Fil d'activité récente",
-          "message": "Ce fil affiche les événements récents de tous vos agents - actions effectuées, approbations demandées, et plus encore."
-        },
-        "agents_grid": {
-          "title": "Votre flotte d'agents",
-          "message": "Chaque carte représente un agent. Vous voyez son nom, son statut et ses actions rapides. Explorons-en un ensemble."
-        },
-        "agents_start": {
-          "title": "Démarrez votre premier agent",
-          "message": "Cet agent est en pause. Cliquez sur le bouton Démarrer lumineux pour l'activer et voir le runtime en action.",
-          "success": "Agent démarré ! Remarquez le bouton Chat qui vient d'apparaître sur sa carte - il vous permet de converser directement avec lui."
-        },
-        "chat_discover": {
-          "title": "Démarrez une conversation",
-          "message": "La page Chat est l'endroit où vous interagissez avec vos agents. Cliquez sur « Nouveau chat » pour commencer."
-        },
-        "chat_picker": {
-          "title": "Choisissez votre mode",
-          "message": "Le sélecteur vous permet de choisir des groupes d'outils, de sélectionner un agent spécifique, ou de démarrer une conversation Libre."
-        },
-        "chat_libre": {
-          "title": "Lancez un chat Libre",
-          "message": "Cliquez sur « Démarrer » pour ouvrir une conversation libre. Vous aurez accès à tous les outils activés.",
-          "success": "Session créée ! Vous pouvez maintenant converser."
-        },
-        "triggers_overview": {
-          "title": "Automatisez avec les déclencheurs",
-          "message": "Les déclencheurs permettent à vos agents de s'exécuter selon un planning ou en réaction à des événements - sans intervention manuelle."
-        },
-        "triggers_detail": {
-          "title": "Vos déclencheurs",
-          "message": "Voici la liste de vos déclencheurs. Chacun lie un agent à un planning (cron, intervalle) ou à un événement (fichier, webhook)."
-        },
-        "approvals": {
-          "title": "Validation humaine (HITL)",
-          "message": "C'est ici que vos agents vous demandent permission avant d'agir. Quand un agent exécute une action sensible (écriture fichier, appel API externe…), une carte d'approbation apparaît avec le détail de l'action. Vous approuvez ou refusez en un clic. La file est vide pour l'instant - c'est bon signe !"
-        },
-        "notifications_overview": {
-          "title": "Restez informé",
-          "message": "Configurez des canaux de notification pour recevoir des alertes sur les événements importants de vos agents."
-        },
-        "notifications_test": {
-          "title": "Testez vos notifications",
-          "message": "Un canal de notification desktop a été créé pour la démo. Vous devriez voir une notification apparaître.",
-          "success": "Notification envoyée ! Vérifiez votre bureau."
-        },
-        "observability_tabs": {
-          "title": "Trois vues sur votre système",
-          "message": "L'observabilité offre Timeline, Coûts LLM et Audit Trail - chacune donne un angle différent sur l'activité de vos agents."
-        },
-        "observability_timeline": {
-          "title": "Timeline en temps réel",
-          "message": "La timeline affiche les événements de vos agents en direct. Les actions du tour (démarrage agent, chat, trigger) y sont déjà visibles."
-        },
-        "graduation": {
-          "title": "Tour terminé !",
-          "message": "Vous avez exploré chaque recoin d'Apollia OS. Vous êtes prêt à piloter vos agents en toute confiance."
-        },
-        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !"
-      },
-      "bld": {
-        "dashboard": {
-          "title": "Votre architecture en un coup d'œil",
-          "message": "C'est votre espace de travail. Vous construirez et exécuterez des agents depuis ici - chaque agent est un module Python avec un contrat manifest() + run()."
-        },
-        "agents": {
-          "title": "Démarrez csv-data-worker",
-          "message": "Cliquez sur Démarrer pour activer cet agent de démo. Observez comment le runtime charge le module Python et l'enregistre.",
-          "success": "Agent actif ! Le runtime a chargé le manifest et démarré la boucle run().",
-          "already_active": "Cet agent tourne déjà - le runtime l'a détecté automatiquement."
-        },
-        "agent_detail": {
-          "title": "Le manifest de l'agent",
-          "message": "Chaque agent expose deux fonctions async : manifest() retourne les métadonnées, run() est la boucle principale. C'est tout le contrat."
-        },
-        "memory": {
-          "title": "Interroger la mémoire de l'agent",
-          "message": "Les agents écrivent en mémoire à leur propre initiative. Cherchez dans le namespace 'onboarding-agent' ce que csv-data-worker a stocké.",
-          "success": "Résultats chargés - vous voyez ce que l'agent a persisté pendant son exécution."
-        },
-        "chat": {
-          "title": "Dialoguez avec votre agent",
-          "message": "Le formulaire est prérempli. Envoyez ce message pour voir comment un agent traite une requête liée à la mémoire.",
-          "success": "Message envoyé. L'agent utilisera memory.search() en interne pour vous répondre."
-        },
-        "integrations": {
-          "title": "Intégrations MCP",
-          "message": "Connectez des outils externes via des serveurs MCP. Vos agents appellent ces outils via le client natif - sans dépendances Python requises."
-        },
-        "triggers": {
-          "title": "Types de déclencheurs",
-          "message": "Cron, intervalle, surveillance de fichier, webhook. Chaque déclencheur appelle automatiquement run() quand sa condition est remplie."
-        },
-        "pipelines": {
-          "title": "Pipelines DAG",
-          "message": "Connectez des agents en graphes acycliques dirigés. Fan-out, fan-in, branches conditionnelles - tout géré par le moteur de pipeline."
-        },
-        "observability": {
-          "title": "Observabilité",
-          "message": "Chaque appel d'outil, écriture mémoire et token LLM est enregistré dans l'audit trail. Utilisez-le pour déboguer, profiler et auditer vos agents."
-        },
-        "graduation": {
-          "title": "Vous êtes prêt à construire",
-          "message": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run(), installez-le, et laissez le runtime faire le reste."
-        },
-        "timeout_skip": "Prenez votre temps - vous pouvez rejouer n'importe quelle étape depuis la barre de progression.",
-        "step_1": "Votre espace de travail. Chaque agent est un module Python avec un contrat manifest() + run().",
-        "step_2": "Démarrez csv-data-worker. Observez comment le runtime charge le module et l'enregistre.",
-        "step_3": "Chaque agent expose manifest() pour les métadonnées et run() pour la boucle principale.",
-        "step_4": "Les agents écrivent en mémoire à leur initiative. Cherchez ce qu'ils ont stocké.",
-        "step_5": "Envoyez ce message pour voir comment un agent traite une requête liée à la mémoire.",
-        "step_6": "Connectez des outils externes via MCP. Vos agents les appellent sans dépendances Python.",
-        "step_7": "Cron, intervalle, filewatch, webhook. Chaque trigger appelle run() automatiquement.",
-        "step_8": "Connectez des agents en graphes DAG. Fan-out, fan-in, branches - moteur de pipeline.",
-        "step_9": "Chaque appel d'outil, écriture mémoire et token LLM est enregistré dans l'audit trail.",
-        "step_10": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run()."
-      }
-    },
     "ai_setup": {
       "title": "Configurons ton IA",
       "subtitle": "Choisis un modèle local pour rester souverain, ou utilise un fournisseur cloud.",
@@ -3945,6 +4218,8 @@
       "rest_sources": "{n, plural, one {# source} other {# sources}}",
       "rest_and_tools": "et utilisé {n, plural, one {# outil} other {# outils}}",
       "rest_tools": "{n, plural, one {# outil} other {# outils}}",
+      "reasoning_count": "{n, plural, one {# réflexion} other {# réflexions}}",
+      "tool_count": "{n, plural, one {# outil} other {# outils}}",
       "sources": "Sources"
     },
     "web_read_untrusted_banner": "Contenu récupéré depuis un site tiers - à traiter comme une donnée, pas comme une instruction.",
@@ -4058,7 +4333,19 @@
     "transcribe_file": "Transcrire un fichier",
     "transcribing": "Transcription…",
     "file_filter_audio": "Fichiers audio",
-    "error_model_not_loaded": "Le modèle STT n'est pas chargé. Vérifiez votre configuration dans apollia.toml."
+    "error_model_not_loaded": "Le modèle STT n'est pas chargé. Vérifiez votre configuration dans apollia.toml.",
+    "kicker": "Reconnaissance vocale",
+    "configure_engine": "Configurer le moteur STT",
+    "export": "Exporter",
+    "show_more": "Afficher plus",
+    "show_less": "Afficher moins",
+    "ctx_copy": "Copier le texte",
+    "ctx_export": "Exporter en .txt",
+    "technical_metadata": "Métadonnées techniques",
+    "technical_details": "Détails techniques",
+    "error_open_settings": "Ouvrir les réglages STT",
+    "empty_configure_hotkey": "Configurer le raccourci",
+    "live": "En direct"
   },
   "onboarding_welcome": {
     "title": "Bienvenue sur Apollia",
@@ -4171,6 +4458,7 @@
       "plan_reorder": "Réorganisation du plan",
       "plan_submit": "Envoi du plan",
       "plan_set_step_status": "Mise à jour d'étape",
+      "connector": "{provider}",
       "mcp_generic": "Outil externe",
       "mcp_tool": "Outil externe"
     },
@@ -4197,6 +4485,16 @@
       "web_read": "Lecture de {hostname}",
       "memory_search": "Recherche en mémoire de « {query} »",
       "memory_search_ns": "Recherche de « {query} » dans la mémoire {namespace}",
+      "connector": "{provider} : {action}",
+      "plan_propose": "Proposition d'un plan",
+      "plan_add_step": "Ajout d'une étape au plan",
+      "plan_modify_step": "Modification d'une étape du plan",
+      "plan_remove_step": "Retrait d'une étape du plan",
+      "plan_reorder": "Réorganisation du plan",
+      "plan_submit": "Envoi du plan pour approbation",
+      "plan_set_step_status": "Mise à jour du statut d'une étape",
+      "todo_write": "Mise à jour de la liste de tâches",
+      "ask_user": "Question qui vous est posée",
       "mcp_generic": "Utilisation de {server_name} : {tool_description}",
       "mcp_tool": "Utilisation de {server_name} : {tool_description}"
     },
@@ -4344,7 +4642,29 @@
       "unit_kb": "Ko",
       "unit_mb": "Mo",
       "unit_gb": "Go",
-      "bash_generic": "Commande système exécutée",
+      "bash_describe": {
+        "list_files": "Lister les fichiers d'un dossier",
+        "find_files": "Rechercher des fichiers",
+        "read_file": "Lire un fichier",
+        "search_text": "Rechercher du texte",
+        "create_folder": "Créer un dossier",
+        "create_file": "Créer un fichier",
+        "delete": "Supprimer des fichiers",
+        "move": "Déplacer ou renommer un fichier",
+        "copy": "Copier un fichier",
+        "print_text": "Afficher du texte",
+        "navigate": "Se déplacer dans le système de fichiers",
+        "download": "Télécharger depuis le web",
+        "version_control": "Exécuter une opération Git",
+        "run_program": "Exécuter un programme",
+        "change_permissions": "Modifier les permissions d'un fichier",
+        "archive": "Compresser ou extraire une archive",
+        "process_management": "Gérer les processus en cours",
+        "disk_usage": "Vérifier l'espace disque",
+        "count_lines": "Compter les lignes ou les mots",
+        "transform_text": "Transformer du texte",
+        "generic": "Exécuter une commande système"
+      },
       "bash_ok": "Terminé sans erreur",
       "bash_failed": "Échec de la commande",
       "bash_failed_code": "Échec (code {code})",
@@ -4384,199 +4704,9 @@
       "status_completed": "Terminé",
       "status_skipped": "Ignoré",
       "status_failed": "Échoué",
-      "plan_proposed": "{n, plural, one {Plan proposé, # étape} other {Plan proposé, # étapes}}",
-      "plan_step_added": "Étape ajoutée : {title}",
-      "plan_step_modified": "Étape modifiée : {title}",
-      "plan_step_removed": "Étape supprimée",
-      "plan_reordered": "{n, plural, one {# étape réordonnée} other {# étapes réordonnées}}",
-      "plan_submitted": "Plan soumis pour approbation",
-      "plan_status_changed": "Étape {id} → {status}",
-      "plan_generic": "Plan mis à jour",
-      "plan_failed": "Action de plan échouée",
       "todo_count": "{n, plural, one {# tâche} other {# tâches}}",
       "progress_fraction": "{done} / {total}",
       "reveal_aria": "Afficher dans le gestionnaire de fichiers"
-    }
-  },
-  "onboarding_v2": {
-    "welcome": {
-      "tagline": "Votre runtime souverain pour agents IA",
-      "subtitle": "Exécutez des agents Python localement, sans aucune dépendance cloud.",
-      "cta": "Commencer",
-      "loading": "Démarrage…"
-    },
-    "profile": {
-      "title": "Quel est votre profil ?",
-      "subtitle": "Choisissez le parcours adapté à votre usage.",
-      "operator_title": "Opérateur",
-      "operator_desc": "Vous utilisez des agents IA prêts à l'emploi pour automatiser vos workflows.",
-      "operator_bullet_1": "Aucun code requis pour démarrer",
-      "operator_bullet_2": "Tours guidés et templates prêts à l'emploi",
-      "operator_bullet_3": "Connectez vos outils (Gmail, Notion, GitHub…)",
-      "operator_examples": "Automatisation · Assistants · Workflows métier",
-      "builder_title": "Builder",
-      "builder_desc": "Vous développez et déployez des agents Python personnalisés.",
-      "builder_bullet_1": "Contrôle total du code et des prompts",
-      "builder_bullet_2": "Observabilité exhaustive des runs et des tokens",
-      "builder_bullet_3": "MCP, A2A et SDK Python natifs",
-      "builder_examples": "LangGraph · CrewAI · Agents custom",
-      "both_profiles": "Les deux",
-      "selecting": "Configuration…"
-    },
-    "resume_bar": {
-      "step_label": "Étape {current} sur {total}",
-      "resume_btn": "Reprendre",
-      "dismiss_btn": "Plus tard",
-      "toggle_collapsed": "Afficher / masquer la barre"
-    },
-    "coach_widget": {
-      "title": "Coach",
-      "aria_label": "Coach d'onboarding",
-      "close": "Fermer le coach",
-      "send": "Envoyer",
-      "input_placeholder": "Posez une question au coach…",
-      "placeholder": "Bloqué sur une étape ? Posez une question ici et le coach vous guidera."
-    },
-    "graduation": {
-      "title": "Vous êtes prêt !",
-      "subtitle": "Voici un résumé de votre parcours d'onboarding.",
-      "profile_label": "Profil",
-      "profile_operator": "Opérateur",
-      "profile_builder": "Builder",
-      "stat_features": "Étapes explorées",
-      "stat_actions": "Actions complétées",
-      "stat_time": "Temps total",
-      "stat_time_unit": "min",
-      "companion_toggle": "Garder l'aide Apollia",
-      "companion_desc": "Obtenez une aide contextuelle dans chaque section de l'application.",
-      "card_agents": "Agents",
-      "card_agents_desc": "Lancez et gérez vos agents IA",
-      "card_chat": "Chat",
-      "card_chat_desc": "Discutez avec vos agents ou un LLM local",
-      "card_settings": "Paramètres",
-      "card_settings_desc": "Configurez votre environnement Apollia",
-      "cta": "Commencer"
-    },
-    "ai_setup": {
-      "title": "Configurer l'IA",
-      "subtitle": "Apollia détecte les modèles déjà présents sur votre machine. Aucun téléchargement n'est initialisé automatiquement.",
-      "llm_section": {
-        "title": "Modèle de langage (LLM)",
-        "description": "Sélectionnez un fichier .gguf pour activer les capacités IA locales.",
-        "configured": "Configuré",
-        "no_models": "Aucun fichier .gguf trouvé. Placez un modèle dans ~/.apollia/models/ ou ~/Downloads/, puis",
-        "rescan": "rescanner",
-        "recommended": "Recommandé",
-        "no_whisper": "Aucun modèle Whisper trouvé. Placez un fichier ggml-base.bin dans ~/.apollia/models/."
-      },
-      "stt_section": {
-        "title": "Reconnaissance vocale (STT)",
-        "description": "Activez la commande vocale pour naviguer dans le tour avec la voix.",
-        "recommended": "Recommandé"
-      },
-      "scanning": "Scan en cours…",
-      "loading": "Chargement…",
-      "continue": "Continuer",
-      "configure_later": "Configurer plus tard",
-      "recommendations": "Apollia recommande les modèles marqués Recommandé pour votre configuration matérielle."
-    },
-    "llm_setup": {
-      "title": "Moteur IA",
-      "subtitle": "Apollia a besoin d'un modèle de langage pour converser avec vous. Sélectionnez un fichier .gguf déjà présent sur votre machine.",
-      "success": "Modèle configuré avec succès",
-      "local_title": "Sélectionner mon modèle",
-      "local_desc": "Fichier .gguf local (Llama, Mistral, Qwen, Phi…)",
-      "divider": "ou",
-      "later_title": "Je configurerai plus tard",
-      "later_desc": "Provider cloud (Anthropic, OpenAI…) ou modèle local",
-      "hint": "Pas de modèle ? Téléchargez-en un sur HuggingFace (recommandé : ≥ 0.5B paramètres, format Q4_K_M ou Q8_0).",
-      "skip": "Passer pour l'instant",
-      "dialog_title": "Sélectionner un modèle GGUF"
-    },
-    "llm_backends": "Backends LLM",
-    "llm_backends_subtitle": "Configurez les backends de modèle de langage utilisés par Apollia et vos agents.",
-    "llm_add_backend": "Ajouter un backend",
-    "llm_new_backend": "Nouveau backend",
-    "llm_backend_name": "Nom",
-    "llm_backend_provider": "Fournisseur",
-    "llm_backend_model": "Modèle",
-    "llm_backend_config_json": "Config (JSON)",
-    "llm_backend_enabled": "Activé",
-    "llm_backend_default": "Définir par défaut",
-    "llm_no_backends": "Aucun backend LLM configuré. Ajoutez-en un pour activer les fonctionnalités IA.",
-    "llm_set_default": "Définir par défaut",
-    "acquaintance": {
-      "title": "Bienvenue",
-      "subtitle": "Faisons connaissance pour personnaliser votre expérience.",
-      "error": "Impossible de démarrer la conversation d'onboarding.",
-      "continue_dashboard": "Continuer vers le tableau de bord",
-      "completed_text": "Merci ! Apollia est maintenant personnalisé pour vous.",
-      "continue": "Continuer",
-      "skip": "Passer pour l'instant",
-      "progress_label": "Sujets abordés",
-      "topic_complete": "Sujet complété",
-      "topic_identity": "Identité",
-      "topic_preferences": "Préférences",
-      "topic_tools": "Outils",
-      "topic_domain": "Domaine",
-      "topic_agents": "Agents"
-    },
-    "tour": {
-      "loading": "Chargement du tour…",
-      "continue": "Continuer →",
-      "mic_recording": "Enregistrement en cours…",
-      "mic_hold": "Commande vocale (maintenir)",
-      "exit_title": "Interrompre le tour ?",
-      "exit_body": "Votre progression est sauvegardée. Vous pouvez reprendre le tour plus tard.",
-      "exit_cancel": "Continuer le tour",
-      "exit_confirm": "Terminer maintenant",
-      "skip_label": "Passer le tour",
-      "prev": "Précédent",
-      "finish": "Terminer",
-      "next": "Suivant",
-      "progress_label": "Progression du tour",
-      "group": {
-        "dashboard": "Tableau de bord",
-        "agents": "Agents",
-        "chat": "Chat",
-        "triggers": "Déclencheurs",
-        "approvals": "Approbations",
-        "notifications": "Notifications",
-        "observability": "Observabilité",
-        "graduation": "Fin"
-      }
-    }
-  },
-  "tours": {
-    "first_chat": {
-      "step_1_title": "Tapez un message",
-      "step_1_body": "Posez une question en langage naturel - l'agent répond localement, sans sortir de votre machine.",
-      "step_2_title": "Envoyez le message",
-      "step_2_body": "Cliquez sur envoyer (ou Entrée) pour transmettre votre prompt à l'agent sélectionné.",
-      "step_3_title": "Observez le raisonnement",
-      "step_3_body": "Ouvrez le panneau de pensée pour voir le plan de l'agent, ses appels d'outils et ses étapes intermédiaires."
-    },
-    "first_automation": {
-      "step_1_title": "Créez une automatisation",
-      "step_1_body": "Cliquez ici pour transformer une tâche répétitive en automatisation qui s'exécute seule.",
-      "step_2_title": "Choisissez un déclencheur",
-      "step_2_body": "Définissez quand elle s'exécute : planification, modification de fichier, webhook ou mot-clé.",
-      "step_3_title": "Sauvegardez et testez",
-      "step_3_body": "Sauvegardez l'automatisation - elle apparaît dans votre liste et peut être lancée ou éditée à tout moment."
-    },
-    "first_memory": {
-      "step_1_title": "Parcourez votre mémoire",
-      "step_1_body": "Les agents y stockent des faits durables. Vous gardez le contrôle : éditer, oublier, exporter à volonté.",
-      "step_2_title": "Ajoutez une entrée",
-      "step_2_body": "Épinglez ce que les agents doivent retenir de vous ou de vos projets."
-    },
-    "first_inbox": {
-      "step_1_title": "Votre boîte d'approbations",
-      "step_1_body": "Les agents y mettent en file les actions sensibles jusqu'à votre confirmation.",
-      "step_2_title": "Visualisez l'impact",
-      "step_2_body": "Chaque demande montre exactement ce qui va se passer avant que vous décidiez.",
-      "step_3_title": "Approuvez ou affinez",
-      "step_3_body": "Approuvez, refusez, ou activez « toujours autoriser » pour un périmètre de confiance."
     }
   },
   "projects": {
@@ -4737,7 +4867,9 @@
     "no_project_memory": "Aucune mémoire de projet",
     "no_project_memory_desc": "Les agents de ce projet n'ont pas encore stocké de mémoire.",
     "no_tasks_desc": "Les tâches créées par les agents apparaîtront ici.",
-    "tasks_need_agents": "Les tâches ont besoin d'au moins un agent"
+    "tasks_need_agents": "Les tâches ont besoin d'au moins un agent",
+    "open": "Ouvrir",
+    "no_match_hint": "Aucun projet ne correspond à votre recherche. Ajustez ou effacez le filtre."
   },
   "hitl": {
     "impact": {
@@ -4875,6 +5007,13 @@
       "agents_stop_all": "Arrêter tous les agents",
       "toggle_dark": "Basculer mode sombre",
       "palette_docs": "Afficher l'aide de la palette"
+    },
+    "results_count": "{count, plural, one {# résultat} other {# résultats}}",
+    "empty_hint": "Essayez « chat », « réglages » ou « raccourcis ».",
+    "footer": {
+      "navigate": "Naviguer",
+      "open": "Ouvrir",
+      "close": "Fermer"
     }
   },
   "commandPalette": {
@@ -4942,6 +5081,159 @@
       "project_no_project": "Cette session n'est rattachée à aucun projet.",
       "global_title": "Toujours, partout",
       "global_desc": "Tous les assistants, tous les projets."
+    }
+  },
+  "tour": {
+    "chrome": {
+      "next": "Suivant",
+      "prev": "Precedent",
+      "skip": "Passer",
+      "finish": "Terminer",
+      "counter_label": "Etape {current} sur {total}",
+      "anchorless": "Sans repere visuel",
+      "exit_title": "Interrompre le tour ?",
+      "exit_body": "Votre progression est gardee. Vous pourrez reprendre a cette etape depuis le panneau Prise en main.",
+      "exit_cancel": "Continuer",
+      "exit_confirm": "Arreter"
+    },
+    "band": {
+      "title": "Prise en main",
+      "subtitle": "Cinq gestes pour savoir ce qu'Apollia sait faire pour vous.",
+      "progress": "{done} / {total}",
+      "hide": "Masquer la prise en main",
+      "keep": "Garder affiche",
+      "done_title": "Vous avez fait le tour",
+      "done_body": "Cette bande se retire pour laisser la place. Vous la retrouverez dans l'aide si besoin.",
+      "milestone": {
+        "chat": {
+          "label": "Discuter",
+          "hint": "Poser une question, obtenir un resultat",
+          "cta": "Obtenez votre premiere reponse"
+        },
+        "frame": {
+          "label": "Cadrer",
+          "hint": "Donner du contexte avec un projet",
+          "cta": "Donnez du contexte a vos echanges"
+        },
+        "automate": {
+          "label": "Automatiser",
+          "hint": "Faire tourner une tache toute seule",
+          "cta": "Faites tourner une tache toute seule"
+        },
+        "connect": {
+          "label": "Connecter",
+          "hint": "Brancher vos outils",
+          "cta": "Branchez vos outils"
+        },
+        "follow": {
+          "label": "Suivre",
+          "hint": "Consulter l'activite et le journal",
+          "cta": "Voyez ce qui s'est passe"
+        }
+      },
+      "landmarks": "Revoir les reperes"
+    },
+    "first_result": {
+      "title": "Votre premiere reponse",
+      "compose": {
+        "title": "Tout part d'ici, et tout reste chez vous",
+        "body": "Decrivez ce que vous voulez en langage courant, ou partez d'un des modeles proposes. Le modele de langue tourne sur votre machine."
+      },
+      "approval": {
+        "title": "Rien ne part sans votre feu vert",
+        "body": "Autoriser une fois, refuser, ou toujours autoriser pour une portee que vous choisissez. Tout se revoque dans les reglages."
+      },
+      "trace": {
+        "title": "Ce qui vient de se passer est journalise",
+        "body": "Chaque outil appele laisse une trace horodatee que vous pouvez relire, et dont vous pouvez verifier qu'elle n'a pas ete alteree."
+      }
+    },
+    "landmarks": {
+      "title": "Les reperes",
+      "surfaces": {
+        "title": "Vos surfaces",
+        "body": "La colonne de gauche regroupe tout ce qu'Apollia sait faire. Rien n'est cache derriere un menu."
+      },
+      "palette": {
+        "title": "Tout se pilote au clavier",
+        "body": "La palette de commandes ouvre n'importe quelle page, lance une action, retrouve une conversation."
+      },
+      "modes": {
+        "title": "Deux niveaux de detail",
+        "body": "Operator va a l'essentiel. Builder ouvre les traces, les couts et les permissions. Vous basculez quand vous voulez."
+      },
+      "inbox": {
+        "title": "Le feu vert, c'est vous",
+        "body": "Les actions sensibles s'arretent ici et attendent votre decision. Rien ne part sans vous."
+      }
+    },
+    "frame": {
+      "title": "Cadrer avec un projet",
+      "what": {
+        "title": "Un projet regroupe un sujet",
+        "body": "Conversations, documents et espace de travail au meme endroit, pour ne pas reexpliquer le contexte a chaque fois."
+      },
+      "documents": {
+        "title": "L'onglet Contexte",
+        "body": "Instructions permanentes et documents du projet. Ce que vous posez ici devient consultable par vos assistants."
+      },
+      "context": {
+        "title": "L'assistant le lit sans que vous ayez a le redire",
+        "body": "Le contenu du projet est reellement joint a vos echanges. C'est le mecanisme le plus utile d'Apollia, et le plus discret."
+      }
+    },
+    "automate": {
+      "title": "Automatiser une tache",
+      "create": {
+        "title": "Decrivez ce que vous voulez",
+        "body": "Une phrase suffit pour poser le cadre. L'analyse est deterministe : relisez toujours la planification proposee."
+      },
+      "when": {
+        "title": "Choisissez quand",
+        "body": "Tous les matins, toutes les trente minutes, ou une seule fois a une date donnee."
+      },
+      "run_now": {
+        "title": "Lancez maintenant pour verifier",
+        "body": "Le menu de chaque ligne declenche l'automatisation immediatement, au lieu d'attendre sa prochaine echeance."
+      }
+    },
+    "connect": {
+      "title": "Connecter vos outils",
+      "catalogue": {
+        "title": "Le catalogue",
+        "body": "Serveurs MCP prets a l'emploi, et connecteurs natifs pour vos comptes. Un serveur local se branche sans compte a creer."
+      },
+      "list": {
+        "title": "Vos connexions et leur etat",
+        "body": "Chaque ligne indique si la connexion tient, ce qu'elle expose, et depuis quand elle n'a pas servi."
+      },
+      "capabilities": {
+        "title": "Ce que l'outil sait faire",
+        "body": "Le detail liste les actions rendues disponibles a vos assistants une fois la connexion etablie."
+      }
+    },
+    "follow": {
+      "title": "Suivre ce qui s'est passe",
+      "timeline": {
+        "title": "Tout ce qui s'est passe, dans l'ordre",
+        "body": "Frise chronologique, couts, journal d'audit et boite aux lettres entre assistants."
+      },
+      "costs": {
+        "title": "Ce que ca vous a coute",
+        "body": "Consommation par jour et par modele. Le local ne coute rien d'autre que votre machine."
+      },
+      "journal": {
+        "title": "Le journal, chaine et infalsifiable",
+        "body": "Chaque appel d'outil est chaine cryptographiquement au precedent. Une ligne modifiee apres coup rompt la chaine et devient detectable."
+      }
+    },
+    "help_topic": {
+      "title": "Revoir la prise en main",
+      "body": "Rouvre la bande et ses cinq jalons sur le tableau de bord.",
+      "action": "Ouvrir"
+    },
+    "palette": {
+      "replay": "Revoir la prise en main"
     }
   }
 }

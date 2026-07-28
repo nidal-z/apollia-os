@@ -1,9 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
-  import { tourPrefill } from "$lib/stores/tour";
   import { uiMode } from "$lib/stores/mode";
   import type {
     AgentListItem,
@@ -229,37 +227,6 @@
     if (open) {
       resetForm();
       void loadOptions();
-
-      const prefill = get(tourPrefill);
-      if (
-        prefill !== null &&
-        prefill.interaction_type === "create_trigger" &&
-        prefill.prefilled_data !== null &&
-        prefill.prefilled_data !== undefined
-      ) {
-        const data = prefill.prefilled_data;
-        const agentId = data["agent_id"];
-        const type = data["type"];
-        const everySeconds = data["every_seconds"];
-
-        if (typeof agentId === "string") {
-          selectedAgent = agentId;
-        }
-        if (type === "interval") {
-          sourceType = "interval";
-          if (typeof everySeconds === "number") {
-            intervalEvery = `${everySeconds}s`;
-          }
-        }
-        const label = data["label"];
-        if (typeof label === "string") {
-          triggerId = label
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "");
-          idCustomized = true;
-        }
-      }
     }
   });
 </script>
@@ -269,7 +236,7 @@
 
     <!-- Target: Agent -->
     <div>
-      <p class="mb-1.5 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
+      <p class="mb-1.5 block text-caption font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
       <Select
         bind:value={selectedAgent}
         aria-label={$t("triggers.field_target_agent")}
@@ -287,7 +254,7 @@
 
     <!-- Source type: visual cards -->
     <div>
-      <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_source_type")}</p>
+      <p class="mb-2 block text-caption font-medium text-muted-foreground">{$t("triggers.field_source_type")}</p>
       <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label={$t("triggers.field_source_type")}>
         {#each TRIGGER_TYPE_CONFIGS as typeConfig}
           <button
@@ -307,8 +274,8 @@
               class="mt-0.5 shrink-0 {sourceType === typeConfig.value ? 'text-primary' : 'text-muted-foreground'}"
             />
             <div class="min-w-0">
-              <p class="text-[13px] font-medium leading-tight">{$t(typeConfig.labelKey)}</p>
-              <p class="mt-0.5 text-[11px] leading-snug text-muted-foreground">{$t(typeConfig.descKey)}</p>
+              <p class="text-body-sm font-medium leading-tight">{$t(typeConfig.labelKey)}</p>
+              <p class="mt-0.5 text-caption leading-snug text-muted-foreground">{$t(typeConfig.descKey)}</p>
             </div>
           </button>
         {/each}
@@ -318,7 +285,7 @@
     <!-- Dynamic source fields -->
     {#if sourceType === "cron"}
       <div>
-        <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_schedule")}</p>
+        <p class="mb-2 block text-caption font-medium text-muted-foreground">{$t("triggers.field_schedule")}</p>
         <div data-testid="trigger-input-cron">
           <CronBuilder
             value={cronSchedule}
@@ -332,7 +299,7 @@
 
     {:else if sourceType === "interval"}
       <div>
-        <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_every")}</p>
+        <p class="mb-2 block text-caption font-medium text-muted-foreground">{$t("triggers.field_every")}</p>
         <div data-testid="trigger-input-interval">
           <IntervalPicker
             value={intervalEvery}
@@ -348,7 +315,7 @@
       <FormField
         id="trigger-fire-at"
         label={$t("triggers.field_fire_at")}
-        labelClass="text-[11px] mb-0.5"
+        labelClass="text-caption mb-0.5"
         error={sourceError && sourceType === "oneshot" ? sourceError : undefined}
       >
         <div class="grid grid-cols-2 gap-2">
@@ -371,7 +338,7 @@
         <FormField
           id="trigger-watch-path"
           label={$t("triggers.field_path")}
-          labelClass="text-[11px] mb-0.5"
+          labelClass="text-caption mb-0.5"
           hint={$t("triggers.field_path_help")}
         >
           <Input
@@ -383,7 +350,7 @@
           />
         </FormField>
         <div>
-          <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_events")}</p>
+          <p class="mb-2 block text-caption font-medium text-muted-foreground">{$t("triggers.field_events")}</p>
           <div class="flex gap-2">
             <button
               type="button"
@@ -424,8 +391,8 @@
           <label class="flex items-start gap-2 cursor-pointer">
             <Toggle bind:checked={fileWatchRecursive} data-testid="trigger-recursive-toggle" />
             <span class="flex-1">
-              <span class="block text-[12px] font-medium text-foreground">{$t("triggers.field_recursive_label")}</span>
-              <span class="mt-0.5 block text-[11px] text-muted-foreground">{$t("triggers.field_recursive_hint")}</span>
+              <span class="block text-body-xs font-medium text-foreground">{$t("triggers.field_recursive_label")}</span>
+              <span class="mt-0.5 block text-caption text-muted-foreground">{$t("triggers.field_recursive_hint")}</span>
             </span>
           </label>
         </div>
@@ -433,13 +400,13 @@
 
     {:else if sourceType === "webhook"}
       <div class="space-y-3">
-        <div class="rounded-md border border-border bg-muted/30 px-3.5 py-2.5 text-[12px] text-muted-foreground leading-relaxed">
+        <div class="rounded-md border border-border bg-muted/30 px-3.5 py-2.5 text-body-xs text-muted-foreground leading-relaxed">
           {$t("triggers.webhook_explain")}
         </div>
         <FormField
           id="trigger-secret"
           label={$t("triggers.field_secret")}
-          labelClass="text-[11px] mb-0.5"
+          labelClass="text-caption mb-0.5"
           error={sourceError && sourceType === "webhook" ? sourceError : undefined}
         >
           <div class="flex gap-2">
@@ -468,7 +435,7 @@
     <div class="rounded-md border border-border">
       <button
         type="button"
-        class="flex w-full items-center justify-between px-3 py-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/30"
+        class="flex w-full items-center justify-between px-3 py-2 text-caption font-medium text-muted-foreground transition-colors hover:bg-muted/30"
         onclick={() => { advancedOpen = !advancedOpen; }}
         data-testid="trigger-advanced-toggle"
       >
@@ -487,12 +454,12 @@
           <FormField
             id="trigger-id"
             label={$t("triggers.field_id")}
-            labelClass="text-[11px] font-normal mb-0"
+            labelClass="text-caption font-normal mb-0"
             error={idError || undefined}
             hint={$t("triggers.field_id_help")}
           >
             {#if !isBuilder}
-              <p class="mb-1 text-[11px] text-muted-foreground/70">{$t("triggers.field_id_auto")}</p>
+              <p class="mb-1 text-caption text-muted-foreground/70">{$t("triggers.field_id_auto")}</p>
             {/if}
             <Input
               id="trigger-id"
@@ -508,7 +475,7 @@
           <FormField
             id="trigger-on-busy"
             label={$t("triggers.field_on_busy")}
-            labelClass="text-[11px] font-normal mb-0"
+            labelClass="text-caption font-normal mb-0"
           >
             <Select
               id="trigger-on-busy"
@@ -524,7 +491,7 @@
           <FormField
             id="trigger-input-template"
             label={$t("triggers.field_input_template")}
-            labelClass="text-[11px] font-normal mb-0"
+            labelClass="text-caption font-normal mb-0"
             optional
           >
             <Textarea

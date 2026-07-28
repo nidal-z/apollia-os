@@ -76,8 +76,12 @@
     --faint-foreground: 33 7% 58%;
     --border-soft: 33 10% 88%;
     --code-bg: 33 12% 96%;
-    --term-bg: 33 14% 12%;
-    --term-fg: 33 10% 86%;
+    /* Light-theme terminal: a soft light surface with dark ink, so the builder
+       terminal block adapts to the light theme instead of staying dark. */
+    --term-bg: 33 20% 94%;
+    --term-fg: 33 16% 24%;
+    /* User turn bubble - a light greige surface, one shade off surface-2. */
+    --user-bubble: 33 12% 91%;
 
     /* ── Text tokens ── */
     --text-muted: 33 7% 40%;
@@ -244,6 +248,7 @@
     --code-bg: 33 10% 11%;
     --term-bg: 33 12% 8%;
     --term-fg: 33 10% 82%;
+    --user-bubble: 33 8% 18%;
 
     --text-muted: 33 8% 72%;
     --text-success: 144 45% 68%;
@@ -293,6 +298,111 @@
       135deg,
       hsl(var(--primary) / 0.16) 0%,
       hsl(var(--secondary) / 0.10) 100%
+    );
+  }
+
+  /* Light token scope - re-asserts every :root light value that .dark
+     overrides, so a `.light` subtree renders the light palette even nested
+     under .dark (and a nested .dark restores the dark palette). Values mirror
+     :root exactly; do not diverge from the light source of truth above. */
+  .light {
+    --background: 33 11% 95%;
+    --foreground: 33 13% 9%;
+    --surface-1: 40 14% 98%;
+    --surface-2: 33 12% 93%;
+    --surface-3: 33 12% 86%;
+
+    --glass-border: var(--glass-border-light);
+    --glass-border-hover: var(--glass-border-light-hover);
+    --glass-inset: 237 47% 57% / 0.06;
+    --card: 40 14% 98%;
+    --card-foreground: 33 13% 9%;
+    --popover: 40 14% 98%;
+    --popover-foreground: 33 13% 9%;
+    --muted: 33 12% 90%;
+    --muted-foreground: 33 7% 46%;
+
+    --border: 33 10% 84%;
+    --input: 33 10% 84%;
+    --ring: 237 47% 57%;
+
+    --primary: 237 47% 57%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 237 47% 53%;
+    --primary-active: 237 47% 49%;
+    --secondary: 261 36% 61%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 237 47% 57%;
+    --accent-foreground: 0 0% 100%;
+
+    --primary-gradient-from: 237 47% 57%;
+    --primary-gradient-to: 261 36% 61%;
+
+    --destructive: 11 57% 42%;
+    --destructive-foreground: 0 0% 98%;
+    --info: 212 36% 45%;
+    --info-foreground: 212 36% 30%;
+    --warning: 38 70% 39%;
+    --warning-foreground: 38 70% 25%;
+    --success: 144 33% 37%;
+    --success-foreground: 144 33% 22%;
+
+    /* ── Chat tool-body rendering (per-tool operator/builder layers) ── */
+    --faint-foreground: 33 7% 58%;
+    --border-soft: 33 10% 88%;
+    --code-bg: 33 12% 96%;
+    --term-bg: 33 20% 94%;
+    --term-fg: 33 16% 24%;
+    --user-bubble: 33 12% 91%;
+
+    --text-muted: 33 7% 40%;
+    --text-success: 144 38% 26%;
+    --text-warning: 38 80% 26%;
+    --text-danger: 11 60% 38%;
+
+    --chart-1: #6366f1;
+    --chart-2: #3b82f6;
+    --chart-3: #10b981;
+    --chart-4: #f59e0b;
+    --chart-5: #ef4444;
+    --chart-6: #ec4899;
+    --chart-7: #06b6d4;
+    --chart-8: #84cc16;
+
+    --shadow-elev-0:
+      0 1px 0 rgba(255,255,255,0.60) inset,
+      0 1px 2px rgba(26,24,20,0.04);
+    --shadow-elev-1:
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 1px 2px rgba(26,24,20,0.04),
+      0 2px 6px -1px rgba(26,24,20,0.04);
+    --shadow-elev-2:
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 4px 12px -4px rgba(26,24,20,0.08);
+    --shadow-elev-3:
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 12px 32px -12px rgba(26,24,20,0.16);
+    --shadow-elev-4:
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 24px 64px -16px rgba(26,24,20,0.22);
+
+    --shadow-primary-sm: 0 2px 8px -1px hsl(237 47% 57% / 0.30);
+    --shadow-primary-md: 0 4px 16px -2px hsl(237 47% 57% / 0.35);
+    --shadow-primary-lg: 0 6px 24px -2px hsl(237 47% 57% / 0.40);
+    --shadow-primary-xl: 0 12px 48px -8px hsl(261 36% 61% / 0.35);
+
+    --hover-glow-primary: 0 8px 24px -6px hsl(var(--primary) / 0.30);
+
+    --shadow-success-md: 0 4px 16px -2px hsl(144 33% 37% / 0.35);
+    --shadow-destructive-md: 0 4px 16px -2px hsl(11 57% 42% / 0.30);
+
+    --backdrop: rgba(26, 24, 20, 0.40);
+    --backdrop-subtle: rgba(26, 24, 20, 0.25);
+
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.10) 0%,
+      hsl(var(--secondary) / 0.05) 100%
     );
   }
 }
@@ -732,6 +842,80 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Expressive depth - the premium-redesign layer. Richer glass,
+   interactive elevation, and the indigo -> violet signature made
+   a touch more present. Every value composes an EXISTING token
+   (surfaces / grad stops / elevation / primary shadows / motion),
+   so both themes and reduced-motion are honoured automatically.
+   No new token is introduced here.
+   ═══════════════════════════════════════════════════════════ */
+@layer components {
+  /* Deeper glass panel - a stronger blur, a brand-tinted rim via
+     --glass-inset, and elev-3 depth. Both themes resolve from tokens,
+     so no `.dark` override is needed. */
+  .glass-panel-strong {
+    background:
+      linear-gradient(
+        135deg,
+        hsl(var(--grad-a) / 0.05) 0%,
+        hsl(var(--grad-b) / 0.03) 100%
+      ),
+      hsl(var(--surface-1) / 0.92);
+    @apply backdrop-blur-[28px];
+    box-shadow:
+      var(--shadow-elev-3),
+      inset 0 0 0 1px hsl(var(--glass-inset));
+  }
+
+  /* Interactive elevation - resting elev-2 lifts to elev-3 blended with a
+     soft primary halo on hover. Guarded against disabled controls; the
+     transform is neutralized under reduced motion (rule at file end). */
+  .elev-interactive {
+    box-shadow: var(--shadow-elev-2);
+    transition:
+      box-shadow var(--motion-base) var(--ease-apple),
+      transform var(--motion-base) var(--ease-apple);
+    will-change: transform;
+  }
+  .elev-interactive:hover:not(:disabled):not([aria-disabled="true"]) {
+    box-shadow: var(--shadow-elev-3), var(--shadow-primary-sm);
+    transform: translateY(var(--hover-surface-lift));
+  }
+  .elev-interactive:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(0);
+    transition-duration: var(--motion-fast);
+  }
+
+  /* Signature gradient ink - indigo -> violet clipped to the glyph. Deploy
+     sparingly (hero numerals, a promoted title), never on body copy. */
+  .signature-gradient-text {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--grad-a)),
+      hsl(var(--grad-b))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Signature gradient hairline border - a padding-box fill over a
+     border-box gradient. The fill tracks --card so it stays theme-correct. */
+  .signature-gradient-border {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      linear-gradient(135deg, hsl(var(--grad-a)), hsl(var(--grad-b))) border-box;
+  }
+
+  /* Opt-in primary halo - a soft brand glow for a focal element. */
+  .glow-primary {
+    box-shadow: var(--shadow-primary-md);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
    Animations - polished, Apple-tier micro-interactions
    ═══════════════════════════════════════════════════════════ */
 @layer utilities {
@@ -1007,6 +1191,7 @@
 .tb-term {
   background: hsl(var(--term-bg));
   color: hsl(var(--term-fg));
+  border: 1px solid hsl(var(--border-soft));
   border-radius: 9px;
   padding: 11px 13px;
   font-size: 12px;
@@ -1166,22 +1351,9 @@
   background: hsl(var(--surface-2) / 0.4);
 }
 .tb-card .tb-card-body {
-  color: hsl(var(--foreground) / 0.9);
-  font-size: 12px;
+  color: hsl(var(--foreground));
+  font-size: 12.5px;
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.tb-card .tb-card-meta {
-  margin-top: 5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 10.5px;
-  color: hsl(var(--faint-foreground));
-  font-variant-numeric: tabular-nums;
 }
 
 /* Grep matches grouped by file. */
@@ -1267,14 +1439,6 @@
   stroke: url(#apollia-grad);
 }
 
-/* ── Reasoning thought marker ── gradient-stroked brain glyph without the
-   summary's radial halo, for the flat narrated reasoning captions inside the
-   activity strip. The <linearGradient id="apollia-grad"> lives in
-   ActivityStrip and resolves document-globally. */
-.tb-think-ico :global(svg) {
-  stroke: url(#apollia-grad);
-}
-
 /* ── Faint gradient hairline under strip / section headers ──
    A quiet signature rule that fades indigo -> violet -> transparent. */
 .tb-header-rule {
@@ -1317,7 +1481,7 @@
   height: 3px;
   border-radius: 999px;
   background: hsl(var(--border-soft));
-  margin-top: 6px;
+  margin-top: 8px;
   overflow: hidden;
 }
 .tb-mbar > span {
@@ -1329,7 +1493,8 @@
 .tb-mrel {
   margin-left: auto;
   color: hsl(var(--primary));
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1359,6 +1524,148 @@
   text-decoration: none;
 }
 
+/* ── memory_search card top-meta row ── source label + relevance sit on top of
+   the recalled excerpt, mirroring the mockup .mtop. */
+.tb-card .tb-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: hsl(var(--faint-foreground));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Chat turn layout - user bubble, in-flow tool cards, the answer
+   hero, and the action row. Mirrors the validated chat mockup
+   (Section 1). Every value routes through a design token so both
+   themes are covered centrally.
+   ═══════════════════════════════════════════════════════════ */
+
+/* User turn: a right-aligned bubble, no avatar/name header. */
+.chat-user-bubble {
+  max-width: 78%;
+  width: fit-content;
+  padding: 10px 15px;
+  border-radius: 15px 15px 4px 15px;
+  background: hsl(var(--user-bubble));
+  color: hsl(var(--foreground));
+  font-size: 14.5px;
+}
+
+/* Assistant answer, the hero: larger type, generous leading. */
+.chat-answer {
+  margin-top: 6px;
+  font-size: 16.5px;
+  line-height: 1.68;
+  letter-spacing: -0.003em;
+  color: hsl(var(--foreground));
+}
+
+/* In-flow tool calls (zone 2): each finalized call is a bordered card with a
+   clickable header and an expandable body dispatching to the per-tool body. */
+.chat-flow-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 12px 0 4px;
+}
+.chat-flow-tool {
+  border: 1px solid hsl(var(--border-soft));
+  border-radius: 7px;
+  background: hsl(var(--surface-1) / 0.5);
+  overflow: hidden;
+}
+.chat-ft-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  transition: background 0.15s var(--ease-standard);
+}
+.chat-ft-head:hover { background: hsl(var(--surface-2) / 0.5); }
+.chat-ft-chev {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+  color: hsl(var(--faint-foreground));
+  transition: transform 0.18s var(--ease-apple);
+}
+.chat-flow-tool.chat-ft-open .chat-ft-chev { transform: rotate(90deg); }
+.chat-ft-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--muted-foreground));
+}
+.chat-ft-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: hsl(var(--foreground));
+  font-weight: 550;
+}
+.chat-ft-name.chat-ft-error { color: hsl(var(--destructive)); }
+.chat-ft-meta {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: hsl(var(--faint-foreground));
+  font-variant-numeric: tabular-nums;
+}
+.chat-ft-body {
+  padding: 6px 12px 12px;
+  border-top: 1px solid hsl(var(--border-soft));
+}
+
+/* Turn actions (copy / regenerate / edit): a left-aligned row below the turn. */
+.chat-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+}
+.chat-actions button {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: hsl(var(--faint-foreground));
+  cursor: pointer;
+  transition:
+    background 0.15s var(--ease-standard),
+    color 0.15s var(--ease-standard);
+}
+.chat-actions button:hover {
+  background: hsl(var(--surface-2));
+  color: hsl(var(--foreground));
+}
+.chat-actions button:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 1px;
+}
+.chat-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ═══════════════════════════════════════════════════════════
    Reduced motion - honour OS preference by
    collapsing every animation and transition to a near-instant
@@ -1378,7 +1685,9 @@
   .hover-lift:hover,
   .hover-lift:active,
   .hover-glow:hover,
-  .hover-glow:active {
+  .hover-glow:active,
+  .elev-interactive:hover,
+  .elev-interactive:active {
     transform: none !important;
   }
 }

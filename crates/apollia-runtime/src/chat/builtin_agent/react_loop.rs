@@ -315,12 +315,18 @@ impl BuiltInChatAgent {
         let session_id = ids.session_id;
         let message_id = ids.message_id;
         let run_id = ids.run_id;
-        let total_usage = TokenUsage {
-            prompt_tokens: 0,
-            completion_tokens: 0,
-            cost_usd: None,
-            ..Default::default()
-        };
+        let mut total_usage = TokenUsage::default();
+        // Real context window of the active model, in tokens, when it reports one.
+        // `None` (e.g. cloud backend or before the local model loads) leaves the
+        // context gauge in an "unknown" state rather than showing a wrong value.
+        let context_window_tokens = self
+            .llm_router
+            .context_window_tokens()
+            .and_then(|w| u32::try_from(w).ok());
+        // Prompt-token count of the most recent LLM call. Overwritten each turn so
+        // it reflects the current context occupancy (not a cumulative sum) for the
+        // context gauge.
+        let mut last_prompt_tokens: u32 = 0;
         let mut acc = ReactAccumulators {
             all_tool_calls: Vec::new(),
             newly_authorized: Vec::new(),
@@ -367,6 +373,8 @@ impl BuiltInChatAgent {
                         run_id,
                         frontier_ceiling_reached,
                         final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                        context_window_tokens,
+                        context_tokens_used: last_prompt_tokens,
                     },
                 ));
             }
@@ -495,6 +503,8 @@ impl BuiltInChatAgent {
                                 run_id,
                                 frontier_ceiling_reached,
                                 final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                                context_window_tokens,
+                                context_tokens_used: last_prompt_tokens,
                             },
                         ));
                     }
@@ -516,6 +526,8 @@ impl BuiltInChatAgent {
                                 run_id,
                                 frontier_ceiling_reached,
                                 final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                                context_window_tokens,
+                                context_tokens_used: last_prompt_tokens,
                             },
                         ));
                     }
@@ -526,6 +538,7 @@ impl BuiltInChatAgent {
 
             // Consume stream, emit ChatToken per token, accumulate text
             let mut accumulated_text = String::new();
+            let mut chunk_usage = TokenUsage::default();
             let stream_result = self
                 .consume_stream(
                     stream,
@@ -535,8 +548,15 @@ impl BuiltInChatAgent {
                         cancel: &ids.cancel,
                     },
                     &mut accumulated_text,
+                    &mut chunk_usage,
                 )
                 .await;
+            // Fold this call's usage into the exchange total, and record its
+            // prompt size as the current context occupancy.
+            total_usage.merge(&chunk_usage);
+            if chunk_usage.prompt_tokens > 0 {
+                last_prompt_tokens = chunk_usage.prompt_tokens;
+            }
 
             // Mid-stream cooperative stop. The user hit Stop while the LLM was
             // streaming: freeze the partial text as the assistant turn, mark the
@@ -556,6 +576,8 @@ impl BuiltInChatAgent {
                         run_id,
                         frontier_ceiling_reached,
                         final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                        context_window_tokens,
+                        context_tokens_used: last_prompt_tokens,
                     },
                 ));
             }
@@ -583,9 +605,9 @@ impl BuiltInChatAgent {
                 model: String::new(),
                 content: accumulated_text.clone(),
                 tool_calls: captured_tool_calls,
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                cost_usd: None,
+                prompt_tokens: chunk_usage.prompt_tokens,
+                completion_tokens: chunk_usage.completion_tokens,
+                cost_usd: chunk_usage.cost_usd,
                 stream_truncated: stream_result.is_err(),
             });
 
@@ -594,11 +616,23 @@ impl BuiltInChatAgent {
                     // Plan-mode safety net: if the agent drafted a plan but ended
                     // the turn without submitting it, submit it now so the user
                     // gets an approval card instead of an un-actionable draft.
-                    if let Some(tracker) = phase_tracker.as_mut() {
-                        self.auto_submit_if_drafted(tracker, session_id).await;
-                    }
+                    let submitted_now = if let Some(tracker) = phase_tracker.as_mut() {
+                        self.auto_submit_if_drafted(tracker, session_id).await
+                    } else {
+                        false
+                    };
+                    // Fix: a plan submitted with no model prose would persist an
+                    // empty assistant message (weak local models often emit the
+                    // plan_submit call alone). Substitute a deterministic,
+                    // runtime-generated summary so the UI never shows the
+                    // empty-response fallback. Non-empty text is left untouched.
+                    let content = if submitted_now {
+                        self.plan_submit_text(session_id, &accumulated_text).await
+                    } else {
+                        accumulated_text.clone()
+                    };
                     return Ok(self.finalize_text_response(
-                        &accumulated_text,
+                        &content,
                         &mut reasoning_fragments,
                         ResponseContext {
                             acc,
@@ -608,6 +642,8 @@ impl BuiltInChatAgent {
                             run_id,
                             frontier_ceiling_reached,
                             final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                            context_window_tokens,
+                            context_tokens_used: last_prompt_tokens,
                         },
                     ));
                 }
@@ -658,8 +694,12 @@ impl BuiltInChatAgent {
                     // is already up via the PlanSubmitted event; execution resumes
                     // on approval in a fresh turn.
                     if submitted_now {
+                        // Fix: substitute a deterministic summary when the submit
+                        // turn carried no model prose, so an empty assistant
+                        // message is never persisted. Non-empty text is untouched.
+                        let content = self.plan_submit_text(session_id, &accumulated_text).await;
                         return Ok(self.finalize_text_response(
-                            &accumulated_text,
+                            &content,
                             &mut reasoning_fragments,
                             ResponseContext {
                                 acc,
@@ -669,6 +709,8 @@ impl BuiltInChatAgent {
                                 run_id,
                                 frontier_ceiling_reached,
                                 final_plan_phase: Some(PlanPhase::AwaitingApproval),
+                                context_window_tokens,
+                                context_tokens_used: last_prompt_tokens,
                             },
                         ));
                     }
@@ -691,6 +733,8 @@ impl BuiltInChatAgent {
                                 run_id,
                                 frontier_ceiling_reached,
                                 final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                                context_window_tokens,
+                                context_tokens_used: last_prompt_tokens,
                             },
                         ));
                     }
@@ -707,6 +751,8 @@ impl BuiltInChatAgent {
                             run_id,
                             frontier_ceiling_reached,
                             final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                            context_window_tokens,
+                            context_tokens_used: last_prompt_tokens,
                         },
                     ));
                 }
@@ -733,6 +779,8 @@ impl BuiltInChatAgent {
             session_id,
             frontier_ceiling_reached,
             final_plan_phase,
+            context_window_tokens,
+            context_tokens_used,
             ..
         } = ctx;
         let (thinking_trace, reasoning_boundaries) =
@@ -753,6 +801,8 @@ impl BuiltInChatAgent {
             frontier_ceiling_reached,
             final_plan_phase,
             paused: true,
+            context_window_tokens,
+            context_tokens_used,
         }
     }
 
@@ -792,6 +842,8 @@ impl BuiltInChatAgent {
             session_id,
             frontier_ceiling_reached,
             final_plan_phase,
+            context_window_tokens,
+            context_tokens_used,
             ..
         } = ctx;
         let final_thinking = Self::extract_think_blocks(accumulated_text);
@@ -817,6 +869,8 @@ impl BuiltInChatAgent {
             frontier_ceiling_reached,
             final_plan_phase,
             paused: true,
+            context_window_tokens,
+            context_tokens_used,
         }
     }
 
@@ -838,6 +892,8 @@ impl BuiltInChatAgent {
             run_id,
             frontier_ceiling_reached,
             final_plan_phase,
+            context_window_tokens,
+            context_tokens_used,
         } = ctx;
         // Extract thinking trace before stripping.
         let final_thinking = Self::extract_think_blocks(accumulated_text);
@@ -875,6 +931,8 @@ impl BuiltInChatAgent {
             frontier_ceiling_reached,
             final_plan_phase,
             paused: false,
+            context_window_tokens,
+            context_tokens_used,
         }
     }
 }

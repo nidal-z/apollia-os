@@ -38,7 +38,26 @@
       selecting = null;
     }
   }
+
+  // Keyboard quick-select: 1 = operator, 2 = builder. Ignored while a choice
+  // is already resolving or when the focus sits in a text field.
+  function onKeydown(event: KeyboardEvent): void {
+    if (selecting !== null) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+      return;
+    }
+    if (event.key === "1") {
+      event.preventDefault();
+      void handleSelect("operator");
+    } else if (event.key === "2") {
+      event.preventDefault();
+      void handleSelect("builder");
+    }
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="flex flex-col gap-5" data-testid="onboarding-profile-selector">
   <header class="space-y-1.5 text-center">
@@ -175,6 +194,11 @@
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
   }
 
+  .profile-card:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
   .card-icon {
     width: 2.5rem;
     height: 2.5rem;
@@ -182,7 +206,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: hsl(var(--primary-foreground, 0 0% 100%));
+    color: hsl(var(--primary-foreground));
   }
 
   .card-icon-operator {

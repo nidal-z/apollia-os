@@ -1,10 +1,9 @@
 <script lang="ts">
   /**
-   * Dense row for the operator Automations table.
-   *
-   * Matches the visual pattern of `TaskRow` / `MemoryRow` - single line with
-   * column-aligned cells and a hover-revealed action menu. No glass-card,
-   * no gradient bars - only V3 surface tokens.
+   * Dense row for the operator Automations table. Column-aligned cells, a
+   * hover kebab and a right-click ContextMenu sharing one item list. The
+   * schedule sub-line and "next run" cell speak operator language and switch
+   * to the raw trigger config / ISO timestamp in builder mode. Token-only.
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
@@ -15,12 +14,10 @@
   import { Avatar } from "$lib/components/ui/avatar";
   import { addToast } from "$lib/components/ui/toast/store";
   import { refreshTriggers } from "$lib/stores/sse";
+  import { uiMode } from "$lib/stores/mode";
   import { ActionMenu, type ActionMenuItem } from "$lib/components/ui/action-menu";
-  import {
-    estimateNextRun,
-    formatNextRun,
-    humanizeSchedule,
-  } from "$lib/automations/humanize";
+  import { ContextMenu } from "$lib/components/ui/context-menu";
+  import { estimateNextRun, formatNextRun, humanizeSchedule } from "$lib/automations/humanize";
 
   interface Props {
     trigger: TriggerStatus;
@@ -31,16 +28,11 @@
     ondelete: (triggerId: string) => void;
   }
 
-  let {
-    trigger,
-    locale,
-    lastError = null,
-    onfire,
-    onlogs,
-    ondelete,
-  }: Props = $props();
+  let { trigger, locale, lastError = null, onfire, onlogs, ondelete }: Props = $props();
 
   let firing = $state(false);
+  let toggling = $state(false);
+  const isBuilder = $derived($uiMode === "builder");
 
   type Status = "active" | "paused" | "error";
   const status = $derived<Status>(
@@ -69,6 +61,7 @@
   const humanized = $derived(
     humanizeSchedule(trigger.source_kind, trigger.source_config, locale),
   );
+  const rawSchedule = $derived(`${trigger.source_kind} · ${trigger.source_config}`);
 
   const lastFiredDate = $derived(trigger.last_fired ? new Date(trigger.last_fired) : null);
   const nextRun = $derived(
@@ -78,6 +71,13 @@
   );
   const nextRunLabel = $derived(
     trigger.enabled ? formatNextRun(nextRun, locale) : $t("automations.paused_hint"),
+  );
+  const nextRunRaw = $derived(
+    !trigger.enabled
+      ? $t("automations.paused_hint")
+      : nextRun
+        ? nextRun.toISOString()
+        : "event-driven",
   );
 
   function formatRelative(iso: string): string {
@@ -107,22 +107,23 @@
         : $t("automations.status.paused"),
   );
 
-  async function handleFire(e: MouseEvent) {
-    e.stopPropagation();
+  async function fireNow(): Promise<void> {
     if (firing || !trigger.enabled) return;
     firing = true;
     try {
       const result: TriggerFireResult = await invoke("fire_trigger", { id: trigger.id });
       onfire(result.task_id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      addToast(msg, "error");
+      addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
       firing = false;
     }
   }
 
-  let toggling = $state(false);
+  function handleFire(e: MouseEvent) {
+    e.stopPropagation();
+    void fireNow();
+  }
 
   // Enable/disable the trigger. Reflects the AUTO-9 pause/resume gap: the
   // backend already exposes set_trigger_enabled, this surfaces it per-row.
@@ -146,6 +147,14 @@
 
   const menuItems = $derived<ActionMenuItem[]>([
     {
+      id: "run-now",
+      label: $t("automations.run_now"),
+      icon: Play,
+      disabled: !trigger.enabled || firing,
+      onclick: () => void fireNow(),
+      testid: `automation-run-now-menu-${trigger.id}`,
+    },
+    {
       id: "toggle-enabled",
       label: trigger.enabled ? $t("automations.pause") : $t("automations.resume"),
       icon: trigger.enabled ? Pause : Play,
@@ -168,84 +177,135 @@
       testid: `automation-delete-${trigger.id}`,
     },
   ]);
+
+  function handleRowKeydown(e: KeyboardEvent) {
+    if (e.target !== e.currentTarget) return;
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault();
+        onlogs(trigger.id);
+        break;
+      case " ":
+        e.preventDefault();
+        void handleToggleEnabled();
+        break;
+      case "r":
+      case "R":
+        e.preventDefault();
+        void fireNow();
+        break;
+      case "Delete":
+      case "Backspace":
+        e.preventDefault();
+        ondelete(trigger.id);
+        break;
+    }
+  }
 </script>
 
-<div
-  class="group px-4 py-3 flex items-center gap-2.5 border-b border-border/60 text-[12px] hover:bg-muted/40 transition-colors"
-  data-testid="automation-row-{trigger.id}"
-  data-status={status}
->
-  <!-- AUTOMATISATION : title + schedule -->
-  <div class="flex-[2] min-w-0">
-    <div class="font-medium text-foreground truncate" title={humanTitle}>
-      {humanTitle}
+<ContextMenu items={menuItems} data-testid="automation-context-{trigger.id}">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="group px-4 py-3 flex items-center gap-2.5 border-b border-border/60 text-body-xs
+      hover:bg-muted/40 transition-colors outline-none
+      focus-visible:bg-primary/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50
+      data-[status=error]:bg-destructive/5"
+    role="button"
+    tabindex="-1"
+    aria-label={humanTitle}
+    data-automation-nav
+    data-testid="automation-row-{trigger.id}"
+    data-status={status}
+    onclick={() => onlogs(trigger.id)}
+    onkeydown={handleRowKeydown}
+  >
+    <!-- AUTOMATISATION : title + schedule -->
+    <div class="flex-[2] min-w-0" class:opacity-60={status === "paused"}>
+      <div class="font-medium text-foreground truncate" title={humanTitle}>
+        {humanTitle}
+      </div>
+      <div class="flex items-center gap-1.5 text-caption text-muted-foreground/80 mt-px">
+        <ScheduleIcon size={11} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
+        {#if isBuilder}
+          <span class="truncate font-mono text-muted-foreground/70" title={rawSchedule}>{rawSchedule}</span>
+        {:else}
+          <span class="truncate" title={humanized.isCustom ? trigger.source_config : ""}>
+            {humanized.label}
+          </span>
+        {/if}
+      </div>
     </div>
-    <div class="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80 mt-px">
-      <ScheduleIcon size={11} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
-      <span class="truncate" title={humanized.isCustom ? trigger.source_config : ""}>
-        {humanized.label}
-      </span>
+
+    <!-- ASSISTANT -->
+    <div class="w-40 flex items-center gap-1.5 min-w-0">
+      <Avatar name={trigger.agent} size="sm" />
+      <span class="text-caption text-muted-foreground truncate">{trigger.agent}</span>
+    </div>
+
+    <!-- PROCHAIN -->
+    <div
+      class="w-40 text-caption text-muted-foreground truncate {isBuilder ? 'font-mono' : ''}"
+      data-testid="automation-next-run"
+    >
+      {isBuilder ? nextRunRaw : nextRunLabel}
+    </div>
+
+    <!-- STATUT -->
+    <div class="w-28">
+      <Badge size="sm" variant={STATUS_TONE[status]}>
+        {#snippet icon()}
+          <StatusDot color={STATUS_DOT[status]} glow={status === "active"} />
+        {/snippet}
+        {statusLabel}
+      </Badge>
+    </div>
+
+    <!-- DERNIÈRE EXÉC -->
+    <div class="w-24 text-caption text-muted-foreground text-right font-mono">
+      {lastRunLabel}
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="w-16 flex items-center justify-end gap-1 shrink-0">
+      <button
+        type="button"
+        class="p-1 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        onclick={handleFire}
+        disabled={firing || !trigger.enabled}
+        title={firing ? $t("automations.running") : $t("automations.run_now")}
+        aria-label={firing ? $t("automations.running") : $t("automations.run_now")}
+        data-testid="automation-run-now-{trigger.id}"
+      >
+        <Play size={13} strokeWidth={2} class="fill-current" aria-hidden="true" />
+      </button>
+
+      <ActionMenu
+        items={menuItems}
+        align="end"
+        class="w-44"
+        triggerLabel={$t("a11y.actions_menu")}
+        data-testid="automation-menu-{trigger.id}"
+      >
+        {#snippet triggerSlot(props)}
+          {@const openMenu = (props as { onclick?: (e: MouseEvent) => void }).onclick}
+          <button
+            type="button"
+            {...props}
+            class="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-muted/70 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-label={$t("a11y.actions_menu")}
+            data-testid="automation-menu-{trigger.id}"
+            onclick={(e) => {
+              // The row itself is clickable, so the click must not bubble; the
+              // popover's own toggle comes from `props` and this declaration
+              // shadows it, hence the explicit forward.
+              e.stopPropagation();
+              openMenu?.(e);
+            }}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        {/snippet}
+      </ActionMenu>
     </div>
   </div>
-
-  <!-- ASSISTANT -->
-  <div class="w-[160px] flex items-center gap-1.5 min-w-0">
-    <Avatar name={trigger.agent} size="sm" />
-    <span class="text-[11.5px] text-muted-foreground truncate">{trigger.agent}</span>
-  </div>
-
-  <!-- PROCHAIN -->
-  <div class="w-[160px] text-[11px] text-muted-foreground truncate" data-testid="automation-next-run">
-    {nextRunLabel}
-  </div>
-
-  <!-- STATUT -->
-  <div class="w-[110px]">
-    <Badge size="sm" variant={STATUS_TONE[status]}>
-      {#snippet icon()}
-        <StatusDot color={STATUS_DOT[status]} glow={status === "active"} />
-      {/snippet}
-      {statusLabel}
-    </Badge>
-  </div>
-
-  <!-- DERNIÈRE EXÉC -->
-  <div class="w-[90px] text-[10.5px] text-muted-foreground text-right font-mono">
-    {lastRunLabel}
-  </div>
-
-  <!-- ACTIONS -->
-  <div class="w-[64px] flex items-center justify-end gap-1 shrink-0">
-    <button
-      type="button"
-      class="p-1 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      onclick={handleFire}
-      disabled={firing || !trigger.enabled}
-      title={firing ? $t("automations.running") : $t("automations.run_now")}
-      aria-label={firing ? $t("automations.running") : $t("automations.run_now")}
-      data-testid="automation-run-now-{trigger.id}"
-    >
-      <Play size={13} strokeWidth={2} class="fill-current" aria-hidden="true" />
-    </button>
-
-    <ActionMenu
-      items={menuItems}
-      align="end"
-      class="w-44"
-      triggerLabel={$t("a11y.actions_menu")}
-      data-testid="automation-menu-{trigger.id}"
-    >
-      {#snippet triggerSlot(props)}
-        <button
-          type="button"
-          {...props}
-          class="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-muted/70 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-          aria-label={$t("a11y.actions_menu")}
-          data-testid="automation-menu-{trigger.id}"
-        >
-          <MoreHorizontal size={14} />
-        </button>
-      {/snippet}
-    </ActionMenu>
-  </div>
-</div>
+</ContextMenu>

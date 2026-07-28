@@ -26,33 +26,33 @@
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="audit-stats">
   <article class="glass-inset rounded-lg px-4 py-3">
-    <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+    <div class="section-meta mb-1.5">
       {$t('observability.audit_kpi_entries')}
     </div>
-    <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.entries}</div>
+    <div class="text-heading-lg font-semibold tabular-nums leading-none">{stats.entries}</div>
   </article>
   <article class="glass-inset rounded-lg px-4 py-3">
-    <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+    <div class="section-meta mb-1.5">
       {$t('observability.audit_kpi_tools')}
     </div>
-    <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.tools}</div>
+    <div class="text-heading-lg font-semibold tabular-nums leading-none">{stats.tools}</div>
   </article>
   <article class="glass-inset rounded-lg px-4 py-3">
-    <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+    <div class="section-meta mb-1.5">
       {$t('observability.audit_kpi_failures')}
     </div>
     <div
-      class="text-[20px] font-semibold tabular-nums leading-none"
+      class="text-heading-lg font-semibold tabular-nums leading-none"
       class:text-destructive={stats.failures > 0}
     >
       {stats.failures}
     </div>
   </article>
   <article class="glass-inset rounded-lg px-4 py-3">
-    <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+    <div class="section-meta mb-1.5">
       {$t('observability.audit_kpi_avg_duration')}
     </div>
-    <div class="text-[20px] font-semibold tabular-nums leading-none">
+    <div class="text-heading-lg font-semibold tabular-nums leading-none">
       {stats.avgMs > 0 ? formatDuration(Math.round(stats.avgMs)) : "-"}
     </div>
   </article>

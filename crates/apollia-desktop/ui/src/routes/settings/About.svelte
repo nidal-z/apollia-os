@@ -10,164 +10,282 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { BookOpen, Github, Scale, Mail, Copy, ExternalLink } from "lucide-svelte";
-  import { Card } from "$lib/components/ui/card";
+  import {
+    Info,
+    RefreshCw,
+    Globe,
+    Scale,
+    Package,
+    BookOpen,
+    Github,
+    Mail,
+    ExternalLink,
+    Copy,
+    Check,
+  } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
+  import { reportError } from "$lib/errors/reportError";
+  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
+  import SettingsSection from "../../components/settings/SettingsSection.svelte";
+  import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
+  import AboutHero from "../../components/settings/about/AboutHero.svelte";
+  import UpdateCheckPanel from "../../components/settings/UpdateCheckPanel.svelte";
+  import AboutCredits from "../../components/settings/about/AboutCredits.svelte";
+  import AboutEthos from "../../components/settings/about/AboutEthos.svelte";
+  import CopyValue from "../../components/settings/about/CopyValue.svelte";
 
   const GITHUB_URL = "https://github.com/Apollia-OS/apollia-os";
   const DOCS_URL = "https://github.com/Apollia-OS/apollia-os/wiki";
-  const CONTACT_PRIMARY = "contact@apollia.fr";
-  const CONTACT_ADMIN = "admin@apollia.fr";
+  const CONTACT_EMAIL = "contact@apollia.fr";
+  const LICENSE_SPDX = "MIT OR Apache-2.0";
+  const ENGINE = "llama-server (llama.cpp)";
+  const STT_ENGINE = "whisper-rs (GGML)";
 
   const version = $derived($systemInfoStore.data?.version ?? null);
   const os = $derived($systemInfoStore.data?.os ?? null);
+  const pythonPath = $derived($systemInfoStore.data?.python_path ?? null);
+  const unavailable = $derived(
+    $systemInfoStore.data === null && $systemInfoStore.error !== null,
+  );
+
+  // The channel is inferred from the version string's prerelease tag (the part
+  // after the first "-"), never fabricated: no tag means a stable build.
+  const channelLabel = $derived.by(() => {
+    if (!version) return null;
+    return version.includes("-")
+      ? $t("settings.about.channel_prerelease")
+      : $t("settings.about.channel_stable");
+  });
+
+  // A copy-ready diagnostic block composed only from real, present fields.
+  const diagnostic = $derived.by(() => {
+    const lines = [`Apollia OS v${version ?? "unknown"}`, `Platform: ${os ?? "unknown"}`];
+    if (pythonPath) lines.push(`Python: ${pythonPath}`);
+    lines.push(`Engine: ${ENGINE}`, `Transcription: ${STT_ENGINE}`, `License: ${LICENSE_SPDX}`);
+    return lines.join("\n");
+  });
+
+  let diagCopied = $state(false);
+  let diagTimer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(() => {
     void settingsLoaders.systemInfo();
   });
 
-  async function copyEmail(address: string): Promise<void> {
+  async function copyDiagnostic(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(address);
-      addToast($t("settings.about.email_copied"), "success");
-    } catch {
-      addToast($t("settings.about.email_copy_failed"), "error");
+      await navigator.clipboard.writeText(diagnostic);
+      diagCopied = true;
+      addToast($t("settings.about.copy_success"), "success");
+      clearTimeout(diagTimer);
+      diagTimer = setTimeout(() => (diagCopied = false), 1500);
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    }
+  }
+
+  async function copyContact(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(CONTACT_EMAIL);
+      addToast($t("settings.about.copy_success"), "success");
+    } catch (err) {
+      reportError(err, { surface: "toast" });
     }
   }
 </script>
 
-<section class="mx-auto max-w-[720px] space-y-5" data-testid="about-section">
-  <!-- Identity hero -->
-  <Card class="rounded-xl p-6" data-testid="about-hero">
-    <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
-      <img
-        src="/logo.svg"
-        alt={$t("settings.about.logo_alt")}
-        width="64"
-        height="64"
-        class="h-16 w-16 shrink-0 rounded-2xl"
-      />
-      <div class="min-w-0">
-        <h2
-          class="m-0 text-foreground"
-          style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px;"
-        >
-          Apollia OS
-        </h2>
-        <p class="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          {$t("settings.about.tagline")}
-        </p>
-        <div class="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+{#snippet linkCard(
+  href: string,
+  glyph: typeof BookOpen,
+  title: string,
+  desc: string,
+  testid: string,
+)}
+  {@const Glyph = glyph}
+  <a
+    {href}
+    rel="noreferrer"
+    onclick={handleExternalLinkClick}
+    class="group flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+    data-testid={testid}
+  >
+    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-muted text-primary">
+      <Glyph size={17} strokeWidth={1.75} aria-hidden="true" />
+    </span>
+    <span class="min-w-0 flex-1">
+      <span class="flex items-center gap-1.5 text-body-sm font-medium text-foreground">
+        {title}
+        <ExternalLink
+          size={12}
+          class="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden="true"
+        />
+      </span>
+      <span class="block truncate text-caption text-muted-foreground">{desc}</span>
+    </span>
+  </a>
+{/snippet}
+
+<SettingsSubPage route="about" data-testid="about-section">
+  <AboutHero {version} {os} {channelLabel} />
+
+  <!-- Version and build -->
+  <SettingsSection
+    title={$t("settings.about.build_title")}
+    description={$t("settings.about.build_desc")}
+    bodyLayout="flush"
+    data-testid="about-build"
+  >
+    {#snippet icon()}<Info size={15} strokeWidth={1.75} />{/snippet}
+
+    {#if unavailable}
+      <p class="py-3 text-body-sm text-muted-foreground" data-testid="about-info-unavailable">
+        {$t("settings.about.info_unavailable")}
+      </p>
+    {:else}
+      <SettingsFieldRow label={$t("settings.about.kv_version")}>
+        {#snippet control()}
           {#if version}
-            <span
-              class="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-mono text-[11px] text-foreground"
-              data-testid="about-version"
-            >
-              v{version}
-            </span>
+            <CopyValue value={version} label={$t("settings.about.kv_version")} data-testid="about-copy-version" />
+          {:else}
+            <span class="text-body-sm text-muted-foreground">{$t("settings.about.version_unknown")}</span>
           {/if}
+        {/snippet}
+      </SettingsFieldRow>
+
+      <SettingsFieldRow label={$t("settings.about.kv_platform")}>
+        {#snippet control()}
           {#if os}
-            <span
-              class="inline-flex items-center rounded-full border border-border bg-muted/30 px-2.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-              data-testid="about-os"
-            >
-              {os}
-            </span>
+            <CopyValue value={os} label={$t("settings.about.kv_platform")} data-testid="about-copy-platform" />
+          {:else}
+            <span class="text-body-sm text-muted-foreground">-</span>
           {/if}
-        </div>
-      </div>
+        {/snippet}
+      </SettingsFieldRow>
+
+      {#if pythonPath}
+        <SettingsFieldRow label={$t("settings.about.kv_python")}>
+          {#snippet control()}
+            <CopyValue value={pythonPath} label={$t("settings.about.kv_python")} data-testid="about-copy-python" />
+          {/snippet}
+        </SettingsFieldRow>
+      {/if}
+
+      <SettingsFieldRow label={$t("settings.about.kv_engine")}>
+        {#snippet control()}
+          <span class="font-mono text-body-sm text-foreground">{ENGINE}</span>
+        {/snippet}
+      </SettingsFieldRow>
+
+      <SettingsFieldRow label={$t("settings.about.kv_stt")} border={false}>
+        {#snippet control()}
+          <span class="font-mono text-body-sm text-foreground">{STT_ENGINE}</span>
+        {/snippet}
+      </SettingsFieldRow>
+    {/if}
+
+    {#snippet footer()}
+      <Button
+        variant="ghost"
+        size="sm"
+        onclick={copyDiagnostic}
+        data-testid="about-copy-diagnostics"
+      >
+        {#snippet icon()}
+          {#if diagCopied}
+            <Check size={14} strokeWidth={2.2} class="text-success" />
+          {:else}
+            <Copy size={14} strokeWidth={1.9} />
+          {/if}
+        {/snippet}
+        {$t("settings.about.copy_diagnostics")}
+      </Button>
+      <span class="ml-auto text-caption text-muted-foreground">
+        {$t("settings.about.copy_hint")}
+      </span>
+    {/snippet}
+  </SettingsSection>
+
+  <!-- Updates -->
+  <SettingsSection
+    title={$t("settings.about.updates_title")}
+    description={$t("settings.about.updates_desc")}
+    data-testid="about-updates"
+  >
+    {#snippet icon()}<RefreshCw size={15} strokeWidth={1.75} />{/snippet}
+    <UpdateCheckPanel variant="bare" />
+  </SettingsSection>
+
+  <!-- Resources -->
+  <SettingsSection title={$t("settings.about.links_title")} data-testid="about-links">
+    {#snippet icon()}<Globe size={15} strokeWidth={1.75} />{/snippet}
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {@render linkCard(
+        DOCS_URL,
+        BookOpen,
+        $t("settings.about.docs_title"),
+        $t("settings.about.docs_desc"),
+        "about-link-docs",
+      )}
+      {@render linkCard(
+        GITHUB_URL,
+        Github,
+        $t("settings.about.github_title"),
+        $t("settings.about.github_desc"),
+        "about-link-github",
+      )}
+      <button
+        type="button"
+        onclick={copyContact}
+        class="group flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        data-testid="about-copy-contact"
+      >
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-muted text-primary">
+          <Mail size={17} strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-1.5 text-body-sm font-medium text-foreground">
+            {$t("settings.about.contact_title")}
+            <Copy
+              size={12}
+              class="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+              aria-hidden="true"
+            />
+          </span>
+          <span class="block truncate font-mono text-caption text-muted-foreground">{CONTACT_EMAIL}</span>
+        </span>
+      </button>
     </div>
-  </Card>
-
-  <!-- Description -->
-  <Card class="rounded-xl p-5" data-testid="about-description">
-    <p class="text-[13px] leading-[1.65] text-muted-foreground">
-      {$t("settings.about.description")}
-    </p>
-  </Card>
-
-  <!-- Links -->
-  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-    <a
-      href={DOCS_URL}
-      rel="noreferrer"
-      onclick={handleExternalLinkClick}
-      class="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      data-testid="about-link-docs"
-    >
-      <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-        <BookOpen size={18} strokeWidth={1.75} aria-hidden="true" />
-      </span>
-      <span class="min-w-0 flex-1">
-        <span class="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-          {$t("settings.about.docs_title")}
-          <ExternalLink size={12} class="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
-        </span>
-        <span class="block text-[11.5px] text-muted-foreground">{$t("settings.about.docs_desc")}</span>
-      </span>
-    </a>
-
-    <a
-      href={GITHUB_URL}
-      rel="noreferrer"
-      onclick={handleExternalLinkClick}
-      class="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      data-testid="about-link-github"
-    >
-      <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-        <Github size={18} strokeWidth={1.75} aria-hidden="true" />
-      </span>
-      <span class="min-w-0 flex-1">
-        <span class="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-          {$t("settings.about.github_title")}
-          <ExternalLink size={12} class="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
-        </span>
-        <span class="block text-[11.5px] text-muted-foreground">{$t("settings.about.github_desc")}</span>
-      </span>
-    </a>
-  </div>
+  </SettingsSection>
 
   <!-- License -->
-  <Card class="rounded-xl p-5" data-testid="about-license">
-    <div class="flex items-start gap-3">
-      <Scale size={18} strokeWidth={1.75} class="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <div class="min-w-0">
-        <h3 class="text-[13px] font-medium text-foreground">{$t("settings.about.license_title")}</h3>
-        <p class="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-          {$t("settings.about.license_body")}
-        </p>
-      </div>
-    </div>
-  </Card>
+  <SettingsSection
+    title={$t("settings.about.license_title")}
+    description={$t("settings.about.license_body")}
+    bodyLayout="flush"
+    data-testid="about-license"
+  >
+    {#snippet icon()}<Scale size={15} strokeWidth={1.75} />{/snippet}
+    <SettingsFieldRow label={$t("settings.about.kv_license")} border={false}>
+      {#snippet control()}
+        <span class="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-mono text-caption text-foreground">
+          {LICENSE_SPDX}
+        </span>
+      {/snippet}
+    </SettingsFieldRow>
+  </SettingsSection>
 
-  <!-- Contact -->
-  <Card class="rounded-xl p-5" data-testid="about-contact">
-    <div class="flex items-start gap-3">
-      <Mail size={18} strokeWidth={1.75} class="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <div class="min-w-0 flex-1">
-        <h3 class="text-[13px] font-medium text-foreground">{$t("settings.about.contact_title")}</h3>
-        <p class="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-          {$t("settings.about.contact_body")}
-        </p>
-        <div class="mt-3 space-y-1.5">
-          {#each [CONTACT_PRIMARY, CONTACT_ADMIN] as address (address)}
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick={() => copyEmail(address)}
-                class="group inline-flex items-center gap-1.5 rounded-md text-[12px] font-mono text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                title={$t("settings.about.copy_email")}
-                data-testid="about-copy-{address}"
-              >
-                <span>{address}</span>
-                <Copy size={12} class="opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
-              </button>
-            </div>
-          {/each}
-        </div>
-      </div>
-    </div>
-  </Card>
-</section>
+  <!-- Built on -->
+  <SettingsSection
+    title={$t("settings.about.credits_title")}
+    description={$t("settings.about.credits_desc")}
+  >
+    {#snippet icon()}<Package size={15} strokeWidth={1.75} />{/snippet}
+    <AboutCredits />
+  </SettingsSection>
+
+  <AboutEthos />
+</SettingsSubPage>

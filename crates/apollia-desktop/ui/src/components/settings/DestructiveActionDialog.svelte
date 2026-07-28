@@ -13,7 +13,7 @@
   import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import { AlertTriangle } from "lucide-svelte";
+  import { AlertTriangle, CheckCircle2, XCircle, Lock } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
@@ -52,16 +52,27 @@
   let step = $state<1 | 2>(1);
   let typed = $state("");
   let locked = $state(false);
+  let lockRemaining = $state(0);
   let lockTimer: ReturnType<typeof setTimeout> | null = null;
+  let lockInterval: ReturnType<typeof setInterval> | null = null;
+
+  function clearLockTimers() {
+    if (lockTimer) {
+      clearTimeout(lockTimer);
+      lockTimer = null;
+    }
+    if (lockInterval) {
+      clearInterval(lockInterval);
+      lockInterval = null;
+    }
+  }
 
   function resetState() {
     step = 1;
     typed = "";
     locked = false;
-    if (lockTimer) {
-      clearTimeout(lockTimer);
-      lockTimer = null;
-    }
+    lockRemaining = 0;
+    clearLockTimers();
   }
 
   function handleClose() {
@@ -74,9 +85,18 @@
     typed = "";
     if (lockMs > 0) {
       locked = true;
+      lockRemaining = Math.ceil(lockMs / 1000);
       lockTimer = setTimeout(() => {
         locked = false;
+        lockRemaining = 0;
       }, lockMs);
+      lockInterval = setInterval(() => {
+        lockRemaining = Math.max(0, lockRemaining - 1);
+        if (lockRemaining <= 0 && lockInterval) {
+          clearInterval(lockInterval);
+          lockInterval = null;
+        }
+      }, 1000);
     }
   }
 
@@ -90,11 +110,10 @@
     if (!open) resetState();
   });
 
-  onDestroy(() => {
-    if (lockTimer) clearTimeout(lockTimer);
-  });
+  onDestroy(clearLockTimers);
 
-  let canConfirm = $derived(typed === confirmWord && !locked && !loading);
+  let matches = $derived(typed === confirmWord);
+  let canConfirm = $derived(matches && !locked && !loading);
 </script>
 
 <Dialog
@@ -154,8 +173,35 @@
         aria-label={$t("settings.danger.confirm_input_aria", { values: { word: confirmWord } })}
         data-testid={dataTestId ? `${dataTestId}-input` : undefined}
       />
+      {#if matches}
+        <p
+          class="flex items-center gap-1.5 text-caption text-success"
+          data-testid={dataTestId ? `${dataTestId}-match` : undefined}
+        >
+          <CheckCircle2 size={13} strokeWidth={2} aria-hidden="true" />
+          {$t("settings.danger.confirm_match")}
+        </p>
+      {:else if typed.length > 0}
+        <p
+          class="flex items-center gap-1.5 text-caption text-destructive"
+          data-testid={dataTestId ? `${dataTestId}-mismatch` : undefined}
+        >
+          <XCircle size={13} strokeWidth={2} aria-hidden="true" />
+          {$t("settings.danger.confirm_mismatch")}
+        </p>
+      {/if}
     </div>
     <DialogFooter>
+      {#if locked && lockRemaining > 0}
+        <span
+          class="mr-auto inline-flex items-center gap-1.5 self-center text-caption text-muted-foreground"
+          aria-live="polite"
+          data-testid={dataTestId ? `${dataTestId}-lock-hint` : undefined}
+        >
+          <Lock size={13} strokeWidth={1.75} aria-hidden="true" />
+          {$t("settings.danger.locked_hint", { values: { seconds: lockRemaining } })}
+        </span>
+      {/if}
       <Button
         variant="outline"
         onclick={handleClose}

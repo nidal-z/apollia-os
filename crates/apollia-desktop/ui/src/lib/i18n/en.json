@@ -1,4 +1,46 @@
 {
+  "errors": {
+    "permission": {
+      "title": "Permission required",
+      "friendly_message": "Apollia was blocked from this action by a permission or sandbox rule.",
+      "suggested_action": "Review the matching rule in Settings, Permissions, then retry or grant an exception."
+    },
+    "ipc": {
+      "title": "Backend unavailable",
+      "friendly_message": "The desktop app could not reach the Apollia runtime to complete this action.",
+      "suggested_action": "Wait a moment and retry. If it persists, restart Apollia."
+    },
+    "validation": {
+      "title": "Invalid input",
+      "friendly_message": "The request was rejected because one or more values are missing or malformed.",
+      "suggested_action": "Check the highlighted fields and correct the values, then submit again."
+    },
+    "auth": {
+      "title": "Authentication needed",
+      "friendly_message": "The service refused the request because the credentials are missing, expired, or not accepted.",
+      "suggested_action": "Sign in again or reconnect the integration, then retry."
+    },
+    "rate_limit": {
+      "title": "Too many requests",
+      "friendly_message": "The service is throttling requests because too many were sent in a short window.",
+      "suggested_action": "Wait a few moments before trying again."
+    },
+    "not_found": {
+      "title": "Not found",
+      "friendly_message": "The requested item does not exist or is no longer available.",
+      "suggested_action": "Refresh the list, or check that the item was not moved or deleted."
+    },
+    "conflict": {
+      "title": "Conflict",
+      "friendly_message": "This change conflicts with the current state, for example an item that already exists.",
+      "suggested_action": "Reload the latest state, then reapply your change."
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "friendly_message": "An unexpected error stopped this action from completing.",
+      "suggested_action": "Retry the action. If it keeps failing, check the details below."
+    }
+  },
   "next_steps": {
     "title": "Next steps",
     "refresh": "Refresh",
@@ -59,7 +101,8 @@
     "worker_badge": "Worker",
     "saving": "Saving…",
     "finalize": "Finalize",
-    "finalizing": "Finalizing…"
+    "finalizing": "Finalizing…",
+    "error_details": "Details"
   },
   "companion": {
     "toggle_label": "Apollia Help",
@@ -121,7 +164,8 @@
         "cause_2": "Configuration is invalid",
         "cause_3": "An internal error occurred"
       }
-    }
+    },
+    "header_toolbar": "Companion toolbar"
   },
   "a11y": {
     "skip_to_content": "Skip to content",
@@ -264,7 +308,8 @@
       "no_llm": "Runtime connected · no LLM provider configured",
       "runtime_down": "Runtime offline - reconnecting"
     },
-    "search_aria": "Search and command palette"
+    "search_aria": "Search and command palette",
+    "agents_at_work": "{count} agents at work"
   },
   "userMenu": {
     "open_label": "Open user menu",
@@ -600,7 +645,9 @@
       "hint_postgres": "PostgreSQL connection URI (`postgres://user:pass@host:5432/db`) as the first argument.",
       "hint_sqlite": "Absolute path to the `.sqlite` file to expose."
     },
-    "add_connector": "Add a connector"
+    "add_connector": "Add a connector",
+    "ctx_configure": "Configure",
+    "tool_schema": "Schema"
   },
   "integrations": {
     "title_operator": "Connections",
@@ -699,16 +746,6 @@
       "checkbox": "I have read and understood this information",
       "learn_more": "Learn more: Security of connections",
       "continue": "Continue"
-    },
-    "first_connection_tour": {
-      "step_1_title": "Here is your connection",
-      "step_1_body": "Your new connection appears here. It's active and ready to be used by your assistants.",
-      "step_2_title": "These tools are available",
-      "step_2_body": "The number of tools exposed by this connection. Each tool is a possible action on the service.",
-      "step_3_title": "Manage it here",
-      "step_3_body": "From this panel you can test, reconnect, change permissions or disconnect this service.",
-      "step_4_title": "Try an example",
-      "step_4_body": "Click \"Try\" to open a pre-filled chat and see the connection in action."
     },
     "trust": {
       "verified_official": "Official",
@@ -976,7 +1013,14 @@
     "inbox_more_one": "+ {count} more in the inbox →",
     "inbox_more_other": "+ {count} more in the inbox →",
     "open_task_aria": "Open task {name}",
-    "agent_detail_aria": "Agent details for {name}"
+    "agent_detail_aria": "Agent details for {name}",
+    "pending_untitled": "(untitled)",
+    "ctx_open_inbox": "Open in inbox",
+    "ctx_open_deliverable": "Open deliverable",
+    "ctx_agent_detail": "Open agent details",
+    "ctx_agent_logs": "View logs",
+    "ctx_open_task": "Open task",
+    "ctx_open_project": "Open project"
   },
   "agents": {
     "title": "Agents",
@@ -1031,7 +1075,8 @@
       "done_agents_many": "{n} agents",
       "done_triggers_one": "{n} trigger",
       "done_triggers_many": "{n} triggers",
-      "trigger_every": "every {every}"
+      "trigger_every": "every {every}",
+      "secret_placeholder": "e.g. my-super-secret-key-at-least-32-chars"
     },
     "installing": "Installing...",
     "register": "Register Agent",
@@ -1216,7 +1261,8 @@
       "model_default_with_backend": "Default model ({name} - {model})",
       "model_default_suffix": "(default)",
       "model_empty": "No model configured. Add one in Settings › Models.",
-      "revert": "Discard changes"
+      "revert": "Discard changes",
+      "personality_placeholder": "e.g. You are Apollia, a concise, pragmatic local assistant. You answer in the user's language, ask a question when something is ambiguous, and favor short answers."
     },
     "memory_relative_future": "just now"
   },
@@ -1323,7 +1369,19 @@
     "tech_agent_id": "Agent ID",
     "tech_agent_name": "Agent name",
     "tech_status_timing": "Status & timing",
-    "tech_raw_status": "Raw status"
+    "tech_raw_status": "Raw status",
+    "ctx_run": "Open",
+    "ctx_retry": "Retry",
+    "ctx_cancel": "Cancel",
+    "stop": "Stop",
+    "retry": "Retry",
+    "error_details": "Details",
+    "live_working_hint": "The agent is running. A partial result appears as soon as the current step finishes.",
+    "ctx_delete": "Delete",
+    "delete": "Delete",
+    "delete_confirm_title": "Delete task",
+    "delete_confirm_message": "Are you sure you want to delete this task? This action cannot be undone.",
+    "delete_confirm_yes": "Delete"
   },
   "inbox": {
     "row": {
@@ -1337,7 +1395,9 @@
       "action_allow": "Allow",
       "action_reply": "Reply",
       "action_resolve": "Resolve",
-      "open_conversation": "Open conversation"
+      "open_conversation": "Open conversation",
+      "action_review": "Review",
+      "copy_id": "Copy id"
     },
     "title_operator": "Inbox",
     "title_builder": "Inbox",
@@ -1454,12 +1514,17 @@
       "always_accepted": "Rule saved - future calls auto-approved",
       "ask_user_replied": "Answers sent to the agent",
       "bulk_approved": "{count} actions approved",
-      "bulk_rejected": "{count} actions rejected"
+      "bulk_rejected": "{count} actions rejected",
+      "copied": "Copied to clipboard"
     },
     "history_title": "Recent history (last 14 days)",
     "ask_user_gate": {
       "title": "The agent wants to ask you something",
       "body": "Approve to let the agent proceed. It will then ask you questions directly in the conversation."
+    },
+    "error": {
+      "details": "Technical details",
+      "learn_more": "Learn more"
     }
   },
   "permissions": {
@@ -1600,7 +1665,21 @@
     "history_scrubber_label": "Plan revision",
     "history_revision_position": "Revision {current} / {total}",
     "history_reason_label": "Reason",
-    "history_corrupt_marker": "{count} skipped mutation(s) (corrupt)"
+    "history_corrupt_marker": "{count} skipped mutation(s) (corrupt)",
+    "approve_and_launch": "Approve and launch",
+    "request_changes": "Request changes",
+    "request_changes_label": "What should change?",
+    "request_changes_placeholder": "e.g. keep backward compatibility with the old token for 30 days, and add a rollback step.",
+    "send": "Send",
+    "cancel": "Cancel",
+    "revise_hint": "Or keep typing to refine the plan.",
+    "awaiting_approval": "Awaiting approval",
+    "step_count": "{count} steps",
+    "revision_label": "rev. {n}",
+    "raw_plan": "Raw plan (JSON)",
+    "launch_failed_title": "Launch did not complete",
+    "launch_failed_hint": "No step has started. Technical details",
+    "retry_approval": "Retry approval"
   },
   "plan_session": {
     "tab_journal": "Journal",
@@ -1756,7 +1835,9 @@
       "tokens": "Tokens",
       "cost_usd": "Cost USD",
       "total": "Total"
-    }
+    },
+    "default_set_toast": "'{name}' set as the default model",
+    "details": "Details"
   },
   "automations": {
     "title": "Automations",
@@ -1841,7 +1922,8 @@
       "history_note": "History will be kept, but the rule will no longer fire.",
       "skip_next": "Don't ask again",
       "confirm": "Delete"
-    }
+    },
+    "technical_details": "Technical details"
   },
   "triggers": {
     "title": "Triggers",
@@ -2089,7 +2171,32 @@
     "ttl_in_days": "Expires in {days}d (on {date})",
     "delete_confirm_question": "Confirm deletion?",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "namespaces": {
+      "title": "Namespaces",
+      "filter_placeholder": "Filter…",
+      "category_filter": "Filter by category",
+      "cat_all": "All",
+      "cat_agent": "Agents",
+      "cat_project": "Projects",
+      "cat_user": "Profile",
+      "cat_other": "Other",
+      "cat_user_header": "User profile",
+      "cat_agent_header": "Agents",
+      "cat_project_header": "Projects",
+      "cat_other_header": "Other",
+      "no_match": "No namespace matches.",
+      "empty_category": "No namespace in this category.",
+      "empty": "No namespace."
+    },
+    "value_empty": "empty",
+    "action_open": "Open details",
+    "entry_actions": "Entry actions",
+    "error_details": "Technical details",
+    "embeddings": {
+      "vector": "vector · nomic-embed-text 768-d · FTS5",
+      "none": "no vector · raw text"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -2222,7 +2329,9 @@
     "native": {
       "approval_title": "Action required",
       "approval_body": "Agent {agentName} is waiting for approval"
-    }
+    },
+    "toggle_action": "Enable / disable",
+    "error_details": "Technical details"
   },
   "trace": {
     "header": "Execution",
@@ -2371,7 +2480,6 @@
     "agent_filter": "Agent:",
     "all_tools": "All tools",
     "all_agents": "All agents",
-    "loading_audit": "Loading audit trail...",
     "empty_audit": "No tool invocations recorded.",
     "load_more_audit": "Load {count} more",
     "table": {
@@ -2423,7 +2531,13 @@
       "dialog_message": "Clear {count} cache entries? Upcoming orchestrated runs will need to regenerate their plans via the LLM.",
       "dialog_confirm": "Purge",
       "toast_purged": "Cache purged ({count} entries removed)"
-    }
+    },
+    "audit_menu_copy_row": "Copy row",
+    "audit_menu_copy_json": "Copy raw JSON",
+    "audit_menu_inspect": "Inspect detail",
+    "audit_row_copied": "Row copied to clipboard",
+    "audit_json_copied": "JSON copied to clipboard",
+    "audit_copy_failed": "Copy failed"
   },
   "settings": {
     "title": "Settings",
@@ -2485,14 +2599,41 @@
       "topic_profile_body": "The information Apollia knows about you lives in your profile. Review it, edit it, or clear it anytime.",
       "topic_profile_action": "Open profile",
       "docs_title": "Full documentation",
-      "docs_desc": "Guides, references and tutorials on the Apollia OS wiki."
+      "docs_desc": "Guides, references and tutorials on the Apollia OS wiki.",
+      "hero_title": "Get started with Apollia",
+      "hero_body": "A short guided path to install a model, run your first agent, and read the execution journal.",
+      "hero_cta": "Open the guide",
+      "resources": "Resources & support",
+      "shortcuts_title": "Keyboard shortcuts",
+      "shortcuts_desc": "The full list of shortcuts, available offline inside the app.",
+      "community_title": "Community",
+      "community_desc": "Ask questions and share your agents with other users on GitHub Discussions.",
+      "report_title": "Report a problem",
+      "report_desc": "Open an issue. Your diagnostics stay local unless you choose to attach them.",
+      "opens_external": "Opens in your browser",
+      "opens_in_app": "Opens in the app",
+      "available_soon": "Available soon",
+      "offline_badge": "Offline",
+      "offline_title": "You are offline",
+      "offline_body": "Documentation and community links will open once the connection is back. The rest of the help page stays available.",
+      "faq_title": "Frequently asked questions",
+      "faq_search_placeholder": "Search the help",
+      "faq_search_aria": "Search frequently asked questions",
+      "faq_empty_title": "No answer found",
+      "faq_empty_body": "No question matches \"{query}\". Try different words, or browse the full documentation.",
+      "faq_q_offline": "Does Apollia work without an internet connection?",
+      "faq_a_offline": "Yes. Inference, transcription and your data stay on the machine. Only the external links on this page and the OAuth connectors you explicitly enable leave your computer.",
+      "faq_q_model": "Where are downloaded models stored?",
+      "faq_a_model": "In the ~/.apollia/models folder. The Model Hub shows the disk space used and lets you delete a model to free space.",
+      "faq_q_data": "Do my conversations leave the machine?",
+      "faq_a_data": "Never without an explicit action from you. Local-first is the first of Apollia's eight principles.",
+      "faq_q_shortcuts": "What are the essential keyboard shortcuts?",
+      "faq_a_shortcuts": "Open the Keyboard shortcuts page from the resources above for the full, offline list grouped by context."
     },
     "about": {
       "title": "About",
       "subtitle": "Version, links and licensing for this installation.",
-      "logo_alt": "Apollia OS logo",
       "tagline": "A sovereign runtime for autonomous AI agents, running locally without a cloud dependency.",
-      "description": "Apollia OS runs any Python agent in isolation, on your own machine, with your own models and tools. Zero user data leaves the device without an explicit action. It is free and open source.",
       "docs_title": "Documentation",
       "docs_desc": "Guides, references and tutorials.",
       "github_title": "Source code",
@@ -2500,10 +2641,37 @@
       "license_title": "License",
       "license_body": "Apollia OS is free and open source, dual-licensed under either the MIT license or the Apache License 2.0, at your option.",
       "contact_title": "Contact",
-      "contact_body": "Questions, feedback or partnership requests are welcome.",
-      "copy_email": "Copy address",
-      "email_copied": "Address copied",
-      "email_copy_failed": "Copy failed"
+      "channel_stable": "Stable channel",
+      "channel_prerelease": "Preview channel",
+      "version_unknown": "Version unknown",
+      "copy_success": "Copied to clipboard",
+      "copied": "Copied",
+      "copy_field": "Copy {field}",
+      "build_title": "Version and build",
+      "build_desc": "Useful for a bug report or a support request.",
+      "info_unavailable": "System information could not be loaded. Make sure Apollia is running, then reopen this page.",
+      "kv_version": "Version",
+      "kv_platform": "Platform",
+      "kv_python": "Python interpreter",
+      "kv_engine": "Inference engine",
+      "kv_stt": "Transcription",
+      "kv_license": "SPDX identifier",
+      "copy_diagnostics": "Copy diagnostic report",
+      "copy_hint": "One click copies the raw value.",
+      "updates_title": "Updates",
+      "updates_desc": "Manual check only. No telemetry, no automatic background checks.",
+      "updates_idle": "You can check for a new version at any time.",
+      "updates_checking": "Checking for updates…",
+      "up_to_date": "You are running the latest version.",
+      "update_available": "Version {version} is available.",
+      "check_updates": "Check for updates",
+      "recheck": "Check again",
+      "install_update": "Install and restart",
+      "links_title": "Resources",
+      "credits_title": "Built on",
+      "credits_desc": "The open-source components embedded in Apollia. Thanks to their authors.",
+      "license_public_domain": "Public domain",
+      "ethos": "Everything runs on your machine. No account, no cloud, no telemetry. Your data never leaves the device without an explicit action from you."
     },
     "observability": {
       "title": "Observability",
@@ -2520,8 +2688,36 @@
       "capture_agent_logs_desc": "Persist debug/info/warn/error messages emitted by agents.",
       "retention_days": "Retention",
       "retention_days_desc": "Number of days events are kept before automatic purge.",
-      "edit_via_toml_hint": "Edit values directly in apollia.toml. Live editing from this page is coming.",
-      "open_toml": "Open apollia.toml"
+      "capture_section_title": "Trace capture",
+      "capture_section_desc": "What is persisted in `runtime_events.db` at each agent turn. Disabling an item empties the matching elements in the timeline.",
+      "privacy_section_title": "Privacy",
+      "privacy_section_desc": "Additional debug logging. Distinct from trace capture: it writes to `llm_calls.db`.",
+      "truncation_section_title": "Truncation",
+      "truncation_section_desc": "Maximum size kept per record. Beyond this, content is truncated to bound the database size.",
+      "retention_section_title": "Retention",
+      "retention_section_desc": "How long events are kept before automatic purge, consistent with the audit journal.",
+      "debug_log_prompt": "Log raw prompt text",
+      "debug_log_prompt_desc": "Writes `prompt_text` to `llm_calls.db`. Useful for debugging, off by default. Does not affect the timeline.",
+      "max_input_bytes": "Task and step inputs",
+      "max_input_bytes_desc": "Maximum size of inputs kept. Default 32 KiB.",
+      "max_output_bytes": "Outputs and completions",
+      "max_output_bytes_desc": "Maximum size of outputs kept. Default 32 KiB.",
+      "max_tool_output_bytes": "Tool stdout / stderr",
+      "max_tool_output_bytes_desc": "Maximum size of a tool's standard output kept. Default 10 KiB.",
+      "sensitive_badge": "Sensitive",
+      "state_on": "On",
+      "state_off": "Off",
+      "unit_bytes": "bytes",
+      "unit_days": "days",
+      "view_data_label": "View captured traces",
+      "view_data_desc": "Timeline, LLM costs and audit journal on the dedicated Observability page.",
+      "view_data_link": "Open Observability",
+      "editable_note": "Edit the observability policy captured about agent execution. Everything stays local, nothing is uploaded.",
+      "restart_note": "Changes apply after restarting the app. The runtime does not reload this policy live.",
+      "kib_display": "{kib} KiB",
+      "sensitive_confirm_title": "Enable sensitive capture?",
+      "sensitive_confirm_message": "This persists potentially sensitive content (raw prompts and responses) to the local database. It never leaves your machine, but anyone with local access can read it. Enable it only if you need it for debugging.",
+      "sensitive_confirm_enable": "Enable capture"
     },
     "shortcuts": {
       "subtitle": "Keyboard shortcuts available across Apollia.",
@@ -2547,7 +2743,9 @@
         "chat": "Inside Chat",
         "settings": "Inside Settings",
         "dialog": "Inside a dialog",
-        "approvals": "Inside the Approvals queue"
+        "approvals": "Inside the Approvals queue",
+        "global_label": "Global",
+        "contextual_label": "Contextual"
       },
       "items": {
         "palette_open": "Open the Command Palette",
@@ -2569,7 +2767,12 @@
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
         "approvals_next": "Jump to next / previous approval"
-      }
+      },
+      "reserved": "OS reserved",
+      "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
+      "overlaps_global": "Overlaps global",
+      "overlaps_hint": "Shares this chord with a global shortcut; the contextual binding wins while its surface is focused.",
+      "count": "{count} shortcuts"
     },
     "danger": {
       "title": "Danger Zone",
@@ -2610,8 +2813,13 @@
         "button": "Factory Reset",
         "dialog_title": "Factory reset this install?",
         "dialog_desc": "Every file under ~/.apollia will be deleted. You will start from a blank Welcome wizard. This cannot be undone.",
-        "warning": "This deletes memories, chats, agents, credentials, models and config. There is no backup."
-      }
+        "warning": "This deletes memories, chats, agents, credentials, models and config. There is no backup.",
+        "restart_manual": "Reset complete. Please restart Apollia manually to finish."
+      },
+      "irreversible": "Irreversible",
+      "confirm_match": "Confirmed. The button is unlocked.",
+      "confirm_mismatch": "The text does not match yet.",
+      "locked_hint": "Unlocks in {seconds}s"
     },
     "preferences": "Preferences",
     "runtime_config": "Runtime configuration",
@@ -2691,7 +2899,9 @@
       },
       "identity": {
         "title": "Identity",
-        "subtitle": "Who you are and what you are trying to do."
+        "subtitle": "Who you are and what you are trying to do.",
+        "unnamed": "Unnamed",
+        "fill_prompt": "Fill in your identity below"
       },
       "fields": {
         "name": "First name / alias",
@@ -2820,6 +3030,20 @@
         "updated": "Profile updated",
         "updated_sensitive": "Profile updated. Rerun the onboarding to adapt your permission rules to this change.",
         "reset_done": "Profile reset"
+      },
+      "avatar_change": "Change avatar",
+      "memory": {
+        "title": "Memory facts",
+        "subtitle": "Details your agents retained across conversations. Right-click to edit or delete.",
+        "empty": {
+          "title": "No facts yet",
+          "detail": "Your agents will note useful details here as you talk."
+        },
+        "add": "Add a fact",
+        "key_placeholder": "Key (e.g. prefs.schedule)",
+        "value_placeholder": "Value",
+        "edit": "Edit fact",
+        "copy_value": "Copy value"
       }
     },
     "profile_subtitle": "What the system knows about you. This information helps agents adapt to your context.",
@@ -2873,7 +3097,8 @@
         "captured": "Captured: {combo}",
         "updated_toast": "Hotkey updated to {combo}",
         "cancelled_toast": "Capture cancelled",
-        "timeout_toast": "No key pressed - capture cancelled"
+        "timeout_toast": "No key pressed - capture cancelled",
+        "hint": "Active even when Apollia does not have focus."
       },
       "status_refresh": "Refresh",
       "reload_btn": "Reload",
@@ -2883,7 +3108,13 @@
         "start": "Test",
         "stop": "Stop & transcribe",
         "transcribing": "Transcribing...",
-        "empty": "(no speech detected)"
+        "empty": "(no speech detected)",
+        "hint": "Record a sentence and check the transcription.",
+        "idle_hint": "Press Start to dictate.",
+        "listening": "Listening...",
+        "redo": "Redo",
+        "result_label": "Transcribed text",
+        "threshold_label": "threshold {db} dB"
       },
       "status_updated": "Updated {relative}",
       "status_never": "Never refreshed",
@@ -2891,7 +3122,13 @@
       "status_last_transcription": "Last transcription",
       "status_avg_latency": "Average latency",
       "status_recent_errors": "Recent errors",
-      "status_none": "None"
+      "status_none": "None",
+      "enable_hint": "Arms the global shortcut and loads the model at startup.",
+      "language_hint": "ISO 639-1 hint passed to the engine, or automatic detection.",
+      "input_hint": "Microphone captured by the cpal stream.",
+      "silence_hint": "Below this level, audio is treated as silence.",
+      "clipboard_restore_hint": "Restores the previous clipboard content after pasting.",
+      "acceleration_hint": "Detected when the engine loads."
     },
     "stt_subtitle": "Configure the embedded speech-to-text engine (whisper.cpp).",
     "stt_engine_status": "Engine status",
@@ -2979,7 +3216,8 @@
       "delete_type_prompt": "Type DELETE to confirm removing the default backend.",
       "delete_toast": "Backend '{name}' deleted",
       "reload_btn": "Reload",
-      "reload_toast": "LLM engine reloaded"
+      "reload_toast": "LLM engine reloaded",
+      "subtitle": "Language-model backends used by Apollia and your agents."
     },
     "llm_dialog": {
       "title_add": "Add LLM backend",
@@ -3036,7 +3274,8 @@
         "delete": "Delete",
         "delete_title": "Delete model?",
         "delete_message": "Permanently delete '{name}' from disk? This cannot be undone.",
-        "deleted_toast": "Model '{name}' deleted"
+        "deleted_toast": "Model '{name}' deleted",
+        "help": "Files present in your local models directory."
       },
       "hardware": {
         "label": "Your hardware",
@@ -3046,13 +3285,16 @@
         "gpu": "GPU / Accelerator",
         "budget": "Inference budget",
         "cpu_info": "CPU: {cpu} · {cores} cores",
-        "cpu_only": "CPU only"
+        "cpu_only": "CPU only",
+        "help": "Determines which models fit in memory."
       },
       "downloads": {
         "active": "Active downloads",
         "cancel_aria": "Cancel download",
         "downloading_toast": "Downloading {filename}…",
-        "completed_toast": "Model downloaded to {path}"
+        "completed_toast": "Model downloaded to {path}",
+        "failed": "Failed",
+        "failed_toast": "Download failed. Free up space or check your connection, then retry."
       },
       "token": {
         "label": "HuggingFace token (gated models)",
@@ -3132,7 +3374,17 @@
         "load_more": "Load more models",
         "no_match": "No models match your filters.",
         "clear_filters": "Clear filters",
-        "no_results": "No models found for \"{query}\"."
+        "no_results": "No models found for \"{query}\".",
+        "retry": "Retry",
+        "no_match_desc": "{total} models found, all hidden by the active filters.",
+        "no_results_desc": "Check the spelling, or search by model family (e.g. qwen, llama, mistral).",
+        "idle_title": "Find a model to run",
+        "idle_desc": "Search by name, family, or author. Only GGUF models compatible with your hardware are shown."
+      },
+      "ctx": {
+        "open_hf": "Open on HuggingFace",
+        "copy_repo": "Copy repository ID",
+        "copied_toast": "Repository ID copied"
       }
     },
     "config": {
@@ -3145,7 +3397,10 @@
       "show_raw": "Show raw view",
       "hide_raw": "Hide raw view",
       "empty": "No entries in this section.",
-      "path_label": "Configuration file"
+      "path_label": "Configuration file",
+      "reveal_in_finder": "Reveal in Finder",
+      "empty_title": "No sections to display",
+      "toggle_section": "Show or hide section details"
     },
     "system": {
       "refresh": "Refresh",
@@ -3158,7 +3413,8 @@
       "agent_install_section_title": "Agent package installation",
       "agent_install_section_desc": "Default behavior when installing agent packages that declare Python (pip) dependencies.",
       "auto_install_python_deps_label": "Auto-install Python dependencies",
-      "auto_install_python_deps_desc": "When enabled, packages that declare pip dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent."
+      "auto_install_python_deps_desc": "When enabled, packages that declare pip dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
+      "subtitle": "Installation details and configuration paths."
     },
     "update": {
       "check": "Check for updates",
@@ -3166,7 +3422,12 @@
       "up_to_date": "Apollia OS is up to date",
       "available": "Version {version} available",
       "install": "Install and restart",
-      "error": "Unable to check for updates"
+      "error": "Unable to check for updates",
+      "section_title": "Software updates",
+      "changelog_title": "What's new",
+      "show_details": "Technical details",
+      "downloading": "Downloading update…",
+      "installed": "Update installed. Restarting Apollia OS…"
     },
     "planMode": {
       "title": "Always plan",
@@ -3221,7 +3482,23 @@
       "toast_chat_deleted": "Chat rule {tool} deleted",
       "toast_rule_revoked": "Rule {tool} revoked",
       "toast_rules_revoked": "{count, plural, one {# rule revoked} other {# rules revoked}}",
-      "toast_reloaded": "Permissions reloaded"
+      "toast_reloaded": "Permissions reloaded",
+      "rules_title": "Rules",
+      "executor_note": "Code executors (bash, python) can never be blanket-authorized: an allow rule for them requires an argument prefix. Without one, only per-invocation approval applies.",
+      "executor_badge": "Code executor",
+      "executor_blanket_error": "A code executor ({tool}) cannot be allowed without an argument prefix. Add a prefix, or leave per-invocation approval.",
+      "rule_prefix": "Prefix:",
+      "rule_project": "Project:",
+      "rule_agent": "Agent:",
+      "rule_author": "Author:",
+      "rule_permanent": "Permanent",
+      "rule_expires": "Expires {date}",
+      "rule_created": "Created {date}",
+      "rule_all_allowed": "All invocations allowed",
+      "rule_all_denied": "All invocations denied",
+      "action_duplicate": "Duplicate",
+      "error_details": "Details",
+      "error_learn_more": "Learn more"
     },
     "tools_page": {
       "heading": "Native tools",
@@ -3261,7 +3538,30 @@
       "memory_search_title": "Memory",
       "memory_search_desc": "Searches the agent's episodic/semantic memory.",
       "ask_user_title": "Ask user",
-      "ask_user_desc": "Requests a human response through an HITL dialog."
+      "ask_user_desc": "Requests a human response through an HITL dialog.",
+      "cat_web": "Web & network",
+      "cat_exec": "System & code",
+      "cat_files": "Files",
+      "cat_notebooks": "Jupyter notebooks",
+      "cat_memory": "Memory & interaction",
+      "cat_other": "Other",
+      "status_on": "Active",
+      "status_off": "Disabled",
+      "status_attention": "Key required",
+      "status_toggling": "Applying…",
+      "configure": "Configure",
+      "filter_placeholder": "Filter tools…",
+      "filter_aria": "Filter tools",
+      "count_active": "{active} of {total} active",
+      "empty_title": "No tools available",
+      "no_results": "No tool matches your filter",
+      "ctx_enable": "Enable",
+      "ctx_disable": "Disable",
+      "ctx_configure": "Configure",
+      "ctx_copy_id": "Copy identifier",
+      "ctx_reset": "Reset configuration",
+      "copied_toast": "Identifier copied",
+      "reset_toast": "Configuration reset"
     },
     "tool_config": {
       "title": "Configure {name}",
@@ -3302,6 +3602,108 @@
       "col_creator": "Author",
       "col_creator_title": "Author who created the rule (HITL, agent, config…)",
       "empty_filter": "No rules for this filter."
+    },
+    "all_saved": "All changes saved",
+    "save": "Save",
+    "reset": "Cancel",
+    "save_hint": "to save",
+    "save_shortcut_hint": "⌘S",
+    "appearance": {
+      "subtitle": "Language, theme, and interface mode.",
+      "options_title": "Options",
+      "preview_message": "Hello Apollia",
+      "preview_active_now": "Active now"
+    },
+    "configuration": {
+      "subtitle": "General system preferences."
+    },
+    "integrations": {
+      "subtitle": "OAuth credentials for the Google and Microsoft connectors in custom builds.",
+      "required": "Required",
+      "optional": "Optional",
+      "source": {
+        "env": "Env var",
+        "file": "File",
+        "builtin": "Official build",
+        "none": "Not resolved"
+      },
+      "status": {
+        "ready": "Ready to connect",
+        "partial": "Incomplete",
+        "none": "Not configured"
+      },
+      "field": {
+        "client_id": "Client ID",
+        "client_secret": "Client secret",
+        "api_key": "API key (Picker)"
+      },
+      "provider": {
+        "google": "Google Workspace",
+        "microsoft": "Microsoft 365"
+      },
+      "provider_meta": {
+        "google": "Gmail, Calendar, Drive · \"Desktop app\" type",
+        "microsoft": "Outlook, Calendar · public client (PKCE)"
+      },
+      "placeholder": {
+        "client_id_google": "1234567890-abcdefgh.apps.googleusercontent.com",
+        "client_id_microsoft": "00000000-0000-0000-0000-000000000000",
+        "client_secret": "GOCSPX-…",
+        "api_key": "AIzaSy…"
+      },
+      "help": {
+        "client_secret": "Next to the Client ID in Google Cloud Console › Credentials. Google treats this secret as non-confidential for native apps, but its token endpoint still requires it.",
+        "api_key": "Google Cloud Console › APIs & Services › Credentials › API key. Restrict it to the Google Picker and Drive APIs.",
+        "ms_builtin": "A public client_id compiled into Apollia is used by default. Enter your own to use your Azure app registration. Microsoft, as a compliant public client, requires no secret."
+      },
+      "redirect_note": "This client must allow Apollia's loopback redirect. Add this URI to the client's \"Authorized redirect URIs\":",
+      "copied": "Copied",
+      "stored_note": "Stored encrypted locally, never transmitted in clear text",
+      "ms_no_secret": "No client secret required for Microsoft",
+      "explain_intro": "Resolution order for each credential: the first non-empty source wins. Leave a field empty to fall back to the next step.",
+      "empty_title": "No OAuth connector available",
+      "empty_body": "This build of Apollia exposes no Google or Microsoft connector. Credentials will appear here as soon as a connector is active.",
+      "load_error_title": "Unable to read the OAuth configuration",
+      "load_error_body": "The service did not respond. Check that Apollia is running, then retry.",
+      "raw_detail": "Technical detail",
+      "drive": {
+        "title": "Google Drive folders",
+        "description": "Per connected account, the Drive folder Apollia's agents work in.",
+        "effective": "Effective:",
+        "drive_root": "(your Drive root)",
+        "explicit": "explicit choice",
+        "default_tag": "(default)",
+        "custom_tag": "(custom)",
+        "placeholder": "Apollia",
+        "reset": "Default",
+        "help": "Apollia's workspace in your Drive. Agents create and list their files here by default. Enter a path, or leave empty and save to use the Drive root directly. The drive.file scope only exposes files Apollia created or that you opened for it.",
+        "saved": "Drive folder saved.",
+        "reset_done": "Drive folder reset to default."
+      },
+      "test_config": "Test configuration",
+      "test_valid": "Configuration looks valid.",
+      "test_invalid": "Configuration issue."
+    },
+    "language_help": "Interface language and default response language.",
+    "language_label": "Interface language",
+    "language_field_help": "Applied immediately, no restart required.",
+    "theme_help": "Light, dark, or synced to your system.",
+    "mode_help": "Level of detail shown in chat and tool views.",
+    "credential": {
+      "configured": "Configured",
+      "absent": "Absent",
+      "not_configured": "Not configured",
+      "edit": "Edit",
+      "add": "Add",
+      "override": "Replace",
+      "delete": "Delete",
+      "test": "Test",
+      "reveal": "Show",
+      "hide": "Hide",
+      "placeholder": "Enter the value",
+      "validation_empty": "Paste a value before saving. To remove an existing secret, use Delete.",
+      "test_valid": "Valid",
+      "test_valid_ms": "Valid ({ms} ms)"
     }
   },
   "onboarding": {
@@ -3379,135 +3781,6 @@
     "explore_triggers_desc": "Automate agent execution",
     "explore_observability_desc": "Monitor performance and costs",
     "explore_done": "Go to dashboard",
-    "tour": {
-      "op": {
-        "dashboard_header": {
-          "title": "Your command center",
-          "message": "Welcome to your dashboard. This is your central hub for monitoring everything in Apollia OS."
-        },
-        "dashboard_agents": {
-          "title": "Active agents overview",
-          "message": "This section shows your running agents at a glance. You can see their status and key metrics here."
-        },
-        "dashboard_activity": {
-          "title": "Recent activity feed",
-          "message": "This feed shows recent events from all your agents - actions taken, approvals requested, and more."
-        },
-        "agents_grid": {
-          "title": "Your agent fleet",
-          "message": "Each card represents an agent. You can see its name, status, and quick actions. Let's explore one."
-        },
-        "agents_start": {
-          "title": "Start your first agent",
-          "message": "This agent is paused. Click the glowing Start button to activate it and see the runtime in action.",
-          "success": "Agent started! Notice the Chat button that just appeared on its card - you can use it to talk directly to this agent."
-        },
-        "chat_discover": {
-          "title": "Start a conversation",
-          "message": "The Chat page is where you interact with agents. Click 'New Chat' to begin."
-        },
-        "chat_picker": {
-          "title": "Choose your mode",
-          "message": "The picker lets you select tool groups, pick a specific agent, or start a free-form Libre conversation."
-        },
-        "chat_libre": {
-          "title": "Start a Libre chat",
-          "message": "Click 'Start Libre' to open a free conversation. You'll have access to all enabled tools.",
-          "success": "Chat session created! You're ready to talk."
-        },
-        "triggers_overview": {
-          "title": "Automate with triggers",
-          "message": "Triggers let your agents run on schedules or react to events - no manual intervention needed."
-        },
-        "triggers_detail": {
-          "title": "Your trigger list",
-          "message": "Here you can see your triggers. Each one ties an agent to a schedule (cron, interval) or an event (file, webhook)."
-        },
-        "approvals": {
-          "title": "Human-in-the-loop approvals",
-          "message": "This is where your agents ask for permission before acting. When an agent runs a sensitive action (file write, external API call...), an approval card appears with details. You approve or reject in one click. The queue is empty right now - that's a good sign!"
-        },
-        "notifications_overview": {
-          "title": "Stay informed",
-          "message": "Configure notification channels to receive alerts about important agent events via desktop or webhook."
-        },
-        "notifications_test": {
-          "title": "Test your notifications",
-          "message": "A desktop notification channel has been created for the demo. You should see a notification appear.",
-          "success": "Notification sent! Check your desktop."
-        },
-        "observability_tabs": {
-          "title": "Three views of your system",
-          "message": "Observability offers Timeline, LLM Costs, and Audit Trail - each giving a different lens on your agents' activity."
-        },
-        "observability_timeline": {
-          "title": "Real-time timeline",
-          "message": "The timeline shows agent events as they happen. The actions from this tour (agent start, chat, trigger) are already visible here."
-        },
-        "graduation": {
-          "title": "Tour complete!",
-          "message": "You've explored every corner of Apollia OS. You're ready to operate your agents with confidence."
-        },
-        "timeout_skip": "No worries, you can try this later!"
-      },
-      "bld": {
-        "dashboard": {
-          "title": "Your architecture at a glance",
-          "message": "This is your workspace. You'll build and run agents from here - each agent is a Python module with a manifest() and run() contract."
-        },
-        "agents": {
-          "title": "Start csv-data-worker",
-          "message": "Click Start to activate this demo agent. Watch how the runtime boots the Python module and registers it.",
-          "success": "Agent active! The runtime has loaded the manifest and started the run() loop.",
-          "already_active": "This agent is already running - the runtime detected it automatically."
-        },
-        "agent_detail": {
-          "title": "The agent manifest",
-          "message": "Every agent exposes two async functions: manifest() returns metadata, run() is the main loop. That's the full contract."
-        },
-        "memory": {
-          "title": "Query agent memory",
-          "message": "Agents write to memory at their own initiative. Search the 'onboarding-agent' namespace to see what csv-data-worker stored.",
-          "success": "Memory results loaded - you can see what the agent persisted during its run."
-        },
-        "chat": {
-          "title": "Chat with your agent",
-          "message": "The form is pre-filled. Send this message to see how an agent processes a memory-related query.",
-          "success": "Message sent. The agent will use memory.search() internally to answer you."
-        },
-        "integrations": {
-          "title": "MCP integrations",
-          "message": "Connect external tools via MCP servers. Your agents call these tools through the native client - no Python dependencies required."
-        },
-        "triggers": {
-          "title": "Trigger types",
-          "message": "Cron, interval, file-watch, webhook. Each trigger fires the agent's run() function automatically when its condition is met."
-        },
-        "pipelines": {
-          "title": "DAG pipelines",
-          "message": "Wire agents together in directed acyclic graphs. Fan-out, fan-in, conditional branches - all handled by the pipeline engine."
-        },
-        "observability": {
-          "title": "Observability",
-          "message": "Every tool call, memory write, and LLM token is logged in the audit trail. Use it to debug, profile, and audit your agents."
-        },
-        "graduation": {
-          "title": "You're ready to build",
-          "message": "You know the architecture. Create your first agent with manifest() + run(), install it, and let the runtime handle the rest."
-        },
-        "timeout_skip": "Take your time - you can replay any step from the progress bar.",
-        "step_1": "Your workspace. Every agent is a Python module with a manifest() + run() contract.",
-        "step_2": "Start csv-data-worker. Watch how the runtime loads the module and registers it.",
-        "step_3": "Every agent exposes manifest() for metadata and run() as the main loop.",
-        "step_4": "Agents write to memory at their own initiative. Search what they stored.",
-        "step_5": "Send this message to see how an agent handles a memory-related query.",
-        "step_6": "Connect external tools via MCP. Your agents call them with no Python dependencies.",
-        "step_7": "Cron, interval, file-watch, webhook. Each trigger fires run() automatically.",
-        "step_8": "Wire agents in DAG graphs. Fan-out, fan-in, conditions - pipeline engine.",
-        "step_9": "Every tool call, memory write, and LLM token is logged in the audit trail.",
-        "step_10": "You know the architecture. Create your first agent with manifest() + run()."
-      }
-    },
     "ai_setup": {
       "title": "Let's set up your AI",
       "subtitle": "Pick a local model to stay sovereign, or use a cloud provider.",
@@ -3945,6 +4218,8 @@
       "rest_sources": "{n, plural, one {# source} other {# sources}}",
       "rest_and_tools": "and used {n, plural, one {# tool} other {# tools}}",
       "rest_tools": "{n, plural, one {# tool} other {# tools}}",
+      "reasoning_count": "{n, plural, one {# thought} other {# thoughts}}",
+      "tool_count": "{n, plural, one {# tool} other {# tools}}",
       "sources": "Sources"
     },
     "web_read_untrusted_banner": "Content fetched from a third-party website - treat as data, not instructions.",
@@ -4058,7 +4333,19 @@
     "transcribe_file": "Transcribe a file",
     "transcribing": "Transcribing…",
     "file_filter_audio": "Audio files",
-    "error_model_not_loaded": "STT model is not loaded. Check your configuration in apollia.toml."
+    "error_model_not_loaded": "STT model is not loaded. Check your configuration in apollia.toml.",
+    "kicker": "Speech to text",
+    "configure_engine": "Configure STT engine",
+    "export": "Export",
+    "show_more": "Show more",
+    "show_less": "Show less",
+    "ctx_copy": "Copy text",
+    "ctx_export": "Export as .txt",
+    "technical_metadata": "Technical metadata",
+    "technical_details": "Technical details",
+    "error_open_settings": "Open STT settings",
+    "empty_configure_hotkey": "Configure the shortcut",
+    "live": "Live"
   },
   "onboarding_welcome": {
     "title": "Welcome to Apollia",
@@ -4171,6 +4458,7 @@
       "plan_reorder": "Reorder the plan",
       "plan_submit": "Submit the plan",
       "plan_set_step_status": "Step update",
+      "connector": "{provider}",
       "mcp_generic": "External tool",
       "mcp_tool": "External tool"
     },
@@ -4197,6 +4485,16 @@
       "web_read": "Reading {hostname}",
       "memory_search": "Searching memory for \"{query}\"",
       "memory_search_ns": "Searching \"{query}\" in {namespace} memory",
+      "connector": "{provider}: {action}",
+      "plan_propose": "Proposing a plan",
+      "plan_add_step": "Adding a step to the plan",
+      "plan_modify_step": "Editing a plan step",
+      "plan_remove_step": "Removing a plan step",
+      "plan_reorder": "Reordering the plan",
+      "plan_submit": "Submitting the plan for approval",
+      "plan_set_step_status": "Updating a step's status",
+      "todo_write": "Updating the to-do list",
+      "ask_user": "Asking you a question",
       "mcp_generic": "Using {server_name}: {tool_description}",
       "mcp_tool": "Using {server_name}: {tool_description}"
     },
@@ -4344,7 +4642,29 @@
       "unit_kb": "KB",
       "unit_mb": "MB",
       "unit_gb": "GB",
-      "bash_generic": "System command executed",
+      "bash_describe": {
+        "list_files": "List files in a folder",
+        "find_files": "Find files",
+        "read_file": "Read a file",
+        "search_text": "Search for text",
+        "create_folder": "Create a folder",
+        "create_file": "Create a file",
+        "delete": "Delete files",
+        "move": "Move or rename a file",
+        "copy": "Copy a file",
+        "print_text": "Display some text",
+        "navigate": "Move around the file system",
+        "download": "Download from the web",
+        "version_control": "Run a Git operation",
+        "run_program": "Run a program",
+        "change_permissions": "Change file permissions",
+        "archive": "Compress or extract an archive",
+        "process_management": "Manage running processes",
+        "disk_usage": "Check disk usage",
+        "count_lines": "Count lines or words",
+        "transform_text": "Transform text",
+        "generic": "Run a system command"
+      },
       "bash_ok": "Completed without errors",
       "bash_failed": "Command failed",
       "bash_failed_code": "Failed (code {code})",
@@ -4384,199 +4704,9 @@
       "status_completed": "Completed",
       "status_skipped": "Skipped",
       "status_failed": "Failed",
-      "plan_proposed": "{n, plural, one {Plan proposed, # step} other {Plan proposed, # steps}}",
-      "plan_step_added": "Step added: {title}",
-      "plan_step_modified": "Step modified: {title}",
-      "plan_step_removed": "Step removed",
-      "plan_reordered": "{n, plural, one {# step reordered} other {# steps reordered}}",
-      "plan_submitted": "Plan submitted for approval",
-      "plan_status_changed": "Step {id} → {status}",
-      "plan_generic": "Plan updated",
-      "plan_failed": "Plan action failed",
       "todo_count": "{n, plural, one {# task} other {# tasks}}",
       "progress_fraction": "{done} / {total}",
       "reveal_aria": "Reveal in file manager"
-    }
-  },
-  "onboarding_v2": {
-    "welcome": {
-      "tagline": "Your sovereign runtime for AI agents",
-      "subtitle": "Run Python agents locally, with zero cloud dependency.",
-      "cta": "Get Started",
-      "loading": "Starting…"
-    },
-    "profile": {
-      "title": "What is your profile?",
-      "subtitle": "Choose the path that fits your use case.",
-      "operator_title": "Operator",
-      "operator_desc": "You use ready-made AI agents to automate your workflows.",
-      "operator_bullet_1": "No code required to get started",
-      "operator_bullet_2": "Guided tours and ready-made templates",
-      "operator_bullet_3": "Connect your tools (Gmail, Notion, GitHub…)",
-      "operator_examples": "Automation · Assistants · Business workflows",
-      "builder_title": "Builder",
-      "builder_desc": "You develop and deploy custom Python agents.",
-      "builder_bullet_1": "Full control over agent code and prompts",
-      "builder_bullet_2": "Exhaustive observability of runs and tokens",
-      "builder_bullet_3": "Native MCP, A2A and Python SDK",
-      "builder_examples": "LangGraph · CrewAI · Custom agents",
-      "both_profiles": "Both",
-      "selecting": "Configuring…"
-    },
-    "resume_bar": {
-      "step_label": "Step {current} of {total}",
-      "resume_btn": "Resume",
-      "dismiss_btn": "Later",
-      "toggle_collapsed": "Toggle resume bar"
-    },
-    "coach_widget": {
-      "title": "Coach",
-      "aria_label": "Onboarding coach",
-      "close": "Close coach",
-      "send": "Send",
-      "input_placeholder": "Ask the coach…",
-      "placeholder": "Stuck on a step? Ask a question here and the coach will guide you."
-    },
-    "graduation": {
-      "title": "You're ready!",
-      "subtitle": "Here's a summary of your onboarding journey.",
-      "profile_label": "Profile",
-      "profile_operator": "Operator",
-      "profile_builder": "Builder",
-      "stat_features": "Steps explored",
-      "stat_actions": "Actions completed",
-      "stat_time": "Total time",
-      "stat_time_unit": "min",
-      "companion_toggle": "Keep Apollia assistant",
-      "companion_desc": "Get contextual help in every section of the app.",
-      "card_agents": "Agents",
-      "card_agents_desc": "Launch and manage your AI agents",
-      "card_chat": "Chat",
-      "card_chat_desc": "Talk to your agents or a local LLM",
-      "card_settings": "Settings",
-      "card_settings_desc": "Configure your Apollia environment",
-      "cta": "Get Started"
-    },
-    "ai_setup": {
-      "title": "Configure AI",
-      "subtitle": "Apollia detects models already on your machine. No downloads are started automatically.",
-      "llm_section": {
-        "title": "Language model (LLM)",
-        "description": "Select a .gguf file to enable local AI capabilities.",
-        "configured": "Configured",
-        "no_models": "No .gguf file found. Place a model in ~/.apollia/models/ or ~/Downloads/, then",
-        "rescan": "rescan",
-        "recommended": "Recommended",
-        "no_whisper": "No Whisper model found. Place a ggml-base.bin file in ~/.apollia/models/."
-      },
-      "stt_section": {
-        "title": "Voice recognition (STT)",
-        "description": "Enable voice commands to navigate the tour hands-free.",
-        "recommended": "Recommended"
-      },
-      "scanning": "Scanning…",
-      "loading": "Loading…",
-      "continue": "Continue",
-      "configure_later": "Configure later",
-      "recommendations": "Apollia recommends models marked Recommended for your hardware configuration."
-    },
-    "llm_setup": {
-      "title": "AI Engine",
-      "subtitle": "Apollia needs a language model to converse with you. Select a .gguf file already on your machine.",
-      "success": "Model configured successfully",
-      "local_title": "Select my model",
-      "local_desc": "Local .gguf file (Llama, Mistral, Qwen, Phi…)",
-      "divider": "or",
-      "later_title": "I'll configure later",
-      "later_desc": "Cloud provider (Anthropic, OpenAI…) or local model",
-      "hint": "No model? Download one from HuggingFace (recommended: ≥ 0.5B parameters, format Q4_K_M or Q8_0).",
-      "skip": "Skip for now",
-      "dialog_title": "Select a GGUF Model"
-    },
-    "llm_backends": "LLM Backends",
-    "llm_backends_subtitle": "Configure the language model backends used by Apollia and your agents.",
-    "llm_add_backend": "Add backend",
-    "llm_new_backend": "New backend",
-    "llm_backend_name": "Name",
-    "llm_backend_provider": "Provider",
-    "llm_backend_model": "Model",
-    "llm_backend_config_json": "Config (JSON)",
-    "llm_backend_enabled": "Enabled",
-    "llm_backend_default": "Set as default",
-    "llm_no_backends": "No LLM backends configured. Add one to enable AI features.",
-    "llm_set_default": "Set as default",
-    "acquaintance": {
-      "title": "Welcome",
-      "subtitle": "Let's get acquainted to personalize your experience.",
-      "error": "Unable to start the onboarding conversation.",
-      "continue_dashboard": "Continue to dashboard",
-      "completed_text": "Thank you! Apollia is now personalized for you.",
-      "continue": "Continue",
-      "skip": "Skip for now",
-      "progress_label": "Topics covered",
-      "topic_complete": "Topic completed",
-      "topic_identity": "Identity",
-      "topic_preferences": "Preferences",
-      "topic_tools": "Tools",
-      "topic_domain": "Domain",
-      "topic_agents": "Agents"
-    },
-    "tour": {
-      "loading": "Loading tour…",
-      "continue": "Continue →",
-      "mic_recording": "Recording…",
-      "mic_hold": "Voice command (hold)",
-      "exit_title": "Interrupt tour?",
-      "exit_body": "Your progress is saved. You can resume the tour later.",
-      "exit_cancel": "Continue tour",
-      "exit_confirm": "Finish now",
-      "skip_label": "Skip tour",
-      "prev": "Previous",
-      "finish": "Finish",
-      "next": "Next",
-      "progress_label": "Tour progress",
-      "group": {
-        "dashboard": "Dashboard",
-        "agents": "Agents",
-        "chat": "Chat",
-        "triggers": "Triggers",
-        "approvals": "Approvals",
-        "notifications": "Notifications",
-        "observability": "Observability",
-        "graduation": "Finish"
-      }
-    }
-  },
-  "tours": {
-    "first_chat": {
-      "step_1_title": "Type a message",
-      "step_1_body": "Ask a question in plain language - the agent replies locally, without leaving your machine.",
-      "step_2_title": "Send the message",
-      "step_2_body": "Hit send (or press Enter) to dispatch your prompt to the selected agent.",
-      "step_3_title": "Watch the reasoning",
-      "step_3_body": "Open the thinking panel to see the agent's plan, tool calls and intermediate steps."
-    },
-    "first_automation": {
-      "step_1_title": "Create an automation",
-      "step_1_body": "Click here to turn a repeated task into an automation that runs on its own.",
-      "step_2_title": "Pick a trigger",
-      "step_2_body": "Choose when it runs: on a schedule, a file change, a webhook or a keyword.",
-      "step_3_title": "Save and try it",
-      "step_3_body": "Save the automation - it appears in your list and can be launched or edited anytime."
-    },
-    "first_memory": {
-      "step_1_title": "Browse your memory",
-      "step_1_body": "Agents store durable facts here. You keep full control: edit, forget, export at will.",
-      "step_2_title": "Add an entry",
-      "step_2_body": "Pin something the agents should remember about you or your projects."
-    },
-    "first_inbox": {
-      "step_1_title": "Your approvals inbox",
-      "step_1_body": "Agents queue sensitive actions here until you confirm them.",
-      "step_2_title": "Preview the impact",
-      "step_2_body": "Every request shows exactly what will happen before you decide.",
-      "step_3_title": "Approve or refine",
-      "step_3_body": "Approve, deny, or enable 'always allow' for a trusted scope."
     }
   },
   "projects": {
@@ -4737,7 +4867,9 @@
     "no_project_memory": "No project memory yet",
     "no_project_memory_desc": "Agents in this project haven't stored memory yet.",
     "no_tasks_desc": "Tasks created by agents will appear here.",
-    "tasks_need_agents": "Tasks need at least one agent"
+    "tasks_need_agents": "Tasks need at least one agent",
+    "open": "Open",
+    "no_match_hint": "No project matches your search. Adjust or clear the filter."
   },
   "hitl": {
     "impact": {
@@ -4875,6 +5007,13 @@
       "agents_stop_all": "Stop all agents",
       "toggle_dark": "Toggle dark mode",
       "palette_docs": "Open command palette docs"
+    },
+    "results_count": "{count, plural, one {# result} other {# results}}",
+    "empty_hint": "Try \"chat\", \"settings\" or \"shortcuts\".",
+    "footer": {
+      "navigate": "Navigate",
+      "open": "Open",
+      "close": "Close"
     }
   },
   "commandPalette": {
@@ -4942,6 +5081,159 @@
       "project_no_project": "This session is not attached to any project.",
       "global_title": "Always, everywhere",
       "global_desc": "All assistants, all projects."
+    }
+  },
+  "tour": {
+    "chrome": {
+      "next": "Next",
+      "prev": "Back",
+      "skip": "Skip",
+      "finish": "Done",
+      "counter_label": "Step {current} of {total}",
+      "anchorless": "No visual anchor",
+      "exit_title": "Stop the tour?",
+      "exit_body": "Your progress is kept. You can pick it up from this step in the Getting started band.",
+      "exit_cancel": "Keep going",
+      "exit_confirm": "Stop"
+    },
+    "band": {
+      "title": "Getting started",
+      "subtitle": "Five moves to learn what Apollia can do for you.",
+      "progress": "{done} / {total}",
+      "hide": "Hide getting started",
+      "keep": "Keep it visible",
+      "done_title": "You have covered the ground",
+      "done_body": "This band steps aside to give you the room back. You will find it again in Help.",
+      "milestone": {
+        "chat": {
+          "label": "Converse",
+          "hint": "Ask a question, get a result",
+          "cta": "Get your first answer"
+        },
+        "frame": {
+          "label": "Frame",
+          "hint": "Give context with a project",
+          "cta": "Give your work some context"
+        },
+        "automate": {
+          "label": "Automate",
+          "hint": "Let a task run on its own",
+          "cta": "Let a task run on its own"
+        },
+        "connect": {
+          "label": "Connect",
+          "hint": "Plug in your tools",
+          "cta": "Plug in your tools"
+        },
+        "follow": {
+          "label": "Follow",
+          "hint": "Review activity and the journal",
+          "cta": "See what happened"
+        }
+      },
+      "landmarks": "Revisit the landmarks"
+    },
+    "first_result": {
+      "title": "Your first answer",
+      "compose": {
+        "title": "It starts here, and it stays on your machine",
+        "body": "Describe what you want in plain language, or start from one of the suggested templates. The language model runs on your own machine."
+      },
+      "approval": {
+        "title": "Nothing happens without your go-ahead",
+        "body": "Allow once, refuse, or always allow within a scope you choose. Everything is revocable in Settings."
+      },
+      "trace": {
+        "title": "What just happened is on the record",
+        "body": "Every tool call leaves a timestamped trace you can read back, and whose integrity you can verify."
+      }
+    },
+    "landmarks": {
+      "title": "The landmarks",
+      "surfaces": {
+        "title": "Your surfaces",
+        "body": "The left column holds everything Apollia can do. Nothing is buried in a menu."
+      },
+      "palette": {
+        "title": "Everything is one keystroke away",
+        "body": "The command palette opens any page, runs an action, and finds a past conversation."
+      },
+      "modes": {
+        "title": "Two levels of detail",
+        "body": "Operator keeps it essential. Builder opens traces, costs and permissions. Switch whenever you like."
+      },
+      "inbox": {
+        "title": "You are the go-ahead",
+        "body": "Sensitive actions stop here and wait for your decision. Nothing proceeds without you."
+      }
+    },
+    "frame": {
+      "title": "Frame it with a project",
+      "what": {
+        "title": "A project holds one topic",
+        "body": "Conversations, documents and workspace in one place, so you stop re-explaining the context every time."
+      },
+      "documents": {
+        "title": "The Context tab",
+        "body": "Standing instructions and project documents. Whatever you put here becomes readable by your assistants."
+      },
+      "context": {
+        "title": "Your assistant reads it without being told again",
+        "body": "The project content is genuinely attached to your exchanges. It is the most useful mechanism in Apollia, and the quietest."
+      }
+    },
+    "automate": {
+      "title": "Automate a task",
+      "create": {
+        "title": "Describe what you want",
+        "body": "One sentence sets the frame. The parsing is deterministic: always read the proposed schedule back."
+      },
+      "when": {
+        "title": "Choose when",
+        "body": "Every morning, every thirty minutes, or once on a given date."
+      },
+      "run_now": {
+        "title": "Run it now to check",
+        "body": "The row menu fires the automation immediately instead of waiting for its next due time."
+      }
+    },
+    "connect": {
+      "title": "Connect your tools",
+      "catalogue": {
+        "title": "The catalogue",
+        "body": "Ready-to-use MCP servers, and native connectors for your accounts. A local server plugs in with no account to create."
+      },
+      "list": {
+        "title": "Your connections and their state",
+        "body": "Each row shows whether the connection holds, what it exposes, and how long since it was last used."
+      },
+      "capabilities": {
+        "title": "What the tool can do",
+        "body": "The detail pane lists the actions made available to your assistants once the connection is live."
+      }
+    },
+    "follow": {
+      "title": "Follow what happened",
+      "timeline": {
+        "title": "Everything that happened, in order",
+        "body": "Timeline, costs, audit journal, and the mailbox between assistants."
+      },
+      "costs": {
+        "title": "What it cost you",
+        "body": "Usage per day and per model. Running locally costs nothing beyond your own machine."
+      },
+      "journal": {
+        "title": "The journal, chained and tamper-evident",
+        "body": "Every tool call is cryptographically chained to the one before it. A line edited after the fact breaks the chain and becomes detectable."
+      }
+    },
+    "help_topic": {
+      "title": "Revisit getting started",
+      "body": "Reopens the band and its five milestones on the dashboard.",
+      "action": "Open"
+    },
+    "palette": {
+      "replay": "Revisit getting started"
     }
   }
 }

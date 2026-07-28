@@ -536,6 +536,123 @@ pub async fn oauth_list_client_ids() -> Result<Vec<OauthClientIdStatus>, Integra
     Ok(out)
 }
 
+/// Result of `oauth_test_client`: a lightweight, non-interactive check of a
+/// provider's configured OAuth client credentials.
+///
+/// A full validation (that the authorization server actually accepts the
+/// client) requires an interactive user consent + token exchange, which cannot
+/// run headless. This is the strongest safe check: credentials present +
+/// well-formed + the provider's authorization server reachable.
+#[derive(Debug, Clone, Serialize)]
+pub struct OauthClientTestResult {
+    /// True when every check passed.
+    pub ok: bool,
+    /// Human-readable summary: what passed, or the first failing check.
+    pub detail: String,
+}
+
+/// The provider's OIDC discovery document, reachable without credentials. A
+/// successful GET proves the authorization server is up and DNS/TLS resolve.
+const fn provider_discovery_url(provider: ConnectorProvider) -> &'static str {
+    match provider {
+        ConnectorProvider::Google => "https://accounts.google.com/.well-known/openid-configuration",
+        ConnectorProvider::Microsoft => {
+            "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"
+        }
+    }
+}
+
+/// Returns `Some(reason)` when `client_id` is malformed for `provider`.
+fn client_id_shape_error(provider: ConnectorProvider, client_id: &str) -> Option<String> {
+    match provider {
+        ConnectorProvider::Google => {
+            if client_id.ends_with(".apps.googleusercontent.com") {
+                None
+            } else {
+                Some("Google client id should end with .apps.googleusercontent.com".to_string())
+            }
+        }
+        ConnectorProvider::Microsoft => {
+            if is_guid_like(client_id) {
+                None
+            } else {
+                Some("Microsoft client id should be a GUID (Azure application id)".to_string())
+            }
+        }
+    }
+}
+
+/// Whether `s` looks like a canonical GUID (`8-4-4-4-12` hex groups).
+fn is_guid_like(s: &str) -> bool {
+    let groups: Vec<&str> = s.split('-').collect();
+    groups.len() == 5
+        && groups.iter().map(|g| g.len()).eq([8usize, 4, 4, 4, 12])
+        && groups
+            .iter()
+            .all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+/// Validate a provider's configured OAuth client credentials non-interactively.
+///
+/// Runs three cheap checks in order and stops at the first failure:
+/// 1. an effective client id is configured (env / file / build-time chain);
+/// 2. the client id is well-formed for the provider;
+/// 3. for providers that need a client secret (Google), one is configured;
+/// 4. the provider's OIDC discovery endpoint is reachable over the network.
+///
+/// Returns a typed `{ ok, detail }`. Safe to call without a sovereignty check:
+/// it inspects only local credential *presence* (never their values) and hits a
+/// public, credential-less discovery URL.
+#[tauri::command]
+pub async fn oauth_test_client(
+    provider: String,
+) -> Result<OauthClientTestResult, IntegrationsError> {
+    let provider_id = provider_from_id(&provider)?;
+
+    let client_id = match provider_id.resolve_client_id() {
+        Some(id) if !id.trim().is_empty() => id,
+        _ => {
+            return Ok(OauthClientTestResult {
+                ok: false,
+                detail: "OAuth client id is not configured".to_string(),
+            })
+        }
+    };
+
+    if let Some(reason) = client_id_shape_error(provider_id, &client_id) {
+        return Ok(OauthClientTestResult {
+            ok: false,
+            detail: reason,
+        });
+    }
+
+    if provider_requires_secret(provider_id) && provider_id.resolve_client_secret().is_none() {
+        return Ok(OauthClientTestResult {
+            ok: false,
+            detail: "client secret is required for this provider but not configured".to_string(),
+        });
+    }
+
+    let client = reqwest::Client::new();
+    match client.get(provider_discovery_url(provider_id)).send().await {
+        Ok(resp) if resp.status().is_success() => Ok(OauthClientTestResult {
+            ok: true,
+            detail: format!(
+                "client id present and well-formed; {} authorization server reachable",
+                provider_id.id()
+            ),
+        }),
+        Ok(resp) => Ok(OauthClientTestResult {
+            ok: false,
+            detail: format!("authorization server returned HTTP {}", resp.status()),
+        }),
+        Err(e) => Ok(OauthClientTestResult {
+            ok: false,
+            detail: format!("authorization server unreachable: {e}"),
+        }),
+    }
+}
+
 /// Write the client_id override for `provider` into `~/.apollia/oauth-clients.toml`.
 ///
 /// Passing an empty string clears the override (the resolution chain then falls
@@ -890,6 +1007,52 @@ mod tests {
     fn test_sovereignty_gate_blocks_when_local_only() {
         let err = ensure_cloud_allowed(SovereigntyProfile::LocalOnly).unwrap_err();
         assert!(matches!(err, IntegrationsError::SovereigntyBlocked));
+    }
+
+    #[test]
+    fn test_is_guid_like_accepts_canonical_guid() {
+        assert!(is_guid_like("12345678-1234-1234-1234-123456789abc"));
+        assert!(is_guid_like("DEADBEEF-0000-1111-2222-333344445555"));
+    }
+
+    #[test]
+    fn test_is_guid_like_rejects_malformed() {
+        assert!(!is_guid_like("not-a-guid"));
+        assert!(!is_guid_like("12345678123412341234123456789abc"));
+        assert!(!is_guid_like("12345678-1234-1234-1234-123456789abz"));
+        assert!(!is_guid_like(""));
+    }
+
+    #[test]
+    fn test_client_id_shape_error_google() {
+        // GIVEN a well-formed Google client id
+        assert!(
+            client_id_shape_error(ConnectorProvider::Google, "123-abc.apps.googleusercontent.com")
+                .is_none()
+        );
+        // AND a malformed one
+        assert!(client_id_shape_error(ConnectorProvider::Google, "bogus").is_some());
+    }
+
+    #[test]
+    fn test_client_id_shape_error_microsoft() {
+        assert!(client_id_shape_error(
+            ConnectorProvider::Microsoft,
+            "12345678-1234-1234-1234-123456789abc"
+        )
+        .is_none());
+        assert!(client_id_shape_error(ConnectorProvider::Microsoft, "not-a-guid").is_some());
+    }
+
+    #[test]
+    fn test_oauth_client_test_result_serializes() {
+        let result = OauthClientTestResult {
+            ok: true,
+            detail: "reachable".to_string(),
+        };
+        let json = serde_json::to_value(&result).expect("serialize");
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["detail"], "reachable");
     }
 
     #[test]

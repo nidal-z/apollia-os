@@ -13,7 +13,6 @@
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary, ProjectSummary } from "$lib/types";
-  import { tourOpenChatPicker } from "$lib/stores/tour";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -197,15 +196,11 @@
     const unsub = pendingChatSessionId.subscribe((id) => {
       if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
     });
-    const unsubTour = tourOpenChatPicker.subscribe((open) => {
-      if (open) { openNewChatPicker(); tourOpenChatPicker.set(false); }
-    });
     const uninstall = installChatShortcuts(SHORTCUT_BINDINGS);
     const unregisterHelp = registerShortcuts(SHORTCUT_BINDINGS.map(describeBinding));
     const stopHealthMonitor = startRuntimeHealthMonitor();
     return () => {
       unsub();
-      unsubTour();
       uninstall();
       unregisterHelp();
       stopHealthMonitor();

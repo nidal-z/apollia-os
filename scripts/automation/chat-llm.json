@@ -73,7 +73,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "\u00c9cris une phrase qui contient le mot banane."
+      "text": "Écris une phrase qui contient le mot banane."
     },
     {
       "kind": "awaitTurn",
@@ -205,7 +205,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Retiens que mon plat pr\u00e9f\u00e9r\u00e9 est le couscous."
+      "text": "Retiens que mon plat préféré est le couscous."
     },
     {
       "kind": "awaitTurn",
@@ -227,7 +227,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Quel est mon plat pr\u00e9f\u00e9r\u00e9 ?"
+      "text": "Quel est mon plat préféré ?"
     },
     {
       "kind": "awaitTurn",
@@ -342,6 +342,23 @@
     },
     {
       "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
       "testid": "composer-plan-toggle"
     },
     {
@@ -363,7 +380,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Pr\u00e9pare un plan en trois \u00e9tapes pour organiser une r\u00e9union d'\u00e9quipe hebdomadaire."
+      "text": "Prépare un plan en trois étapes pour organiser une réunion d'équipe hebdomadaire."
     },
     {
       "kind": "awaitTurn",
@@ -399,7 +416,7 @@
     {
       "kind": "fill",
       "testid": "chat-plan-review-adjust",
-      "text": "Ajoute une quatri\u00e8me \u00e9tape de bilan \u00e0 la fin."
+      "text": "Ajoute une quatrième étape de bilan à la fin."
     },
     {
       "kind": "screenshot",
@@ -419,6 +436,33 @@
       "label": "16-plan-revised"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-plan-review",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-plan-revised-awaiting-approval"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-approve"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-plan-review",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "17-plan-approved",
+      "maxApprovals": 25
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-plan-approved"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn"
     },
@@ -430,7 +474,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Demande-moi mon pr\u00e9nom avec l'outil ask_user, puis r\u00e9p\u00e8te-le."
+      "text": "Demande-moi mon prénom avec l'outil ask_user, puis répète-le."
     },
     {
       "kind": "click",
@@ -459,13 +503,13 @@
       "label": "16-ask-user-card"
     },
     {
-      "kind": "fill",
-      "testidPrefix": "ask-user-question-",
-      "text": "Nidal"
+      "kind": "expect",
+      "testid": "ask-user-skip"
     },
     {
       "kind": "click",
-      "testid": "ask-user-submit"
+      "testid": "ask-user-skip",
+      "timeoutMs": 10000
     },
     {
       "kind": "awaitTurn",
@@ -497,7 +541,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Bonjour, pr\u00eat \u00e0 travailler ?"
+      "text": "Bonjour, prêt à travailler ?"
     },
     {
       "kind": "click",
@@ -560,5 +604,11 @@
       "kind": "screenshot",
       "label": "19-step-budget-result"
     }
+  ],
+  "notes": [
+    "ChatPlanHost picks the review card by persona: operator gets ChatPlanReview (chat-plan-review, with request-changes + an adjust textarea), builder gets ChatPlanReviewBuilder (chat-plan-review-builder, approve/reject only, revision by continuing to type). This block is written for the operator card, so the mode is forced to operator first instead of inheriting whatever the previous section left.",
+    "The journey now ends on an approval: propose, request changes, revise, approve. Stopping after the revision left the plan pending forever and never exercised the gate that releases execution.",
+    "The ask_user card is answered with ask-user-skip, not with a typed answer: AskUserCard renders whatever question TYPE the model chose (open input, radios, checkboxes) and ask-user-submit stays disabled until every question is answered, so no fixed step can answer it. Skip is always enabled and releases the turn; leaving the card pending keeps the session processing, which then hides config-save (isReadOnly = isClosed || isProcessing) and breaks the whole tail.",
+    "The turn that follows the plan approval keeps the runner's default approval budget (25), not the 6 used while reviewing the plan: approving releases the execution of every planned step, and a three-step plan with two or three tools each blows past 6 approvals and aborts as a runaway turn."
   ]
 }

@@ -1,9 +1,14 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
   import type { GlobalTimelineEvent } from "$lib/types";
+  import { getGlobalTimeline } from "$lib/ipc/timeline";
+  import { rowIn } from "$lib/design/listMotion";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { ErrorBanner } from "$lib/components/operator";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
   import { Select } from "$lib/components/ui/select";
   import {
     Clock,
@@ -59,7 +64,7 @@
   const TYPE_CHIP: Record<string, string> = {
     task: "bg-info/10 text-info border-info/30",
     tool: "bg-warning/10 text-warning border-warning/30",
-    llm: "bg-[hsl(270_40%_55%/0.10)] text-[hsl(270_45%_38%)] border-[hsl(270_40%_55%/0.30)] dark:text-[hsl(270_55%_75%)]",
+    llm: "bg-[hsl(var(--chart-6)/0.10)] [color:hsl(var(--chart-6))] border-[hsl(var(--chart-6)/0.30)]",
     hitl: "bg-destructive/10 text-destructive border-destructive/30",
     memory: "bg-primary/10 text-primary border-primary/30",
     a2a: "bg-success/10 text-success border-success/30",
@@ -70,7 +75,7 @@
   const TYPE_BULLET: Record<string, string> = {
     task: "hsl(var(--info))",
     tool: "hsl(var(--warning))",
-    llm: "hsl(270 45% 50%)",
+    llm: "hsl(var(--chart-6))",
     hitl: "hsl(var(--destructive))",
     memory: "hsl(var(--primary))",
     a2a: "hsl(var(--success))",
@@ -87,7 +92,7 @@
   let agentFilter = $state<string>("all");
   let events = $state<GlobalTimelineEvent[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
+  let errState = $state<HumanizedError | null>(null);
   let expandedKeys = $state<Set<string>>(new Set());
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -154,13 +159,10 @@
 
   async function loadTimeline(): Promise<void> {
     try {
-      const result: GlobalTimelineEvent[] = await invoke("get_global_timeline", {
-        params: { window_minutes: windowMinutes },
-      });
-      events = result;
-      error = null;
+      events = await getGlobalTimeline(windowMinutes);
+      errState = null;
     } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
+      errState = reportError(err, { surface: "inline" });
     } finally {
       loading = false;
     }
@@ -241,29 +243,29 @@
   {#if !loading}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="timeline-kpis">
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+        <div class="section-meta mb-1.5">
           {$t('observability.timeline_kpi_events')}
         </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.total}</div>
+        <div class="text-heading-lg font-semibold tabular-nums leading-none">{stats.total}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+        <div class="section-meta mb-1.5">
           {$t('observability.timeline_kpi_tools')}
         </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.tools}</div>
+        <div class="text-heading-lg font-semibold tabular-nums leading-none">{stats.tools}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+        <div class="section-meta mb-1.5">
           {$t('observability.timeline_kpi_llm')}
         </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.llm}</div>
+        <div class="text-heading-lg font-semibold tabular-nums leading-none">{stats.llm}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+        <div class="section-meta mb-1.5">
           {$t('observability.timeline_kpi_errors')}
         </div>
         <div
-          class="text-[20px] font-semibold tabular-nums leading-none"
+          class="text-heading-lg font-semibold tabular-nums leading-none"
           class:text-destructive={stats.errors > 0}
         >
           {stats.errors}
@@ -275,7 +277,7 @@
   <!-- Controls strip - window selector + type chips + agent picker. -->
   <Card class="px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="timeline-controls">
     <div class="flex items-center gap-2">
-      <span class="section-meta text-[10px] tracking-[1.4px]">
+      <span class="section-meta">
         {$t('observability.window')}
       </span>
       <div
@@ -289,7 +291,7 @@
             type="button"
             role="tab"
             aria-selected={isActive}
-            class="px-2.5 py-1 rounded text-[11.5px] font-medium tabular-nums transition-colors {isActive
+            class="px-2.5 py-1 rounded text-caption font-medium tabular-nums transition-colors {isActive
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'}"
             onclick={() => handleWindowChange(opt.minutes)}
@@ -301,14 +303,14 @@
     </div>
 
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="section-meta text-[10px] tracking-[1.4px]">
+      <span class="section-meta">
         {$t('observability.filter')}
       </span>
       {#each TYPE_FILTERS as tf (tf)}
         {@const active = enabledTypes.has(tf)}
         {@const ChipIcon = TYPE_ICON[tf]}
         <button
-          class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors {active
+          class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium transition-colors {active
             ? TYPE_CHIP[tf]
             : 'glass-border-subtle glass-inset text-muted-foreground/50'}"
           onclick={() => toggleType(tf)}
@@ -320,7 +322,7 @@
     </div>
 
     <div class="flex items-center gap-2 ml-auto">
-      <label for="timeline-agent-filter" class="section-meta text-[10px] tracking-[1.4px]">
+      <label for="timeline-agent-filter" class="section-meta">
         {$t('observability.agent')}
       </label>
       <Select
@@ -344,24 +346,29 @@
       <Skeleton width="100%" height="3rem" />
       <Skeleton width="100%" height="3rem" />
     </div>
-  {:else if error}
-    <p class="text-sm text-destructive">{error}</p>
+  {:else if errState}
+    <ErrorBanner
+      message={errState.friendly_message}
+      onretry={() => { loading = true; void loadTimeline(); }}
+      retryLabel={$t('common.retry')}
+      data-testid="timeline-error"
+    />
   {:else if filteredEvents.length === 0}
     <Card class="flex flex-col items-center justify-center py-16" data-testid="timeline-empty">
       <div class="rounded-full glass-inset p-4 mb-4">
         <Clock class="h-8 w-8 text-muted-foreground/60" />
       </div>
-      <p class="text-[13px] text-muted-foreground">{$t('observability.empty_timeline')}</p>
+      <p class="text-body-sm text-muted-foreground">{$t('observability.empty_timeline')}</p>
     </Card>
   {:else}
     <div class="space-y-6">
       {#each groupedEvents as [day, dayEvents] (day)}
         <section>
           <header class="flex items-baseline gap-3 mb-2.5 px-1">
-            <h4 class="m-0 text-[12.5px] font-semibold tracking-[-0.1px] text-foreground">
+            <h4 class="m-0 text-body-sm font-semibold text-foreground">
               {dayLabel(day)}
             </h4>
-            <span class="section-meta text-[10px] tracking-[1.4px] /60">
+            <span class="section-meta">
               {dayEvents.length}
             </span>
           </header>
@@ -374,7 +381,7 @@
               {@const bulletColor = TYPE_BULLET[event.event_type] ?? "hsl(var(--muted))"}
               {@const RowIcon = TYPE_ICON[event.event_type] ?? ClipboardList}
 
-              <div data-testid="timeline-event-{idx}">
+              <div data-testid="timeline-event-{idx}" in:fly={rowIn()}>
                 <button
                   type="button"
                   class="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
@@ -399,14 +406,14 @@
                   <!-- Title + chip + agent -->
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
-                      <span class="text-[13px] font-medium text-foreground">{eventBody(event)}</span>
+                      <span class="text-body-sm font-medium text-foreground">{eventBody(event)}</span>
                       <span
-                        class="inline-flex items-center gap-1 rounded-full border px-2 py-[1px] text-[10.5px] font-medium {TYPE_CHIP[event.event_type] ?? 'glass-border-subtle glass-inset text-muted-foreground'}"
+                        class="inline-flex items-center gap-1 rounded-full border px-2 py-[1px] text-caption font-medium {TYPE_CHIP[event.event_type] ?? 'glass-border-subtle glass-inset text-muted-foreground'}"
                       >
                         {$t(TYPE_LABEL_KEYS[event.event_type as EventTypeFilter] ?? "observability.type_task")}
                       </span>
                     </div>
-                    <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div class="mt-1 flex items-center gap-2 text-caption text-muted-foreground">
                       {#if agent}
                         <span class="truncate max-w-[14rem]">{agent}</span>
                         <span class="text-muted-foreground/40">·</span>
@@ -426,7 +433,7 @@
                 {#if isExpanded}
                   <div class="px-4 pb-4 -mt-1">
                     <div class="rounded-lg glass-inset border border-border/30 p-3">
-                      <pre class="overflow-x-auto text-[11.5px] font-mono leading-relaxed text-muted-foreground">{JSON.stringify(event.detail, null, 2)}</pre>
+                      <pre class="overflow-x-auto text-code-sm font-mono leading-relaxed text-muted-foreground">{JSON.stringify(event.detail, null, 2)}</pre>
                     </div>
                   </div>
                 {/if}

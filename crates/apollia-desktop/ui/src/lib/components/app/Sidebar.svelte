@@ -182,7 +182,7 @@
             <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
             <span class="truncate">{label}</span>
             {#if badgeCount > 0}
-              <span class="ml-auto min-w-[18px] rounded-full bg-primary px-1.5 py-0.5 text-center text-[10px] font-semibold text-white leading-none">{badgeCount}</span>
+              <span class="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-overline font-semibold text-primary-foreground leading-none">{badgeCount}</span>
             {:else if item.badge === "tasks" && runningCount > 0}
               <span class="ml-auto flex h-2 w-2"><span class="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-primary opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span></span>
             {/if}
@@ -190,7 +190,7 @@
         {/each}
 
         {#if isBuilder}
-          <div class="mt-3 mb-1 px-3 font-mono text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground/70" data-testid="sidebar-builder-cluster-label">
+          <div class="section-meta mt-3 mb-1 px-3" data-testid="sidebar-builder-cluster-label">
             {$t("nav.builder_cluster")}
           </div>
           {#each BUILDER_NAV as item (item.route)}
@@ -250,7 +250,7 @@
       <div class="rail-item group relative mb-1">
         <button
           type="button"
-          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+          class="relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
           aria-label={label}
@@ -259,11 +259,11 @@
           data-testid="nav-{item.route}"
         >
           {#if isActive}
-            <span class="active-bar absolute rounded-r-[3px] bg-primary" style="left: -14px; top: 10px; bottom: 10px; width: 3px;"></span>
+            <span class="active-bar"></span>
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
           {#if badgeCount > 0}
-            <span class="absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-primary px-1 py-px text-center text-[9px] font-semibold text-white leading-none">{badgeCount > 9 ? "9+" : badgeCount}</span>
+            <span class="absolute -right-0.5 -top-0.5 min-w-3.5 rounded-full bg-primary px-1 py-px text-center text-overline font-semibold text-primary-foreground leading-none">{badgeCount > 9 ? "9+" : badgeCount}</span>
           {:else if isPulse}
             <span class="absolute right-0.5 top-0.5 flex h-1.5 w-1.5">
               <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
@@ -272,7 +272,7 @@
           {/if}
         </button>
         <!-- Tooltip -->
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>
@@ -287,7 +287,7 @@
         <div class="rail-item group relative mb-1">
           <button
             type="button"
-            class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+            class="relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
             onclick={() => navigate(item.route)}
             aria-current={isActive ? "page" : undefined}
             aria-label={label}
@@ -296,11 +296,11 @@
             data-testid="nav-{item.route}"
           >
             {#if isActive}
-              <span class="active-bar absolute rounded-r-[3px] bg-primary" style="left: -14px; top: 10px; bottom: 10px; width: 3px;"></span>
+              <span class="active-bar"></span>
             {/if}
             <item.Icon size={17} strokeWidth={1.5} />
           </button>
-          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
             {label}
           </span>
         </div>
@@ -317,7 +317,7 @@
       <div class="rail-item group relative mb-1">
         <button
           type="button"
-          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+          class="relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
           aria-label={label}
@@ -325,11 +325,11 @@
           data-testid="nav-{item.route}"
         >
           {#if isActive}
-            <span class="active-bar absolute rounded-r-[3px] bg-primary" style="left: -14px; top: 10px; bottom: 10px; width: 3px;"></span>
+            <span class="active-bar"></span>
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
         </button>
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>
@@ -338,8 +338,7 @@
     <!-- User avatar -->
     <div class="mt-1">
       <span
-        class="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-elev-1"
-        style="background: var(--avatar-gradient-warm);"
+        class="avatar-warm flex h-7 w-7 items-center justify-center rounded-lg text-primary-foreground shadow-elev-1"
         title={$t("settings.profile.title", { default: "Profil" })}
       ><User size={14} /></span>
     </div>
@@ -347,6 +346,47 @@
 {/if}
 
 <style>
-  .rail-item { position: relative; }
-  .active-bar { position: absolute; }
+  .rail-item {
+    position: relative;
+  }
+
+  /* The 64px rail seats a 40px button, leaving a 12px gutter each side. The
+     active indicator anchors to the rail's left edge via that gutter, so the
+     offset lives in one place instead of a repeated inline `left: -14px`. */
+  .rail {
+    --rail-gutter: 0.75rem;
+  }
+
+  /* Active-route indicator: a 3px indigo->violet bar that grows in from the
+     rail edge. The gradient reuses the signature `--grad-a/--grad-b` stops, so
+     both themes resolve automatically. Under reduced motion the global rule in
+     app.css neutralizes the entry animation. */
+  .active-bar {
+    position: absolute;
+    left: calc(-1 * var(--rail-gutter));
+    top: 0.625rem;
+    bottom: 0.625rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, hsl(var(--grad-a)), hsl(var(--grad-b)));
+    transform-origin: center;
+    animation: active-bar-in var(--motion-base) var(--ease-apple);
+  }
+
+  @keyframes active-bar-in {
+    from {
+      transform: scaleY(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+
+  /* Terracotta "current user" avatar chip. The gradient token keeps its
+     hand-tuned tone independent of the brand palette. */
+  .avatar-warm {
+    background: var(--avatar-gradient-warm);
+  }
 </style>

@@ -4,6 +4,7 @@
 //! application update via `tauri-plugin-updater`.
 
 use serde::Serialize;
+use tauri::Emitter;
 use tauri_plugin_updater::UpdaterExt;
 use thiserror::Error;
 
@@ -18,6 +19,20 @@ pub enum UpdateError {
     NoUpdate,
     #[error("install failed: {0}")]
     Install(String),
+}
+
+/// Download progress emitted during [`install_update`] via the
+/// `"update-download-progress"` Tauri event.
+///
+/// `total` mirrors the server's `Content-Length`: it is `None` (serialised as
+/// `null`) when the endpoint does not advertise a size, in which case the
+/// frontend renders an indeterminate progress bar.
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateDownloadProgress {
+    /// Cumulative bytes downloaded so far.
+    pub downloaded: u64,
+    /// Total download size in bytes, or `None` when the server omits it.
+    pub total: Option<u64>,
 }
 
 /// Result of the update check.
@@ -67,6 +82,10 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult
 ///
 /// Must be called after `check_for_update`. Returns `NoUpdate` if nothing is
 /// available anymore (a concurrent instance, or a pulled release).
+///
+/// Emits `"update-download-progress"` ([`UpdateDownloadProgress`]) on every
+/// downloaded chunk so the frontend can render a live progress bar instead of
+/// blocking silently until completion.
 #[tauri::command]
 pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     let updater = app
@@ -79,8 +98,23 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| UpdateError::Check(e.to_string()).to_string())?
         .ok_or_else(|| UpdateError::NoUpdate.to_string())?;
 
+    let progress_app = app.clone();
+    let mut downloaded: u64 = 0;
+
     update
-        .download_and_install(|_chunk, _total| {}, || {})
+        .download_and_install(
+            move |chunk_length, content_length| {
+                downloaded = downloaded.saturating_add(chunk_length as u64);
+                let payload = UpdateDownloadProgress {
+                    downloaded,
+                    total: content_length,
+                };
+                if let Err(e) = progress_app.emit("update-download-progress", &payload) {
+                    tracing::warn!(error = %e, "failed to emit update-download-progress event");
+                }
+            },
+            || {},
+        )
         .await
         .map_err(|e| UpdateError::Install(e.to_string()).to_string())?;
 
@@ -129,6 +163,38 @@ mod tests {
         assert_eq!(json["current_version"], "1.0.0");
         assert!(json["new_version"].is_null());
         assert!(json["release_notes"].is_null());
+    }
+
+    #[test]
+    fn test_update_download_progress_serializes_with_total() {
+        // GIVEN a progress payload with a known total
+        let progress = UpdateDownloadProgress {
+            downloaded: 1024,
+            total: Some(4096),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&progress).expect("serialize");
+
+        // THEN both fields are present under their snake_case names
+        assert_eq!(json["downloaded"], 1024);
+        assert_eq!(json["total"], 4096);
+    }
+
+    #[test]
+    fn test_update_download_progress_serializes_indeterminate() {
+        // GIVEN a progress payload without a known total (indeterminate)
+        let progress = UpdateDownloadProgress {
+            downloaded: 512,
+            total: None,
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&progress).expect("serialize");
+
+        // THEN total is null so the frontend renders an indeterminate bar
+        assert_eq!(json["downloaded"], 512);
+        assert!(json["total"].is_null());
     }
 
     #[tokio::test]

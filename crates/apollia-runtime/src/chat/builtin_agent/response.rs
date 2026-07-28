@@ -36,6 +36,14 @@ pub struct ChatAgentResponse {
     /// [`PauseState::Paused`](crate::chat::types::PauseState::Paused) and keep the
     /// persisted partial step statuses as the source of truth for the resume.
     pub paused: bool,
+    /// Real context window of the active model in tokens, when the backend
+    /// reports one. `None` when unknown (cloud backend, or before the local model
+    /// loads); the UI then renders the context gauge as unknown rather than wrong.
+    pub context_window_tokens: Option<u32>,
+    /// Prompt-token count of the most recent LLM call, i.e. the current context
+    /// occupancy against [`Self::context_window_tokens`]. Zero when no usage was
+    /// reported for the exchange.
+    pub context_tokens_used: u32,
 }
 
 impl ChatAgentResponse {

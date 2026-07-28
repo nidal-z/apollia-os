@@ -40,13 +40,22 @@ prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
-  mutating controls driven to the boundary). `master-det.json` runs all 20 in one
-  boot and is the release gate (currently 2116/2116).
+  mutating controls driven to the boundary). `master-det.json` runs all 21 in one
+  boot and is the release gate (2226 steps). `tour-det` is the newest section:
+  the Getting started band and the guided tour (entry points, step navigation,
+  the anchorless fallback, the exit confirmation, finishing).
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
-  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
-  aggregate of chat/hitl/coach).
+  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, `tour-llm` (act 1 of
+  the guided tour, annotated live on a real conversation), and `master-llm` (an
+  aggregate of chat/hitl/coach/tour, 234 steps). The tour section sits last so it
+  cannot perturb the three proven ones, and it forces operator mode because the
+  approval card is persona-picked.
+
+The whole corpus was last run green on 2026-07-28 against the redesigned UI:
+14 suites, 3056 steps, 0 failures. The LLM ones ran on
+`Qwen3.6-35B-A3B-MXFP4_MOE.gguf` with `CTX=32768 NP=1`.
 
 ## Script contract
 
@@ -65,6 +74,14 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
   ```sh
   python3 scripts/automation/tools/validate.py
   ```
+  It reproduces what the UI renders, including ids a shared component composes
+  off the one it is given (`${dataTestId}-input`) and ids a route builds from
+  its own literals (`` `${action.id}-btn` ``, `{testid}-{opt.value}`). A
+  `testidPrefix` step is checked strictly: something in the corpus must really
+  start with it, because that is what `[data-testid^="..."]` does at runtime.
+  What it cannot see is FLOW: an anchor that exists on another route, a panel
+  that needs an extra click to open, a tab that kept its previous selection. A
+  runtime round is the only way to catch those.
 - **Regenerate `master-det`** after editing any `<page>-det.json`. `master-det`
   is a concatenation (a head, then per page `[section marker, goto dashboard,
   waitFor app-main]` + the page steps minus their 2-step onboarding preamble):
@@ -75,6 +92,13 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
 - **Analyse a run**: group the failed steps of a report by section:
   ```sh
   python3 scripts/automation/tools/analyze_report.py [report.json] [script.json]
+  ```
+- **Scan variant** after a large UI refactor: a fail-fast copy of a suite whose
+  wait timeouts are capped, so one boot enumerates every broken anchor in
+  minutes instead of hours. Data only, no runner change:
+  ```sh
+  python3 scripts/automation/tools/make_scan.py            # master-det -> master-det-scan, cap 3000ms
+  just desktop-dev-automation-seeded scripts/automation/master-det-scan.json
   ```
 
 ## Gotchas (learned the hard way)
@@ -98,3 +122,31 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
   when the reply is correct on screen. Verify by screenshot.
 - **Destructive**: factory reset must be cancelled after typing its confirm word,
   or it quits the app before the report is written.
+- **Leave a settings sub-page clean.** The routes wired with an explicit save
+  (`profile`, `stt`, `observability`) arm the nav guard: leaving one dirty opens
+  `settings-unsaved-dialog`, a modal that no later step dismisses, and every
+  remaining section of `master-det` then fails. Save or discard before moving on.
+- **A save button only enables on a real change.** Picking the value a field
+  already holds leaves the form clean, so `settings-subpage-save` stays disabled
+  and the click silently does nothing. Choose values that differ from the seed
+  AND from what an earlier section persisted.
+- **Tabs keep their selection across a change of subject.** The connection
+  detail and the catalogue sheet reopen on whatever tab was last used, so
+  re-select the one you assert on instead of assuming the default.
+- **Free port 5173 for real.** `pkill` on the tauri and app processes can leave
+  the vite `node` holding the port, and the next run dies on `beforeDevCommand`.
+  Check with `lsof -ti :5173` until it returns nothing. Note `lsof -ti :5173 :8899`
+  reads the second port as a file name and prints nothing, so kill one port at a time.
+- **The plan gate has two cards.** `ChatPlanHost` renders `ChatPlanReview` for the
+  operator (`chat-plan-review`, request-changes plus an adjust textarea) and
+  `ChatPlanReviewBuilder` for the builder (`chat-plan-review-builder`, approve or
+  reject only). A script that asserts one must pin the mode first, and it should
+  end on an approval: leaving the plan pending never exercises the gate.
+- **`ask_user` cannot be answered by a fixed step.** The model picks the question
+  type (open, single, multi) and `ask-user-submit` stays disabled until every
+  question is answered. Use `ask-user-skip`, which is type-independent. Leaving the
+  card pending keeps the session `processing`, which silently hides every
+  read-only-gated control downstream (`config-save` and friends).
+- **Sizing `awaitTurn`.** `maxApprovals` defaults to 25. The plan-review steps use 6
+  on purpose, but the turn that FOLLOWS an approval executes the whole plan and needs
+  the full budget, otherwise it aborts as a runaway turn.

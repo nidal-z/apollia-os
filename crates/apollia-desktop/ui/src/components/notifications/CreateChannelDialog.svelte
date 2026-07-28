@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { CreateChannelRequest, NotificationChannelView } from "$lib/types";
+  import type { CreateChannelRequest } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -9,6 +8,8 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
   import { FormField } from "$lib/components/ui/form-field";
+  import { Disclosure } from "$lib/components/ui/disclosure";
+  import { createNotificationChannel } from "$lib/ipc/notifications";
   import { slugify } from "$lib/utils/slugify";
   import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
   import {
@@ -155,9 +156,7 @@
         request.min_interval_seconds = throttleValue;
       }
 
-      await invoke<NotificationChannelView>("create_notification_channel", {
-        channel: request,
-      });
+      await createNotificationChannel(request);
       oncreated(channelId.trim());
       onclose();
     } catch (err: unknown) {
@@ -202,7 +201,7 @@
     <FormField
       id="channel-label"
       label={$t("notifications.field_label")}
-      labelClass="text-[11px] font-normal mb-0"
+      labelClass="text-caption font-normal mb-0"
       error={labelError || undefined}
       hint={$t("notifications.field_label_help")}
     >
@@ -217,32 +216,31 @@
       />
     </FormField>
 
-    <!-- Technical identifier (advanced, collapsed) -->
-    <details class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
-      <summary class="cursor-pointer text-[11px] text-muted-foreground select-none">
+    <!-- Technical identifier (advanced): Disclosure, not a native <details>
+         which snaps in WKWebView. Eased slide + tracked aria-expanded. -->
+    <Disclosure testid="disc-technical-id">
+      {#snippet summary()}
         {$t("notifications.field_id_advanced")}
-      </summary>
-      <div class="mt-2">
-        <Input
-          id="channel-id"
-          class="font-mono {idError ? 'border-destructive' : ''}"
-          placeholder={$t("notifications.field_id_placeholder")}
-          value={channelId}
-          oninput={onSlugInput}
-          data-testid="channel-id-input"
-        />
-        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_id_help")}</p>
-        {#if idError}
-          <p class="mt-0.5 text-xs text-destructive" data-testid="channel-id-error">{idError}</p>
-        {/if}
-      </div>
-    </details>
+      {/snippet}
+      <Input
+        id="channel-id"
+        class="font-mono {idError ? 'border-destructive' : ''}"
+        placeholder={$t("notifications.field_id_placeholder")}
+        value={channelId}
+        oninput={onSlugInput}
+        data-testid="channel-id-input"
+      />
+      <p class="mt-0.5 text-body-xs text-muted-foreground">{$t("notifications.field_id_help")}</p>
+      {#if idError}
+        <p class="mt-0.5 text-body-xs text-destructive" data-testid="channel-id-error">{idError}</p>
+      {/if}
+    </Disclosure>
 
     <!-- Type -->
     <FormField
       id="channel-type"
       label={$t("notifications.field_type")}
-      labelClass="text-[11px] font-normal mb-0"
+      labelClass="text-caption font-normal mb-0"
     >
       <Select
         id="channel-type"
@@ -259,7 +257,7 @@
       <FormField
         id="channel-url"
         label={$t("notifications.field_url")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
         error={urlError || undefined}
       >
         <Input
@@ -275,7 +273,7 @@
       <FormField
         id="channel-headers"
         label={$t("notifications.field_headers")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
         optional
         error={headersError || undefined}
       >
@@ -293,7 +291,7 @@
     <!-- Events per-channel -->
     {#if globalEvents.length > 0}
       <div>
-        <p class="mb-1 block text-[11px] text-muted-foreground" role="group" aria-labelledby="channel-events-caption">
+        <p class="mb-1 block text-caption text-muted-foreground" role="group" aria-labelledby="channel-events-caption">
           <span id="channel-events-caption">{$t("notifications.field_events")}</span>
         </p>
         <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
@@ -307,10 +305,10 @@
               />
               <span class="flex flex-1 flex-col gap-0.5 min-w-0">
                 <span class="font-medium leading-tight">{$t(eventLabelKey(event))}</span>
-                <span class="text-[11px] leading-snug text-muted-foreground">
+                <span class="text-caption leading-snug text-muted-foreground">
                   {$t(eventDescriptionKey(event))}
                 </span>
-                <span class="text-[10px] font-mono text-muted-foreground/60 truncate">
+                <span class="text-caption font-mono text-muted-foreground/60 truncate">
                   {event}
                 </span>
               </span>
@@ -324,7 +322,7 @@
     <FormField
       id="channel-throttle"
       label={$t("notifications.field_throttle")}
-      labelClass="text-[11px] font-normal mb-0"
+      labelClass="text-caption font-normal mb-0"
       error={throttleError || undefined}
       hint={$t("notifications.field_throttle_help")}
     >
@@ -342,7 +340,7 @@
         <FormField
           id="channel-throttle-custom"
           label={$t("notifications.throttle_custom_label")}
-          labelClass="text-[11px] font-normal mb-0"
+          labelClass="text-caption font-normal mb-0"
           class="mt-2"
         >
           <Input

@@ -8,28 +8,33 @@
   renders live at the end of the strip, and the answer text renders last.
 -->
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import { Avatar } from "$lib/components/ui/avatar";
   import { Spinner } from "$lib/components/ui/progress";
-  import { Check, X, Brain } from "lucide-svelte";
+  import { Check, X } from "lucide-svelte";
   import StreamingText from "./StreamingText.svelte";
   import ActivityStrip from "./ActivityStrip.svelte";
+  import { formatDurationSeconds } from "$lib/chat/duration";
   import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
-  import { resolveToolDisplay } from "$lib/tools/tool-display";
+  import { resolveToolDisplay, humanizeToolName } from "$lib/tools/tool-display";
 
-  // i18n label key for a tool's clear, human name (e.g. "Recherche web" rather
-  // than the raw "web_search"). The compact live row reads as plain language;
-  // the raw technical name stays available as the row's title tooltip and in the
+  // Clear, human name for a tool's live row (e.g. "Recherche web" rather than
+  // the raw "web_search", or "Google Calendar" rather than "gcal.list_events").
+  // The raw technical name stays available as the row's title tooltip and in the
   // finalized, expandable trace for builders.
-  function toolLabelKey(name: string): string {
-    return resolveToolDisplay({
+  function toolLabel(name: string): string {
+    const d = resolveToolDisplay({
       tool_name: name,
       input: {},
       output: null,
       status: "executed",
       duration_ms: null,
-    }).labelKey;
+    });
+    return $t(d.labelKey, {
+      values: d.templateParams,
+      default: humanizeToolName(name),
+    });
   }
 
   /** One tool invocation as reported by the runtime, tagged with the number of
@@ -111,9 +116,9 @@
      live reasoning and tools instead of a bare "thinking" placeholder while a
      slow local completion runs. -->
 <div class="flex flex-col items-start" data-testid="chat-message-streaming" data-mode={sessionMode}>
-  <div class="flex items-center gap-2 mb-1.5 px-0.5">
+  <div class="flex items-center gap-2 mb-3 px-0.5">
     <Avatar name={displayName} size="xs" ring={false} />
-    <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
+    <span class="text-[13px] font-semibold text-foreground">{displayName}</span>
   </div>
 
   <!-- Zone 1 (live): the reasoning strip stays expanded during the turn so the
@@ -122,35 +127,21 @@
   {#if hasThinking}
     <div class="w-full">
       <ActivityStrip open live>
-        <div class="flex flex-col gap-0.5" data-testid="streaming-timeline">
+        <div class="flex flex-col gap-1" data-testid="streaming-timeline">
           {#each closedThinking as frag, i (`live-think-${i}`)}
             <div
-              class="flex items-start gap-2.5 py-1"
+              class="min-w-0 whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
               in:fly={{ x: -8, duration: 200 }}
-            >
-              <span class="tb-think-ico mt-[3px] flex-none" aria-hidden="true">
-                <Brain size={13} />
-              </span>
-              <div
-                class="min-w-0 flex-1 whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
-              >{frag}</div>
-            </div>
+            >{frag}</div>
           {/each}
 
           <!-- Live (open) reasoning streams token by token as its own caption,
                matching the finalized flat caption styling. -->
           {#if activeThinking && activeThinkingContent.trim()}
             <div
-              class="flex items-start gap-2.5 py-1"
+              class="min-w-0 max-h-40 overflow-hidden whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
               data-testid="streaming-active-thinking"
-            >
-              <span class="tb-think-ico mt-[3px] flex-none" aria-hidden="true">
-                <Brain size={13} />
-              </span>
-              <div
-                class="min-w-0 flex-1 max-h-40 overflow-hidden whitespace-pre-wrap text-[12.5px] italic leading-relaxed text-muted-foreground"
-              >{activeThinkingContent}</div>
-            </div>
+            >{activeThinkingContent}</div>
           {/if}
         </div>
       </ActivityStrip>
@@ -179,9 +170,11 @@
           <span
             class="truncate text-[11.5px] text-foreground/80"
             title={row.name}
-          >{$t(toolLabelKey(row.name), { default: row.name })}</span>
+          >{toolLabel(row.name)}</span>
           {#if row.durationMs && row.durationMs > 0}
-            <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50">{row.durationMs}ms</span>
+            <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50"
+              >{formatDurationSeconds(row.durationMs, $locale ?? "en")} s</span
+            >
           {/if}
         </div>
       {/each}

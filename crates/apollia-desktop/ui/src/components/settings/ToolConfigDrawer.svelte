@@ -7,6 +7,10 @@
   import CredentialField from "./CredentialField.svelte";
   import { Input } from "$lib/components/ui/input";
   import {
+    WEB_SEARCH_DEFAULT_CONFIG,
+    WEB_READ_DEFAULT_CONFIG,
+  } from "./tools/toolCatalog";
+  import {
     getToolConfig,
     updateToolConfig,
     type ToolStatusDto,
@@ -15,10 +19,14 @@
   interface Props {
     open: boolean;
     tool: ToolStatusDto | null;
+    /** Humanized tool name for the header; falls back to the raw tool id. */
+    title?: string;
     onclose: () => void;
   }
 
-  let { open, tool, onclose }: Props = $props();
+  let { open, tool, title, onclose }: Props = $props();
+
+  const displayName = $derived(title || tool?.name || "");
 
   // ─── Web search form state ────────────────────────────────────────────
   type WebSearchBackend = "auto" | "duckduckgo" | "brave";
@@ -39,18 +47,18 @@
   }
 
   const DEFAULT_WEB_SEARCH: WebSearchFormState = {
-    backend: "auto",
-    require_configured: false,
-    brave_timeout_secs: 15,
-    brave_max_results: 10,
-    ddg_timeout_secs: 15,
-    ddg_max_response_kb: 1024,
+    backend: WEB_SEARCH_DEFAULT_CONFIG.backend,
+    require_configured: WEB_SEARCH_DEFAULT_CONFIG.require_configured,
+    brave_timeout_secs: WEB_SEARCH_DEFAULT_CONFIG.brave.timeout_secs,
+    brave_max_results: WEB_SEARCH_DEFAULT_CONFIG.brave.max_results,
+    ddg_timeout_secs: WEB_SEARCH_DEFAULT_CONFIG.duckduckgo.timeout_secs,
+    ddg_max_response_kb: WEB_SEARCH_DEFAULT_CONFIG.duckduckgo.max_response_kb,
   };
 
   const DEFAULT_WEB_READ: WebReadFormState = {
-    timeout_secs: 20,
-    max_response_kb: 2048,
-    ssrf_guard: true,
+    timeout_secs: WEB_READ_DEFAULT_CONFIG.timeout_secs,
+    max_response_kb: WEB_READ_DEFAULT_CONFIG.max_response_kb,
+    ssrf_guard: WEB_READ_DEFAULT_CONFIG.ssrf_guard,
   };
 
   let webSearch = $state<WebSearchFormState>({ ...DEFAULT_WEB_SEARCH });
@@ -101,19 +109,19 @@
     const ddg = asRecord(cfg?.duckduckgo);
     webSearch = {
       backend,
-      require_configured: readBool(cfg, "require_configured", false),
-      brave_timeout_secs: readNumber(brave, "timeout_secs", 15),
-      brave_max_results: readNumber(brave, "max_results", 10),
-      ddg_timeout_secs: readNumber(ddg, "timeout_secs", 15),
-      ddg_max_response_kb: readNumber(ddg, "max_response_kb", 1024),
+      require_configured: readBool(cfg, "require_configured", DEFAULT_WEB_SEARCH.require_configured),
+      brave_timeout_secs: readNumber(brave, "timeout_secs", DEFAULT_WEB_SEARCH.brave_timeout_secs),
+      brave_max_results: readNumber(brave, "max_results", DEFAULT_WEB_SEARCH.brave_max_results),
+      ddg_timeout_secs: readNumber(ddg, "timeout_secs", DEFAULT_WEB_SEARCH.ddg_timeout_secs),
+      ddg_max_response_kb: readNumber(ddg, "max_response_kb", DEFAULT_WEB_SEARCH.ddg_max_response_kb),
     };
   }
 
   function applyWebReadConfig(cfg: Record<string, unknown> | null): void {
     webRead = {
-      timeout_secs: readNumber(cfg, "timeout_secs", 20),
-      max_response_kb: readNumber(cfg, "max_response_kb", 2048),
-      ssrf_guard: readBool(cfg, "ssrf_guard", true),
+      timeout_secs: readNumber(cfg, "timeout_secs", DEFAULT_WEB_READ.timeout_secs),
+      max_response_kb: readNumber(cfg, "max_response_kb", DEFAULT_WEB_READ.max_response_kb),
+      ssrf_guard: readBool(cfg, "ssrf_guard", DEFAULT_WEB_READ.ssrf_guard),
     };
   }
 
@@ -198,7 +206,7 @@
 
 <Sheet {open} {onclose} width="lg">
   <SheetHeader
-    title={$t("settings.tool_config.title", { values: { name: tool?.name ?? "" } })}
+    title={$t("settings.tool_config.title", { values: { name: displayName } })}
     {onclose}
     closeLabel={$t("common.close")}
     class="px-5 py-4 items-center"
@@ -206,7 +214,7 @@
     {#snippet titleSlot()}
       <div class="space-y-0.5">
         <h2 class="text-lg font-semibold">
-          {$t("settings.tool_config.title", { values: { name: tool?.name ?? "" } })}
+          {$t("settings.tool_config.title", { values: { name: displayName } })}
         </h2>
         {#if tool?.active_backend}
           <p class="text-xs text-muted-foreground">

@@ -17,7 +17,7 @@ ORDER = [
     "tasks-det", "automations-det", "inbox-det", "notifications-det",
     "memory-det", "connections-det", "observability-det", "coach-det",
     "settings-det", "profile-det", "llm-det", "model-hub-det", "stt-det",
-    "tools-det", "permissions-det",
+    "tools-det", "permissions-det", "tour-det",
 ]
 
 def load(name):

@@ -117,7 +117,6 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { t } from "svelte-i18n";
@@ -127,6 +126,9 @@
   import { Button } from "$lib/components/ui/button";
   import { FormField } from "$lib/components/ui/form-field";
   import SettingsToggle from "./SettingsToggle.svelte";
+  import { pingLlmBackend, reloadLlmFromDb } from "$lib/ipc/llm";
+  import { scanForGgufModels, type GgufModelInfo } from "$lib/ipc/models";
+  import { createLlmBackend, getHfModelParams, updateLlmBackend } from "./llmBackendIpc";
   import type { LlmPingResult } from "$lib/types";
 
   interface Props {
@@ -205,23 +207,6 @@
     };
   }
 
-  interface GgufModelInfo {
-    path: string;
-    filename: string;
-    size_human: string;
-    recommended: boolean;
-  }
-
-  interface HfModelCard {
-    generation_config: {
-      temperature?: number;
-      top_p?: number;
-      top_k?: number;
-      repetition_penalty?: number;
-      max_new_tokens?: number;
-    } | null;
-  }
-
   let form = $state<BackendFormState>(seedFrom(null));
   let advancedOpen = $state(false);
   let saving = $state(false);
@@ -278,7 +263,7 @@
     scanning = true;
     showScanDropdown = false;
     try {
-      const models = await invoke<GgufModelInfo[]>("scan_for_gguf_models");
+      const models = await scanForGgufModels();
       scannedModels = models;
       showScanDropdown = models.length > 0;
     } catch {
@@ -345,7 +330,7 @@
         }
         return;
       }
-      const res = (await invoke("ping_llm_backend", { name: form.name })) as LlmPingResult;
+      const res: LlmPingResult = await pingLlmBackend(form.name);
       if (res.available) {
         testResult = {
           ok: true,
@@ -373,31 +358,26 @@
     try {
       const config_json = buildConfigJson(form);
       if (editing && backend) {
-        await invoke("update_llm_backend", {
-          name: backend.name,
-          payload: {
-            provider: form.provider,
-            model: form.model,
-            config_json,
-            enabled: form.enabled,
-            is_default: form.isDefault,
-          },
+        await updateLlmBackend(backend.name, {
+          provider: form.provider,
+          model: form.model,
+          config_json,
+          enabled: form.enabled,
+          is_default: form.isDefault,
         });
       } else {
-        await invoke("create_llm_backend", {
-          payload: {
-            name: form.name,
-            provider: form.provider,
-            model: form.model,
-            config_json,
-            enabled: form.enabled,
-            is_default: form.isDefault,
-          },
+        await createLlmBackend({
+          name: form.name,
+          provider: form.provider,
+          model: form.model,
+          config_json,
+          enabled: form.enabled,
+          is_default: form.isDefault,
         });
       }
       // Rebuild the in-memory LlmRouter from the updated SQLite repository so
       // agents immediately use the new backend without restarting the app.
-      await invoke("reload_llm_from_db").catch((e: unknown) => {
+      await reloadLlmFromDb().catch((e: unknown) => {
         console.warn("[LlmBackendDialog] reload_llm_from_db failed:", e);
       });
       onsaved();
@@ -415,7 +395,7 @@
     fetchingHfParams = true;
     hfFillResult = null;
     try {
-      const card = await invoke<HfModelCard>("get_hf_model", { repoId, hfToken: null });
+      const card = await getHfModelParams(repoId);
       const gc = card.generation_config;
       if (!gc) {
         hfFillResult = { ok: false, message: $t("settings.llm_dialog.hf_no_config") };
@@ -584,7 +564,7 @@
                 <span class="flex-1 truncate font-mono text-foreground">{model.filename}</span>
                 <span class="shrink-0 text-muted-foreground">{model.size_human}</span>
                 {#if model.recommended}
-                  <span class="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  <span class="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-overline font-semibold text-primary">
                     {$t("settings.llm_dialog.recommended")}
                   </span>
                 {/if}
@@ -601,7 +581,7 @@
         {/if}
         {#if multipartHint}
           <div
-            class="flex items-start gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/5 px-2.5 py-1.5 text-xs text-blue-600 dark:text-blue-400"
+            class="flex items-start gap-1.5 rounded-md border border-info/20 bg-info/5 px-2.5 py-1.5 text-xs text-info"
             data-testid="llm-dialog-multipart-hint"
           >
             <Info size={12} strokeWidth={2} class="mt-0.5 shrink-0" />
@@ -751,7 +731,7 @@
                 />
               </FormField>
             </div>
-            <p class="text-[11px] text-muted-foreground/70">
+            <p class="text-caption text-muted-foreground/70">
               {$t("settings.llm_dialog.gen_params_hint")}
             </p>
           </div>
@@ -787,7 +767,7 @@
                 </Button>
               </div>
               {#if hfFillResult}
-                <p class="text-xs {hfFillResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}">
+                <p class="text-xs {hfFillResult.ok ? 'text-success' : 'text-destructive'}">
                   {hfFillResult.message}
                 </p>
               {/if}

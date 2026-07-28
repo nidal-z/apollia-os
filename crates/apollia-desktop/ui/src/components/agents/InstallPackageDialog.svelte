@@ -476,7 +476,7 @@
               <input
                 id="secret-{trigger.id}"
                 type="text"
-                placeholder="Ex: my-super-secret-key-at-least-32-chars"
+                placeholder={$t("agents.install.secret_placeholder")}
                 class="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 bind:value={webhookSecrets[trigger.id]}
                 data-testid="install-secret-input-{trigger.id}"

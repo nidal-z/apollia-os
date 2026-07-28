@@ -8,27 +8,35 @@
    *   1. {@link OnboardingWelcome}        - intro and consent to start
    *   2. {@link OnboardingProfileSelector} - operator vs builder
    *   3. {@link OnboardingAiSetup}         - local LLM (GGUF) + STT (Whisper)
-   *   4. {@link OnboardingChatStep}        - agent-driven chat (4 turns,
-   *                                          collects user.name / user.role /
-   *                                          HITL / sovereignty)
+   *   4. {@link OnboardingChatStep}        - agent-driven chat (calibration +
+   *                                          optional enrichment) then the
+   *                                          proposed-permission triage
    *
    * The phase machine in `crates/apollia-desktop/src/commands/onboarding.rs`
    * is updated in lockstep via `advance_onboarding_phase`, so the backend
    * still owns analytics/persistence even though navigation is local.
    *
-   * The chat step needs at least one LLM backend to be usable. The AI Setup
-   * gate prevents reaching it without one - but we keep an extra safety net
-   * inside the chat step (it surfaces the LLM-unavailable state explicitly).
+   * This is a first-run vitrine surface: the card entrance, the signature
+   * gradient hairline under the header, the spring-loaded stepper, and the
+   * directional step swap lean on the expressive-depth tokens. All motion
+   * collapses under reduced-motion.
    */
   import { onMount, untrack } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import { t } from "svelte-i18n";
+  import { duration, rm } from "$lib/design/motion";
+  import {
+    advanceOnboardingPhase,
+    dismissOnboarding,
+    getOnboardingState,
+  } from "$lib/ipc/onboarding";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingProfileSelector from "./OnboardingProfileSelector.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
-  import type { OnboardingPhase, OnboardingState } from "$lib/types";
+  import type { OnboardingPhase } from "$lib/types";
 
   interface Props {
     onclose: () => void;
@@ -46,6 +54,7 @@
   ];
 
   let currentStep = $state<Step>("welcome");
+  let navDir = $state<1 | -1>(1);
   let unlistenRuntime: UnlistenFn | null = null;
   let rootEl = $state<HTMLDivElement | null>(null);
   // Bumped by the footer during the chat step to ask the chat to skip the
@@ -65,11 +74,11 @@
   }
 
   // Best-effort backend phase sync. The phase machine validates strict
-  // transitions (Welcome → ProfileChoice → AiSetup → Acquaintance → …),
+  // transitions (Welcome -> ProfileChoice -> AiSetup -> Acquaintance -> ...),
   // so we map each frontend step to the matching legal target.
   async function syncBackendPhase(target: OnboardingPhase): Promise<void> {
     try {
-      await invoke("advance_onboarding_phase", { targetPhase: target });
+      await advanceOnboardingPhase(target);
     } catch {
       // Non-blocking: the phase machine may already be ahead (e.g. user
       // restarted onboarding from settings). Don't surface to the user.
@@ -77,11 +86,11 @@
   }
 
   function goTo(step: Step): void {
+    navDir = STEPS.findIndex((s) => s.id === step) >= stepIndex ? 1 : -1;
     currentStep = step;
     untrack(() => {
-      // Translate frontend step id → backend phase id.
       const phaseMap: Record<Step, OnboardingPhase | null> = {
-        welcome: null,           // initial state, nothing to advance to
+        welcome: null,
         profile: "profile_choice",
         "ai-setup": "ai_setup",
         chat: "acquaintance",
@@ -93,7 +102,7 @@
 
   async function handleSkip(): Promise<void> {
     try {
-      await invoke("dismiss_onboarding");
+      await dismissOnboarding();
     } catch {
       // best-effort; closing anyway
     }
@@ -105,7 +114,7 @@
   // bounce out to /llm to add a cloud backend.
   async function restoreStepFromBackend(): Promise<void> {
     try {
-      const state = await invoke<OnboardingState>("get_onboarding_state");
+      const state = await getOnboardingState();
       const phaseToStep: Record<OnboardingPhase, Step> = {
         welcome: "welcome",
         profile_choice: "profile",
@@ -115,8 +124,7 @@
         graduation: "chat",
         done: "chat",
       };
-      const target = phaseToStep[state.phase] ?? "welcome";
-      currentStep = target;
+      currentStep = phaseToStep[state.phase] ?? "welcome";
     } catch {
       // Backend unreachable - keep the default "welcome" step.
     }
@@ -179,28 +187,40 @@
       </ol>
     </header>
 
-    <div class="onboarding-card-body" class:onboarding-card-body-flush={currentStep === "chat"}>
-      {#if currentStep === "welcome"}
-        <OnboardingWelcome onnext={() => goTo("profile")} />
-      {:else if currentStep === "profile"}
-        <OnboardingProfileSelector
-          onnext={() => goTo("ai-setup")}
-          onback={() => goTo("welcome")}
-        />
-      {:else if currentStep === "ai-setup"}
-        <OnboardingAiSetup
-          onnext={() => goTo("chat")}
-          onback={() => goTo("profile")}
-          onskip={() => goTo("chat")}
-          onopencloud={onclose}
-        />
-      {:else if currentStep === "chat"}
-        <OnboardingChatStep
-          onback={() => goTo("ai-setup")}
-          skipSignal={chatSkipSignal}
-          {onclose}
-        />
-      {/if}
+    <div
+      class="onboarding-card-body"
+      class:onboarding-card-body-flush={currentStep === "chat"}
+    >
+      {#key currentStep}
+        <div
+          class="onboarding-panel"
+          class:onboarding-panel-flush={currentStep === "chat"}
+          in:fly={rm({ x: 12 * navDir, duration: duration.base, easing: cubicOut })}
+          out:fly={rm({ x: -12 * navDir, duration: duration.fast, easing: cubicOut })}
+        >
+          {#if currentStep === "welcome"}
+            <OnboardingWelcome onnext={() => goTo("profile")} />
+          {:else if currentStep === "profile"}
+            <OnboardingProfileSelector
+              onnext={() => goTo("ai-setup")}
+              onback={() => goTo("welcome")}
+            />
+          {:else if currentStep === "ai-setup"}
+            <OnboardingAiSetup
+              onnext={() => goTo("chat")}
+              onback={() => goTo("profile")}
+              onskip={() => goTo("chat")}
+              onopencloud={onclose}
+            />
+          {:else if currentStep === "chat"}
+            <OnboardingChatStep
+              onback={() => goTo("ai-setup")}
+              skipSignal={chatSkipSignal}
+              {onclose}
+            />
+          {/if}
+        </div>
+      {/key}
     </div>
 
     <footer class="onboarding-card-footer">
@@ -240,11 +260,12 @@
     align-items: center;
     justify-content: center;
     background: hsl(var(--background) / 0.72);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(9px);
     padding: 1.5rem;
   }
 
   .onboarding-card {
+    position: relative;
     width: 100%;
     max-width: 720px;
     max-height: 90vh;
@@ -253,10 +274,21 @@
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: 1rem;
-    box-shadow:
-      0 24px 64px hsl(var(--foreground) / 0.18),
-      0 1px 0 hsl(var(--background) / 0.6) inset;
+    /* Vitrine depth: modal elevation plus a faint signature-gradient rim. */
+    box-shadow: var(--shadow-elev-4), 0 0 0 1px hsl(var(--grad-b) / 0.06);
     overflow: hidden;
+    animation: onboarding-card-in var(--motion-base) var(--ease-apple) both;
+  }
+
+  @keyframes onboarding-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.975);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   /* AI setup and chat need extra height - give them a fixed minimum so the
@@ -266,6 +298,7 @@
   }
 
   .onboarding-card-header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -273,6 +306,22 @@
     padding: 0.875rem 1.25rem;
     border-bottom: 1px solid hsl(var(--border) / 0.7);
     flex-shrink: 0;
+  }
+
+  /* Signature gradient hairline under the header (hero surface leans richer). */
+  .onboarding-card-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1.5px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--grad-a) / 0.6),
+      hsl(var(--grad-b) / 0.3) 36%,
+      transparent 76%
+    );
   }
 
   .onboarding-card-title {
@@ -313,9 +362,10 @@
     font-size: 0.6875rem;
     font-weight: 600;
     transition:
-      background 150ms ease,
+      background 180ms var(--ease-spring),
       color 150ms ease,
-      border-color 150ms ease;
+      border-color 150ms ease,
+      box-shadow 180ms var(--ease-spring);
   }
 
   .onboarding-step-label {
@@ -334,8 +384,9 @@
   }
   .onboarding-step.active .onboarding-step-dot {
     background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground, 0 0% 100%));
+    color: hsl(var(--primary-foreground));
     border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
   }
 
   .onboarding-step.done {
@@ -358,6 +409,17 @@
     padding: 0;
     overflow: hidden;
     display: flex;
+    flex-direction: column;
+  }
+
+  .onboarding-panel {
+    /* Wrapper for the directional step-swap transition. */
+    display: block;
+  }
+  .onboarding-panel-flush {
+    display: flex;
+    flex: 1;
+    min-height: 0;
     flex-direction: column;
   }
 
@@ -385,5 +447,18 @@
   .onboarding-skip:hover {
     color: hsl(var(--foreground));
     background: hsl(var(--muted));
+  }
+  .onboarding-skip:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .onboarding-card {
+      animation: none;
+    }
+    .onboarding-step-dot {
+      transition: none;
+    }
   }
 </style>

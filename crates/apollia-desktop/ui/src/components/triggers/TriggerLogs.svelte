@@ -153,7 +153,7 @@
           </div>
           <div class="min-w-0">
             <h2 class="text-sm font-medium truncate" title={triggerId}>{$t('triggers.logs_title')}</h2>
-            <p class="text-[11px] text-muted-foreground">
+            <p class="text-caption text-muted-foreground">
               {#if hasActiveFilters}
                 {filteredEntries.length} / {entries.length} {$t('triggers.entries_label')}
               {:else}
@@ -175,7 +175,7 @@
           <Button variant="ghost" size="sm"
             type="button"
             onclick={() => (statusFilter = filter.key)}
-            class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
+            class="text-caption px-2 py-0.5 rounded-full border transition-colors
               {statusFilter === filter.key
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'}"
@@ -190,7 +190,7 @@
         <ArrowDownWideNarrow size={11} class="text-muted-foreground/60" />
         <Select
           bind:value={sortBy}
-          class="text-[10px] bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          class="text-caption bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label={$t('triggers.sort_label')}
         >
           {#each SORT_OPTIONS as option (option.key)}
@@ -219,7 +219,7 @@
         <Card class="rounded-lg px-4 py-8 text-center">
           <History size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground mb-2">{$t('triggers.no_matching_logs')}</p>
-          <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
+          <Button size="sm" variant="ghost" class="h-6 text-caption" onclick={resetFilters}>
             {$t('triggers.clear_filters')}
           </Button>
         </Card>
@@ -237,12 +237,12 @@
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-1.5 min-w-0">
                   <IconComponent size={12} class="{cfg.iconColor} shrink-0" />
-                  <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">
+                  <Badge variant={cfg.variant} class="text-caption px-1.5 py-0 shrink-0">
                     {$t(cfg.labelKey)}
                   </Badge>
                 </div>
                 <span
-                  class="text-[10px] text-muted-foreground/40 shrink-0"
+                  class="text-caption text-muted-foreground/40 shrink-0"
                   title={formatAbsoluteTime(entry.fired_at)}
                 >
                   {formatRelativeTime(entry.fired_at)}
@@ -250,12 +250,12 @@
               </div>
 
               <!-- Row 2: agent + task id -->
-              <div class="flex items-center justify-between gap-2 text-[11px] text-muted-foreground/75">
+              <div class="flex items-center justify-between gap-2 text-caption text-muted-foreground/75">
                 <span class="truncate" title={entry.agent_name}>
                   <span class="text-muted-foreground/50">{$t('triggers.agent_label')}:</span>
                   {entry.agent_name}
                 </span>
-                <code class="text-[10px] text-muted-foreground/50 font-mono shrink-0">
+                <code class="text-caption text-muted-foreground/50 font-mono shrink-0">
                   {shortId(entry.task_id)}
                 </code>
               </div>
@@ -263,7 +263,7 @@
               <!-- Row 3: error reason (only for ERROR rows) -->
               {#if isError && entry.reason}
                 <p
-                  class="text-[10px] leading-snug line-clamp-2 text-destructive/70"
+                  class="text-caption leading-snug line-clamp-2 text-destructive/70"
                   title={entry.reason}
                 >
                   <span class="font-medium">{$t('triggers.reason_label')}:</span>

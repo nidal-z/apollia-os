@@ -11,6 +11,7 @@
   import { UserRound, Settings, Keyboard, RotateCcw, LifeBuoy, BadgeInfo, LogOut } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
   import { navigateToSettings } from "$lib/router";
+  import { quitApp } from "$lib/ipc/app";
 
   let open = $state(false);
 
@@ -52,19 +53,11 @@
   }
 
   async function quit() {
-    // Route through the `quit_app` command, not `window.close()`: closing the
-    // window only hides it (close-to-tray). The command exits the process
-    // gracefully via the shared quit path.
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("quit_app");
-    } catch {
-      // Web/dev fallback: no-op.
-    }
+    await quitApp();
   }
 </script>
 
-<Popover bind:open side="bottom" align="end" class="min-w-[220px] p-1">
+<Popover bind:open side="bottom" align="end" class="min-w-56 p-1">
   {#snippet trigger(triggerProps: Record<string, unknown>)}
     <button
       {...triggerProps}

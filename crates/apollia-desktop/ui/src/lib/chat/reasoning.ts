@@ -303,6 +303,20 @@ export function buildReasoningSequence(
 }
 
 /**
+ * Number of reasoning captions (thinking / rationale fragments) an assistant
+ * turn produced. Feeds the activity strip summary so the collapsed strip can
+ * announce how many thoughts it hides.
+ */
+export function reasoningFragmentCount(
+  message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">,
+  content?: string,
+): number {
+  return buildReasoningSequence(message, content).filter(
+    (i) => i.kind === "thinking" || i.kind === "rationale",
+  ).length;
+}
+
+/**
  * A single web source shown as a compact card at the end of an assistant turn.
  *
  * Sources are recovered from the finalized `web_search` / `web_read` tool calls

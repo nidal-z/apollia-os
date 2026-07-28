@@ -1,6 +1,4 @@
-<script lang="ts" context="module">
-  import { Card } from "$lib/components/ui/card";
-  import { Input } from "$lib/components/ui/input";
+<script lang="ts" module>
   export const meta = {
     title: "settings.nav.llm",
     icon: "cpu",
@@ -10,391 +8,231 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { flip } from "svelte/animate";
+  import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
+  import { Plus, RefreshCw, Cpu } from "lucide-svelte";
+  import type { LlmBackendConfig } from "$lib/types";
+  import type { HumanizedError } from "$lib/errors/humanize";
+  import { humanize } from "$lib/errors/humanize";
+  import { reportError } from "$lib/errors/reportError";
   import {
-    Plus,
-    Pencil,
-    Trash2,
-    Plug,
-    Star,
-    CheckCircle2,
-    XCircle,
-    PauseCircle,
-    RefreshCw,
-  } from "lucide-svelte";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
-  import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
-  import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
-  import { ErrorBanner } from "$lib/components/operator";
-  import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
-  import LlmBackendDialog from "../../components/settings/LlmBackendDialog.svelte";
+    pingLlmBackend,
+    setDefaultLlmBackend,
+    reloadLlmFromDb,
+    reloadLlm,
+  } from "$lib/ipc/llm";
   import { llmBackendsStore, settingsLoaders } from "$lib/stores/settings";
+  import { listFlip, rowIn } from "$lib/design/listMotion";
+  import { listNavigation } from "$lib/components/operator/listNavigation";
   import { addToast } from "$lib/components/ui/toast";
-  import type { LlmBackendConfig, LlmPingResult } from "$lib/types";
+  import { Button } from "$lib/components/ui/button";
+  import { Card } from "$lib/components/ui/card";
+  import { Skeleton } from "$lib/components/ui/skeleton";
+  import { EmptyState } from "$lib/components/operator";
+  import LlmBackendCard from "../../components/llm/LlmBackendCard.svelte";
+  import LlmDeleteDialog from "../../components/llm/LlmDeleteDialog.svelte";
+  import LlmActionErrorBanner from "../../components/settings/LlmActionErrorBanner.svelte";
+  import LlmBackendDialog from "../../components/settings/LlmBackendDialog.svelte";
+  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
+  import SettingsSection from "../../components/settings/SettingsSection.svelte";
 
-  let actionError = $state<string | null>(null);
+  const SKELETON_COUNT = 2;
+
   let dialogOpen = $state(false);
   let editingBackend = $state<LlmBackendConfig | null>(null);
-
-  // Delete confirmation
   let deleteTarget = $state<LlmBackendConfig | null>(null);
-  let deleteConfirmText = $state("");
-  let deleting = $state(false);
+  let reloading = $state(false);
+  let actionError = $state<HumanizedError | null>(null);
 
-  // Inline ping test state - keyed by backend name.
-  const FEEDBACK_DURATION_MS = 5_000;
-  let testingMap = $state<Record<string, boolean>>({});
-  let testResultMap = $state<Record<string, LlmPingResult>>({});
-  const feedbackTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+  const anyDialogOpen = $derived(dialogOpen || !!deleteTarget);
+  const backends = $derived($llmBackendsStore.data ?? []);
+  const loading = $derived($llmBackendsStore.loading && !$llmBackendsStore.loaded);
+  const loadError = $derived.by<HumanizedError | null>(() => {
+    const raw = $llmBackendsStore.error;
+    return raw ? humanize(raw, (k) => $t(k)) : null;
+  });
 
-  async function handleTest(b: LlmBackendConfig) {
-    const name = b.name;
-    if (testingMap[name]) return;
-    testingMap = { ...testingMap, [name]: true };
-    if (feedbackTimers[name]) {
-      clearTimeout(feedbackTimers[name]);
-      delete feedbackTimers[name];
-    }
-    const { [name]: _drop, ...rest } = testResultMap;
-    testResultMap = rest;
-    try {
-      const result: LlmPingResult = await invoke("ping_llm_backend", { name });
-      testResultMap = { ...testResultMap, [name]: result };
-      if (result.available) {
-        addToast(
-          $t("settings.llm.test_ok_toast", { values: { name } }),
-          "success",
-        );
-      } else {
-        addToast(
-          $t("settings.llm.test_failed_toast", {
-            values: { name, error: result.error ?? $t("common.status.error") },
-          }),
-          "error",
-        );
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      testResultMap = {
-        ...testResultMap,
-        [name]: { backend: name, available: false, latency_ms: null, error: message },
-      };
-      addToast(
-        $t("settings.llm.test_failed_toast", { values: { name, error: message } }),
-        "error",
-      );
-    } finally {
-      testingMap = { ...testingMap, [name]: false };
-      feedbackTimers[name] = setTimeout(() => {
-        const { [name]: _gone, ...remaining } = testResultMap;
-        testResultMap = remaining;
-        delete feedbackTimers[name];
-      }, FEEDBACK_DURATION_MS);
-      // Refresh the backend list so the persistent status tooltip
-      // reflects the cached ping result once the temporary badge fades.
-      void refresh();
-    }
-  }
-
-  async function refresh() {
+  async function refresh(): Promise<void> {
     await settingsLoaders.llmBackends(true);
   }
 
-  function openAdd() {
+  function openAdd(): void {
     editingBackend = null;
     dialogOpen = true;
   }
 
-  function openEdit(b: LlmBackendConfig) {
-    editingBackend = b;
+  function openEdit(backend: LlmBackendConfig): void {
+    editingBackend = backend;
     dialogOpen = true;
   }
 
-  function askDelete(b: LlmBackendConfig) {
-    deleteTarget = b;
-    deleteConfirmText = "";
-    actionError = null;
-  }
-
-  const requiresConfirmType = $derived(!!deleteTarget?.is_default);
-  const canConfirmDelete = $derived(
-    !!deleteTarget && (!requiresConfirmType || deleteConfirmText === "DELETE"),
-  );
-
-  async function confirmDelete() {
-    if (!deleteTarget || !canConfirmDelete) return;
-    deleting = true;
+  async function handleSetDefault(backend: LlmBackendConfig): Promise<void> {
+    if (backend.is_default) return;
     actionError = null;
     try {
-      await invoke("delete_llm_backend", { name: deleteTarget.name });
-      addToast($t("settings.llm.delete_toast", { values: { name: deleteTarget.name } }), "success");
-      deleteTarget = null;
+      await setDefaultLlmBackend(backend.name);
+      // Rebuild the in-memory router so the new default takes effect at once,
+      // instead of leaving an inconsistent default until the next full reload.
+      await reloadLlmFromDb();
       await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : String(err);
-    } finally {
-      deleting = false;
+    } catch (err: unknown) {
+      actionError = reportError(err, { surface: "inline" });
     }
   }
 
-  let reloading = $state(false);
-
-  // Explicit engine reload, independent of a config save. Frees the current
-  // GGUF from RAM and rebuilds the router from the database.
-  async function handleReload() {
+  async function handleReload(): Promise<void> {
     if (reloading) return;
     reloading = true;
     actionError = null;
     try {
-      await invoke("reload_llm");
+      await reloadLlm();
       addToast($t("settings.llm.reload_toast"), "success");
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
+      await refresh();
+    } catch (err: unknown) {
+      actionError = reportError(err, { surface: "inline" });
     } finally {
       reloading = false;
     }
   }
 
-  async function handleSetDefault(b: LlmBackendConfig) {
-    actionError = null;
-    try {
-      await invoke("set_default_llm_backend", { name: b.name });
-      // Rebuild the in-memory router from system.db so the new default takes
-      // effect immediately (parity with the create/edit save path), instead of
-      // only on the next reload triggered elsewhere.
-      await invoke("reload_llm_from_db").catch((e: unknown) => {
-        console.warn("[Llm] reload_llm_from_db failed after set-default:", e);
-      });
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : String(err);
-    }
+  function onSaved(): void {
+    dialogOpen = false;
+    void refresh();
   }
 
-  function statusOf(
-    b: LlmBackendConfig,
-  ): { kind: "connected" | "disabled" | "error"; label: string; tooltip?: string } {
-    if (!b.enabled) return { kind: "disabled", label: $t("settings.llm.status_disabled") };
-    if (b.last_ping_error) {
-      return {
-        kind: "error",
-        label: $t("settings.llm.status_error"),
-        tooltip: b.last_ping_error,
-      };
-    }
-    return { kind: "connected", label: $t("settings.llm.status_configured") };
-  }
-
-  /** Ping every enabled backend in parallel so cached errors are populated. */
-  async function autoPingAllEnabled() {
-    const backends = $llmBackendsStore.data ?? [];
+  // Ping every enabled backend once so cached `last_ping_error` is populated and
+  // each card can render its persistent connected / error status on first paint.
+  async function autoPingAllEnabled(): Promise<void> {
     const enabled = backends.filter((b) => b.enabled);
     if (enabled.length === 0) return;
-    await Promise.all(
-      enabled.map((b) =>
-        invoke<LlmPingResult>("ping_llm_backend", { name: b.name }).catch(() => null),
-      ),
-    );
+    await Promise.all(enabled.map((b) => pingLlmBackend(b.name).catch(() => null)));
     await refresh();
   }
 
-  onMount(async () => {
-    await settingsLoaders.llmBackends();
-    void autoPingAllEnabled();
+  function onKeydown(event: KeyboardEvent): void {
+    if (anyDialogOpen || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+    ) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === "a") {
+      event.preventDefault();
+      openAdd();
+    } else if (key === "r") {
+      event.preventDefault();
+      void handleReload();
+    }
+  }
+
+  onMount(() => {
+    void (async () => {
+      await settingsLoaders.llmBackends();
+      void autoPingAllEnabled();
+    })();
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
   });
 </script>
 
-{#if $llmBackendsStore.loading && !$llmBackendsStore.loaded}
-  <SettingSectionSkeleton rows={2} />
-{:else}
-  <section class="space-y-4" data-testid="llm-backends-section">
-    <div class="flex items-center justify-between">
-      <p class="text-sm text-muted-foreground">{$t("settings.llm_backends_subtitle")}</p>
-      <div class="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={handleReload}
-          disabled={reloading}
-          data-testid="llm-reload-btn"
-        >
-          <RefreshCw class="h-4 w-4 mr-1 {reloading ? 'animate-spin' : ''}" />
-          {$t("settings.llm.reload_btn")}
-        </Button>
-        <Button size="sm" onclick={openAdd} data-testid="add-backend-btn">
-          <Plus class="h-4 w-4 mr-1" />
-          {$t("settings.llm_add_backend")}
-        </Button>
-      </div>
-    </div>
+{#snippet sectionIcon()}
+  <Cpu size={15} strokeWidth={1.75} aria-hidden="true" />
+{/snippet}
 
+{#snippet sectionActions()}
+  <div class="flex items-center gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={handleReload}
+      disabled={reloading}
+      data-testid="llm-reload-btn"
+    >
+      <RefreshCw size={14} class={reloading ? "animate-spin" : ""} />
+      {$t("settings.llm.reload_btn")}
+    </Button>
+    <Button variant="primary-gradient" size="sm" onclick={openAdd} data-testid="add-backend-btn">
+      <Plus size={14} />
+      {$t("settings.llm_add_backend")}
+    </Button>
+  </div>
+{/snippet}
+
+{#snippet emptyIcon()}
+  <Cpu size={24} strokeWidth={1.8} aria-hidden="true" />
+{/snippet}
+
+{#snippet emptyAction()}
+  <Button variant="primary-gradient" size="sm" onclick={openAdd} data-testid="llm-empty-add-btn">
+    <Plus size={14} />
+    {$t("settings.llm_add_backend")}
+  </Button>
+{/snippet}
+
+<SettingsSubPage route="llm" data-testid="llm-backends-section">
+  <SettingsSection title={$t("settings.llm_backends")} icon={sectionIcon} actions={sectionActions}>
     {#if actionError}
-      <ErrorBanner message={actionError} />
+      <LlmActionErrorBanner error={actionError} onretry={handleReload} loading={reloading} />
     {/if}
 
-    {#if $llmBackendsStore.error}
-      <ErrorBanner message={$llmBackendsStore.error} />
-    {:else if ($llmBackendsStore.data ?? []).length === 0}
-      <div
-        class="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground"
-        data-testid="llm-backends-empty"
-      >
-        {$t("settings.llm_no_backends")}
-      </div>
-    {:else}
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3" data-testid="llm-backends-list">
-        {#each ($llmBackendsStore.data ?? []) as backend (backend.name)}
-          {@const status = statusOf(backend)}
-          <Card class="rounded-lg p-4 flex flex-col gap-3" data-testid="llm-backend-card-{backend.name}">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-sm font-mono font-medium truncate">{backend.name}</span>
-                  {#if backend.is_default}
-                    <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      <Star class="h-3 w-3" />
-                      {$t("settings.llm.badge_default")}
-                    </span>
-                  {/if}
-                </div>
-                <p class="mt-0.5 text-xs text-muted-foreground">
-                  {backend.provider} · <span class="font-mono">{backend.model}</span>
-                </p>
-              </div>
-              <div class="flex items-center gap-1">
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                  title={$t("settings.llm.test")}
-                  aria-label={$t("settings.llm.test")}
-                  onclick={() => handleTest(backend)}
-                  disabled={!backend.enabled || !!testingMap[backend.name]}
-                  data-testid="test-backend-{backend.name}"
-                >
-                  <Plug class="h-4 w-4 {testingMap[backend.name] ? 'animate-pulse' : ''}" />
-                </Button>
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  title={$t("settings.llm.edit")}
-                  aria-label={$t("settings.llm.edit")}
-                  onclick={() => openEdit(backend)}
-                  data-testid="edit-backend-{backend.name}"
-                >
-                  <Pencil class="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  class="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  title={$t("common.delete")}
-                  aria-label={$t("common.delete")}
-                  onclick={() => askDelete(backend)}
-                  data-testid="delete-backend-{backend.name}"
-                >
-                  <Trash2 class="h-4 w-4" />
-                </Button>
-              </div>
+    {#if loading}
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2" data-testid="llm-skeleton">
+        {#each { length: SKELETON_COUNT } as _}
+          <Card class="space-y-3 p-4">
+            <div class="flex items-center justify-between">
+              <Skeleton variant="text" class="h-5 w-1/2" />
+              <Skeleton variant="text" class="h-5 w-14 rounded-full" />
             </div>
-
-            <div class="flex items-center justify-between gap-2 text-xs">
-              <span
-                class="inline-flex items-center gap-1.5"
-                title={status.tooltip ?? undefined}
-                data-testid="status-{backend.name}"
-              >
-                {#if status.kind === "connected"}
-                  <CheckCircle2 class="h-3.5 w-3.5 text-success" />
-                {:else if status.kind === "disabled"}
-                  <PauseCircle class="h-3.5 w-3.5 text-muted-foreground" />
-                {:else}
-                  <XCircle class="h-3.5 w-3.5 text-destructive" />
-                {/if}
-                <span class="text-muted-foreground">{status.label}</span>
-              </span>
-              <div class="flex items-center gap-2 shrink-0">
-                {#if testResultMap[backend.name]}
-                  {@const result = testResultMap[backend.name]}
-                  {#if result.available}
-                    <Badge variant="success" size="sm" data-testid="test-result-ok-{backend.name}">
-                      OK{result.latency_ms !== null ? ` · ${result.latency_ms} ms` : ""}
-                    </Badge>
-                  {:else}
-                    <Badge variant="danger" size="sm" class="max-w-[220px]" data-testid="test-result-err-{backend.name}">
-                      <span class="truncate">{$t("common.status.error")}{result.error ? `: ${result.error}` : ""}</span>
-                    </Badge>
-                  {/if}
-                {/if}
-                {#if !backend.is_default}
-                  <Button variant="ghost" size="sm"
-                    type="button"
-                    class="text-primary hover:underline"
-                    onclick={() => handleSetDefault(backend)}
-                    data-testid="set-default-{backend.name}"
-                  >
-                    {$t("settings.llm_set_default")}
-                  </Button>
-                {/if}
-              </div>
-            </div>
+            <Skeleton variant="text" class="h-3 w-2/3" />
+            <Skeleton variant="text" class="h-3 w-2/5" />
           </Card>
         {/each}
       </div>
+    {:else if loadError}
+      <LlmActionErrorBanner error={loadError} onretry={refresh} />
+    {:else if backends.length === 0}
+      <div data-testid="llm-backends-empty">
+        <EmptyState icon={emptyIcon} title={$t("settings.llm_no_backends")} action={emptyAction} />
+      </div>
+    {:else}
+      <div
+        class="grid grid-cols-1 gap-3 lg:grid-cols-2"
+        data-testid="llm-backends-list"
+        use:listNavigation={{ rowSelector: '[data-testid="llm-backend-card"]' }}
+      >
+        {#each backends as backend (backend.name)}
+          <div animate:flip={listFlip()} in:fly={rowIn()}>
+            <LlmBackendCard
+              {backend}
+              onSetDefault={handleSetDefault}
+              onEdit={openEdit}
+              onRemove={(b) => (deleteTarget = b)}
+            />
+          </div>
+        {/each}
+      </div>
     {/if}
-  </section>
-{/if}
+  </SettingsSection>
+</SettingsSubPage>
 
 <LlmBackendDialog
   open={dialogOpen}
   backend={editingBackend}
   onclose={() => (dialogOpen = false)}
-  onsaved={() => {
-    dialogOpen = false;
+  onsaved={onSaved}
+/>
+
+<LlmDeleteDialog
+  target={deleteTarget}
+  onclose={() => (deleteTarget = null)}
+  ondeleted={() => {
+    deleteTarget = null;
     void refresh();
   }}
 />
-
-<!-- Delete confirm dialog -->
-<Dialog
-  open={!!deleteTarget}
-  onclose={() => (deleteTarget = null)}
-  size="sm"
-  title={$t("settings.llm.delete_title")}
-  data-testid="llm-delete-dialog"
->
-  {#if deleteTarget}
-    <p class="text-sm text-muted-foreground">
-      {$t("settings.llm.delete_message", { values: { name: deleteTarget.name } })}
-    </p>
-    {#if requiresConfirmType}
-      <div class="mt-4 space-y-1.5">
-        <label for="llm-delete-confirm" class="text-xs font-medium text-foreground">
-          {$t("settings.llm.delete_type_prompt")}
-        </label>
-        <Input
-          id="llm-delete-confirm"
-          type="text"
-          placeholder="DELETE"
-          class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          bind:value={deleteConfirmText}
-          data-testid="llm-delete-confirm-input"
-         />
-      </div>
-    {/if}
-  {/if}
-  <DialogFooter>
-    <Button variant="outline" onclick={() => (deleteTarget = null)} data-testid="llm-delete-cancel">
-      {$t("common.cancel")}
-    </Button>
-    <Button
-      variant="destructive"
-      onclick={confirmDelete}
-      disabled={deleting || !canConfirmDelete}
-      data-testid="llm-delete-confirm-btn"
-    >
-      {deleting ? $t("common.loading") : $t("common.delete")}
-    </Button>
-  </DialogFooter>
-</Dialog>

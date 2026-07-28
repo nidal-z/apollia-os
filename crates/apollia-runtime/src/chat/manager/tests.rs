@@ -1006,7 +1006,10 @@ async fn test_approve_plan_transitions_to_executing_and_emits() {
     let (mut manager, mut rx) = manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
 
     // WHEN the plan is approved
-    manager.handle_approve_plan("sess-1").expect("approve ok");
+    manager
+        .handle_approve_plan("sess-1")
+        .await
+        .expect("approve ok");
 
     // THEN the phase moves to Executing (in memory and persisted) and
     // ChatPlanApproved is emitted; the continuation turn is dispatched, so
@@ -1033,6 +1036,106 @@ async fn test_approve_plan_transitions_to_executing_and_emits() {
     );
 }
 
+/// Build a chat-scope [`PlanStep`] with no dependencies for a manager test.
+fn plan_step_for_test(id: &str) -> apollia_core::plan::PlanStep {
+    apollia_core::plan::PlanStep {
+        step_id: id.into(),
+        title: id.into(),
+        description: format!("desc {id}"),
+        status: apollia_core::plan::StepStatus::Pending,
+        depends_on: Vec::new(),
+        tool_hint: None,
+        model_hint: None,
+        rationale: None,
+        provenance: apollia_core::plan::StepProvenance::default(),
+        args: None,
+    }
+}
+
+#[tokio::test]
+async fn test_approve_reconciles_stale_phase_from_plan_status() {
+    // GIVEN a session whose in-memory phase is still stale (Discovery) while the
+    // persisted plan status is already AwaitingApproval. This reproduces the
+    // race: the approval click is enqueued before ExchangeComplete flips the
+    // in-memory phase, but PlanActor::submit has already persisted the status.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (mut manager, mut rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
+
+    let plan = crate::chat::plan_actor::spawn_plan_actor(
+        rusqlite::Connection::open_in_memory().expect("in-memory db"),
+        None,
+    )
+    .expect("spawn plan actor");
+    plan.propose(
+        "sess-1",
+        vec![plan_step_for_test("a"), plan_step_for_test("b")],
+        None,
+    )
+    .await
+    .expect("propose");
+    plan.submit("sess-1").await.expect("submit");
+    manager.plan_handle = Some(plan);
+
+    // WHEN the plan is approved while the in-memory phase is still Discovery
+    manager
+        .handle_approve_plan("sess-1")
+        .await
+        .expect("guard reconciles from plan status and approval proceeds");
+
+    // THEN the guard reconciled from the authoritative plan status instead of
+    // failing with NotAwaitingApproval; the phase moved to Executing (in memory
+    // and persisted) and ChatPlanApproved was emitted.
+    assert_eq!(
+        manager.sessions.get("sess-1").unwrap().plan_phase,
+        PlanPhase::Executing
+    );
+    let persisted = manager
+        .repository
+        .get_session("sess-1")
+        .expect("get")
+        .expect("row");
+    assert_eq!(persisted.plan_phase, PlanPhase::Executing.as_sql());
+    match next_gate_event(&mut rx) {
+        Some(RuntimeEvent::ChatPlanApproved { session_id }) => {
+            assert_eq!(session_id, "sess-1");
+        }
+        other => panic!("expected ChatPlanApproved, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_approve_still_rejects_when_plan_not_submitted() {
+    // GIVEN a session in Discovery whose plan exists but is only a Draft (never
+    // submitted), so the reconciliation must NOT open the gate.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
+
+    let plan = crate::chat::plan_actor::spawn_plan_actor(
+        rusqlite::Connection::open_in_memory().expect("in-memory db"),
+        None,
+    )
+    .expect("spawn plan actor");
+    plan.propose("sess-1", vec![plan_step_for_test("a")], None)
+        .await
+        .expect("propose");
+    manager.plan_handle = Some(plan);
+
+    // WHEN approve is requested with a Draft plan (not awaiting approval)
+    let result = manager.handle_approve_plan("sess-1").await;
+
+    // THEN the guard still fails fast: reconciliation only proceeds on a plan
+    // whose persisted status is AwaitingApproval.
+    assert!(matches!(
+        result,
+        Err(ChatError::NotAwaitingApproval { ref current_phase, .. })
+            if current_phase == "discovery"
+    ));
+    assert_eq!(
+        manager.sessions.get("sess-1").unwrap().plan_phase,
+        PlanPhase::Discovery
+    );
+}
+
 #[tokio::test]
 async fn test_reject_plan_emits_and_stays_awaiting() {
     // GIVEN a session awaiting approval
@@ -1042,6 +1145,7 @@ async fn test_reject_plan_emits_and_stays_awaiting() {
     // WHEN the plan is rejected with a reason
     manager
         .handle_reject_plan("sess-1", Some("step 2 is risky".into()))
+        .await
         .expect("reject ok");
 
     // THEN ChatPlanRejected carries the reason and the phase stays awaiting
@@ -1152,6 +1256,8 @@ async fn exchange_complete_records_paused_state() {
         frontier_ceiling_reached: false,
         final_plan_phase: None,
         paused: true,
+        context_window_tokens: None,
+        context_tokens_used: 0,
     };
 
     // WHEN the exchange completes as paused
@@ -1274,7 +1380,7 @@ async fn test_approve_outside_awaiting_returns_typed_error() {
     let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
 
     // WHEN approve is requested
-    let result = manager.handle_approve_plan("sess-1");
+    let result = manager.handle_approve_plan("sess-1").await;
 
     // THEN a typed NotAwaitingApproval error is returned, no transition
     assert!(matches!(
@@ -1295,7 +1401,7 @@ async fn test_reject_unknown_session_returns_not_found() {
     let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
 
     // WHEN rejecting an unknown session id
-    let result = manager.handle_reject_plan("ghost", None);
+    let result = manager.handle_reject_plan("ghost", None).await;
 
     // THEN a typed SessionNotFound error is returned, no panic
     assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
@@ -1351,6 +1457,8 @@ fn make_response(paused: bool) -> ChatAgentResponse {
         frontier_ceiling_reached: false,
         final_plan_phase: None,
         paused,
+        context_window_tokens: None,
+        context_tokens_used: 0,
     }
 }
 
@@ -1484,7 +1592,10 @@ async fn test_approve_plan_emits_executing_phase_changed() {
     let (mut manager, mut rx) = manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
 
     // WHEN the plan is approved
-    manager.handle_approve_plan("sess-1").expect("approve");
+    manager
+        .handle_approve_plan("sess-1")
+        .await
+        .expect("approve");
 
     // THEN a phase-changed event announces the Executing phase
     assert_eq!(next_phase_event(&mut rx).as_deref(), Some("executing"));

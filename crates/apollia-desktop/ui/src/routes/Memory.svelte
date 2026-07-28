@@ -1,19 +1,29 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
+  import { searchMemory, deleteMemoryEntry } from "$lib/ipc/memory";
+  import { listMemoryNamespaces, listMemoryEntries } from "$lib/ipc/projects";
+  import { listAgents } from "$lib/ipc/connections";
   import type { MemoryEntry, MemorySearchResult } from "$lib/types";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import NamespaceSidebar, { type NamespaceCategory } from "../components/memory/NamespaceSidebar.svelte";
   import MemoryEntryRow from "../components/memory/MemoryEntryRow.svelte";
   import MemoryEntrySheet from "../components/memory/MemoryEntrySheet.svelte";
-  import EmptyState from "../components/common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
   import { Database, Clock, Cog, Search, UserCircle2 } from "lucide-svelte";
+  import { flip } from "svelte/animate";
+  import { fly } from "svelte/transition";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { DetailHeader, SplitLayout } from "$lib/components/operator";
+  import { DetailHeader, SplitLayout, ErrorBanner } from "$lib/components/operator";
+  import { listNavigation } from "$lib/components/operator/listNavigation";
   import { Button } from "$lib/components/ui/button";
+  import { Disclosure } from "$lib/components/ui/disclosure";
   import { TabBar } from "$lib/components/ui/tabs";
+  import { listFlip, rowIn, rowOut } from "$lib/design/listMotion";
+  import { contentIn, contentOut } from "$lib/design/routeTransition";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
 
   // The per-user profile is edited from `Paramètres → Profil`.
   // This page is the namespace explorer only (sidebar with classified
@@ -38,6 +48,10 @@
   let loadingMemory = $state(true);
   let typeFilter = $state<EntryTypeFilter>("all");
   let selectedEntry = $state<MemoryEntry | null>(null);
+  // Inline humanized load error (ErrorBanner + Details disclosure).
+  let loadError = $state<HumanizedError | null>(null);
+  // Normalized relevance (0..1) per entry id, for the search relevance meter.
+  let searchRelevance = $state<Map<string, number>>(new Map());
 
   // ── Filtered entries (par type d'entrée) ─────────────────────────────────────
   const filteredEntries = $derived.by(() => {
@@ -88,8 +102,8 @@
   async function loadNamespaces(): Promise<void> {
     try {
       const [names, agents] = await Promise.all([
-        invoke<string[]>("list_memory_namespaces"),
-        invoke<Array<{ name: string }>>("list_agents").catch(() => []),
+        listMemoryNamespaces(),
+        listAgents().catch(() => []),
       ]);
       installedAgentNames = new Set(agents.map((a) => a.name));
       namespaces = names.map((name) => {
@@ -111,14 +125,16 @@
   async function loadEntries(): Promise<void> {
     if (selectedNamespace === "") return;
     loadingMemory = true;
+    loadError = null;
     try {
-      entries = await invoke("list_memory_entries", { namespace: selectedNamespace });
+      entries = await listMemoryEntries(selectedNamespace);
       searching = false;
+      searchRelevance = new Map();
       namespaces = namespaces.map((ns) =>
         ns.name === selectedNamespace ? { ...ns, count: entries.length } : ns
       );
     } catch (e) {
-      addToast(`${$t("memory.load_entries_failed")}: ${e}`, "error");
+      loadError = reportError(e, { surface: "inline" });
     } finally {
       loadingMemory = false;
     }
@@ -133,11 +149,12 @@
     }
 
     loadingMemory = true;
+    loadError = null;
     try {
-      const results: MemorySearchResult[] = await invoke("search_memory", {
-        namespace: selectedNamespace,
+      const results: MemorySearchResult[] = await searchMemory(
+        selectedNamespace,
         query,
-      });
+      );
 
       entries = results.map((r) => ({
         id: r.id,
@@ -148,9 +165,18 @@
         expires_at: null,
         score: r.score,
       }));
+      // Relevance meter: prefer the backend 0..1 relevance, else normalize BM25
+      // scores against the top hit so the best result fills the bar.
+      const maxScore = Math.max(...results.map((r) => r.score), Number.EPSILON);
+      searchRelevance = new Map(
+        results.map((r) => [
+          r.id,
+          r.relevance ?? Math.max(0, Math.min(1, r.score / maxScore)),
+        ]),
+      );
       searching = true;
     } catch (e) {
-      addToast(`${$t("memory.search_failed")}: ${e}`, "error");
+      reportError(e, { surface: "toast", testid: "memory-search-error" });
     } finally {
       loadingMemory = false;
     }
@@ -167,10 +193,7 @@
 
   async function handleDelete(entryId: string): Promise<void> {
     try {
-      const deleted: boolean = await invoke("delete_memory_entry", {
-        namespace: selectedNamespace,
-        entryId,
-      });
+      const deleted: boolean = await deleteMemoryEntry(selectedNamespace, entryId);
       if (deleted) {
         entries = entries.filter((e) => e.id !== entryId);
         addToast($t("memory.entry_deleted"), "success");
@@ -221,7 +244,7 @@
         <EmptyState
           icon={Database}
           title={$t("memory.empty_title")}
-          subtitle={$t("memory.empty_subtitle")}
+          description={$t("memory.empty_subtitle")}
           page="memory"
         />
       </div>
@@ -242,7 +265,7 @@
         {#if showProfileBanner}
           <div class="mx-6 mt-4 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 flex items-start gap-2">
             <UserCircle2 size={14} class="text-primary mt-0.5" />
-            <p class="text-[11.5px] text-muted-foreground leading-snug">
+            <p class="text-caption text-muted-foreground leading-snug">
               {$t("memory.profile_banner_prefix")}
               <a href="/settings/profile" class="text-primary underline-offset-2 hover:underline font-medium">
                 {$t("memory.profile_banner_link")}
@@ -261,14 +284,14 @@
           {/snippet}
           {#snippet badges()}
             {#if searching}
-              <span class="inline-flex items-center gap-1 text-[11px] text-info">
+              <span class="inline-flex items-center gap-1 text-caption text-info">
                 <Search size={10} />
                 {$t("memory.results_count", { values: { count: filteredEntries.length } })}
               </span>
             {/if}
           {/snippet}
           {#snippet actions()}
-            <div class="w-[260px] max-w-[40vw]">
+            <div class="w-64 max-w-[40vw]">
               <MemorySearch value={searchQuery} onsearch={handleSearch} />
             </div>
           {/snippet}
@@ -286,8 +309,29 @@
         </div>
 
         <!-- Entries list -->
-        <div class="flex-1 overflow-y-auto" data-testid="memory-entries-list">
-          {#if loadingMemory}
+        <div class="flex-1 overflow-y-auto" data-testid="memory-entries-list" use:listNavigation>
+          {#if loadError}
+            <div class="space-y-2 px-6 py-4">
+              <ErrorBanner
+                tone="danger"
+                message={loadError.friendly_message}
+                onretry={loadEntries}
+                retryLabel={$t("common.retry")}
+                loading={loadingMemory}
+                data-testid="memory-load-error"
+              />
+              {#if loadError.detail}
+                <Disclosure testid="memory-error-details">
+                  {#snippet summary()}
+                    <span class="text-caption text-muted-foreground">{$t("memory.error_details")}</span>
+                  {/snippet}
+                  {#snippet children()}
+                    <pre class="overflow-x-auto whitespace-pre-wrap font-mono text-overline font-normal tracking-normal text-destructive">{loadError?.detail}</pre>
+                  {/snippet}
+                </Disclosure>
+              {/if}
+            </div>
+          {:else if loadingMemory}
             <div class="px-6 py-4 space-y-2">
               {#each Array(5) as _}
                 <LoadingShimmer width="100%" height="3rem" />
@@ -295,14 +339,14 @@
             </div>
           {:else if filteredEntries.length === 0}
             <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <div class="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
                 {#if searching}
                   <Search size={16} class="text-muted-foreground" />
                 {:else}
                   <Database size={16} class="text-muted-foreground" />
                 {/if}
               </div>
-              <p class="text-[12.5px] text-muted-foreground">
+              <p class="text-body-xs text-muted-foreground">
                 {searching
                   ? $t("memory.no_search_results")
                   : typeFilter !== "all"
@@ -319,23 +363,30 @@
                 <Button variant="ghost" size="sm"
                   type="button"
                   onclick={() => (typeFilter = "all")}
-                  class="text-[11.5px] text-primary hover:underline"
+                  class="text-caption text-primary hover:underline"
                 >
                   {$t("memory.show_all_entries")}
                 </Button>
               {/if}
             </div>
           {:else}
-            {#each filteredEntries as entry (entry.id)}
-              <MemoryEntryRow
-                {entry}
-                searching={searching}
-                selected={selectedEntry?.id === entry.id}
-                onclick={() => (selectedEntry = entry)}
-                oncopy={() => handleCopyEntry(entry)}
-                ondelete={() => handleDelete(entry.id)}
-              />
-            {/each}
+            {#key selectedNamespace}
+              <div in:fly={contentIn()} out:fly={contentOut()}>
+                {#each filteredEntries as entry (entry.id)}
+                  <div animate:flip={listFlip()} in:fly={rowIn()} out:fly={rowOut()}>
+                    <MemoryEntryRow
+                      {entry}
+                      searching={searching}
+                      relevance={searching ? searchRelevance.get(entry.id) : undefined}
+                      selected={selectedEntry?.id === entry.id}
+                      onclick={() => (selectedEntry = entry)}
+                      oncopy={() => handleCopyEntry(entry)}
+                      ondelete={() => handleDelete(entry.id)}
+                    />
+                  </div>
+                {/each}
+              </div>
+            {/key}
           {/if}
         </div>
       </main>

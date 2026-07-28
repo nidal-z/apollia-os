@@ -241,8 +241,11 @@ async function runStep(
       const timeout = step.timeoutMs ?? 180_000;
       const approve = step.approve !== false;
       const maxApprovals = step.maxApprovals ?? 25;
-      const cardCss = `[data-testid="chat-approval-inline"]`;
-      const acceptCss = `[data-testid^="approval-accept-"]`;
+      // Both personas: builder renders ApprovalCard under chat-approval-inline,
+      // operator renders OperatorApprovalCard (operator-approval-*) in the
+      // reasoning stream. awaitTurn must detect and accept either.
+      const cardCss = `[data-testid="chat-approval-inline"], [data-testid^="operator-approval-"]`;
+      const acceptCss = `[data-testid^="approval-accept-"], [data-testid^="operator-approval-accept-"]`;
       const askCss = `[data-testid="chat-ask-user-inline"]`;
       const planCss = `[data-testid="chat-plan-review"]`;
       // DOM activity indicators (any visible => the turn is still moving).

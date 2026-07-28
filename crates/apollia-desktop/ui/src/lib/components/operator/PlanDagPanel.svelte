@@ -206,7 +206,7 @@
     </div>
   {:else}
     <div
-      class="flex min-h-0 flex-1 items-center justify-center rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
+      class="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-border px-4 py-6 text-center text-caption text-muted-foreground"
       data-testid="plan-dag-empty"
     >
       {$t("plan_session.empty")}

@@ -15,6 +15,8 @@
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t, locale } from "svelte-i18n";
+  import { fly } from "svelte/transition";
+  import { contentIn } from "$lib/design/routeTransition";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -253,6 +255,8 @@
   <Stepper steps={stepLabels} current={step} />
 
   <div class="mt-6 space-y-4">
+    {#key step}
+    <div in:fly={contentIn()}>
     {#if step === 0}
       <!-- Step 1 - Describe ------------------------------------------------->
       <FormField
@@ -363,6 +367,8 @@
         {/if}
       </div>
     {/if}
+    </div>
+    {/key}
   </div>
 
   <DialogFooter>

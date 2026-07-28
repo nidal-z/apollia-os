@@ -11,7 +11,7 @@
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
   import { parseStream } from "$lib/chat/streamParser";
-  import { extractSources, sumToolDurationMs } from "$lib/chat/reasoning";
+  import { extractSources, sumToolDurationMs, reasoningFragmentCount } from "$lib/chat/reasoning";
   import {
     parseApolliaActions,
     sanitizeActionButtons,
@@ -87,6 +87,16 @@
   );
   const activityDurationMs = $derived(sumToolDurationMs(nonPendingCalls));
 
+  // Counts surfaced in the collapsed strip summary so the reader knows how much
+  // reasoning and how many tool calls the turn folded away.
+  const reasoningCount = $derived(
+    reasoningFragmentCount(
+      { id: message.id, tool_calls: nonPendingCalls, metadata: message.metadata },
+      message.content ?? undefined,
+    ),
+  );
+  const toolCount = $derived(nonPendingCalls.length);
+
   // Source cards (zone 3): deduplicated web pages the agent consulted. Their
   // count also feeds the strip summary so both zones agree.
   const sources = $derived(extractSources(nonPendingCalls));
@@ -120,14 +130,6 @@
   // Flat thread: the reading column constrains width. Compact embeds still cap.
   const widthClass = $derived(
     variant === "compact" ? "max-w-[min(78ch,72%)]" : "w-full",
-  );
-
-  // Flat thread: the user turn sits in a light surface block, the assistant
-  // turn renders transparently in the same column. No bubble, no gradient.
-  const blockClass = $derived(
-    isUser
-      ? "bg-surface-2 text-foreground rounded-xl px-4 py-3"
-      : "text-foreground py-1",
   );
 
   let copied = $state(false);
@@ -170,7 +172,7 @@
 </script>
 
 <div
-  class="group flex flex-col items-start gap-1 w-full"
+  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 w-full"
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
@@ -178,7 +180,7 @@
        collapsed by default in both modes. -->
   {#if hasThinking}
     <div class="{widthClass}">
-      <ActivityStrip durationMs={activityDurationMs}>
+      <ActivityStrip durationMs={activityDurationMs} {reasoningCount} {toolCount}>
         <ReasoningSequence
           {message}
           {sessionId}
@@ -212,48 +214,12 @@
   {/if}
 
   <div
-    class="relative {widthClass} text-[14px] leading-relaxed {blockClass} {!isUser && message.content ? (canRegenerate ? 'pr-16' : 'pr-10') : ''} {canEdit && !editing ? 'pr-10' : ''}"
+    class="relative {isUser
+      ? editing
+        ? widthClass
+        : 'chat-user-bubble'
+      : `${widthClass} text-foreground py-1`}"
   >
-    <!-- Copy / regenerate - floating, backdrop-blur, always reachable on touch. -->
-    {#if message.content && !isUser}
-      <div
-        class="absolute top-2 right-2 z-10 flex items-center gap-1
-          opacity-0 group-hover:opacity-100 focus-within:opacity-100
-          supports-[hover:none]:opacity-100"
-      >
-        {#if canRegenerate}
-          <button
-            onclick={() => onregenerate?.(message.id)}
-            disabled={busy}
-            class="h-6 w-6 rounded-md flex items-center justify-center
-              bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
-              hover:text-foreground hover:bg-card/90 transition-all shadow-sm
-              disabled:opacity-40 disabled:cursor-not-allowed"
-            title={$t("chat.regenerate")}
-            data-testid="chat-message-regenerate-{message.id}"
-            aria-label={$t("chat.regenerate")}
-          >
-            <RefreshCw size={11} />
-          </button>
-        {/if}
-        <button
-          onclick={handleCopy}
-          class="h-6 w-6 rounded-md flex items-center justify-center
-            bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
-            hover:text-foreground hover:bg-card/90 transition-all shadow-sm"
-          title={$t("chat.copy_message")}
-          data-testid="chat-message-copy-{message.id}"
-          aria-label={$t("chat.copy_message")}
-        >
-          {#if copied}
-            <Check size={11} class="text-success" />
-          {:else}
-            <Copy size={11} />
-          {/if}
-        </button>
-      </div>
-    {/if}
-
     {#if isUser}
       {#if editing}
         <div class="flex flex-col gap-2">
@@ -290,28 +256,10 @@
         </div>
       {:else if message.content}
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
-        {#if canEdit}
-          <button
-            type="button"
-            onclick={startEdit}
-            disabled={busy}
-            class="absolute top-2 right-2 z-10 h-6 w-6 rounded-md flex items-center justify-center
-              bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
-              opacity-0 group-hover:opacity-100 focus-visible:opacity-100
-              hover:text-foreground hover:bg-card/90 transition-all shadow-sm
-              supports-[hover:none]:opacity-100
-              disabled:opacity-40 disabled:cursor-not-allowed"
-            title={$t("chat.edit_message")}
-            data-testid="chat-message-edit-{message.id}"
-            aria-label={$t("chat.edit_message")}
-          >
-            <Pencil size={11} />
-          </button>
-        {/if}
       {/if}
     {:else if isEmptyAgentResponse}
       <p
-        class="whitespace-pre-wrap break-words italic text-muted-foreground/80"
+        class="whitespace-pre-wrap break-words text-[14px] italic text-muted-foreground/80"
         data-testid="chat-empty-response-{message.id}"
       >
         {emptyResponseLabel}
@@ -319,10 +267,12 @@
     {:else}
       {#if displayContent.trim() !== ""}
         <!-- Zone 3: the answer, the hero. -->
-        <MessageRenderer
-          content={displayContent}
-          citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
-        />
+        <div class="chat-answer">
+          <MessageRenderer
+            content={displayContent}
+            citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
+          />
+        </div>
         <LinkPreviewList content={displayContent} />
       {/if}
       <!-- Zone 4: source cards for the web pages consulted. -->
@@ -356,4 +306,51 @@
       </p>
     {/if}
   </div>
+
+  <!-- Zone 5: turn actions - a row below the turn (mockup .actions). Assistant
+       turns get regenerate + copy; user turns get the inline edit affordance. -->
+  {#if isUser}
+    {#if canEdit && !editing}
+      <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
+        <button
+          type="button"
+          onclick={startEdit}
+          disabled={busy}
+          title={$t("chat.edit_message")}
+          aria-label={$t("chat.edit_message")}
+          data-testid="chat-message-edit-{message.id}"
+        >
+          <Pencil size={15} />
+        </button>
+      </div>
+    {/if}
+  {:else if message.content}
+    <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
+      {#if canRegenerate}
+        <button
+          type="button"
+          onclick={() => onregenerate?.(message.id)}
+          disabled={busy}
+          title={$t("chat.regenerate")}
+          aria-label={$t("chat.regenerate")}
+          data-testid="chat-message-regenerate-{message.id}"
+        >
+          <RefreshCw size={15} />
+        </button>
+      {/if}
+      <button
+        type="button"
+        onclick={handleCopy}
+        title={$t("chat.copy_message")}
+        aria-label={$t("chat.copy_message")}
+        data-testid="chat-message-copy-{message.id}"
+      >
+        {#if copied}
+          <Check size={15} class="text-success" />
+        {:else}
+          <Copy size={15} />
+        {/if}
+      </button>
+    </div>
+  {/if}
 </div>

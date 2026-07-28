@@ -287,12 +287,16 @@ pub async fn get_conversation_stats(
         0
     };
 
-    let context_usage_pct = if context_window > 0 {
-        let used = message_count.min(context_window);
-        (used as f64 / context_window as f64) * 100.0
-    } else {
-        0.0
-    };
+    // Token-based context gauge: current occupancy over the model's real window,
+    // read from the accumulated session metrics. Falls back to 0 (unknown) when
+    // no exchange has completed or the backend does not report a window, rather
+    // than the old message-count-over-20 saturation.
+    let metrics = manager.get_session_metrics(session_id.clone()).await;
+    let context_usage_pct = metrics
+        .filter(|m| m.context_window_tokens > 0)
+        .map(|m| (m.context_tokens_used as f64 / m.context_window_tokens as f64) * 100.0)
+        .map(|pct| pct.min(100.0))
+        .unwrap_or(0.0);
 
     let prompt = &detail.session.system_prompt;
     let user_memory_injected = state.user_memory.is_some()

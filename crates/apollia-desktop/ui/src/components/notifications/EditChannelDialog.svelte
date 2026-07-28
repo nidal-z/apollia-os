@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { NotificationChannelView, UpdateChannelRequest } from "$lib/types";
+  import { updateNotificationChannel } from "$lib/ipc/notifications";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -132,10 +132,7 @@
         request.min_interval_seconds = throttleValue;
       }
 
-      await invoke<NotificationChannelView>("update_notification_channel", {
-        id: channel.id,
-        channel: request,
-      });
+      await updateNotificationChannel(channel.id, request);
       onupdated(channel.id);
       onclose();
     } catch (err: unknown) {
@@ -192,7 +189,7 @@
       <FormField
         id="edit-channel-label"
         label={$t("notifications.field_label")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
         error={labelError || undefined}
         hint={$t("notifications.field_label_help")}
       >
@@ -210,7 +207,7 @@
       <FormField
         id="edit-channel-id"
         label={$t("notifications.field_id")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
       >
         <Input
           id="edit-channel-id"
@@ -225,7 +222,7 @@
       <FormField
         id="edit-channel-type"
         label={$t("notifications.field_type")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
       >
         <Select
           id="edit-channel-type"
@@ -242,7 +239,7 @@
         <FormField
           id="edit-channel-url"
           label={$t("notifications.field_url")}
-          labelClass="text-[11px] font-normal mb-0"
+          labelClass="text-caption font-normal mb-0"
           error={urlError || undefined}
         >
           <Input
@@ -258,7 +255,7 @@
         <FormField
           id="edit-channel-headers"
           label={$t("notifications.field_headers")}
-          labelClass="text-[11px] font-normal mb-0"
+          labelClass="text-caption font-normal mb-0"
           optional
           error={headersError || undefined}
         >
@@ -276,7 +273,7 @@
       <!-- Events per-channel -->
       {#if globalEvents.length > 0}
         <div>
-          <p class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</p>
+          <p class="mb-1 block text-caption text-muted-foreground">{$t("notifications.field_events")}</p>
           <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
           <div class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {#each globalEvents as event}
@@ -288,10 +285,10 @@
                 />
                 <span class="flex flex-1 flex-col gap-0.5 min-w-0">
                   <span class="font-medium leading-tight">{$t(eventLabelKey(event))}</span>
-                  <span class="text-[11px] leading-snug text-muted-foreground">
+                  <span class="text-caption leading-snug text-muted-foreground">
                     {$t(eventDescriptionKey(event))}
                   </span>
-                  <span class="text-[10px] font-mono text-muted-foreground/60 truncate">
+                  <span class="text-caption font-mono text-muted-foreground/60 truncate">
                     {event}
                   </span>
                 </span>
@@ -305,7 +302,7 @@
       <FormField
         id="edit-channel-throttle"
         label={$t("notifications.field_throttle")}
-        labelClass="text-[11px] font-normal mb-0"
+        labelClass="text-caption font-normal mb-0"
         hint={$t("notifications.field_throttle_help")}
       >
         <Select
@@ -322,7 +319,7 @@
           <FormField
             id="edit-channel-throttle-custom"
             label={$t("notifications.throttle_custom_label")}
-            labelClass="text-[11px] font-normal mb-0"
+            labelClass="text-caption font-normal mb-0"
             class="mt-2"
           >
             <Input

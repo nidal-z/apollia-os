@@ -2,6 +2,32 @@
   import { Button } from "$lib/components/ui/button";
   import { themeMode, type ThemeMode } from "$lib/stores/theme";
   import { elevation, primaryShadow, surface, glassBorder, backdrop } from "$lib/design/tokens";
+  import { t } from "svelte-i18n";
+  import { humanize } from "$lib/errors/humanize";
+  import { ERROR_CATEGORIES } from "$lib/i18n/strings/errors";
+
+  // Reading type scale added in Phase 0 (dev-only preview).
+  const typeScale = [
+    { cls: "text-heading-lg", label: "heading-lg" },
+    { cls: "text-heading-md", label: "heading-md" },
+    { cls: "text-heading-sm", label: "heading-sm" },
+    { cls: "text-body-lg", label: "body-lg" },
+    { cls: "text-body-md", label: "body-md" },
+    { cls: "text-body-sm", label: "body-sm" },
+    { cls: "text-body-xs", label: "body-xs" },
+    { cls: "text-label-md", label: "label-md" },
+    { cls: "text-label-sm", label: "label-sm" },
+    { cls: "text-caption", label: "caption" },
+    { cls: "text-overline uppercase", label: "overline" },
+    { cls: "text-code-sm font-mono", label: "code-sm" },
+  ];
+
+  const sampleErrors = [
+    "EACCES: permission denied",
+    "HTTP 429 Too Many Requests",
+    "404 resource not found",
+    "boom - unexpected failure",
+  ];
 
   const elevations = [
     { key: "elev-0", token: elevation.elev0, label: "Flat / inline surfaces" },
@@ -179,6 +205,43 @@
           .app-backdrop (backdrop: {backdrop.default})
         </span>
       </div>
+    </div>
+  </section>
+
+  <!-- Reading type scale (Phase 0) -->
+  <section class="space-y-3" data-testid="design-type-scale">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Reading type scale
+    </h2>
+    <div class="space-y-2 rounded-xl glass-card glass-border p-5">
+      {#each typeScale as tier (tier.label)}
+        <div class="flex items-baseline gap-4">
+          <code class="w-24 shrink-0 text-caption text-muted-foreground/70">{tier.label}</code>
+          <span class={tier.cls}>The quick brown fox</span>
+        </div>
+      {/each}
+    </div>
+  </section>
+
+  <!-- Error humanizer (Phase 0) -->
+  <section class="space-y-3" data-testid="design-error-humanizer">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Error humanizer - humanize()
+    </h2>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {#each sampleErrors as raw (raw)}
+        {@const h = humanize(raw, $t)}
+        {@const Ico = ERROR_CATEGORIES[h.category].icon}
+        <div class="rounded-xl border border-border/60 bg-card p-4">
+          <div class="flex items-center gap-2">
+            <Ico size={15} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span class="text-heading-sm text-foreground">{h.title}</span>
+            <span class="ml-auto text-overline uppercase text-muted-foreground/70">{h.category}</span>
+          </div>
+          <p class="mt-1.5 text-body-sm text-muted-foreground">{h.friendly_message}</p>
+          <p class="mt-1 text-caption text-muted-foreground/70">{h.suggested_action}</p>
+        </div>
+      {/each}
     </div>
   </section>
 </div>

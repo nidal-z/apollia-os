@@ -69,7 +69,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "namespace-sidebar-item-__user__",
+      "testid": "namespace-sidebar-item-apollia-guide",
       "timeoutMs": 4000
     },
     {
@@ -132,7 +132,7 @@
     },
     {
       "kind": "click",
-      "testid": "namespace-sidebar-item-__user__",
+      "testid": "namespace-sidebar-item-apollia-guide",
       "timeoutMs": 2500
     },
     {
@@ -141,7 +141,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-namespace-user-selected"
+      "label": "05-namespace-selected"
     },
     {
       "kind": "waitFor",
@@ -189,7 +189,7 @@
     {
       "kind": "fill",
       "testid": "memory-search-input",
-      "text": "onboarding",
+      "text": "operator",
       "timeoutMs": 2500
     },
     {
@@ -336,5 +336,9 @@
       "kind": "screenshot",
       "label": "15-back-operator"
     }
+  ],
+  "notes": [
+    "__user__ is no longer a memory namespace: the runtime migrates memory/__user__.db into the canonical user_memory.db at boot and retires the file to __user__.db.migrated (supervisor/persistence.rs), and list_memory_namespaces only scans memory/*.db. The namespace walk therefore runs on apollia-guide, the seeded agent namespace that populates all four type tabs.",
+    "The search assertion uses 'operator', the value of the sem-guide-mode entry: it is ASCII (no FTS accent folding to rely on) and belongs to apollia-guide, so it matches exactly one of the namespace's own entries. 'onboarding' matches an entry owned by another agent, which search_memory scopes out."
   ]
 }

@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { LlmDailyCostsResponse, LlmDailyCostEntry } from "$lib/types";
+  import type { LlmDailyCostEntry } from "$lib/types";
+  import { getLlmDailyCosts } from "$lib/ipc/llmCosts";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { ErrorBanner } from "$lib/components/operator";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
   import { BarChart3, TrendingUp } from "lucide-svelte";
 
   const REFRESH_INTERVAL_MS = 60_000;
@@ -38,7 +41,7 @@
 
   let entries = $state<LlmDailyCostEntry[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
+  let errState = $state<HumanizedError | null>(null);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let hoverIndex = $state<number | null>(null);
 
@@ -152,13 +155,11 @@
 
   async function loadCosts(): Promise<void> {
     try {
-      const result: LlmDailyCostsResponse = await invoke("get_llm_daily_costs", {
-        days: windowDays,
-      });
+      const result = await getLlmDailyCosts(windowDays);
       entries = result.entries;
-      error = null;
+      errState = null;
     } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
+      errState = reportError(err, { surface: "inline" });
     } finally {
       loading = false;
     }
@@ -192,10 +193,10 @@
     class="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-4 border-b border-border/40"
   >
     <div class="flex items-baseline gap-3">
-      <h3 class="m-0 text-[15px] font-semibold tracking-[-0.2px] text-foreground">
+      <h3 class="m-0 text-heading-sm font-semibold text-foreground">
         {$t('observability.llm_costs_title')}
       </h3>
-      <span class="font-mono text-[10.5px] tracking-[1.5px] text-muted-foreground/70 uppercase">
+      <span class="font-mono text-overline text-muted-foreground/70 uppercase">
         {$t('observability.period_window_days', { values: { days: windowDays } })}
       </span>
     </div>
@@ -213,7 +214,7 @@
           type="button"
           role="tab"
           aria-selected={isActive}
-          class="px-2.5 py-1 rounded text-[11.5px] font-medium tabular-nums transition-colors {isActive
+          class="px-2.5 py-1 rounded text-caption font-medium tabular-nums transition-colors {isActive
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'}"
           onclick={() => setPeriod(period.key)}
@@ -228,48 +229,53 @@
   <div class="px-6 py-5">
     {#if loading}
       <Skeleton width="100%" height="320px" />
-    {:else if error}
-      <p class="text-sm text-destructive">{error}</p>
+    {:else if errState}
+      <ErrorBanner
+        message={errState.friendly_message}
+        onretry={() => { loading = true; void loadCosts(); }}
+        retryLabel={$t('common.retry')}
+        data-testid="llm-costs-error"
+      />
     {:else if entries.length === 0 || totalCost === 0}
       <div class="flex flex-col items-center justify-center py-16" data-testid="llm-costs-empty">
         <div class="rounded-full glass-inset p-4 mb-4">
           <BarChart3 class="h-8 w-8 text-muted-foreground/60" />
         </div>
-        <p class="text-[13px] text-muted-foreground">{$t('observability.no_llm_calls')}</p>
+        <p class="text-body-sm text-muted-foreground">{$t('observability.no_llm_calls')}</p>
       </div>
     {:else}
       <!-- KPI strip -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" data-testid="llm-costs-kpis">
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+          <div class="section-meta mb-1.5">
             {$t('observability.kpi_total')}
           </div>
-          <div class="text-[20px] font-semibold tabular-nums leading-none">{formatCost(totalCost)}</div>
+          <div class="text-heading-lg font-semibold tabular-nums leading-none">{formatCost(totalCost)}</div>
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+          <div class="section-meta mb-1.5">
             {$t('observability.kpi_avg')}
           </div>
-          <div class="text-[20px] font-semibold tabular-nums leading-none">{formatCost(avgPerDay)}</div>
+          <div class="text-heading-lg font-semibold tabular-nums leading-none">{formatCost(avgPerDay)}</div>
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+          <div class="section-meta mb-1.5">
             {$t('observability.kpi_peak')}
           </div>
           <div class="flex items-baseline gap-2">
-            <span class="text-[20px] font-semibold tabular-nums leading-none">
+            <span class="text-heading-lg font-semibold tabular-nums leading-none">
               {maxDay ? formatCost(maxDay.total) : "-"}
             </span>
             {#if maxDay}
-              <span class="text-[11px] text-muted-foreground tabular-nums">{shortDateLabel(maxDay.date)}</span>
+              <span class="text-caption text-muted-foreground tabular-nums">{shortDateLabel(maxDay.date)}</span>
             {/if}
           </div>
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
+          <div class="section-meta mb-1.5">
             {$t('observability.kpi_top_backend')}
           </div>
           {#if topBackend}
@@ -279,15 +285,15 @@
                 style="background-color: {topBackend.color}"
                 aria-hidden="true"
               ></span>
-              <span class="text-[15px] font-semibold truncate" title={topBackend.backend}>
+              <span class="text-heading-sm font-semibold truncate" title={topBackend.backend}>
                 {topBackend.backend}
               </span>
-              <span class="text-[11px] text-muted-foreground tabular-nums ml-auto">
+              <span class="text-caption text-muted-foreground tabular-nums ml-auto">
                 {formatCost(topBackend.cost)}
               </span>
             </div>
           {:else}
-            <div class="text-[15px] font-semibold text-muted-foreground">-</div>
+            <div class="text-heading-sm font-semibold text-muted-foreground">-</div>
           {/if}
         </article>
       </div>
@@ -452,8 +458,8 @@
               style="background-color: {entry.color}"
               aria-hidden="true"
             ></span>
-            <span class="text-[11.5px] font-medium text-foreground truncate max-w-[10rem]">{entry.backend}</span>
-            <span class="text-[10.5px] text-muted-foreground tabular-nums">{formatCost(entry.cost)}</span>
+            <span class="text-caption font-medium text-foreground truncate max-w-[10rem]">{entry.backend}</span>
+            <span class="text-caption text-muted-foreground tabular-nums">{formatCost(entry.cost)}</span>
           </span>
         {/each}
       </div>

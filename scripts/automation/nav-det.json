@@ -6,6 +6,7 @@
     "Builder cluster (nav-llm, nav-transcriptions, sidebar-builder-separator, sidebar-builder-cluster-label) renders only when uiMode === 'builder' (Sidebar.svelte {#if isBuilder}). In operator mode it is asserted ABSENT via waitGone.",
     "Command palette items carry interpolated ids `command-item-{action-id}` (CommandItem.svelte); the old exact `command-item` no longer exists, so a generic item is matched via testidPrefix.",
     "topbar-search click dispatches Cmd+K, which globalShortcuts.ts TOGGLES; a second click closes the palette.",
+    "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
     "topbar-agents-at-work renders only when running tasks > 0 (data-dependent) and topbar-sidebar-toggle only when sidebarState === 'drawer' (mobile viewport). Both are observed by screenshot only, never hard-asserted."
   ],
   "steps": [
@@ -324,19 +325,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "user-menu-about-dialog"
+      "testid": "about-section",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
       "label": "10-user-menu-about"
-    },
-    {
-      "kind": "click",
-      "testid": "user-menu-about-close"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "user-menu-about-dialog"
     },
     {
       "kind": "goto",

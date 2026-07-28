@@ -3390,8 +3390,8 @@ async fn test_failed_plan_submit_does_not_transition() {
 }
 
 #[tokio::test]
-async fn test_advance_on_submit_idempotent_when_already_awaiting() {
-    // GIVEN an agent whose tracker is already awaiting approval (re-submit)
+async fn test_advance_on_submit_ends_turn_on_revision_resubmit() {
+    // GIVEN an agent whose tracker is already awaiting approval (revision turn)
     let (bus, mut rx) = tokio::sync::broadcast::channel(64);
     let agent = plan_agent_with_bus(bus, true);
     let mut tracker = PlanPhaseTracker {
@@ -3399,10 +3399,37 @@ async fn test_advance_on_submit_idempotent_when_already_awaiting() {
     };
 
     // WHEN another successful submit is observed during a revision turn
-    agent.advance_on_submit(&mut tracker, &[plan_submit_record(true)], "sess-1");
+    let ended = agent.advance_on_submit(&mut tracker, &[plan_submit_record(true)], "sess-1");
 
-    // THEN it stays AwaitingApproval and emits no redundant phase event
+    // THEN it returns true so the caller ends the turn: a revision re-submit must
+    // stop the loop like the first submit, otherwise the model keeps re-proposing
+    // until the budget is exhausted. The phase stays AwaitingApproval and no
+    // redundant phase event is emitted.
+    assert!(ended);
     assert_eq!(tracker.phase, PlanPhase::AwaitingApproval);
+    assert!(matches!(
+        rx.try_recv(),
+        Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+    ));
+}
+
+#[tokio::test]
+async fn test_advance_on_submit_ignores_submit_while_executing() {
+    // GIVEN an agent whose plan is already approved and executing
+    let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+    let agent = plan_agent_with_bus(bus, true);
+    let mut tracker = PlanPhaseTracker {
+        phase: PlanPhase::Executing,
+    };
+
+    // WHEN a stray successful submit is observed mid-execution
+    let ended = agent.advance_on_submit(&mut tracker, &[plan_submit_record(true)], "sess-1");
+
+    // THEN it returns false and the phase stays Executing: a submit must never
+    // re-arm the approval gate once execution has started (that would loop the
+    // approval card forever); no phase event is emitted.
+    assert!(!ended);
+    assert_eq!(tracker.phase, PlanPhase::Executing);
     assert!(matches!(
         rx.try_recv(),
         Err(tokio::sync::broadcast::error::TryRecvError::Empty)

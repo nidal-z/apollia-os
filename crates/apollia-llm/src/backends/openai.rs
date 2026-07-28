@@ -21,8 +21,8 @@ use async_openai::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionResponseStream, ChatCompletionTool, ChatCompletionToolType,
-        CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
+        ChatCompletionResponseStream, ChatCompletionStreamOptions, ChatCompletionTool,
+        ChatCompletionToolType, CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
     },
     Client,
 };
@@ -275,6 +275,13 @@ impl CompletionModel for OpenAICompatibleClient {
         if let Some(max_tokens) = req.max_tokens {
             builder.max_tokens(max_tokens);
         }
+        // Ask the server for a terminal usage chunk so token accounting is not
+        // lost on the streaming path. OpenAI-compatible servers (including the
+        // embedded llama-server) append a final chunk with empty `choices` and a
+        // populated `usage`; it is surfaced downstream as `StreamChunk::Usage`.
+        builder.stream_options(ChatCompletionStreamOptions {
+            include_usage: true,
+        });
 
         let request = builder
             .build()
@@ -332,6 +339,7 @@ impl CompletionModel for OpenAICompatibleClient {
             inner: sse_stream,
             first: first.map(Box::new),
             pending: HashMap::new(),
+            model,
         };
 
         let mapped = futures::stream::unfold(state, next_openai_stream_item);
@@ -526,6 +534,9 @@ enum OpenAIStreamState {
             >,
         >,
         pending: HashMap<u32, PartialToolCall>,
+        /// Resolved model id, kept to price the terminal usage chunk the same
+        /// way the non-streaming `do_complete` path does.
+        model: String,
     },
     /// SSE stream ended; emitting accumulated tool calls one by one.
     Flushing { remaining: Vec<ToolCall> },
@@ -559,6 +570,7 @@ async fn next_openai_stream_item(
             mut inner,
             mut first,
             mut pending,
+            model,
         } => {
             loop {
                 let next = match first.take() {
@@ -567,6 +579,30 @@ async fn next_openai_stream_item(
                 };
                 match next {
                     Some(Ok(response)) => {
+                        // The terminal chunk (empty `choices`, populated `usage`)
+                        // carries the call's token accounting. Surface it as
+                        // `StreamChunk::Usage`, priced like the non-streaming path.
+                        if let Some(usage) = response.usage.as_ref() {
+                            let mapped = TokenUsage {
+                                prompt_tokens: usage.prompt_tokens,
+                                completion_tokens: usage.completion_tokens,
+                                cost_usd: estimate_cost_usd(
+                                    &model,
+                                    usage.prompt_tokens,
+                                    usage.completion_tokens,
+                                ),
+                                ..Default::default()
+                            };
+                            return Some((
+                                Ok(StreamChunk::Usage(mapped)),
+                                OpenAIStreamState::Streaming {
+                                    inner,
+                                    first,
+                                    pending,
+                                    model,
+                                },
+                            ));
+                        }
                         if let Some(text) = next_emittable_text(&mut pending, response) {
                             return Some((
                                 Ok(StreamChunk::Text(text)),
@@ -574,6 +610,7 @@ async fn next_openai_stream_item(
                                     inner,
                                     first,
                                     pending,
+                                    model,
                                 },
                             ));
                         }

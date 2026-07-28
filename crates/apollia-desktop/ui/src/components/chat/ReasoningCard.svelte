@@ -13,8 +13,9 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { JSON_LINE_THRESHOLD } from "$lib/chat/reasoning";
+  import { formatDurationSeconds } from "$lib/chat/duration";
   import ReasoningCardShell from "./ReasoningCardShell.svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import {
     Check,
     X,
@@ -22,7 +23,6 @@
     RotateCcw,
     Quote,
     Wrench,
-    Brain,
   } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -31,6 +31,7 @@
     buildHttpInputDisplay,
     buildOutputSummary,
     formatRationale,
+    humanizeToolName,
   } from "$lib/tools/tool-display";
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
@@ -46,9 +47,7 @@
   import FileGrepBody from "./tool-bodies/FileGrepBody.svelte";
   import HttpFetchBody from "./tool-bodies/HttpFetchBody.svelte";
   import MemorySearchBody from "./tool-bodies/MemorySearchBody.svelte";
-  import PlanToolBody from "./tool-bodies/PlanToolBody.svelte";
   import TodoBody from "./tool-bodies/TodoBody.svelte";
-  import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
 
@@ -342,12 +341,17 @@
     if (!rationale?.summary) return null; // title already shows description
     return $t(toolDisplay.descriptionKey, {
       values: toolDisplay.templateParams,
+      default: humanizeToolName(item.tool),
     });
   });
 
   // Tools that own a bespoke per-tool expanded body (operator + builder
   // layers). Every other tool - including `ask_user`, which keeps its dedicated
-  // Q/A rendering below - falls through to the generic input/output block.
+  // Q/A rendering below - falls through to the generic input/output block. Plan
+  // tools are deliberately excluded: the live Plan panel (ChatPlanHost /
+  // PlanStepDrawer) is the single source of truth for plan state, so a plan
+  // tool call renders only as a quiet one-line acknowledgment in the flow
+  // rather than a second, static representation of the plan.
   const DISPATCHED_TOOLS = new Set<string>([
     "web_search",
     "web_read",
@@ -362,21 +366,10 @@
     "http_fetch",
     "memory_search",
     "todo_write",
-    "plan_propose",
-    "plan_add_step",
-    "plan_modify_step",
-    "plan_remove_step",
-    "plan_reorder",
-    "plan_submit",
-    "plan_set_step_status",
   ]);
 
   const dispatchedTool = $derived(
     item.kind === "tool_call" && DISPATCHED_TOOLS.has(item.tool),
-  );
-
-  const isPlanTool = $derived(
-    item.kind === "tool_call" && item.tool.startsWith("plan_"),
   );
 
   const testid = $derived(`reasoning-card-${item.kind}`);
@@ -388,7 +381,9 @@
   {:else if item.status === "success" || item.status === "approved"}
     <Check class="h-3 w-3 text-success" />
     {#if duration != null}
-      <span class="text-[10px] tabular-nums text-muted-foreground">{duration}ms</span>
+      <span class="text-[11px] tabular-nums text-muted-foreground"
+        >{formatDurationSeconds(duration, $locale ?? "en")} s</span
+      >
     {/if}
   {:else if item.status === "error" || item.status === "rejected"}
     <X class="h-3 w-3 text-destructive" />
@@ -398,43 +393,33 @@
 {#if item.kind === "tool_call"}
   {@const isError = item.status === "error" || item.status === "rejected"}
   {@const isRunning = item.status === "running" || item.status === "pending"}
-  <div class="my-1.5" data-testid={testid}>
+  <div class="chat-flow-tool" class:chat-ft-open={expanded} data-testid={testid}>
     <button
       type="button"
-      class="group flex w-full items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      class="chat-ft-head"
       aria-expanded={expanded}
       aria-label={$t("chat.reasoning.toggle_tool", {
         default: "Toggle tool call details",
       })}
       onclick={toggle}
     >
-      <span
-        class="inline-block leading-none transition-transform duration-150"
-        class:rotate-90={expanded}
-      >›</span>
-      {#if toolDisplay}
-        {@const ToolIcon = toolDisplay.icon}
-        <ToolIcon
-          class="h-3 w-3 flex-shrink-0 {isError
-            ? 'text-destructive/80'
-            : 'opacity-70'}"
-        />
-      {:else}
-        <Wrench
-          class="h-3 w-3 flex-shrink-0 {isError
-            ? 'text-destructive/80'
-            : 'opacity-70'}"
-        />
-      {/if}
-      <span
-        class="min-w-0 truncate font-medium {isError
-          ? 'text-destructive'
-          : 'text-foreground/85'}"
-      >
+      <span class="chat-ft-chev" aria-hidden="true">›</span>
+      <span class="chat-ft-ico" aria-hidden="true">
+        {#if toolDisplay}
+          {@const ToolIcon = toolDisplay.icon}
+          <ToolIcon
+            class="h-3.5 w-3.5 {isError ? 'text-destructive/80' : ''}"
+          />
+        {:else}
+          <Wrench class="h-3.5 w-3.5 {isError ? 'text-destructive/80' : ''}" />
+        {/if}
+      </span>
+      <span class="chat-ft-name" class:chat-ft-error={isError}>
         {#if skin === "operator" && toolDisplay}
           {rationale?.summary ??
             $t(toolDisplay.descriptionKey, {
               values: toolDisplay.templateParams,
+              default: humanizeToolName(item.tool),
             })}
         {:else}
           <span class="font-mono">{item.tool}</span>
@@ -445,10 +430,10 @@
           class="ml-1 hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground/70 sm:inline"
         >{bashDisplay ?? httpDisplay}</span>
       {/if}
-      <span class="ml-auto flex flex-shrink-0 items-center gap-1.5">
+      <span class="chat-ft-meta">
         {@render statusBadge(item.duration_ms)}
         {#if isError && item.exit_code != null}
-          <span class="text-[10px] tabular-nums text-destructive">exit {item.exit_code}</span>
+          <span class="text-[11px] tabular-nums text-destructive">exit {item.exit_code}</span>
         {/if}
         {#if rationale?.performance_hint}
           <PerformanceHint hint={rationale.performance_hint} />
@@ -460,7 +445,7 @@
     </button>
 
     {#if expanded}
-      <div class="mt-1 space-y-1.5 pl-4 text-[11px] leading-relaxed">
+      <div class="chat-ft-body space-y-1.5 text-[11px] leading-relaxed">
         {#if dispatchedTool && item.tool === "web_search"}
           <WebSearchBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "web_read"}
@@ -485,8 +470,6 @@
           <MemorySearchBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "todo_write"}
           <TodoBody {item} {skin} />
-        {:else if dispatchedTool && isPlanTool}
-          <PlanToolBody {item} {skin} />
         {:else}
         {#if askUserPairs}
           <div class="space-y-1">
@@ -652,39 +635,6 @@
             <RetryTimeline attempts={retryAttempts} skin={skin} />
           </div>
         {/if}
-      </div>
-    {/if}
-  </div>
-{:else if item.kind === "thinking" || item.kind === "rationale"}
-  <!-- Reasoning as a flat caption (not a boxed card): a thin accent rule plus a
-       toggle label, so reasoning reads as a differentiated side note in the flat
-       thread rather than a message bubble. Collapsed by default; the primary
-       accent rule + Brain icon set it apart from the answer, and the expanded
-       body uses a readable, higher-contrast type ramp. -->
-  <div class="my-1 border-l-2 border-primary/25 pl-2.5" data-testid={testid}>
-    <button
-      type="button"
-      class="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-      onclick={toggle}
-      aria-expanded={expanded}
-      aria-label={item.kind === "thinking"
-        ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
-        : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
-    >
-      <Brain size={12} class="text-primary/60" />
-      <span>
-        {item.kind === "thinking"
-          ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
-          : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
-      </span>
-      <span
-        class="inline-block leading-none text-muted-foreground/50 transition-transform duration-150"
-        class:rotate-90={expanded}
-      >›</span>
-    </button>
-    {#if expanded}
-      <div class="reasoning-md mt-1 text-[12.5px] leading-relaxed text-foreground/80">
-        <MarkdownContent content={item.content} />
       </div>
     {/if}
   </div>

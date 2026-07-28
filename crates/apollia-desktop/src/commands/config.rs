@@ -9,7 +9,9 @@
 
 use std::path::PathBuf;
 
-use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+use apollia_core::{
+    LlmBackendConfig, LlmBackendRepository, LlmProvider, ObservabilityConfig,
+};
 
 use serde::Serialize;
 
@@ -245,6 +247,116 @@ pub async fn open_config_in_editor() -> Result<(), String> {
     open::that(&path).map_err(|e| format!("failed to open editor: {e}"))
 }
 
+/// Returns the full observability policy currently stored on disk.
+///
+/// Reads the `[observability]` section of `~/.apollia/apollia.toml` and
+/// deserialises it into an [`ObservabilityConfig`]. Every field carries a serde
+/// default, so a partial (or missing) section yields the default value for each
+/// absent key. This exposes all ten fields (`capture_*` flags,
+/// `debug_log_prompt`, the three byte limits, `retention_days`), unlike
+/// [`get_config`], which surfaces only two of them in its flat view.
+#[tauri::command]
+pub async fn get_observability_config() -> Result<ObservabilityConfig, String> {
+    let path = default_config_path();
+    if !path.exists() {
+        return Ok(ObservabilityConfig::default());
+    }
+
+    let content = tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|e| format!("failed to read {}: {e}", path.display()))?;
+
+    let doc: toml::Value = content
+        .parse()
+        .map_err(|e| format!("failed to parse {}: {e}", path.display()))?;
+
+    match doc.get("observability") {
+        Some(section) => section
+            .clone()
+            .try_into()
+            .map_err(|e| format!("invalid [observability] section: {e}")),
+        None => Ok(ObservabilityConfig::default()),
+    }
+}
+
+/// Persists the observability policy to the `[observability]` section of
+/// `~/.apollia/apollia.toml`.
+///
+/// The write is comment-preserving: it parses the file with `toml_edit`, edits
+/// only the `[observability]` keys, and re-serialises, so the operator's
+/// hand-written comments and other sections survive the round-trip.
+///
+/// The change is applied at the next runtime start (the loader reads the
+/// section into the embedded config on boot). The already-running runtime keeps
+/// the config it captured at startup; there is no live-reload channel for
+/// observability today.
+#[tauri::command]
+pub async fn set_observability_config(config: ObservabilityConfig) -> Result<(), String> {
+    let path = default_config_path();
+
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("failed to create config directory: {e}"))?;
+    }
+
+    let mut doc = if path.exists() {
+        let content = tokio::fs::read_to_string(&path)
+            .await
+            .map_err(|e| format!("failed to read {}: {e}", path.display()))?;
+        content
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|e| format!("failed to parse {}: {e}", path.display()))?
+    } else {
+        toml_edit::DocumentMut::new()
+    };
+
+    apply_observability_to_doc(&mut doc, &config);
+
+    tokio::fs::write(&path, doc.to_string())
+        .await
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+
+    tracing::info!(
+        max_input_bytes = config.max_input_bytes,
+        retention_days = config.retention_days,
+        debug_log_prompt = config.debug_log_prompt,
+        "observability.config_saved"
+    );
+
+    Ok(())
+}
+
+/// Writes every [`ObservabilityConfig`] field into the `[observability]` table
+/// of `doc`, creating the table if absent and leaving other content untouched.
+fn apply_observability_to_doc(doc: &mut toml_edit::DocumentMut, config: &ObservabilityConfig) {
+    let obs = doc
+        .entry("observability")
+        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
+    let table = match obs.as_table_mut() {
+        Some(t) => t,
+        None => {
+            // The key exists but is not a table (malformed config); replace it.
+            *obs = toml_edit::Item::Table(toml_edit::Table::new());
+            match obs.as_table_mut() {
+                Some(t) => t,
+                None => return,
+            }
+        }
+    };
+
+    table["max_input_bytes"] = toml_edit::value(config.max_input_bytes as i64);
+    table["max_output_bytes"] = toml_edit::value(config.max_output_bytes as i64);
+    table["max_tool_output_bytes"] = toml_edit::value(config.max_tool_output_bytes as i64);
+    table["debug_log_prompt"] = toml_edit::value(config.debug_log_prompt);
+    table["capture_thoughts"] = toml_edit::value(config.capture_thoughts);
+    table["capture_llm_prompts"] = toml_edit::value(config.capture_llm_prompts);
+    table["capture_tool_args"] = toml_edit::value(config.capture_tool_args);
+    table["capture_tool_outputs"] = toml_edit::value(config.capture_tool_outputs);
+    table["capture_agent_logs"] = toml_edit::value(config.capture_agent_logs);
+    table["retention_days"] = toml_edit::value(i64::from(config.retention_days));
+}
+
 /// Resolves the onboarding flag path `~/.apollia/.onboarded`.
 fn onboarded_flag_path() -> PathBuf {
     let home = std::env::var("HOME")
@@ -331,6 +443,8 @@ pub async fn reset_onboarding(
             "onboarding_stats_total_time_sec",
             "onboarding_stats_actions_completed",
             "onboarding_stats_companion_questions",
+            // Legacy key: the guided-tour voice path is gone, but installations
+            // created before its removal still hold this entry.
             "onboarding_stats_voice_commands_used",
         ];
         for key in &internal_keys {
@@ -1009,6 +1123,63 @@ mod tests {
         assert_eq!(infer_quantization("mistral-7b-Q5_K_S"), "q5_k_s");
         assert_eq!(infer_quantization("phi-3-mini-F16"), "f16");
         assert_eq!(infer_quantization("model-Q3_K_M"), "q3_k_m");
+    }
+
+    #[test]
+    fn test_apply_observability_preserves_comments_and_sections() {
+        // GIVEN a config file with comments and an unrelated section
+        let original = "# top comment\n[runtime]\napi_port = 7771 # inline\n";
+        let mut doc = original
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse doc");
+        let config = ObservabilityConfig {
+            max_input_bytes: 1024,
+            debug_log_prompt: true,
+            retention_days: 7,
+            ..ObservabilityConfig::default()
+        };
+
+        // WHEN writing the observability section
+        apply_observability_to_doc(&mut doc, &config);
+        let rendered = doc.to_string();
+
+        // THEN comments and the runtime section survive
+        assert!(rendered.contains("# top comment"));
+        assert!(rendered.contains("api_port = 7771 # inline"));
+        // AND the observability values are written
+        assert!(rendered.contains("max_input_bytes = 1024"));
+        assert!(rendered.contains("debug_log_prompt = true"));
+        assert!(rendered.contains("retention_days = 7"));
+
+        // AND the round-trip re-parses into the same policy (defaults for the rest)
+        let reparsed: toml::Value = rendered.parse().expect("reparse");
+        let obs: ObservabilityConfig = reparsed
+            .get("observability")
+            .expect("observability section")
+            .clone()
+            .try_into()
+            .expect("deserialize");
+        assert_eq!(obs.max_input_bytes, 1024);
+        assert!(obs.debug_log_prompt);
+        assert_eq!(obs.retention_days, 7);
+        // Untouched fields keep their defaults.
+        assert!(obs.capture_thoughts);
+        assert_eq!(obs.max_output_bytes, 32_768);
+    }
+
+    #[test]
+    fn test_apply_observability_creates_section_when_absent() {
+        // GIVEN an empty document
+        let mut doc = toml_edit::DocumentMut::new();
+
+        // WHEN writing the default policy
+        apply_observability_to_doc(&mut doc, &ObservabilityConfig::default());
+        let rendered = doc.to_string();
+
+        // THEN the section is created with all ten fields
+        assert!(rendered.contains("[observability]"));
+        assert!(rendered.contains("capture_agent_logs = true"));
+        assert!(rendered.contains("max_tool_output_bytes = 10240"));
     }
 
     #[test]

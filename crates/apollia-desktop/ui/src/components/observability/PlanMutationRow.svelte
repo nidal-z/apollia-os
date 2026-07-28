@@ -66,7 +66,7 @@
   class="border-b border-border/30 last:border-0"
   data-testid="plan-mutation-row-{entry.ordinal}"
 >
-  <td class="px-5 py-2.5 text-[11.5px] text-muted-foreground tabular-nums whitespace-nowrap align-top">
+  <td class="px-5 py-2.5 text-caption text-muted-foreground tabular-nums whitespace-nowrap align-top">
     {entry.ts ? new Date(entry.ts).toLocaleString() : ""}
   </td>
   <td class="px-3 py-2.5 align-top" colspan={5}>
@@ -76,21 +76,21 @@
       </span>
       <div class="min-w-0 space-y-1.5">
         <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span class="text-[12px] font-semibold tracking-[-0.1px]">{kindLabel}</span>
+          <span class="text-body-xs font-semibold">{kindLabel}</span>
           {#if stepTitle}
-            <span class="text-[12px] text-foreground">{stepTitle}</span>
+            <span class="text-body-xs text-foreground">{stepTitle}</span>
           {/if}
           {#if entry.step_id}
-            <code class="font-mono text-[11px] text-muted-foreground">{entry.step_id}</code>
+            <code class="font-mono text-caption text-muted-foreground">{entry.step_id}</code>
           {/if}
-          <span class="text-[10px] text-muted-foreground/70">
+          <span class="text-caption text-muted-foreground/70">
             {$t("observability.plan_mutation.revision", { values: { n: entry.revision } })}
           </span>
         </div>
 
         {#if entry.reason}
           <p
-            class="text-[11.5px] text-muted-foreground"
+            class="text-caption text-muted-foreground"
             data-testid="plan-mutation-reason-{entry.ordinal}"
           >
             <span class="font-medium">{$t("observability.plan_mutation.reason")}</span>:
@@ -100,11 +100,11 @@
 
         {#if hasDiff}
           <dl
-            class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11.5px]"
+            class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-caption"
             data-testid="plan-mutation-diff-{entry.ordinal}"
           >
             {#each fieldDiff as diff (diff.field)}
-              <dt class="section-meta text-[10px] tracking-[1.2px] pt-0.5">
+              <dt class="section-meta pt-0.5">
                 {fieldLabel(diff.field)}
               </dt>
               <dd class="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono">

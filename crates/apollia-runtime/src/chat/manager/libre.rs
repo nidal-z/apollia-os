@@ -94,6 +94,31 @@ fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::pa
             out.pre_authorized_tools.insert(r.tool_name);
         }
     }
+
+    // Global allow-rules (e.g. authorized during onboarding, persisted with
+    // scope='global' and no agent_id) are honored in libre chat too, not just
+    // agent-scoped ones. Without this pass such tools would keep triggering a
+    // HITL prompt every turn. Same safety filters as above: only name-only
+    // allow-rules, never code executors (they always require per-invocation
+    // approval), and arg-prefix rules are skipped because the name-only
+    // HashSet cannot represent them.
+    let Ok(global_rules) =
+        engine.list_rules_filtered(Some(apollia_permissions::PermissionScope::Global), None)
+    else {
+        return;
+    };
+    for r in global_rules {
+        if matches!(r.action, RuleAction::Allow) && r.arg_prefix.is_none() {
+            if apollia_permissions::is_code_executor(&r.tool_name) {
+                warn!(
+                    tool = %r.tool_name,
+                    "ignoring persisted global allow-rule for a code executor: per-invocation approval required"
+                );
+                continue;
+            }
+            out.pre_authorized_tools.insert(r.tool_name);
+        }
+    }
 }
 
 /// Apply Libre-mode governance overrides to the session prompt and return the
@@ -128,11 +153,20 @@ pub(in crate::chat::manager) fn apply_libre_overrides(
 }
 
 /// Accumulate the metrics of one completed exchange into `entry`.
+///
+/// `context_window_tokens` is the model's real context window in tokens (`None`
+/// when the backend cannot report it) and `context_tokens_used` is the prompt
+/// size of the exchange's last LLM call, i.e. the current context occupancy.
+/// Both feed the token-based context gauge; a `None` window is stored as `0` so
+/// the gauge renders as unknown rather than a misleading fill.
+#[allow(clippy::too_many_arguments)]
 pub(in crate::chat::manager) fn accumulate_exchange_metrics(
     entry: &mut SessionMetrics,
     tokens_used: &apollia_llm::types::TokenUsage,
     session: &ChatSession,
     max_steps: u32,
+    context_window_tokens: Option<u32>,
+    context_tokens_used: u32,
 ) {
     let now_ts = now_rfc3339();
     if entry.started_at.is_none() {
@@ -159,8 +193,11 @@ pub(in crate::chat::manager) fn accumulate_exchange_metrics(
     };
     entry.budget_max_steps = max_steps;
     entry.steps_used = entry.steps_used.saturating_add(1);
-    entry.context_window_size = super::super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
-    entry.messages_in_history = session.history.len() as u32;
+    // Token-based context gauge: real model window vs current occupancy. A
+    // `None` window (unknown) is stored as `0` so the UI shows an unknown gauge
+    // rather than the old message-count-over-20 saturation.
+    entry.context_window_tokens = context_window_tokens.unwrap_or(0);
+    entry.context_tokens_used = context_tokens_used;
     entry.exchanges_count = entry.exchanges_count.saturating_add(1);
     entry.record_tool_calls(
         &session
@@ -601,5 +638,83 @@ mod code_executor_guard_tests {
         // THEN the code executor is not pre-authorized, the normal tool is
         assert!(!out.pre_authorized_tools.contains("bash_executor"));
         assert!(out.pre_authorized_tools.contains("web_read"));
+    }
+}
+
+#[cfg(test)]
+mod context_gauge_tests {
+    use super::*;
+    use apollia_llm::types::TokenUsage;
+
+    /// Build a minimal session with `n` empty user messages in history.
+    fn session_with_history(n: usize) -> ChatSession {
+        let history = (0..n)
+            .map(|i| ChatMessage {
+                id: format!("m{i}"),
+                role: ChatRole::User,
+                content: String::new(),
+                tool_calls: None,
+                tool_name: None,
+                created_at: "2026-03-20T10:00:00Z".into(),
+                seq: i as u32,
+                metadata: None,
+            })
+            .collect();
+        ChatSession {
+            id: "sess-gauge".into(),
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: String::new(),
+            status: SessionStatus::Active,
+            history,
+            authorized_tools: std::collections::HashSet::new(),
+            available_tools: vec![],
+            created_at: "2026-03-20T10:00:00Z".into(),
+            active_exchange: None,
+            llm_backend: None,
+            title: None,
+            parent_session_id: None,
+            fork_depth: 0,
+            project_id: None,
+            force_project_context_inject: false,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
+            plan_mode: false,
+            plan_phase: PlanPhase::Done,
+        }
+    }
+
+    #[test]
+    fn context_gauge_uses_token_window_and_occupancy() {
+        // GIVEN a fresh metrics entry and a session with 40 messages in history
+        let mut entry = SessionMetrics::new("sess-gauge");
+        let session = session_with_history(40);
+        let usage = TokenUsage::default();
+
+        // WHEN an exchange completes reporting a 4096-token window and 1024
+        // tokens of current occupancy
+        accumulate_exchange_metrics(&mut entry, &usage, &session, 12, Some(4096), 1024);
+
+        // THEN the gauge fields carry token units (not the 40-vs-20 message count):
+        // a 25% fill, never saturated at 100%
+        assert_eq!(entry.context_window_tokens, 4096);
+        assert_eq!(entry.context_tokens_used, 1024);
+    }
+
+    #[test]
+    fn context_gauge_unknown_window_stored_as_zero() {
+        // GIVEN a metrics entry and a session whose backend reports no window
+        let mut entry = SessionMetrics::new("sess-gauge");
+        let session = session_with_history(3);
+        let usage = TokenUsage::default();
+
+        // WHEN an exchange completes with an unknown context window
+        accumulate_exchange_metrics(&mut entry, &usage, &session, 12, None, 512);
+
+        // THEN the window is stored as 0 so the UI renders an unknown gauge
+        // (pct guard) rather than a misleading fill
+        assert_eq!(entry.context_window_tokens, 0);
+        assert_eq!(entry.context_tokens_used, 512);
     }
 }

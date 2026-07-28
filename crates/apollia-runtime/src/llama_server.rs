@@ -299,6 +299,14 @@ impl LlamaServerSupervisor {
             .arg("--flash-attn")
             .arg("on")
             .arg("--jinja")
+            // Keep reasoning inline as <think>...</think> in the content stream
+            // instead of splitting it into a separate `reasoning_content` field
+            // (the llama-server default is `deepseek`, which splits). The whole
+            // chat pipeline (live StreamingMessage parsing and the finalized
+            // thinking_trace extraction) is built around inline <think> tags, so
+            // splitting would silently drop every reasoning model's thoughts.
+            .arg("--reasoning-format")
+            .arg("none")
             .arg("--host")
             .arg("127.0.0.1")
             .arg("--port")

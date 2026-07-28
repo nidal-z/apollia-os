@@ -7,8 +7,7 @@
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
-  import OnboardingTourRunner from "./components/onboarding/OnboardingTourRunner.svelte";
-  import { onboardingTourActive } from "$lib/stores/tour";
+  import TourHost from "$lib/components/tour/TourHost.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
   import PlanModeHost from "$lib/components/operator/PlanModeHost.svelte";
@@ -23,7 +22,8 @@
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import type { OnboardingState } from "$lib/types";
   import { CommandPalette } from "./components/command-palette";
-  import { installGlobalShortcuts } from "$lib/keyboard/globalShortcuts";
+  import { mountShortcutDispatcher } from "$lib/navigation/shortcutDispatcher";
+  import { registerGlobalShortcutHandlers } from "$lib/navigation/globalShortcutHandlers";
   import { openNewTaskRequested } from "$lib/stores/tasks";
   import { llmBackends } from "$lib/stores/sse";
   import { get } from "svelte/store";
@@ -71,7 +71,12 @@
     initTheme();
     void hydratePlanModeDefault();
     const cleanup = createSSEConnection();
-    const disposeShortcuts = installGlobalShortcuts();
+    // Phase-0 shortcut dispatcher: the single window keydown listener that
+    // routes chords to handlers surfaces register via `registerShortcutHandler`.
+    const disposeShortcutDispatcher = mountShortcutDispatcher();
+    // Register the global-scope handlers (command palette, companion focus)
+    // against that dispatcher. Contextual chords stay owned by their surfaces.
+    const disposeGlobalHandlers = registerGlobalShortcutHandlers();
 
     // When dictation is enabled, prime the microphone permission at boot so the
     // global hotkey (which starts a native cpal capture the WebView cannot
@@ -173,7 +178,8 @@
     return () => {
       cleanup?.();
       window.removeEventListener("keydown", handleAncillaryKeydown);
-      disposeShortcuts();
+      disposeGlobalHandlers();
+      disposeShortcutDispatcher();
       unlistenRuntime?.();
       unsubscribeLlm();
     };
@@ -181,6 +187,10 @@
 
   function handleOnboardingClose(): void {
     onboardingModalOpen.set(false);
+    // The guided tour used to own this call, which meant a user who never
+    // finished the tour was never marked onboarded. The tour is now optional
+    // and launched from the dashboard, so completing the modal is what counts.
+    void invoke("mark_onboarded").catch(() => {});
   }
 </script>
 
@@ -214,14 +224,7 @@
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />
     {/if}
-    {#if $onboardingTourActive}
-      <OnboardingTourRunner
-        oncomplete={() => {
-          onboardingTourActive.set(false);
-          void invoke("mark_onboarded").catch(() => {});
-        }}
-      />
-    {/if}
+    <TourHost />
   {/if}
 
   <!-- Global Cmd+K / Ctrl+Shift+P palette. Always mounted so it survives

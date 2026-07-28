@@ -314,6 +314,21 @@ pub async fn cancel_task(state: State<'_, RuntimeHandle>, task_id: String) -> Re
     }
 }
 
+/// Hard-deletes a persisted task record (and its approval rows) from the store.
+///
+/// Distinct from [`cancel_task`], which cancels an in-flight task but keeps its
+/// history: this removes the record entirely, used by the "delete" affordance
+/// on a finished or cancelled task. Returns `true` when a record was removed,
+/// `false` when no persisted task matched (already gone, or runtime-only with
+/// nothing persisted). Errors only when the persistence layer is unavailable.
+#[tauri::command]
+pub async fn delete_task(state: State<'_, RuntimeHandle>, task_id: String) -> Result<bool, String> {
+    let Some(repo) = state.task_repository.as_ref() else {
+        return Err("task persistence is not available".to_string());
+    };
+    repo.delete_task(&task_id).await.map_err(|e| e.to_string())
+}
+
 /// Fetches a task's timeline via the internal REST API.
 ///
 /// Calls `GET /api/v1/tasks/{id}/timeline`, which aggregates events from 5

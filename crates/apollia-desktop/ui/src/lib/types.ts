@@ -1102,7 +1102,6 @@ export interface OnboardingStats {
   total_time_sec: number;
   actions_completed: number;
   companion_questions: number;
-  voice_commands_used: number;
 }
 
 /** Full onboarding state returned by get_onboarding_state. */
@@ -1124,46 +1123,6 @@ export interface OnboardingState {
   completed_at: string | null;
   stats: OnboardingStats;
 }
-
-// ─── Guided Tour ─────────────────────────────────────────────────────────────
-
-/** Interaction descriptor attached to an interactive tour step. */
-export interface TourInteraction {
-  interaction_type: string;
-  prefilled_data: Record<string, unknown> | null;
-  validation_event: string | null;
-}
-
-/**
- * Descriptor for a single guided-tour step returned by `get_tour_steps`.
- *
- * `completion_mode` is one of `"auto"` | `"click_next"` | `"wait_event"`.
- */
-export interface TourStep {
-  id: string;
-  route: string;
-  spotlight_selector: string | null;
-  companion_message_key: string;
-  interaction: TourInteraction | null;
-  completion_mode: string;
-  estimated_seconds: number;
-  /** Visual group for progress rail grouping (e.g. "dashboard"). Null = own group. */
-  group: string | null;
-}
-
-// ─── Voice commands ──────────────────────────────────────────────────────────
-
-/**
- * Action returned by `process_tour_voice_command`.
- *
- * Mirrors the Rust `TourVoiceAction` enum serialised with `#[serde(tag = "action")]`.
- */
-export type TourVoiceAction =
-  | { action: "NextStep" }
-  | { action: "PreviousStep" }
-  | { action: "SkipTour" }
-  | { action: "AskCompanion"; message: string }
-  | { action: "Unrecognized"; transcript: string };
 
 // ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
 

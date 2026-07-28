@@ -303,6 +303,7 @@ impl EmbeddedConfig {
             mcp: Option<apollia_core::McpConfig>,
             hooks: Option<apollia_core::HooksConfig>,
             chat: Option<apollia_core::ChatConfig>,
+            observability: Option<ObservabilityConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -333,6 +334,9 @@ impl EmbeddedConfig {
             }
             if let Some(chat) = s.chat {
                 self.chat_config = chat;
+            }
+            if let Some(obs) = s.observability {
+                self.obs_config = obs;
             }
         }
 

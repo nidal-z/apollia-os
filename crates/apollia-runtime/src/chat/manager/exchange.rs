@@ -557,6 +557,8 @@ impl ChatSessionManager {
         let now = now_rfc3339();
         let assistant_msg_id = uuid::Uuid::new_v4().to_string();
         let tokens_used = response.tokens_used.clone();
+        let context_window_tokens = response.context_window_tokens;
+        let context_tokens_used = response.context_tokens_used;
         let max_steps = self.runtime_budget.max_steps;
         // Terminal plan phase of a plan-flow turn (discovery, then drafting once
         // the agent proposes steps, or back to done on a cancelled discovery).
@@ -685,7 +687,14 @@ impl ChatSessionManager {
             .metrics
             .entry(session_id.to_string())
             .or_insert_with(|| SessionMetrics::new(session_id.to_string()));
-        accumulate_exchange_metrics(entry, &tokens_used, session, max_steps);
+        accumulate_exchange_metrics(
+            entry,
+            &tokens_used,
+            session,
+            max_steps,
+            context_window_tokens,
+            context_tokens_used,
+        );
 
         // Emit a lightweight runtime event so the UI can trigger a refetch.
         // The event bridge forwards it as a generic `runtime-event` with

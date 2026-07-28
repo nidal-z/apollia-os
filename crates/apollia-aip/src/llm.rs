@@ -706,6 +706,10 @@ async fn forward_stream(f: StreamForward) {
                         // to Python; assistants parse JSON from the
                         // accumulated text.
                     }
+                    Ok(StreamChunk::Usage(_)) => {
+                        // Token accounting is not surfaced on this text-only
+                        // Python bridge; drop the terminal usage chunk.
+                    }
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
                         break;

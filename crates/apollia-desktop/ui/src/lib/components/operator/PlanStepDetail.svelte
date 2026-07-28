@@ -39,7 +39,7 @@
     <span class="font-mono text-xs text-muted-foreground">{step.step_id}</span>
     {#if badge}
       <span
-        class={`text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}
+        class={`text-overline uppercase ${badge.cls}`}
         data-testid="plan-step-badge"
       >
         {$t(badge.key)}

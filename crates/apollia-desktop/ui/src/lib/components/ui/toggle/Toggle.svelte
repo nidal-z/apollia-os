@@ -64,7 +64,7 @@
   <span
     class={cn(
       "pointer-events-none flex items-center justify-center rounded-full shadow-sm transition-transform duration-150",
-      loading ? "bg-transparent text-primary-foreground" : "bg-white",
+      loading ? "bg-transparent text-primary-foreground" : "bg-primary-foreground",
       sizes[size].dot,
       checked ? sizes[size].translate : "translate-x-0",
     )}

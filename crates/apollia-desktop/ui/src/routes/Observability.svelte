@@ -1,14 +1,21 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { TabBar } from "$lib/components/ui/tabs";
   import { uiMode } from "$lib/stores/mode";
   import { PageHeader } from "$lib/components/operator";
+  import { RouteTransition } from "$lib/components/ui/route-transition";
   import TimelineGlobal from "../components/observability/TimelineGlobal.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
   import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
   import PlanCacheStats from "../components/observability/PlanCacheStats.svelte";
   import DelegationTree from "../components/observability/DelegationTree.svelte";
   import MailboxTable from "../components/observability/MailboxTable.svelte";
+  import { markFollowVisited } from "$lib/tour/persistence";
+
+  // Ticks the "follow" getting-started milestone. Consulting the activity and
+  // audit surface is an act, so no store can report it on our behalf.
+  onMount(() => markFollowVisited());
 
   type ObsTab =
     | "timeline"
@@ -83,31 +90,37 @@
     />
   </div>
 
+  <!-- Keyed on activeTab so each tab body re-runs the restrained fly+fade swap
+       (RouteTransition), replacing the previous hard snap between panels. -->
   <div class="px-8 pt-5 pb-8">
-    {#if activeTab === "timeline"}
-      {#if timelineLoaded}
-        <TimelineGlobal />
-      {/if}
-    {:else if activeTab === "llm-costs"}
-      {#if costsLoaded}
-        <LlmCostChart />
-      {/if}
-    {:else if activeTab === "audit-trail"}
-      {#if auditLoaded}
-        <AuditTrailTable />
-      {/if}
-    {:else if activeTab === "mailbox"}
-      {#if mailboxLoaded}
-        <MailboxTable />
-      {/if}
-    {:else if activeTab === "delegation"}
-      {#if delegationLoaded}
-        <DelegationTree />
-      {/if}
-    {:else if activeTab === "plan-cache"}
-      {#if planCacheLoaded}
-        <PlanCacheStats />
-      {/if}
-    {/if}
+    {#key activeTab}
+      <RouteTransition>
+        {#if activeTab === "timeline"}
+          {#if timelineLoaded}
+            <TimelineGlobal />
+          {/if}
+        {:else if activeTab === "llm-costs"}
+          {#if costsLoaded}
+            <LlmCostChart />
+          {/if}
+        {:else if activeTab === "audit-trail"}
+          {#if auditLoaded}
+            <AuditTrailTable />
+          {/if}
+        {:else if activeTab === "mailbox"}
+          {#if mailboxLoaded}
+            <MailboxTable />
+          {/if}
+        {:else if activeTab === "delegation"}
+          {#if delegationLoaded}
+            <DelegationTree />
+          {/if}
+        {:else if activeTab === "plan-cache"}
+          {#if planCacheLoaded}
+            <PlanCacheStats />
+          {/if}
+        {/if}
+      </RouteTransition>
+    {/key}
   </div>
 </div>

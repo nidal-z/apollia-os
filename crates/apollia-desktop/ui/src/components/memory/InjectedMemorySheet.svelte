@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { getInjectedMemoryEntries } from "$lib/ipc/memory";
   import { Sheet, SheetHeader, SheetContent } from "$lib/components/ui/sheet";
   import type { InjectedEntry } from "$lib/types";
   import { Brain, ExternalLink } from "lucide-svelte";
@@ -30,9 +30,7 @@
     loading = true;
     error = null;
     try {
-      entries = await invoke<InjectedEntry[]>("get_injected_memory_entries", {
-        turnId: id,
-      });
+      entries = await getInjectedMemoryEntries(id);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       entries = [];

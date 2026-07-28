@@ -111,6 +111,25 @@ const PLAN_REMINDER_PREFIX: &str =
     "[System reminder] The active plan for this session after context compaction \
      (do not re-propose or re-submit it, continue executing the pending steps):";
 
+/// Deterministic assistant message used when a plan is submitted but the model
+/// produced no prose for the turn.
+///
+/// Local models frequently emit the `plan_submit` / `plan_propose` call with no
+/// accompanying text, which would persist an empty assistant message and trip
+/// the UI empty-response fallback. This runtime-generated summary replaces the
+/// empty content so the turn always carries a meaningful message. English by
+/// convention: like the other plan directives in this crate, the source string
+/// is English (the frontend localizes static UI, and model-generated content is
+/// localized via [`apollia_prompts::LANGUAGE_FOOTER`]). A deterministic message
+/// that bypasses the model has no per-session locale available in the runtime,
+/// so it stays English, the platform's canonical source language.
+fn plan_ready_message(step_count: usize) -> String {
+    match step_count {
+        1 => "Plan ready - 1 step awaiting your approval.".to_string(),
+        n => format!("Plan ready - {n} steps awaiting your approval."),
+    }
+}
+
 /// Maximum number of characters for input/output previews in events.
 const PREVIEW_MAX_LEN: usize = 200;
 
@@ -251,6 +270,12 @@ struct ResponseContext<'a> {
     /// Terminal plan-mode phase to carry on the response. `None` outside the
     /// plan flow; `Some` when this turn ran discovery and (possibly) drafting.
     final_plan_phase: Option<PlanPhase>,
+    /// Real context window of the active model in tokens, when known. `None`
+    /// leaves the context gauge in an "unknown" state.
+    context_window_tokens: Option<u32>,
+    /// Prompt-token count of the most recent LLM call, i.e. the current context
+    /// occupancy. Zero when no usage was reported.
+    context_tokens_used: u32,
 }
 
 /// Borrowed context for processing a single tool call inside the ReAct loop.

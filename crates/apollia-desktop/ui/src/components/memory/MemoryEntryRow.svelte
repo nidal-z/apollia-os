@@ -1,277 +1,241 @@
 <script lang="ts">
-  import { Clock, Database, Cog, MoreHorizontal, Trash2, Eye, Copy, Check, X } from "lucide-svelte";
+  import { Clock, Database, Cog, MoreHorizontal, Trash2, Eye, Copy, Check, X, Sparkles } from "lucide-svelte";
+  import { t, locale } from "svelte-i18n";
   import type { MemoryEntry } from "$lib/types";
+  import { uiMode } from "$lib/stores/mode";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
+  import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
 
   interface Props {
     entry: MemoryEntry;
     /** True quand cette row est sélectionnée (panneau détail ouvert sur elle). */
     selected?: boolean;
-    /** True en mode résultat de recherche : affiche le score BM25 si présent. */
+    /** True en mode résultat de recherche : affiche le score BM25 + le relevance-meter. */
     searching?: boolean;
+    /** Relevance normalisée 0..1 pour la barre (reprend l'idiome chat `.tb-mbar`). */
+    relevance?: number;
     onclick?: () => void;
     oncopy?: () => void;
     ondelete?: () => void;
   }
 
-  let { entry, selected = false, searching = false, onclick, oncopy, ondelete }: Props = $props();
-
-  // ── Catégorisation visuelle des clés (préfixes système) ─────────────────────
-  // Le but est de différencier visuellement les clés "système" (`seen:`,
-  // `entity:*`, `bootstrap.*`, `procedure:*`) des clés métier libres, sans
-  // ajouter de couleur - juste une icône + un léger styling de mono.
-  type KeyKind = "seen" | "entity" | "bootstrap" | "procedure" | "user" | "default";
-  const keyKind: KeyKind = $derived.by(() => {
-    if (entry.key.startsWith("seen:")) return "seen";
-    if (entry.key.startsWith("entity:")) return "entity";
-    if (entry.key.startsWith("bootstrap.")) return "bootstrap";
-    if (entry.key.startsWith("procedure:")) return "procedure";
-    if (entry.key.startsWith("user.")) return "user";
-    return "default";
-  });
-
-  // Icone par TYPE d'entrée - rendue explicitement via if/else dans le markup
-  // (volontairement uniforme en couleur muted-foreground pour éviter la collision
-  // tonale avec les chips de catégorie utilisateur).
+  let { entry, selected = false, searching = false, relevance, onclick, oncopy, ondelete }: Props = $props();
 
   const typeLabel = $derived(
-    entry.entry_type === "episodic" ? "Épisodique" :
-    entry.entry_type === "semantic" ? "Sémantique" :
-    entry.entry_type === "procedural" ? "Procédurale" : entry.entry_type
+    entry.entry_type === "episodic"
+      ? $t("memory.type.episodic")
+      : entry.entry_type === "semantic"
+        ? $t("memory.type.semantic")
+        : entry.entry_type === "procedural"
+          ? $t("memory.type.procedural")
+          : entry.entry_type,
   );
+  const typeAbbr = $derived(typeLabel.slice(0, 4).toLowerCase());
 
-  // ── Preview tronquée (sans pretty-print, le détail est dans le Sheet) ────────
+  // ── Preview tronquée (le détail complet vit dans le Sheet) ───────────────────
   const valuePreview = $derived.by(() => {
     if (!entry.value) return "";
-    // Si JSON, prendre la 1re valeur exploitable comme aperçu
     let v = entry.value.trim();
     if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-    if (v.length > 120) v = v.slice(0, 120) + "…";
-    return v;
+    return v.length > 120 ? v.slice(0, 120) + "…" : v;
   });
 
-  // ── Temps relatif court ──────────────────────────────────────────────────────
-  function relativeTime(iso: string): string {
-    const now = Date.now();
-    const then = new Date(iso).getTime();
-    const diffMs = now - then;
-    if (diffMs < 0) return "à venir";
-    const seconds = Math.floor(diffMs / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}min`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}j`;
-    const weeks = Math.floor(days / 7);
-    if (weeks < 5) return `${weeks}sem`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo`;
-    return `${Math.floor(days / 365)}an`;
+  // ── Temps relatif localisé (Intl, aucune chaîne codée en dur) ────────────────
+  function relative(iso: string): string {
+    const rtf = new Intl.RelativeTimeFormat($locale ?? "en", { numeric: "auto", style: "narrow" });
+    const diff = new Date(iso).getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const m = 60_000, h = 3_600_000, d = 86_400_000;
+    if (abs < m) return rtf.format(Math.round(diff / 1000), "second");
+    if (abs < h) return rtf.format(Math.round(diff / m), "minute");
+    if (abs < d) return rtf.format(Math.round(diff / h), "hour");
+    if (abs < 7 * d) return rtf.format(Math.round(diff / d), "day");
+    if (abs < 30 * d) return rtf.format(Math.round(diff / (7 * d)), "week");
+    if (abs < 365 * d) return rtf.format(Math.round(diff / (30 * d)), "month");
+    return rtf.format(Math.round(diff / (365 * d)), "year");
   }
+  const createdRel = $derived(relative(entry.created_at));
+  const expiresRel = $derived(entry.expires_at ? relative(entry.expires_at) : "");
+  const scoreLabel = $derived(
+    searching && entry.score !== null && entry.score !== undefined ? entry.score.toFixed(2) : "",
+  );
+  const relPct = $derived(relevance != null ? Math.round(Math.max(0, Math.min(1, relevance)) * 100) : null);
 
-  function ttlBadge(expiresAt: string | null): string {
-    if (expiresAt === null) return "";
-    const diffMs = new Date(expiresAt).getTime() - Date.now();
-    if (diffMs <= 0) return "expiré";
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (hours < 24) return `TTL ${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `TTL ${days}j`;
-  }
-
-  // ── Menu kebab + confirmation suppression inline (pattern ConversationRow) ──
-  const hasActions = $derived(Boolean(oncopy || ondelete));
+  // ── Menu partagé (kebab + clic droit) ────────────────────────────────────────
+  let menuOpen = $state(false);
   let confirmingDelete = $state(false);
+  $effect(() => {
+    if (!menuOpen) confirmingDelete = false;
+  });
+  function requestDelete(): void {
+    menuOpen = true;
+    confirmingDelete = true;
+  }
+
+  const menuItems = $derived<ActionMenuItem[]>([
+    ...(onclick ? [{ id: "open", label: $t("memory.action_open"), icon: Eye, onclick: () => onclick?.() }] : []),
+    ...(oncopy ? [{ id: "copy", label: $t("memory.copy_label"), icon: Copy, onclick: () => oncopy?.() }] : []),
+    ...(ondelete
+      ? [{ id: "delete", label: $t("memory.delete_label"), icon: Trash2, variant: "destructive" as const, onclick: requestDelete }]
+      : []),
+  ]);
+  const hasActions = $derived(menuItems.length > 0);
 
   function onRowClick(ev: MouseEvent): void {
-    const target = ev.target as HTMLElement | null;
-    if (target?.closest("[data-memory-row-actions]")) return;
+    if ((ev.target as HTMLElement | null)?.closest("[data-memory-row-actions]")) return;
     onclick?.();
   }
-
   function onRowKeydown(ev: KeyboardEvent): void {
     if (ev.key !== "Enter" && ev.key !== " ") return;
-    const target = ev.target as HTMLElement | null;
-    if (target?.closest("[data-memory-row-actions]")) return;
+    if ((ev.target as HTMLElement | null)?.closest("[data-memory-row-actions]")) return;
     ev.preventDefault();
     onclick?.();
   }
-
-  // Score BM25 affichage formaté
-  const scoreLabel = $derived(
-    searching && entry.score !== null && entry.score !== undefined
-      ? entry.score.toFixed(2)
-      : ""
-  );
 </script>
 
-<div
-  role={onclick ? "button" : undefined}
-  tabindex={onclick ? 0 : undefined}
-  onclick={onclick ? onRowClick : undefined}
-  onkeydown={onclick ? onRowKeydown : undefined}
-  class="group relative flex items-start gap-3 px-6 py-3.5 cursor-pointer border-b border-border/40 transition-colors {selected
-    ? 'bg-primary/10'
-    : 'bg-transparent hover:bg-muted/40'}"
-  data-testid="memory-entry-row-{entry.id}"
->
-  <!-- Icone type - uniforme en gris muted, pas de couleur sémantique
-       pour éviter la collision tonale avec les chips de catégorie -->
+{#snippet rowContent()}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
-    class="w-[28px] h-[28px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {selected
-      ? 'bg-primary text-white'
-      : 'bg-muted text-muted-foreground'}"
-    title={typeLabel}
+    role={onclick ? "button" : undefined}
+    tabindex={onclick ? 0 : undefined}
+    onclick={onclick ? onRowClick : undefined}
+    onkeydown={onclick ? onRowKeydown : undefined}
+    class="group relative flex cursor-pointer items-start gap-3 border-b border-border/40 px-6 py-3.5 transition-colors {selected
+      ? 'bg-primary/10'
+      : 'bg-transparent hover:bg-muted/40'}"
+    data-testid="memory-entry-row-{entry.id}"
   >
-    {#if entry.entry_type === "episodic"}
-      <Clock size={13} />
-    {:else if entry.entry_type === "procedural"}
-      <Cog size={13} />
-    {:else}
-      <Database size={13} />
+    {#if selected}
+      <span class="absolute inset-y-0 left-0 w-0.5 bg-gradient-primary" aria-hidden="true"></span>
+    {/if}
+    <div
+      class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md {selected
+        ? 'bg-gradient-primary text-primary-foreground'
+        : 'bg-muted text-muted-foreground'}"
+      title={typeLabel}
+    >
+      {#if entry.entry_type === "episodic"}
+        <Clock size={13} />
+      {:else if entry.entry_type === "procedural"}
+        <Cog size={13} />
+      {:else}
+        <Database size={13} />
+      {/if}
+    </div>
+
+    <div class="min-w-0 flex-1">
+      <!-- Ligne 1 : key + badges -->
+      <div class="flex min-w-0 items-center gap-2">
+        <code class="truncate font-mono text-body-sm text-foreground" style:font-weight={selected ? 600 : 500} title={entry.key}>
+          {entry.key}
+        </code>
+        <span class="inline-flex shrink-0 items-center rounded border border-border/60 bg-background px-1.5 py-px text-overline font-medium tracking-tight text-muted-foreground">
+          {typeAbbr}
+        </span>
+        {#if scoreLabel}
+          <span class="inline-flex shrink-0 items-center rounded bg-info/10 px-1.5 py-px font-mono text-caption tabular-nums text-info" title={$t("memory.meta_score")}>
+            {scoreLabel}
+          </span>
+        {/if}
+      </div>
+
+      {#if $uiMode === "operator"}
+        <!-- Aperçu humain + temps relatif -->
+        <div class="mt-1.5 flex w-full min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+          {#if valuePreview}
+            <span class="min-w-0 flex-1 truncate" title={entry.value}>{valuePreview}</span>
+          {:else}
+            <span class="italic text-muted-foreground/60">{$t("memory.value_empty")}</span>
+          {/if}
+        </div>
+        <div class="mt-1 inline-flex items-center gap-1.5 text-overline font-normal tracking-normal tabular-nums text-muted-foreground/70">
+          <span>{createdRel}</span>
+          {#if expiresRel}
+            <span aria-hidden="true">·</span>
+            <span class="text-warning">TTL {expiresRel}</span>
+          {/if}
+        </div>
+      {:else}
+        <!-- Fiche brute technique -->
+        <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-caption">
+          <dt class="text-muted-foreground/75">id</dt>
+          <dd class="break-all tabular-nums text-foreground/85">{entry.id}</dd>
+          <dt class="text-muted-foreground/75">type</dt>
+          <dd class="text-success">"{entry.entry_type}"</dd>
+          <dt class="text-muted-foreground/75">score</dt>
+          <dd class="text-warning tabular-nums">{entry.score ?? "null"}</dd>
+          <dt class="text-muted-foreground/75">created_at</dt>
+          <dd class="text-success">"{entry.created_at}"</dd>
+          <dt class="text-muted-foreground/75">expires_at</dt>
+          <dd class={entry.expires_at ? "text-success" : "text-warning"}>{entry.expires_at ? `"${entry.expires_at}"` : "null"}</dd>
+        </dl>
+        <div class="mt-1.5 inline-flex items-center gap-1 text-overline font-normal italic tracking-normal text-muted-foreground/80">
+          <Sparkles size={11} class="text-primary" />
+          {entry.entry_type === "episodic" ? $t("memory.embeddings.none") : $t("memory.embeddings.vector")}
+        </div>
+      {/if}
+
+      {#if searching && relPct !== null}
+        <div class="tb-mbar" aria-hidden="true"><span style="width: {relPct}%"></span></div>
+      {/if}
+    </div>
+
+    {#if hasActions}
+      <div class="mt-1 self-start" data-memory-row-actions>
+        <ActionMenu bind:open={menuOpen} align="end" class="min-w-[10rem] p-1" triggerLabel={$t("memory.entry_actions")} data-testid="memory-entry-row-menu-button-{entry.id}">
+          {#snippet triggerSlot(props)}
+            <button
+              type="button"
+              {...props}
+              class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {selected
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'}"
+              aria-label={$t("memory.entry_actions")}
+              data-testid="memory-entry-row-menu-button-{entry.id}"
+            >
+              <MoreHorizontal size={12} />
+            </button>
+          {/snippet}
+          {#snippet body({ close })}
+            {#if confirmingDelete}
+              <div class="flex items-center gap-1 px-1 py-0.5">
+                <Button variant="ghost" size="sm" type="button" onclick={() => { ondelete?.(); confirmingDelete = false; close(); }} class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-caption font-semibold text-primary-foreground hover:bg-destructive/90">
+                  <Check size={11} /> {$t("memory.confirm")}
+                </Button>
+                <Button variant="ghost" size="sm" type="button" onclick={() => { confirmingDelete = false; close(); }} class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-caption font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                  <X size={11} /> {$t("memory.cancel")}
+                </Button>
+              </div>
+            {:else}
+              <ul class="flex flex-col gap-0.5" role="menu">
+                {#each menuItems as it (it.id)}
+                  {@const ItemIcon = it.icon}
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onclick={() => { if (it.id === "delete") { it.onclick(); } else { close(); it.onclick(); } }}
+                      class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs {it.variant === 'destructive' ? 'text-destructive hover:bg-destructive/10' : 'text-foreground hover:bg-muted'}"
+                    >
+                      {#if ItemIcon}<ItemIcon size={12} />{/if}
+                      {it.label}
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          {/snippet}
+        </ActionMenu>
+      </div>
     {/if}
   </div>
+{/snippet}
 
-  <div class="flex-1 min-w-0">
-    <!-- Ligne 1 : key + badges -->
-    <div class="flex items-center gap-2 min-w-0">
-      <code
-        class="text-[13px] truncate {keyKind === 'seen'
-          ? 'text-muted-foreground/80'
-          : keyKind === 'entity'
-            ? 'text-foreground'
-            : keyKind === 'bootstrap'
-              ? 'text-muted-foreground'
-              : keyKind === 'procedure'
-                ? 'text-muted-foreground'
-                : keyKind === 'user'
-                  ? 'text-foreground'
-                  : 'text-foreground'}"
-        style:font-weight={selected ? 600 : 500}
-        title={entry.key}
-      >
-        {entry.key}
-      </code>
-
-      <!-- Type badge minimal (outline, neutre) à droite de la key -->
-      <span
-        class="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[9.5px] font-medium tabular-nums tracking-tight border border-border/60 bg-background text-muted-foreground"
-      >
-        {typeLabel.slice(0, 4).toLowerCase()}
-      </span>
-
-      {#if scoreLabel}
-        <span
-          class="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[9.5px] font-mono tabular-nums tracking-tight bg-info/10 text-info"
-          title="Score BM25"
-        >
-          {scoreLabel}
-        </span>
-      {/if}
-    </div>
-
-    <!-- Ligne 2 : preview valeur -->
-    <div class="text-[11.5px] text-muted-foreground mt-1.5 inline-flex items-center gap-1.5 min-w-0 w-full">
-      {#if valuePreview}
-        <span class="truncate min-w-0 flex-1" title={entry.value}>{valuePreview}</span>
-      {:else}
-        <span class="italic text-muted-foreground/60">vide</span>
-      {/if}
-    </div>
-
-    <!-- Ligne 3 : timestamps + TTL -->
-    <div class="text-[10.5px] text-muted-foreground/70 mt-1 inline-flex items-center gap-1.5">
-      <span class="tabular-nums">il y a {relativeTime(entry.created_at)}</span>
-      {#if entry.expires_at}
-        <span>·</span>
-        <span class="tabular-nums">{ttlBadge(entry.expires_at)}</span>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Menu actions kebab (visible au hover) -->
-  {#if hasActions}
-    <div class="self-start mt-1" data-memory-row-actions>
-      <ActionMenu
-        align="end"
-        class="p-1 min-w-[10rem]"
-        triggerLabel="Actions"
-        data-testid="memory-entry-row-menu-button-{entry.id}"
-      >
-        {#snippet triggerSlot(props)}
-          <button
-            type="button"
-            {...props}
-            class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'}"
-            aria-label="Actions"
-            data-testid="memory-entry-row-menu-button-{entry.id}"
-          >
-            <MoreHorizontal size={12} />
-          </button>
-        {/snippet}
-        {#snippet body({ close })}
-          {#if confirmingDelete}
-            <div class="flex items-center gap-1 px-1 py-0.5">
-              <Button variant="ghost" size="sm"
-                type="button"
-                onclick={() => { ondelete?.(); confirmingDelete = false; close(); }}
-                class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
-              >
-                <Check size={11} /> Confirmer
-              </Button>
-              <Button variant="ghost" size="sm"
-                type="button"
-                onclick={() => { confirmingDelete = false; close(); }}
-                class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              >
-                <X size={11} /> Annuler
-              </Button>
-            </div>
-          {:else}
-            <ul class="flex flex-col gap-0.5" role="menu">
-              {#if oncopy}
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => { oncopy?.(); close(); }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
-                  >
-                    <Copy size={12} /> Copier la valeur
-                  </button>
-                </li>
-              {/if}
-              {#if onclick}
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => { close(); onclick?.(); }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
-                  >
-                    <Eye size={12} /> Détails
-                  </button>
-                </li>
-              {/if}
-              {#if ondelete}
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => { confirmingDelete = true; }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 size={12} /> Supprimer
-                  </button>
-                </li>
-              {/if}
-            </ul>
-          {/if}
-        {/snippet}
-      </ActionMenu>
-    </div>
-  {/if}
-</div>
+{#if hasActions}
+  <ContextMenu items={menuItems} data-testid="memory-entry-row-ctx-{entry.id}">
+    {@render rowContent()}
+  </ContextMenu>
+{:else}
+  {@render rowContent()}
+{/if}

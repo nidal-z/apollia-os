@@ -33,7 +33,7 @@
 
 {#if visible && runId}
   <div
-    class="fixed bottom-4 left-1/2 w-[min(560px,92vw)] -translate-x-1/2"
+    class="fixed bottom-4 left-1/2 w-[min(600px,92vw)] -translate-x-1/2"
     style="z-index: var(--z-overlay);"
     data-testid="plan-mode-host"
   >

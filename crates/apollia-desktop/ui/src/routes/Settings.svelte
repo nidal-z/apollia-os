@@ -43,7 +43,9 @@
   import { addToast } from "$lib/components/ui/toast";
   import { sidebarState } from "$lib/stores/layout";
   import { Sheet } from "$lib/components/ui/sheet";
-  import { ErrorBanner } from "$lib/components/operator";
+  import { ErrorBanner, ListRow, PageHeader } from "$lib/components/operator";
+  import { listNavigation } from "$lib/components/operator/listNavigation";
+  import { RouteTransition } from "$lib/components/ui/route-transition";
   import SettingSectionSkeleton from "../components/settings/SettingSectionSkeleton.svelte";
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
@@ -299,118 +301,120 @@
   ];
 
   // ─── Per-tab heading copy ──────────────────────────────────────────
-  type Head = { title: string; subtitle: string; kicker?: string };
-  const HEAD: Record<SettingsSubRoute, Head> = $derived({
-    appearance: {
-      title: $t("settings.nav.appearance"),
-      subtitle: "Langue, thème et mode d'interface.",
-      kicker: "PERSONNALISATION",
-    },
-    profile: {
-      title: $t("settings.nav.profile"),
-      subtitle: "Vos informations personnelles et préférences.",
-      kicker: "PERSONNALISATION",
-    },
-    stt: {
-      title: $t("settings.nav.stt"),
-      subtitle: "Configurez le moteur de transcription vocale embarqué (whisper.cpp).",
-      kicker: "IA",
-    },
-    llm: {
-      title: $t("settings.nav.llm"),
-      subtitle: "Configurez les backends de modèle de langage utilisés par Apollia et vos agents.",
-      kicker: "IA",
-    },
-    "model-hub": {
-      title: $t("settings.nav.model_hub"),
-      subtitle: "Parcourez, téléchargez et gérez les modèles GGUF depuis HuggingFace.",
-      kicker: "IA",
-    },
-    memories: {
-      title: "Mes Mémoires",
-      subtitle: "Consultez, validez ou corrigez les informations que le système a apprises sur vous.",
-      kicker: "IA",
-    },
-    configuration: {
-      title: $t("settings.nav.configuration"),
-      subtitle: "Préférences générales du système.",
-      kicker: "SYSTÈME",
-    },
-    tools: {
-      title: "Outils natifs",
-      subtitle: "Activez, désactivez et configurez chaque outil mis à disposition des agents.",
-      kicker: "SYSTÈME",
-    },
-    permissions: {
-      title: $t("settings.nav.permissions"),
-      subtitle: "Visualisez et révoquez les autorisations accordées aux outils, par portée.",
-      kicker: "SYSTÈME",
-    },
-    integrations: {
-      title: "Intégrations OAuth",
-      subtitle:
-        "Configurez les identifiants OAuth des connecteurs Google et Microsoft pour les builds personnalisés.",
-      kicker: "SYSTÈME",
-    },
-    system: {
-      title: $t("settings.nav.system"),
-      subtitle: "Détails de l'installation et chemins de configuration.",
-      kicker: "SYSTÈME",
-    },
-    shortcuts: {
-      title: "Raccourcis clavier",
-      subtitle: "Raccourcis disponibles dans Apollia.",
-      kicker: "SYSTÈME",
-    },
-    observability: {
-      title: $t("settings.observability.title"),
-      subtitle: $t("settings.observability.subtitle"),
-      kicker: "SYSTÈME",
-    },
-    help: {
-      title: $t("settings.help.title"),
-      subtitle: $t("settings.help.subtitle"),
-      kicker: $t("settings.nav.cluster_help"),
-    },
-    about: {
-      title: $t("settings.about.title"),
-      subtitle: $t("settings.about.subtitle"),
-      kicker: $t("settings.nav.cluster_help"),
-    },
-    danger: {
-      title: "Zone dangereuse",
-      subtitle:
-        "Ces actions sont irréversibles. Assurez-vous d'avoir ce dont vous avez besoin avant de continuer.",
-      kicker: "ZONE DE DANGER",
-    },
-  });
+  // Title and kicker are derived from the cluster the route belongs to (single
+  // source of truth = CLUSTERS above), so nothing is retyped per entry. Only
+  // the subtitle needs its own key; reuse an existing one where a sub-page
+  // already ships copy, otherwise a dedicated `settings.<route>.subtitle`.
+  const SUBTITLE_KEY: Record<SettingsSubRoute, string> = {
+    appearance: "settings.appearance.subtitle",
+    profile: "settings.profile_subtitle",
+    stt: "settings.stt_subtitle",
+    llm: "settings.llm.subtitle",
+    "model-hub": "settings.model_hub.subtitle",
+    configuration: "settings.configuration.subtitle",
+    tools: "settings.tools_page.subtitle",
+    permissions: "settings.permissions.subtitle",
+    integrations: "settings.integrations.subtitle",
+    system: "settings.system.subtitle",
+    shortcuts: "settings.shortcuts.subtitle",
+    observability: "settings.observability.subtitle",
+    help: "settings.help.subtitle",
+    about: "settings.about.subtitle",
+    danger: "settings.danger.subtitle",
+  };
 
-  const head = $derived(HEAD[$settingsSubRoute]);
+  const ROUTE_META = new Map<SettingsSubRoute, { titleKey: string; kickerKey: string }>();
+  for (const cluster of CLUSTERS) {
+    for (const entry of cluster.entries) {
+      ROUTE_META.set(entry.key, { titleKey: entry.labelKey, kickerKey: cluster.labelKey });
+    }
+  }
+
+  const head = $derived.by(() => {
+    const meta = ROUTE_META.get($settingsSubRoute);
+    return {
+      kicker: meta ? $t(meta.kickerKey) : "",
+      title: meta ? $t(meta.titleKey) : "",
+      subtitle: $t(SUBTITLE_KEY[$settingsSubRoute]),
+    };
+  });
   const currentDirty = $derived($settingsDirtyStore[$settingsSubRoute]?.dirty === true);
 
-  // ─── Sub-nav rendering helper ──────────────────────────────────────
+  // ─── Sub-nav rendering helpers ─────────────────────────────────────
+  const FOCUS_RING =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background";
+
   function clusterTextClass(danger: boolean | undefined): string {
     return danger ? "text-destructive" : "text-muted-foreground";
   }
 
   function entryClass(active: boolean, danger: boolean): string {
-    if (danger) {
-      return active
-        ? "bg-destructive/10 text-destructive border-destructive/20 font-semibold shadow-sm"
-        : "text-destructive/80 hover:bg-destructive/5 hover:text-destructive border-transparent";
-    }
-    return active
-      ? "bg-card text-foreground border-border font-semibold shadow-sm"
-      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border-transparent";
+    const base = danger
+      ? active
+        ? "border border-destructive/20 bg-destructive/10 text-destructive font-semibold shadow-sm"
+        : "border border-transparent text-destructive/80 hover:bg-destructive/5 hover:text-destructive"
+      : active
+        ? "border border-border bg-card text-foreground font-semibold shadow-sm"
+        : "border border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground";
+    return `${base} ${FOCUS_RING}`;
+  }
+
+  function entryIconClass(active: boolean, danger: boolean): string {
+    if (danger) return "text-destructive";
+    return active ? "text-primary" : "text-muted-foreground";
   }
 </script>
 
 <!--
-  V3 Operator Settings - three-column shell.
-  - Outer rail/topbar lives outside this route.
-  - Left sub-nav (240px): grouped tabs with section headers.
-  - Right content: per-tab PageHeader + lazy-loaded sub-route component.
+  Operator Settings - two-column shell (the outer app rail lives outside this
+  route). Left: grouped sub-nav (cluster titles + ListRow nav rows, roving
+  keyboard focus). Right: shell PageHeader with the unsaved affordance, then the
+  lazy-loaded sub-route wrapped in the canonical route transition.
 -->
+{#snippet clusterNav()}
+  {#each CLUSTERS as cluster (cluster.labelKey)}
+    <div>
+      <div
+        class="mb-1.5 px-2.5 font-mono text-overline uppercase {clusterTextClass(cluster.danger)}"
+      >
+        {$t(cluster.labelKey)}
+      </div>
+      <ul class="space-y-0.5">
+        {#each cluster.entries as entry (entry.key)}
+          {@const SvelteIcon = entry.icon}
+          {@const isActive = $settingsSubRoute === entry.key}
+          {@const isDirty = $settingsDirtyStore[entry.key]?.dirty === true}
+          <li aria-current={isActive ? "page" : undefined}>
+            <ListRow
+              variant="nav"
+              align="center"
+              onclick={() => onNavigate(entry.key)}
+              data-testid="settings-nav-{entry.key}"
+              class={entryClass(isActive, cluster.danger === true)}
+            >
+              <SvelteIcon
+                size={14}
+                strokeWidth={1.75}
+                aria-hidden="true"
+                class={entryIconClass(isActive, cluster.danger === true)}
+              />
+              <span class="min-w-0 flex-1 truncate text-body-sm" title={$t(entry.labelKey)}>
+                {$t(entry.labelKey)}
+              </span>
+              {#if isDirty}
+                <span
+                  class="h-1.5 w-1.5 flex-none rounded-full bg-warning"
+                  title={$t("settings.unsaved_changes")}
+                ></span>
+              {/if}
+            </ListRow>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/each}
+{/snippet}
+
 <div
   class="flex h-full min-h-0 flex-1 flex-col"
   data-testid="settings-page"
@@ -421,172 +425,82 @@
       <div
         class="sticky top-0 z-30 mb-2 flex w-full items-center gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-md"
       >
-        <button
-          type="button"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-muted/50 px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        <Button
+          variant="outline"
+          size="sm"
           onclick={() => (mobileOpen = true)}
           aria-haspopup="dialog"
           aria-expanded={mobileOpen}
           data-testid="settings-mobile-nav-toggle"
         >
-          <Menu size={16} strokeWidth={1.75} />
-          <span>{$t("settings.nav.mobile_open")}</span>
-        </button>
+          {#snippet icon()}
+            <Menu size={16} strokeWidth={1.75} />
+          {/snippet}
+          {$t("settings.nav.mobile_open")}
+        </Button>
       </div>
 
       <Sheet open={mobileOpen} onclose={() => (mobileOpen = false)} side="left" width="sm">
-        <div
-          class="flex h-full flex-col overflow-y-auto p-4"
+        <nav
+          use:listNavigation
+          class="flex h-full flex-col gap-5 overflow-y-auto p-4"
+          aria-label={$t("settings.nav.aria_label")}
           data-testid="settings-mobile-nav-sheet"
         >
-          <h2
-            class="mb-4 text-foreground"
-            style="font-size: 18px; font-weight: 600; letter-spacing: -0.3px;"
-          >
+          <h2 class="text-heading-md text-foreground">
             {$t("settings.nav.mobile_title")}
           </h2>
-          {#each CLUSTERS as cluster (cluster.labelKey)}
-            <div class="mb-4">
-              <div
-                class="mb-1.5 px-2 font-mono text-[10px] font-semibold uppercase tracking-[1.5px] {clusterTextClass(
-                  cluster.danger,
-                )}"
-              >
-                {$t(cluster.labelKey)}
-              </div>
-              <ul class="space-y-1">
-                {#each cluster.entries as entry (entry.key)}
-                  {@const SvelteIcon = entry.icon}
-                  {@const isActive = $settingsSubRoute === entry.key}
-                  <li>
-                    <Button variant="ghost" size="auto"
-                      type="button"
-                      onclick={() => onNavigate(entry.key)}
-                      aria-current={isActive ? "page" : undefined}
-                      data-settings-route={entry.key}
-                      data-testid="settings-nav-{entry.key}"
-                      class="flex w-full items-center justify-start gap-2.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] transition-colors {entryClass(
-                        isActive,
-                        cluster.danger === true,
-                      )}"
-                    >
-                      <SvelteIcon size={14} strokeWidth={1.75} aria-hidden="true" />
-                      <span>{$t(entry.labelKey)}</span>
-                    </Button>
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/each}
-        </div>
+          {@render clusterNav()}
+        </nav>
       </Sheet>
     {:else}
       <!-- Desktop: 240px left sub-nav. -->
       <nav
-        class="flex w-[240px] flex-shrink-0 flex-col gap-[18px] border-r border-border bg-muted/30 px-3 py-5 overflow-y-auto"
+        use:listNavigation
+        class="flex w-60 flex-shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-muted/30 px-3 py-5"
         aria-label={$t("settings.nav.aria_label")}
         data-testid="settings-nav"
       >
-        {#each CLUSTERS as cluster (cluster.labelKey)}
-          <div>
-            <div
-              class="mb-1.5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[1.5px] {clusterTextClass(
-                cluster.danger,
-              )}"
-            >
-              {$t(cluster.labelKey)}
-            </div>
-            <ul class="space-y-0.5">
-              {#each cluster.entries as entry (entry.key)}
-                {@const SvelteIcon = entry.icon}
-                {@const isActive = $settingsSubRoute === entry.key}
-                <li>
-                  <Button variant="ghost" size="auto"
-                    type="button"
-                    onclick={() => onNavigate(entry.key)}
-                    aria-current={isActive ? "page" : undefined}
-                    data-settings-route={entry.key}
-                    data-testid="settings-nav-{entry.key}"
-                    class="flex w-full items-center justify-start gap-[9px] rounded-lg border px-2.5 py-[7px] text-[12.5px] transition-colors {entryClass(
-                      isActive,
-                      cluster.danger === true,
-                    )}"
-                  >
-                    <SvelteIcon
-                      size={13}
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                      class={cluster.danger
-                        ? "text-destructive"
-                        : isActive
-                          ? "text-primary"
-                          : "text-muted-foreground"}
-                    />
-                    <span>{$t(entry.labelKey)}</span>
-                  </Button>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        {/each}
+        {@render clusterNav()}
       </nav>
     {/if}
 
     <!-- Right content column. -->
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden" data-testid="settings-content">
-      <!-- Per-tab PageHeader + saved-hint. -->
-      <div
-        class="flex items-end justify-between gap-6 border-b border-border/60 px-10 pt-[26px] pb-[18px]"
-      >
-        <div class="min-w-0">
-          {#if head.kicker}
-            <div
-              class="mb-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-[1.5px] text-muted-foreground/70"
-            >
-              {head.kicker}
-            </div>
-          {/if}
-          <h1
-            class="m-0 text-foreground"
-            style="font-size: 26px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.15;"
-          >
-            {head.title}
-          </h1>
-          <p class="mt-1.5 max-w-[640px] text-[12.5px] leading-[1.5] text-muted-foreground">
-            {head.subtitle}
-          </p>
-        </div>
-        <div class="flex items-center gap-3 pb-1">
+      <PageHeader kicker={head.kicker} title={head.title} subtitle={head.subtitle}>
+        {#snippet actions()}
           <UnsavedChangesBadge />
           {#if !currentDirty}
             <span
-              class="inline-flex items-center gap-1.5 text-[11px] text-success-a11y"
+              class="inline-flex items-center gap-1.5 text-caption text-success-a11y"
               data-testid="settings-saved-hint"
             >
-              <Check size={11} strokeWidth={2} />
-              Tous les changements enregistrés
+              <Check size={12} strokeWidth={2} />
+              {$t("settings.all_saved")}
             </span>
           {/if}
-        </div>
-      </div>
+        {/snippet}
+      </PageHeader>
 
       {#if loadError}
-        <ErrorBanner message={loadError} class="mx-10 mt-4" />
+        <ErrorBanner message={loadError} class="mx-8 mt-4" />
       {/if}
 
       <!-- Scrollable tab body - sub-routes own their cards/forms. -->
       <div
         bind:this={scrollContainer}
         data-settings-scroll
-        class="flex-1 overflow-y-auto px-10 pt-2 pb-8"
+        class="flex-1 overflow-y-auto px-8 pb-8 pt-4"
       >
         {#key $settingsSubRoute}
-          {#if activeComponent}
-            {@const ActiveComponent = activeComponent}
-            <ActiveComponent />
-          {:else}
-            <SettingSectionSkeleton />
-          {/if}
+          <RouteTransition>
+            {#if activeComponent}
+              {@const ActiveComponent = activeComponent}
+              <ActiveComponent />
+            {:else}
+              <SettingSectionSkeleton />
+            {/if}
+          </RouteTransition>
         {/key}
       </div>
     </div>

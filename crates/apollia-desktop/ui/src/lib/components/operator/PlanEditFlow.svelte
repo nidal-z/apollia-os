@@ -11,6 +11,7 @@
   } from "$lib/stores/planMode";
   import { submitPlanDecision, type PlanStep } from "$lib/ipc/planMode";
   import PlanStepEditor from "./PlanStepEditor.svelte";
+  import PlanCard from "./PlanCard.svelte";
   import { validate } from "./planEditValidation";
 
   interface Props {
@@ -73,14 +74,7 @@
   }
 </script>
 
-<section
-  class="rounded-lg border border-border bg-card p-4 text-card-foreground"
-  data-testid="plan-edit-flow"
->
-  <h2 class="mb-3 text-sm font-semibold">
-    {$t("plan_mode.proposed_plan_title")}
-  </h2>
-
+<PlanCard title={$t("plan_mode.proposed_plan_title")} testid="plan-edit-flow">
   <ul class="mb-3 space-y-2">
     {#each editableSteps as step (step.step_id)}
       <PlanStepEditor
@@ -128,4 +122,4 @@
       {$t("plan_mode.cancel_edit")}
     </Button>
   </div>
-</section>
+</PlanCard>

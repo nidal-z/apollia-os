@@ -1,0 +1,168 @@
+{
+  "name": "tour-llm (act 1: the first result, annotated live on a real conversation)",
+  "stopOnError": false,
+  "notes": [
+    "Needs a model: run with `just desktop-dev-automation-seeded-llama scripts/automation/tour-llm.json <model.gguf>`. The deterministic half of the tour system lives in tour-det.json.",
+    "Act 1 is the only tour with the annotated presentation: it points at a live approval card, so it must NOT dim the app and must NOT trap focus. tour-spotlight is therefore asserted ABSENT throughout, which is the regression guard for that distinction.",
+    "Starting the tour pushes into openNewChatRequested, the store the sidebar button and the command palette already write to, so the picker opens and annotation 1 anchors on quickpicker-textarea.",
+    "The approval step docks to the top edge while its card is absent (TourStepCard annotated anchorless dock), so the annotation never covers the conversation and its Next button stays reachable.",
+    "Turn is driven with awaitTurn (auto-accepts the HITL card whether or not it appears: bash non-git raises it, but appearance is model-dependent). awaitTurn now handles both the builder (approval-accept-) and operator (operator-approval-accept-) cards. The annotation text is shown regardless; the card, when present, is auto-accepted so the turn completes."
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-band"
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-milestone-chat",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-textarea",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-spotlight",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-counter"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-annotation-1-on-composer"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Exécute la commande shell \"ls -la\" dans le dossier courant."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-step-card"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-conversation-opened-annotation-alive"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "awaitTurn",
+      "timeoutMs": 300000,
+      "maxApprovals": 10,
+      "label": "approval-autoaccepted"
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "first_result_answer"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-annotation-3-on-answer"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-act-1-finished"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-chat"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-milestone-chat-ticked"
+    }
+  ]
+}

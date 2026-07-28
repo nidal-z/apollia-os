@@ -1,7 +1,4 @@
-<script lang="ts" context="module">
-  import { Input } from "$lib/components/ui/input";
-  import { Checkbox } from "$lib/components/ui/checkbox";
-  import { Select } from "$lib/components/ui/select";
+<script lang="ts" module>
   export const meta = {
     title: "settings.nav.stt",
     icon: "mic",
@@ -11,74 +8,41 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
-  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
-  import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
+  import { Activity, Info, RefreshCw } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
-  import { ensureMicPermission } from "$lib/stt/micPermission";
+  import { Checkbox } from "$lib/components/ui/checkbox";
   import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
+  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
-  import HotkeyDisplay from "../../components/settings/HotkeyDisplay.svelte";
-  import HotkeyCaptureDialog from "../../components/settings/HotkeyCaptureDialog.svelte";
-  import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
-  import { sttModelsStore, sttConfigStore, settingsLoaders } from "$lib/stores/settings";
-  import { settingsDirtyStore } from "$lib/stores/settingsDirty";
-  import { useSettingsForm, registerSettingsForm } from "$lib/settings/useSettingsForm";
-  import { addToast } from "$lib/components/ui/toast/store";
-  import { formatCombo } from "$lib/keyboard/hotkeyCapture";
+  import SttEssentialSection from "../../components/settings/stt/SttEssentialSection.svelte";
+  import SttAdvancedSection from "../../components/settings/stt/SttAdvancedSection.svelte";
+  import SttPerformanceSection from "../../components/settings/stt/SttPerformanceSection.svelte";
+  import SttTestCard from "../../components/settings/stt/SttTestCard.svelte";
+  import SttStatusRows from "../../components/settings/stt/SttStatusRows.svelte";
+  import { refreshSttStatus } from "$lib/stores/stt";
+  import { sttConfigStore, settingsLoaders } from "$lib/stores/settings";
+  import { useSettingsForm } from "$lib/settings/useSettingsForm";
+  import { addToast } from "$lib/components/ui/toast";
+  import { updateSttConfig, reloadStt, listAudioInputDevices } from "$lib/ipc/stt";
   import type { SttConfigView } from "$lib/types";
 
   let sttConfig = $state<SttConfigView | null>(null);
-  // After a save, `update_stt_config` persists and hot-reloads the engine.
-  // `sttApplied` shows the change took effect live; `sttNeedsRestart` is the
-  // honest fallback shown only when the explicit reload afterwards fails.
+  let savedBaseline = $state<SttConfigView | null>(null);
+  // `sttApplied` confirms the engine hot-reloaded; `sttNeedsRestart` is the
+  // honest fallback shown only when the explicit reload after save fails.
   let sttApplied = $state(false);
   let sttNeedsRestart = $state(false);
-  let importingSttModel = $state(false);
 
-  // Audio input devices (microphones). Empty = no microphone detected.
   let inputDevices = $state<string[]>([]);
   let inputDevicesLoaded = $state(false);
   const noMicrophone = $derived(inputDevicesLoaded && inputDevices.length === 0);
 
-  // Curated, deterministic language list. Each `code` is the ISO 639-1 hint
-  // passed to the Whisper engine; the auto-detect entry (empty value, persisted
-  // as `null`) is rendered separately with a localized label. Autonyms are
-  // proper nouns shown identically in every locale.
-  const STT_LANGUAGES: ReadonlyArray<{ code: string; label: string }> = [
-    { code: "fr", label: "Français" },
-    { code: "en", label: "English" },
-    { code: "es", label: "Español" },
-    { code: "de", label: "Deutsch" },
-    { code: "it", label: "Italiano" },
-    { code: "pt", label: "Português" },
-    { code: "nl", label: "Nederlands" },
-    { code: "ru", label: "Русский" },
-    { code: "zh", label: "中文" },
-    { code: "ja", label: "日本語" },
-  ];
-
-  // The persisted `model_path` can be an absolute path (from onboarding) or a
-  // `~`-prefixed path (from the settings picker), while the `<option>` values
-  // are always `~/.apollia/models/<name>`. Match by file name so the select
-  // reflects the configured model regardless of how the path was stored.
-  function fileName(p: string): string {
-    return p.split(/[\\/]/).pop() ?? "";
-  }
-
-  const selectedModelValue = $derived.by(() => {
-    const currentName = fileName(sttConfig?.model_path ?? "");
-    const match = ($sttModelsStore.data ?? []).find((m) => m.name === currentName);
-    return match ? `~/.apollia/models/${match.name}` : "";
-  });
-
   async function loadInputDevices() {
     try {
-      inputDevices = await invoke<string[]>("list_audio_input_devices");
+      inputDevices = await listAudioInputDevices();
     } catch {
       inputDevices = [];
     } finally {
@@ -86,23 +50,14 @@
     }
   }
 
-  const sttState = $derived($settingsDirtyStore.stt ?? {
-    dirty: false,
-    savingState: "idle" as const,
-    lastError: null,
-    autoSave: "explicit" as const,
-  });
-  const sttSaving = $derived(sttState.savingState === "saving");
-  const sttSaveError = $derived(sttState.lastError);
-
   type SttForm = ReturnType<typeof useSettingsForm<SttConfigView>>;
   let form: SttForm | null = null;
-  let unregister: (() => void) | null = null;
 
   $effect(() => {
     const loaded = $sttConfigStore.data;
     if (loaded && !sttConfig) {
       sttConfig = { ...loaded };
+      savedBaseline = { ...loaded };
       form = useSettingsForm<SttConfigView>({
         route: "stt",
         initial: { ...loaded },
@@ -110,22 +65,18 @@
         onSave: async (values) => {
           sttApplied = false;
           sttNeedsRestart = false;
-          await invoke("update_stt_config", { config: values });
-          // `update_stt_config` already reloads the engine, but it swallows any
-          // reload error internally. Reload explicitly (as the Reload button
-          // does) so a genuine hot-reload failure surfaces here; only then do
-          // we fall back to advising a restart.
+          await updateSttConfig(values);
+          // `update_stt_config` reloads internally but swallows reload errors;
+          // reload explicitly so a genuine hot-reload failure surfaces here.
           try {
-            await invoke("reload_stt");
+            await reloadStt();
             await refreshStatus();
             sttApplied = true;
-          } catch (err) {
+          } catch {
             sttNeedsRestart = true;
-            addToast(err instanceof Error ? err.message : String(err), "error");
           }
         },
       });
-      unregister = registerSettingsForm<SttConfigView>("stt", form);
     }
   });
 
@@ -133,144 +84,34 @@
     if (sttConfig && form) form.sync($state.snapshot(sttConfig) as SttConfigView);
   });
 
-  async function save() {
-    if (!form) return;
-    await form.save();
+  async function handleSave(): Promise<boolean> {
+    if (!form) return false;
+    const ok = await form.save();
+    if (ok && sttConfig) savedBaseline = { ...($state.snapshot(sttConfig) as SttConfigView) };
+    return ok;
   }
 
-  // Open a native file picker and copy the chosen whisper weights into
-  // ~/.apollia/models/, then re-scan so the new file appears in the picker and
-  // preselect it.
-  async function loadSttModel() {
-    if (importingSttModel) return;
-    importingSttModel = true;
-    try {
-      const modelsDir = await pathJoin(await homeDir(), ".apollia", "models");
-      const selected = await openFilePicker({
-        multiple: false,
-        filters: [{ name: $t("settings.stt_model_filter"), extensions: ["bin", "gguf"] }],
-        title: $t("settings.stt_load_model_title"),
-        defaultPath: modelsDir,
-      });
-      if (!selected) return;
-      const filePath =
-        typeof selected === "string" ? selected : (selected as { path: string }).path;
-      const dest = await invoke<string>("import_model_file", {
-        sourcePath: filePath,
-        allowedExtensions: ["bin", "gguf"],
-      });
-      await settingsLoaders.sttModels(true);
-      const name = dest.split(/[\\/]/).pop() ?? "";
-      if (name && sttConfig) sttConfig.model_path = `~/.apollia/models/${name}`;
-      addToast($t("settings.stt_model_loaded_toast", { values: { name } }), "success");
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    } finally {
-      importingSttModel = false;
-    }
-  }
-
-  onDestroy(() => {
-    unregister?.();
-  });
-
-  // ─── Hotkey capture via fullscreen dialog ─────────────────────────────
-  let hotkeyDialogOpen = $state(false);
-
-  function openHotkeyCapture() {
-    hotkeyDialogOpen = true;
-  }
-
-  function onHotkeyConfirm(combo: string) {
-    hotkeyDialogOpen = false;
-    if (sttConfig) sttConfig.hotkey = combo;
-    addToast(
-      $t("settings.stt.hotkey.updated_toast", { values: { combo: formatCombo(combo) } }),
-      "success",
-    );
-  }
-
-  function onHotkeyCancel(reason?: "escape" | "timeout" | "close") {
-    hotkeyDialogOpen = false;
-    if (reason === "timeout") {
-      addToast($t("settings.stt.hotkey.timeout_toast"), "info");
-    } else {
-      addToast($t("settings.stt.hotkey.cancelled_toast"), "info");
-    }
+  function handleReset(): void {
+    form?.reset();
+    if (savedBaseline) sttConfig = { ...savedBaseline };
   }
 
   // ─── Status section ───────────────────────────────────────────────────
   let lastStatusRefresh = $state<number | null>(null);
   let liveUpdates = $state(false);
   let now = $state(Date.now());
-  let liveTimer: ReturnType<typeof setInterval> | null = null;
+  let reloading = $state(false);
 
   async function refreshStatus() {
     await refreshSttStatus();
     lastStatusRefresh = Date.now();
   }
 
-  // ── Test dictation (G7) ──
-  // Reuses the onboarding tour recorder: start records, stop transcribes, and
-  // the Rust pipeline broadcasts `stt-transcribed` with the resulting text.
-  let testRecording = $state(false);
-  let testBusy = $state(false);
-  let testResult = $state<string | null>(null);
-  let testUnlisten: (() => void) | null = null;
-
-  onMount(() => {
-    let cancelled = false;
-    void listen<{ text?: string } | string>("stt-transcribed", (event) => {
-      if (!testRecording) return;
-      const text =
-        typeof event.payload === "string" ? event.payload : event.payload?.text ?? "";
-      testResult = text;
-      testRecording = false;
-      testBusy = false;
-    }).then((unlisten) => {
-      if (cancelled) unlisten();
-      else testUnlisten = unlisten;
-    });
-    return () => {
-      cancelled = true;
-      testUnlisten?.();
-      testUnlisten = null;
-    };
-  });
-
-  async function toggleTest(): Promise<void> {
-    if (testBusy) return;
-    testBusy = true;
-    try {
-      if (testRecording) {
-        await invoke("stop_tour_recording");
-        // testBusy stays true until the transcription event arrives.
-      } else {
-        testResult = null;
-        // Raise the microphone permission prompt before capturing so the cpal
-        // stream (which shares the app-level TCC grant) reads real audio instead
-        // of silence on a fresh install.
-        await ensureMicPermission();
-        await invoke("start_tour_recording");
-        testRecording = true;
-        testBusy = false;
-      }
-    } catch (err) {
-      testRecording = false;
-      testBusy = false;
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  let reloading = $state(false);
-
-  // Explicit engine reload without re-saving the config. Rebuilds the STT
-  // engine from the database and re-arms the global hotkey.
   async function handleReload() {
     if (reloading) return;
     reloading = true;
     try {
-      await invoke("reload_stt");
+      await reloadStt();
       await refreshStatus();
       addToast($t("settings.stt.reload_toast"), "success");
     } catch (err) {
@@ -281,20 +122,13 @@
   }
 
   $effect(() => {
-    if (liveUpdates) {
-      liveTimer = setInterval(() => { void refreshStatus(); }, 5000);
-    } else if (liveTimer) {
-      clearInterval(liveTimer);
-      liveTimer = null;
-    }
-    return () => {
-      if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
-    };
+    if (!liveUpdates) return;
+    const id = setInterval(() => void refreshStatus(), 5000);
+    return () => clearInterval(id);
   });
 
-  // Tick a relative-time clock once per second so `status_updated` refreshes.
   $effect(() => {
-    const id = setInterval(() => { now = Date.now(); }, 1000);
+    const id = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(id);
   });
 
@@ -304,9 +138,13 @@
     try {
       const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
       const abs = Math.abs(deltaSec);
-      if (abs < 60) return $t("settings.stt.status_updated", { values: { relative: rtf.format(deltaSec, "second") } });
-      if (abs < 3600) return $t("settings.stt.status_updated", { values: { relative: rtf.format(Math.round(deltaSec / 60), "minute") } });
-      return $t("settings.stt.status_updated", { values: { relative: rtf.format(Math.round(deltaSec / 3600), "hour") } });
+      const [value, unit] =
+        abs < 60
+          ? [deltaSec, "second" as const]
+          : abs < 3600
+            ? [Math.round(deltaSec / 60), "minute" as const]
+            : [Math.round(deltaSec / 3600), "hour" as const];
+      return $t("settings.stt.status_updated", { values: { relative: rtf.format(value, unit) } });
     } catch {
       return $t("settings.stt.status_updated", { values: { relative: `${Math.abs(deltaSec)}s` } });
     }
@@ -325,377 +163,55 @@
 {:else if $sttConfigStore.error}
   <ErrorBanner message={`${$t('settings.stt_error')}: ${$sttConfigStore.error}`} />
 {:else if sttConfig}
-  <section class="space-y-5" data-testid="stt-section">
-    <p class="text-sm text-muted-foreground">{$t('settings.stt_subtitle')}</p>
+  {@const cfg = sttConfig}
+  <SettingsSubPage route="stt" onSave={handleSave} onReset={handleReset} data-testid="stt-config-form">
+    <SttEssentialSection config={cfg} {inputDevices} {noMicrophone} />
+    <SttAdvancedSection config={cfg} />
+    <SttPerformanceSection config={cfg} />
 
-    <!-- ─── Section 1 : Essential ───────────────────────────────────────── -->
-    <div data-testid="stt-config-form" class="relative">
-      <SettingsSection
-        title={$t('settings.stt.section.essential_title')}
-        description={$t('settings.stt.section.essential_description')}
-        data-testid="stt-section-essential"
-      >
-        {#snippet actions()}
-          {#if sttState.dirty}
-            <div class="sticky top-2 z-10" data-testid="stt-sticky-save">
-              <Button
-                size="sm"
-                onclick={save}
-                disabled={sttSaving || !sttState.dirty}
-                loading={sttSaving}
-                data-testid="stt-save-btn"
-              >
-                {sttSaving ? $t('settings.stt_saving') : $t('settings.stt_save')}
-              </Button>
-            </div>
-          {/if}
-        {/snippet}
-
-        <label class="flex cursor-pointer items-center justify-between" data-testid="stt-enable-toggle">
-          <span class="text-sm text-foreground">{$t('settings.stt_enable_engine')}</span>
-          <Button variant="ghost" size="sm"
-            type="button"
-            role="switch"
-            aria-checked={sttConfig.enabled}
-            aria-label={$t('settings.stt_enable_engine')}
-            onclick={() => { if (sttConfig) sttConfig.enabled = !sttConfig.enabled; }}
-            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.enabled ? 'bg-primary' : 'bg-muted'}"
-          >
-            <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.enabled ? 'translate-x-6' : 'translate-x-1'}"></span>
-          </Button>
-        </label>
-
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-model-select">{$t('settings.stt_select_model')}</label>
-          {#if ($sttModelsStore.data ?? []).length > 0}
-            <Select
-              id="stt-model-select"
-              value={selectedModelValue}
-              onchange={(e: Event) => {
-                if (sttConfig) sttConfig.model_path = (e.currentTarget as HTMLSelectElement).value;
-              }}
-              class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              data-testid="stt-model-select"
-            >
-              {#each ($sttModelsStore.data ?? []) as model (model.name)}
-                <option value="~/.apollia/models/{model.name}">
-                  {model.name} ({model.size_mb.toFixed(0)} Mo{model.language ? ` · ${model.language}` : ''})
-                </option>
-              {/each}
-            </Select>
-          {:else}
-            <p class="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
-              {$t('settings.stt_no_models')}
-            </p>
-          {/if}
-          <div class="flex items-center gap-2 pt-1">
-            <Button
-              size="sm"
-              onclick={loadSttModel}
-              disabled={importingSttModel}
-              loading={importingSttModel}
-              data-testid="stt-load-model-btn"
-            >
-              {$t('settings.stt_load_model')}
-            </Button>
-            <span class="text-xs text-muted-foreground">{$t('settings.stt_load_model_hint')}</span>
-          </div>
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-language">{$t('settings.stt_language')}</label>
-          <Select
-            id="stt-language"
-            data-testid="stt-language-select"
-            value={sttConfig.language ?? ''}
-            onchange={(e: Event) => {
-              if (sttConfig) sttConfig.language = (e.currentTarget as HTMLSelectElement).value || null;
-            }}
-            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <option value="">{$t('settings.stt_language_auto')}</option>
-            {#each STT_LANGUAGES as lang (lang.code)}
-              <option value={lang.code}>{lang.label}</option>
-            {/each}
-          </Select>
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-input-device">{$t('settings.stt_input_device')}</label>
-          <Select
-            id="stt-input-device"
-            data-testid="stt-input-device"
-            value={sttConfig.input_device ?? ''}
-            onchange={(e: Event) => {
-              if (sttConfig) sttConfig.input_device = (e.currentTarget as HTMLSelectElement).value || null;
-            }}
-            disabled={noMicrophone}
-            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <option value="">{$t('settings.stt_input_device_default')}</option>
-            {#each inputDevices as device (device)}
-              <option value={device}>{device}</option>
-            {/each}
-          </Select>
-          {#if noMicrophone}
-            <p class="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400" data-testid="stt-no-microphone">
-              {$t('settings.stt_no_microphone')}
-            </p>
-          {/if}
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-trigger">{$t('settings.stt_trigger_mode')}</label>
-          <Select
-            id="stt-trigger"
-            data-testid="stt-trigger"
-            bind:value={sttConfig.trigger_mode}
-            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <option value="toggle">{$t('settings.stt_trigger_toggle')}</option>
-            <option value="push-to-talk">{$t('settings.stt_trigger_push')}</option>
-          </Select>
-        </div>
-
-        {#snippet footer()}
-          {#if sttState.savingState === "saved"}
-            <span class="text-sm text-emerald-600 dark:text-emerald-400" data-testid="stt-save-status-saved">
-              {$t('settings.save_status_saved')}
-            </span>
-          {:else if sttSaveError}
-            <span class="text-sm text-destructive" data-testid="stt-save-status-error">
-              {$t('settings.save_status_retry')}: {sttSaveError}
-            </span>
-          {/if}
-        {/snippet}
-      </SettingsSection>
-    </div>
-
-    <!-- ─── Section 2 : Advanced Triggers ───────────────────────────────── -->
-    <SettingsSection
-      title={$t('settings.stt.section.advanced_title')}
-      description={$t('settings.stt.section.advanced_description')}
-      data-testid="stt-section-advanced"
-    >
-      <div class="space-y-1.5">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt.hotkey.label')}</span>
-        <div class="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background px-3 py-2">
-          <HotkeyDisplay
-            hotkey={sttConfig.hotkey}
-            placeholder={$t('settings.stt.hotkey.preview_placeholder')}
-            data-testid="stt-hotkey-preview"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={openHotkeyCapture}
-            data-testid="stt-hotkey-change-btn"
-          >
-            {$t('settings.stt.hotkey.change')}
-          </Button>
-        </div>
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="text-sm text-muted-foreground" for="stt-silence">{$t('settings.stt_silence_threshold')}</label>
-        <div class="relative">
-          <Input
-            id="stt-silence"
-            data-testid="stt-silence"
-            type="number"
-            min="-80"
-            max="0"
-            step="1"
-            bind:value={sttConfig.silence_threshold_db}
-            class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-           />
-          <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">dB</span>
-        </div>
-      </div>
-    </SettingsSection>
-
-    <!-- ─── Section 3 : Performance ─────────────────────────────────────── -->
-    <SettingsSection
-      title={$t('settings.stt.section.performance_title')}
-      description={$t('settings.stt.section.performance_description')}
-      data-testid="stt-section-performance"
-    >
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-max-rec">{$t('settings.stt_max_recording')}</label>
-          <div class="relative">
-            <Input
-              id="stt-max-rec"
-              data-testid="stt-max-rec"
-              type="number"
-              min="5"
-              max="300"
-              bind:value={sttConfig.max_recording_sec}
-              class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-             />
-            <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">s</span>
-          </div>
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="stt-clipboard">{$t('settings.stt_clipboard_mode')}</label>
-          <Select
-            id="stt-clipboard"
-            data-testid="stt-clipboard"
-            bind:value={sttConfig.clipboard_mode}
-            class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            <option value="paste">{$t('settings.stt_clipboard_paste')}</option>
-            <option value="clipboard">{$t('settings.stt_clipboard_clipboard')}</option>
-          </Select>
-        </div>
-      </div>
-
-      <label class="flex cursor-pointer items-center justify-between">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_clipboard_restore')}</span>
-        <Button variant="ghost" size="sm"
-          type="button"
-          role="switch"
-          data-testid="stt-clipboard-restore"
-          aria-checked={sttConfig.clipboard_restore}
-          aria-label={$t('settings.stt_clipboard_restore')}
-          onclick={() => { if (sttConfig) sttConfig.clipboard_restore = !sttConfig.clipboard_restore; }}
-          class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.clipboard_restore ? 'bg-primary' : 'bg-muted'}"
-        >
-          <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.clipboard_restore ? 'translate-x-6' : 'translate-x-1'}"></span>
-        </Button>
-      </label>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-border/40 pt-3">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_acceleration')}</span>
-        <span class="text-sm font-mono text-foreground">
-          {#if $sttStatus?.metal_enabled}
-            <span class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{$t('settings.stt_metal')}</span>
-          {:else if $sttStatus?.cuda_enabled}
-            <span class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{$t('settings.stt_cuda')}</span>
-          {:else}
-            {$t('settings.stt_none')}
-          {/if}
-        </span>
-      </div>
-    </SettingsSection>
-
-    <!-- ─── Section 4 : Status ──────────────────────────────────────────── -->
     <SettingsSection
       title={$t('settings.stt.section.status_title')}
       description={$t('settings.stt.section.status_description')}
       data-testid="stt-section-status"
     >
+      {#snippet icon()}<Activity size={15} strokeWidth={1.75} />{/snippet}
       {#snippet actions()}
-        <div class="flex items-center gap-3">
-          <label class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox bind:checked={liveUpdates} data-testid="stt-status-live-toggle" />
-            {$t('settings.stt.status_live_updates')}
-          </label>
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={handleReload}
-            disabled={reloading}
-            data-testid="stt-reload-btn"
-          >
+        <div class="flex items-center gap-2">
+          <Button variant="outline" size="sm" onclick={handleReload} disabled={reloading} loading={reloading} data-testid="stt-reload-btn">
             {$t('settings.stt.reload_btn')}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={refreshStatus}
-            data-testid="stt-status-refresh-btn"
-          >
+          <Button variant="ghost" size="sm" onclick={refreshStatus} data-testid="stt-status-refresh-btn">
+            {#snippet icon()}<RefreshCw size={14} strokeWidth={1.75} />{/snippet}
             {$t('settings.stt.status_refresh')}
           </Button>
         </div>
       {/snippet}
 
-      <!-- Test dictation (G7): record a phrase and show the transcription. -->
-      <div class="mb-3 flex flex-col gap-2 rounded-md border border-border/40 bg-muted/20 p-3">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-sm text-muted-foreground">{$t('settings.stt.test.label')}</span>
-          <Button
-            variant={testRecording ? "destructive" : "outline"}
-            size="sm"
-            onclick={toggleTest}
-            disabled={testBusy && !testRecording}
-            data-testid={testRecording ? "stt-test-stop" : "stt-test-start"}
-          >
-            {#if testRecording}
-              {$t('settings.stt.test.stop')}
-            {:else if testBusy}
-              {$t('settings.stt.test.transcribing')}
-            {:else}
-              {$t('settings.stt.test.start')}
-            {/if}
-          </Button>
-        </div>
-        {#if testResult !== null}
-          <p class="rounded bg-background px-2 py-1 text-sm text-foreground" data-testid="stt-test-result">
-            {testResult || $t('settings.stt.test.empty')}
-          </p>
-        {/if}
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_engine_status')}</span>
-        <span class="text-sm font-mono text-foreground">
-          {#if $sttStatus?.enabled}
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-green-500"></span>{$t('settings.stt_enabled')}</span>
-          {:else}
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-muted-foreground"></span>{$t('settings.stt_disabled')}</span>
-          {/if}
-        </span>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_model_name')}</span>
-        <span class="text-sm font-mono text-foreground">
-          {#if $sttStatus?.model_loaded}
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-green-500"></span>{$sttStatus?.model_name}</span>
-          {:else}
-            <span class="text-muted-foreground">{$t('settings.stt_model_not_loaded')}</span>
-          {/if}
-        </span>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_backend')}</span>
-        <span class="text-sm font-mono text-foreground">{$sttStatus?.backend_name ?? "-"}</span>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <span class="text-sm text-muted-foreground">{$t('settings.stt_microphone')}</span>
-        <span class="text-sm font-mono text-foreground">
-          {#if $sttStatus?.input_available === false || noMicrophone}
-            <span class="inline-flex items-center gap-1.5" data-testid="stt-status-no-mic"><span class="h-2 w-2 rounded-full bg-amber-500"></span>{$t('settings.stt_microphone_none')}</span>
-          {:else}
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-green-500"></span>{$t('settings.stt_microphone_ok')}</span>
-          {/if}
-        </span>
-      </div>
+      <SttTestCard silenceThresholdDb={cfg.silence_threshold_db} disabled={!cfg.enabled} />
+      <div><SttStatusRows {noMicrophone} /></div>
 
       {#snippet footer()}
-        <span class="text-xs text-muted-foreground" data-testid="stt-status-timestamp">{relativeTime}</span>
+        <label class="flex cursor-pointer items-center gap-2 text-caption text-muted-foreground">
+          <Checkbox bind:checked={liveUpdates} data-testid="stt-status-live-toggle" />
+          {$t('settings.stt.status_live_updates')}
+        </label>
+        <span class="ml-auto text-caption text-muted-foreground" data-testid="stt-status-timestamp">{relativeTime}</span>
       {/snippet}
     </SettingsSection>
 
     {#if sttApplied}
-      <div class="flex items-start gap-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400" data-testid="stt-applied-notice" role="status">
+      <div class="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-body-sm text-success" data-testid="stt-applied-notice" role="status">
         {$t('settings.stt_applied_notice')}
       </div>
     {:else if sttNeedsRestart}
-      <div class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400" data-testid="stt-restart-notice" role="alert">
+      <div class="flex items-start gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-body-sm text-warning" data-testid="stt-restart-notice" role="alert">
         {$t('settings.stt_restart_notice')}
       </div>
     {/if}
 
-    <div class="rounded-md border border-border/30 bg-muted/20 px-4 py-3 text-xs text-muted-foreground" data-testid="stt-config-hint">
+    <div class="flex items-start gap-2.5 rounded-md border border-border/60 bg-surface-2/40 px-4 py-3 text-caption text-muted-foreground" data-testid="stt-config-hint">
+      <Info size={15} strokeWidth={1.75} class="mt-px shrink-0" />
       {$t('settings.stt_config_hint')}
     </div>
-  </section>
-
-  <HotkeyCaptureDialog
-    open={hotkeyDialogOpen}
-    onconfirm={onHotkeyConfirm}
-    oncancel={onHotkeyCancel}
-  />
+  </SettingsSubPage>
 {/if}

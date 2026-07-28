@@ -42,6 +42,74 @@ const config: Config = {
           "1.5rem",
           { lineHeight: "1.2", letterSpacing: "-0.015em", fontWeight: "600" },
         ],
+
+        // ── Reading scale ──────────────────────────────────────────────
+        // The tiers below the display scale: section/card headings, body
+        // copy, labels, and the fine print. Fixed px (not clamp) so dense
+        // product chrome stays predictable. Tuple form matches the display
+        // tiers: [size, { lineHeight, letterSpacing, fontWeight? }].
+        //
+        // Chat-surface px map (the `.tb-*` / `.chat-*` literals in app.css
+        // already use these sizes; keep 1:1 so a future per-surface
+        // migration stays pixel-identical):
+        //   10px    → (no dedicated tier; nearest `overline` 10.5, chat
+        //             keeps its literal until migration: .tb-card-top)
+        //   10.5px  → overline   (.tb-iolabel, .tb-pill)
+        //   11px    → caption    (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
+        //   12px    → body-xs / label-sm (.tb-chip, .tb-code, .tb-term, .tb-preview)
+        //   12.5px  → code-sm    (.tb-frow, .tb-step, .chat-ft-head, .tb-card-body, .tb-extract)
+        //   13px    → body-sm / label-md (.tb-extract-title)
+        //   14px    → body-md    (chat body copy)
+        //   16.5px  → (no dedicated tier; nearest `body-lg` 16, chat keeps
+        //             its literal until migration: .chat-answer)
+        "heading-lg": [
+          "1.25rem",
+          { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "600" },
+        ],
+        "heading-md": [
+          "1.125rem",
+          { lineHeight: "1.35", letterSpacing: "-0.01em", fontWeight: "600" },
+        ],
+        "heading-sm": [
+          "1rem",
+          { lineHeight: "1.4", letterSpacing: "-0.006em", fontWeight: "600" },
+        ],
+        "body-lg": [
+          "1rem",
+          { lineHeight: "1.6", letterSpacing: "-0.003em" },
+        ],
+        "body-md": [
+          "0.875rem",
+          { lineHeight: "1.55", letterSpacing: "0em" },
+        ],
+        "body-sm": [
+          "0.8125rem",
+          { lineHeight: "1.5", letterSpacing: "0em" },
+        ],
+        "body-xs": [
+          "0.75rem",
+          { lineHeight: "1.5", letterSpacing: "0em" },
+        ],
+        "label-md": [
+          "0.8125rem",
+          { lineHeight: "1.2", letterSpacing: "0em", fontWeight: "500" },
+        ],
+        "label-sm": [
+          "0.75rem",
+          { lineHeight: "1.2", letterSpacing: "0.005em", fontWeight: "500" },
+        ],
+        caption: [
+          "0.6875rem",
+          { lineHeight: "1.45", letterSpacing: "0.005em" },
+        ],
+        overline: [
+          "0.65625rem",
+          { lineHeight: "1.4", letterSpacing: "0.08em", fontWeight: "600" },
+        ],
+        "code-sm": [
+          "0.78125rem",
+          { lineHeight: "1.5", letterSpacing: "-0.01em" },
+        ],
       },
       colors: {
         border: "hsl(var(--border))",

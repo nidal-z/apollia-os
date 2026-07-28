@@ -174,7 +174,7 @@
       bind:value={systemPrompt}
       disabled={loading}
       rows={6}
-      placeholder="Ex. : Tu es Apollia, un assistant local concis et pragmatique. Tu réponds en français, tu poses une question si quelque chose est ambigu, et tu privilégies les réponses courtes."
+      placeholder={$t("agents.chat_config.personality_placeholder")}
       data-testid="apollia-chat-system-prompt"
     />
     <p class="text-[10.5px] text-muted-foreground">

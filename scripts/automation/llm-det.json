@@ -1,6 +1,10 @@
 {
   "name": "llm-det (llm backends dashboard + settings panel, operator vs builder, seeded 3 backends, add/edit/delete dialogs cancelled, provider-select reveal, network actions reduced to boundaries)",
   "stopOnError": false,
+  "notes": [
+    "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
+    "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend."
+  ],
   "steps": [
     {
       "kind": "click",
@@ -180,37 +184,37 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card-",
+      "testid": "llm-backend-card",
       "nth": 0,
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "status-",
+      "testid": "llm-backend-badge",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "set-default-",
+      "testid": "set-default",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "test-backend-",
+      "testid": "llm-backend-ping-btn",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "edit-backend-",
+      "testid": "edit-backend",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "delete-backend-",
+      "testid": "delete-backend",
       "nth": 0,
       "timeoutMs": 4000
     },
@@ -220,7 +224,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "edit-backend-",
+      "testid": "edit-backend",
       "nth": 0
     },
     {
@@ -342,7 +346,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "delete-backend-",
+      "testid": "delete-backend",
       "nth": 0
     },
     {

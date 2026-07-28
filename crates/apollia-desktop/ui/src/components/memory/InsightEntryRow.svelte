@@ -8,7 +8,11 @@
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
+  import {
+    acceptExtractedInsight,
+    rejectExtractedInsight,
+    updateExtractedInsight,
+  } from "$lib/ipc/memory";
   import type { InsightEntry } from "$lib/types";
   import { addToast } from "$lib/components/ui/toast/store";
   import { recordRejectedInsight } from "$lib/stores/chat";
@@ -59,7 +63,7 @@
 
   async function acceptInsight(): Promise<void> {
     try {
-      await invoke("accept_extracted_insight", { id: insight.id });
+      await acceptExtractedInsight(insight.id);
       onremove(insight.id);
     } catch (e) {
       addToast(`${$t("memory.insights.accept_failed")}: ${e}`, "error");
@@ -80,7 +84,7 @@
     const reason = rejectReason.trim();
     if (reason === "") return;
     try {
-      await invoke("reject_extracted_insight", { id: insight.id, reason });
+      await rejectExtractedInsight(insight.id, reason);
       recordRejectedInsight(insight, reason);
       onremove(insight.id);
     } catch (e) {
@@ -91,11 +95,7 @@
   async function saveEdit(): Promise<void> {
     if (editText.trim() === "") return;
     try {
-      await invoke("update_extracted_insight", {
-        id: insight.id,
-        text: editText.trim(),
-        category: editCategory,
-      });
+      await updateExtractedInsight(insight.id, editText.trim(), editCategory);
       onupdate(insight.id, editText.trim(), editCategory);
       editing = false;
     } catch (e) {

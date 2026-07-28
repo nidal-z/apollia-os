@@ -15,6 +15,7 @@
     CompanionError,
     CompanionErrorKind,
   } from "$lib/stores/companion";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     error: CompanionError;
@@ -95,22 +96,23 @@
 
   <div class="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5">
     <code
-      class="flex-1 truncate font-mono text-[11px] text-foreground"
+      class="flex-1 truncate font-mono text-caption text-foreground"
       data-testid="companion-error-code"
     >
       {error.code}
     </code>
-    <button
-      type="button"
-      class="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      class="h-6 w-6"
       onclick={copyCode}
       aria-label={$t("companion.error.copy_code")}
       data-testid="companion-error-copy-code"
     >
       <Copy size={12} />
-    </button>
+    </Button>
     {#if codeCopied}
-      <span class="text-[10px] text-muted-foreground">
+      <span class="text-overline text-muted-foreground">
         {$t("companion.error.copied")}
       </span>
     {/if}
@@ -118,9 +120,10 @@
 
   {#if error.technicalDetails || error.message}
     <div>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-auto gap-1 px-1 py-0.5 text-xs font-normal text-muted-foreground hover:text-foreground"
         onclick={() => (detailsOpen = !detailsOpen)}
         aria-expanded={detailsOpen}
         data-testid="companion-error-details-toggle"
@@ -131,10 +134,10 @@
           <ChevronRight size={12} />
         {/if}
         {$t("companion.error.technical_details")}
-      </button>
+      </Button>
       {#if detailsOpen}
         <pre
-          class="mt-1 max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-snug text-muted-foreground"
+          class="mt-1 max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-2 font-mono text-overline leading-snug text-muted-foreground"
           data-testid="companion-error-stack"
         >{error.technicalDetails ?? error.message}</pre>
       {/if}
@@ -142,33 +145,34 @@
   {/if}
 
   <div class="mt-auto flex flex-col gap-2 pt-2">
-    <button
-      type="button"
-      class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+    <Button
+      variant="default"
+      class="w-full gap-2"
       onclick={onRetry}
       data-testid="companion-error-retry"
     >
       <RotateCcw size={14} />
       {$t("companion.error.retry")}
-    </button>
-    <button
-      type="button"
-      class="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+    </Button>
+    <Button
+      variant="outline"
+      class="w-full gap-2"
       onclick={onOpenSettings}
       data-testid="companion-error-settings"
       data-target={settingsTarget}
     >
       <Settings size={14} />
       {$t("companion.error.open_settings")}
-    </button>
-    <button
-      type="button"
-      class="inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      class="w-full gap-2 text-xs text-muted-foreground hover:text-foreground"
       onclick={onClose}
       data-testid="companion-error-close"
     >
       <X size={12} />
       {$t("companion.error.close_companion")}
-    </button>
+    </Button>
   </div>
 </div>

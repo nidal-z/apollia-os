@@ -31,7 +31,6 @@ const DEFAULT_STATE: OnboardingState = {
     total_time_sec: 0,
     actions_completed: 0,
     companion_questions: 0,
-    voice_commands_used: 0,
   },
 };
 

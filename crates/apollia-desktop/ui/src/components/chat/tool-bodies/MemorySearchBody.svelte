@@ -70,9 +70,8 @@
               {#each parsed.entries as entry, i (i)}
                 {@const rel = entry.relevance ?? entry.score}
                 <div class="tb-card">
-                  <p class="tb-card-body">{entry.content}</p>
                   {#if entry.source || rel != null}
-                    <div class="tb-card-meta">
+                    <div class="tb-card-top">
                       {#if entry.source}
                         {#if isUrl(entry.source)}
                           <a
@@ -92,11 +91,12 @@
                         >
                       {/if}
                     </div>
-                    {#if rel != null}
-                      <div class="tb-mbar" aria-hidden="true">
-                        <span style="width: {relevanceClamp(rel)}%"></span>
-                      </div>
-                    {/if}
+                  {/if}
+                  <p class="tb-card-body">{entry.content}</p>
+                  {#if rel != null}
+                    <div class="tb-mbar" aria-hidden="true">
+                      <span style="width: {relevanceClamp(rel)}%"></span>
+                    </div>
                   {/if}
                 </div>
               {/each}

@@ -35,7 +35,7 @@
       data-testid="verify-verdict-ok"
     >
       <CheckCircle2 class="h-4 w-4" />
-      <span class="text-[13px] font-medium">{$t("observability.verify_ok")}</span>
+      <span class="text-body-sm font-medium">{$t("observability.verify_ok")}</span>
     </span>
   {:else}
     <span
@@ -43,15 +43,15 @@
       data-testid="verify-verdict-fail"
     >
       <XCircle class="h-4 w-4" />
-      <span class="text-[13px] font-medium">{$t("observability.verify_fail")}</span>
+      <span class="text-body-sm font-medium">{$t("observability.verify_fail")}</span>
     </span>
     {#if result.broken_at}
-      <p class="text-[12px] text-destructive/80" data-testid="verify-broken-at">
+      <p class="text-body-xs text-destructive/80" data-testid="verify-broken-at">
         {$t("observability.verify_broken_at", { values: { entry: result.broken_at } })}
       </p>
     {/if}
     {#if result.message}
-      <p class="text-[12px] text-muted-foreground">{result.message}</p>
+      <p class="text-body-xs text-muted-foreground">{result.message}</p>
     {/if}
   {/if}
 </div>

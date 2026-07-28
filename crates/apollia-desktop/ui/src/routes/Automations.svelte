@@ -7,6 +7,8 @@
    * surfaces it as "automation" / "run now" / "history" / "target assistant".
    */
   import { t, locale } from "svelte-i18n";
+  import { flip } from "svelte/animate";
+  import { fly } from "svelte/transition";
   import { triggers } from "$lib/stores/triggers";
   import type { TriggerStatus } from "$lib/types";
   import AutomationRow from "../components/automations/AutomationRow.svelte";
@@ -16,14 +18,21 @@
   import AutomationWizard from "../components/automations/AutomationWizard.svelte";
   import DeleteAutomationDialog from "../components/automations/DeleteAutomationDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { invoke } from "@tauri-apps/api/core";
+  import { listTriggers, deleteTrigger } from "$lib/ipc/triggers";
   import {
     PageHeader,
     EmptyState,
+    ErrorBanner,
+    SkeletonList,
     FilterChipBar,
     ListPanel,
   } from "$lib/components/operator";
+  import { listNavigation } from "$lib/components/operator/listNavigation";
+  import { Disclosure } from "$lib/components/ui/disclosure";
   import { Button } from "$lib/components/ui/button";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
+  import { listFlip, rowIn, rowOut } from "$lib/design/listMotion";
   import { Plus, RefreshCw, Sparkles } from "lucide-svelte";
 
   type Filter = "all" | "active" | "paused" | "error";
@@ -35,6 +44,12 @@
   let deleting = $state(false);
   let activeFilter = $state<Filter>("all");
   let refreshing = $state(false);
+  let loadError = $state<HumanizedError | null>(null);
+  // Snippet closures (ErrorBanner / Disclosure children) drop `{#if loadError}`
+  // narrowing, so expose the fields as always-defined deriveds.
+  const errorTitle = $derived(loadError?.title ?? "");
+  const errorAction = $derived(loadError?.suggested_action ?? "");
+  const errorDetail = $derived(loadError?.detail ?? "");
 
   const DELETE_SKIP_KEY = "apollia.delete_automation.skip";
 
@@ -89,10 +104,15 @@
 
   async function handleRefresh() {
     refreshing = true;
+    loadError = null;
     try {
-      // Trigger store auto-refreshes via SSE - manual refresh is a no-op
-      // hint to the user. Add real reload call here if/when exposed.
-      await new Promise((r) => setTimeout(r, 250));
+      // Call the IPC directly (not the store's `refreshTriggers`, which
+      // swallows errors) so a failure surfaces in the humanized banner; the
+      // raw text stays available under the Disclosure below.
+      const result = await listTriggers();
+      triggers.set(result);
+    } catch (err) {
+      loadError = reportError(err, { surface: "inline" });
     } finally {
       refreshing = false;
     }
@@ -127,7 +147,7 @@
   async function performDelete(triggerId: string) {
     deleting = true;
     try {
-      await invoke("delete_trigger", { id: triggerId });
+      await deleteTrigger(triggerId);
       addToast(
         $t("triggers.deleted_toast", { values: { id: triggerId } }),
         "success",
@@ -171,7 +191,41 @@
     {/snippet}
   </PageHeader>
 
-  {#if $triggers.length === 0}
+  {#if loadError}
+    <!-- Humanized load failure: action-first copy, raw text behind Disclosure -->
+    <div class="px-8 pt-4 space-y-2" data-testid="automations-load-error">
+      <ErrorBanner
+        tone="danger"
+        onretry={handleRefresh}
+        retryLabel={$t("common.retry")}
+        loading={refreshing}
+      >
+        <p class="font-medium text-foreground">{errorTitle}</p>
+        <p class="text-muted-foreground">{errorAction}</p>
+      </ErrorBanner>
+      {#if errorDetail}
+        <Disclosure open={false} testid="automations-load-error-details">
+          {#snippet summary()}
+            <span class="font-medium text-foreground">{$t("automations.technical_details")}</span>
+          {/snippet}
+          {#snippet children()}
+            <pre class="overflow-x-auto whitespace-pre-wrap break-words font-mono text-caption text-muted-foreground">{errorDetail}</pre>
+          {/snippet}
+        </Disclosure>
+      {/if}
+    </div>
+  {/if}
+
+  {#if refreshing && $triggers.length === 0}
+    <!-- First-load skeleton: same column rhythm to avoid layout shift -->
+    <div class="px-8 pt-6" data-testid="automations-loading">
+      <ListPanel>
+        <div class="px-4 py-3">
+          <SkeletonList count={4} rowClass="py-1" />
+        </div>
+      </ListPanel>
+    </div>
+  {:else if $triggers.length === 0}
     <div class="px-8 pt-6">
       <AutomationEmptyState onCreate={handleCreate} />
     </div>
@@ -215,27 +269,34 @@
           </EmptyState>
         </ListPanel>
       {:else}
-        <ListPanel
-          data-testid="automations-table"
-          columns={[
-            { label: $t("automations.col_automation"), class: "flex-[2] min-w-0" },
-            { label: $t("automations.col_assistant"), class: "w-[160px]" },
-            { label: $t("automations.col_next_run"), class: "w-[160px]" },
-            { label: $t("automations.col_status"), class: "w-[110px]" },
-            { label: $t("automations.col_last_run"), class: "w-[90px] text-right" },
-            { label: "", class: "w-[64px]" },
-          ]}
-        >
-          {#each filteredTriggers as trigger (trigger.id)}
-            <AutomationRow
-              {trigger}
-              locale={$locale ?? "en"}
-              onfire={handleFired}
-              onlogs={handleOpenHistory}
-              ondelete={handleRequestDelete}
-            />
-          {/each}
-        </ListPanel>
+        <!-- Focal panel: brand-tinted depth marks this as the primary surface.
+             Keyboard nav (roving tabindex) via `listNavigation`. -->
+        <div use:listNavigation={{ rowSelector: "[data-automation-nav]" }}>
+          <ListPanel
+            data-testid="automations-table"
+            class="shadow-primary-lg border-primary/20"
+            columns={[
+              { label: $t("automations.col_automation"), class: "flex-[2] min-w-0" },
+              { label: $t("automations.col_assistant"), class: "w-40" },
+              { label: $t("automations.col_next_run"), class: "w-40" },
+              { label: $t("automations.col_status"), class: "w-28" },
+              { label: $t("automations.col_last_run"), class: "w-24 text-right" },
+              { label: "", class: "w-16" },
+            ]}
+          >
+            {#each filteredTriggers as trigger (trigger.id)}
+              <div animate:flip={listFlip()} in:fly={rowIn()} out:fly={rowOut()}>
+                <AutomationRow
+                  {trigger}
+                  locale={$locale ?? "en"}
+                  onfire={handleFired}
+                  onlogs={handleOpenHistory}
+                  ondelete={handleRequestDelete}
+                />
+              </div>
+            {/each}
+          </ListPanel>
+        </div>
       {/if}
     </div>
   {/if}

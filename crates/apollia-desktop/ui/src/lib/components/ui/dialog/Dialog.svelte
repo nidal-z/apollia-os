@@ -13,6 +13,8 @@
     size?: "sm" | "md" | "lg" | "xl";
     title?: string;
     class?: string;
+    /** ARIA role for the dialog surface (e.g. `"alertdialog"` for destructive confirmations). */
+    role?: string;
     children?: import("svelte").Snippet;
     "data-testid"?: string;
   }
@@ -23,6 +25,7 @@
     size = "md",
     title,
     class: className = "",
+    role = "dialog",
     children,
     ...restProps
   }: Props = $props();
@@ -131,7 +134,7 @@
     use:portal
     class="fixed inset-0 flex items-center justify-center p-4"
     style="z-index: var(--z-overlay);"
-    role="dialog"
+    {role}
     aria-modal="true"
     aria-label={title}
     onkeydown={handleKeydown}

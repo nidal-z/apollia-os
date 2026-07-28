@@ -31,8 +31,10 @@
 
   const isUser = $derived(group.role === "user");
 
-  // System / tool messages stay standalone - no header, plain bubbles.
-  const showHeader = $derived(group.role === "user" || group.role === "assistant");
+  // Only the assistant turn carries the avatar + name + time header (the .who
+  // row in the mockup). User turns render as a bare right-aligned bubble, and
+  // system / tool messages stay standalone with no header.
+  const showHeader = $derived(group.role === "assistant");
 
   const displayName = $derived.by(() => {
     if (isUser) return $t("chat.you", { default: "You" });
@@ -50,10 +52,10 @@
   data-testid="chat-message-group-{group.key}"
 >
   {#if showHeader}
-    <div class="flex items-center gap-2 mb-1.5 px-0.5">
+    <div class="flex items-center gap-2 mb-3 px-0.5">
       <Avatar name={displayName} size="xs" ring={false} />
-      <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
-      <span class="text-[10px] text-muted-foreground/50">{headerTime}</span>
+      <span class="text-[13px] font-semibold text-foreground">{displayName}</span>
+      <span class="text-[11.5px] tabular-nums text-muted-foreground/50">{headerTime}</span>
     </div>
   {/if}
 

@@ -476,6 +476,10 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
         // Cooperative pause is a built-in-loop concept; the agent-backed path
         // never stops at a pause checkpoint.
         paused: false,
+        // The agent-backed path streams no token usage, so the context gauge is
+        // reported as unknown (window None, occupancy zero).
+        context_window_tokens: None,
+        context_tokens_used: 0,
     }
 }
 

@@ -12,6 +12,40 @@
   import { LoadingShimmer, LoadingSpinner } from "$lib/components/feedback";
   import { PageTransition } from "$lib/components/motion";
   import { duration, spring, prefersReducedMotion } from "$lib/design/motion";
+  import { Disclosure } from "$lib/components/ui/disclosure";
+  import { ContextMenu } from "$lib/components/ui/context-menu";
+  import { RouteTransition } from "$lib/components/ui/route-transition";
+  import type { ActionMenuItem } from "$lib/components/ui/action-menu";
+  import { listFlip, rowIn, rowOut } from "$lib/design/listMotion";
+  import { flip } from "svelte/animate";
+  import { fly } from "svelte/transition";
+  import { Copy, Pencil, Trash2, Sparkles } from "lucide-svelte";
+
+  let motionRows = $state([
+    { id: 1, label: "Draft release notes" },
+    { id: 2, label: "Review permissions" },
+    { id: 3, label: "Sync connectors" },
+    { id: 4, label: "Archive old runs" },
+  ]);
+  let nextRowId = 5;
+  function shuffleRows(): void {
+    motionRows = [...motionRows].sort(() => Math.random() - 0.5);
+  }
+  function addRow(): void {
+    const idn = nextRowId++;
+    motionRows = [{ id: idn, label: `New item ${idn}` }, ...motionRows];
+  }
+  function removeRow(id: number): void {
+    motionRows = motionRows.filter((r) => r.id !== id);
+  }
+
+  let routeKey = $state(0);
+
+  const ctxItems: ActionMenuItem[] = [
+    { id: "copy", label: "Copy", icon: Copy, onclick: () => {} },
+    { id: "edit", label: "Rename", icon: Pencil, onclick: () => {} },
+    { id: "delete", label: "Delete", icon: Trash2, variant: "destructive", onclick: () => {} },
+  ];
 
   const gradients = [
     { key: "--gradient-primary", className: "bg-gradient-primary text-white", label: "Hero CTAs, promoted headers" },
@@ -164,6 +198,110 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- Disclosure (Phase 0) -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Disclosure - <code class="text-caption">&lt;Disclosure&gt;</code>
+    </h2>
+    <div class="max-w-md">
+      <Disclosure testid="design-disclosure">
+        {#snippet summary()}
+          <span class="tb-spark align-middle" aria-hidden="true"><Sparkles size={14} /></span>
+          <span class="font-semibold text-foreground">Reasoned</span>
+          <span class="text-muted-foreground/70">· 3 steps</span>
+        {/snippet}
+        {#snippet children()}
+          <p class="text-body-sm text-muted-foreground">
+            Slides open with quintOut; snaps instantly under reduced motion.
+          </p>
+        {/snippet}
+      </Disclosure>
+    </div>
+  </section>
+
+  <!-- List motion (Phase 0) -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      List motion - <code class="text-caption">listFlip / rowIn / rowOut</code>
+    </h2>
+    <div class="flex gap-2">
+      <Button size="sm" variant="outline" onclick={addRow}>Add</Button>
+      <Button size="sm" variant="outline" onclick={shuffleRows}>Shuffle</Button>
+    </div>
+    <ul class="max-w-md space-y-1">
+      {#each motionRows as row (row.id)}
+        <li
+          animate:flip={listFlip()}
+          in:fly={rowIn()}
+          out:fly={rowOut()}
+          class="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 text-body-sm"
+        >
+          <span class="h-2 w-2 rounded-full bg-primary/60"></span>
+          <span class="flex-1">{row.label}</span>
+          <button
+            type="button"
+            class="text-caption text-muted-foreground transition-colors hover:text-destructive"
+            onclick={() => removeRow(row.id)}
+          >
+            Remove
+          </button>
+        </li>
+      {/each}
+    </ul>
+  </section>
+
+  <!-- Route transition (Phase 0) -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Route transition - <code class="text-caption">&lt;RouteTransition&gt;</code>
+    </h2>
+    <Button size="sm" variant="outline" onclick={() => routeKey++}>Swap route</Button>
+    <div class="rounded-xl border border-border/60 bg-surface-2 p-6">
+      {#key routeKey}
+        <RouteTransition>
+          <div class="rounded-lg bg-gradient-accent p-6 text-center text-body-md text-foreground">
+            Route content #{routeKey}
+          </div>
+        </RouteTransition>
+      {/key}
+    </div>
+  </section>
+
+  <!-- Expressive depth (Phase 0) -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Expressive depth
+    </h2>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="glass-panel-strong rounded-xl p-5">
+        <span class="text-body-sm text-foreground">.glass-panel-strong</span>
+      </div>
+      <button type="button" class="elev-interactive rounded-xl bg-card p-5 text-left">
+        <span class="text-body-sm text-foreground">.elev-interactive (hover me)</span>
+      </button>
+      <div class="signature-gradient-border rounded-xl p-5">
+        <span class="text-body-sm text-foreground">.signature-gradient-border</span>
+      </div>
+      <div class="glow-primary rounded-xl bg-card p-5">
+        <span class="signature-gradient-text text-heading-md">.signature-gradient-text</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Context menu (Phase 0) -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Context menu - <code class="text-caption">&lt;ContextMenu&gt;</code>
+    </h2>
+    <ContextMenu items={ctxItems}>
+      <div
+        class="grid h-24 max-w-md place-items-center rounded-xl border border-dashed border-border bg-surface-2 text-body-sm text-muted-foreground"
+      >
+        Right-click here
+      </div>
+    </ContextMenu>
   </section>
 
   <!-- Scrollbar -->

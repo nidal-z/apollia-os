@@ -11,12 +11,36 @@
    * (no own backdrop or fixed positioning).
    */
   import { onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { get } from "svelte/store";
   import { t, locale } from "svelte-i18n";
+  import {
+    cancelModelDownload,
+    getAiSetupInfo,
+    getHfModel,
+    getSttConfig,
+    importModelFile,
+    listAudioInputDevices,
+    reloadLlm,
+    reloadStt,
+    scanForGgufModels,
+    scanForWhisperModels,
+    searchHfModels,
+    setupLocalLlm,
+    setupWhisperModel,
+    startModelDownload,
+    startTourRecording,
+    stopTourRecording,
+    updateSttConfig,
+    type DownloadProgress,
+    type GgufModelInfo,
+    type HfFile,
+    type HfModelCard,
+    type SystemInfo,
+    type WhisperModelInfo,
+  } from "$lib/ipc/models";
 
   /** Base app locale (e.g. "fr", "en") to seed the STT transcription language,
    * so dictation transcribes in the user's language instead of English. */
@@ -62,54 +86,6 @@
   const { onnext, onback, onskip, onopencloud }: Props = $props();
 
   // ─── Types ────────────────────────────────────────────────────────────────
-
-  interface SystemInfo {
-    total_ram_gb: number;
-    available_ram_gb: number;
-    os: string;
-    arch: string;
-    gpu_available: boolean;
-  }
-
-  interface GgufModelInfo {
-    path: string;
-    filename: string;
-    size_bytes: number;
-    size_human: string;
-    recommended: boolean;
-  }
-
-  interface WhisperModelInfo {
-    path: string;
-    filename: string;
-    size_bytes: number;
-    model_size: string;
-    recommended: boolean;
-  }
-
-  interface DownloadProgress {
-    id: string;
-    downloaded_bytes: number;
-    total_bytes: number | null;
-    speed_bps: number;
-    dest_path: string;
-    status: "in_progress" | "completed" | "cancelled" | "failed";
-  }
-
-  interface HfFile {
-    filename: string;
-    size_bytes: number;
-    size_human: string;
-    compatibility: "fits" | "might_fit" | "too_large" | null;
-    download_url: string;
-  }
-
-  interface HfModelCard {
-    repo_id: string;
-    gated: boolean;
-    gguf_files: HfFile[];
-    compatibility_issue: "embedding_model" | "unknown_architecture" | "no_gguf_files" | null;
-  }
 
   interface CuratedLlmModel {
     name: string;
@@ -287,7 +263,7 @@
 
   async function loadInputDevices(): Promise<void> {
     try {
-      sttInputDevices = await invoke<string[]>("list_audio_input_devices");
+      sttInputDevices = await listAudioInputDevices();
     } catch {
       sttInputDevices = [];
     } finally {
@@ -300,10 +276,8 @@
     try {
       // Patch only input_device onto the persisted config so the other fields
       // (enabled, model_path, hotkey, ...) are preserved.
-      const current = await invoke<Record<string, unknown>>("get_stt_config");
-      await invoke("update_stt_config", {
-        config: { ...current, input_device: value || null },
-      });
+      const current = await getSttConfig();
+      await updateSttConfig({ ...current, input_device: value || null });
     } catch (err) {
       console.error("update_stt_config (input_device) failed", err);
     }
@@ -431,11 +405,14 @@
   async function loadData(): Promise<void> {
     try {
       const [sys, gguf, whisper, sttCfg] = await Promise.all([
-        invoke<SystemInfo>("get_ai_setup_info"),
-        invoke<GgufModelInfo[]>("scan_for_gguf_models"),
-        invoke<WhisperModelInfo[]>("scan_for_whisper_models"),
-        invoke<{ hotkey?: string; input_device?: string | null }>(
-          "get_stt_config",
+        getAiSetupInfo(),
+        scanForGgufModels(),
+        scanForWhisperModels(),
+        (
+          getSttConfig() as Promise<{
+            hotkey?: string;
+            input_device?: string | null;
+          }>
         ).catch(() => ({}) as { hotkey?: string; input_device?: string | null }),
       ]);
       sysInfo = sys;
@@ -464,10 +441,8 @@
       // update_stt_config requires the full config; fetch the persisted one and
       // patch only the hotkey so we do not drop the other fields (enabled,
       // model_path, ...), which previously failed with "missing field enabled".
-      const current = await invoke<Record<string, unknown>>("get_stt_config");
-      await invoke("update_stt_config", {
-        config: { ...current, hotkey: sttHotkey.trim() },
-      });
+      const current = await getSttConfig();
+      await updateSttConfig({ ...current, hotkey: sttHotkey.trim() });
       sttHotkeyDirty = false;
     } catch (err) {
       // Surface inline; the existing error pattern in this view is the
@@ -512,20 +487,17 @@
       // selected model and hot-reload the engine before testing; a plain reload
       // covers the case where a model is already configured in system.db.
       if (selectedWhisper) {
-        await invoke("setup_whisper_model", {
-        modelPath: selectedWhisper.path,
-        language: currentLocale(),
-      });
+        await setupWhisperModel(selectedWhisper.path, currentLocale());
       } else {
-        await invoke("reload_stt");
+        await reloadStt();
       }
-      await invoke("start_tour_recording");
+      await startTourRecording();
     } catch (err) {
       // Honest retry: rebuild the engine once, then surface the failure only
       // if the reload genuinely could not bring the engine online.
       try {
-        await invoke("reload_stt");
-        await invoke("start_tour_recording");
+        await reloadStt();
+        await startTourRecording();
       } catch (err2) {
         sttTestRecording = false;
         sttTesting = false;
@@ -540,7 +512,7 @@
   async function stopSttTest(): Promise<void> {
     if (!sttTestRecording) return;
     try {
-      await invoke("stop_tour_recording");
+      await stopTourRecording();
       // sttTesting stays true until the transcribed event fires (or fails).
     } catch (err) {
       sttTestRecording = false;
@@ -554,7 +526,7 @@
 
   async function rescanStt(): Promise<void> {
     try {
-      const whisper = await invoke<WhisperModelInfo[]>("scan_for_whisper_models");
+      const whisper = await scanForWhisperModels();
       whisperModels = whisper;
       if (whisper.length > 0) {
         selectedWhisper = whisper[0];
@@ -573,8 +545,8 @@
     llmConfiguring = true;
     llmError = null;
     try {
-      await invoke("setup_local_llm", { ggufPath: model.path });
-      await invoke("reload_llm");
+      await setupLocalLlm(model.path);
+      await reloadLlm();
       llmSuccess = true;
     } catch (err: unknown) {
       llmError = err instanceof Error ? err.message : String(err);
@@ -602,10 +574,7 @@
       if (!selected) return;
       const filePath =
         typeof selected === "string" ? selected : (selected as { path: string }).path;
-      const dest = await invoke<string>("import_model_file", {
-        sourcePath: filePath,
-        allowedExtensions: ["gguf"],
-      });
+      const dest = await importModelFile(filePath, ["gguf"]);
       await loadData();
       const name = dest.split(/[\\/]/).pop() ?? "";
       const model = ggufModels.find((m) => m.filename === name);
@@ -631,10 +600,7 @@
       if (!selected) return;
       const filePath =
         typeof selected === "string" ? selected : (selected as { path: string }).path;
-      await invoke<string>("import_model_file", {
-        sourcePath: filePath,
-        allowedExtensions: ["bin", "gguf"],
-      });
+      await importModelFile(filePath, ["bin", "gguf"]);
       await rescanStt();
     } catch (err: unknown) {
       sttDownloadError = err instanceof Error ? err.message : String(err);
@@ -669,12 +635,10 @@
     llmDownloadProgress = null;
     llmDownloadingModel = model;
     try {
-      const id = await invoke<string>("start_model_download", {
-        request: {
-          url: model.url,
-          filename: model.filename,
-          repo_id: extractHfRepoId(model.url),
-        },
+      const id = await startModelDownload({
+        url: model.url,
+        filename: model.filename,
+        repo_id: extractHfRepoId(model.url),
       });
       llmDownloadId = id;
     } catch (err: unknown) {
@@ -686,7 +650,7 @@
   async function cancelLlmDownload(): Promise<void> {
     if (!llmDownloadId) return;
     try {
-      await invoke("cancel_model_download", { downloadId: llmDownloadId });
+      await cancelModelDownload(llmDownloadId);
     } catch {
       /* ignore */
     }
@@ -702,10 +666,7 @@
     expandedModel = null;
     expandedDetail = null;
     try {
-      const data = await invoke<{ models: HfModelCard[]; next_cursor: string | null }>(
-        "search_hf_models",
-        { params: { query: searchQuery.trim(), limit: 8 } },
-      );
+      const data = await searchHfModels(searchQuery.trim(), 8);
       searchResults = data.models;
     } catch (err: unknown) {
       searchError = err instanceof Error ? err.message : String(err);
@@ -724,7 +685,7 @@
     expandedDetail = null;
     expandLoading = true;
     try {
-      expandedDetail = await invoke<HfModelCard>("get_hf_model", { repoId });
+      expandedDetail = await getHfModel(repoId);
     } catch {
       /* show what we have */
     } finally {
@@ -738,12 +699,10 @@
     llmDownloadProgress = null;
     llmDownloadingModel = file;
     try {
-      const id = await invoke<string>("start_model_download", {
-        request: {
-          url: file.download_url,
-          filename: file.filename,
-          repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
-        },
+      const id = await startModelDownload({
+        url: file.download_url,
+        filename: file.filename,
+        repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
       });
       llmDownloadId = id;
       showSearch = false;
@@ -761,8 +720,9 @@
     sttDownloadProgress = null;
     sttDownloadingModel = model;
     try {
-      const id = await invoke<string>("start_model_download", {
-        request: { url: model.url, filename: model.filename },
+      const id = await startModelDownload({
+        url: model.url,
+        filename: model.filename,
       });
       sttDownloadId = id;
     } catch (err: unknown) {
@@ -774,7 +734,7 @@
   async function cancelSttDownload(): Promise<void> {
     if (!sttDownloadId) return;
     try {
-      await invoke("cancel_model_download", { downloadId: sttDownloadId });
+      await cancelModelDownload(sttDownloadId);
     } catch {
       /* ignore */
     }
@@ -795,10 +755,7 @@
     advanceError = null;
     try {
       if (sttEnabled && selectedWhisper) {
-        await invoke("setup_whisper_model", {
-        modelPath: selectedWhisper.path,
-        language: currentLocale(),
-      });
+        await setupWhisperModel(selectedWhisper.path, currentLocale());
       }
       onnext();
     } catch (err: unknown) {
@@ -1419,8 +1376,8 @@
     gap: 0.25rem;
     font-size: 0.6875rem;
     font-weight: 600;
-    color: hsl(142 71% 35%);
-    background: hsl(142 71% 35% / 0.12);
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.12);
     padding: 0.15rem 0.45rem;
     border-radius: 99px;
   }
@@ -1521,16 +1478,10 @@
     margin: 0;
     padding: 0.35rem 0.5rem;
     border-radius: 0.375rem;
-    border: 1px solid hsl(38 92% 50% / 0.3);
-    background: hsl(38 92% 50% / 0.1);
+    border: 1px solid hsl(var(--warning) / 0.3);
+    background: hsl(var(--warning) / 0.1);
     font-size: 0.6875rem;
-    color: hsl(32 81% 40%);
-  }
-  .hotkey-hint code {
-    padding: 0 0.25rem;
-    border-radius: 0.25rem;
-    background: hsl(var(--muted) / 0.6);
-    font-size: 0.6875rem;
+    color: hsl(var(--warning-foreground));
   }
   .stt-test-row {
     display: flex;
@@ -1575,7 +1526,7 @@
     align-items: center;
     gap: 0.25rem;
     font-size: 0.75rem;
-    color: hsl(142 71% 35%);
+    color: hsl(var(--success));
     font-style: italic;
   }
   .stt-test-error {
@@ -1691,8 +1642,8 @@
     width: 1.375rem;
     height: 1.375rem;
     border-radius: 50%;
-    background: hsl(142 71% 35%);
-    color: white;
+    background: hsl(var(--success));
+    color: hsl(var(--primary-foreground));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1701,7 +1652,7 @@
   .success-filename {
     font-size: 0.8125rem;
     font-weight: 500;
-    color: hsl(142 71% 35%);
+    color: hsl(var(--success));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1759,9 +1710,9 @@
     width: 0.75rem;
     height: 0.75rem;
     border-radius: 50%;
-    background: white;
+    background: hsl(var(--primary-foreground));
     transition: transform 150ms ease;
-    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
+    box-shadow: var(--shadow-elev-1);
   }
   .toggle-track.on {
     background: hsl(var(--secondary));
@@ -1961,8 +1912,8 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: hsl(45 100% 35%);
-    background: hsl(45 100% 35% / 0.12);
+    color: hsl(var(--warning));
+    background: hsl(var(--warning) / 0.12);
     padding: 0.15rem 0.4rem;
     border-radius: 99px;
     flex-shrink: 0;
@@ -2004,7 +1955,7 @@
     cursor: not-allowed;
   }
   .file-row.compat-fits {
-    border-color: hsl(142 71% 35% / 0.25);
+    border-color: hsl(var(--success) / 0.25);
   }
   .file-row.compat-large {
     opacity: 0.4;
@@ -2030,12 +1981,12 @@
     flex-shrink: 0;
   }
   .compat-chip-fits {
-    color: hsl(142 71% 35%);
-    background: hsl(142 71% 35% / 0.12);
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.12);
   }
   .compat-chip-might_fit {
-    color: hsl(45 100% 35%);
-    background: hsl(45 100% 35% / 0.12);
+    color: hsl(var(--warning));
+    background: hsl(var(--warning) / 0.12);
   }
   .compat-chip-too_large {
     color: hsl(var(--destructive));

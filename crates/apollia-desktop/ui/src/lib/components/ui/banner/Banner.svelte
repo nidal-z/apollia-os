@@ -1,6 +1,8 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
+  import { fly } from "svelte/transition";
   import { AlertCircle, CheckCircle, Info, AlertTriangle, WifiOff } from "lucide-svelte";
+  import { rm } from "$lib/design/motion";
   import type { Snippet } from "svelte";
   import type { HTMLAttributes } from "svelte/elements";
 
@@ -16,6 +18,8 @@
     variant?: Variant;
     /** Optional override of the default lucide icon for the chosen variant. */
     icon?: typeof AlertCircle;
+    /** Optional bold headline rendered before the body (card and edge). */
+    title?: string;
     /** Trailing slot for action buttons / retry affordances. */
     trailing?: Snippet;
     /**
@@ -34,6 +38,7 @@
   let {
     variant = "info",
     icon,
+    title,
     trailing,
     surface = "edge",
     class: className = "",
@@ -71,32 +76,43 @@
 <div
   class={cn(
     "flex justify-between gap-3 px-4",
-    isCard ? "items-start py-3 text-sm rounded-lg border" : "items-center py-2 text-[12px] border-b",
+    isCard
+      ? "items-start rounded-lg border py-3 text-sm"
+      : "items-center border-b py-2 text-xs",
     variantClasses[variant],
     className,
   )}
   role={ariaRole}
   aria-live={ariaLive}
+  transition:fly={rm({ y: -16, duration: 280 })}
   {...restProps}
 >
-  <div class={cn("flex gap-2 min-w-0 flex-1", isCard ? "items-start" : "items-center")}>
+  <div
+    class={cn(
+      "flex min-w-0 flex-1 gap-2",
+      isCard ? "items-start" : "items-center",
+    )}
+  >
     <IconComponent
       size={isCard ? 16 : 14}
       aria-hidden="true"
       class={cn("shrink-0", isCard && "mt-0.5")}
     />
     {#if isCard}
-      <div class="flex-1">
+      <div class="min-w-0 flex-1">
+        {#if title}
+          <div class="font-semibold">{title}</div>
+        {/if}
         {@render children?.()}
       </div>
     {:else}
-      <span class="truncate">
-        {@render children?.()}
+      <span class="min-w-0 truncate">
+        {#if title}<span class="font-semibold">{title}</span> {/if}{@render children?.()}
       </span>
     {/if}
   </div>
   {#if trailing}
-    <div class={cn("shrink-0", isCard && "mt-0.5")}>
+    <div class={cn("flex shrink-0 items-center gap-1.5", isCard && "mt-0.5")}>
       {@render trailing()}
     </div>
   {/if}

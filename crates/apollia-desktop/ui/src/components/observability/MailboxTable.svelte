@@ -58,10 +58,10 @@
 
 <div class="space-y-5">
   <div class="space-y-1">
-    <h3 class="m-0 text-[15px] font-semibold tracking-[-0.1px] text-foreground">
+    <h3 class="m-0 text-heading-sm font-semibold text-foreground">
       {$t("observability.mailbox.title")}
     </h3>
-    <p class="text-[13px] text-muted-foreground">
+    <p class="text-body-sm text-muted-foreground">
       {$t("observability.mailbox.intro")}
     </p>
   </div>
@@ -80,41 +80,41 @@
       <div class="rounded-full glass-inset p-4 mb-4">
         <Mailbox class="h-8 w-8 text-muted-foreground/60" />
       </div>
-      <p class="text-[13px] text-muted-foreground">{$t("observability.mailbox.empty")}</p>
+      <p class="text-body-sm text-muted-foreground">{$t("observability.mailbox.empty")}</p>
     </Card>
   {:else}
     <Card class="overflow-hidden" data-testid="mailbox-list">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[720px] text-[13px]">
+        <table class="w-full min-w-[720px] text-body-sm">
           <thead>
             <tr class="border-b border-border/40">
               <th
                 scope="col"
-                class="section-meta text-left px-5 py-3 text-[10px] tracking-[1.4px]"
+                class="section-meta text-left px-5 py-3"
               >
                 {$t("observability.mailbox.col_from")}
               </th>
               <th
                 scope="col"
-                class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                class="section-meta text-left px-3 py-3"
               >
                 {$t("observability.mailbox.col_to")}
               </th>
               <th
                 scope="col"
-                class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                class="section-meta text-left px-3 py-3"
               >
                 {$t("observability.mailbox.col_payload")}
               </th>
               <th
                 scope="col"
-                class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
+                class="section-meta text-left px-3 py-3"
               >
                 {$t("observability.mailbox.col_state")}
               </th>
               <th
                 scope="col"
-                class="section-meta text-right px-5 py-3 text-[10px] tracking-[1.4px]"
+                class="section-meta text-right px-5 py-3"
               >
                 {$t("observability.mailbox.col_sent_at")}
               </th>
@@ -142,18 +142,18 @@
                 </td>
                 <td class="px-3 py-3 max-w-[24rem]">
                   <pre
-                    class="overflow-x-auto whitespace-pre-wrap break-words text-[11.5px] font-mono leading-relaxed text-muted-foreground"
+                    class="overflow-x-auto whitespace-pre-wrap break-words text-code-sm font-mono leading-relaxed text-muted-foreground"
                     data-testid="mailbox-message-payload">{row.payload}</pre>
                 </td>
                 <td class="px-3 py-3">
                   <span
-                    class="inline-flex items-center rounded-full border px-2 py-[1px] text-[10.5px] font-medium {stateChip(row.state)}"
+                    class="inline-flex items-center rounded-full border px-2 py-[1px] text-caption font-medium {stateChip(row.state)}"
                     data-testid="mailbox-message-state"
                   >
                     {stateLabel(row.state)}
                   </span>
                 </td>
-                <td class="px-5 py-3 text-right text-[11px] text-muted-foreground tabular-nums">
+                <td class="px-5 py-3 text-right text-caption text-muted-foreground tabular-nums">
                   {formatTimestamp(row.sent_at)}
                 </td>
               </tr>

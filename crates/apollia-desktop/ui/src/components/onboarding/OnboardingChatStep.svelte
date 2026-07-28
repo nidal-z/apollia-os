@@ -16,14 +16,19 @@
    * instead of letting the first message silently fail.
    */
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import ChatConversation from "../chat/ChatConversation.svelte";
   import OnboardingPermissionStep from "./OnboardingPermissionStep.svelte";
-  import type { ChatSessionDetail, TriggerResult } from "$lib/types";
+  import OnboardingConfetti from "./OnboardingConfetti.svelte";
+  import {
+    checkOnboardingFinalized,
+    getChatSession,
+    resumeOnboarding,
+    sendChatMessage,
+    triggerOnboarding,
+  } from "$lib/ipc/onboarding";
   import { get } from "svelte/store";
   import { llmBackends } from "$lib/stores/sse";
-  import { onboardingTourActive } from "$lib/stores/tour";
   import { onboardingResumeMode } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
   import { AlertCircle, CheckCircle2 } from "lucide-svelte";
@@ -98,10 +103,7 @@
     try {
       // Nudge the agent to wrap up. It closes with [PROFILE] once the
       // mandatory keys are present, which writes `onboarding.completed_at`.
-      await invoke("send_chat_message", {
-        sessionId,
-        content: $t("onboarding_chat.finish_early_message"),
-      });
+      await sendChatMessage(sessionId, $t("onboarding_chat.finish_early_message"));
     } catch {
       // Non-fatal: the agent may still close on a later turn.
     } finally {
@@ -167,9 +169,7 @@
   async function pollSession(): Promise<void> {
     if (!sessionId) return;
     try {
-      const detail = await invoke<ChatSessionDetail>("get_chat_session", {
-        sessionId,
-      });
+      const detail = await getChatSession(sessionId);
       userTurns = detail.messages.filter((m) => m.role === "user").length;
     } catch {
       // Non-critical - retry on next tick.
@@ -180,7 +180,7 @@
     // polling and switch to the wrap-up panel.
     if (!agentFinalized) {
       try {
-        const done = await invoke<boolean>("check_onboarding_finalized");
+        const done = await checkOnboardingFinalized();
         if (done) {
           agentFinalized = true;
           if (pollTimer !== undefined) {
@@ -195,12 +195,9 @@
   }
 
   async function handleFinish(): Promise<void> {
-    // Hand-off to the post-onboarding guided tour: close the modal and let
-    // the App-level `OnboardingTourRunner` overlay take over. The runner
-    // is responsible for calling `mark_onboarded` once it terminates so
-    // the modal only re-opens at next launch if the tour itself was
-    // interrupted (and the backend phase isn't `done`).
-    onboardingTourActive.set(true);
+    // The modal hands back to a fully usable application. Discovery continues
+    // from the Getting started band on the dashboard, which the user opens when
+    // they choose to: nothing launches on its own after this point.
     onclose();
   }
 
@@ -211,12 +208,7 @@
       // Resume mode (from the "complete your profile" entry point) keeps the
       // already-collected profile; a normal launch resets for a fresh run.
       const resume = get(onboardingResumeMode);
-      const result = resume
-        ? await invoke<TriggerResult>("resume_onboarding")
-        : await invoke<TriggerResult>("trigger_onboarding", {
-            topic: null,
-            profile: null,
-          });
+      const result = resume ? await resumeOnboarding() : await triggerOnboarding();
       onboardingResumeMode.set(false);
       sessionId = result.session_id;
       bootstrapping = false;
@@ -225,10 +217,7 @@
       // for the user to type first. Failures here are non-fatal - the
       // agent will still respond once the user sends a real message.
       try {
-        await invoke("send_chat_message", {
-          sessionId: result.session_id,
-          content: "Bonjour !",
-        });
+        await sendChatMessage(result.session_id, "Bonjour !");
       } catch {
         /* ignore */
       }
@@ -285,6 +274,9 @@
          sees a clean confirmation without the previous Q&A bleeding through. -->
     <div class="chat-body chat-body-stage">
       <div class="celebration" data-testid="onboarding-celebration">
+        {#if agentFinalized}
+          <OnboardingConfetti />
+        {/if}
         <div class="celebration-icon">
           <CheckCircle2 size={32} strokeWidth={2} aria-hidden="true" />
         </div>
@@ -416,7 +408,7 @@
 
   .chat-progress-check.active {
     background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground, 0 0% 100%));
+    color: hsl(var(--primary-foreground));
     border-color: hsl(var(--primary));
   }
 
@@ -439,6 +431,8 @@
   }
 
   .celebration {
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -451,11 +445,27 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 999px;
-    background: hsl(142 71% 35% / 0.15);
-    color: hsl(142 71% 35%);
+    background: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
     display: flex;
     align-items: center;
     justify-content: center;
+    animation: celebration-pop var(--motion-slow) var(--ease-spring) both;
+  }
+  @keyframes celebration-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .celebration-icon {
+      animation: none;
+    }
   }
   .celebration-title {
     margin: 0;

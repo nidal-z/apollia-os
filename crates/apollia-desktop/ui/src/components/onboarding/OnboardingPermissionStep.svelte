@@ -9,20 +9,18 @@
    * When the list becomes empty, fires `oncomplete`.
    */
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { ShieldCheck, ShieldX, Check, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { reportError } from "$lib/errors/reportError";
   import { Spinner } from "$lib/components/ui/progress";
-
-  interface ProposedRuleView {
-    index: number;
-    tool_name: string;
-    action: string;
-    arg_prefix: string | null;
-    scope: string;
-  }
+  import {
+    applyProposedPermissionRule,
+    dismissProposedPermissionRule,
+    listProposedPermissionRules,
+    type ProposedRuleView,
+  } from "$lib/ipc/onboarding";
 
   interface Props {
     /** Fires once the list of pending proposals reaches zero. */
@@ -37,12 +35,9 @@
 
   async function refresh(): Promise<void> {
     try {
-      pending = await invoke<ProposedRuleView[]>("list_proposed_permission_rules");
+      pending = await listProposedPermissionRules();
     } catch (err) {
-      addToast(
-        err instanceof Error ? err.message : String(err),
-        "error",
-      );
+      reportError(err, { surface: "toast" });
       pending = [];
     } finally {
       loading = false;
@@ -59,10 +54,10 @@
   async function apply(rule: ProposedRuleView): Promise<void> {
     busy = { ...busy, [rule.index]: "applying" };
     try {
-      await invoke("apply_proposed_permission_rule", { index: rule.index });
+      await applyProposedPermissionRule(rule.index);
       addToast($t("onboarding_permissions.rule_applied"), "success");
     } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
+      reportError(err, { surface: "toast" });
     } finally {
       busy = { ...busy, [rule.index]: undefined };
       await refresh();
@@ -72,9 +67,9 @@
   async function dismiss(rule: ProposedRuleView): Promise<void> {
     busy = { ...busy, [rule.index]: "dismissing" };
     try {
-      await invoke("dismiss_proposed_permission_rule", { index: rule.index });
+      await dismissProposedPermissionRule(rule.index);
     } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
+      reportError(err, { surface: "toast" });
     } finally {
       busy = { ...busy, [rule.index]: undefined };
       await refresh();
@@ -280,7 +275,7 @@
     width: 3px;
   }
   .rule-card-allow::before {
-    background: hsl(142 71% 45%);
+    background: hsl(var(--success));
   }
   .rule-card-deny::before {
     background: hsl(var(--destructive));
@@ -309,12 +304,12 @@
   }
 
   .pill-allow {
-    background: hsl(142 71% 45% / 0.12);
-    color: hsl(142 71% 32%);
-    border-color: hsl(142 71% 45% / 0.3);
+    background: hsl(var(--success) / 0.12);
+    color: hsl(var(--success-foreground));
+    border-color: hsl(var(--success) / 0.3);
   }
   :global(.dark) .pill-allow {
-    color: hsl(142 71% 60%);
+    color: hsl(var(--success));
   }
 
   .pill-deny {

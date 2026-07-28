@@ -364,13 +364,22 @@ pub struct ToolCall {
 ///
 /// The stream yields a sequence of `Text` chunks (tokens), optionally
 /// followed by one or more `ToolCall` chunks if the model requests
-/// tool invocations.
+/// tool invocations, and optionally a terminal `Usage` chunk carrying the
+/// token accounting for the whole call.
 #[derive(Debug, Clone)]
 pub enum StreamChunk {
     /// Incremental text token for progressive display.
     Text(String),
     /// Tool call requested by the LLM (emitted when tool calling is detected in the stream).
     ToolCall(ToolCall),
+    /// Terminal token-usage report for the call.
+    ///
+    /// Emitted at most once, from the final SSE chunk, by backends that report
+    /// streaming usage (OpenAI-compatible servers queried with
+    /// `stream_options.include_usage`, which includes the embedded llama-server).
+    /// Backends that do not report streaming usage never yield this variant, so
+    /// non-consuming sites may safely ignore it.
+    Usage(TokenUsage),
 }
 
 /// Summary information about a backend, returned by `LlmRouter::list()`.

@@ -5,6 +5,8 @@ export type ToastVariant = "success" | "error" | "info" | "loading" | "urgent" |
 export interface ToastItem {
   id: string;
   message: string;
+  /** Optional secondary line shown under the message in muted foreground. */
+  description?: string;
   variant: ToastVariant;
   autoDismiss: number;
   showProgress: boolean;
@@ -28,6 +30,7 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 export interface AddToastOptions {
   duration?: number;
   showProgress?: boolean;
+  description?: string;
   actionLabel?: string;
   onaction?: () => void;
   "data-testid"?: string;
@@ -60,6 +63,7 @@ export function addToast(
   const item: ToastItem = {
     id,
     message,
+    description: options?.description,
     variant,
     autoDismiss: duration,
     showProgress: showProgress && duration > 0,

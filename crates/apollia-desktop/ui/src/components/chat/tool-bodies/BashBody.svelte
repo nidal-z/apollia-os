@@ -13,6 +13,7 @@
   import {
     parseBashOutput,
     countOutputLines,
+    describeBashCommand,
   } from "$lib/chat/toolBodies";
   import { t, locale } from "svelte-i18n";
   import { fly, fade } from "svelte/transition";
@@ -37,10 +38,15 @@
   );
   const lineCount = $derived(countOutputLines(item.output));
 
+  // Plain-language description derived deterministically from the command, so
+  // an operator sees "List files" instead of `ls -la`. The model's own
+  // narration (rationale summary) is richer when present, so it wins; otherwise
+  // the derived description carries the meaning.
+  const describedAction = $derived($t(describeBashCommand(command)));
   const outcome = $derived(
     item.rationale?.summary?.trim()
       ? item.rationale.summary.trim()
-      : $t("tools.body.bash_generic"),
+      : describedAction,
   );
 
   const durationLabel = $derived.by<string>(() => {

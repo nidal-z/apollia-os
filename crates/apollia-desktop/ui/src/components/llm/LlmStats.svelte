@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
+  import { getLlmCostStats } from "$lib/ipc/llm";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
 
   const REFRESH_INTERVAL_MS = 30_000;
@@ -15,7 +15,7 @@
 
   async function loadStats(): Promise<void> {
     try {
-      const result: LlmCostStatsResponse = await invoke("get_llm_cost_stats", { days: 7 });
+      const result: LlmCostStatsResponse = await getLlmCostStats(7);
       rows = result.rows;
       error = null;
     } catch (err: unknown) {

@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { PlanCacheStats } from "$lib/types";
+  import { getPlanCacheStats, clearPlanCache } from "$lib/ipc/planCache";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
-  import EmptyState from "../common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
   import { addToast } from "$lib/components/ui/toast/store";
   import {
     Database,
@@ -36,7 +36,7 @@
 
   async function loadStats(): Promise<void> {
     try {
-      stats = await invoke<PlanCacheStats>("get_plan_cache_stats");
+      stats = await getPlanCacheStats();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       addToast(message, "error");
@@ -57,7 +57,7 @@
     const previousTotal = stats?.total_entries ?? 0;
     clearing = true;
     try {
-      await invoke("clear_plan_cache");
+      await clearPlanCache();
       addToast($t("observability.plan_cache.toast_purged", { values: { count: previousTotal } }), "success");
       await loadStats();
     } catch (err: unknown) {
@@ -103,7 +103,7 @@
     <EmptyState
       icon={Archive}
       title={$t("observability.plan_cache.empty_title")}
-      subtitle={$t("observability.plan_cache.empty_subtitle")}
+      description={$t("observability.plan_cache.empty_subtitle")}
       page="plan-cache"
     />
 

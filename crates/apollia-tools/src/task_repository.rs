@@ -822,6 +822,33 @@ impl TaskRepository {
         Ok(())
     }
 
+    /// Hard-deletes a task and its approval rows from the persisted store.
+    ///
+    /// Removes the `tasks` row plus every `task_approvals` row for `task_id`.
+    /// Distinct from [`cancel_task`](Self::cancel_task), which keeps the record
+    /// and only transitions its status to `cancelled`. Returns `true` when a
+    /// task row existed and was removed, `false` when none matched.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
+    pub async fn delete_task(&self, task_id: &str) -> Result<bool, TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<bool, TaskRepoError> {
+            let conn = open_conn(&path)?;
+            conn.execute(
+                "DELETE FROM task_approvals WHERE task_id = ?1",
+                params![&task_id],
+            )?;
+            let removed = conn.execute("DELETE FROM tasks WHERE task_id = ?1", params![&task_id])?;
+            Ok(removed > 0)
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
     /// Returns the `task_id`s in `input_required` status for longer than `older_than`.
     ///
     /// Uses `strftime('%s', 'now') - strftime('%s', input_required_at)` to
@@ -1587,6 +1614,42 @@ mod tests {
     }
 
     // find_input_required_older_than() returns the expired tasks
+
+    #[tokio::test]
+    async fn test_delete_task_removes_record() {
+        // GIVEN a persisted task with an approval row
+        let (repo, _db_path) = open_test_repo().await;
+        let task_id = "t-delete-001";
+        repo.save_input_required(task_id, None, "confirm?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+
+        // WHEN the task is hard-deleted
+        let removed = repo.delete_task(task_id).await.expect("delete_task failed");
+
+        // THEN it reports a removal and the record is gone
+        assert!(removed);
+        let status = repo
+            .get_task_status(task_id)
+            .await
+            .expect("get_task_status failed");
+        assert!(status.is_none(), "task record should be gone after delete");
+    }
+
+    #[tokio::test]
+    async fn test_delete_task_absent_returns_false() {
+        // GIVEN an empty repository
+        let (repo, _db_path) = open_test_repo().await;
+
+        // WHEN deleting a task that was never persisted
+        let removed = repo
+            .delete_task("t-nonexistent")
+            .await
+            .expect("delete_task failed");
+
+        // THEN nothing was removed
+        assert!(!removed);
+    }
 
     #[tokio::test]
     async fn test_find_expired_input_required() {

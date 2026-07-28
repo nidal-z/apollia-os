@@ -1308,6 +1308,18 @@ impl LlmRouter {
             .unwrap_or(200_000)
     }
 
+    /// Return the active backend's context window in tokens, when it reports one.
+    ///
+    /// Unlike [`Self::context_limit`], this does not substitute a generic
+    /// fallback: it returns `None` when the backend cannot report its window, so
+    /// a caller can render an "unknown" state (e.g. a context gauge left at zero)
+    /// instead of a misleading value.
+    pub fn context_window_tokens(&self) -> Option<usize> {
+        self.backends
+            .get(&self.default)
+            .and_then(|backend| backend.context_window())
+    }
+
     /// Estimate the token count of `messages` using the default backend.
     ///
     /// Delegates to [`CompletionModel::count_tokens`] on the default backend, so

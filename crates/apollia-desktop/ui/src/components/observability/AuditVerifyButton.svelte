@@ -79,11 +79,11 @@
   </Button>
 
   {#if state.loading}
-    <span class="text-[12px] text-muted-foreground" data-testid="verify-loading">
+    <span class="text-body-xs text-muted-foreground" data-testid="verify-loading">
       {$t("observability.verify_loading")}
     </span>
   {:else if state.error}
-    <span class="text-[12px] text-destructive" data-testid="verify-error">
+    <span class="text-body-xs text-destructive" data-testid="verify-error">
       {$t("observability.verify_error", { values: { message: state.error } })}
     </span>
   {:else if state.result}

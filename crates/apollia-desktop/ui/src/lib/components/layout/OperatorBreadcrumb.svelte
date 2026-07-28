@@ -35,10 +35,10 @@
 
   const dotClass = $derived(
     status.level === "ok"
-      ? "bg-emerald-500 shadow-status-ok"
+      ? "bg-success shadow-status-ok"
       : status.level === "warn"
-        ? "bg-amber-500 shadow-status-warn"
-        : "bg-rose-500 shadow-status-error animate-pulse",
+        ? "bg-warning shadow-status-warn"
+        : "bg-destructive shadow-status-error animate-pulse",
   );
 
   function goHome() {
@@ -48,7 +48,7 @@
 
 <nav
   aria-label="Breadcrumb"
-  class="flex min-w-0 items-center gap-2 text-[12.5px]"
+  class="flex min-w-0 items-center gap-2 text-code-sm"
   data-testid="topbar-breadcrumb"
 >
   <button

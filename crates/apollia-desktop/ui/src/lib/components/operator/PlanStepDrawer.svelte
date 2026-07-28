@@ -41,7 +41,7 @@
       closeLabel={$t("a11y.close")}
     />
     <SheetContent padding="compact" data-testid="plan-step-drawer">
-      <div class="font-mono text-[10px] text-muted-foreground">
+      <div class="font-mono text-overline text-muted-foreground">
         {$t("plan_session.trace_step_id")}: {step.step_id}
         {#if taskId}
           · {$t("plan_session.trace_task_id")}: {taskId}
@@ -53,18 +53,18 @@
       </ul>
 
       <div>
-        <h4 class="mb-1 text-[11px] font-medium text-foreground">
+        <h4 class="mb-1 text-caption font-medium text-foreground">
           {$t("plan_session.trace_tool_calls")}
         </h4>
         {#if toolCalls.length === 0}
-          <p class="text-[11px] text-muted-foreground">{$t("plan_session.trace_empty")}</p>
+          <p class="text-caption text-muted-foreground">{$t("plan_session.trace_empty")}</p>
         {:else}
           <ol class="space-y-2">
             {#each toolCalls as call, i (i)}
               <li class="rounded-md border border-border bg-surface-1 p-2">
-                <div class="font-mono text-[10px] text-accent-foreground">{call.name}</div>
+                <div class="font-mono text-overline text-accent-foreground">{call.name}</div>
                 <pre
-                  class="mt-1 whitespace-pre-wrap text-[10px] text-muted-foreground">{call.output}</pre>
+                  class="mt-1 whitespace-pre-wrap text-overline text-muted-foreground">{call.output}</pre>
               </li>
             {/each}
           </ol>

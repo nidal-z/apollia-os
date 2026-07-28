@@ -11,6 +11,7 @@
   // shows no empty box; while `live` the header still appears even before the
   // first token, since the runtime only carries the full text on ThinkingEnded.
   import { t } from "svelte-i18n";
+  import { Sparkles } from "lucide-svelte";
   import { PLAN_SESSION_KEYS } from "$lib/i18n/strings/planSession";
 
   type Props = {
@@ -32,10 +33,13 @@
   <section class="my-1.5" data-testid="plan-thinking-overlay">
     <button
       type="button"
-      class="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+      class="inline-flex items-center gap-1.5 text-caption text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       aria-expanded={expanded}
       onclick={() => (expanded = !expanded)}
     >
+      {#if live}
+        <Sparkles size={12} class="flex-none animate-pulse text-primary" aria-hidden="true" />
+      {/if}
       <span
         class="inline-block leading-none transition-transform duration-150"
         class:rotate-90={expanded}>›</span
@@ -46,7 +50,7 @@
     </button>
     {#if expanded && hasContent}
       <p
-        class="mt-1 whitespace-pre-wrap pl-3 text-[12px] leading-relaxed text-muted-foreground/85"
+        class="mt-1 whitespace-pre-wrap pl-3 text-body-xs italic leading-relaxed text-muted-foreground/85"
       >
         {content}
       </p>

@@ -197,6 +197,86 @@ export function countOutputLines(output: string | null): number {
   return output.split("\n").filter((l) => l.trim().length > 0).length;
 }
 
+/**
+ * Maps a shell command to the i18n key of a plain-language description of what
+ * it does, so operators (who do not read shell) understand a `bash_executor`
+ * call without seeing the raw command. Recognizes the leading program name,
+ * skipping common prefixes (`sudo`, env assignments). Returns
+ * `tools.body.bash_describe.generic` when the program is not recognized.
+ */
+const BASH_VERB_KEYS: Record<string, string> = {
+  ls: "list_files",
+  dir: "list_files",
+  tree: "list_files",
+  find: "find_files",
+  fd: "find_files",
+  cat: "read_file",
+  bat: "read_file",
+  less: "read_file",
+  more: "read_file",
+  head: "read_file",
+  tail: "read_file",
+  grep: "search_text",
+  rg: "search_text",
+  ag: "search_text",
+  mkdir: "create_folder",
+  touch: "create_file",
+  rm: "delete",
+  rmdir: "delete",
+  unlink: "delete",
+  mv: "move",
+  cp: "copy",
+  echo: "print_text",
+  printf: "print_text",
+  cd: "navigate",
+  pwd: "navigate",
+  curl: "download",
+  wget: "download",
+  git: "version_control",
+  python: "run_program",
+  python3: "run_program",
+  node: "run_program",
+  npm: "run_program",
+  pnpm: "run_program",
+  yarn: "run_program",
+  pip: "run_program",
+  pip3: "run_program",
+  cargo: "run_program",
+  make: "run_program",
+  chmod: "change_permissions",
+  chown: "change_permissions",
+  tar: "archive",
+  zip: "archive",
+  unzip: "archive",
+  gzip: "archive",
+  ps: "process_management",
+  top: "process_management",
+  kill: "process_management",
+  df: "disk_usage",
+  du: "disk_usage",
+  wc: "count_lines",
+  sort: "transform_text",
+  uniq: "transform_text",
+  sed: "transform_text",
+  awk: "transform_text",
+  cut: "transform_text",
+};
+
+export function describeBashCommand(command: string): string {
+  const base = "tools.body.bash_describe";
+  const trimmed = command.trim();
+  if (!trimmed) return `${base}.generic`;
+  const tokens = trimmed.split(/\s+/);
+  let i = 0;
+  // Skip a leading `sudo` and `KEY=value` environment assignments.
+  while (i < tokens.length && (tokens[i] === "sudo" || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]!))) {
+    i += 1;
+  }
+  const program = (tokens[i] ?? "").split("/").at(-1) ?? "";
+  const verb = BASH_VERB_KEYS[program];
+  return verb ? `${base}.${verb}` : `${base}.generic`;
+}
+
 /** Basename of a filesystem path, tolerant of both separators. */
 export function basename(path: string): string {
   const sep = path.includes("/") ? "/" : "\\";
@@ -432,90 +512,6 @@ export function parseMemory(output: string | null): MemoryParsed | null {
   const totalFound =
     typeof obj.total_found === "number" ? obj.total_found : entries.length;
   return { entries, totalFound };
-}
-
-/** A plan step reduced to what the per-call body renders. */
-export interface PlanStepLite {
-  stepId: string;
-  title: string;
-  status: string | null;
-}
-
-/**
- * Normalized view of a single `plan_*` call: what the call changed, drawn from
- * its arguments, plus the resulting step summaries echoed in the output.
- *
- * Every field is optional and defensively typed: the full plan renders in the
- * dedicated plan host, so this only reflects the delta of THIS call.
- */
-export interface PlanCallInfo {
-  ok: boolean;
-  /** `output.steps` summaries when the call succeeded. */
-  outputSteps: PlanStepLite[] | null;
-  /** The step object carried in `args.step` (add / modify). */
-  argStep: PlanStepLite | null;
-  /** `args.step_id` (remove / modify / set_status). */
-  stepId: string | null;
-  /** `args.status` (set_status). */
-  status: string | null;
-  /** `args.steps.length` (propose). */
-  proposeCount: number | null;
-  /** `args.ordered_ids.length` (reorder). */
-  orderCount: number | null;
-}
-
-function coercePlanStep(raw: unknown): PlanStepLite | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const s = raw as Record<string, unknown>;
-  const stepId =
-    typeof s.step_id === "string"
-      ? s.step_id
-      : typeof s.stepId === "string"
-        ? s.stepId
-        : "";
-  const title =
-    typeof s.title === "string" && s.title.length > 0
-      ? s.title
-      : typeof s.description === "string"
-        ? s.description
-        : "";
-  const status = typeof s.status === "string" ? s.status : null;
-  if (!stepId && !title) return null;
-  return { stepId, title, status };
-}
-
-/**
- * Parse a `plan_*` tool call into a {@link PlanCallInfo}. Never returns `null`:
- * a plan call always renders a friendly action line, degrading to just the
- * action verb when neither args nor output carry usable detail.
- */
-export function parsePlanCall(
-  args: Record<string, unknown>,
-  output: string | null,
-): PlanCallInfo {
-  const obj = parseJsonObject(output);
-  const ok = obj ? obj.ok !== false : true;
-  const outputSteps = Array.isArray(obj?.steps)
-    ? (obj.steps as unknown[])
-        .map(coercePlanStep)
-        .filter((s): s is PlanStepLite => s !== null)
-    : null;
-  const argStep = coercePlanStep(args.step);
-  const stepId = typeof args.step_id === "string" ? args.step_id : null;
-  const status = typeof args.status === "string" ? args.status : null;
-  const proposeCount = Array.isArray(args.steps) ? args.steps.length : null;
-  const orderCount = Array.isArray(args.ordered_ids)
-    ? args.ordered_ids.length
-    : null;
-  return {
-    ok,
-    outputSteps: outputSteps && outputSteps.length > 0 ? outputSteps : null,
-    argStep,
-    stepId,
-    status,
-    proposeCount,
-    orderCount,
-  };
 }
 
 /** One item of a `todo_write` list, normalized for the operator rendering. */

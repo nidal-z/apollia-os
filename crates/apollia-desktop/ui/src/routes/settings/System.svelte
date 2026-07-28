@@ -1,6 +1,4 @@
 <script lang="ts" context="module">
-  import { Card } from "$lib/components/ui/card";
-  import { Spinner } from "$lib/components/ui/progress";
   export const meta = {
     title: "settings.nav.system",
     icon: "info",
@@ -10,29 +8,48 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
-  import { Copy, RefreshCw, CheckCircle2, XCircle, Download } from "lucide-svelte";
+  import {
+    Info,
+    Shield,
+    Package,
+    Terminal,
+    RefreshCw,
+    Copy,
+    CheckCircle2,
+    XCircle,
+    Download,
+  } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Spinner } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
-  import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
-  import UpdateChecker from "./UpdateChecker.svelte";
   import { addToast } from "$lib/components/ui/toast";
-  import { systemInfoStore, securityPostureStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
-  import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
+  import { humanize, type HumanizedError } from "$lib/errors/humanize";
+  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
+  import SettingsSection from "../../components/settings/SettingsSection.svelte";
+  import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
+  import UpdateCheckPanel from "../../components/settings/UpdateCheckPanel.svelte";
+  import {
+    systemInfoStore,
+    securityPostureStore,
+    cliStatusStore,
+    configStore,
+    settingsLoaders,
+  } from "$lib/stores/settings";
+  import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
+  import { installCli, uninstallCli } from "$lib/ipc/system";
   import type { CliStatus } from "$lib/types";
 
   let cliActionLoading = $state(false);
-  let cliError = $state<string | null>(null);
+  let cliError = $state<HumanizedError | null>(null);
   let refreshing = $state(false);
   let lastRefreshed = $state<Date>(new Date());
   let now = $state<Date>(new Date());
-
   let tickHandle: ReturnType<typeof setInterval> | undefined;
 
-  async function refreshAll() {
+  async function refreshAll(): Promise<void> {
     refreshing = true;
     try {
       await Promise.all([
@@ -46,7 +63,7 @@
     }
   }
 
-  async function copyPath(path: string | null | undefined) {
+  async function copyPath(path: string | null | undefined): Promise<void> {
     if (!path) return;
     try {
       await navigator.clipboard.writeText(path);
@@ -56,41 +73,30 @@
     }
   }
 
-  async function installCli() {
+  async function runCli(action: () => Promise<void>): Promise<void> {
     cliActionLoading = true;
     cliError = null;
     try {
-      await invoke("install_cli");
+      await action();
       await settingsLoaders.cliStatus(true);
     } catch (err) {
-      cliError = err instanceof Error ? err.message : String(err);
-    } finally {
-      cliActionLoading = false;
-    }
-  }
-
-  async function uninstallCli() {
-    cliActionLoading = true;
-    cliError = null;
-    try {
-      await invoke("uninstall_cli");
-      await settingsLoaders.cliStatus(true);
-    } catch (err) {
-      cliError = err instanceof Error ? err.message : String(err);
+      cliError = humanize(err, $t);
     } finally {
       cliActionLoading = false;
     }
   }
 
   function formatRelative(ref: Date, nowRef: Date): string {
-    const diffMs = Math.max(0, nowRef.getTime() - ref.getTime());
-    const seconds = Math.floor(diffMs / 1000);
+    const seconds = Math.floor(Math.max(0, nowRef.getTime() - ref.getTime()) / 1000);
     if (seconds < 5) return $t("settings.system.refresh_just_now");
-    if (seconds < 60) return $t("settings.system.refresh_seconds_ago", { values: { n: String(seconds) } });
+    if (seconds < 60)
+      return $t("settings.system.refresh_seconds_ago", { values: { n: String(seconds) } });
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return $t("settings.system.refresh_minutes_ago", { values: { n: String(minutes) } });
-    const hours = Math.floor(minutes / 60);
-    return $t("settings.system.refresh_hours_ago", { values: { n: String(hours) } });
+    if (minutes < 60)
+      return $t("settings.system.refresh_minutes_ago", { values: { n: String(minutes) } });
+    return $t("settings.system.refresh_hours_ago", {
+      values: { n: String(Math.floor(minutes / 60)) },
+    });
   }
 
   onMount(() => {
@@ -108,140 +114,140 @@
   });
 </script>
 
+{#snippet kvText(label: string, value: string)}
+  <div
+    class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2 last:border-b-0"
+  >
+    <span class="text-body-sm text-muted-foreground">{label}</span>
+    <span class="min-w-0 max-w-full truncate font-mono text-code-sm text-foreground">{value}</span>
+  </div>
+{/snippet}
+
+{#snippet kvPill(label: string, ok: boolean, text: string)}
+  <div
+    class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2 last:border-b-0"
+  >
+    <span class="text-body-sm text-muted-foreground">{label}</span>
+    <span class="inline-flex items-center gap-1.5 text-body-sm text-foreground">
+      {#if ok}
+        <CheckCircle2 size={14} class="text-success" />
+      {:else}
+        <XCircle size={14} class="text-muted-foreground" />
+      {/if}
+      {text}
+    </span>
+  </div>
+{/snippet}
+
+{#snippet kvCopyable(label: string, path: string, testid?: string)}
+  <div
+    class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2 last:border-b-0"
+  >
+    <span class="text-body-sm text-muted-foreground">{label}</span>
+    <Button
+      variant="ghost"
+      size="sm"
+      class="group min-w-0 max-w-full text-foreground hover:text-primary"
+      onclick={() => copyPath(path)}
+      title={$t("settings.config.copy_path")}
+      data-testid={testid}
+    >
+      <span class="truncate font-mono text-code-sm">{path}</span>
+      <Copy class="ml-1.5 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+    </Button>
+  </div>
+{/snippet}
+
 {#if $systemInfoStore.loading && !$systemInfoStore.loaded}
   <SettingSectionSkeleton />
 {:else}
-  <section class="space-y-4" data-testid="advanced-section">
+  <SettingsSubPage route="system" data-testid="advanced-section">
     <div class="flex items-center justify-between gap-3">
-      <div class="text-xs text-muted-foreground" data-testid="system-info-last-refreshed">
+      <span class="text-caption text-muted-foreground" data-testid="system-info-last-refreshed">
         {$t("settings.system.last_refreshed", {
           values: { relative: formatRelative(lastRefreshed, now) },
         })}
-      </div>
+      </span>
       <Button
         variant="outline"
         size="sm"
+        loading={refreshing}
         onclick={refreshAll}
-        disabled={refreshing}
         data-testid="system-info-refresh-btn"
       >
-        {#if refreshing}
-          <Spinner class="h-3.5 w-3.5 mr-1.5" />
-        {:else}
-          <RefreshCw class="h-3.5 w-3.5 mr-1.5" />
-        {/if}
+        {#snippet icon()}<RefreshCw size={13} />{/snippet}
         {$t("settings.system.refresh")}
       </Button>
     </div>
 
     {#if $systemInfoStore.data}
       {@const systemInfo = $systemInfoStore.data}
-      <Card class="rounded-lg p-4" data-testid="system-info-section">
-        <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          {$t("settings.system_info")}
-        </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.system_version")}</span>
-            <span class="text-sm font-mono text-foreground">{systemInfo.version}</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.system_os")}</span>
-            <span class="text-sm font-mono text-foreground">{systemInfo.os}</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 sm:col-span-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.system_python")}</span>
-            {#if systemInfo.python_path}
-              <Button variant="ghost" size="sm"
-                type="button"
-                class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
-                onclick={() => copyPath(systemInfo.python_path)}
-                title={$t("settings.config.copy_path")}
-                data-testid="system-info-copy-python"
-              >
-                <span class="truncate">{systemInfo.python_path}</span>
-                <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-              </Button>
-            {:else}
-              <span class="text-sm font-mono text-muted-foreground italic">{$t("settings.system_python_not_found")}</span>
-            {/if}
-          </div>
+      <SettingsSection title={$t("settings.system_info")} data-testid="system-info-section">
+        {#snippet icon()}<Info size={15} strokeWidth={1.75} />{/snippet}
+        <div>
+          {@render kvText($t("settings.system_version"), systemInfo.version)}
+          {@render kvText($t("settings.system_os"), systemInfo.os)}
+          {#if systemInfo.python_path}
+            {@render kvCopyable(
+              $t("settings.system_python"),
+              systemInfo.python_path,
+              "system-info-copy-python",
+            )}
+          {:else}
+            {@render kvText($t("settings.system_python"), $t("settings.system_python_not_found"))}
+          {/if}
           {#if $configStore.data?.config_path}
-            <div class="grid grid-cols-2 gap-2 sm:col-span-2">
-              <span class="text-sm text-muted-foreground">{$t("settings.config.path_label")}</span>
-              <Button variant="ghost" size="sm"
-                type="button"
-                class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
-                onclick={() => copyPath($configStore.data?.config_path)}
-                title={$t("settings.config.copy_path")}
-              >
-                <span class="truncate">{$configStore.data.config_path}</span>
-                <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-              </Button>
-            </div>
+            {@render kvCopyable($t("settings.config.path_label"), $configStore.data.config_path)}
           {/if}
         </div>
-      </Card>
+      </SettingsSection>
     {:else if $systemInfoStore.error}
-      <ErrorBanner message={$systemInfoStore.error} />
+      <ErrorBanner message={$systemInfoStore.error} data-testid="system-info-error" />
     {/if}
 
     {#if $securityPostureStore.data}
       {@const posture = $securityPostureStore.data}
       {@const namespaced = posture.tool_sandbox === "linux_namespaces"}
-      <Card class="rounded-lg p-4" data-testid="security-posture-section">
-        <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          {$t("settings.security.title")}
-        </h3>
-        <div class="grid grid-cols-1 gap-y-2">
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.security.platform")}</span>
-            <span class="text-sm font-mono text-foreground">{posture.platform}</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.security.tool_sandbox")}</span>
-            <span class="inline-flex items-center gap-1.5 text-sm text-foreground">
-              {#if namespaced}
-                <CheckCircle2 class="h-3.5 w-3.5 text-success" />
-                {$t("settings.security.tool_sandbox_namespaces")}
-              {:else}
-                <XCircle class="h-3.5 w-3.5 text-muted-foreground" />
-                {$t("settings.security.tool_sandbox_none")}
-              {/if}
-            </span>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.security.rlimits")}</span>
-            <span class="inline-flex items-center gap-1.5 text-sm text-foreground">
-              {#if posture.rlimits_active}
-                <CheckCircle2 class="h-3.5 w-3.5 text-success" />
-                {$t("settings.security.rlimits_active")}
-              {:else}
-                <XCircle class="h-3.5 w-3.5 text-muted-foreground" />
-                {$t("settings.security.rlimits_inactive")}
-              {/if}
-            </span>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <span class="text-sm text-muted-foreground">{$t("settings.security.agent_execution")}</span>
-            <span class="text-sm text-foreground">{$t("settings.security.agent_execution_trusted")}</span>
-          </div>
+      <SettingsSection
+        title={$t("settings.security.title")}
+        data-testid="security-posture-section"
+      >
+        {#snippet icon()}<Shield size={15} strokeWidth={1.75} />{/snippet}
+        {#snippet footer()}
+          <p class="text-caption text-muted-foreground">{$t("settings.security.trust_note")}</p>
+        {/snippet}
+        <div>
+          {@render kvText($t("settings.security.platform"), posture.platform)}
+          {@render kvPill(
+            $t("settings.security.tool_sandbox"),
+            namespaced,
+            namespaced
+              ? $t("settings.security.tool_sandbox_namespaces")
+              : $t("settings.security.tool_sandbox_none"),
+          )}
+          {@render kvPill(
+            $t("settings.security.rlimits"),
+            posture.rlimits_active,
+            posture.rlimits_active
+              ? $t("settings.security.rlimits_active")
+              : $t("settings.security.rlimits_inactive"),
+          )}
+          {@render kvText(
+            $t("settings.security.agent_execution"),
+            $t("settings.security.agent_execution_trusted"),
+          )}
         </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          {$t("settings.security.trust_note")}
-        </p>
-      </Card>
+      </SettingsSection>
     {:else if $securityPostureStore.error}
-      <ErrorBanner message={$securityPostureStore.error} />
+      <ErrorBanner message={$securityPostureStore.error} data-testid="security-posture-error" />
     {/if}
 
-    <Card class="rounded-lg p-4" data-testid="agent-install-section">
-      <h3 class="mb-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-        {$t("settings.system.agent_install_section_title")}
-      </h3>
-      <p class="mb-3 text-xs text-muted-foreground leading-relaxed">
-        {$t("settings.system.agent_install_section_desc")}
-      </p>
+    <SettingsSection
+      title={$t("settings.system.agent_install_section_title")}
+      description={$t("settings.system.agent_install_section_desc")}
+      data-testid="agent-install-section"
+    >
+      {#snippet icon()}<Package size={15} strokeWidth={1.75} />{/snippet}
       <SettingsToggle
         id="auto-install-python-deps"
         label={$t("settings.system.auto_install_python_deps_label")}
@@ -250,68 +256,83 @@
         onChange={setAutoInstallPythonDeps}
         data-testid="auto-install-python-deps-toggle"
       />
-    </Card>
+    </SettingsSection>
 
-    <UpdateChecker />
+    <UpdateCheckPanel />
 
     {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
       {@const cliStatus = $cliStatusStore.data as CliStatus}
-      <Card class="rounded-lg p-4">
-        <h3 class="mb-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          {$t("settings.cli_title")}
-        </h3>
-        <p class="text-sm text-muted-foreground mb-3">{$t("settings.cli_description")}</p>
-        <div class="space-y-2 mb-3">
-          <div class="grid grid-cols-2 gap-2 items-center">
-            <span class="text-sm text-muted-foreground">{$t("settings.cli_status")}</span>
-            <span class="inline-flex items-center gap-1.5 text-sm">
+      <SettingsSection
+        title={$t("settings.cli_title")}
+        description={$t("settings.cli_description")}
+        data-testid="cli-section"
+      >
+        {#snippet icon()}<Terminal size={15} strokeWidth={1.75} />{/snippet}
+        <div>
+          <div
+            class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2"
+          >
+            <span class="text-body-sm text-muted-foreground">{$t("settings.cli_status")}</span>
+            <span class="inline-flex items-center gap-1.5 text-body-sm">
               {#if cliActionLoading}
                 <Spinner class="h-3.5 w-3.5 text-muted-foreground" />
                 <span class="text-muted-foreground">{$t("settings.system.cli_working")}</span>
               {:else if cliStatus.installed}
-                <CheckCircle2 class="h-3.5 w-3.5 text-success" />
-                <span class="font-mono">{$t("settings.cli_installed")} v{cliStatus.version}</span>
+                <CheckCircle2 size={14} class="text-success" />
+                <span class="font-mono text-code-sm text-foreground"
+                  >{$t("settings.cli_installed")} v{cliStatus.version}</span
+                >
               {:else}
-                <XCircle class="h-3.5 w-3.5 text-muted-foreground" />
+                <XCircle size={14} class="text-muted-foreground" />
                 <span class="text-muted-foreground">{$t("settings.cli_not_installed")}</span>
               {/if}
             </span>
           </div>
-          <div class="grid grid-cols-2 gap-2 items-center">
-            <span class="text-sm text-muted-foreground">{$t("settings.cli_path")}</span>
-            <Button variant="ghost" size="sm"
-              type="button"
-              class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
-              onclick={() => copyPath(cliStatus.symlink_path)}
-              title={$t("settings.config.copy_path")}
-              data-testid="system-cli-copy-path"
-            >
-              <span class="truncate">{cliStatus.symlink_path}</span>
-              <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-            </Button>
-          </div>
+          {@render kvCopyable(
+            $t("settings.cli_path"),
+            cliStatus.symlink_path,
+            "system-cli-copy-path",
+          )}
         </div>
-        {#if cliStatus.installed}
-          <Button variant="outline" size="sm" onclick={uninstallCli} disabled={cliActionLoading}>
-            {cliActionLoading ? $t("common.loading") : $t("settings.cli_uninstall")}
-          </Button>
-        {:else}
-          <Button variant="default" size="sm" onclick={installCli} disabled={cliActionLoading}>
-            {#if cliActionLoading}
-              <Spinner class="h-3.5 w-3.5 mr-1.5" />
-            {:else}
-              <Download class="h-3.5 w-3.5 mr-1.5" />
+
+        <div class="mt-1 flex flex-col gap-1.5">
+          {#if cliStatus.installed}
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                loading={cliActionLoading}
+                onclick={() => runCli(uninstallCli)}
+              >
+                {$t("settings.cli_uninstall")}
+              </Button>
+            </div>
+          {:else}
+            <div>
+              <Button
+                variant="default"
+                size="sm"
+                loading={cliActionLoading}
+                onclick={() => runCli(installCli)}
+              >
+                {#snippet icon()}<Download size={13} />{/snippet}
+                {$t("settings.cli_install")}
+              </Button>
+            </div>
+            {#if cliStatus.needs_privilege}
+              <p class="text-caption text-muted-foreground">
+                {$t("settings.cli_needs_privilege")}
+              </p>
             {/if}
-            {cliActionLoading ? $t("common.loading") : $t("settings.cli_install")}
-          </Button>
-          {#if cliStatus.needs_privilege}
-            <p class="text-xs text-muted-foreground mt-1">{$t("settings.cli_needs_privilege")}</p>
           {/if}
-        {/if}
-        {#if cliError}
-          <p class="text-sm text-destructive mt-2">{cliError}</p>
-        {/if}
-      </Card>
+          {#if cliError}
+            <ErrorBanner tone="danger" data-testid="cli-error">
+              <p class="font-medium">{cliError.title}</p>
+              <p class="text-caption opacity-90">{cliError.suggested_action}</p>
+            </ErrorBanner>
+          {/if}
+        </div>
+      </SettingsSection>
     {/if}
-  </section>
+  </SettingsSubPage>
 {/if}

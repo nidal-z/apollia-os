@@ -16,6 +16,7 @@
   import { Sparkles, ChevronRight } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { quintOut } from "svelte/easing";
+  import { formatDurationSeconds } from "$lib/chat/duration";
 
   interface Props {
     /** Trace body: flat reasoning captions. */
@@ -26,6 +27,10 @@
     live?: boolean;
     /** Summed tool duration in ms; 0 omits the figure gracefully. */
     durationMs?: number;
+    /** Reasoning caption count; 0 omits the figure. */
+    reasoningCount?: number;
+    /** Tool-call count for the turn; 0 omits the figure. */
+    toolCount?: number;
   }
 
   let {
@@ -33,6 +38,8 @@
     open = false,
     live = false,
     durationMs = 0,
+    reasoningCount = 0,
+    toolCount = 0,
   }: Props = $props();
 
   // Controlled disclosure: the caller's `open` prop seeds the state and keeps
@@ -59,16 +66,7 @@
   // Locale-aware seconds, one decimal (e.g. "3,2" in fr, "3.2" in en).
   const durationLabel = $derived.by<string>(() => {
     if (live || durationMs <= 0) return "";
-    const seconds = durationMs / 1000;
-    const loc = $locale ?? "en";
-    try {
-      return new Intl.NumberFormat(loc, {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      }).format(seconds);
-    } catch {
-      return seconds.toFixed(1);
-    }
+    return formatDurationSeconds(durationMs, $locale ?? "en");
   });
 </script>
 
@@ -89,7 +87,7 @@
 </svg>
 
 <div
-  class="activity-strip mb-3 w-full overflow-hidden rounded-lg border border-border/60 bg-surface-1/50"
+  class="activity-strip mb-4 w-full overflow-hidden rounded-lg border border-[hsl(var(--border-soft))] bg-surface-1/60"
   data-testid="activity-strip"
 >
   <button
@@ -107,6 +105,16 @@
     <span class="min-w-0">
       <span class="font-semibold text-foreground">{summaryLead}</span>
     </span>
+    {#if !live && reasoningCount > 0}
+      <span class="flex-none text-muted-foreground/70" data-testid="activity-reasoning-count"
+        >· {$t("chat.activity.reasoning_count", { values: { n: reasoningCount } })}</span
+      >
+    {/if}
+    {#if !live && toolCount > 0}
+      <span class="flex-none text-muted-foreground/70" data-testid="activity-tool-count"
+        >· {$t("chat.activity.tool_count", { values: { n: toolCount } })}</span
+      >
+    {/if}
     {#if durationLabel}
       <span
         class="flex-none tabular-nums text-muted-foreground/60"

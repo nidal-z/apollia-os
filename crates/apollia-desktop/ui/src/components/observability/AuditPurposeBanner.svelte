@@ -14,10 +14,10 @@
     <Shield class="h-4 w-4 text-primary" aria-hidden="true" />
   </div>
   <div class="min-w-0">
-    <h3 class="m-0 text-[13px] font-semibold tracking-[-0.1px] mb-1">
+    <h3 class="m-0 text-body-sm font-semibold mb-1">
       {$t('observability.audit_purpose_title')}
     </h3>
-    <p class="m-0 text-[12.5px] leading-[1.55] text-muted-foreground max-w-[720px]">
+    <p class="m-0 text-code-sm leading-[1.55] text-muted-foreground max-w-[720px]">
       {$t('observability.audit_purpose_body')}
     </p>
   </div>

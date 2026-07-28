@@ -1,14 +1,14 @@
 {
-  "name": "profile-det (settings profile sub-page, operator + builder, autosave onblur, native selects exercised, fast-fail on data-dependent)",
+  "name": "profile-det (settings profile sub-page, operator + builder, explicit save via the shared footer, native selects exercised, fast-fail on data-dependent)",
   "stopOnError": false,
   "notes": [
     "Code-verified against routes/settings/Profile.svelte + ui/select/Select.svelte + ui/dialog/{Dialog,ConfirmDialog}.svelte + routes/Settings.svelte.",
     "The profile is backed by SemanticMemory under __user__ (profile_schema.rs). The seed sets preferences.language=fr but NOT name/role, so name+role start empty and are filled here.",
-    "profile-select-* are native <select> (Select.svelte passes data-testid onto the <select>); each is exercised with selectOption using a valid static option value. The onchange handler persists the value via saveKey.",
+    "profile-select-* are native <select> (Select.svelte passes data-testid onto the <select>); each is exercised with selectOption using a valid static option value. The onchange handler stages the value; nothing is persisted until the explicit save.",
     "profile-radio-* testids sit on the RadioGroup container; individual RadioItem elements carry no testid and there is no radio-option primitive, so the group is asserted present only (an option cannot be picked).",
     "profile-integ-github / profile-compliance-rgpd are <button role=checkbox> (Checkbox.svelte), NOT <input>; they are toggled with click (setChecked requires a native input and would throw).",
-    "settings-saved-hint renders whenever the sub-page is not dirty (Settings.svelte). Profile autosaves on blur so it is never dirty, hence the hint is a deterministic present-assert.",
-    "Autosave: consecutive fill steps focus the next field, which blurs (and saves) the previous one; the first selectOption focus blurs and saves the goals textarea.",
+    "The profile now saves EXPLICITLY: Profile.svelte wraps its cards in SettingsSubPage with onSave/onReset, so field edits mark the route dirty (settings-unsaved-badge) and are committed via settings-subpage-save + settings-save-toast-success. settings-saved-hint renders only while the sub-page is clean (Settings.svelte), so it is asserted AFTER the save, not after a field change.",
+    "The route must be left clean before navigating away: the settings nav guard opens settings-unsaved-dialog on a dirty route, and that modal blocks every later section of master-det. Hence the explicit save before the danger-zone block.",
     "showEnrichmentBanner is derived (calibrationDone AND tier2 has an empty field). It is treated as best-effort: observed by screenshot only, never hard-asserted and never used as a click target, so no step can fail on it.",
     "Profile.svelte has zero uiMode-conditional rendering; the builder pass asserts mode-invariance of the same fields."
   ],
@@ -161,12 +161,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-saved-hint",
+      "testid": "settings-unsaved-badge",
       "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
-      "label": "04-profile-saved-hint"
+      "label": "04-profile-unsaved-badge"
     },
     {
       "kind": "waitFor",
@@ -240,6 +240,29 @@
     {
       "kind": "screenshot",
       "label": "08-profile-enrichment-banner-best-effort"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-subpage-footer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-save-toast-success",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-profile-saved"
     },
     {
       "kind": "click",

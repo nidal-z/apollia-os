@@ -58,11 +58,11 @@ impl ChatSessionManager {
     /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
     /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
     ///   approval.
-    pub(in crate::chat::manager) fn handle_approve_plan(
+    pub(in crate::chat::manager) async fn handle_approve_plan(
         &mut self,
         session_id: &str,
     ) -> Result<(), ChatError> {
-        self.guard_awaiting_approval(session_id)?;
+        self.guard_awaiting_approval(session_id).await?;
 
         // Persist first so the approved transition survives a restart even if the
         // continuation dispatch below fails (e.g. no LLM configured).
@@ -105,12 +105,12 @@ impl ChatSessionManager {
     /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
     /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
     ///   approval.
-    pub(in crate::chat::manager) fn handle_reject_plan(
+    pub(in crate::chat::manager) async fn handle_reject_plan(
         &mut self,
         session_id: &str,
         reason: Option<String>,
     ) -> Result<(), ChatError> {
-        self.guard_awaiting_approval(session_id)?;
+        self.guard_awaiting_approval(session_id).await?;
 
         let _ = self.event_bus.send(RuntimeEvent::ChatPlanRejected {
             session_id: session_id.to_string(),
@@ -133,18 +133,53 @@ impl ChatSessionManager {
 
     /// Return [`ChatError::NotAwaitingApproval`] unless the session is awaiting
     /// approval, or [`ChatError::SessionNotFound`] when it does not exist.
-    fn guard_awaiting_approval(&self, session_id: &str) -> Result<(), ChatError> {
-        let session = self
+    ///
+    /// Closes a race: the fast broadcast events (`PlanSubmitted` /
+    /// `ChatPlanPhaseChanged`) raise the approval card mid-turn when `plan_submit`
+    /// runs, but the authoritative in-memory `session.plan_phase` only flips to
+    /// [`PlanPhase::AwaitingApproval`] later, when this actor processes
+    /// `ExchangeComplete`. `ApprovePlan` and `ExchangeComplete` are both
+    /// `ChatCommand`s on the same serial loop, so a quick user click enqueues
+    /// `ApprovePlan` before `ExchangeComplete` is processed and the phase read
+    /// here is stale. When the in-memory phase is not yet awaiting approval, fall
+    /// back to the persisted plan status through the [`PlanHandle`]: PlanActor's
+    /// submit persists `PlanStatus::AwaitingApproval` synchronously before those
+    /// events fire, so a status read is authoritative. On a match, reconcile the
+    /// in-memory phase and proceed rather than failing the guard. This is a
+    /// read-side reconciliation only: event ordering and the actor command model
+    /// are untouched.
+    async fn guard_awaiting_approval(&mut self, session_id: &str) -> Result<(), ChatError> {
+        let phase = self
             .sessions
             .get(session_id)
-            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
-        if session.plan_phase != PlanPhase::AwaitingApproval {
-            return Err(ChatError::NotAwaitingApproval {
-                session_id: session_id.to_string(),
-                current_phase: session.plan_phase.as_sql().to_string(),
-            });
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?
+            .plan_phase;
+        if phase == PlanPhase::AwaitingApproval {
+            return Ok(());
         }
-        Ok(())
+
+        // Race fallback: consult the authoritative persisted plan status. Resolve
+        // the handle synchronously (an owned clone) so no SQLite borrow is held
+        // across the await, matching the GetPlan / ReadPlanMutations command path.
+        if let Some(plan_handle) = self.resolve_plan_handle(session_id)? {
+            if let Ok(Some(plan)) = plan_handle.get_plan(session_id).await {
+                if plan.status == apollia_core::plan::PlanStatus::AwaitingApproval {
+                    if let Some(session) = self.sessions.get_mut(session_id) {
+                        session.plan_phase = PlanPhase::AwaitingApproval;
+                    }
+                    tracing::info!(
+                        session_id = %session_id,
+                        "plan.guard.reconciled_awaiting_approval"
+                    );
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(ChatError::NotAwaitingApproval {
+            session_id: session_id.to_string(),
+            current_phase: phase.as_sql().to_string(),
+        })
     }
 
     /// Dispatch a continuation turn carrying a synthetic directive.

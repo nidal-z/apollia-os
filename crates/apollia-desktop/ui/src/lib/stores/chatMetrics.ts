@@ -26,8 +26,10 @@ export interface SessionMetrics {
   cost_usd: number | null;
   budget_max_steps: number;
   steps_used: number;
-  context_window_size: number;
-  messages_in_history: number;
+  /** Real context window of the active model, in tokens (0 when unknown). */
+  context_window_tokens: number;
+  /** Current context occupancy in tokens (prompt size of the last LLM call). */
+  context_tokens_used: number;
   tool_stats: ToolStatEntry[];
   exchanges_count: number;
   started_at: string | null;
@@ -45,8 +47,8 @@ const EMPTY: SessionMetrics = {
   cost_usd: null,
   budget_max_steps: 0,
   steps_used: 0,
-  context_window_size: 0,
-  messages_in_history: 0,
+  context_window_tokens: 0,
+  context_tokens_used: 0,
   tool_stats: [],
   exchanges_count: 0,
   started_at: null,

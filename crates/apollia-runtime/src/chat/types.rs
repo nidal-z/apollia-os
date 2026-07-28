@@ -480,10 +480,10 @@ pub struct SessionMetrics {
     pub budget_max_steps: u32,
     /// Steps consumed so far (exchanges producing assistant responses).
     pub steps_used: u32,
-    /// Context window size (sliding window on history).
-    pub context_window_size: u32,
-    /// Current history length (messages kept in memory).
-    pub messages_in_history: u32,
+    /// Real context window of the active model, in tokens (`0` when unknown).
+    pub context_window_tokens: u32,
+    /// Current context occupancy in tokens (prompt size of the last LLM call).
+    pub context_tokens_used: u32,
     /// Aggregated per-tool statistics.
     pub tool_stats: Vec<ToolStatEntry>,
     /// Number of exchanges completed.

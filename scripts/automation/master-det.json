@@ -341,19 +341,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "user-menu-about-dialog"
+      "testid": "about-section",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
       "label": "10-user-menu-about"
-    },
-    {
-      "kind": "click",
-      "testid": "user-menu-about-close"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "user-menu-about-dialog"
     },
     {
       "kind": "goto",
@@ -3704,6 +3697,16 @@
       "testid": "channel-label-input"
     },
     {
+      "kind": "click",
+      "testid": "disc-technical-id-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-id-input",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "expect",
       "testid": "channel-id-input"
     },
@@ -3960,6 +3963,16 @@
       "ms": 400
     },
     {
+      "kind": "click",
+      "testid": "disc-technical-id-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-id-input",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "expect",
       "testid": "channel-id-error"
     },
@@ -4177,7 +4190,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "namespace-sidebar-item-__user__",
+      "testid": "namespace-sidebar-item-apollia-guide",
       "timeoutMs": 4000
     },
     {
@@ -4240,7 +4253,7 @@
     },
     {
       "kind": "click",
-      "testid": "namespace-sidebar-item-__user__",
+      "testid": "namespace-sidebar-item-apollia-guide",
       "timeoutMs": 2500
     },
     {
@@ -4249,7 +4262,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-namespace-user-selected"
+      "label": "05-namespace-selected"
     },
     {
       "kind": "waitFor",
@@ -4297,7 +4310,7 @@
     {
       "kind": "fill",
       "testid": "memory-search-input",
-      "text": "onboarding",
+      "text": "operator",
       "timeoutMs": 2500
     },
     {
@@ -5104,6 +5117,11 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "click",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "mcp-tools-count",
       "timeoutMs": 4000
@@ -5172,6 +5190,11 @@
       "kind": "waitFor",
       "testid": "catalogue-tabbar",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -6292,7 +6315,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-section",
+      "testid": "plan-mode-default-toggle",
       "timeoutMs": 4000
     },
     {
@@ -6378,12 +6401,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-toggle-switch",
+      "testid": "plan-mode-default-toggle",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "plan-mode-default-toggle-switch"
+      "testid": "plan-mode-default-toggle"
     },
     {
       "kind": "sleep",
@@ -6395,7 +6418,7 @@
     },
     {
       "kind": "click",
-      "testid": "plan-mode-default-toggle-switch"
+      "testid": "plan-mode-default-toggle"
     },
     {
       "kind": "sleep",
@@ -6416,7 +6439,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "runtime-config-section",
+      "testid": "configuration-subpage",
       "timeoutMs": 6000
     },
     {
@@ -6429,25 +6452,13 @@
       "label": "22-configuration"
     },
     {
-      "kind": "click",
-      "testidPrefix": "config-file-card-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
       "kind": "waitFor",
-      "testidPrefix": "config-file-card-copy-",
-      "nth": 0,
+      "testid": "config-file-card-copy-runtime",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testidPrefix": "config-file-card-copy-",
-      "nth": 0,
+      "testid": "config-file-card-copy-runtime",
       "timeoutMs": 4000
     },
     {
@@ -6457,6 +6468,24 @@
     {
       "kind": "screenshot",
       "label": "23-config-file-card-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "config-file-card-oria",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "waitFor",
+      "testid": "config-file-card-copy-oria",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "23b-config-file-card-expanded"
     },
     {
       "kind": "click",
@@ -6503,12 +6532,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "auto-install-python-deps-toggle-switch",
+      "testid": "auto-install-python-deps-toggle",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle-switch"
+      "testid": "auto-install-python-deps-toggle"
     },
     {
       "kind": "sleep",
@@ -6520,7 +6549,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle-switch"
+      "testid": "auto-install-python-deps-toggle"
     },
     {
       "kind": "sleep",
@@ -6592,7 +6621,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 8000
     },
     {
@@ -6600,9 +6629,10 @@
       "ms": 600
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "de-automation"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "de",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -6665,7 +6695,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 8000
     },
     {
@@ -6673,9 +6703,10 @@
       "ms": 400
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "en-automation"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "es",
+      "timeoutMs": 4000
     },
     {
       "kind": "selectOption",
@@ -7081,12 +7112,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-saved-hint",
+      "testid": "settings-unsaved-badge",
       "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
-      "label": "04-profile-saved-hint"
+      "label": "04-profile-unsaved-badge"
     },
     {
       "kind": "waitFor",
@@ -7160,6 +7191,29 @@
     {
       "kind": "screenshot",
       "label": "08-profile-enrichment-banner-best-effort"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-subpage-footer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-save-toast-success",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-profile-saved"
     },
     {
       "kind": "click",
@@ -7460,37 +7514,37 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card-",
+      "testid": "llm-backend-card",
       "nth": 0,
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "status-",
+      "testid": "llm-backend-badge",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "set-default-",
+      "testid": "set-default",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "test-backend-",
+      "testid": "llm-backend-ping-btn",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "edit-backend-",
+      "testid": "edit-backend",
       "nth": 0,
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "delete-backend-",
+      "testid": "delete-backend",
       "nth": 0,
       "timeoutMs": 4000
     },
@@ -7500,7 +7554,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "edit-backend-",
+      "testid": "edit-backend",
       "nth": 0
     },
     {
@@ -7622,7 +7676,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "delete-backend-",
+      "testid": "delete-backend",
       "nth": 0
     },
     {
@@ -8124,17 +8178,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "stt-config-form",
       "timeoutMs": 15000
     },
     {
       "kind": "screenshot",
       "label": "01-stt-settings-operator"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "stt-config-form",
-      "timeoutMs": 6000
     },
     {
       "kind": "expect",
@@ -8146,12 +8195,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-language-input",
+      "testid": "stt-language-select",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
       "testid": "stt-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "it",
       "timeoutMs": 3000
     },
     {
@@ -8162,20 +8217,25 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-sticky-save",
+      "testid": "settings-subpage-footer",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
       "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "02-stt-dirty-sticky-save"
+      "label": "02-stt-dirty-save-footer"
     },
     {
       "kind": "click",
-      "testid": "stt-save-btn"
+      "testid": "settings-subpage-save"
     },
     {
       "kind": "waitFor",
-      "testid": "stt-save-status-saved",
+      "testid": "settings-save-toast-success",
       "timeoutMs": 15000
     },
     {
@@ -8184,17 +8244,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-restart-notice",
+      "testid": "stt-applied-notice",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "04-stt-restart-notice"
+      "label": "04-stt-applied-notice"
     },
     {
-      "kind": "fill",
-      "testid": "stt-language-input",
-      "text": "en"
+      "kind": "selectOption",
+      "testid": "stt-language-select",
+      "value": "en",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -8277,11 +8338,11 @@
     },
     {
       "kind": "click",
-      "testid": "stt-save-btn"
+      "testid": "settings-subpage-save"
     },
     {
       "kind": "waitFor",
-      "testid": "stt-save-status-saved",
+      "testid": "settings-save-toast-success",
       "timeoutMs": 15000
     },
     {
@@ -8378,7 +8439,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "transcript-source",
+      "testid": "transcript-duration",
       "timeoutMs": 2000
     },
     {
@@ -8459,12 +8520,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "stt-config-form",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "expect",
-      "testid": "stt-config-form"
     },
     {
       "kind": "expect",
@@ -9265,9 +9322,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "selectOption",
-      "testid": "permission-rule-add-action",
-      "value": "deny",
+      "kind": "click",
+      "testid": "permission-rule-add-action-deny",
       "timeoutMs": 4000
     },
     {
@@ -9308,7 +9364,7 @@
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-toggle"
+      "testid": "permission-rule-add-cancel"
     },
     {
       "kind": "sleep",
@@ -9541,7 +9597,7 @@
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-toggle"
+      "testid": "permission-rule-add-cancel"
     },
     {
       "kind": "sleep",
@@ -9572,6 +9628,460 @@
     {
       "kind": "screenshot",
       "label": "16-back-operator"
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-21-tour-det"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-tour-start"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "help-topic-tour"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-help-topic-tour"
+    },
+    {
+      "kind": "click",
+      "testid": "help-topic-tour",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-chat"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-frame"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-automate"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-connect"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-milestone-follow"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-landmarks"
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-hide"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-band-restored"
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-landmarks",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-spotlight"
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-counter"
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-next"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-prev",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-landmarks-step-1"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-prev",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-landmarks-step-2"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-prev",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-prev",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-landmarks-back-to-1"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-prev",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-landmarks-last-step"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-spotlight",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-landmarks-finished"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-landmarks",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "tour-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-exit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-exit-confirmation"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-exit-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-exit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-step-card"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-exit-cancelled-tour-still-running"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-exit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "tour-exit-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-spotlight",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-exit-confirmed"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-milestone-frame",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-frame-step-1-on-projects"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-anchorless",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-spotlight",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-frame-anchorless-fallback"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-frame-finished"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-milestone-connect",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "tour-spotlight"
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-connect-micro-tour"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-exit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "tour-exit-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-hide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "getting-started-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-band-hidden"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "help-topic-tour",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-band-restored-from-help"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
     }
   ]
 }

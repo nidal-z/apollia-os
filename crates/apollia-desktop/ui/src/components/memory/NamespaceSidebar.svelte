@@ -43,9 +43,7 @@
   // Compteurs par catégorie
   const counts = $derived.by(() => {
     const c = { all: namespaces.length, user: 0, agent: 0, project: 0, other: 0 };
-    for (const ns of namespaces) {
-      c[ns.category]++;
-    }
+    for (const ns of namespaces) c[ns.category]++;
     return c;
   });
 
@@ -59,14 +57,13 @@
       list = list.filter(
         (ns) =>
           ns.name.toLowerCase().includes(q) ||
-          (ns.displayName && ns.displayName.toLowerCase().includes(q))
+          (ns.displayName && ns.displayName.toLowerCase().includes(q)),
       );
     }
     return list;
   });
 
-  // Groupage : si filtre = "all", on regroupe visuellement par catégorie.
-  // Sinon (filtre actif), liste plate sans header.
+  // Groupage : filtre "all" regroupe par catégorie, sinon liste plate.
   const grouped = $derived.by(() => {
     if (categoryFilter !== "all") {
       return [{ category: categoryFilter, items: filteredNamespaces }];
@@ -81,30 +78,14 @@
   });
 
   // ── Définition des chips de filtre catégorie ─────────────────────────────────
-  type FilterChipDef = {
-    key: CategoryFilter;
-    labelKey: string;
-    defaultLabel: string;
-    Icon: typeof Database;
-  };
+  type FilterChipDef = { key: CategoryFilter; labelKey: string; Icon: typeof Database };
   const filterChips: FilterChipDef[] = [
-    { key: "all", labelKey: "memory.namespaces.cat_all", defaultLabel: "Tous", Icon: Layers },
-    { key: "agent", labelKey: "memory.namespaces.cat_agent", defaultLabel: "Agents", Icon: Bot },
-    { key: "project", labelKey: "memory.namespaces.cat_project", defaultLabel: "Projets", Icon: FolderOpen },
-    { key: "user", labelKey: "memory.namespaces.cat_user", defaultLabel: "Profil", Icon: User },
-    { key: "other", labelKey: "memory.namespaces.cat_other", defaultLabel: "Autres", Icon: HelpCircle },
+    { key: "all", labelKey: "memory.namespaces.cat_all", Icon: Layers },
+    { key: "agent", labelKey: "memory.namespaces.cat_agent", Icon: Bot },
+    { key: "project", labelKey: "memory.namespaces.cat_project", Icon: FolderOpen },
+    { key: "user", labelKey: "memory.namespaces.cat_user", Icon: User },
+    { key: "other", labelKey: "memory.namespaces.cat_other", Icon: HelpCircle },
   ];
-
-  // Label humain pour les headers de groupe
-  function categoryLabel(cat: NamespaceCategory): string {
-    const def = {
-      user: "Profil utilisateur",
-      agent: "Agents",
-      project: "Projets",
-      other: "Autres",
-    }[cat];
-    return $t(`memory.namespaces.cat_${cat}_header`, { default: def });
-  }
 
   function categoryIcon(cat: NamespaceCategory) {
     return cat === "user" ? User : cat === "agent" ? Bot : cat === "project" ? FolderOpen : Database;
@@ -114,7 +95,7 @@
 <!-- Shell (width, border, bg) comes from the parent SplitLayout; this is content-only. -->
 <div class="flex h-full flex-col">
   <SidebarHeader
-    title={$t('memory.namespaces.title', { default: 'Namespaces' })}
+    title={$t("memory.namespaces.title")}
     count={namespaces.length}
     class="border-b border-border/40"
   >
@@ -127,36 +108,38 @@
         <Input
           type="search"
           bind:value={filterQuery}
-          placeholder={$t('memory.namespaces.filter_placeholder', { default: 'Filtrer…' })}
-          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[11.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
+          placeholder={$t("memory.namespaces.filter_placeholder")}
+          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-caption text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
           data-testid="namespace-sidebar-filter"
-         />
+        />
       </div>
     {/snippet}
     {#snippet filters()}
       <div
-        class="inline-flex w-full items-center gap-0.5 p-0.5 rounded-md bg-muted/40 border border-border/40 overflow-x-auto"
+        class="inline-flex w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border/40 bg-muted/40 p-0.5"
         role="tablist"
-        aria-label={$t('memory.namespaces.category_filter', { default: 'Filtrer par catégorie' })}
+        aria-label={$t("memory.namespaces.category_filter")}
       >
         {#each filterChips as chip}
           {@const isActive = categoryFilter === chip.key}
           {@const count = counts[chip.key]}
           {@const Icon = chip.Icon}
-          <Button variant="ghost" size="sm"
+          <Button
+            variant="ghost"
+            size="sm"
             type="button"
             role="tab"
             aria-selected={isActive}
             onclick={() => (categoryFilter = chip.key)}
             disabled={count === 0 && chip.key !== "all"}
-            class="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed {isActive
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+            class="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-overline font-medium tracking-tight transition-colors disabled:cursor-not-allowed disabled:opacity-40 {isActive
+              ? 'bg-background text-foreground shadow-elev-1'
+              : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}"
             data-testid="namespace-sidebar-cat-{chip.key}"
-            title={$t(chip.labelKey, { default: chip.defaultLabel })}
+            title={$t(chip.labelKey)}
           >
             <Icon size={10} />
-            <span class="hidden sm:inline">{$t(chip.labelKey, { default: chip.defaultLabel })}</span>
+            <span class="hidden sm:inline">{$t(chip.labelKey)}</span>
             <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
               {count}
             </span>
@@ -166,29 +149,29 @@
     {/snippet}
   </SidebarHeader>
 
-  <nav class="flex-1 overflow-y-auto px-2" aria-label={$t('memory.namespaces.title', { default: 'Namespaces' })}>
+  <nav class="flex-1 overflow-y-auto px-2" aria-label={$t("memory.namespaces.title")}>
     {#if loading}
-      <div class="px-2 py-3 space-y-1.5">
+      <div class="space-y-1.5 px-2 py-3">
         {#each Array(4) as _}
           <Skeleton class="h-8 rounded-md bg-muted/40" />
         {/each}
       </div>
     {:else if filteredNamespaces.length === 0}
-      <div class="px-3 py-6 text-center text-[11.5px] text-muted-foreground/70">
+      <div class="px-3 py-6 text-center text-caption text-muted-foreground/70">
         {filterQuery
-          ? $t('memory.namespaces.no_match', { default: 'Aucun namespace ne correspond.' })
+          ? $t("memory.namespaces.no_match")
           : categoryFilter !== "all"
-            ? $t('memory.namespaces.empty_category', { default: 'Aucun namespace dans cette catégorie.' })
-            : $t('memory.namespaces.empty', { default: 'Aucun namespace.' })}
+            ? $t("memory.namespaces.empty_category")
+            : $t("memory.namespaces.empty")}
       </div>
     {:else}
       {#each grouped as group}
         {#if categoryFilter === "all" && grouped.length > 1}
           <!-- Group header (uniquement si plusieurs catégories visibles) -->
           {@const GroupIcon = categoryIcon(group.category)}
-          <div class="px-3 py-1.5 mt-1 first:mt-0 flex items-center gap-1.5 text-[9.5px] uppercase tracking-[1px] font-semibold text-muted-foreground/70">
+          <div class="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-overline uppercase text-muted-foreground/70 first:mt-0">
             <GroupIcon size={9} />
-            <span>{categoryLabel(group.category)}</span>
+            <span>{$t(`memory.namespaces.cat_${group.category}_header`)}</span>
             <span class="ml-auto tabular-nums">{group.items.length}</span>
           </div>
         {/if}
@@ -203,15 +186,15 @@
             data-testid="namespace-sidebar-item-{ns.name}"
           >
             <div
-              class="w-[20px] h-[20px] rounded-md inline-flex shrink-0 items-center justify-center {isActive
-                ? 'bg-primary text-white'
+              class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md {isActive
+                ? 'bg-gradient-primary text-primary-foreground shadow-primary-sm'
                 : 'bg-muted text-muted-foreground'}"
             >
               <ItemIcon size={10} />
             </div>
             <div class="min-w-0 flex-1">
               <div
-                class="text-[12px] truncate {isActive ? 'text-primary' : 'text-foreground'}"
+                class="truncate text-body-xs {isActive ? 'text-primary' : 'text-foreground'}"
                 style:font-weight={isActive ? 600 : 500}
                 title={ns.name}
               >
@@ -222,13 +205,13 @@
                 {/if}
               </div>
               {#if ns.displayName && ns.displayName !== ns.name}
-                <div class="text-[10px] font-mono text-muted-foreground/60 truncate" title={ns.name}>
+                <div class="truncate font-mono text-overline font-normal tracking-normal text-muted-foreground/60" title={ns.name}>
                   {ns.name}
                 </div>
               {/if}
             </div>
             {#if ns.count !== undefined}
-              <span class="text-[10.5px] tabular-nums {isActive ? 'text-primary/80' : 'text-muted-foreground/70'}">
+              <span class="text-caption tabular-nums {isActive ? 'text-primary/80' : 'text-muted-foreground/70'}">
                 {ns.count}
               </span>
             {/if}

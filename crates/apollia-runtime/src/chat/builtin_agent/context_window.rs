@@ -17,6 +17,8 @@ impl BuiltInChatAgent {
             run_id,
             frontier_ceiling_reached,
             final_plan_phase,
+            context_window_tokens,
+            context_tokens_used,
         } = ctx;
         // Stream interrupted: emit ChatError, return partial content
         let _ = self.event_bus.send(RuntimeEvent::ChatError {
@@ -50,6 +52,8 @@ impl BuiltInChatAgent {
             frontier_ceiling_reached,
             final_plan_phase,
             paused: false,
+            context_window_tokens,
+            context_tokens_used,
         }
     }
 

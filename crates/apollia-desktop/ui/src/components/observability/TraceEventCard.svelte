@@ -93,11 +93,11 @@
         {/if}
       </div>
       <div class="min-w-0 flex-1">
-        <div class="text-[12px] text-foreground">
+        <div class="text-body-xs text-foreground">
           {String(event.payload.message ?? "")}
         </div>
         {#if skin === "builder"}
-          <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground">
+          <div class="font-mono mt-0.5 text-caption text-muted-foreground">
             {level} · {event.agentId} · {event.ts.split("T")[1]?.slice(0, 12)}
           </div>
         {/if}
@@ -111,12 +111,12 @@
     <Lightbulb size={13} class="shrink-0 mt-0.5 text-primary/70" />
     <div class="min-w-0 flex-1">
       {#if skin === "operator"}
-        <div class="text-[12px] italic text-muted-foreground">
+        <div class="text-body-xs italic text-muted-foreground">
           {truncChars(text, 200)}
         </div>
       {:else}
-        <div class="text-[12px] text-foreground whitespace-pre-wrap">{text}</div>
-        <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground">
+        <div class="text-body-xs text-foreground whitespace-pre-wrap">{text}</div>
+        <div class="font-mono mt-0.5 text-caption text-muted-foreground">
           {$t("trace.step", { values: { n: event.stepNum ?? "?" } })}
         </div>
       {/if}
@@ -167,11 +167,11 @@
         {/if}
       </div>
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5 text-[12px] text-foreground">
+        <div class="flex items-center gap-1.5 text-body-xs text-foreground">
           {#if skin === "operator"}
             <span class="truncate">{operator}</span>
             {#if isDenied}
-              <span class="font-mono text-[10.5px] text-destructive/80 shrink-0">
+              <span class="font-mono text-caption text-destructive/80 shrink-0">
                 · {$t("trace.tool_denied")}
               </span>
             {/if}
@@ -179,23 +179,23 @@
             <Wrench size={11} class="shrink-0 text-muted-foreground" />
             <span class="font-mono truncate">{toolName}</span>
             {#if isDenied}
-              <span class="font-mono text-[10.5px] text-destructive/80 shrink-0">
+              <span class="font-mono text-caption text-destructive/80 shrink-0">
                 · denied ({String(deniedPayload?.reason ?? "")})
               </span>
             {:else if durationMs !== null && skin === "builder"}
-              <span class="font-mono text-[10.5px] text-muted-foreground shrink-0">
+              <span class="font-mono text-caption text-muted-foreground shrink-0">
                 · {fmtDuration(durationMs)}
               </span>
             {/if}
           {/if}
         </div>
         {#if skin === "builder" && !expanded && argsJson}
-          <div class="font-mono mt-0.5 truncate text-[10.5px] text-muted-foreground">
+          <div class="font-mono mt-0.5 truncate text-caption text-muted-foreground">
             {truncChars(argsJson, 100)}
           </div>
         {/if}
         {#if isDenied && deniedPayload?.detail}
-          <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground">
+          <div class="font-mono mt-0.5 text-caption text-muted-foreground">
             {String(deniedPayload.detail)}
           </div>
         {/if}
@@ -205,18 +205,18 @@
       <div class="border-t border-border/40 px-2.5 py-2 space-y-2">
         {#if argsJson}
           <div>
-            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            <div class="font-mono text-overline uppercase text-muted-foreground mb-1">
               {$t("trace.args_label")}
             </div>
-            <pre class="font-mono text-[10.5px] text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{JSON.stringify(safeParse(argsJson), null, 2)}</pre>
+            <pre class="font-mono text-caption text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{JSON.stringify(safeParse(argsJson), null, 2)}</pre>
           </div>
         {/if}
         {#if completionPayload?.output_json}
           <div>
-            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            <div class="font-mono text-overline uppercase text-muted-foreground mb-1">
               {$t("trace.output_label")}
             </div>
-            <pre class="font-mono text-[10.5px] text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{JSON.stringify(safeParse(String(completionPayload.output_json)), null, 2)}</pre>
+            <pre class="font-mono text-caption text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{JSON.stringify(safeParse(String(completionPayload.output_json)), null, 2)}</pre>
           </div>
         {/if}
       </div>
@@ -229,7 +229,7 @@
          normalement ExecutionTrace fait le pairing en amont). -->
     {@const toolName = String(event.payload.tool_name ?? "")}
     {@const success = Boolean(event.payload.success)}
-    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px]" data-testid="trace-event" data-kind="tool_call_completed">
+    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-body-xs" data-testid="trace-event" data-kind="tool_call_completed">
       {#if success}
         <CheckCircle2 size={12} class="text-success" />
       {:else}
@@ -249,7 +249,7 @@
   >
     <ShieldOff size={13} class="shrink-0 mt-0.5 text-destructive" />
     <div class="min-w-0 flex-1">
-      <div class="text-[12px] text-foreground">
+      <div class="text-body-xs text-foreground">
         {#if skin === "operator"}
           The agent tried to use {toolName} but it was blocked.
         {:else}
@@ -272,11 +272,11 @@
     >
       <Network size={13} class="shrink-0 mt-0.5 text-primary" />
       <div class="min-w-0 flex-1">
-        <div class="text-[12px] text-foreground">
+        <div class="text-body-xs text-foreground">
           {$t("trace.delegated_to", { values: { agent: skillId } })}
         </div>
         {#if skin === "builder" && event.correlationId}
-          <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground">
+          <div class="font-mono mt-0.5 text-caption text-muted-foreground">
             chain: {truncChars(event.correlationId, 16)}
           </div>
         {/if}
@@ -291,7 +291,7 @@
     {@const messagesCount = Number(event.payload.messages_count ?? 0)}
     {@const promptChars = Number(event.payload.prompt_chars ?? 0)}
     <div
-      class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-surface-1/30 text-[11.5px]"
+      class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-surface-1/30 text-caption"
       data-testid="trace-event"
       data-kind="llm_call_started"
     >
@@ -313,14 +313,14 @@
   >
     <XCircle size={13} class="shrink-0 mt-0.5 text-destructive" />
     <div class="min-w-0 flex-1">
-      <div class="text-[12px] text-foreground">
+      <div class="text-body-xs text-foreground">
         {$t("trace.llm_failed")}
         {#if skin === "builder"}
           <span class="font-mono text-muted-foreground"> · {errorKind}</span>
         {/if}
       </div>
       {#if skin === "builder" && event.payload.error}
-        <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground whitespace-pre-wrap">
+        <div class="font-mono mt-0.5 text-caption text-muted-foreground whitespace-pre-wrap">
           {String(event.payload.error)}
         </div>
       {/if}
@@ -330,7 +330,7 @@
 {:else if event.kind === "retry"}
   {@const cause = String(event.payload.cause ?? "")}
   {@const attempt = Number(event.payload.attempt ?? 1)}
-  <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11.5px] text-muted-foreground" data-testid="trace-event" data-kind="retry">
+  <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-caption text-muted-foreground" data-testid="trace-event" data-kind="retry">
     <RefreshCw size={12} class="shrink-0" />
     <span>
       {$t("trace.retry_attempt", { values: { n: attempt } })}
@@ -354,18 +354,18 @@
         class="w-full flex items-start gap-2 px-2.5 py-2 text-left hover:bg-warning/10 transition-colors"
       >
         <AlertTriangle size={13} class="shrink-0 mt-0.5 text-warning" />
-        <div class="min-w-0 flex-1 text-[12px] text-foreground">
+        <div class="min-w-0 flex-1 text-body-xs text-foreground">
           {$t("trace.parse_error")}
         </div>
       </button>
       {#if expanded}
         <div class="border-t border-warning/20 px-2.5 py-2">
-          <pre class="font-mono text-[10.5px] text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{raw}</pre>
+          <pre class="font-mono text-caption text-foreground whitespace-pre-wrap break-all bg-surface-2/40 rounded p-1.5 max-h-60 overflow-y-auto">{raw}</pre>
         </div>
       {/if}
     </div>
   {:else}
-    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11.5px] text-muted-foreground" data-testid="trace-event" data-kind="action_parse_error">
+    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-caption text-muted-foreground" data-testid="trace-event" data-kind="action_parse_error">
       <AlertTriangle size={12} class="shrink-0 text-warning" />
       <span>{$t("trace.parse_error")}</span>
     </div>
@@ -374,7 +374,7 @@
 {:else}
   <!-- Forward-compat : kinds inconnus (variants futurs) - affichage minimal en builder -->
   {#if skin === "builder"}
-    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-muted-foreground" data-testid="trace-event" data-kind={event.kind}>
+    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-caption text-muted-foreground" data-testid="trace-event" data-kind={event.kind}>
       <MessageSquare size={11} class="shrink-0" />
       <span class="font-mono">{event.kind}</span>
     </div>

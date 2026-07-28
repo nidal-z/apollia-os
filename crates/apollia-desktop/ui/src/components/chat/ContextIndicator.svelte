@@ -20,10 +20,10 @@
   const metrics = $derived(sessionMetricsStore(sessionId));
 
   const contextPct = $derived(
-    $metrics.context_window_size > 0
+    $metrics.context_window_tokens > 0
       ? Math.min(
           100,
-          ($metrics.messages_in_history / $metrics.context_window_size) * 100,
+          ($metrics.context_tokens_used / $metrics.context_window_tokens) * 100,
         )
       : 0,
   );
