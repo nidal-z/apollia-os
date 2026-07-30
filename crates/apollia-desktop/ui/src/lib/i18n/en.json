@@ -3261,7 +3261,9 @@
       "err_invalid_url": "Must be a valid http(s) URL",
       "err_invalid_timeout": "Must be a positive number",
       "err_invalid_json": "Invalid JSON",
-      "err_invalid_json_object": "Must be a JSON object"
+      "err_invalid_json_object": "Must be a JSON object",
+      "warn_cleartext_credentials": "This endpoint uses http:// on another host, so the API key travels unencrypted over the network. Use https://, or a tunnel, unless you fully trust this network.",
+      "notice_remote_egress": "A remote backend sends your prompts to that machine, which can include file contents, memory and workspace data. Local models keep everything on this machine."
     },
     "model_hub": {
       "title": "Model Hub",

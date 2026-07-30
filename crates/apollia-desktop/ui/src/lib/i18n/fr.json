@@ -3261,7 +3261,9 @@
       "err_invalid_url": "Doit être une URL http(s) valide",
       "err_invalid_timeout": "Doit être un nombre positif",
       "err_invalid_json": "JSON invalide",
-      "err_invalid_json_object": "Doit être un objet JSON"
+      "err_invalid_json_object": "Doit être un objet JSON",
+      "warn_cleartext_credentials": "Cet endpoint utilise http:// vers une autre machine : la clé d'API circule en clair sur le réseau. Préférez https://, ou un tunnel, sauf si vous avez pleine confiance dans ce réseau.",
+      "notice_remote_egress": "Un backend distant envoie vos prompts vers cette machine, ce qui peut inclure du contenu de fichiers, de la mémoire et des données du workspace. Un modèle local garde tout sur cette machine."
     },
     "model_hub": {
       "title": "Hub de modèles",

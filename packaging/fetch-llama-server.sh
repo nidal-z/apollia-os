@@ -34,6 +34,22 @@ LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b10092}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHECKSUMS="${SCRIPT_DIR}/llama-server-checksums.txt"
 
+# SHA256 of a file, on both macOS (shasum, from perl) and Linux (sha256sum, from
+# coreutils). Neither is universally present: a slim Debian image has no perl,
+# some minimal macOS toolchains have no coreutils. Absence of both is a hard
+# error, never a skipped verification: that is the whole point of this step.
+sha256_of() {
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        echo "==> neither shasum nor sha256sum is available; cannot verify the" >&2
+        echo "    llama-server asset. Install one rather than bypassing the check." >&2
+        return 1
+    fi
+}
+
 mkdir -p "$DEST"
 
 # Copy `llama-server` plus every shared library sitting next to it. The official
@@ -51,18 +67,64 @@ stage_from_dir() {
     fi
     cp "$server" "${DEST}/llama-server${bin_ext}"
     chmod +x "${DEST}/llama-server${bin_ext}" || true
-    # Shared libraries the server links (libllama, libggml*, etc.).
-    find "$src_dir" -maxdepth 1 -type f \
+
+    # Shared libraries the server links (libllama, libggml*, ...).
+    #
+    # Symlinks must be matched and preserved, not skipped. The upstream archives
+    # ship each library twice: the versioned real file
+    # (`libllama.0.0.10092.dylib`) and a major-version symlink to it
+    # (`libllama.0.dylib`), and the binary's load commands name the *symlink*.
+    # Copying only regular files therefore stages a set of libraries the loader
+    # cannot resolve, and `llama-server` dies at startup with
+    # "Library not loaded: @rpath/libllama-common.0.dylib". `cp -a` keeps the
+    # links as links on both macOS and GNU coreutils.
+    find "$src_dir" -maxdepth 1 \( -type f -o -type l \) \
         \( -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.dll' \) \
-        -exec cp {} "$DEST"/ \; 2>/dev/null || true
+        -exec cp -a {} "$DEST"/ \; 2>/dev/null || true
+
     # macOS: re-sign adhoc (the copy invalidates any signature; Tauri re-signs
-    # the whole bundle afterwards).
+    # the whole bundle afterwards). Real files only, signing follows a symlink
+    # and would sign the same object twice.
     case "$(uname -s)" in
         Darwin)
             codesign --force --sign - "${DEST}/llama-server" 2>/dev/null || true
+            find "$DEST" -maxdepth 1 -type f -name '*.dylib' \
+                -exec codesign --force --sign - {} \; 2>/dev/null || true
             ;;
     esac
+
+    # Fail loudly rather than stage an engine that cannot start. A bundle that
+    # silently ships a broken llama-server looks like a runtime bug to the user.
+    if ! verify_staged_server "${DEST}/llama-server${bin_ext}"; then
+        return 1
+    fi
     echo "==> staged llama-server (+ libs) into ${DEST}"
+}
+
+# Run the staged binary to prove its libraries resolve.
+#
+# Only meaningful when staging for the host platform; cross-staging (a Linux
+# archive prepared on macOS, for instance) cannot execute it, so the check is
+# skipped rather than failed.
+verify_staged_server() {
+    local server="$1"
+    if [ ! -x "$server" ]; then
+        echo "==> staged llama-server is not executable: ${server}" >&2
+        return 1
+    fi
+    case "${uname_s:-$(uname -s)}:${BACKEND}" in
+        Darwin:metal | Darwin:cpu) ;;
+        Linux:cpu | Linux:vulkan | Linux:rocm)
+            [ "$(uname -s)" = "Linux" ] || return 0
+            ;;
+        *) return 0 ;;
+    esac
+    if ! "$server" --version >/dev/null 2>&1; then
+        echo "==> staged llama-server cannot start; its libraries do not resolve:" >&2
+        "$server" --version 2>&1 | head -5 >&2
+        return 1
+    fi
+    echo "==> verified staged llama-server starts"
 }
 
 # ── Mode 1: local dir override ────────────────────────────────────────────────
@@ -102,7 +164,7 @@ if [ "${ALLOW_UNVERIFIED:-}" = "1" ]; then
     echo "==> WARNING: ALLOW_UNVERIFIED=1, skipping checksum verification (dev only)"
 elif [ -f "$CHECKSUMS" ] && grep -q " ${asset}\$" "$CHECKSUMS"; then
     expected="$(grep " ${asset}\$" "$CHECKSUMS" | awk '{print $1}')"
-    actual="$(shasum -a 256 "${tmp}/${asset}" | awk '{print $1}')"
+    actual="$(sha256_of "${tmp}/${asset}")"
     if [ "$expected" != "$actual" ]; then
         echo "==> checksum mismatch for ${asset}: expected ${expected}, got ${actual}" >&2
         exit 1

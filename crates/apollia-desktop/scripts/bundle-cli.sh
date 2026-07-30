@@ -132,10 +132,18 @@ done
 # ── Step 2c - Embedded llama-server (local LLM engine) ────────────────
 # Bundle the upstream llama-server next to the STT runners; the daemon's
 # `locate_llama_server_binary` finds it there. Pick the GPU backend from
-# RUNNERS (metal/cuda/rocm/vulkan), else cpu. Non-fatal: set LLAMA_SERVER_DIR to
-# bundle a local build, or fill packaging/llama-server-checksums.txt to enable
-# the pinned download. Without either, the app falls back to a llama-server on
-# PATH (dev), which is why a failed fetch only warns.
+# RUNNERS (metal/cuda/rocm/vulkan), else cpu.
+#
+# FATAL on failure, deliberately. This script is the `beforeBuildCommand` of
+# `tauri build` and never runs in dev, so every invocation produces a bundle
+# meant for distribution. A bundle without the engine still *works on the
+# machine that built it*, because the locator falls back to a llama-server on
+# PATH, and then has no local inference at all for everyone else. That is the
+# worst possible failure: invisible where it is built, total where it is used.
+#
+# Escape hatches, both explicit: LLAMA_SERVER_DIR=<bin dir> bundles a local
+# build instead of downloading, and APOLLIA_ALLOW_NO_LLAMA_SERVER=1 accepts a
+# bundle with no engine (offline work on a non-inference change only).
 llama_backend="cpu"
 for backend in $RUNNERS; do
     case "$backend" in
@@ -147,8 +155,15 @@ for backend in $RUNNERS; do
 done
 if bash "${REPO_ROOT}/packaging/fetch-llama-server.sh" "$llama_backend" "${STAGING}/runners"; then
     echo "==> llama-server bundled (${llama_backend})"
+elif [ "${APOLLIA_ALLOW_NO_LLAMA_SERVER:-}" = "1" ]; then
+    echo "==> WARNING: APOLLIA_ALLOW_NO_LLAMA_SERVER=1, bundling without a local" >&2
+    echo "    LLM engine. This bundle has no local inference off this machine." >&2
 else
-    echo "==> WARNING: llama-server not bundled; the app will look for it on PATH" >&2
+    echo "==> ERROR: could not bundle llama-server (${llama_backend})." >&2
+    echo "    A bundle without the engine has no local inference for anyone but" >&2
+    echo "    the machine that built it. Fix the fetch, or pass" >&2
+    echo "    LLAMA_SERVER_DIR=<bin dir> to bundle a local build." >&2
+    exit 1
 fi
 
 # ── Step 3 - Frontend ─────────────────────────────────────────────────────────

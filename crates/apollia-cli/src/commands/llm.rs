@@ -1010,6 +1010,79 @@ struct BuildConfigArgs<'a> {
     timeout_sec: u64,
 }
 
+/// Hosts for which cleartext HTTP never reaches a network interface.
+fn is_loopback_host(host: &str) -> bool {
+    let h = host.trim_start_matches('[').trim_end_matches(']');
+    h.eq_ignore_ascii_case("localhost")
+        || h == "127.0.0.1"
+        || h == "::1"
+        || h.to_ascii_lowercase().ends_with(".localhost")
+}
+
+/// Notes printed after a backend is created, when its transport deserves one.
+///
+/// Returned rather than printed so the wording is testable. Two distinct facts,
+/// neither of which the product stated anywhere before:
+///
+/// - a credential sent over plain HTTP to another host travels in the clear, and
+/// - a remote backend moves prompt content off this machine, which is worth
+///   saying out loud for a runtime whose first principle is local-first.
+///
+/// Advisory, never blocking: plain HTTP over a trusted LAN or through a tunnel
+/// is a legitimate deployment.
+fn backend_security_notes(
+    provider: &str,
+    base_url: Option<&str>,
+    api_key: Option<&str>,
+    api_key_env: Option<&str>,
+) -> Vec<String> {
+    let mut notes = Vec::new();
+    let Some(url) = base_url else {
+        return notes;
+    };
+    if provider == "llama-cpp" {
+        return notes;
+    }
+
+    let host = url.strip_prefix("http://").map(|r| {
+        let authority = r.split('/').next().unwrap_or(r);
+        // Strip the port, keeping bracketed IPv6 literals intact.
+        match authority.rsplit_once(':') {
+            Some((h, _)) if !h.is_empty() && !h.contains(':') => h,
+            _ => authority,
+        }
+    });
+
+    let has_credential =
+        api_key.is_some_and(|k| !k.is_empty()) || api_key_env.is_some_and(|v| !v.is_empty());
+
+    if let Some(host) = host {
+        if !is_loopback_host(host) {
+            notes.push("    NOTE: this endpoint is plain http:// to another host.".to_string());
+            if has_credential {
+                notes.push(
+                    "          The API key will travel unencrypted on that network. Prefer \
+                     https:// or a tunnel."
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    let is_remote_host = host.is_none_or(|h| !is_loopback_host(h))
+        && !url.starts_with("http://localhost")
+        && !url.starts_with("http://127.0.0.1");
+    if is_remote_host {
+        notes.push(
+            "    NOTE: prompts sent to this backend leave this machine, which can include \
+             file contents,"
+                .to_string(),
+        );
+        notes.push("          memory and workspace data.".to_string());
+    }
+    notes
+}
+
 fn build_config_json(args: BuildConfigArgs<'_>) -> serde_json::Value {
     let BuildConfigArgs {
         provider,
@@ -1264,6 +1337,9 @@ async fn run_backends_create(
                 println!("OK backend '{name}' created (provider: {canonical}, model: {model})");
                 if is_default {
                     println!("    marked as default backend");
+                }
+                for line in backend_security_notes(canonical, base_url, api_key, api_key_env) {
+                    println!("{line}");
                 }
                 if !enabled {
                     println!("    disabled (pass --enable to activate)");
@@ -1944,6 +2020,69 @@ mod tests {
         // Without the suffix every completion returns 404.
         let cfg = ollama_config(None);
         assert_eq!(cfg["base_url"], "http://localhost:11434/v1");
+    }
+
+    #[test]
+    fn test_security_notes_flag_a_cleartext_key_on_the_network() {
+        // GIVEN a remote endpoint over plain http, carrying an API key
+        // WHEN the notes are built
+        // THEN both the cleartext transport and the credential are named
+        let notes = backend_security_notes(
+            "openai",
+            Some("http://192.168.1.55:8000/v1"),
+            Some("sk-secret"),
+            None,
+        );
+        let joined = notes.join(" ");
+        assert!(joined.contains("plain http://"), "notes: {joined}");
+        assert!(joined.contains("API key will travel"), "notes: {joined}");
+        assert!(joined.contains("leave this machine"), "notes: {joined}");
+    }
+
+    #[test]
+    fn test_security_notes_stay_quiet_on_loopback() {
+        // GIVEN a local backend
+        // WHEN the notes are built
+        // THEN nothing is said: no network hop, no data egress
+        assert!(
+            backend_security_notes("ollama", Some("http://localhost:11434/v1"), None, None)
+                .is_empty()
+        );
+        assert!(
+            backend_security_notes("ollama", Some("http://127.0.0.1:11434/v1"), None, None)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_security_notes_report_egress_without_inventing_a_key() {
+        // GIVEN a LAN Ollama, which needs no credential
+        // WHEN the notes are built
+        // THEN the data leaving the machine is reported, but no key is claimed
+        let notes =
+            backend_security_notes("ollama", Some("http://192.168.1.55:11434/v1"), None, None);
+        let joined = notes.join(" ");
+        assert!(joined.contains("leave this machine"), "notes: {joined}");
+        assert!(
+            !joined.contains("API key"),
+            "must not mention a key that does not exist: {joined}"
+        );
+    }
+
+    #[test]
+    fn test_security_notes_stay_quiet_over_https_transport() {
+        // GIVEN an encrypted transport
+        // WHEN the notes are built
+        // THEN only the egress note applies, never the cleartext one
+        let notes = backend_security_notes(
+            "anthropic",
+            Some("https://api.anthropic.com"),
+            Some("sk-ant-x"),
+            None,
+        );
+        let joined = notes.join(" ");
+        assert!(!joined.contains("plain http://"), "notes: {joined}");
+        assert!(joined.contains("leave this machine"), "notes: {joined}");
     }
 
     #[test]

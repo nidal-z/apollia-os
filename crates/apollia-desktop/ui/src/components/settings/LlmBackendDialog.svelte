@@ -73,6 +73,36 @@
     return PROVIDER_DEFAULT_ENDPOINT[p] ?? "";
   }
 
+  /** Hosts where cleartext HTTP never leaves the machine. */
+  function isLoopbackHost(host: string): boolean {
+    const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+    return h === "localhost" || h === "127.0.0.1" || h === "::1" || h.endsWith(".localhost");
+  }
+
+  /**
+   * Flags an endpoint that would put credentials on the wire in cleartext.
+   *
+   * Returns a warning, never a validation error: reaching a backend over plain
+   * HTTP on a trusted LAN or through a WireGuard-style tunnel is a legitimate
+   * setup, and refusing it would block real deployments. But an API key sent
+   * over `http://` to another host travels in the clear, and nothing else in the
+   * product says so.
+   *
+   * Loopback is exempt: the bytes never reach a network interface.
+   */
+  export function credentialExposureWarning(state: BackendFormState): boolean {
+    if (!isRemoteProvider(state.provider)) return false;
+    if (!state.apiKey.trim()) return false;
+    const raw = state.endpoint.trim();
+    if (!raw.toLowerCase().startsWith("http://")) return false;
+    try {
+      return !isLoopbackHost(new URL(raw).hostname);
+    } catch {
+      // Unparseable: validateForm already reports invalid_url, stay quiet here.
+      return false;
+    }
+  }
+
   /** Pure validator - unit-testable. */
   export function validateForm(state: BackendFormState, editing: boolean): ValidationErrors {
     const errors: ValidationErrors = {};
@@ -557,6 +587,22 @@
           data-testid="llm-dialog-apikey"
          />
       </FormField>
+
+      {#if credentialExposureWarning(form)}
+        <p
+          class="text-xs leading-relaxed text-[hsl(var(--text-warning))]"
+          data-testid="llm-dialog-cleartext-warning"
+        >
+          {$t("settings.llm_dialog.warn_cleartext_credentials")}
+        </p>
+      {/if}
+
+      <p
+        class="text-xs leading-relaxed text-[hsl(var(--text-muted))]"
+        data-testid="llm-dialog-egress-notice"
+      >
+        {$t("settings.llm_dialog.notice_remote_egress")}
+      </p>
     {/if}
 
     <FormField

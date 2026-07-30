@@ -1,16 +1,30 @@
 # SHA256 checksums for the pinned llama.cpp release assets bundled as the local
 # LLM engine. One line per asset: "<sha256>  <asset-filename>".
 #
-# Fill these once per pinned LLAMA_CPP_TAG (see fetch-llama-server.sh):
-#   curl -fsSL <asset-url> -o <asset> && shasum -a 256 <asset>
-# then paste the "<hash>  <asset>" line here. Until filled, the download path
-# refuses to run (set ALLOW_UNVERIFIED=1 for a dev fetch, never for a release).
+# Provenance: every hash below was computed locally with `shasum -a 256` on the
+# downloaded asset, then cross-checked against the digest GitHub reports for the
+# same asset. All seven matched. The local hash is what is pinned here, so a
+# later download is verified against bytes that were hashed here rather than
+# against a value the serving side could simply restate.
 #
-# Tag: b10092
-# <sha256>  llama-b10092-bin-macos-arm64.tar.gz
-# <sha256>  llama-b10092-bin-ubuntu-x64.tar.gz
-# <sha256>  llama-b10092-bin-ubuntu-vulkan-x64.tar.gz
-# <sha256>  llama-b10092-bin-ubuntu-rocm-7.2-x64.tar.gz
-# <sha256>  llama-b10092-bin-win-cpu-x64.zip
-# <sha256>  llama-b10092-bin-win-cuda-12.4-x64.zip
-# <sha256>  llama-b10092-bin-win-vulkan-x64.zip
+# To bump the pin: change LLAMA_CPP_TAG in fetch-llama-server.sh, then for each
+# asset run `curl -fsSL <asset-url> -o <asset> && shasum -a 256 <asset>` and
+# replace the lines below. Never leave a line out: fetch-llama-server.sh refuses
+# to stage an asset it cannot verify, which is what keeps an unverified binary
+# out of a release bundle.
+#
+# Tag: b10092 (published 2026-07-23)
+
+# macOS Apple Silicon: the shipped desktop target.
+f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0  llama-b10092-bin-macos-arm64.tar.gz
+
+# Linux x86_64: CPU baseline, plus the two GPU paths.
+b047abca5eb5186afb8c6fe816b008b34063f484613c3453b27ebc5600f937fe  llama-b10092-bin-ubuntu-x64.tar.gz
+751811bf24857c9491749c3ea0c6be5680a035903ccae01c0facb5e10ca510cc  llama-b10092-bin-ubuntu-vulkan-x64.tar.gz
+0a7d613fcdf269a7df2d81aade4ff9ec4e0429feb77c41905de482199ee39813  llama-b10092-bin-ubuntu-rocm-7.2-x64.tar.gz
+
+# Windows x86_64: pinned ahead of the platform being supported, so the bundling
+# path is verifiable the day it is exercised.
+c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e  llama-b10092-bin-win-cpu-x64.zip
+e7489486ba36ab1819c141ba11405c83a29ff4fdc41dd79c6cfbab180b15b887  llama-b10092-bin-win-cuda-12.4-x64.zip
+af0787692f10ed66d8f3db1d67e90337fc31b8efce297e8491906220fd0a4798  llama-b10092-bin-win-vulkan-x64.zip

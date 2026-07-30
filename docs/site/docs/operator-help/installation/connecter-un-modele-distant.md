@@ -9,6 +9,23 @@
 - Pour Ollama distant, l'URL d'une instance accessible depuis votre machine (et `ollama serve` qui tourne côté serveur).
 - Connexion internet active, sauf si Ollama est sur votre réseau local.
 
+## Ce que ce choix implique
+
+Deux points à connaître avant de brancher un backend distant. Apollia les
+rappelle aussi dans le formulaire, mais ils méritent d'être posés ici.
+
+**Vos prompts quittent la machine.** Un backend distant reçoit ce qu'Apollia lui
+envoie, ce qui peut inclure du contenu de fichiers, des souvenirs mémoire et des
+données de workspace. C'est le comportement attendu d'un modèle distant, et c'est
+précisément ce qu'un modèle local évite : avec le moteur `llama-server` embarqué,
+rien ne sort. Le choix vous appartient, il doit juste être conscient.
+
+**En `http://`, la clé d'API circule en clair.** Si l'endpoint n'est pas en
+`https://` et pointe vers une autre machine, la clé transite sans chiffrement sur
+le réseau. Sur un réseau local de confiance ou dans un tunnel, c'est acceptable.
+Sinon, préférez `https://`. Ollama distant n'utilisant pas de clé, seul le premier
+point s'applique à lui.
+
 ## Pour quel cas d'usage
 
 - **Modèle distant** = cloud (Anthropic, OpenAI, Mistral) ou serveur Ollama joignable par HTTP.

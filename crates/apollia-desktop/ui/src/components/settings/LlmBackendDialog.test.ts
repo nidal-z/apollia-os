@@ -10,6 +10,7 @@ import {
   buildConfigJson,
   isRemoteProvider,
   endpointForProvider,
+  credentialExposureWarning,
   PROVIDER_DEFAULT_ENDPOINT,
   type BackendFormState,
 } from "./LlmBackendDialog.svelte";
@@ -241,5 +242,45 @@ describe("endpoint prefill", () => {
     // WHEN it is selected
     // THEN there is no endpoint to suggest
     expect(endpointForProvider("llama-cpp", "https://api.openai.com/v1")).toBe("");
+  });
+});
+
+describe("cleartext credential warning", () => {
+  const remote = (endpoint: string, apiKey = "sk-secret") =>
+    baseForm({ provider: "openai", endpoint, apiKey, model: "gpt-4o-mini" });
+
+  it("warns when a key would travel unencrypted to another host", () => {
+    // GIVEN plain http to a host on the network, with a key
+    // WHEN the form is inspected
+    // THEN the exposure is flagged, because nothing else in the product says it
+    expect(credentialExposureWarning(remote("http://192.168.1.55:8000/v1"))).toBe(true);
+    expect(credentialExposureWarning(remote("http://gateway.internal/v1"))).toBe(true);
+  });
+
+  it("stays quiet on loopback, where nothing reaches the network", () => {
+    // GIVEN plain http to the local machine
+    // WHEN the form is inspected
+    // THEN there is no exposure to report
+    expect(credentialExposureWarning(remote("http://localhost:11434/v1"))).toBe(false);
+    expect(credentialExposureWarning(remote("http://127.0.0.1:8000/v1"))).toBe(false);
+    expect(credentialExposureWarning(remote("http://[::1]:8000/v1"))).toBe(false);
+  });
+
+  it("stays quiet over https and without a key", () => {
+    // GIVEN either transport encryption, or no credential to expose
+    // WHEN the form is inspected
+    // THEN there is nothing to warn about
+    expect(credentialExposureWarning(remote("https://api.openai.com/v1"))).toBe(false);
+    expect(credentialExposureWarning(remote("http://192.168.1.55:11434/v1", ""))).toBe(false);
+  });
+
+  it("stays quiet for a local provider and for an unparseable url", () => {
+    // GIVEN a provider with no endpoint, or an endpoint validateForm already rejects
+    // WHEN the form is inspected
+    // THEN this check does not add noise on top of the real validation error
+    expect(
+      credentialExposureWarning(baseForm({ provider: "llama-cpp", apiKey: "sk-x" })),
+    ).toBe(false);
+    expect(credentialExposureWarning(remote("http://"))).toBe(false);
   });
 });
