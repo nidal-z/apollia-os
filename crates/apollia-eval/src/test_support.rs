@@ -21,6 +21,7 @@ pub(crate) struct FixedReplyModel {
 impl CompletionModel for FixedReplyModel {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: self.reply.clone(),
             tool_calls: vec![],
             usage: TokenUsage::default(),

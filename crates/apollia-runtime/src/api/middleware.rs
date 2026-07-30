@@ -358,7 +358,10 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             let mode = std::fs::metadata(&token_path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600, "api-token file must have mode 0600, got {mode:o}");
+            assert_eq!(
+                mode, 0o600,
+                "api-token file must have mode 0600, got {mode:o}"
+            );
         }
     }
 

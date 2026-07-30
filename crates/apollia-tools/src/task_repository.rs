@@ -842,7 +842,8 @@ impl TaskRepository {
                 "DELETE FROM task_approvals WHERE task_id = ?1",
                 params![&task_id],
             )?;
-            let removed = conn.execute("DELETE FROM tasks WHERE task_id = ?1", params![&task_id])?;
+            let removed =
+                conn.execute("DELETE FROM tasks WHERE task_id = ?1", params![&task_id])?;
             Ok(removed > 0)
         })
         .await

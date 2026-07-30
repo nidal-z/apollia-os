@@ -1,16 +1,6 @@
 {
  "label": "mistral-small-3.2-24b",
  "gguf": "/Users/nidalzoumita/.apollia/models/mistral-small-3.2-24b/Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
- "speed": {
-  "ttft_ms": 33.2,
-  "decode_tok": 75,
-  "decode_tps": 40.8,
-  "total_ms": 1870.2,
-  "chars": 351,
-  "empty": false,
-  "degenerate": false,
-  "sample": "Un cache KV (Key-Value) dans un LLM est une mémoire temporaire qui stocke des paires clé-valeur pour accélérer l'accès a"
- },
  "toolcall": {
   "tasks": {
    "weather_single": 1.0,
@@ -126,9 +116,9 @@
    }
   ]
  },
- "batch": {
-  "seq_tps": 33.4,
-  "map_tps": 41.9,
-  "speedup": 1.27
- }
+ "blocks_removed": [
+  "speed",
+  "batch"
+ ],
+ "blocks_removed_reason": "speed and batch blocks removed: the probe that produced them reported a warm cache-hit latency as a time to first token, counted server-sent events as tokens, and launched with -np 8 -c 16384 rather than the product's -np 1 -c 32768. toolcall and esrs are retained: they are scored rather than timed, so neither defect applies, but they are single-sample and carry no provenance, so they are provisional under I8 and excluded from comparisons."
 }

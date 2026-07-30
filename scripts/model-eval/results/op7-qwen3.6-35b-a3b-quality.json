@@ -1,0 +1,309 @@
+{
+ "schema_version": 1,
+ "campaign_id": "op7-qwen3.6-35b-a3b",
+ "started_at": "2026-07-30T04:42:58Z",
+ "finished_at": "2026-07-30T04:43:47Z",
+ "records": [
+  {
+   "schema_version": 1,
+   "record_id": "toolcall-qwen3.6-35b-a3b",
+   "campaign_id": "op7-qwen3.6-35b-a3b",
+   "probe": "toolcall",
+   "label": "qwen3.6-35b-a3b",
+   "measured_at": "2026-07-30T04:43:47Z",
+   "provenance": {
+    "git_sha": "ae88a4e445ca9d5b7ff90f48cb11011b3983f72c",
+    "git_dirty": true,
+    "llama_server_version": "version: 9870 (2d973636e)",
+    "llama_server_path": "/opt/homebrew/bin/llama-server",
+    "model_path": "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+    "model_sha256": "2fdd20997c4d88ee25f70f500c61f8b999378d92ab055f9d450fc70d617158d3",
+    "model_sha256_scope": "whole_file",
+    "launch_args": [
+     "/opt/homebrew/bin/llama-server",
+     "-m",
+     "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+     "-ngl",
+     "999",
+     "-c",
+     "32768",
+     "-np",
+     "1",
+     "-cb",
+     "--flash-attn",
+     "on",
+     "--jinja",
+     "--reasoning-format",
+     "none",
+     "--host",
+     "127.0.0.1",
+     "--port",
+     "8090"
+    ],
+    "machine_id": "Mac15,14",
+    "machine_chip": "Apple M3 Ultra",
+    "machine_memory_bytes": 274877906944,
+    "os_version": "26.5"
+   },
+   "conditions": {
+    "run_index": 0,
+    "run_order": "sequential",
+    "page_cache": "unknown",
+    "server_restarted_before": false,
+    "slot_reset_before": false,
+    "sampling_seed": 42,
+    "sampling_temperature": 0.0,
+    "notes": "single observation, no dispersion: this probe scores output rather than timing it, so it is provisional under I8 and excluded from comparisons"
+   },
+   "engine": {
+    "n_ctx": 32768,
+    "n_ctx_slot_tok": 32768,
+    "n_parallel": 1
+   },
+   "toolcall": {
+    "tasks": {
+     "weather_single": 1.0,
+     "email_multiarg": 1.0,
+     "enum_priority": 1.0,
+     "abstain_relevance": 1.0,
+     "parallel_weather": 1.0,
+     "multiturn_use_result": 0.5
+    },
+    "score": 0.917,
+    "passed_full": 5,
+    "n_tasks": 6
+   },
+   "invalid": [
+    "I8"
+   ]
+  },
+  {
+   "schema_version": 1,
+   "record_id": "esrs-qwen3.6-35b-a3b",
+   "campaign_id": "op7-qwen3.6-35b-a3b",
+   "probe": "esrs",
+   "label": "qwen3.6-35b-a3b",
+   "measured_at": "2026-07-30T04:43:47Z",
+   "provenance": {
+    "git_sha": "ae88a4e445ca9d5b7ff90f48cb11011b3983f72c",
+    "git_dirty": true,
+    "llama_server_version": "version: 9870 (2d973636e)",
+    "llama_server_path": "/opt/homebrew/bin/llama-server",
+    "model_path": "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+    "model_sha256": "2fdd20997c4d88ee25f70f500c61f8b999378d92ab055f9d450fc70d617158d3",
+    "model_sha256_scope": "whole_file",
+    "launch_args": [
+     "/opt/homebrew/bin/llama-server",
+     "-m",
+     "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+     "-ngl",
+     "999",
+     "-c",
+     "32768",
+     "-np",
+     "1",
+     "-cb",
+     "--flash-attn",
+     "on",
+     "--jinja",
+     "--reasoning-format",
+     "none",
+     "--host",
+     "127.0.0.1",
+     "--port",
+     "8090"
+    ],
+    "machine_id": "Mac15,14",
+    "machine_chip": "Apple M3 Ultra",
+    "machine_memory_bytes": 274877906944,
+    "os_version": "26.5"
+   },
+   "conditions": {
+    "run_index": 0,
+    "run_order": "sequential",
+    "page_cache": "unknown",
+    "server_restarted_before": false,
+    "slot_reset_before": false,
+    "sampling_seed": 42,
+    "sampling_temperature": 0.0,
+    "notes": "single observation, no dispersion: this probe scores output rather than timing it, so it is provisional under I8 and excluded from comparisons"
+   },
+   "engine": {
+    "n_ctx": 32768,
+    "n_ctx_slot_tok": 32768,
+    "n_parallel": 1
+   },
+   "esrs": {
+    "precision": 0.9,
+    "recall": 0.818,
+    "f1": 0.857,
+    "tp": 9,
+    "fp": 1,
+    "fn": 2,
+    "n_samples": 10,
+    "per_sample": [
+     {
+      "id": "act-001",
+      "pred": [
+       "E1-1"
+      ],
+      "expected": [
+       "E1-1",
+       "E1-3"
+      ]
+     },
+     {
+      "id": "act-002",
+      "pred": [
+       "E1-1"
+      ],
+      "expected": [
+       "E1-3"
+      ]
+     },
+     {
+      "id": "act-003",
+      "pred": [
+       "E2-1"
+      ],
+      "expected": [
+       "E2-1"
+      ]
+     },
+     {
+      "id": "act-004",
+      "pred": [
+       "E3-1"
+      ],
+      "expected": [
+       "E3-1"
+      ]
+     },
+     {
+      "id": "act-005",
+      "pred": [
+       "E5-1"
+      ],
+      "expected": [
+       "E5-1"
+      ]
+     },
+     {
+      "id": "act-006",
+      "pred": [
+       "S1-1"
+      ],
+      "expected": [
+       "S1-1"
+      ]
+     },
+     {
+      "id": "act-007",
+      "pred": [
+       "S1-9"
+      ],
+      "expected": [
+       "S1-9"
+      ]
+     },
+     {
+      "id": "act-008",
+      "pred": [
+       "S1-13"
+      ],
+      "expected": [
+       "S1-13"
+      ]
+     },
+     {
+      "id": "act-009",
+      "pred": [
+       "S2-1"
+      ],
+      "expected": [
+       "S2-1"
+      ]
+     },
+     {
+      "id": "act-010",
+      "pred": [
+       "G1-1"
+      ],
+      "expected": [
+       "G1-1"
+      ]
+     }
+    ]
+   },
+   "invalid": [
+    "I8"
+   ]
+  },
+  {
+   "schema_version": 1,
+   "record_id": "batch-qwen3.6-35b-a3b",
+   "campaign_id": "op7-qwen3.6-35b-a3b",
+   "probe": "batch",
+   "label": "qwen3.6-35b-a3b",
+   "measured_at": "2026-07-30T04:43:47Z",
+   "provenance": {
+    "git_sha": "ae88a4e445ca9d5b7ff90f48cb11011b3983f72c",
+    "git_dirty": true,
+    "llama_server_version": "version: 9870 (2d973636e)",
+    "llama_server_path": "/opt/homebrew/bin/llama-server",
+    "model_path": "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+    "model_sha256": "2fdd20997c4d88ee25f70f500c61f8b999378d92ab055f9d450fc70d617158d3",
+    "model_sha256_scope": "whole_file",
+    "launch_args": [
+     "/opt/homebrew/bin/llama-server",
+     "-m",
+     "/Users/nidalzoumita/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf",
+     "-ngl",
+     "999",
+     "-c",
+     "32768",
+     "-np",
+     "1",
+     "-cb",
+     "--flash-attn",
+     "on",
+     "--jinja",
+     "--reasoning-format",
+     "none",
+     "--host",
+     "127.0.0.1",
+     "--port",
+     "8090"
+    ],
+    "machine_id": "Mac15,14",
+    "machine_chip": "Apple M3 Ultra",
+    "machine_memory_bytes": 274877906944,
+    "os_version": "26.5"
+   },
+   "conditions": {
+    "run_index": 0,
+    "run_order": "sequential",
+    "page_cache": "unknown",
+    "server_restarted_before": false,
+    "slot_reset_before": false,
+    "sampling_seed": 42,
+    "sampling_temperature": 0.0,
+    "notes": "single observation, no dispersion: this probe scores output rather than timing it, so it is provisional under I8 and excluded from comparisons"
+   },
+   "engine": {
+    "n_ctx": 32768,
+    "n_ctx_slot_tok": 32768,
+    "n_parallel": 1
+   },
+   "batch": {
+    "seq_tps": 70.8,
+    "map_tps": 70.3,
+    "speedup": 0.99
+   },
+   "invalid": [
+    "I8"
+   ]
+  }
+ ],
+ "records_excluded": []
+}

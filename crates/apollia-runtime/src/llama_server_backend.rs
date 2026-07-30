@@ -20,7 +20,7 @@ use apollia_core::{LlmBackendConfig, LlmProvider};
 use apollia_llm::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
 use apollia_llm::types::{CompletionModel, CompletionRequest, CompletionResponse, StreamChunk};
 use apollia_llm::LlmError;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -105,14 +105,28 @@ impl LlamaServerBackend {
 #[async_trait::async_trait]
 impl CompletionModel for LlamaServerBackend {
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
-        self.ready_client().await?.complete(req).await
+        let response = self.ready_client().await?.complete(req).await?;
+        if let Some(timings) = response.engine_timings.as_ref() {
+            crate::llm_timings::observe_timings(&self.backend_name, &self.model_id, timings);
+        }
+        Ok(response)
     }
 
     async fn stream(
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        self.ready_client().await?.stream(req).await
+        let inner = self.ready_client().await?.stream(req).await?;
+        // Observe in passing rather than consuming: the chunk continues
+        // downstream so the turn decomposition can attribute it to an iteration.
+        let backend = self.backend_name.clone();
+        let model = self.model_id.clone();
+        let observed = inner.inspect(move |item| {
+            if let Ok(StreamChunk::Timings(timings)) = item {
+                crate::llm_timings::observe_timings(&backend, &model, timings);
+            }
+        });
+        Ok(Box::pin(observed))
     }
 
     fn is_available(&self) -> bool {

@@ -32,6 +32,7 @@ struct MockLlm {
 impl CompletionModel for MockLlm {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: self.response.clone(),
             tool_calls: vec![],
             usage: TokenUsage {

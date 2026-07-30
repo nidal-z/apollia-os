@@ -1026,10 +1026,11 @@ mod tests {
     #[test]
     fn test_client_id_shape_error_google() {
         // GIVEN a well-formed Google client id
-        assert!(
-            client_id_shape_error(ConnectorProvider::Google, "123-abc.apps.googleusercontent.com")
-                .is_none()
-        );
+        assert!(client_id_shape_error(
+            ConnectorProvider::Google,
+            "123-abc.apps.googleusercontent.com"
+        )
+        .is_none());
         // AND a malformed one
         assert!(client_id_shape_error(ConnectorProvider::Google, "bogus").is_some());
     }

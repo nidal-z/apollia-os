@@ -139,6 +139,15 @@ pub struct CompletionResponse {
     /// `Some` only for streaming backends that measure TTFT. `None` for
     /// non-streaming calls or when not measured.
     pub ttft_ms: Option<u64>,
+    /// Engine-reported per-request timings, verbatim, when the backend supplies
+    /// them.
+    ///
+    /// The embedded `llama-server` attaches a `timings` object separating
+    /// prefill from decode and reporting how much of the prompt was served from
+    /// cache. It is carried as raw JSON so this crate stays ignorant of any one
+    /// engine's schema; the consumer that understands the shape parses it.
+    /// `None` for every backend that reports nothing, which is all cloud ones.
+    pub engine_timings: Option<serde_json::Value>,
 }
 
 /// Anthropic cache marker for prompt caching.
@@ -380,6 +389,13 @@ pub enum StreamChunk {
     /// Backends that do not report streaming usage never yield this variant, so
     /// non-consuming sites may safely ignore it.
     Usage(TokenUsage),
+    /// Engine-reported per-request timings, verbatim, from the final SSE chunk.
+    ///
+    /// Emitted at most once, and only by backends that report them (the
+    /// embedded `llama-server`). Raw JSON for the same reason as
+    /// [`CompletionResponse::engine_timings`]: the schema belongs to the engine,
+    /// not to this crate. Sites that do not measure anything ignore it.
+    Timings(serde_json::Value),
 }
 
 /// Summary information about a backend, returned by `LlmRouter::list()`.

@@ -578,6 +578,7 @@ mod tests {
         let event = RuntimeEvent::ChatApprovalRequired {
             session_id: "sess-001".into(),
             message_id: "msg-005".into(),
+            tool_call_id: "call-001".into(),
             tool_name: "bash_executor".into(),
             prompt: "L'outil 'bash_executor' demande à être exécuté".into(),
         };
@@ -650,6 +651,7 @@ mod tests {
         let event = RuntimeEvent::ChatApprovalTimeout {
             session_id: "sess-001".into(),
             message_id: "msg-005".into(),
+            tool_call_id: "call-001".into(),
             tool_name: "bash_executor".into(),
         };
         // WHEN / THEN no notification produced

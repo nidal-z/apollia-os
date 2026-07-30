@@ -38,6 +38,7 @@ struct FixedBackend {
 impl CompletionModel for FixedBackend {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: format!("response from {}", self.name),
             tool_calls: vec![],
             usage: TokenUsage {

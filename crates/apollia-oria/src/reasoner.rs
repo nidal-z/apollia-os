@@ -661,6 +661,7 @@ mod tests {
                 q.pop_front().unwrap_or_else(|| self.fallback.clone())
             };
             Ok(CompletionResponse {
+                engine_timings: None,
                 content,
                 tool_calls: vec![],
                 usage: TokenUsage {

@@ -710,6 +710,10 @@ async fn forward_stream(f: StreamForward) {
                         // Token accounting is not surfaced on this text-only
                         // Python bridge; drop the terminal usage chunk.
                     }
+                    Ok(StreamChunk::Timings(_)) => {
+                        // Same: engine timings are observed where they are
+                        // produced, not forwarded to Python.
+                    }
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
                         break;
@@ -1021,6 +1025,7 @@ mod tests {
         let (tx, mut rx) = tokio::sync::broadcast::channel(8);
         let run_id = apollia_core::events::RunId::new();
         let resp = apollia_llm::types::CompletionResponse {
+            engine_timings: None,
             content: "hello world".to_string(),
             tool_calls: vec![],
             usage: apollia_llm::types::TokenUsage {
@@ -1059,6 +1064,7 @@ mod tests {
         // GIVEN a bus but no run_id (a run-agnostic call)
         let (tx, mut rx) = tokio::sync::broadcast::channel(8);
         let resp = apollia_llm::types::CompletionResponse {
+            engine_timings: None,
             content: "x".to_string(),
             tool_calls: vec![],
             usage: apollia_llm::types::TokenUsage {

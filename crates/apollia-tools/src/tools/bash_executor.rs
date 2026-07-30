@@ -651,6 +651,7 @@ mod tests {
                 _req: CompletionRequest,
             ) -> Result<CompletionResponse, LlmError> {
                 Ok(CompletionResponse {
+                    engine_timings: None,
                     content: "/tmp/test.txt".into(),
                     tool_calls: vec![],
                     usage: TokenUsage::default(),

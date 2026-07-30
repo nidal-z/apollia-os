@@ -755,6 +755,7 @@ mod tests {
                 tokio::time::sleep(self.delay).await;
             }
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: "meta answer".to_owned(),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -1055,6 +1056,7 @@ mod tests {
             ) -> Result<CompletionResponse, LlmError> {
                 self.calls.fetch_add(1, AtomicOrdering::SeqCst);
                 Ok(CompletionResponse {
+                    engine_timings: None,
                     content: r#"{"chosen":"read_file","alternatives":[
                         {"label":"bash","rejected_reason":"overkill","confidence_delta":-0.3},
                         {"label":"grep","rejected_reason":"path known","confidence_delta":-0.5}

@@ -118,6 +118,100 @@ that introduces it and update this file.
 | `status` | `u16` | HTTP status code |
 | `peer` | `&str` | remote endpoint |
 
+### Local inference engine
+
+Emitted by `llama.server.spawn.config`, once per embedded `llama-server`
+launch. Each field is the resolved value of one launch parameter, after the
+`APOLLIA_LLAMA_` environment overrides have been applied. An optional
+parameter left unset reads `unset`, meaning the flag is not passed and the
+engine's own default applies.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `binary` | `&str` | path of the `llama-server` executable |
+| `model` | `&str` | path of the loaded `.gguf` file |
+| `port` | `u16` | loopback port the server binds |
+| `n_ctx` | `u32` | context window in tokens (`-c`) |
+| `n_gpu_layers` | `i32` | layers offloaded to the GPU (`-ngl`) |
+| `n_batch` | `&str` | logical batch size (`-b`), or `unset` |
+| `n_ubatch` | `&str` | physical micro-batch size (`-ub`), or `unset` |
+| `n_parallel` | `&str` | server slot count (`-np`), or `unset` |
+| `cont_batching` | `&str` | continuous batching (`-cb` / `-nocb`), or `unset` |
+| `cache_type_k` | `&str` | KV cache type for keys (`-ctk`), or `unset` |
+| `cache_type_v` | `&str` | KV cache type for values (`-ctv`), or `unset` |
+| `flash_attn` | `&str` | flash attention mode (`--flash-attn`), or `unset` |
+| `cache_reuse` | `&str` | prefix cache reuse threshold (`--cache-reuse`), or `unset` |
+| `args` | `&str` | the full launch argument vector, space-joined |
+| `metrics` | `&str` | whether the Prometheus endpoint was opened (`--metrics`) |
+
+`args` is the provenance record: a performance measurement is only comparable
+to another when both quote the exact launch line that produced them.
+
+### Completion timings
+
+Emitted by `llm.completion.timings`, once per completion, from the engine's own
+per-request `timings` object. Names match the measurement dictionary in
+`scripts/model-eval/README.md` exactly, so a log line and a measurement record
+denote the same quantities without translation. A rate that is undefined reads
+`unset`, never `0`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `prompt_tok_total` | `u32` | every prompt token submitted, cached or recomputed |
+| `prompt_tok_computed` | `u32` | prompt tokens the engine actually evaluated |
+| `prompt_tok_cached` | `u32` | prompt tokens served from the KV cache |
+| `prompt_cache_hit_ratio` | `&str` | cached share of the submitted prompt, or `unset` |
+| `prefill_ms` | `f64` | prefill duration, covering the computed tokens only |
+| `decode_tok` | `u32` | tokens generated, reasoning and content together |
+| `decode_ms` | `f64` | generation duration |
+| `prefill_tps` | `&str` | derived prefill rate, or `unset` when nothing was computed |
+| `decode_tps` | `&str` | derived decode rate, or `unset` |
+| `engine_prefill_tps` | `&str` | the engine's own prefill rate, kept as a cross-check |
+| `engine_decode_tps` | `&str` | the engine's own decode rate, kept as a cross-check |
+
+`prompt_tok_*` is a triplet rather than a single field because the engine counts
+only what it evaluated: a name like "prompt tokens" that silently excludes
+cached tokens is the ambiguity most likely to corrupt a measurement. For the
+same reason `tokens_in` and `tokens_out` above are not admissible on this event.
+
+### Turn decomposition
+
+Emitted by `chat.react.turn.timings`, once per user-visible turn. A turn holds
+one or more completions and any number of tool invocations; these fields say how
+its wall-clock divided between them.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `turn_wall_ms` | `f64` | accepting the user message to emitting the final reply |
+| `iterations` | `usize` | completions issued to the engine in this turn |
+| `tool_calls` | `usize` | tool invocations executed in this turn |
+| `approvals` | `usize` | human approvals waited on in this turn, whatever the answer |
+| `engine_ms_total` | `f64` | sum over iterations of `prefill_ms + decode_ms` |
+| `tool_ms_total` | `f64` | sum of every tool invocation's wall-clock |
+| `approval_ms_total` | `f64` | sum of every approval wait |
+| `orchestration_residual_ms` | `f64` | `turn_wall_ms` minus the three sums above |
+| `orchestration_residual_ratio` | `f64` | the residual as a share of the turn |
+
+`orchestration_residual_ms` is the part that belongs to Apollia rather than to
+the engine, a tool, or a person, so it is computed explicitly rather than left to
+be inferred. It can come out negative, which means work overlapped and the
+additive model does not hold for that turn; it is reported as measured, never
+clamped.
+
+`approvals` is not `tool_calls`. An approval that is refused, or that times out,
+waits and then runs nothing, so the counts diverge on exactly the turns where the
+wait dominates. Human wait is subtracted from the residual for the same reason:
+a turn that waited on a person is not a slow turn, and one unanswered approval
+was enough to report a 98.7 percent residual with nothing running.
+
+Spans: `chat.react.turn` wraps one user turn, `chat.react.iteration` wraps each
+completion inside it.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `env_var` | `&str` | environment variable name, on a configuration warning |
+| `value` | `&str` | the rejected raw value |
+
 ---
 
 ## 5. Field prefixes

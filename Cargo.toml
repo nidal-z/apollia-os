@@ -141,7 +141,12 @@ rand = "0.9"
 futures = "0.3"
 async-trait = "0.1"
 # cloud backends (OpenAI-compatible + Anthropic) - [feature = "cloud"]
-async-openai = "0.28"
+# `byot` ("bring your own type") is additive: the macro emits `create_byot`
+# alongside the untouched `create`, letting a caller deserialize a response into
+# its own type. Needed because the crate's typed response drops the non-standard
+# `timings` object that llama-server attaches, and the generic `post` helper that
+# would otherwise reach it is `pub(crate)`.
+async-openai = { version = "0.28", features = ["byot"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 # Local LLM inference runs through the embedded upstream llama-server binary
 # (see crates/apollia-runtime/src/llama_server.rs), not in-process bindings, so

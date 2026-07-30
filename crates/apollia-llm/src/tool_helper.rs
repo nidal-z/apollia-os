@@ -293,6 +293,7 @@ mod tests {
 
     fn stop_response(content: impl Into<String>) -> CompletionResponse {
         CompletionResponse {
+            engine_timings: None,
             content: content.into(),
             tool_calls: vec![],
             usage: TokenUsage {
@@ -309,6 +310,7 @@ mod tests {
 
     fn tool_calls_response(calls: Vec<ToolCall>) -> CompletionResponse {
         CompletionResponse {
+            engine_timings: None,
             content: String::new(),
             tool_calls: calls,
             usage: TokenUsage {

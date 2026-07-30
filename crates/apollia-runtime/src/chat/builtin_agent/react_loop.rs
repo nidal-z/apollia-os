@@ -1,5 +1,6 @@
 use super::stream::StreamConsumeParams;
 use super::*;
+use tracing::Instrument;
 
 impl BuiltInChatAgent {
     /// Execute a complete exchange: user message, LLM stream, tool calls, response.
@@ -425,6 +426,19 @@ impl BuiltInChatAgent {
                 ..Default::default()
             };
 
+            // Opens the iteration this request belongs to. Everything the
+            // stream consumer and the tool dispatcher record from here on is
+            // attributed to it.
+            crate::perf_trace::iteration_begin(request.temperature, context_window_tokens);
+            // Attached to the two awaits that make up an iteration rather than
+            // entered as a guard: a guard held across an await would make the
+            // turn future non-Send.
+            let iteration_span = tracing::info_span!(
+                "chat.react.iteration",
+                session_id = %session_id,
+                steps_left = budget.steps_left(),
+            );
+
             // Emit ChatResponseStarted before the first token
             let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
                 session_id: session_id.to_string(),
@@ -446,6 +460,12 @@ impl BuiltInChatAgent {
             } else {
                 EscalationSignal::None
             };
+            // Time-to-first-token origin. The request body is complete here and
+            // the dispatch is the next statement. The backend blocks until the
+            // first token arrives, so prefill elapses inside the await below,
+            // before `consume_stream` ever runs. A clock started any later
+            // measures everything except the wait the user experiences.
+            let dispatched_at = std::time::Instant::now();
             let stream_result = if signal.is_escalation() {
                 let backend = self
                     .llm_router
@@ -546,16 +566,31 @@ impl BuiltInChatAgent {
                         session_id,
                         message_id,
                         cancel: &ids.cancel,
+                        dispatched_at,
                     },
                     &mut accumulated_text,
                     &mut chunk_usage,
                 )
+                .instrument(iteration_span.clone())
                 .await;
             // Fold this call's usage into the exchange total, and record its
             // prompt size as the current context occupancy.
             total_usage.merge(&chunk_usage);
             if chunk_usage.prompt_tokens > 0 {
                 last_prompt_tokens = chunk_usage.prompt_tokens;
+            }
+            // Closes the iteration. The character counts are exact; the token
+            // split the record derives from them is an approximation and is
+            // labelled as one.
+            {
+                let reasoning_chars =
+                    Self::extract_think_blocks(&accumulated_text).map_or(0, |r| r.chars().count());
+                let content_chars = Self::strip_think_blocks(&accumulated_text).chars().count();
+                crate::perf_trace::iteration_end(
+                    chunk_usage.prompt_tokens,
+                    reasoning_chars,
+                    content_chars,
+                );
             }
 
             // Mid-stream cooperative stop. The user hit Stop while the LLM was
@@ -664,6 +699,7 @@ impl BuiltInChatAgent {
                         &mut acc,
                         &mut consecutive_tool_failures,
                     )
+                    .instrument(iteration_span.clone())
                     .await;
                     // Discovery -> Drafting on the first plan-construction call;
                     // Discovery -> Done on a fully cancelled question. No-op

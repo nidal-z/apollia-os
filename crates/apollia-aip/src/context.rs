@@ -1979,6 +1979,7 @@ mod runtime_context_tests {
     impl CompletionModel for NoopModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: String::new(),
                 tool_calls: vec![],
                 usage: TokenUsage {

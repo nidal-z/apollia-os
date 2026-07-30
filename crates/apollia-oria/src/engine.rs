@@ -1893,6 +1893,7 @@ mod orchestrated_tests {
     impl CompletionModel for SimpleMockModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: self.response.clone(),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -3080,6 +3081,7 @@ mod orchestrated_tests {
                 self.plan.clone()
             };
             Ok(CompletionResponse {
+                engine_timings: None,
                 content,
                 tool_calls: vec![],
                 usage: TokenUsage::default(),

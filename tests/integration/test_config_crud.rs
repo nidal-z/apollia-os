@@ -166,6 +166,7 @@ async fn build_app_state_with_repos(
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     }
 }
 

@@ -21,8 +21,9 @@ use async_openai::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionResponseStream, ChatCompletionStreamOptions, ChatCompletionTool,
-        ChatCompletionToolType, CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
+        ChatCompletionStreamOptions, ChatCompletionTool, ChatCompletionToolType,
+        CreateChatCompletionRequestArgs, CreateChatCompletionResponse,
+        CreateChatCompletionStreamResponse, FunctionCall, FunctionObject,
     },
     Client,
 };
@@ -162,12 +163,20 @@ impl OpenAICompatibleClient {
             .build()
             .map_err(|e| LlmError::InferenceError(format!("build request: {e}")))?;
 
-        let response = self
+        // `create_byot` rather than `create`: the crate's own response type drops
+        // any field it does not declare, which discards the `timings` object the
+        // embedded llama-server attaches. Flattening the same type inside a
+        // wrapper keeps every existing behaviour and recovers that object.
+        // Requires `stream` to be unset, which it is: this is the non-streaming
+        // path and the builder never sets it.
+        let envelope: WithTimings<CreateChatCompletionResponse> = self
             .client
             .chat()
-            .create(request)
+            .create_byot(request)
             .await
             .map_err(map_openai_error)?;
+        let engine_timings = envelope.timings;
+        let response = envelope.inner;
 
         let latency_ms = started.elapsed().as_millis() as u64;
 
@@ -218,6 +227,7 @@ impl OpenAICompatibleClient {
         };
 
         Ok(CompletionResponse {
+            engine_timings,
             content,
             tool_calls,
             usage,
@@ -227,6 +237,28 @@ impl OpenAICompatibleClient {
         })
     }
 }
+
+/// A response type plus the engine timings the declared type would discard.
+///
+/// `serde` drops unknown fields, so the crate's own response struct silently
+/// loses the `timings` object that `llama-server` attaches. Flattening that
+/// struct inside this wrapper preserves its parsing exactly while capturing the
+/// extra key. Backends that report nothing simply yield `None`.
+#[derive(serde::Deserialize)]
+struct WithTimings<T> {
+    #[serde(flatten)]
+    inner: T,
+    #[serde(default)]
+    timings: Option<serde_json::Value>,
+}
+
+/// One streamed chunk, plus any engine timings riding on it.
+type TimedStreamResponse = WithTimings<CreateChatCompletionStreamResponse>;
+
+/// The byot equivalent of `ChatCompletionResponseStream`.
+type TimedChatStream = Pin<
+    Box<dyn Stream<Item = Result<TimedStreamResponse, async_openai::error::OpenAIError>> + Send>,
+>;
 
 #[async_trait::async_trait]
 impl CompletionModel for OpenAICompatibleClient {
@@ -283,11 +315,23 @@ impl CompletionModel for OpenAICompatibleClient {
             include_usage: true,
         });
 
-        let request = builder
+        let mut request = builder
             .build()
             .map_err(|e| LlmError::InferenceError(format!("build stream request: {e}")))?;
+        // `create_stream` sets this itself; `create_stream_byot` does not, and a
+        // request without it would come back as a single non-streamed body.
+        request.stream = Some(true);
 
-        let sse_stream = match self.client.chat().create_stream(request).await {
+        // See `do_complete`: byot recovers the `timings` object that the crate's
+        // declared chunk type would drop. The engine attaches it to the final
+        // chunk whether or not per-token timings were requested, so nothing else
+        // about the request changes.
+        let sse_stream = match self
+            .client
+            .chat()
+            .create_stream_byot::<_, WithTimings<CreateChatCompletionStreamResponse>>(request)
+            .await
+        {
             Ok(stream) => stream,
             Err(async_openai::error::OpenAIError::StreamError(detail)) => {
                 // async-openai reports a non-2xx SSE setup status as an opaque
@@ -340,6 +384,7 @@ impl CompletionModel for OpenAICompatibleClient {
             first: first.map(Box::new),
             pending: HashMap::new(),
             model,
+            pending_timings: None,
         };
 
         let mapped = futures::stream::unfold(state, next_openai_stream_item);
@@ -522,21 +567,18 @@ fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
 enum OpenAIStreamState {
     /// Reading SSE chunks from the inner stream.
     Streaming {
-        inner: ChatCompletionResponseStream,
+        inner: TimedChatStream,
         /// First item peeked in `stream()` to surface a lazy non-2xx status;
         /// drained before polling `inner`. Boxed to keep the variant small.
-        first: Option<
-            Box<
-                Result<
-                    async_openai::types::CreateChatCompletionStreamResponse,
-                    async_openai::error::OpenAIError,
-                >,
-            >,
-        >,
+        first: Option<Box<Result<TimedStreamResponse, async_openai::error::OpenAIError>>>,
         pending: HashMap<u32, PartialToolCall>,
         /// Resolved model id, kept to price the terminal usage chunk the same
         /// way the non-streaming `do_complete` path does.
         model: String,
+        /// Engine timings seen on a chunk that also carried something else to
+        /// emit. Held back so they surface on the following poll, since the
+        /// state machine yields one item at a time.
+        pending_timings: Option<serde_json::Value>,
     },
     /// SSE stream ended; emitting accumulated tool calls one by one.
     Flushing { remaining: Vec<ToolCall> },
@@ -571,14 +613,36 @@ async fn next_openai_stream_item(
             mut first,
             mut pending,
             model,
+            mut pending_timings,
         } => {
+            // Timings held back from an earlier chunk take priority, so they are
+            // never lost behind a later text delta.
+            if let Some(timings) = pending_timings.take() {
+                return Some((
+                    Ok(StreamChunk::Timings(timings)),
+                    OpenAIStreamState::Streaming {
+                        inner,
+                        first,
+                        pending,
+                        model,
+                        pending_timings: None,
+                    },
+                ));
+            }
             loop {
                 let next = match first.take() {
                     Some(item) => Some(*item),
                     None => inner.next().await,
                 };
                 match next {
-                    Some(Ok(response)) => {
+                    Some(Ok(envelope)) => {
+                        // The engine attaches timings to its final chunk. Hold
+                        // them until whatever else this chunk carries has been
+                        // emitted.
+                        if let Some(t) = envelope.timings {
+                            pending_timings = Some(t);
+                        }
+                        let response = envelope.inner;
                         // The terminal chunk (empty `choices`, populated `usage`)
                         // carries the call's token accounting. Surface it as
                         // `StreamChunk::Usage`, priced like the non-streaming path.
@@ -600,6 +664,7 @@ async fn next_openai_stream_item(
                                     first,
                                     pending,
                                     model,
+                                    pending_timings,
                                 },
                             ));
                         }
@@ -611,6 +676,7 @@ async fn next_openai_stream_item(
                                     first,
                                     pending,
                                     model,
+                                    pending_timings,
                                 },
                             ));
                         }
@@ -620,6 +686,17 @@ async fn next_openai_stream_item(
                         return Some((Err(map_openai_error(e)), OpenAIStreamState::Done));
                     }
                     None => {
+                        // SSE ended. Timings from the final chunk outrank the
+                        // tool-call flush: dropping them here would lose the
+                        // measurement on every turn that ends in a tool call.
+                        if let Some(timings) = pending_timings.take() {
+                            return Some((
+                                Ok(StreamChunk::Timings(timings)),
+                                OpenAIStreamState::Flushing {
+                                    remaining: drain_pending_tool_calls(pending),
+                                },
+                            ));
+                        }
                         // SSE stream ended, flush accumulated tool calls
                         return flush_pending_tool_calls(pending);
                     }
@@ -677,9 +754,20 @@ fn accumulate_tool_calls(
 fn flush_pending_tool_calls(
     pending: HashMap<u32, PartialToolCall>,
 ) -> Option<(Result<StreamChunk, LlmError>, OpenAIStreamState)> {
-    if pending.is_empty() {
-        return None;
-    }
+    let mut tool_calls = drain_pending_tool_calls(pending);
+    tool_calls.pop().map(|call| {
+        (
+            Ok(StreamChunk::ToolCall(call)),
+            OpenAIStreamState::Flushing {
+                remaining: tool_calls,
+            },
+        )
+    })
+}
+
+/// Sort the accumulated calls by index and reverse them, so `Flushing` can pop
+/// from the end and still emit in index order.
+fn drain_pending_tool_calls(pending: HashMap<u32, PartialToolCall>) -> Vec<ToolCall> {
     let mut calls: Vec<(u32, PartialToolCall)> = pending.into_iter().collect();
     calls.sort_by_key(|(idx, _)| *idx);
 
@@ -696,16 +784,8 @@ fn flush_pending_tool_calls(
         })
         .collect();
 
-    // Reverse so we can pop from the end in order
     tool_calls.reverse();
-    tool_calls.pop().map(|call| {
-        (
-            Ok(StreamChunk::ToolCall(call)),
-            OpenAIStreamState::Flushing {
-                remaining: tool_calls,
-            },
-        )
-    })
+    tool_calls
 }
 
 /// Estimate the cost in USD from the number of tokens consumed.

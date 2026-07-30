@@ -8,6 +8,14 @@ pub(in crate::chat::builtin_agent) struct StreamConsumeParams<'a> {
     pub message_id: &'a str,
     /// Cooperative stop token: cancellation ends the stream at the next chunk.
     pub cancel: &'a tokio_util::sync::CancellationToken,
+    /// Instant the completion request was dispatched, owned by the caller.
+    ///
+    /// Time to first token is measured from here rather than from the start of
+    /// this function, because the backend awaits the first chunk before handing
+    /// the stream over: prefill has already elapsed by the time consumption
+    /// begins. Threading the origin in is what keeps the measured interval the
+    /// one the contract defines.
+    pub dispatched_at: std::time::Instant,
 }
 
 impl BuiltInChatAgent {
@@ -32,8 +40,12 @@ impl BuiltInChatAgent {
             session_id,
             message_id,
             cancel,
+            dispatched_at,
         } = params;
         let mut tool_calls = Vec::new();
+        // Turn instrumentation only, inert outside an instrumented turn where
+        // the recorder entry points are no-ops.
+        let mut first_token_seen = false;
 
         loop {
             // Race the stop token against the next chunk so a Stop takes effect
@@ -54,6 +66,15 @@ impl BuiltInChatAgent {
             };
             match chunk_result {
                 Ok(StreamChunk::Text(token)) => {
+                    // Time to first token, client-observed: from the dispatch of
+                    // the request to the first content delta, which is exactly
+                    // what the user waits through.
+                    if !first_token_seen {
+                        first_token_seen = true;
+                        crate::perf_trace::iteration_ttft(
+                            dispatched_at.elapsed().as_secs_f64() * 1000.0,
+                        );
+                    }
                     // Emit ChatToken and accumulate
                     let _ = self.event_bus.send(RuntimeEvent::ChatToken {
                         session_id: session_id.to_string(),
@@ -69,6 +90,12 @@ impl BuiltInChatAgent {
                 Ok(StreamChunk::Usage(chunk_usage)) => {
                     // Terminal token accounting for this call; fold it in.
                     usage.merge(&chunk_usage);
+                }
+                Ok(StreamChunk::Timings(timings)) => {
+                    // Already emitted as an event by the backend that produced
+                    // them. Kept here so the turn decomposition can attribute
+                    // engine time to this iteration.
+                    crate::perf_trace::iteration_engine_timings(&timings);
                 }
                 Err(e) => {
                     // Stream interrupted

@@ -449,6 +449,7 @@ mod tests {
             _req: CompletionRequest,
         ) -> Result<CompletionResponse, apollia_llm::LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: self.response.clone(),
                 tool_calls: vec![],
                 usage: TokenUsage {

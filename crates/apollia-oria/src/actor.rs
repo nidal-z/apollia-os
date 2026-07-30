@@ -1699,6 +1699,7 @@ mod tests {
                 q.pop_front().unwrap_or_else(|| "mock response".to_string())
             };
             Ok(CompletionResponse {
+                engine_timings: None,
                 content,
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -3149,6 +3150,7 @@ mod tests {
     impl apollia_llm::CompletionModel for TaggedMockModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: format!("response-from-{}", self.tag),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -3528,6 +3530,7 @@ mod tests {
                     .expect("lock")
                     .push(req.messages.clone());
                 Ok(apollia_llm::CompletionResponse {
+                    engine_timings: None,
                     content: "llm output".into(),
                     tool_calls: vec![],
                     usage: TokenUsage {

@@ -213,6 +213,7 @@ async fn test_shutdown_drains_active_tasks() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -317,6 +318,7 @@ async fn test_shutdown_stops_all_agents() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -411,6 +413,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -527,6 +530,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
     let api = APIServer::new(
         APIServerConfig {

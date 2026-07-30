@@ -560,6 +560,7 @@ mod critic_tests {
     impl CompletionModel for MockCriticModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: self.response.clone(),
                 tool_calls: vec![],
                 usage: TokenUsage::default(),

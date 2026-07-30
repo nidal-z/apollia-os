@@ -321,6 +321,7 @@ impl AnthropicClient {
         }
 
         Ok(CompletionResponse {
+            engine_timings: None,
             content: content_text,
             tool_calls,
             usage: TokenUsage {

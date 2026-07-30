@@ -37,6 +37,7 @@ struct StubLlm;
 impl CompletionModel for StubLlm {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: r#"{"steps":[]}"#.into(),
             tool_calls: vec![],
             usage: TokenUsage {

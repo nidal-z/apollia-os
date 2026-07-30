@@ -93,6 +93,7 @@ impl ReplayBackend {
         };
 
         Ok(CompletionResponse {
+            engine_timings: None,
             content: snapshot.content,
             tool_calls,
             usage,

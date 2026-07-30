@@ -15,9 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use apollia_aip::{bridge::AIPBridge, loader::load_agent_module, validator::validate_agent};
-use apollia_core::{
-    AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent,
-};
+use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent};
 use apollia_runtime::{
     coordinator::{ExecutionBackend, ExecutionCoordinator},
     eventbus::EventBus,

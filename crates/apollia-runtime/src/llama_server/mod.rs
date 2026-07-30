@@ -15,6 +15,10 @@
 //! server). Whisper STT still lives in `apollia-runner`; only the LLM engine
 //! moves here.
 
+mod config;
+
+pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
+
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -25,6 +29,8 @@ use thiserror::Error;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, RwLock};
+
+use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
@@ -44,29 +50,6 @@ pub enum LlamaServerError {
     /// The process exited before it became healthy.
     #[error("llama-server exited during startup (status: {0})")]
     ExitedDuringStartup(String),
-}
-
-/// Launch configuration for the embedded `llama-server`.
-#[derive(Clone, Debug)]
-pub struct LlamaServerConfig {
-    /// Absolute path to the `.gguf` model file to load.
-    pub model_path: String,
-    /// Total context window in tokens (`-c`). Split across slots; the desktop
-    /// runs a single conversation, so the whole window serves one request.
-    pub n_ctx: u32,
-    /// Number of layers to offload to the GPU (`-ngl`). `999` offloads all;
-    /// a CPU-only build silently ignores the request.
-    pub n_gpu_layers: i32,
-}
-
-impl Default for LlamaServerConfig {
-    fn default() -> Self {
-        Self {
-            model_path: String::new(),
-            n_ctx: 32_768,
-            n_gpu_layers: 999,
-        }
-    }
 }
 
 /// The running server's loopback port and the model it was launched with.
@@ -121,9 +104,15 @@ impl LlamaServerSupervisor {
     /// Call [`spawn_supervision`](Self::spawn_supervision) to enable auto-respawn.
     pub fn new(config: LlamaServerConfig) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
+        // The reported window must be the one the server will actually launch
+        // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
+        // router sizing compaction against a value no process ever used. The
+        // resolution is pure and applied to the same base at spawn, so both
+        // agree.
+        let n_ctx = resolve_env_overrides(&config, env_getter).n_ctx;
         Ok(Arc::new(Self {
             bin_path,
-            n_ctx: config.n_ctx,
+            n_ctx,
             config: Arc::new(Mutex::new(config)),
             inner: Arc::new(RwLock::new(None)),
             child: Arc::new(Mutex::new(None)),
@@ -272,45 +261,55 @@ impl LlamaServerSupervisor {
 
     /// Spawn `llama-server` for the current config and wait until it is healthy.
     ///
-    /// Picks a free loopback port, launches with the tool-calling flags
-    /// (`--jinja`), drains its logs into tracing, and polls `/health`.
+    /// Picks a free loopback port, resolves the `APOLLIA_LLAMA_` overrides onto
+    /// the stored configuration, launches, drains the logs into tracing, and
+    /// polls `/health`.
     async fn spawn_process(&self) -> Result<(), LlamaServerError> {
-        let config = self.config.lock().await.clone();
+        let config = resolve_env_overrides(&*self.config.lock().await, env_getter);
         let port = pick_free_port()?;
+        let args = build_args(&config, port);
 
         tracing::info!(
             binary = %self.bin_path.display(),
             model = %config.model_path,
             port,
             n_ctx = config.n_ctx,
-            "spawning llama-server"
+            n_gpu_layers = config.n_gpu_layers,
+            n_batch = %display_opt(config.n_batch.as_ref()),
+            n_ubatch = %display_opt(config.n_ubatch.as_ref()),
+            n_parallel = %display_opt(config.n_parallel.as_ref()),
+            cont_batching = %display_opt(config.cont_batching.as_ref()),
+            cache_type_k = %display_opt(config.cache_type_k.as_ref()),
+            cache_type_v = %display_opt(config.cache_type_v.as_ref()),
+            flash_attn = %display_opt(config.flash_attn.as_ref()),
+            cache_reuse = %display_opt(config.cache_reuse.as_ref()),
+            // The full vector is the provenance record a measurement campaign
+            // quotes, so it is logged verbatim alongside the individual fields.
+            args = %args.join(" "),
+            "llama.server.spawn.config"
         );
 
+        // Publish the resolved configuration so a turn record can quote the
+        // command line it was measured under. Two decompositions taken with
+        // different launch flags are not comparable, and only the recorded
+        // vector reveals that.
+        crate::perf_trace::set_launch_config(serde_json::json!({
+            "model_path": config.model_path,
+            "n_ctx": config.n_ctx,
+            "n_gpu_layers": config.n_gpu_layers,
+            "n_batch": config.n_batch,
+            "n_ubatch": config.n_ubatch,
+            "n_parallel": config.n_parallel,
+            "cont_batching": config.cont_batching,
+            "cache_type_k": config.cache_type_k,
+            "cache_type_v": config.cache_type_v,
+            "flash_attn": config.flash_attn.map(|m| m.to_string()),
+            "cache_reuse": config.cache_reuse,
+            "args": args,
+        }));
+
         let mut child = Command::new(&self.bin_path)
-            .arg("-m")
-            .arg(&config.model_path)
-            .arg("-ngl")
-            .arg(config.n_gpu_layers.to_string())
-            .arg("-c")
-            .arg(config.n_ctx.to_string())
-            .arg("-np")
-            .arg("1")
-            .arg("-cb")
-            .arg("--flash-attn")
-            .arg("on")
-            .arg("--jinja")
-            // Keep reasoning inline as <think>...</think> in the content stream
-            // instead of splitting it into a separate `reasoning_content` field
-            // (the llama-server default is `deepseek`, which splits). The whole
-            // chat pipeline (live StreamingMessage parsing and the finalized
-            // thinking_trace extraction) is built around inline <think> tags, so
-            // splitting would silently drop every reasoning model's thoughts.
-            .arg("--reasoning-format")
-            .arg("none")
-            .arg("--host")
-            .arg("127.0.0.1")
-            .arg("--port")
-            .arg(port.to_string())
+            .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)

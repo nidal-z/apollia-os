@@ -113,6 +113,7 @@ fn build_app_state() -> AppState<MockBackend> {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     }
 }
 

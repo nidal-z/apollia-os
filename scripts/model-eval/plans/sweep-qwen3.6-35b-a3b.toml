@@ -1,0 +1,78 @@
+# Full grid on the model that has room.
+#
+# README 1.12 finding 2 puts qwen3.6-35b-a3b at 31.7 percent of its decode
+# ceiling and ministral-3-8b at 79.4 percent, which on Apple Silicon is at the
+# wall. A launch flag cannot move a model that is already bus-bound, so the full
+# grid runs here and only a confirmation set runs on the dense model.
+#
+# The prefix reuse threshold is absent on purpose. Finding 1 records that reuse
+# on this model collapses from 86.1 percent to 0.02 percent depending on what
+# previously touched the slot, binary rather than gradual and with the mechanism
+# unestablished. Sweeping a flag across an uncontrolled switch of that size
+# measures the switch. It returns once slot history is a controlled condition
+# rather than an unrecorded one.
+#
+# Run:  python3 sweep.py plans/sweep-qwen3.6-35b-a3b.toml --dry-run
+#       python3 sweep.py plans/sweep-qwen3.6-35b-a3b.toml
+
+[plan]
+name = "qwen-full-grid"
+seed = 20260729
+repetitions = 5
+baseline_repeats = 5
+probes = ["speed", "prefill_curve"]
+max_tokens = 200
+prompt_tok = 2048
+lengths = [512, 1024, 2048, 4096, 8192, 16384, 32768]
+page_cache_first_load = "unknown"
+
+[model]
+label = "qwen3.6-35b-a3b"
+path = "~/.apollia_old/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf"
+
+[engine]
+port = 8090
+health_timeout_s = 300
+model_load_s = 45
+
+# The frozen baseline vector. Field names mirror LlamaServerConfig in
+# crates/apollia-runtime/src/llama_server/config.rs. A field left out is a flag
+# left off the command line, so the engine's own default is what gets measured
+# rather than a value this plan invented.
+[baseline]
+n_ctx = 32768
+n_gpu_layers = 999
+n_parallel = 1
+cont_batching = true
+flash_attn = "on"
+
+[[factor]]
+name = "n_ubatch"
+field = "n_ubatch"
+levels = [128, 256, 1024, 2048]
+note = "physical micro-batch; also the discriminator for the scatter question, since batch width is what amortises an expert gather during prefill"
+
+[[factor]]
+name = "n_batch"
+field = "n_batch"
+levels = [512, 1024, 4096]
+
+[[factor]]
+name = "n_parallel"
+field = "n_parallel"
+levels = [2, 4, 8]
+hold_slot_ctx = true
+probes = ["speed", "concurrency"]
+
+[[factor]]
+name = "kv_cache_type"
+fields = ["cache_type_k", "cache_type_v"]
+levels = [["q8_0", "q8_0"], ["q4_0", "q4_0"]]
+quality_gate = "toolcall"
+note = "quantising the KV cache changes the arithmetic, so a speed gain here is only a gain if the scored output holds"
+
+[[factor]]
+name = "n_ctx"
+field = "n_ctx"
+levels = [8192, 65536, 131072]
+note = "at 8192 the prefill curve truncates; the per-length comparison drops the lengths that do not fit and names them"

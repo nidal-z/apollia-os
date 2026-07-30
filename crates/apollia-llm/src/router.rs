@@ -1570,6 +1570,7 @@ mod tests {
     impl CompletionModel for MockCompletionModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: "mock response".to_owned(),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -1858,22 +1859,55 @@ mod tests {
         );
     }
 
-    // GIVEN a repository with no default backend
+    // GIVEN a repository holding no default backend, either empty or written
+    //       behind `save` so its auto-promotion does not apply
     // WHEN from_repository(&repo).await
-    // THEN BackendUnavailable is returned
+    // THEN BackendUnavailable is returned, never a silent fallback to an
+    //      arbitrary backend
     #[tokio::test]
     async fn test_from_repository_no_default_returns_error() {
+        use apollia_core::LlmBackendRepository;
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("system.db");
+        let repo = LlmBackendRepository::open(&db_path).unwrap();
+
+        // GIVEN an empty repository
+        // THEN there is nothing to route to
+        let result = LlmRouter::from_repository(&repo).await;
+        assert!(matches!(result, Err(LlmError::BackendUnavailable { .. })));
+
+        // GIVEN an enabled backend inserted directly, bypassing `save` so that
+        // its auto-promotion to default does not fire. This is the shape a
+        // hand-edited or partially migrated database can take.
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_default) \
+             VALUES ('orphan', 'ollama', 'llama3', '{}', 1, 0)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        // THEN the router still refuses to start rather than picking one
+        let result2 = LlmRouter::from_repository(&repo).await;
+        assert!(matches!(result2, Err(LlmError::BackendUnavailable { .. })));
+    }
+
+    // GIVEN an empty repository and a backend saved with is_default = false
+    // WHEN from_repository(&repo).await
+    // THEN the save promoted it to default, so the router builds. This guards
+    //      the invariant that the table never holds backends without a default,
+    //      which is what produced the "no default LLM backend configured" state.
+    #[tokio::test]
+    async fn test_first_saved_backend_is_promoted_to_default() {
         use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
         use tempfile::TempDir;
 
         let dir = TempDir::new().unwrap();
         let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
 
-        // empty repo, no default
-        let result = LlmRouter::from_repository(&repo).await;
-        assert!(matches!(result, Err(LlmError::BackendUnavailable { .. })));
-
-        // backend with is_default=false, still no default
         repo.save(&LlmBackendConfig {
             name: "orphan".to_string(),
             provider: LlmProvider::Ollama,
@@ -1884,8 +1918,11 @@ mod tests {
         })
         .unwrap();
 
-        let result2 = LlmRouter::from_repository(&repo).await;
-        assert!(matches!(result2, Err(LlmError::BackendUnavailable { .. })));
+        assert_eq!(
+            repo.find_default().unwrap().map(|c| c.name).as_deref(),
+            Some("orphan")
+        );
+        assert!(LlmRouter::from_repository(&repo).await.is_ok());
     }
 
     // ── Tests: get, list, clone, error cases ─────────────────────────────────

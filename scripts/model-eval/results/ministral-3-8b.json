@@ -1,16 +1,6 @@
 {
  "label": "ministral-3-8b",
  "gguf": "/Users/nidalzoumita/.apollia/models/Ministral-3-8B-Instruct-2512-Q5_K_M.gguf",
- "speed": {
-  "ttft_ms": 17.2,
-  "decode_tok": 132,
-  "decode_tps": 68.5,
-  "total_ms": 1944.5,
-  "chars": 565,
-  "empty": false,
-  "degenerate": false,
-  "sample": "Un **cache KV** (pour *Key-Value*) dans un modèle de langage comme moi est une mémoire temporaire qui stocke les **infor"
- },
  "toolcall": {
   "tasks": {
    "weather_single": 1.0,
@@ -126,9 +116,9 @@
    }
   ]
  },
- "batch": {
-  "seq_tps": 66.0,
-  "map_tps": 98.4,
-  "speedup": 1.49
- }
+ "blocks_removed": [
+  "speed",
+  "batch"
+ ],
+ "blocks_removed_reason": "speed and batch blocks removed: the probe that produced them reported a warm cache-hit latency as a time to first token, counted server-sent events as tokens, and launched with -np 8 -c 16384 rather than the product's -np 1 -c 32768. toolcall and esrs are retained: they are scored rather than timed, so neither defect applies, but they are single-sample and carry no provenance, so they are provisional under I8 and excluded from comparisons."
 }

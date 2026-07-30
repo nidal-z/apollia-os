@@ -1,4 +1,5 @@
 use super::*;
+use tracing::Instrument;
 
 /// Merge the session's authorized tools with the live Chat-Libre overrides
 /// (additive: never removes an in-session authorization). Overrides are only
@@ -432,8 +433,12 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     })
     .await;
 
-    let result = agent
-        .execute(
+    // One user-visible turn. The span groups every completion and tool call it
+    // contains; the recorder decomposes its wall-clock once it completes.
+    let turn_span = tracing::info_span!("chat.react.turn", session_id = %sid, run_id = %run_id);
+    let result = crate::perf_trace::instrument_turn(
+        &sid,
+        agent.execute(
             &sid,
             &mid,
             &run_id,
@@ -451,8 +456,10 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             critic.as_ref(),
             Some(&level_config),
             cancel,
-        )
-        .await;
+        ),
+    )
+    .instrument(turn_span)
+    .await;
 
     let cmd = match result {
         Ok(response) => ChatCommand::ExchangeComplete {

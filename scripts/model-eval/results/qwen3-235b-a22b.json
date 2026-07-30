@@ -1,16 +1,6 @@
 {
  "label": "qwen3-235b-a22b",
  "gguf": "/Users/nidalzoumita/.apollia/models/qwen3-235b-a22b/UD-Q4_K_XL/Qwen3-235B-A22B-UD-Q4_K_XL-00001-of-00003.gguf",
- "speed": {
-  "ttft_ms": 41.2,
-  "decode_tok": 126,
-  "decode_tps": 31.4,
-  "total_ms": 4057.6,
-  "chars": 481,
-  "empty": false,
-  "degenerate": false,
-  "sample": "Un cache KV (Key-Value) dans un LLM (Large Language Model) est une structure qui stocke temporairement les représentatio"
- },
  "toolcall": {
   "tasks": {
    "weather_single": 1.0,
@@ -126,9 +116,9 @@
    }
   ]
  },
- "batch": {
-  "seq_tps": 27.3,
-  "map_tps": 39.0,
-  "speedup": 1.43
- }
+ "blocks_removed": [
+  "speed",
+  "batch"
+ ],
+ "blocks_removed_reason": "speed and batch blocks removed: the probe that produced them reported a warm cache-hit latency as a time to first token, counted server-sent events as tokens, and launched with -np 8 -c 16384 rather than the product's -np 1 -c 32768. toolcall and esrs are retained: they are scored rather than timed, so neither defect applies, but they are single-sample and carry no provenance, so they are provisional under I8 and excluded from comparisons."
 }

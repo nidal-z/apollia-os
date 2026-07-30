@@ -387,7 +387,16 @@ impl BuiltInChatAgent {
             tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
         });
+        // The human wait starts here, not inside the invoker. A refusal, whether
+        // typed or reached by timeout, runs no tool at all, so this is the only
+        // point at which the wait can be attributed to anything.
+        let approval_started = std::time::Instant::now();
         let decision = rx.await.unwrap_or(ToolDecision::refuse());
+        crate::perf_trace::approval_resolved(
+            &call.name,
+            approval_started.elapsed().as_secs_f64() * 1000.0,
+            !matches!(decision, ToolDecision::Refuse { .. }),
+        );
 
         self.apply_tool_decision(
             ToolExecTarget {
@@ -506,7 +515,18 @@ impl BuiltInChatAgent {
             rationale: rationale.clone(),
         });
 
+        let invoke_started = std::time::Instant::now();
         let result = self.tool_invoker.invoke(&call.name, &call.arguments).await;
+        // Dispatch to result available, and nothing else. Any HITL approval was
+        // awaited upstream of this call and is recorded there as its own sample,
+        // so this span carries tool work only. An earlier comment here claimed
+        // the approval wait was inside the invoker and therefore inside this
+        // span, which was wrong in both halves.
+        crate::perf_trace::tool_completed(
+            &call.name,
+            invoke_started.elapsed().as_secs_f64() * 1000.0,
+            None,
+        );
         let (output, success) = match result {
             Ok(s) => {
                 // Detect tool-reported failures (e.g. bash_executor with exit_code != 0)

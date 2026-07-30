@@ -62,6 +62,7 @@ impl MockChatModel {
 /// Build a text-only response with no tool calls.
 fn text_response(content: &str) -> CompletionResponse {
     CompletionResponse {
+        engine_timings: None,
         content: content.to_string(),
         tool_calls: vec![],
         usage: TokenUsage {
@@ -80,6 +81,7 @@ fn text_response(content: &str) -> CompletionResponse {
 /// Build a response that requests a tool call.
 fn tool_call_response(tool_name: &str, arguments: serde_json::Value) -> CompletionResponse {
     CompletionResponse {
+        engine_timings: None,
         content: String::new(),
         tool_calls: vec![ToolCall {
             id: format!("call_{tool_name}"),
@@ -280,6 +282,7 @@ fn build_chat_app_state(
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
 
     (state, event_rx)
@@ -573,9 +576,15 @@ async fn test_chat_libre_tool_call_hitl_accept() {
         "expected ChatApprovalRequired for bash_executor"
     );
 
-    // Extract the message_id from the approval event
-    let approval_message_id = match approval_event {
-        Some(RuntimeEvent::ChatApprovalRequired { message_id, .. }) => message_id.clone(),
+    // Extract the correlation keys from the approval event. The pending slot is
+    // keyed by tool_call_id, so a client that omits it cannot resolve the right
+    // approval; the desktop reads both off the same event.
+    let (approval_message_id, approval_tool_call_id) = match approval_event {
+        Some(RuntimeEvent::ChatApprovalRequired {
+            message_id,
+            tool_call_id,
+            ..
+        }) => (message_id.clone(), tool_call_id.clone()),
         _ => panic!("expected ChatApprovalRequired"),
     };
 
@@ -585,6 +594,7 @@ async fn test_chat_libre_tool_call_hitl_accept() {
         &format!("/api/v1/sessions/{session_id}/authorize"),
         serde_json::json!({
             "message_id": approval_message_id,
+            "tool_call_id": approval_tool_call_id,
             "tool_name": "bash_executor",
             "decision": "accept"
         }),
@@ -658,11 +668,15 @@ async fn test_chat_libre_always_accept_persists_for_session() {
     )
     .await;
 
-    let msg_id = match events
+    let (msg_id, tool_call_id) = match events
         .iter()
         .find(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }))
     {
-        Some(RuntimeEvent::ChatApprovalRequired { message_id, .. }) => message_id.clone(),
+        Some(RuntimeEvent::ChatApprovalRequired {
+            message_id,
+            tool_call_id,
+            ..
+        }) => (message_id.clone(), tool_call_id.clone()),
         _ => panic!("expected ChatApprovalRequired for the first file_read"),
     };
 
@@ -671,6 +685,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
         &format!("/api/v1/sessions/{session_id}/authorize"),
         serde_json::json!({
             "message_id": msg_id,
+            "tool_call_id": tool_call_id,
             "tool_name": "file_read",
             "decision": "always_accept"
         }),
@@ -751,11 +766,15 @@ async fn test_chat_libre_refuse() {
     )
     .await;
 
-    let msg_id = match events
+    let (msg_id, tool_call_id) = match events
         .iter()
         .find(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }))
     {
-        Some(RuntimeEvent::ChatApprovalRequired { message_id, .. }) => message_id.clone(),
+        Some(RuntimeEvent::ChatApprovalRequired {
+            message_id,
+            tool_call_id,
+            ..
+        }) => (message_id.clone(), tool_call_id.clone()),
         _ => panic!("expected ChatApprovalRequired"),
     };
 
@@ -765,6 +784,7 @@ async fn test_chat_libre_refuse() {
         &format!("/api/v1/sessions/{session_id}/authorize"),
         serde_json::json!({
             "message_id": msg_id,
+            "tool_call_id": tool_call_id,
             "tool_name": "bash_executor",
             "decision": "refuse"
         }),
@@ -955,11 +975,15 @@ async fn test_chat_budget_exhausted() {
     )
     .await;
 
-    let msg_id = match events
+    let (msg_id, tool_call_id) = match events
         .iter()
         .find(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }))
     {
-        Some(RuntimeEvent::ChatApprovalRequired { message_id, .. }) => message_id.clone(),
+        Some(RuntimeEvent::ChatApprovalRequired {
+            message_id,
+            tool_call_id,
+            ..
+        }) => (message_id.clone(), tool_call_id.clone()),
         _ => panic!("expected ChatApprovalRequired"),
     };
 
@@ -969,6 +993,7 @@ async fn test_chat_budget_exhausted() {
         &format!("/api/v1/sessions/{session_id}/authorize"),
         serde_json::json!({
             "message_id": msg_id,
+            "tool_call_id": tool_call_id,
             "tool_name": "bash_executor",
             "decision": "always_accept"
         }),

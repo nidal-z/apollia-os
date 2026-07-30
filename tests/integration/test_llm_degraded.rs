@@ -124,6 +124,7 @@ async fn test_runtime_starts_without_llm_router() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
 
     // WHEN l'APIServer démarre
@@ -275,6 +276,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
 
     let api = APIServer::new(

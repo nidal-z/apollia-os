@@ -62,6 +62,7 @@ impl CompletionModel for MockStopModel {
         _req: CompletionRequest,
     ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: self.tokens.join(""),
             tool_calls: vec![],
             usage: TokenUsage {
@@ -124,6 +125,7 @@ impl CompletionModel for MockReActModel {
         let current = self.iteration.load(Ordering::SeqCst);
         if current == 0 {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: String::new(),
                 tool_calls: self.calls.clone(),
                 usage: TokenUsage {
@@ -138,6 +140,7 @@ impl CompletionModel for MockReActModel {
             })
         } else {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: self.final_tokens.join(""),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -207,6 +210,7 @@ impl CompletionModel for MockInfiniteToolCallModel {
         _req: CompletionRequest,
     ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: String::new(),
             tool_calls: vec![LlmToolCall {
                 id: "c1".into(),
@@ -3003,6 +3007,7 @@ impl CompletionModel for CapturingModel {
         _req: CompletionRequest,
     ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
         Ok(CompletionResponse {
+            engine_timings: None,
             content: String::new(),
             tool_calls: vec![],
             usage: TokenUsage::default(),

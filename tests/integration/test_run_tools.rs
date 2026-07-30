@@ -50,6 +50,7 @@ impl CompletionModel for MockStopModel {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.call_count.fetch_add(1, Ordering::Relaxed);
         Ok(CompletionResponse {
+            engine_timings: None,
             content: self.response.clone(),
             tool_calls: vec![],
             usage: TokenUsage {
@@ -120,6 +121,7 @@ impl CompletionModel for MockReActModel {
         let current = self.call_count.fetch_add(1, Ordering::SeqCst);
         if current == 0 {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: String::new(),
                 tool_calls: vec![ToolCall {
                     id: "call_01".into(),
@@ -139,6 +141,7 @@ impl CompletionModel for MockReActModel {
             })
         } else {
             Ok(CompletionResponse {
+                engine_timings: None,
                 content: self.final_content.clone(),
                 tool_calls: vec![],
                 usage: TokenUsage {
@@ -199,6 +202,7 @@ impl CompletionModel for MockInfiniteToolCallModel {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.call_count.fetch_add(1, Ordering::Relaxed);
         Ok(CompletionResponse {
+            engine_timings: None,
             content: String::new(),
             tool_calls: vec![ToolCall {
                 id: "c1".into(),

@@ -181,6 +181,7 @@ async fn build_webhook_state(
         a2a_invoker: None,
         resilience_layer: None,
         runner_proxy: None,
+        llama_server_supervisor: None,
     };
     (state, submit_count)
 }

@@ -1,0 +1,45 @@
+# End-to-end proof of the runner, not a measurement.
+#
+# Two baseline runs and two levels, at two repetitions each, on the smaller
+# model. Roughly six minutes. It exercises spawn, health poll, probe subprocess,
+# randomised order, teardown, dataset write and report rendering.
+#
+# repetitions = 2 is deliberate and not a shortcut: it puts every aggregate
+# below I8's floor of five, so the invariant machinery has to mark the records
+# provisional. A smoke test that passes silently has not demonstrated the check
+# it was meant to demonstrate.
+#
+# The numbers this produces are not comparable to anything. baseline_repeats = 2
+# gives a noise floor computed from two points, which is a floor in name only.
+#
+# Run:  python3 sweep.py plans/sweep-smoke.toml
+
+[plan]
+name = "smoke"
+seed = 7
+repetitions = 2
+baseline_repeats = 2
+probes = ["speed"]
+max_tokens = 64
+prompt_tok = 512
+
+[model]
+label = "ministral-3-8b"
+path = "~/.apollia_old/models/Ministral-3-8B-Instruct-2512-Q5_K_M.gguf"
+
+[engine]
+port = 8090
+health_timeout_s = 300
+model_load_s = 20
+
+[baseline]
+n_ctx = 8192
+n_gpu_layers = 999
+n_parallel = 1
+cont_batching = true
+flash_attn = "on"
+
+[[factor]]
+name = "n_ubatch"
+field = "n_ubatch"
+levels = [256, 1024]

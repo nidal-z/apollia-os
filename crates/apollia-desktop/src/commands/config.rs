@@ -9,9 +9,7 @@
 
 use std::path::PathBuf;
 
-use apollia_core::{
-    LlmBackendConfig, LlmBackendRepository, LlmProvider, ObservabilityConfig,
-};
+use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider, ObservabilityConfig};
 
 use serde::Serialize;
 

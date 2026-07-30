@@ -58,6 +58,7 @@ impl CompletionModel for MockLlmBackend {
     async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.call_count.fetch_add(1, Ordering::Relaxed);
         Ok(CompletionResponse {
+            engine_timings: None,
             content: self.response.clone(),
             tool_calls: vec![],
             usage: TokenUsage {
@@ -166,8 +167,7 @@ async fn test_agent_llm_chat_completed() {
     let ctx: PyObject = Python::with_gil(|py| -> PyObject {
         // globals == locals pour que MockLlm soit visible dans MockCtx
         let ns = pyo3::types::PyDict::new(py);
-        let code =
-            std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
+        let code = std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
         py.run(code.as_c_str(), Some(&ns), Some(&ns))
             .expect("mock ctx code should execute without error");
         ns.get_item("ctx_instance")
@@ -326,8 +326,7 @@ async fn test_run_tools_full_react_cycle() {
 
     let ctx: PyObject = Python::with_gil(|py| -> PyObject {
         let ns = pyo3::types::PyDict::new(py);
-        let code =
-            std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
+        let code = std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
         py.run(code.as_c_str(), Some(&ns), Some(&ns))
             .expect("mock ctx code should execute");
         ns.get_item("ctx_react")
