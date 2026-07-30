@@ -118,11 +118,31 @@ impl OpenAICompatibleClient {
     /// `LlmRouter`. A call to `cancel.cancel()` interrupts in-flight calls and
     /// retry delays.
     pub fn new(config: &ApiBackendConfig, api_key: String, cancel: CancellationToken) -> Self {
+        Self::with_idle_timeout(
+            config,
+            api_key,
+            cancel,
+            crate::http_client::DEFAULT_IDLE_TIMEOUT,
+        )
+    }
+
+    /// Same as [`new`](Self::new) with an explicit tolerance to backend silence.
+    ///
+    /// Both constructors bound the connect phase and the read-idle phase; they
+    /// never bound the total request, because a legitimate generation on a
+    /// large or remote model runs for minutes. See [`crate::http_client`].
+    pub fn with_idle_timeout(
+        config: &ApiBackendConfig,
+        api_key: String,
+        cancel: CancellationToken,
+        idle_timeout: std::time::Duration,
+    ) -> Self {
         let openai_config = OpenAIConfig::new()
             .with_api_key(api_key)
             .with_api_base(config.api_url.clone());
         Self {
-            client: Client::with_config(openai_config),
+            client: Client::with_config(openai_config)
+                .with_http_client(crate::http_client::build_llm_http_client(idle_timeout)),
             config: config.clone(),
             retry_policy: RetryPolicy::default(),
             cancel,
@@ -544,20 +564,47 @@ fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
         // async-openai fails to parse a response body that is not OpenAI-conformant.
         // With llama.cpp / llama-server this is almost always an ERROR body whose
         // `code` is an integer (e.g. `{"error":{"code":400,...}}`) where the OpenAI
-        // schema expects a string, so the real HTTP error (a prompt exceeding the
-        // context size, a bad request, ...) would otherwise be masked behind a
-        // cryptic serde type mismatch. Surface an actionable message + the log hint.
-        OpenAIError::JSONDeserialize(e) => LlmError::HttpError {
-            status: 0,
-            body: format!(
-                "backend returned a response the OpenAI client could not parse; with \
-                 llama.cpp/llama-server this is usually a non-conformant error body \
-                 (integer 'code') masking an HTTP 4xx/5xx such as a prompt exceeding \
-                 the context size. Check the backend server log. Parser detail: {e}"
-            ),
-        },
+        // schema expects a string, so the real HTTP error would otherwise be masked
+        // behind a cryptic serde type mismatch. Recover the status when it is in
+        // there and name the likely cause, rather than blaming the context size for
+        // every failure: a 404 is a routing mistake, not an oversized prompt.
+        OpenAIError::JSONDeserialize(e) => {
+            let detail = e.to_string();
+            let body = match status_from_unparseable_body(&detail) {
+                Some(404) => format!(
+                    "backend returned 404 for this route, so the base URL is very \
+                     likely wrong. The OpenAI-compatible client appends \
+                     `/chat/completions` to the configured base, which must therefore \
+                     already carry the provider's API prefix (`/v1` for Ollama, \
+                     OpenAI and Mistral). Parser detail: {detail}"
+                ),
+                Some(status) => format!(
+                    "backend returned HTTP {status} in a body the OpenAI client could \
+                     not parse (integer 'code', as llama.cpp/llama-server emits). \
+                     Usual causes are a prompt exceeding the context size or a \
+                     malformed request. Check the backend server log. Parser detail: \
+                     {detail}"
+                ),
+                None => format!(
+                    "backend returned a response the OpenAI client could not parse. \
+                     Check the backend server log. Parser detail: {detail}"
+                ),
+            };
+            LlmError::HttpError { status: 0, body }
+        }
         other => LlmError::InferenceError(other.to_string()),
     }
+}
+
+/// Recovers the HTTP status from a body the OpenAI schema could not parse.
+///
+/// Backends that emit `{"error":{"code":404,...}}` put an integer where the
+/// OpenAI schema expects a string, and serde reports that as
+/// ``invalid type: integer `404` ``. The status is the only actionable part of
+/// the failure, so it is worth digging out of the message.
+fn status_from_unparseable_body(detail: &str) -> Option<u16> {
+    let after = detail.split_once("invalid type: integer `")?.1;
+    after.split_once('`')?.0.parse().ok()
 }
 
 /// State machine for the OpenAI streaming response.
@@ -842,10 +889,32 @@ mod tests {
         let mapped = map_openai_error(async_openai::error::OpenAIError::JSONDeserialize(serde_err));
         match mapped {
             LlmError::HttpError { body, .. } => {
-                assert!(body.contains("could not parse"), "body: {body}");
+                assert!(body.contains("HTTP 400"), "body: {body}");
                 assert!(
                     body.contains("server log"),
                     "should point at the log: {body}"
+                );
+            }
+            other => panic!("expected HttpError, got: {other:?}"),
+        }
+    }
+
+    // GIVEN the same unparseable-body failure, but carrying a 404
+    // WHEN map_openai_error() maps it
+    // THEN the message points at the base URL instead of blaming the context
+    //      size, which is the wrong thing to go debug when the route is simply
+    //      missing the provider's `/v1` prefix
+    #[test]
+    fn test_map_openai_error_404_points_at_the_base_url() {
+        let serde_err = serde_json::from_str::<String>("404").unwrap_err();
+        let mapped = map_openai_error(async_openai::error::OpenAIError::JSONDeserialize(serde_err));
+        match mapped {
+            LlmError::HttpError { body, .. } => {
+                assert!(body.contains("base URL"), "body: {body}");
+                assert!(body.contains("/v1"), "should name the prefix: {body}");
+                assert!(
+                    !body.contains("context size"),
+                    "must not blame the context size on a 404: {body}"
                 );
             }
             other => panic!("expected HttpError, got: {other:?}"),
@@ -985,5 +1054,152 @@ mod tests {
     #[test]
     fn test_map_finish_reason_none_defaults_to_stop() {
         assert_eq!(map_finish_reason(None), FinishReason::Stop);
+    }
+
+    // ── HTTP round-trip against a mock OpenAI-compatible server ──────────────
+    //
+    // Everything above tests pure mapping helpers, so nothing here proved which
+    // URL the client actually calls. That gap let a wrong Ollama base URL ship:
+    // the CLI wrote `http://localhost:11434` with no `/v1`, and since the client
+    // appends `/chat/completions` to the base, every completion 404d. These
+    // tests pin the request path and the tool-call parsing to a real server.
+
+    use crate::types::ChatMessage;
+    use wiremock::matchers::{header_exists, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Config pointing at a mock server, with the base URL passed verbatim.
+    fn config_for(api_url: &str) -> ApiBackendConfig {
+        ApiBackendConfig {
+            name: "mock".to_string(),
+            api_url: api_url.to_string(),
+            api_key_env: "UNUSED_IN_TESTS".to_string(),
+            model: "test-model".to_string(),
+        }
+    }
+
+    fn user_request() -> CompletionRequest {
+        CompletionRequest {
+            messages: vec![ChatMessage::user("bonjour")],
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_complete_posts_to_chat_completions_under_the_configured_base() {
+        // GIVEN a server that only answers on `/v1/chat/completions`, which is
+        // what an Ollama-style base URL ending in `/v1` must produce
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .and(header_exists("authorization"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "chatcmpl-1",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "test-model",
+                "choices": [{
+                    "index": 0,
+                    "message": { "role": "assistant", "content": "salut" },
+                    "finish_reason": "stop"
+                }],
+                "usage": { "prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5 }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = OpenAICompatibleClient::new(
+            &config_for(&format!("{}/v1", server.uri())),
+            "test-key".to_string(),
+            CancellationToken::new(),
+        );
+
+        // WHEN a completion is requested
+        let response = client.complete(user_request()).await.expect("completion");
+
+        // THEN the call landed on the expected path (asserted by the mock on
+        // drop) and the body was parsed
+        assert_eq!(response.content, "salut");
+        assert_eq!(response.usage.prompt_tokens, 3);
+    }
+
+    #[tokio::test]
+    async fn test_base_url_without_v1_does_not_reach_the_v1_route() {
+        // GIVEN the same server, still only serving `/v1/chat/completions`
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        // WHEN the base URL omits `/v1`, which is exactly the shape the CLI
+        // used to persist for Ollama
+        let client = OpenAICompatibleClient::new(
+            &config_for(&server.uri()),
+            "test-key".to_string(),
+            CancellationToken::new(),
+        );
+        let result = client.complete(user_request()).await;
+
+        // THEN the request never reaches the real route and the call fails,
+        // instead of silently succeeding
+        assert!(
+            result.is_err(),
+            "a base URL without /v1 must not resolve, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_complete_parses_a_tool_call() {
+        // GIVEN a server answering with a tool call rather than text
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "chatcmpl-2",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "test-model",
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [{
+                            "id": "call_abc123",
+                            "type": "function",
+                            "function": {
+                                "name": "file_read",
+                                "arguments": "{\"path\":\"/tmp/x\"}"
+                            }
+                        }]
+                    },
+                    "finish_reason": "tool_calls"
+                }],
+                "usage": { "prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12 }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = OpenAICompatibleClient::new(
+            &config_for(&format!("{}/v1", server.uri())),
+            "test-key".to_string(),
+            CancellationToken::new(),
+        );
+
+        // WHEN the completion runs
+        let response = client.complete(user_request()).await.expect("completion");
+
+        // THEN the tool call is surfaced with its id, name and parsed arguments,
+        // which is what the ReAct loop correlates approvals on
+        assert_eq!(response.finish_reason, FinishReason::ToolCalls);
+        assert_eq!(response.tool_calls.len(), 1);
+        let call = &response.tool_calls[0];
+        assert_eq!(call.id, "call_abc123");
+        assert_eq!(call.name, "file_read");
+        assert_eq!(call.arguments["path"], "/tmp/x");
     }
 }

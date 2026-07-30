@@ -273,8 +273,29 @@ impl AnthropicClient {
         pricing_overrides: std::collections::HashMap<String, PricingTier>,
         cancel: CancellationToken,
     ) -> Self {
+        Self::with_idle_timeout(
+            config,
+            api_key,
+            pricing_overrides,
+            cancel,
+            crate::http_client::DEFAULT_IDLE_TIMEOUT,
+        )
+    }
+
+    /// Same as [`new`](Self::new) with an explicit tolerance to backend silence.
+    ///
+    /// Bounds the connect phase and the read-idle phase, never the total
+    /// request: a long generation is legitimate, prolonged silence is not.
+    /// See [`crate::http_client`].
+    pub fn with_idle_timeout(
+        config: &ApiBackendConfig,
+        api_key: String,
+        pricing_overrides: std::collections::HashMap<String, PricingTier>,
+        cancel: CancellationToken,
+        idle_timeout: std::time::Duration,
+    ) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: crate::http_client::build_llm_http_client(idle_timeout),
             config: config.clone(),
             api_key,
             pricing_table: pricing::default_pricing(),

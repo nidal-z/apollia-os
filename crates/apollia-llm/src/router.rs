@@ -138,14 +138,26 @@ fn backend_config_to_db(cfg: &BackendConfig, is_default: bool) -> LlmBackendConf
     }
 }
 
+/// Default port Ollama listens on. Used only to recognise an Ollama backend
+/// declared in a legacy TOML file, never to build a URL: the host and port
+/// always come from the configured `api_url`.
+#[cfg(feature = "cloud")]
+const OLLAMA_DEFAULT_PORT: &str = ":11434";
+
 /// Infers a [`LlmProvider`] from the API base URL.
+///
+/// Only used when migrating a legacy TOML backend into the database, where no
+/// explicit provider is recorded. Matching on the port alone (rather than on
+/// `localhost:11434`) keeps an Ollama server running on another machine
+/// recognisable, which is the normal case as soon as inference is offloaded to
+/// a second host.
 #[cfg(feature = "cloud")]
 fn infer_api_provider_from_url(api_url: &str) -> LlmProvider {
     if api_url.contains("anthropic.com") {
         LlmProvider::Anthropic
     } else if api_url.contains("mistral.ai") {
         LlmProvider::Mistral
-    } else if api_url.contains("localhost:11434") || api_url.contains("ollama") {
+    } else if api_url.contains(OLLAMA_DEFAULT_PORT) || api_url.contains("ollama") {
         LlmProvider::Ollama
     } else {
         LlmProvider::OpenAi
@@ -1466,18 +1478,36 @@ async fn instantiate_cloud_backend(
         model: cfg.model.clone(),
     };
 
+    let idle_timeout = extract_idle_timeout(cfg);
+
     if matches!(provider, LlmProvider::Anthropic) {
-        return Ok(Arc::new(AnthropicClient::new(
+        return Ok(Arc::new(AnthropicClient::with_idle_timeout(
             &api_cfg,
             api_key,
             HashMap::new(),
             cancel,
+            idle_timeout,
         )) as Arc<dyn CompletionModel>);
     }
 
-    Ok(
-        Arc::new(OpenAICompatibleClient::new(&api_cfg, api_key, cancel))
-            as Arc<dyn CompletionModel>,
+    Ok(Arc::new(OpenAICompatibleClient::with_idle_timeout(
+        &api_cfg,
+        api_key,
+        cancel,
+        idle_timeout,
+    )) as Arc<dyn CompletionModel>)
+}
+
+/// Reads how long a backend may stay silent before the call is abandoned.
+///
+/// Persisted as `config_json["timeout_sec"]`, which is what
+/// `apollia-os llm backends create --timeout-sec` writes. Absent or zero falls
+/// back to the shared default rather than to an unbounded wait: a backend that
+/// accepts a connection and never answers must not pin the caller forever.
+#[cfg(feature = "cloud")]
+fn extract_idle_timeout(cfg: &LlmBackendConfig) -> std::time::Duration {
+    crate::http_client::idle_timeout_from_secs(
+        cfg.config_json.get("timeout_sec").and_then(|v| v.as_u64()),
     )
 }
 
@@ -2652,5 +2682,42 @@ mod tests {
 
         // THEN the ceiling is reported reached
         assert!(router.is_ceiling_reached());
+    }
+
+    // GIVEN a legacy TOML backend with no explicit provider
+    // WHEN the provider is inferred from its base URL
+    // THEN an Ollama server is recognised wherever it runs, not only on
+    //      localhost, so offloading inference to a second machine does not
+    //      silently relabel the backend as OpenAI
+    #[test]
+    fn test_infer_provider_recognises_ollama_on_any_host() {
+        for url in [
+            "http://localhost:11434/v1",
+            "http://127.0.0.1:11434/v1",
+            "http://192.168.1.20:11434/v1",
+            "http://mac-studio.local:11434/v1",
+        ] {
+            assert_eq!(
+                infer_api_provider_from_url(url),
+                LlmProvider::Ollama,
+                "expected Ollama for {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_infer_provider_falls_back_to_openai_for_unknown_hosts() {
+        // GIVEN a self-hosted OpenAI-compatible gateway on a custom port
+        // WHEN the provider is inferred
+        // THEN it defaults to the OpenAI-compatible client, which is the one
+        //      that serves every such endpoint
+        assert_eq!(
+            infer_api_provider_from_url("https://gateway.internal:8443/v1"),
+            LlmProvider::OpenAi
+        );
+        assert_eq!(
+            infer_api_provider_from_url("https://api.anthropic.com"),
+            LlmProvider::Anthropic
+        );
     }
 }

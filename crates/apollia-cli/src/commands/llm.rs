@@ -136,8 +136,14 @@ pub enum LlmBackendsCommand {
         /// Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`.
         #[arg(long, value_name = "DEVICE", default_value = "metal")]
         device: String,
-        /// Inference timeout in seconds (default: 60).
-        #[arg(long, value_name = "SECS", default_value = "60")]
+        /// How long the backend may stay silent before the call is abandoned.
+        ///
+        /// This is a backstop against a wedged backend, not a latency policy.
+        /// On the non-streaming path a server sends nothing until generation is
+        /// complete, so this budget has to cover the slowest honest answer: a
+        /// large model on modest hardware legitimately takes minutes. Values
+        /// below 60 seconds are raised to 60.
+        #[arg(long, value_name = "SECS", default_value = "600")]
         timeout_sec: u64,
         /// Create the backend disabled.
         #[arg(long)]
@@ -1030,9 +1036,14 @@ fn build_config_json(args: BuildConfigArgs<'_>) -> serde_json::Value {
             );
         }
         "ollama" => {
+            // The `/v1` suffix is required: the OpenAI-compatible client appends
+            // `/chat/completions` to this base, and Ollama serves that route
+            // under `/v1`. Without the suffix every completion returns 404.
             cfg.insert(
                 "base_url".into(),
-                serde_json::Value::String(base_url.unwrap_or("http://localhost:11434").to_string()),
+                serde_json::Value::String(
+                    base_url.unwrap_or("http://localhost:11434/v1").to_string(),
+                ),
             );
         }
         _ => {
@@ -1910,5 +1921,37 @@ mod tests {
             },
             other => panic!("expected Backends, got {other:?}"),
         }
+    }
+
+    fn ollama_config(base_url: Option<&str>) -> serde_json::Value {
+        build_config_json(BuildConfigArgs {
+            provider: "ollama",
+            model: "qwen2.5:14b",
+            api_key: None,
+            api_key_env: None,
+            base_url,
+            device: "auto",
+            timeout_sec: 60,
+        })
+    }
+
+    #[test]
+    fn test_ollama_default_base_url_carries_the_v1_suffix() {
+        // GIVEN no --base-url, so the built-in default is used
+        // WHEN the backend config is built
+        // THEN the base ends in /v1: the OpenAI-compatible client appends
+        // /chat/completions to it, and Ollama serves that route under /v1.
+        // Without the suffix every completion returns 404.
+        let cfg = ollama_config(None);
+        assert_eq!(cfg["base_url"], "http://localhost:11434/v1");
+    }
+
+    #[test]
+    fn test_ollama_explicit_base_url_is_used_verbatim() {
+        // GIVEN an explicit --base-url, for a remote or non-standard Ollama
+        // WHEN the backend config is built
+        // THEN it is stored as given, with no suffix guessing
+        let cfg = ollama_config(Some("http://192.168.1.20:11434/v1"));
+        assert_eq!(cfg["base_url"], "http://192.168.1.20:11434/v1");
     }
 }

@@ -27,6 +27,8 @@ describe("settings router", () => {
       "system",
       "shortcuts",
       "observability",
+      "help",
+      "about",
       "danger",
     ]);
   });

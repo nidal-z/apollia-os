@@ -40,6 +40,9 @@ sysinfo        = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+# Already a dev-dependency of apollia-connectors, so this adds no package to
+# Cargo.lock. Used to prove the OpenAI-compatible client hits the URL it claims.
+wiremock = "0.6"
 
 [lints]
 workspace = true

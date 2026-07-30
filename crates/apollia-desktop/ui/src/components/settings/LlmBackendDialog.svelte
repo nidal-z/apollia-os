@@ -42,6 +42,37 @@
     return p === "openai" || p === "mistral" || p === "anthropic" || p === "ollama";
   }
 
+  /**
+   * Endpoint each provider expects, so the user never has to guess it.
+   *
+   * The `/v1` suffix is not cosmetic and it is not uniform. The
+   * OpenAI-compatible client appends `/chat/completions` to the base, so those
+   * providers need the base to already end in `/v1`. The Anthropic client
+   * appends `/v1/messages` itself, so adding `/v1` here would produce
+   * `/v1/v1/messages` and a 404. Both mistakes are easy to make by hand, which
+   * is exactly why this table exists.
+   */
+  export const PROVIDER_DEFAULT_ENDPOINT: Partial<Record<LlmProvider, string>> = {
+    openai: "https://api.openai.com/v1",
+    mistral: "https://api.mistral.ai/v1",
+    anthropic: "https://api.anthropic.com",
+    ollama: "http://localhost:11434/v1",
+  };
+
+  /** Every value the prefill is allowed to overwrite: empty, or another provider's default. */
+  const DEFAULT_ENDPOINTS = Object.values(PROVIDER_DEFAULT_ENDPOINT);
+
+  /**
+   * Endpoint to show after a provider change. Returns `current` untouched as
+   * soon as the user typed something of their own, so a self-hosted gateway is
+   * never clobbered by switching provider back and forth.
+   */
+  export function endpointForProvider(p: LlmProvider, current: string): string {
+    const trimmed = current.trim();
+    if (trimmed !== "" && !DEFAULT_ENDPOINTS.includes(trimmed)) return current;
+    return PROVIDER_DEFAULT_ENDPOINT[p] ?? "";
+  }
+
   /** Pure validator - unit-testable. */
   export function validateForm(state: BackendFormState, editing: boolean): ValidationErrors {
     const errors: ValidationErrors = {};
@@ -208,6 +239,19 @@
   }
 
   let form = $state<BackendFormState>(seedFrom(null));
+
+  // Prefill the endpoint when the provider changes, unless the user already
+  // typed one of their own. Tracks the provider only: reading form.endpoint
+  // here would re-run the effect on every keystroke and fight the input.
+  let lastSeededProvider = $state<LlmProvider | null>(null);
+  $effect(() => {
+    const provider = form.provider;
+    if (provider === lastSeededProvider) return;
+    lastSeededProvider = provider;
+    if (!isRemoteProvider(provider)) return;
+    form.endpoint = endpointForProvider(provider, form.endpoint);
+  });
+
   let advancedOpen = $state(false);
   let saving = $state(false);
   let testing = $state(false);
@@ -296,6 +340,9 @@
     const key = backend ? `${backend.name}` : "__new__";
     if (key !== lastBackendKey) {
       form = seedFrom(backend);
+      // Let the endpoint prefill run again for this backend, so reopening on a
+      // different row with the same provider still fills a missing endpoint.
+      lastSeededProvider = null;
       advancedOpen = false;
       testResult = null;
       topLevelError = null;
@@ -490,7 +537,7 @@
         <Input
           id="llm-endpoint"
           type="url"
-          placeholder="https://api.openai.com/v1"
+          placeholder={PROVIDER_DEFAULT_ENDPOINT[form.provider] ?? "https://api.openai.com/v1"}
           class={inputClass("endpoint") + " font-mono"}
           bind:value={form.endpoint}
           data-testid="llm-dialog-endpoint"

@@ -163,9 +163,19 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 
 ## LLM Backends
 
-The `apollia-os` binary talks to Anthropic, OpenAI-compatible, and Vertex cloud
-backends, and serves local GGUF models through an embedded `llama-server`
-(upstream llama.cpp) that the daemon spawns and supervises.
+The `apollia-os` binary talks to Anthropic, OpenAI, Mistral, Ollama and any
+other OpenAI-compatible endpoint (LM Studio, vLLM, a self-hosted gateway), and
+serves local GGUF models through an embedded `llama-server` (upstream
+llama.cpp) that the daemon spawns and supervises.
+
+Ollama needs no API key and runs anywhere you can reach over HTTP, including
+another machine on your network:
+
+```bash
+apollia-os llm backends create ollama-local --provider ollama --model qwen2.5:14b --default
+apollia-os llm backends create ollama-remote --provider ollama --model qwen2.5:14b \
+  --base-url http://192.168.1.20:11434/v1
+```
 
 ### Cloud backends
 
@@ -189,9 +199,14 @@ name        = "anthropic"
 type        = "api"
 provider    = "anthropic"
 model       = "claude-haiku-4-5-20251001"
-api_url     = "https://api.anthropic.com/v1"
+api_url     = "https://api.anthropic.com"
 api_key_env = "ANTHROPIC_API_KEY"
 ```
+
+Mind the base URL: the Anthropic client appends `/v1/messages` itself, so its
+`api_url` stops at the host. Every OpenAI-compatible provider is the opposite,
+its base must already end in `/v1` because `/chat/completions` is appended to
+it. The desktop settings dialog prefills the right shape per provider.
 
 Any OpenAI-compatible endpoint (OpenAI, Mistral, Ollama, LM Studio, vLLM, and so on)
 works the same way with `provider = "openai"` and the matching `api_url`.

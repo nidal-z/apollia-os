@@ -156,17 +156,22 @@ describe("companionStore - updateContext", () => {
 // ── initFromMemory ────────────────────────────────────────────────────────────
 
 describe("companionStore - initFromMemory", () => {
-  test("enables and shows companion when get_companion_enabled returns true", async () => {
+  test("restores the opt-in but keeps the panel closed at startup", async () => {
+    // GIVEN a profile where the companion was enabled
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_companion_enabled") return Promise.resolve(true);
       return Promise.resolve(undefined);
     });
 
+    // WHEN the store initialises at launch
     await companionStore.initFromMemory();
 
+    // THEN the feature stays enabled but the panel does not auto-open:
+    // showing it on every launch spawned an empty chat session each time.
+    // The user opens it on demand via the toggle or the global shortcut.
     const state = get(companionStore);
     expect(state.enabled).toBe(true);
-    expect(state.visible).toBe(true);
+    expect(state.visible).toBe(false);
   });
 
   test("leaves companion disabled when get_companion_enabled returns false", async () => {
