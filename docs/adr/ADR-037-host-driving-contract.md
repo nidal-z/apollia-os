@@ -75,7 +75,6 @@ The scope explicitly excludes **pure in-process embedding** (extracting `embedde
 
 ## Related
 
-- Cartography (source of truth): `docs/internal/cartography/capability-registry.md`, `docs/internal/cartography/business-one-pager.md`
 - Related ADRs: ADR-016 (secrets, keyring and local API auth), ADR-017 (MCP client, transport, server mode), ADR-024 (SDK ctx runtime contract), ADR-020 (desktop / embedded architecture)
 
 ## Amendment (2026-07-08, post-implementation)

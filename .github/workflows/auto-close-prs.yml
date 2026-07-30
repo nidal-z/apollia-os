@@ -30,7 +30,7 @@ jobs:
             const body = [
               "Thanks for opening this pull request.",
               "",
-              "Apollia OS is currently a single-maintainer, source-available preview.",
+              "Apollia OS is currently a single-maintainer preview.",
               "Pull requests are auto-closed by policy so external contributors do not",
               "get stuck waiting for a review that will not come.",
               "",

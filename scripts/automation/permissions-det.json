@@ -60,7 +60,7 @@
     { "kind": "click", "testid": "permission-rule-add-action-deny", "timeoutMs": 4000 },
     { "kind": "selectOption", "testid": "permission-rule-add-scope", "value": "project", "timeoutMs": 4000 },
     { "kind": "waitFor", "testid": "permission-rule-add-project-path", "timeoutMs": 4000 },
-    { "kind": "fill", "testid": "permission-rule-add-project-path", "text": "/Users/nidalzoumita/dev/apollia-v2", "timeoutMs": 4000 },
+    { "kind": "fill", "testid": "permission-rule-add-project-path", "text": "/tmp/apollia-demo-project", "timeoutMs": 4000 },
     { "kind": "fill", "testid": "permission-rule-add-arg-prefix", "text": "rm", "timeoutMs": 4000 },
     { "kind": "waitFor", "testid": "permission-rule-add-submit", "timeoutMs": 4000 },
     { "kind": "expect", "testid": "permission-rule-add-submit" },

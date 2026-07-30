@@ -21,7 +21,9 @@ BIN="$ROOT/target/debug/apollia-os"
 SOCK="${APOLLIA_SOCK:-/tmp/apollia.sock}"
 AGENT="$HERE/map_e2e_agent.py"
 N="${N:-8}"
-MODEL="${MODEL:-/Users/nidalzoumita/.apollia/models/Ministral-3-8B-Instruct-2512-Q5_K_M.gguf}"
+# No default: GGUF weights are not shipped with the repository, so any baked-in
+# path would only ever resolve on the machine that recorded it.
+MODEL="${MODEL:?set MODEL=/absolute/path/to/model.gguf}"
 PORT="${LLAMA_PORT:-8080}"
 BASE_URL="http://127.0.0.1:${PORT}/v1"
 DAEMON_LOG="/tmp/apollia-e2e-srv-daemon.log"

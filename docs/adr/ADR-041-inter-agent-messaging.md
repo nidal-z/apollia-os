@@ -211,9 +211,6 @@ lease/ack complexity assumed from v1.
 
 ## Related
 
-- Cartography and specification: `docs/internal/cartography/mailbox-spec/01-besoin-usecases.md`,
-  `docs/internal/cartography/mailbox-spec/02-specification.md`,
-  `docs/internal/cartography/mailbox-spec/03-plan-implementation.md`
 - Related ADRs: ADR-024 (`ctx` runtime contract, which had removed the mailbox; superseded on this
   point), ADR-025 (workers and synchronous A2A routing, complement to the mailbox), ADR-037 (host
   driving contract, extended here), ADR-023 (AgentKit decorators, capability manifest),

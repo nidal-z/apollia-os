@@ -7,7 +7,7 @@ page is the intent.
 
 ## v0.1.0 (released 2026-06-03), initial public preview
 
-The first public release. Single-maintainer source-available preview.
+The first public release. Single-maintainer preview.
 
 - Local-first Rust runtime for autonomous AI agents.
 - Native PyO3 bridge for Python agents (no subprocess).
@@ -62,7 +62,7 @@ A stable runtime suitable for unattended deployments and external dependency.
 
 ## How priorities move
 
-Apollia OS is single-maintainer, source-available. Priorities respond to:
+Apollia OS is single-maintainer. Priorities respond to:
 
 - Real usage friction reported through issues.
 - The maintainer's professional services pipeline (a steady source of

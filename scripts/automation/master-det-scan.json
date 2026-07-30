@@ -9827,7 +9827,7 @@
     {
       "kind": "fill",
       "testid": "permission-rule-add-project-path",
-      "text": "/Users/nidalzoumita/dev/apollia-v2",
+      "text": "/tmp/apollia-demo-project",
       "timeoutMs": 3000
     },
     {

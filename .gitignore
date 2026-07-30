@@ -90,6 +90,31 @@ demo/
 /agents/veille-ia/
 /agents/xlsx-worker/
 /agents/sanitize-codebase/
+# Client engagement PoC: business referential, eval dataset and scored
+# baselines are covered by the engagement, not by this repository's licence.
+/agents/yumni-classification/
+
+# Performance measurement campaigns. The harness in scripts/model-eval is
+# public, its result records are not: each one carries a provenance block with
+# absolute model paths, a machine identifier and OS version. They stay on disk
+# so a later campaign can be compared against them.
+/scripts/model-eval/results/
+
+# Prebuilt STT runner binaries staged for local desktop dev. Opaque
+# executables have no place in a repository that is built from source.
+/crates/apollia-desktop/runners/*
+!/crates/apollia-desktop/runners/README.txt
+
+# Local SonarQube scan configuration (points at a localhost server, not part
+# of the public release surface).
+/sonar-project.properties
+
+# Working documents for in-flight engineering programs, never committed.
+/RD-PERF-PROMPTS.md
+
+# Figma <-> code provenance for the design system. Internal design bookkeeping:
+# it tracks in-flight design work and cites internal planning documents.
+/crates/apollia-desktop/ui/figma/MAPPING.md
 
 # Docusaurus adopters documentation site (docs/site). Build-time Node artifacts
 # and generated API reference (regenerated from clients/openapi.json at build).

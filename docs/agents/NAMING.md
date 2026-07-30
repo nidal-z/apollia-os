@@ -89,7 +89,7 @@ Exception : `get` is acceptable in indexer-style APIs where lookup may fail
 `AgentId`, `TaskId`, `SkillId`, `StepId`, `SessionId`, `RunId`. Each is
 `struct Xxx(String)` with `Display`, `From<&str>`, `From<String>`, `AsRef<str>`,
 `PartialEq`, `Eq`, `Hash`. Source pattern :
-`crates/apollia-core/src/events.rs`.
+`crates/apollia-core/src/events/`.
 
 ### Enum error variants
 
@@ -225,8 +225,7 @@ Tags : `vMAJOR.MINOR.PATCH`, strict SemVer (`v0.1.0`, `v0.1.0-preview`).
 
 - ADR filenames : `ADR-NNN-kebab-title.md` in `docs/adr/`.
   Example : `ADR-023-sdk-agentkit-design.md`.
-- Story filenames : `story-NNN.md` in `docs/internal/STORIES/sprint-N/`.
-- Both numbered globally, never reused.
+- Numbered globally, never reused.
 
 ---
 

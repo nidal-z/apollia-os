@@ -60,5 +60,4 @@ The `ActorLoop` calls `tool_proxy.invoke(tool, args)` with the resolved args (A,
 
 - ADR-031 (unified plan model in apollia-core): this ADR extends `PlanStep`.
 - ADR-037 (host driving contract): the preceding workstream.
-- Cartography: `docs/internal/cartography/capability-registry.md` (cap 2.1).
 - Origin: the budget-safeguards + orchestration workstream report, which exposed the need.

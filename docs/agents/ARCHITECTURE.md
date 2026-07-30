@@ -154,7 +154,7 @@ Bounded `mpsc::channel`. `CancellationToken` from `tokio-util` for
 coordinated shutdown. See `docs/agents/RUST-PATTERNS.md` §2 for the snippet.
 
 Source : `crates/apollia-runtime/src/registry.rs`,
-`crates/apollia-runtime/src/supervisor.rs`.
+`crates/apollia-runtime/src/supervisor/`.
 
 ### EventBus
 
@@ -314,7 +314,7 @@ Full index : `docs/adr/`.
 | Shared types and IDs | `crates/apollia-core/src/{events,result,budget,context}.rs` |
 | HTTP API surface | `crates/apollia-runtime/src/api/routes_*.rs` |
 | EventBus implementation | `crates/apollia-runtime/src/eventbus.rs` |
-| Actor supervisor | `crates/apollia-runtime/src/supervisor.rs` |
+| Actor supervisor | `crates/apollia-runtime/src/supervisor/` |
 | Step budget enforcement | `crates/apollia-oria/src/engine.rs` |
 | Permissions engine | `crates/apollia-permissions/src/` |
 | SecretStore backends | `crates/apollia-auth/src/secret_storage.rs` |

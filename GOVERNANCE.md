@@ -1,6 +1,6 @@
 # Governance
 
-Apollia OS is a single-maintainer, source-available project. This page states
+Apollia OS is a single-maintainer project. This page states
 how it is run so expectations are clear before you open an issue or a
 discussion.
 

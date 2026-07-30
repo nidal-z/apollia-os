@@ -19,9 +19,9 @@ First, the TCP transport is cleartext. The Bearer token is the only credential,
 and without transport encryption it travels in the clear on every request, along
 with every payload. [ADR-044](ADR-044-agent-isolation-hardening.md) hardened the
 local tool surface and made the posture honest; it did not address transport
-confidentiality for the remote API. `docs/internal/integrations/remote-daemon-deployment.md`
-documents TLS only through an external reverse proxy, which is a valid deployment
-but leaves the daemon itself unable to terminate TLS, so the simplest exposed
+confidentiality for the remote API. Until this decision, the only documented way
+to obtain TLS was an external reverse proxy, which is a valid deployment but
+leaves the daemon itself unable to terminate TLS, so the simplest exposed
 configuration is unencrypted.
 
 Second, binding a non-loopback address without a token is only a warning. When
@@ -119,10 +119,10 @@ token whether or not TLS is on.
   must now provide a token (or bind loopback); TLS is opt-in, so the default remote
   path is still cleartext unless a certificate is configured, and that trade-off
   must keep being documented honestly.
-- Watch: `docs/internal/integrations/remote-daemon-deployment.md` sections on
-  proxy-only TLS and the warn-only misconfiguration must be updated to describe
-  native TLS and the fail-fast refusal (tracked follow-up). Automatic certificate
-  provisioning and an explicit unauthenticated-bind opt-out remain open.
+- Watch: every deployment guide describing proxy-only TLS or the warn-only
+  misconfiguration must be updated to describe native TLS and the fail-fast
+  refusal. Automatic certificate provisioning and an explicit
+  unauthenticated-bind opt-out remain open.
 
 ## Architectural principles
 

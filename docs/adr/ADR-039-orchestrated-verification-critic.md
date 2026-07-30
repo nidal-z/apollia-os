@@ -62,5 +62,4 @@ On the orchestrated path we adopt a post-run verification **gated by the autonom
 
 - ADR-038 (argument contract for orchestrated steps): the immediately preceding workstream and the STOP -> ADR procedure model.
 - ADR-031 (unified plan model): replan reuses `Reasoner::plan_with_feedback`.
-- Cartography: `docs/internal/cartography/capability-registry.md` (cap 2.8, cap 4.3).
 - Origin: the orchestrated verification / critic workstream.

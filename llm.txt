@@ -284,7 +284,7 @@ Global flags: `--json` · `--socket PATH` · `-q/--quiet` · `-v/--verbose` · `
 
 **Design system:** Warm cream light mode (`--background: 38 28% 90%`) + warm charcoal dark mode
 (`--background: 28 8% 9%`). Primary blue `#3435f5`. Glass morphism layers. Rim light accents.
-Full spec: `docs/internal/relocated-corpora/design-system/DESIGN-SYSTEM.md` (internal).
+Full spec: `crates/apollia-desktop/ui/src/app.css`.
 
 **i18n:** svelte-i18n v4, FR/EN JSON namespaces in `ui/src/lib/i18n/`. ~1700 keys.
 Default locale: system → FR fallback.
@@ -330,8 +330,8 @@ Public documentation lives in `docs/site/` (Docusaurus, en + fr, Diataxis).
 
 ## Current State
 
-**Status:** v0.1.0-preview. Single-maintainer, source-available. Local-first
-Rust runtime for autonomous AI agents.
+**Status:** v0.1.0-preview. Single-maintainer, MIT OR Apache-2.0, no published
+package yet. Local-first Rust runtime for autonomous AI agents.
 
 **ADR count:** 46 records (numbered ADR-001 to ADR-047, ADR-029 absent) plus a
 template. Latest: ADR-047, native TLS on the API TCP listener + fail-fast on an

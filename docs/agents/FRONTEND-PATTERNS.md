@@ -8,9 +8,10 @@
 Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
 + bits-ui + svelte-i18n v4.
 
-Authoritative design reference : `docs/internal/relocated-corpora/design-system/DESIGN-SYSTEM.md` (1160 lines,
-HSL tokens, components, ADR-021). This file does not duplicate that catalogue.
-It encodes the rules an LLM must follow when consuming or extending it.
+Authoritative design reference : `crates/apollia-desktop/ui/src/app.css`
+(HSL custom properties, component layers, ADR-021). This file does not duplicate
+that catalogue. It encodes the rules an LLM must follow when consuming or
+extending it.
 
 ---
 
@@ -68,9 +69,10 @@ Rules :
 ## 3. Design tokens
 
 **Never hardcoded colors, spacings, radii, or shadows.** Always use the HSL
-custom properties defined in `crates/apollia-desktop/ui/src/styles/app.css`
-(or `tokens.css` if present). Tailwind reads them via the
-`tailwind.config.js` mapping.
+custom properties defined in `crates/apollia-desktop/ui/src/app.css`. Tailwind
+reads them via the `tailwind.config.ts` mapping, and
+`crates/apollia-desktop/ui/src/lib/design/tokens.ts` exposes them as typed
+references so a rename surfaces at type-check time.
 
 ```svelte
 <!-- WRONG -->
@@ -86,7 +88,7 @@ custom properties defined in `crates/apollia-desktop/ui/src/styles/app.css`
 Why HSL custom properties : light and dark themes resolve from the same
 class name. Hardcoding RGB or hex breaks dark mode silently.
 
-Categories of tokens (see `crates/apollia-desktop/ui/src/styles/tokens.css` for the full table) :
+Categories of tokens (see `crates/apollia-desktop/ui/src/app.css` for the full table) :
 
 - **Color** : `--primary`, `--surface-1`, `--surface-2`, `--surface-3`,
   `--card`, `--muted`, `--border`, `--destructive`, `--success`, `--warning`,
@@ -99,9 +101,10 @@ Categories of tokens (see `crates/apollia-desktop/ui/src/styles/tokens.css` for 
 - **Glass** : `--glass-border-light`, `--glass-border-dark`, with hover
   variants.
 
-Adding a new token requires : entry in `app.css` (both light and dark
-values), entry in `tailwind.config.js` if a class is needed, line in
-`crates/apollia-desktop/ui/src/styles/tokens.css`.
+Adding a new token requires : an entry in `crates/apollia-desktop/ui/src/app.css`
+(both the light and the dark value), an entry in `tailwind.config.ts` if a class
+is needed, and a typed export in
+`crates/apollia-desktop/ui/src/lib/design/tokens.ts`.
 
 ---
 
@@ -231,8 +234,8 @@ field exposed). When fusing duplicated screens or features :
 
 ## 12. When the rules block you
 
-- New token : add to `app.css` (both modes), to `tailwind.config.js`, to
-  `crates/apollia-desktop/ui/src/styles/tokens.css`. Do not reach for a hex value as a shortcut.
+- New token : add to `app.css` (both modes), to `tailwind.config.ts`, to
+  `crates/apollia-desktop/ui/src/app.css`. Do not reach for a hex value as a shortcut.
 - New Tauri command : add the Rust side first
   (`crates/apollia-desktop/src/commands/<domain>.rs`), then the typed
   wrapper, then the consumer. Three commits, one PR, ordered.

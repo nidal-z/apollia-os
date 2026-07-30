@@ -8,10 +8,6 @@ Local-first. No cloud dependency. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-<!-- TODO(maintainer): register the project at https://www.bestpractices.dev/,
-     then replace PROJECT_ID below with the numeric id it assigns and uncomment.
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
--->
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Apollia-OS/apollia-os/badge)](https://scorecard.dev/viewer/?uri=github.com/Apollia-OS/apollia-os)
 
 ---
@@ -52,8 +48,8 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 
 ## Quickstart
 
-Apollia is source-available: you build it from a checkout, there is no package on
-crates.io or PyPI. This sequence takes you from a clean clone to a running agent.
+Apollia publishes no package on crates.io or PyPI yet, so you build it from a
+checkout. This sequence takes you from a clean clone to a running agent.
 The demo `echo` agent needs no model, so it runs on any machine. Run every command
 from the repository root.
 
@@ -538,7 +534,7 @@ scripts/                 # Tooling and desktop E2E automation
 
 ## Contributing
 
-Apollia OS is a single-maintainer, source-available preview. **Issues are
+Apollia OS is a single-maintainer preview. **Issues are
 welcome, pull requests are auto-closed by policy.** See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the full rationale and the right
 channel for each kind of feedback.

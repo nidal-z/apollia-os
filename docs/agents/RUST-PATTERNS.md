@@ -152,7 +152,7 @@ Rules :
 **Newtypes for semantic IDs.** `AgentId(String)`, `TaskId(String)`,
 `SkillId(String)`, `StepId(String)`, `SessionId(String)`. Each implements
 `Display`, `From<&str>`, `AsRef<str>`, `PartialEq`, `Eq`, `Hash`. Source :
-`crates/apollia-core/src/events.rs`.
+`crates/apollia-core/src/events/`.
 
 **Typestate with `PhantomData<State>`** when an API has a required call order
 (e.g. builder must observe `with_socket` before `build`).

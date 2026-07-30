@@ -4,4 +4,4 @@
 # only pins the chat file-tool workspace to the repo so file tools resolve.
 
 [chat]
-default_workspace = "/Users/nidalzoumita/dev/apollia-v2"
+default_workspace = "__APOLLIA_SEED_WORKSPACE__"

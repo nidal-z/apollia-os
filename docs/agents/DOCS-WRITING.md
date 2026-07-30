@@ -206,7 +206,7 @@ When you make a change that crosses a corpus boundary :
 | New CLI sub-command | `crates/apollia-cli/AGENTS.md`, `docs/site/docs/reference/cli/` (regenerated) |
 | New ADR | Add to `docs/Decisions-Log.md`, optionally cited from the relevant ADR map (`docs/agents/ARCHITECTURE.md` §F) |
 | New tracing field | `docs/agents/OBSERVABILITY.md` table |
-| New design token | `app.css`, `tailwind.config.js` (the full design-system reference is internal) |
+| New design token | `app.css`, `tailwind.config.ts` (the full design-system reference is internal) |
 | Behavior change visible in operator UI | `docs/site/docs/operator-help/` article + tutorial |
 
 Skill `apollia-doc-sync` automates parts of this for sprint closure. Skill

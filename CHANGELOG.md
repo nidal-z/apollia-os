@@ -36,10 +36,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 - `StepBudget` step/tool-call increment used a checked `+` that could panic in
   debug at `u32::MAX`; it now saturates.
 
-## [0.1.0-preview] - 2026-06-03
+## [0.1.0-preview] - 2026-08-03
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,
-single-maintainer source-available.
+single-maintainer.
 
 ### Added
 

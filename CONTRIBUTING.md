@@ -3,7 +3,7 @@
 Thank you for your interest in Apollia OS. Please read this short page
 before opening anything.
 
-Apollia OS is currently a **single-maintainer, source-available preview**.
+Apollia OS is currently a **single-maintainer preview**.
 The contribution model reflects that. The short version: **issues yes,
 pull requests no**.
 

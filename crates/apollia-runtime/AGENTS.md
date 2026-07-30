@@ -147,7 +147,7 @@ migration step. Never `DROP COLUMN` without an explicit upgrade path.
 Permission invariant (chat manager) : a code executor (`bash_executor`,
 `python_executor`, i.e. `apollia_permissions::CODE_EXECUTOR_TOOLS`) is never
 blanket-authorized by name. The chat "always allow" path
-(`chat/manager/libre.rs`, `chat/manager/exchange.rs`) must not persist a
+(`src/chat/manager/libre.rs`, `src/chat/manager/exchange.rs`) must not persist a
 no-prefix allow rule for one, seed it into `pre_authorized_tools`, or insert it
 into `session.authorized_tools`; each invocation keeps its per-call HITL. The
 matching side of the same invariant lives in `apollia-permissions`

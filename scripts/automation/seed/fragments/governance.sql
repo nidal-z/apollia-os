@@ -31,7 +31,7 @@ INSERT INTO permission_rules
 VALUES
   (1, 'bash_executor', 'git', 'allow', 1782864000, 'operator', 'global', NULL, NULL, NULL),
   (2, 'file_edit', NULL, 'allow', 1782864000, 'operator', 'project',
-      '/Users/nidalzoumita/dev/apollia-v2', NULL, NULL),
+      '__APOLLIA_SEED_WORKSPACE__', NULL, NULL),
   (3, 'web_search', NULL, 'allow', 1782864000, 'apollia:chat', 'agent', NULL, NULL, 'apollia:chat'),
   (4, 'http_fetch', NULL, 'deny', 1782864000, 'operator', 'global', NULL, NULL, NULL);
 
@@ -43,7 +43,7 @@ INSERT INTO permission_audit
   (id, tool_name, first_arg, decision, decided_at, scope, rule_id, agent)
 VALUES
   (1, 'bash_executor', 'git status', 'AutoAllowedPrefixRule(1)', 1782864010, 'global', 1, 'apollia:chat'),
-  (2, 'file_edit', '/Users/nidalzoumita/dev/apollia-v2/src/main.rs', 'AutoAllowedPrefixRule(2)', 1782864020, 'project', 2, NULL),
+  (2, 'file_edit', '__APOLLIA_SEED_WORKSPACE__/src/main.rs', 'AutoAllowedPrefixRule(2)', 1782864020, 'project', 2, NULL),
   (3, 'http_fetch', 'https://example.com', 'AutoDeniedPrefixRule(4)', 1782864030, 'global', 4, 'apollia:chat'),
   (4, 'python_executor', 'print(1)', 'NeedsApproval', 1782864040, NULL, NULL, NULL),
   (5, 'web_search', 'apollia os sovereign runtime', 'AutoAllowedSafeList', 1782864050, 'agent', 3, 'apollia:chat');

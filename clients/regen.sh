@@ -44,4 +44,11 @@ fi
 ( cd "$HERE/python" && rm -rf apollia_runtime_client && \
   $GEN generate --path "$SPEC" --meta none --output-path apollia_runtime_client --overwrite )
 
+# The generator's own docstring templates contain em-dashes, which the house
+# style forbids repository-wide. Normalise them here rather than by hand, so a
+# regeneration never reintroduces them.
+echo "Normalising em-dashes in the generated Python client"
+find "$HERE/python/apollia_runtime_client" -name '*.py' -type f \
+  -exec perl -CSD -i -pe 's/\x{2014}/, /g' {} +
+
 echo "Done. Review the diff, then commit the regenerated clients."

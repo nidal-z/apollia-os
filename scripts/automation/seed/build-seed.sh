@@ -11,9 +11,17 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+REPO_ROOT="$(cd "$HERE/../../.." >/dev/null 2>&1 && pwd)"
 SEED_HOME="${1:-$PWD/.apollia-seed-home}"
 DATA="$SEED_HOME/.apollia"
 CFG="$SEED_HOME/.config/apollia"
+
+# Expand the seed placeholders on stdin. Keeps absolute paths out of the
+# checked-in fragments while the seeded rows still point at real locations.
+expand_seed_paths() {
+  sed -e "s|__APOLLIA_SEED_WORKSPACE__|$REPO_ROOT|g" \
+      -e "s|__APOLLIA_SEED_HOME__|$SEED_HOME|g"
+}
 
 echo "==> seed HOME: $SEED_HOME"
 rm -rf "$SEED_HOME"
@@ -23,13 +31,19 @@ mkdir -p "$DATA" "$CFG" "$DATA/agents" "$DATA/memory" "$DATA/models" "$DATA/venv
 #    A DB with a schema but no fragment is created empty (still valid).
 #    `sqlite_sequence` is a reserved internal table SQLite auto-manages; the
 #    schema dumps include its CREATE line, which errors on replay, so strip it.
+#
+#    Fragments carry machine-independent placeholders so the checked-in seed
+#    holds no absolute path from whoever recorded it. They are expanded here:
+#      __APOLLIA_SEED_WORKSPACE__  the repository checkout (seeded project and
+#                                  governance rows point at real files)
+#      __APOLLIA_SEED_HOME__       the throwaway HOME for this run
 for schema in "$HERE"/schemas/*.sql; do
   db="$(basename "$schema" .sql)"
   frag="$HERE/fragments/$db.sql"
   echo "==> db: $db.db"
   grep -v 'CREATE TABLE sqlite_sequence' "$schema" | sqlite3 "$DATA/$db.db"
   if [ -f "$frag" ]; then
-    sqlite3 "$DATA/$db.db" < "$frag"
+    expand_seed_paths < "$frag" | sqlite3 "$DATA/$db.db"
   fi
 done
 
@@ -69,8 +83,8 @@ fi
 
 # 4) Config: place apollia.toml in both the standard and XDG locations.
 if [ -f "$HERE/files/apollia.toml" ]; then
-  cp "$HERE/files/apollia.toml" "$DATA/apollia.toml"
-  cp "$HERE/files/apollia.toml" "$CFG/apollia.toml"
+  expand_seed_paths < "$HERE/files/apollia.toml" > "$DATA/apollia.toml"
+  cp "$DATA/apollia.toml" "$CFG/apollia.toml"
 fi
 
 echo "==> done. Launch with: HOME=$SEED_HOME (toolchain env preserved)"

@@ -126,7 +126,7 @@ the dispatcher can map it to an `AIPResult`.
 `$derived`, `$effect`).
 
 **NEVER hardcoded CSS values when a design token exists.** Tokens live in
-`crates/apollia-desktop/ui/src/styles/tokens.css` as HSL custom properties. See
+`crates/apollia-desktop/ui/src/app.css` as HSL custom properties. See
 `docs/agents/FRONTEND-PATTERNS.md` for the propagation rules.
 
 **NEVER FR-only or EN-only strings hardcoded in components.** All user-facing text

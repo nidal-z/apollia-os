@@ -11,18 +11,18 @@ From the main checkout (the app builds there; testids match):
 
 ```sh
 # deterministic suite, no model
-just desktop-dev-automation-seeded .claude/worktrees/chantier-automation-cov/scripts/automation/master-det.json
+just desktop-dev-automation-seeded scripts/automation/master-det.json
 
 # a single page
-just desktop-dev-automation-seeded .claude/worktrees/chantier-automation-cov/scripts/automation/permissions-det.json
+just desktop-dev-automation-seeded scripts/automation/permissions-det.json
 
 # inference scripts (real model from the real home, app under the seed home)
-just desktop-dev-automation-seeded-llama .claude/worktrees/chantier-automation-cov/scripts/automation/chat-llm.json
+just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json /path/to/model.gguf
 ```
 
-The recipe runs `seed/build-seed.sh` (deriving it from the script path, so it
-works from the worktree while the app runs from main), then launches the app
-with `HOME=$PWD/.apollia-seed-home` (override via `APOLLIA_SEED_HOME`). Only
+The recipe runs `seed/build-seed.sh` (derived from the script path), then
+launches the app with `HOME=$PWD/.apollia-seed-home` (override via
+`APOLLIA_SEED_HOME`). Only
 `HOME` is swapped; `CARGO_HOME` / `RUSTUP_HOME` are preserved so the build still
 works. The seed dir is rebuilt (`rm -rf`) on every run, so it is always clean.
 

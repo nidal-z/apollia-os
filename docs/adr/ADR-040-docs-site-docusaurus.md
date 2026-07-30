@@ -69,6 +69,5 @@ Retenu : **API régénérée au build (node-only), CLI et SDK committées**. La 
 
 ## Liens
 
-- Cartographie (source de vérité) : `docs/internal/cartography/doc-architecture-target.md`, `docs/internal/cartography/doc-coverage-map.md`, `docs/internal/cartography/capability-registry.md`
 - ADR liés : ADR-037 (contrat de pilotage, source de l'OpenAPI), ADR-034 (taxonomie CLI, source de l'arbre clap), ADR-024 (contrat runtime du SDK ctx, source de `types.py`)
 - Emplacement : `docs/site/` ; régénération : `docs/site/regen.sh`

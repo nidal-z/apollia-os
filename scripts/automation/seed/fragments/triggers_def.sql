@@ -61,7 +61,7 @@ VALUES
    0,
    'drop',
    'file_watch',
-   '{"path":"/Users/nidalzoumita/Downloads","events":["create","modify"],"recursive":false}',
+   '{"path":"__APOLLIA_SEED_HOME__/Downloads","events":["create","modify"],"recursive":false}',
    'A new file landed in the watched folder: {{path}}.',
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),

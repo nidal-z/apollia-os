@@ -66,7 +66,7 @@ The desktop E2E automaton drives the real Tauri app by `data-testid` (no
 WebDriver on WKWebView). It is dev-only and tree-shaken out of release builds.
 Read `scripts/automation/README.md` before touching a script or the runner:
 validate scripts with `scripts/automation/tools/validate.py`, regenerate
-`master-det` from the per-page scripts with `tools/regen_master.py`. Adding a new
+`master-det` from the per-page scripts with `scripts/automation/tools/regen_master.py`. Adding a new
 UI surface means adding its `data-testid`s and a step to the matching
 `<page>-det.json`, then regenerating `master-det`.
 

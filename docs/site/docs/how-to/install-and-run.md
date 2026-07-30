@@ -5,8 +5,8 @@ title: Install and run the runtime
 
 # Install and run the runtime
 
-Apollia is source-available: you build it from a checkout, there is no package on
-crates.io or PyPI to install. This guide is for developers. It takes you from a
+Apollia publishes no package on crates.io or PyPI yet, so you build it from a
+checkout. This guide is for developers. It takes you from a
 clone to a running daemon that can execute an agent, and then to the Tauri desktop
 app in dev mode, on macOS, Linux, or Windows. Plan for one longer first build
 (Rust compiles the workspace once), then rebuilds are incremental.

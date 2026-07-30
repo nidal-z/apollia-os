@@ -101,7 +101,7 @@ Never circumvent a rule by reformulating it in vague terms.
 - `docs/site/` : public Docusaurus documentation (en + fr), Diataxis structure
   (tutorials / how-to / reference / operator-help / explanation).
 - `docs/adr/` : architectural decision records, numbered, append-only.
-- `crates/apollia-desktop/ui/src/styles/tokens.css` : design tokens, components, propagated into
+- `crates/apollia-desktop/ui/src/app.css` : design tokens, components, propagated into
   `FRONTEND-PATTERNS.md` and `crates/apollia-desktop/ui/AGENTS.md`.
 
 The `docs/agents/` corpus does not duplicate those references. It cites them.

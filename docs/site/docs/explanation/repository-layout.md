@@ -37,7 +37,7 @@ entries by role.
 | `docs/adr/` | Architecture Decision Records: numbered, append-only, English. The committed record of significant technical decisions and their rationale. |
 | `docs/agents/` | The long-form rulebook for contributors (human and LLM): coding patterns, naming, testing, security, and the forbidden-practices list. English only. |
 | `docs/diagrams/` | Source diagrams referenced by the documentation. |
-| `docs/internal/` | Release planning and internal notes. Gitignored and never shipped; not referenced from any public file. |
+| `docs/internal/` | Release planning and internal notes. Gitignored and never shipped, so any path under it that appears in a decision record is provenance only, not something you can open. |
 
 ## The Rust workspace (`crates/`)
 
