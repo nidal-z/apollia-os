@@ -73,22 +73,34 @@ jobs:
         shell: bash
         run: |
           # Full preset matrix - single source of truth.
+          #
+          # `allow_fail` marks a preset as advisory: it still builds and uploads
+          # when it works, but its failure does not block the release. Exactly
+          # three presets are blocking, one per supported platform, which is what
+          # makes a tag able to produce a draft at all. Previously ten of the
+          # thirteen were blocking, so any single exotic accelerator failing took
+          # the whole release with it.
+          #
+          # The `local-*` / `stt-*` features now only select the whisper
+          # acceleration of the STT sidecar. Local LLM inference runs through the
+          # pinned llama-server binary, which upstream publishes per platform, so
+          # a GPU preset failing here costs STT acceleration, never inference.
           read -r -d '' FULL <<'JSON' || true
           {
             "include": [
               {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal", "archive":"tar.gz"},
               {"preset":"linux-x86-cpu",      "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true},
-              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true},
-              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
-              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
-              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip", "needs_cuda":true},
-              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "archive":"zip", "needs_rocm":true, "allow_fail":true},
-              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"zip", "needs_vulkan":true},
-              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
-              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip", "needs_cuda":true, "allow_fail":true}
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true,   "allow_fail":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true, "allow_fail":true},
+              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz", "allow_fail":true},
+              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
+              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip",    "needs_cuda":true,   "allow_fail":true},
+              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "archive":"zip",    "needs_rocm":true,   "allow_fail":true},
+              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"zip",    "needs_vulkan":true, "allow_fail":true},
+              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip",    "allow_fail":true},
+              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip",    "needs_cuda":true,   "allow_fail":true}
             ]
           }
           JSON
@@ -757,7 +769,14 @@ jobs:
   release:
     name: Publish GitHub Release (draft)
     needs: [cli, desktop-macos, desktop-linux, desktop-windows]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # `always()` so a tag still produces a reviewable draft when one platform
+    # fails. The alternative, which is what the workflow did before, is that a
+    # single failing desktop job discards every artifact the others produced and
+    # the tag yields nothing at all. The draft is never auto-published: the
+    # "Report coverage" step below states which platforms are present, and the
+    # reviewer decides whether the set is publishable. An empty artifact set
+    # still fails, so this cannot publish a hollow release.
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write # publish the release draft
@@ -773,6 +792,35 @@ jobs:
 
       - name: List artifacts
         run: ls -lh artifacts/
+
+      # Refuse an empty draft, and say plainly which platforms made it. A release
+      # missing an installer is a decision for the reviewer, not something to
+      # discover after publishing.
+      - name: Report coverage and refuse an empty draft
+        run: |
+          shopt -s nullglob
+          mapfile -t all < <(find artifacts -type f ! -name '*.sig' ! -name '*.pem' \
+                                            ! -name '*.cdx.json' ! -name '*.spdx.json' | sort)
+          if [ "${#all[@]}" -eq 0 ]; then
+            echo "::error::no artifact was produced; refusing to publish an empty draft"
+            exit 1
+          fi
+          missing=0
+          for probe in "dmg:macOS installer" "deb:Linux .deb" "AppImage:Linux AppImage" \
+                       "msi:Windows installer"; do
+            pat="${probe%%:*}"; label="${probe#*:}"
+            if find artifacts -type f -iname "*.${pat}" -o -type f -iname "*${pat}*" \
+               | grep -q .; then
+              echo "present: ${label}"
+            else
+              echo "::warning::missing ${label}; the draft will not carry it"
+              missing=1
+            fi
+          done
+          if [ "$missing" = 1 ]; then
+            echo "::warning::this draft does not cover every supported platform, \
+                  review before publishing"
+          fi
 
       # ── Cryptographic signing (cosign keyless, Sigstore OIDC) ───────────────
       # Every published file gets a detached .sig + the signing .pem certificate.

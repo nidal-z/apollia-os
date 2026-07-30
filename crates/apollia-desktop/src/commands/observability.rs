@@ -63,7 +63,9 @@ pub async fn get_global_timeline(
 
     // Resolve data_dir the same way the desktop bootstrapper does (main.rs).
     let data_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home).join(".apollia")
     };
 
@@ -1143,7 +1145,9 @@ pub enum MailboxQueryError {
 pub async fn list_mailbox_messages(limit: Option<u32>) -> Result<Vec<MailboxMessageRow>, String> {
     // Resolve data_dir the same way the desktop bootstrapper does (main.rs).
     let data_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home).join(".apollia")
     };
     read_mailbox_messages(data_dir, limit.unwrap_or(100))

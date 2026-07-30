@@ -80,9 +80,7 @@ pub async fn run(args: &LogsArgs, json: bool) -> i32 {
 
 /// Resolve the default log file path (`~/.apollia/logs/runtime.log`).
 fn default_log_path() -> PathBuf {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     home.join(".apollia").join("logs").join("runtime.log")
 }
 

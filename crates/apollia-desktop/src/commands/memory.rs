@@ -55,7 +55,7 @@ pub struct MemorySearchResult {
 
 /// Resolves the memory directory path (`~/.apollia/memory/`).
 fn memory_base_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME")
+    let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
     Ok(PathBuf::from(home).join(MEMORY_DIR))
 }

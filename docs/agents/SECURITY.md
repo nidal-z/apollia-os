@@ -171,17 +171,31 @@ Decision outcomes :
 
 Scopes : `session`, `project`, `global`. The closest scope wins.
 
-The three layers, in evaluation order :
+What actually gates a tool call in the shipped runtime :
 
-1. **Injection detector** (highest priority, blocking). Scans every string
-   argument for dangerous shell patterns and auto-denies on a hit.
-2. **SafeList** (operator config, empty by default). Auto-approves an
-   invocation whose argument matches a configured pattern **exactly**
-   (`tool(exact arg)`), or any argument for a bare `tool` pattern.
-3. **Prefix rules** (persisted in `governance.db`). Auto-approve or auto-deny
+1. **Prefix rules** (persisted in `governance.db`). Auto-approve or auto-deny
    by argument prefix (`arg.starts_with(prefix)`); a rule with no prefix
    matches any argument. This is where the desktop "always allow" button writes
    its rules.
+2. **Code-executor guard** (`apollia_permissions::executor_guard`). The
+   invariant described in the next section, applied on every dispatch.
+3. **HITL approval**. Anything not auto-approved reaches the user.
+
+`apollia-permissions` also contains a `PermissionEngine` that aggregates a
+`SafeList` and an `InjectionDetector` in front of the prefix rules. **It is not
+wired.** `ToolDispatcher::with_permission_engine` has no caller in this
+workspace, so those two layers never execute and
+`PermissionDecision::AutoDeniedInjection` is unreachable in the shipped binary.
+The `[permissions]` keys `safe_commands` and `injection_detection` are therefore
+inert unless an embedder installs the engine itself.
+
+Two consequences worth stating plainly, because they are easy to get wrong :
+
+- The anti-chaining protection usually credited to the injection detector is in
+  fact delivered by `executor_guard::is_single_simple_command`, which is live.
+- `InjectionDetector` detects **shell** injection (CWE-77/78), never prompt
+  injection. There is no prompt-injection defence in the codebase; see the
+  threat table below.
 
 ### Code executors are never blanket-authorized
 
@@ -303,7 +317,7 @@ Rules :
 |---|---|
 | Local file exfiltration by a deliberately malicious agent | Not technically prevented: agent code runs in-process (section 0). Defense is the install-chain audit plus HITL on tool actions. The filesystem sandbox and audit journal apply to native tool calls, not to raw agent Python |
 | Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), audit journal, reversible writes |
-| Credential leak via prompt injection | `InjectionDetector` layer, `ask` decision triggered |
+| Credential leak via prompt injection | **Not mitigated.** No prompt-injection defence exists: fetched content feeds the model context as data with no output-side scanning (`web_read` documents this in-module). The only barrier is that any resulting tool call still goes through the prefix rules, the code-executor guard and HITL, so injected instructions cannot silently execute |
 | Network exfiltration | Profile gating, host pinning, audit log |
 | Token theft from disk | OS keyring or age-encrypted file |
 | Replay of OAuth state | Signed state parameter |

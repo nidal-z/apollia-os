@@ -150,10 +150,10 @@ const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 pub fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if s.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         PathBuf::from(format!("{}{}", home, &s[1..]))
     } else if s == "~" {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         PathBuf::from(home)
     } else {
         path.to_path_buf()

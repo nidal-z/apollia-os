@@ -49,7 +49,9 @@ async fn test_agents_list_start_bundled_verify_active() {
         }
 
         // 2. Start the bundled agent via its on-disk path.
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         let agent_path = format!("{home}/.apollia/{BUNDLED_AGENT_RELPATH}");
 
         let start_resp = client

@@ -182,8 +182,9 @@ impl ToolExecutor for PersistentBashExecutor {
 
             // Use the process's current directory as the initial CWD for new sessions.
             let cwd = std::env::current_dir()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| "/tmp".to_string());
+                .unwrap_or_else(|_| std::env::temp_dir())
+                .to_string_lossy()
+                .into_owned();
 
             tracing::debug!(
                 session_id = %session_id,

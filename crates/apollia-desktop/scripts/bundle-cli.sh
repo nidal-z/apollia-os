@@ -37,13 +37,38 @@ echo "==> Building Python bundle for target ${TARGET}..."
 rm -rf "${STAGING}/python"
 cp -R "${REPO_ROOT}/target/python-bundle/${TARGET}/python" "${STAGING}/python"
 
-export PYO3_PYTHON="${STAGING}/python/bin/python3.13"
+# Executable suffix and Python layout, both target-dependent. Computed here
+# because the CLI copy below needs the suffix, and the previous code only derived
+# it further down for the runners, leaving the CLI copied without `.exe`.
+BIN_EXT=""
+case "$TARGET" in
+    *-pc-windows-*) BIN_EXT=".exe" ;;
+esac
+
+# python-build-standalone ships a flat layout on Windows (`python.exe` at the
+# root, import libraries under `libs/`) and a POSIX one elsewhere
+# (`bin/python3.13`, shared library under `lib/`). Exporting the POSIX shape
+# unconditionally pointed PyO3 at a path that does not exist on Windows, and
+# overrode the correct value the CI job had already set.
+if [ -n "$BIN_EXT" ]; then
+    export PYO3_PYTHON="${STAGING}/python/python.exe"
+    PY_LIB_DIR="${STAGING}/python/libs"
+else
+    export PYO3_PYTHON="${STAGING}/python/bin/python3.13"
+    PY_LIB_DIR="${STAGING}/python/lib"
+fi
 export PYTHONHOME="${STAGING}/python"
 # python-build-standalone has a hardcoded /install/lib LIBDIR that PyO3 picks up.
 # Override the library search path to point at the actual bundled libpython.
-export RUSTFLAGS="${RUSTFLAGS:-} -L ${STAGING}/python/lib"
+export RUSTFLAGS="${RUSTFLAGS:-} -L ${PY_LIB_DIR}"
 echo "==> PYO3_PYTHON=${PYO3_PYTHON}"
 echo "==> RUSTFLAGS=${RUSTFLAGS}"
+
+if [ ! -e "$PYO3_PYTHON" ]; then
+    echo "==> ERROR: bundled interpreter not found at ${PYO3_PYTHON}." >&2
+    echo "    The Python bundle for ${TARGET} did not produce the expected layout." >&2
+    exit 1
+fi
 
 # ── Step 2 - CLI binary (apollia-os) ──────────────────────────────────────────
 
@@ -71,11 +96,12 @@ case "$TARGET" in
         cargo build -p apollia-cli --release \
             --target "$TARGET" \
             --manifest-path "${REPO_ROOT}/Cargo.toml"
-        cp "${REPO_ROOT}/target/${TARGET}/release/apollia-os" "${STAGING}/apollia-os"
+        cp "${REPO_ROOT}/target/${TARGET}/release/apollia-os${BIN_EXT}" \
+           "${STAGING}/apollia-os${BIN_EXT}"
         ;;
 esac
 
-echo "==> CLI binary staged at ${STAGING}/apollia-os"
+echo "==> CLI binary staged at ${STAGING}/apollia-os${BIN_EXT}"
 
 # ── Step 2b - Runners (sidecars) ──────────────────────────────────────
 # `APOLLIA_DESKTOP_RUNNERS` selects which runner backends to build and stage

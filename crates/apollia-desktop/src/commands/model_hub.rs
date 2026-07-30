@@ -175,16 +175,14 @@ pub async fn start_model_download(
         .as_deref()
         .map(|d| {
             if d.starts_with("~/") {
-                let home = std::env::var("HOME").unwrap_or_default();
+                let home = apollia_core::paths::home_string().unwrap_or_default();
                 PathBuf::from(format!("{}{}", home, &d[1..]))
             } else {
                 PathBuf::from(d)
             }
         })
         .unwrap_or_else(|| {
-            let home = std::env::var("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| std::env::temp_dir());
+            let home = apollia_core::paths::home_dir_or_temp();
             home.join(".apollia").join("models")
         });
 
@@ -270,9 +268,7 @@ struct ModelRef {
 }
 
 fn home_dir() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+    apollia_core::paths::home_dir_or_temp()
 }
 
 fn models_dir() -> PathBuf {

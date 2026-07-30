@@ -547,7 +547,7 @@ async fn stt_repo(runtime: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<SttRep
 /// Resolves `~` prefix to `$HOME`.
 fn resolve_home(path: &str) -> std::path::PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
-        if let Ok(home) = std::env::var("HOME") {
+        if let Some(home) = apollia_core::paths::home_string() {
             return std::path::PathBuf::from(home).join(rest);
         }
     }

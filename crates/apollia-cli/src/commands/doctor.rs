@@ -81,9 +81,7 @@ impl CheckResult {
 /// `socket` is the optional Unix socket path override used for the runtime
 /// reachability check.
 pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     let data_dir = home.join(".apollia");
 
     let mut checks: Vec<CheckResult> = Vec::new();

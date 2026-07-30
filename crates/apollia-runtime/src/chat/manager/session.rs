@@ -297,9 +297,8 @@ impl ChatSessionManager {
                 if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
                     return Some(p);
                 }
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| std::path::PathBuf::from(h).join(".apollia"))
+                apollia_core::paths::home_dir()
+                    .map(|h| h.join(".apollia"))
                     .filter(|p| p.is_dir())
             }
         }

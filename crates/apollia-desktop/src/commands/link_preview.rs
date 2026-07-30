@@ -113,7 +113,7 @@ fn store_cached(url: String, preview: LinkPreview) {
 /// `main.rs::load_apollia_config`: `~/.apollia/apollia.toml` → CWD →
 /// `~/.config/apollia/apollia.toml`.
 fn link_preview_enabled() -> bool {
-    let home = std::env::var("HOME").map(PathBuf::from).ok();
+    let home = apollia_core::paths::home_dir();
     let candidates: Vec<PathBuf> = [
         home.as_ref()
             .map(|h| h.join(".apollia").join("apollia.toml")),

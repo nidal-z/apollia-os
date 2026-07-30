@@ -316,10 +316,9 @@ fn gather_timeline_events(dbs: &TimelineDbPaths, tid: &str) -> GatheredEvents {
 
 /// Resolve the runtime data directory from AppState.
 fn resolve_data_dir<B: ExecutionBackend + Clone>(_state: &AppState<B>) -> std::path::PathBuf {
-    std::env::var("HOME")
-        .ok()
-        .map(|h| std::path::PathBuf::from(format!("{h}/.apollia")))
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/apollia"))
+    apollia_core::paths::home_dir()
+        .map(|h| h.join(".apollia"))
+        .unwrap_or_else(|| std::env::temp_dir().join("apollia"))
 }
 
 /// Data extracted from the `tasks` table for timeline construction.

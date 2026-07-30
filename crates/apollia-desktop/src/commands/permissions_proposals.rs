@@ -133,12 +133,14 @@ pub async fn dismiss_proposed_permission_rule(index: usize) -> Result<(), String
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn memory_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia").join("memory")
 }
 
 fn governance_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+    let home = apollia_core::paths::home_string_or_err()?;
     Ok(PathBuf::from(home).join(".apollia"))
 }
 

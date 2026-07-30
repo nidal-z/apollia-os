@@ -379,9 +379,7 @@ pub async fn reload_llm_from_db(
     shared: State<'_, SharedLlmRouter>,
     runtime: State<'_, RuntimeHandle>,
 ) -> Result<(), String> {
-    let home = std::env::var("HOME")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     let db_path = home.join(".apollia").join("system.db");
 
     // LlmBackendRepository is !Send (uses RefCell<Connection>), so all DB work

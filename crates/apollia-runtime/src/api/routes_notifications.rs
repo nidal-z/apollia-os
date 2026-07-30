@@ -893,13 +893,9 @@ fn resolve_notif_db_path<B: ExecutionBackend + Clone>(state: &AppState<B>) -> st
     state
         .task_repository
         .as_ref()
-        .and_then(|_| std::env::var("HOME").ok())
+        .and_then(|_| apollia_core::paths::home_string())
         .map(|home| std::path::PathBuf::from(format!("{home}/.apollia/hitl.db")))
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .map(|home| std::path::PathBuf::from(format!("{home}/.apollia/hitl.db")))
-        })
+        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".apollia").join("hitl.db")))
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp/apollia-notif.db"))
 }
 

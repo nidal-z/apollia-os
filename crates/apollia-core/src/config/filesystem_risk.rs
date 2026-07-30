@@ -33,7 +33,7 @@ fn default_system_paths() -> Vec<std::path::PathBuf> {
 }
 
 fn default_credential_paths() -> Vec<std::path::PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = crate::paths::home_string().unwrap_or_default();
     [".ssh", ".aws/credentials", ".gnupg", ".config/gh/hosts.yml"]
         .iter()
         .map(|rel| std::path::PathBuf::from(&home).join(rel))

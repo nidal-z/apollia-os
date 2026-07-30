@@ -439,9 +439,7 @@ impl NativeChatToolInvoker {
     async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
-        let venv_base = std::env::var("HOME")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir())
+        let venv_base = apollia_core::paths::home_dir_or_temp()
             .join(".apollia")
             .join("venvs");
         let executor = PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
@@ -488,9 +486,7 @@ impl NativeChatToolInvoker {
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
-        let base_dir = std::env::var("HOME")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir())
+        let base_dir = apollia_core::paths::home_dir_or_temp()
             .join(".apollia")
             .join("memory");
         let tool = MemorySearchTool::new("user".to_string(), vec![], base_dir);

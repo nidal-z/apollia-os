@@ -364,7 +364,10 @@ fn query_system_profiler_unified_memory_mb() -> Option<u32> {
 // ─────────────────────────────────────────────
 
 /// Parsed representation of a `nvidia-smi --query-gpu=name,memory.total,driver_version` line.
-#[cfg(any(target_os = "linux", target_os = "windows", test))]
+// Only the Linux probe parses `nvidia-smi` output; Windows detects GPUs through
+// WMI. Keeping `windows` in this gate declared both items with no consumer
+// there, which is a warning on that target.
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NvidiaSmiLine {
     model: String,
@@ -374,7 +377,10 @@ struct NvidiaSmiLine {
 
 /// Parse une ligne `--format=csv,noheader,nounits` au format
 /// `"GeForce RTX 4070, 12288, 550.78"`.
-#[cfg(any(target_os = "linux", target_os = "windows", test))]
+// Only the Linux probe parses `nvidia-smi` output; Windows detects GPUs through
+// WMI. Keeping `windows` in this gate declared both items with no consumer
+// there, which is a warning on that target.
+#[cfg(any(target_os = "linux", test))]
 fn parse_nvidia_smi_line(line: &str) -> Option<NvidiaSmiLine> {
     let mut parts = line.split(',').map(str::trim);
     let model = parts.next()?.to_string();
@@ -444,6 +450,8 @@ fn probe_cuda_version_linux() -> Option<(u32, u32)> {
     parse_cuda_version_from_smi_q(&s)
 }
 
+// Shared: both the Linux probe and the Windows one read the CUDA version out of
+// `nvidia-smi -q`.
 #[cfg(any(target_os = "linux", target_os = "windows", test))]
 fn parse_cuda_version_from_smi_q(s: &str) -> Option<(u32, u32)> {
     let line = s.lines().find(|l| l.contains("CUDA Version"))?;

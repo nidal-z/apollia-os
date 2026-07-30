@@ -67,10 +67,10 @@ impl JournalConfig {
     pub fn resolved_root(&self) -> PathBuf {
         let s = self.root.to_string_lossy();
         if s.starts_with("~/") {
-            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+            let home = crate::paths::home_dir_or_temp().display().to_string();
             PathBuf::from(home).join(s.trim_start_matches("~/"))
         } else if s == "~" {
-            PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))
+            PathBuf::from(crate::paths::home_dir_or_temp().display().to_string())
         } else {
             self.root.clone()
         }

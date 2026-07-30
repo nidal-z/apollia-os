@@ -72,6 +72,14 @@ isolation for agent code.
 
 ### Platform scope: Windows out of scope for v0.1.0 and v1.0
 
+> **Superseded by [ADR-049](ADR-049-windows-in-scope-for-v0-1-0.md)
+> (2026-07-30).** Windows x86_64 is a supported platform for v0.1.0. The
+> reassessment this section anticipated took place: the portability cost measured
+> far lower than estimated here, and the llama-server migration removed the GPU
+> argument. The trust-model and tool-sandbox decisions in the rest of this ADR
+> are unchanged. The paragraph below is kept as the record of what was decided on
+> 2026-06-04 and why.
+
 Windows is unsupported and untested; Apollia is not built or shipped for Windows.
 Platform-specific code is gated with `cfg(target_os)`, and Unix-only primitives
 such as the Unix socket are `cfg(unix)`-gated, while some Windows code paths

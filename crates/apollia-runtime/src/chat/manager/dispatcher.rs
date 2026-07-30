@@ -109,9 +109,8 @@ async fn resolve_workspace_path(
             if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
                 return Ok(Some(p.to_path_buf()));
             }
-            Ok(std::env::var("HOME")
-                .ok()
-                .map(|h| std::path::PathBuf::from(h).join(".apollia"))
+            Ok(apollia_core::paths::home_dir()
+                .map(|h| h.join(".apollia"))
                 .filter(|p| p.is_dir()))
         }
         Some(pid) => {

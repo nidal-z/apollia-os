@@ -996,7 +996,7 @@ mod tests {
             "test",
             HashMap::from([("KEY".to_string(), "${HOME}".to_string())]),
         );
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         // WHEN
         let resolved = config.resolve_env(None).await.unwrap();
         // THEN the system env var is returned as before
@@ -1029,7 +1029,7 @@ mod tests {
                 ("B".to_string(), "${HOME}".to_string()),
             ]),
         );
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         // WHEN
         let resolved = config.resolve_env(Some(&store)).await.unwrap();
         // THEN A comes from the keyring and B from the system environment

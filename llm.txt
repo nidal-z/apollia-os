@@ -54,7 +54,7 @@ apollia-v2/
 │   └── docs/               ← tutorials/, how-to/, reference/ (api, cli, sdk), explanation/, architecture/, operator-help/
 │
 ├── docs/
-│   ├── adr/                ← 46 Architecture Decision Records (ADR-001 to ADR-047, ADR-029 absent) + template
+│   ├── adr/                ← 48 Architecture Decision Records (ADR-001 to ADR-049, ADR-029 absent) + template
 │   ├── agents/             ← Rulebook for AI coding assistants (English)
 │   ├── diagrams/           ← PlantUML sources (.puml files)
 │   └── internal/           ← Private: strategy, cartography, specs (gitignored)
@@ -322,7 +322,7 @@ Public documentation lives in `docs/site/` (Docusaurus, en + fr, Diataxis).
 | Config `apollia.toml` | `docs/site/docs/reference/configuration.md` |
 | Native tools | `docs/site/docs/reference/native-tools.md` |
 | Operator help | `docs/site/docs/operator-help/` |
-| Architecture Decision Records | `docs/adr/` (ADR-001 to ADR-047, ADR-029 absent) |
+| Architecture Decision Records | `docs/adr/` (ADR-001 to ADR-049, ADR-029 absent) |
 | Decisions log | `docs/Decisions-Log.md` |
 
 
@@ -333,7 +333,7 @@ Public documentation lives in `docs/site/` (Docusaurus, en + fr, Diataxis).
 **Status:** v0.1.0-preview. Single-maintainer, MIT OR Apache-2.0, no published
 package yet. Local-first Rust runtime for autonomous AI agents.
 
-**ADR count:** 46 records (numbered ADR-001 to ADR-047, ADR-029 absent) plus a
+**ADR count:** 48 records (numbered ADR-001 to ADR-049, ADR-029 absent) plus a
 template. Latest: ADR-047, native TLS on the API TCP listener + fail-fast on an
 insecure non-loopback bind.
 

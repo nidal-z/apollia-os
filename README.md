@@ -148,16 +148,25 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 
 ## Platform Support
 
-| Platform | CPU | GPU | Status |
-|----------|-----|-----|--------|
-| Linux x86_64 | Builds | CUDA - planned | CI/multi-OS testing wanted |
-| macOS Apple Silicon | Tested | Metal tested | No Xcode required |
-| macOS Intel | Should work | - | Not explicitly tested |
-| Windows x86_64 | Planned | CUDA - planned | Not yet tested |
-| Linux (ROCm / AMD GPU) | - | Not planned | No timeline |
+Apollia supports three platforms. The local inference engine is the upstream
+`llama-server` binary, pinned and checksum-verified, so each platform gets the
+GPU backends upstream publishes for it.
 
-> **Note:** Windows and CUDA builds require community testing before being marked stable.
-> If you test on a platform not listed above, please open an issue with your results.
+| Platform | Local inference | Tool sandbox | Notes |
+|----------|-----------------|--------------|-------|
+| macOS Apple Silicon | Metal, CPU | `setrlimit` | No Xcode required |
+| Linux x86_64 | Vulkan, ROCm, CPU | PID + mount namespaces, `setrlimit` | Strongest isolation of the three |
+| Windows x86_64 | CUDA, Vulkan, CPU | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
+| macOS Intel | CPU | `setrlimit` | Builds, not explicitly tested |
+
+Two asymmetries are worth stating rather than discovering. Tool subprocesses get
+OS-level confinement only where the OS provides it: namespaces and resource
+limits on Linux, resource limits on macOS, neither on Windows. And the shell tool
+assumes POSIX semantics, because the command validator that guards it was written
+for them; on Windows it uses a POSIX shell from `PATH` and refuses clearly if
+there is none, instead of silently switching to a shell with different quoting
+and a different injection surface. `apollia-os doctor` reports what your host
+actually provides.
 
 ---
 

@@ -1112,7 +1112,7 @@ pub async fn delete_mcp_secret(
 
 /// Default path of the MCP approvals SQLite file.
 fn mcp_approvals_db_path() -> Result<std::path::PathBuf, String> {
-    let home = std::env::var("HOME")
+    let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
     Ok(std::path::PathBuf::from(home)
         .join(".apollia")

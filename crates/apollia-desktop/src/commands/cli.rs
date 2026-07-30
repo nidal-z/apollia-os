@@ -10,8 +10,12 @@ use tauri::Manager;
 
 /// Default symlink target on macOS and Linux.
 const SYMLINK_DIR: &str = "/usr/local/bin";
-/// Binary name used for the symlink.
-const CLI_BINARY_NAME: &str = "apollia-os";
+/// Binary name used for the symlink, with the platform executable suffix.
+const CLI_BINARY_NAME: &str = if cfg!(windows) {
+    "apollia-os.exe"
+} else {
+    "apollia-os"
+};
 
 /// Status of the CLI installation.
 #[derive(Debug, Serialize)]
@@ -82,9 +86,25 @@ pub fn get_cli_status(app: tauri::AppHandle) -> Result<CliStatus, String> {
     })
 }
 
+/// Refuses off Unix: the mechanism is a symlink into `/usr/local/bin` with
+/// `osascript`/`pkexec` escalation. Windows needs a different design (a PATH
+/// entry or a shim), which is deliberately not guessed here. Present so the
+/// crate compiles for that target and the command fails with a clear message
+/// instead of not existing.
+#[cfg(not(unix))]
+#[tauri::command]
+pub async fn install_cli(_app: tauri::AppHandle) -> Result<(), String> {
+    Err(
+        "installing the CLI from the app is only supported on macOS and Linux; \
+         add the bundled apollia-os binary to your PATH manually"
+            .to_string(),
+    )
+}
+
 /// Creates a symlink from `/usr/local/bin/apollia-os` to the bundled CLI
-/// binary.  Escalates to admin privileges on macOS via `osascript` if the
+/// binary. Escalates to admin privileges on macOS via `osascript` if the
 /// target directory is not writable.
+#[cfg(unix)]
 #[tauri::command]
 pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
     let source =

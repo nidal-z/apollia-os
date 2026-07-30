@@ -54,3 +54,5 @@
 | 2026-07-13 | ADR-045 | Superviseur fail-fast puis degradation, sans redemarrage d'acteur au crash | [ADR-045](adr/ADR-045-supervisor-fail-fast-degrade.md) |
 | 2026-07-13 | ADR-046 | Preuves Kani des invariants cardinaux et fence de bail du mailbox | [ADR-046](adr/ADR-046-kani-invariant-proofs-mailbox-lease-fence.md) |
 | 2026-07-14 | ADR-047 | TLS natif sur le listener TCP de l'API et fail-fast sur bind distant non securise | [ADR-047](adr/ADR-047-api-tls-and-non-loopback-fail-fast.md) |
+| 2026-07-20 | ADR-048 | Les executeurs de code ne sont jamais autorises en bloc par leur nom | [ADR-048](adr/ADR-048-code-executors-never-blanket-authorized.md) |
+| 2026-07-30 | ADR-049 | Windows est une plateforme supportee pour la v0.1.0 (supersede le scope d'ADR-003) | [ADR-049](adr/ADR-049-windows-in-scope-for-v0-1-0.md) |

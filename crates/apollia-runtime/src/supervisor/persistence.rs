@@ -283,7 +283,7 @@ pub(in crate::supervisor) fn open_project_repository(
 /// Resolves `~` at the start of a path to `$HOME`.
 pub(crate) fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
     if let Ok(stripped) = path.strip_prefix("~") {
-        if let Ok(home) = std::env::var("HOME") {
+        if let Some(home) = apollia_core::paths::home_string() {
             return std::path::PathBuf::from(home).join(stripped);
         }
     }

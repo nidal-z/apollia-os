@@ -629,8 +629,7 @@ fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
 }
 
 fn ensure_governance_db_path() -> Result<PathBuf, String> {
-    let home =
-        std::env::var("HOME").map_err(|_| "variable d'environnement HOME absente".to_string())?;
+    let home = apollia_core::paths::home_string_or_err()?;
     let base = PathBuf::from(home).join(".apollia");
     if !base.exists() {
         std::fs::create_dir_all(&base)

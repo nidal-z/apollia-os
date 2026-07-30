@@ -54,13 +54,16 @@ tauri-plugin-dialog = "2"
 dirs = "5"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-updater = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
 sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
 hound            = { workspace = true }
-keyring          = { version = "3", features = ["apple-native", "linux-native"] }
+# Inherit the workspace declaration: it carries `windows-native` too, which this
+# crate's own redeclaration used to drop, silently leaving Windows credentials in
+# keyring's in-memory mock instead of the Credential Manager.
+keyring          = { workspace = true }
 scraper          = "0.26"
 url              = "2"
 urlencoding      = { workspace = true }

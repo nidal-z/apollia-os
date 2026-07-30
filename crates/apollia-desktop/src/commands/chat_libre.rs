@@ -61,7 +61,7 @@ impl From<ChatLibreConfigDto> for ChatLibreConfig {
 
 /// Opens (and migrates if needed) `governance.db`, then returns its path.
 fn ensure_governance_db() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+    let home = apollia_core::paths::home_string_or_err()?;
     let base = PathBuf::from(home).join(".apollia");
     let db = GovernanceDb::open(&base)
         .map_err(|e| format!("failed to open governance database: {e}"))?;

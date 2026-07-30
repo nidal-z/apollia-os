@@ -51,7 +51,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "apollia-os",
+      "apollia-os*",
       "runners/**/*",
       "python/**/*"
     ],
@@ -85,7 +85,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/apollia-os/apollia-os/releases/latest/download/latest.json"
+        "https://github.com/Apollia-OS/apollia-os/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": ""

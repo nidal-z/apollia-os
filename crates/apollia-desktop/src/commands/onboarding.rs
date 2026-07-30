@@ -302,7 +302,9 @@ pub async fn get_onboarding_state(
 #[tauri::command]
 pub async fn check_onboarding_finalized() -> Result<bool, String> {
     let memory_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home)
             .join(".apollia")
             .join("memory")
@@ -873,7 +875,9 @@ async fn get_onboarding_status_inner(
 
     // Open the agent's memory store to scan for written keys.
     let memory_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home)
             .join(".apollia")
             .join("memory")
@@ -927,7 +931,9 @@ async fn get_onboarding_status_inner(
 /// treated as a non-fatal degradation - the agent falls back to generic
 /// questioning without the profile section.
 fn write_profile_to_agent_memory(profile: &str) {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     let db_path = std::path::PathBuf::from(home)
         .join(".apollia")
         .join("memory")
@@ -976,7 +982,9 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
     // to clean the new file caused stale `onboarding.completed_at` to leak
     // into fresh sessions and trigger the wrap-up panel before the user
     // could answer a single question.
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     let memory_dir = std::path::PathBuf::from(home)
         .join(".apollia")
         .join("memory");
@@ -1453,7 +1461,7 @@ pub async fn get_ai_setup_info() -> Result<SystemInfo, String> {
 #[tauri::command]
 pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
     tokio::task::spawn_blocking(|| {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         let home_path = std::path::PathBuf::from(&home);
         let sys_info = get_system_info_sync();
         let max_recommended = recommended_max_gguf_size_bytes(sys_info.total_ram_gb);
@@ -1504,7 +1512,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
 #[tauri::command]
 pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> {
     tokio::task::spawn_blocking(|| {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         let home_path = std::path::PathBuf::from(&home);
         let sys_info = get_system_info_sync();
 
@@ -1566,7 +1574,9 @@ async fn setup_whisper_model_inner(
     state: &RuntimeHandle,
 ) -> Result<OnboardingState, OnboardingError> {
     let db_path = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home)
             .join(".apollia")
             .join("system.db")

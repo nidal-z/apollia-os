@@ -160,9 +160,7 @@ impl UserOverrides {
     /// Canonical path of the user-side overrides file.
     /// `~/.apollia/models/sampling-defaults.json`.
     pub fn default_path() -> PathBuf {
-        let home = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(std::env::temp_dir);
+        let home = apollia_core::paths::home_dir_or_temp();
         home.join(".apollia")
             .join("models")
             .join("sampling-defaults.json")

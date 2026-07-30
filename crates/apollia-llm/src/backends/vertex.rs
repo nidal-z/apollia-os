@@ -425,7 +425,8 @@ fn adc_credentials_path() -> PathBuf {
     if let Ok(p) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
         return PathBuf::from(p);
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| String::from("/root"));
+    let home = apollia_core::paths::home_string()
+        .unwrap_or_else(|| std::env::temp_dir().display().to_string());
     PathBuf::from(home).join(".config/gcloud/application_default_credentials.json")
 }
 

@@ -204,11 +204,18 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// engine. Blocked tools return [`ToolExecutionError::ToolNotAllowed`] immediately.
 ///
 /// An optional [`PermissionEngine`] can be wired in via [`with_permission_engine`].
-/// When present, `dispatch()` evaluates the 3-layer permission policy before executing
-/// the tool. If the engine returns `AutoDenied*`, the call is blocked and a
+/// When present, `dispatch()` evaluates its layered policy before executing the
+/// tool. If the engine returns `AutoDenied*`, the call is blocked and a
 /// [`ToolExecutionError::PermissionDenied`] is returned. If it returns `NeedsApproval`,
 /// a [`RuntimeEvent::PermissionRequired`] is emitted on the `EventBusSender` (fire-and-forget)
 /// and [`ToolExecutionError::PermissionDenied`] is returned.
+///
+/// **No production caller wires it.** `with_permission_engine` has no callers in
+/// this workspace, so `permission_engine` is always `None` in the shipped
+/// runtime and the block below never runs. Tool calls are gated instead by the
+/// prefix rules, the code-executor guard and the HITL flow, all applied by
+/// `apollia-runtime` in the chat dispatch path. Do not read the presence of this
+/// field as a protection that is active today.
 ///
 /// [`with_session_filter`]: ToolDispatcher::with_session_filter
 /// [`with_permission_engine`]: ToolDispatcher::with_permission_engine
@@ -217,7 +224,8 @@ pub struct ToolDispatcher {
     max_output_chars: usize,
     /// Optional session-level tool filter (`--allowed-tools` / `--disallowed-tools`).
     tool_filter: Option<SessionToolFilter>,
-    /// Optional 3-layer permission engine. `None` = no permission check (backward-compat).
+    /// Optional opt-in permission engine. Always `None` in the shipped runtime:
+    /// no caller invokes `with_permission_engine`. See the struct docs.
     permission_engine: Option<std::sync::Mutex<PermissionEngine>>,
     /// EventBus sender for emitting `PermissionRequired` events.
     event_bus: Option<EventBusSender>,
@@ -1086,6 +1094,7 @@ impl ToolExecutor for PythonExecutor {
                     PythonExecutorError::PythonUnavailable => "python_unavailable",
                     PythonExecutorError::VenvCreationFailed(_) => "venv_creation_failed",
                     PythonExecutorError::PackageInstallFailed { .. } => "package_install_failed",
+                    PythonExecutorError::InvalidPackageSpec { .. } => "invalid_package_spec",
                     PythonExecutorError::Timeout { .. } => "timeout",
                     PythonExecutorError::SpawnFailed(_) => "spawn_failed",
                     PythonExecutorError::OutputCaptureFailed(_) => "output_capture_failed",

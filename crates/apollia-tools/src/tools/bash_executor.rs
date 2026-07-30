@@ -21,6 +21,8 @@ use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::file_path_extractor::FilePathExtractor;
 use crate::tools::bash_validator::BashValidator;
 use crate::tools::risk_classifier::RiskCategory;
+// Only referenced from the Unix spawn paths; the non-Unix build has no rlimits.
+#[cfg(unix)]
 use crate::tools::rlimits::ResourceLimits;
 
 /// Native shell executor with Linux namespace isolation (PID + mount).
@@ -375,7 +377,7 @@ impl BashExecutor {
         tokio::process::Command::from(cmd)
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(all(unix, not(target_os = "linux")))]
     fn build_command(input: &BashInput) -> tokio::process::Command {
         tracing::warn!(
             command = %input.command,
@@ -385,10 +387,64 @@ impl BashExecutor {
         );
         let mut cmd = std::process::Command::new("/bin/sh");
         cmd.args(["-c", &input.command]);
-        #[cfg(unix)]
         crate::tools::rlimits::apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
         tokio::process::Command::from(cmd)
     }
+
+    /// Off Unix, run the command through a POSIX shell found on `PATH`.
+    ///
+    /// Windows ships no POSIX shell, so one has to come from Git Bash, WSL or
+    /// MSYS2. That is a deliberate requirement rather than a fallback to
+    /// `cmd.exe` or PowerShell: the command validator guarding this tool
+    /// (`is_single_simple_command` and the injection scanner) encodes POSIX
+    /// quoting and chaining rules. A different shell has different operators,
+    /// different escaping and therefore a different injection surface, so
+    /// switching would silently invalidate the guarantee the validator provides.
+    /// Supporting a native Windows shell means writing a second validator of
+    /// equal quality, which is its own piece of work.
+    ///
+    /// When no POSIX shell is present the spawn fails with a message naming the
+    /// requirement, instead of the bare `NotFound` that a hardcoded `/bin/sh`
+    /// produced.
+    #[cfg(not(unix))]
+    fn build_command(input: &BashInput) -> tokio::process::Command {
+        let shell = posix_shell_on_path();
+        tracing::warn!(
+            command = %input.command,
+            shell = %shell.as_deref().unwrap_or("<none found>"),
+            "bash_executor: no OS sandbox on this platform and no resource limits. \
+             Production deployments require Linux."
+        );
+        // Falling back to the bare name keeps the spawn error self-describing
+        // when nothing was found.
+        let mut cmd = std::process::Command::new(shell.as_deref().unwrap_or("sh"));
+        cmd.args(["-c", &input.command]);
+        tokio::process::Command::from(cmd)
+    }
+}
+
+/// Locates a POSIX shell on `PATH`, preferring `bash` then `sh`.
+///
+/// Covers the usual Windows providers: Git for Windows ships `bash.exe`, MSYS2
+/// and Cygwin ship both. Returns `None` when the host has neither, which
+/// `bash_executor` reports rather than guessing another shell.
+#[cfg(not(unix))]
+fn posix_shell_on_path() -> Option<String> {
+    for name in ["bash.exe", "sh.exe", "bash", "sh"] {
+        if let Ok(path) = std::env::var_os("PATH")
+            .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+            .map(|dirs| {
+                dirs.into_iter()
+                    .map(|d| d.join(name))
+                    .find(|c| c.is_file())
+                    .ok_or(())
+            })
+            .unwrap_or(Err(()))
+        {
+            return Some(path.display().to_string());
+        }
+    }
+    None
 }
 
 impl Default for BashExecutor {

@@ -468,7 +468,7 @@ fn compact_json_stdout(s: &str) -> Option<String> {
     let total_lines = lines.len();
 
     // Partition: user-space lines first, then the rest
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = apollia_core::paths::home_string().unwrap_or_default();
     let (user_lines, system_lines): (Vec<&str>, Vec<&str>) = if home.is_empty() {
         (lines.clone(), Vec::new())
     } else {

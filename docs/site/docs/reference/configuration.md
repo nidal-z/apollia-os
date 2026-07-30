@@ -25,7 +25,7 @@ separately under `~/.apollia/`.
 | `[registry]` | Community registry URL. |
 | `[tools]` | Native tools: limits, static disabling, and per-tool `[tools.web_search]` / `[tools.web_read]` configuration. |
 | `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
-| `[permissions]` | Permissions engine (SafeList, injection detection). |
+| `[permissions]` | Opt-in permission engine. Inert unless a host embeds Apollia and installs it; the shipped app gates tools through prefix rules and approvals instead. |
 | `[filesystem]` | Reversible journal and filesystem configuration. |
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |

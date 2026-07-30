@@ -48,9 +48,7 @@ pub struct ApollaConfigView {
 
 /// Resolves the standard path `~/.apollia/apollia.toml`.
 fn default_config_path() -> PathBuf {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     home.join(".apollia").join("apollia.toml")
 }
 
@@ -357,9 +355,7 @@ fn apply_observability_to_doc(doc: &mut toml_edit::DocumentMut, config: &Observa
 
 /// Resolves the onboarding flag path `~/.apollia/.onboarded`.
 fn onboarded_flag_path() -> PathBuf {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     home.join(".apollia").join(".onboarded")
 }
 
@@ -473,7 +469,9 @@ pub async fn reset_onboarding(
     // 3. Purge the memory database owned by the onboarding-agent (`onboarding.db`).
     //    It holds the dialogue episodes and `onboarding.completed_at` keys that
     //    otherwise prevent the journey from restarting cleanly.
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     let onboarding_db = std::path::PathBuf::from(home)
         .join(".apollia")
         .join("memory")
@@ -549,9 +547,7 @@ pub async fn clear_all_memories() -> Result<usize, String> {
 
 /// Resolves `~/.apollia/`.
 fn apollia_home() -> PathBuf {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     home.join(".apollia")
 }
 

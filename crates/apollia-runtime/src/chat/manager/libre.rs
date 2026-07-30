@@ -25,9 +25,9 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
 
 pub(in crate::chat::manager) fn load_chat_libre_overrides() -> ChatLibreOverrides {
     let mut out = ChatLibreOverrides::default();
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => return out,
+    let home = match apollia_core::paths::home_string() {
+        Some(h) => h,
+        None => return out,
     };
     let base_dir = std::path::PathBuf::from(home).join(".apollia");
     let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
@@ -552,10 +552,10 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
         return;
     }
 
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(e) => {
-            warn!(error = %e, "HOME not set; skipping governance.db rule persistence");
+    let home = match apollia_core::paths::home_string() {
+        Some(h) => h,
+        None => {
+            warn!("home directory not resolvable; skipping governance.db rule persistence");
             return;
         }
     };

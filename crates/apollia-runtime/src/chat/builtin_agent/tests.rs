@@ -2040,7 +2040,7 @@ fn new_with_workspace_none_uses_current_dir_not_home() {
     assert_eq!(invoker.sandbox_root, cwd);
 
     // AND sandbox_root is never $HOME
-    if let Ok(home) = std::env::var("HOME") {
+    if let Some(home) = apollia_core::paths::home_string() {
         assert_ne!(
             invoker.sandbox_root,
             std::path::PathBuf::from(home),

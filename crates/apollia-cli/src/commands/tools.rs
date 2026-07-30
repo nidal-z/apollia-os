@@ -983,9 +983,9 @@ async fn run_describe(socket: Option<PathBuf>, tool_name: &str, json: bool) -> i
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 fn resolve_data_dir() -> Result<PathBuf, i32> {
-    match std::env::var("HOME") {
-        Ok(h) => Ok(PathBuf::from(h).join(".apollia")),
-        Err(_) => Err(emit_error(
+    match apollia_core::paths::home_string() {
+        Some(h) => Ok(PathBuf::from(h).join(".apollia")),
+        None => Err(emit_error(
             "variable d'environnement HOME absente".to_string(),
             false,
         )),
@@ -1081,7 +1081,7 @@ fn find_config_path() -> Option<PathBuf> {
     if local.exists() {
         return Some(local);
     }
-    let home = std::env::var("HOME").ok()?;
+    let home = apollia_core::paths::home_string()?;
     let user = PathBuf::from(home).join(".config/apollia/apollia.toml");
     if user.exists() {
         Some(user)
@@ -1096,7 +1096,7 @@ fn resolve_writable_config_path() -> Result<PathBuf, i32> {
     if let Some(p) = find_config_path() {
         return Ok(p);
     }
-    let home = std::env::var("HOME")
+    let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| emit_error("variable d'environnement HOME absente".to_string(), false))?;
     let dir = PathBuf::from(home).join(".config/apollia");
     if !dir.exists() {

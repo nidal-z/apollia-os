@@ -2,7 +2,7 @@
 name = "apollia-permissions"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS - 3-layer permission engine (SafeList, PrefixRuleEngine, InjectionDetector)"
+description = "Apollia OS - tool permission rules: prefix rules, code-executor guard, audit log"
 license = "MIT OR Apache-2.0"
 
 [dependencies]

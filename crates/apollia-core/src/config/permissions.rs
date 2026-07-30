@@ -4,12 +4,20 @@ use super::{validate_bounds, ConfigError};
 // PermissionsConfig
 // ─────────────────────────────────────────────
 
-/// Permission engine configuration (`[permissions]` section in `apollia.toml`).
+/// Configuration of the opt-in `PermissionEngine` (`[permissions]` section in
+/// `apollia.toml`).
 ///
-/// Controls the three layers of the permission engine:
-/// - SafeList (layer 1): commands auto-approved without HITL.
-/// - PrefixRuleEngine (layer 2): prefix rules persisted in SQLite.
-/// - InjectionDetector (layer 3): detection of dangerous shell patterns.
+/// **Both fields below are inert in the shipped runtime.** They are read only by
+/// `apollia_permissions::PermissionEngine`, which a host must install explicitly
+/// via `ToolDispatcher::with_permission_engine`. Nothing in the desktop app or
+/// the daemon does, so setting `safe_commands` auto-approves nothing and setting
+/// `injection_detection = false` disables nothing.
+///
+/// What does gate tool calls in the shipped runtime: the persisted prefix rules
+/// (`PrefixRuleEngine`), the code-executor guard that refuses to blanket-approve
+/// `bash_executor` / `python_executor` and confines a prefix rule to a single
+/// simple command, and the HITL approval flow. See the `apollia-permissions`
+/// crate documentation for the exact split.
 ///
 /// The SafeList is **empty by default**: the operator explicitly defines what
 /// is safe (least-privilege principle, OWASP ASVS V1.4, CWE-272).
@@ -24,9 +32,11 @@ pub struct PermissionsConfig {
     #[serde(default)]
     pub safe_commands: Vec<String>,
 
-    /// Enables shell-injection detection (layer 3, absolute priority).
+    /// Enables shell-injection detection inside the opt-in `PermissionEngine`.
     ///
-    /// Default: `true`. Disable only for controlled test environments.
+    /// Default: `true`. Inert unless a host installs the engine (see the struct
+    /// documentation). Note that this detects **shell** injection, never prompt
+    /// injection.
     #[serde(default = "default_injection_detection")]
     pub injection_detection: bool,
 

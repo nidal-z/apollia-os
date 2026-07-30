@@ -27,6 +27,7 @@ pub mod manifest;
 pub mod mcp_health;
 pub mod notebook;
 pub mod observability;
+pub mod paths;
 pub mod pending_approvals;
 pub mod plan;
 pub mod plan_alternatives;

@@ -1,20 +1,46 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
-//! Apollia OS three-layer permission engine.
+//! Apollia OS tool permission rules.
 //!
-//! Evaluates every tool invocation before execution through three ordered layers:
+//! ## What actually gates a tool call
 //!
-//! 1. `InjectionDetector` (layer 3, highest priority): blocks dangerous shell patterns.
-//! 2. `SafeList` (layer 1): auto-approves explicitly configured commands.
-//! 3. `PrefixRuleEngine` (layer 2): evaluates persisted prefix rules in SQLite.
+//! Read this before assuming a layer protects you. Two of the pieces in this
+//! crate are **not** in the execution path of the shipped runtime.
 //!
-//! Every decision is recorded in `PermissionAuditLog` (SQLite, immutable).
+//! Live, consulted on every chat tool invocation:
 //!
-//! ## Usage
+//! - [`PrefixRuleEngine`]: persisted per-scope rules in SQLite (session,
+//!   project, global), the mechanism behind "always allow `git status`".
+//! - [`executor_guard`]: the invariant that `bash_executor` and
+//!   `python_executor` are never blanket-authorised by tool name, and that a
+//!   prefix rule only ever matches a single simple command, so an authorised
+//!   `git status` cannot carry `; rm -rf /`.
+//! - [`PermissionAuditLog`]: every decision recorded in SQLite.
+//!
+//! Present but **not wired**:
+//!
+//! - [`PermissionEngine`], the aggregate below, together with [`SafeList`] and
+//!   [`InjectionDetector`]. `ToolDispatcher` holds an `Option<PermissionEngine>`
+//!   that no production caller ever populates (see
+//!   `apollia_tools::executor::ToolDispatcher::with_permission_engine`, which
+//!   has no callers), so `SafeList` and `InjectionDetector` never run and
+//!   `PermissionDecision::AutoDeniedInjection` is unreachable in the shipped
+//!   binary. They are kept because they are tested and useful to an embedder
+//!   that opts in, not because they are protecting the desktop app today.
+//!
+//! Practical consequence: the anti-chaining protection people usually attribute
+//! to [`InjectionDetector`] is in fact delivered by
+//! [`executor_guard::is_single_simple_command`], which *is* live. And note that
+//! [`InjectionDetector`] detects **shell** injection, not prompt injection;
+//! there is no prompt-injection defence in this crate.
+//!
+//! ## Usage of the opt-in aggregate
 //!
 //! ```rust,ignore
 //! use apollia_permissions::{PermissionEngine, PermissionDecision};
 //! use apollia_core::config::PermissionsConfig;
 //!
+//! // Only reached if the host explicitly calls
+//! // `ToolDispatcher::with_permission_engine(engine)`.
 //! let engine = PermissionEngine::new(&config, db_path)?;
 //! let decision = engine.decide("bash_executor", &input, &manifest)?;
 //! match decision {

@@ -134,7 +134,7 @@ pub struct AuditEntryDto {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn home_base_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+    let home = apollia_core::paths::home_string_or_err()?;
     Ok(PathBuf::from(home).join(".apollia"))
 }
 

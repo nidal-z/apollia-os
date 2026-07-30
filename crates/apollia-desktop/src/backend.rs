@@ -57,7 +57,9 @@ fn venv_site_packages_for_agent_path(agent_py_path: &Path) -> Vec<PathBuf> {
 /// Same as [`venv_site_packages_for_agent_path`] but takes the agent name
 /// directly. Use this when the manifest is already available.
 fn venv_site_packages_for_agent_name(agent_name: &str) -> Vec<PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     let base = PathBuf::from(home).join(".apollia").join("venvs");
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
@@ -134,9 +136,7 @@ impl ToolInvoker for NoopToolInvoker {
 /// Keeps the previous `$HOME` behaviour so workspaces located under the user's
 /// home directory remain reachable by `file_read`, `file_write`, etc.
 fn sandbox_root_for_agent() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+    apollia_core::paths::home_dir_or_temp()
 }
 
 // ─── Fallback backend ─────────────────────────────────────────────────────────
@@ -834,14 +834,18 @@ fn wire_engine_with_llm(
 }
 
 fn default_memory_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia").join("memory")
 }
 
 /// Apollia data directory (`~/.apollia/`), used to open the shared
 /// [`ToolCredentialStore`] backing `ctx.secrets`.
 fn default_data_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia")
 }
 

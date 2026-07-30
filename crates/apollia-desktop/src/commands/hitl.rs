@@ -327,7 +327,7 @@ pub async fn add_permission_prefix_rule(
                 project_path.ok_or_else(|| "project scope requires project_path".to_string())?;
             let canonical = canonical_project_path(&raw)?;
 
-            let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+            let home = apollia_core::paths::home_string_or_err()?;
             let base_dir = std::path::PathBuf::from(home).join(".apollia");
 
             persist_scoped_rule(
@@ -348,7 +348,7 @@ pub async fn add_permission_prefix_rule(
             );
         }
         apollia_permissions::PermissionScope::Global => {
-            let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+            let home = apollia_core::paths::home_string_or_err()?;
             let base_dir = std::path::PathBuf::from(home).join(".apollia");
             persist_scoped_rule(
                 &base_dir,

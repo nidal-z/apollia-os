@@ -36,7 +36,7 @@ pub fn temporal_context_block() -> String {
     let cwd = std::env::current_dir()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "unknown".into());
-    let home = std::env::var("HOME").unwrap_or_else(|_| "unknown".into());
+    let home = crate::paths::home_string().unwrap_or_else(|| "unknown".into());
 
     format!(
         "## CURRENT ENVIRONMENT (authoritative - overrides any training data cutoff)\n\

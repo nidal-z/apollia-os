@@ -325,7 +325,9 @@ fn resolve_journal_root(override_path: Option<&std::path::Path>) -> PathBuf {
     if let Some(p) = override_path {
         return p.to_path_buf();
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia").join("journal")
 }
 

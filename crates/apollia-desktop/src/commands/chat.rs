@@ -950,12 +950,10 @@ pub async fn reveal_session_path(
 /// session workspace. Mirrors the frontend `isRevealablePath` classifier.
 fn expand_absolute_path(path: &str) -> Option<std::path::PathBuf> {
     if path == "~" {
-        return std::env::var("HOME").ok().map(std::path::PathBuf::from);
+        return apollia_core::paths::home_dir();
     }
     if let Some(rest) = path.strip_prefix("~/") {
-        return std::env::var("HOME")
-            .ok()
-            .map(|h| std::path::PathBuf::from(h).join(rest));
+        return apollia_core::paths::home_dir().map(|h| h.join(rest));
     }
     let bytes = path.as_bytes();
     let windows_drive = bytes.len() >= 3

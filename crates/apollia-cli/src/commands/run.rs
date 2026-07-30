@@ -1183,9 +1183,9 @@ fn extract_budget(task_json: &serde_json::Value) -> Option<TokenBudget> {
 /// Each line is a JSON object with `task_id` + all `TokenBudget` fields.
 /// Errors are silently ignored to avoid disrupting CLI output.
 fn persist_budget(budget: &TokenBudget, task_id: &str) {
-    let dir = match std::env::var("HOME") {
-        Ok(h) => PathBuf::from(h).join(".apollia"),
-        Err(_) => return,
+    let dir = match apollia_core::paths::home_string() {
+        Some(h) => PathBuf::from(h).join(".apollia"),
+        None => return,
     };
 
     if std::fs::create_dir_all(&dir).is_err() {

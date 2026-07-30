@@ -532,9 +532,7 @@ impl apollia_oria::actor::ToolProxyTrait for OriaToolProxy {
 ///
 /// Centralised so every runner in this crate points at the same root.
 fn sandbox_root_for_agent() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+    apollia_core::paths::home_dir_or_temp()
 }
 
 /// Union of statically-disabled tools (from `apollia.toml`) with the runtime
@@ -961,7 +959,9 @@ impl AgentRunner for BridgeRunner {
 
             let profile_interface = {
                 let data_dir = secrets_data_dir.clone().unwrap_or_else(|| {
-                    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                    let home = apollia_core::paths::home_dir_or_temp()
+                        .display()
+                        .to_string();
                     PathBuf::from(home).join(".apollia")
                 });
                 let user_memory_db = data_dir.join("user_memory.db");
@@ -1323,14 +1323,16 @@ impl AgentBackendFactory for ProductionBackendFactory {
 ///
 /// Matches the path convention used by `apollia-os memory inspect` and `MemoryManager`.
 fn default_memory_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia").join("memory")
 }
 
 /// Resolves `~` to `$HOME` in a path string.
 fn expand_tilde_str(s: &str) -> PathBuf {
     if s.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         PathBuf::from(format!("{}{}", home, &s[1..]))
     } else {
         PathBuf::from(s)
@@ -1455,9 +1457,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // The file exists but nobody is listening: clean it up so the bind succeeds.
     cleanup_stale_socket(&socket_path);
 
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
 
     // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.

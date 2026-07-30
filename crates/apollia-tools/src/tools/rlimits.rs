@@ -89,8 +89,9 @@ pub fn apply_rlimits(cmd: &mut std::process::Command, limits: ResourceLimits) {
     }
 }
 
-/// No-op on non-Unix platforms: POSIX `setrlimit` is not available and Windows
-/// is out of scope.
+/// No-op on non-Unix platforms: POSIX `setrlimit` has no equivalent there. A
+/// Windows build therefore gets no per-process resource caps, which
+/// `SecurityPosture` reports honestly rather than implying it does.
 #[cfg(not(unix))]
 pub fn apply_rlimits(_cmd: &mut std::process::Command, _limits: ResourceLimits) {}
 

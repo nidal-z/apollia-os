@@ -435,7 +435,7 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     // A GUI launch (Finder / .desktop) inherits a minimal PATH that omits the
     // usual install dirs, so a developer's system llama-server is invisible to
     // `which_on_path`. Probe the common locations explicitly as a last resort.
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = apollia_core::paths::home_string().unwrap_or_default();
     let common = [
         format!("/opt/homebrew/bin/{name}"),
         format!("/usr/local/bin/{name}"),

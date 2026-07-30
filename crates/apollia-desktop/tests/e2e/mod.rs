@@ -34,7 +34,9 @@ pub fn api_url(path: &str) -> String {
 /// Falls back to `/tmp` when `HOME` is not set (CI edge case).
 pub fn expand_home(path: &str) -> String {
     if let Some(suffix) = path.strip_prefix("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         format!("{home}/{suffix}")
     } else {
         path.to_string()

@@ -38,13 +38,19 @@ use tauri::Manager;
 /// `ProductionChatAgentRunner` and `ProductionBackendFactory`.
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
-/// Resolves `~` prefix to `$HOME` in a path string.
+/// Resolves a leading `~` against the platform home directory.
+///
+/// Goes through `apollia_core::paths` rather than reading `HOME`: that variable
+/// is unset on Windows, and the previous `unwrap_or_default()` turned
+/// `~/.apollia/apollia.toml` into a root-relative `/.apollia/apollia.toml`
+/// there, so the canonical config was never found.
 fn expand_tilde(s: &str) -> std::path::PathBuf {
-    if s.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_default();
-        std::path::PathBuf::from(format!("{}{}", home, &s[1..]))
-    } else {
-        std::path::PathBuf::from(s)
+    match s.strip_prefix("~/") {
+        Some(rest) => match apollia_core::paths::home_dir() {
+            Some(home) => home.join(rest),
+            None => std::path::PathBuf::from(rest),
+        },
+        None => std::path::PathBuf::from(s),
     }
 }
 
@@ -112,20 +118,26 @@ fn setup_bundled_python() {
     };
 
     // Candidate search order: first match wins.
-    let candidates: [std::path::PathBuf; 3] = [
+    let candidates: [std::path::PathBuf; 4] = [
         // macOS: Contents/MacOS/apollia-desktop -> Contents/Resources/python/
         exe_dir.join("../Resources/python"),
         // Linux AppImage / .deb: usr/bin/apollia-desktop -> usr/lib/apollia-os/python/
         exe_dir.join("../lib/apollia-os/python"),
+        // Windows: Tauri stages resources next to the executable.
+        exe_dir.join("python"),
         // Dev build fallback: target/release/apollia-desktop -> target/python-bundle/<triple>/python/
         // (populated by packaging/build-python-bundle.sh during dev)
         exe_dir.join("../../resources/python"),
     ];
 
-    let python_root = match candidates
-        .iter()
-        .find(|p| p.join("bin/python3.13").exists())
-    {
+    // The interpreter sits at a different place per platform: `bin/python3.13`
+    // on POSIX, `python.exe` at the root on Windows. Probing only the POSIX path
+    // made every candidate fail on Windows, so no bundled Python was ever found
+    // and every Python agent fell back to the system interpreter (or none).
+    let has_interpreter =
+        |p: &std::path::Path| p.join("bin/python3.13").exists() || p.join("python.exe").exists();
+
+    let python_root = match candidates.iter().find(|p| has_interpreter(p)) {
         Some(p) => match p.canonicalize() {
             Ok(abs) => abs,
             Err(e) => {
@@ -177,6 +189,20 @@ fn setup_bundled_python() {
     std::env::set_var("DYLD_FALLBACK_LIBRARY_PATH", python_root.join("lib"));
     #[cfg(target_os = "linux")]
     std::env::set_var("LD_LIBRARY_PATH", python_root.join("lib"));
+    // Windows has no equivalent variable: the loader searches the executable's
+    // directory and then PATH. `python313.dll` sits next to `python.exe` in the
+    // bundle, so the bundle root has to be on PATH for a spawned interpreter to
+    // start at all. Prepend, never replace.
+    #[cfg(target_os = "windows")]
+    {
+        let existing = std::env::var_os("PATH").unwrap_or_default();
+        let mut entries = vec![python_root.clone()];
+        entries.extend(std::env::split_paths(&existing));
+        match std::env::join_paths(entries) {
+            Ok(joined) => std::env::set_var("PATH", joined),
+            Err(e) => tracing::warn!(error = %e, "could not prepend the bundled Python to PATH"),
+        }
+    }
 
     tracing::info!(
         python_root = %python_root.display(),
@@ -515,7 +541,9 @@ fn main() {
     // Open AgentRepository for auto-load at boot (passed to Supervisor).
     // A separate instance is created later for Tauri IPC commands.
     let apollia_data_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
         std::path::PathBuf::from(home).join(".apollia")
     };
     let _ = std::fs::create_dir_all(&apollia_data_dir);
@@ -658,8 +686,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         // External URL opener: bridges the webview to the system browser for
         // OAuth flows and outbound help/docs links.
         // Tauri 2 disabled `window.open()` and `<a target="_blank">` by
@@ -865,6 +893,8 @@ fn main() {
             commands::observability::get_active_hooks,
             commands::trace::get_task_trace,
             commands::config::get_config,
+            commands::updates::check_for_update,
+            commands::updates::install_update,
             commands::config::get_observability_config,
             commands::config::set_observability_config,
             commands::config::open_config_in_editor,
@@ -1018,8 +1048,6 @@ fn main() {
             // Agents
             commands::agents::get_agent_detail,
             // Updates
-            commands::updates::check_for_update,
-            commands::updates::install_update,
             // Workspace
             commands::workspace::get_workspace_status,
             commands::workspace::init_workspace,

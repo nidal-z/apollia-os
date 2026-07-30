@@ -19,6 +19,27 @@ pub enum UpdateError {
     NoUpdate,
     #[error("install failed: {0}")]
     Install(String),
+    /// This build carries no updater signing key, so self-update is inert.
+    #[error(
+        "self-update is not configured for this build: it needs a signing key and a signed \
+         release manifest. Download the new version from the releases page instead."
+    )]
+    NotConfigured,
+}
+
+/// Whether this build lacks the updater signing key.
+///
+/// Read from the Tauri config the app was built with, so the answer follows the
+/// build rather than a duplicated constant. An absent or empty `pubkey` means the
+/// plugin can never verify an artifact, and therefore can never install one.
+fn updater_signing_key_is_absent(app: &tauri::AppHandle) -> bool {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|v| v.get("pubkey"))
+        .and_then(|v| v.as_str())
+        .is_none_or(str::is_empty)
 }
 
 /// Download progress emitted during [`install_update`] via the
@@ -56,6 +77,15 @@ pub struct UpdateCheckResult {
 #[tauri::command]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
+
+    // Self-update needs a signing key: the plugin verifies the downloaded
+    // artifact against `plugins.updater.pubkey` before installing it, and a
+    // release must publish a signed `latest.json`. Until both exist, say so
+    // plainly instead of surfacing the plugin's internal error, which reads like
+    // a network failure and sends the user looking in the wrong place.
+    if updater_signing_key_is_absent(&app) {
+        return Err(UpdateError::NotConfigured.to_string());
+    }
 
     let updater = app
         .updater()

@@ -184,5 +184,5 @@ impl SubmitTaskHandler for NoopSubmitHandler {
 
 /// Resolve the sandbox root from the user home directory.
 fn dirs_or_home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    apollia_core::paths::home_dir()
 }

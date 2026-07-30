@@ -212,7 +212,7 @@ fn expand_leading_tilde(input: &str) -> std::borrow::Cow<'_, str> {
     if input != "~" && !input.starts_with("~/") {
         return std::borrow::Cow::Borrowed(input);
     }
-    let Some(home) = std::env::var_os("HOME") else {
+    let Some(home) = apollia_core::paths::home_dir() else {
         return std::borrow::Cow::Borrowed(input);
     };
     let home_str = home.to_string_lossy();
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn expand_leading_tilde_resolves_to_home() {
         // GIVEN: HOME is set
-        let home = std::env::var("HOME").expect("HOME must be set in test env");
+        let home = apollia_core::paths::home_string().expect("a test host has a home directory");
 
         // WHEN/THEN: bare `~` and `~/...` map to HOME
         assert_eq!(expand_leading_tilde("~").as_ref(), home);
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn resolve_expands_tilde_when_target_is_under_root() {
         // GIVEN: a sandbox rooted at $HOME
-        let home = std::env::var("HOME").expect("HOME must be set");
+        let home = apollia_core::paths::home_string().expect("a test host has a home directory");
         let sandbox = SandboxRoot::new(PathBuf::from(&home)).expect("sandbox under HOME");
 
         // WHEN: resolving `~/Documents/foo.md`

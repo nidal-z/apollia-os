@@ -177,7 +177,7 @@ pub fn llama_server_override(
 /// the absolute path `llama-server` requires. Idempotent for other paths.
 fn expand_home(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
-        if let Ok(home) = std::env::var("HOME") {
+        if let Some(home) = apollia_core::paths::home_string() {
             return format!("{home}/{rest}");
         }
     }

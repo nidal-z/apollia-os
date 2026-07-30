@@ -422,7 +422,7 @@ fn default_models_dir() -> PathBuf {
 ///
 /// Using the environment variable directly avoids adding a `dirs` crate dependency.
 fn home_dir() -> Option<PathBuf> {
-    std::env::var("HOME").ok().map(PathBuf::from)
+    apollia_core::paths::home_dir()
 }
 
 /// Scan `dir` for `*.gguf` files, group shards by prefix and return a sorted

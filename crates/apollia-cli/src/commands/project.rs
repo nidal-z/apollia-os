@@ -367,9 +367,7 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
     if let Some(p) = db {
         return p.to_path_buf();
     }
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+    let home = apollia_core::paths::home_dir_or_temp();
     home.join(".apollia").join("projects.db")
 }
 

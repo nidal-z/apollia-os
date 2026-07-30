@@ -92,7 +92,7 @@ pub struct DailyDigest {
 static DIGEST_DB: Mutex<Option<Connection>> = Mutex::new(None);
 
 fn db_path() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME")
+    let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
     Ok(PathBuf::from(home).join(".apollia").join("daily_digest.db"))
 }

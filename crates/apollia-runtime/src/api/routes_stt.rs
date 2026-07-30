@@ -102,7 +102,7 @@ fn stt_unavailable() -> (StatusCode, Json<SttErrorResponse>) {
 /// Resolve `~` in paths to the user's home directory.
 fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
     if let Ok(stripped) = path.strip_prefix("~") {
-        if let Ok(home) = std::env::var("HOME") {
+        if let Some(home) = apollia_core::paths::home_string() {
             return std::path::PathBuf::from(home).join(stripped);
         }
     }

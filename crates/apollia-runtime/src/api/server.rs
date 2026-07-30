@@ -807,7 +807,12 @@ impl APIServer {
         }
 
         // Unix socket router: no authentication layer, filesystem permissions suffice.
+        // Bound only where a Unix listener can consume it; off Unix the TCP
+        // listener above is the whole surface.
+        #[cfg(unix)]
         let unix_router = router;
+        #[cfg(not(unix))]
+        drop(router);
 
         info!(
             tcp_port = config.tcp_port.map(|p| p as i64).unwrap_or(-1),

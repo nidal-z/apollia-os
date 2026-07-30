@@ -750,7 +750,9 @@ fn purge_uninstall_filesystem(
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn apollia_data_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia")
 }
 

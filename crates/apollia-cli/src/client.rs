@@ -174,8 +174,7 @@ fn extract_error(body: &str, status: u16) -> String {
 /// drive an authenticated TCP listener; it is harmless on the Unix socket,
 /// which is never token-gated.
 fn load_default_api_token() -> Option<String> {
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    let path = PathBuf::from(home).join(".apollia").join("api-token");
+    let path = apollia_core::paths::data_dir()?.join("api-token");
     std::fs::read_to_string(path)
         .ok()
         .map(|s| s.trim().to_string())

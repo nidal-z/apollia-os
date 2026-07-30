@@ -241,7 +241,9 @@ pub enum MemoryCommandError {
 
 /// Resolve the default memory directory (`~/.apollia/memory/`).
 fn default_data_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
     PathBuf::from(home).join(".apollia").join("memory")
 }
 

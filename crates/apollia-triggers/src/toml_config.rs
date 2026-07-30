@@ -305,10 +305,10 @@ fn parse_trigger_source_unchecked(raw: &RawTriggerSource) -> TriggerSourceConfig
 fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if s.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = apollia_core::paths::home_string().unwrap_or_default();
         PathBuf::from(format!("{}{}", home, &s[1..]))
     } else if s == "~" {
-        PathBuf::from(std::env::var("HOME").unwrap_or_default())
+        PathBuf::from(apollia_core::paths::home_string().unwrap_or_default())
     } else {
         path.to_path_buf()
     }

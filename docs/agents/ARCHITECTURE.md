@@ -183,12 +183,19 @@ Source : `crates/apollia-core/src/context.rs`.
 Source : `crates/apollia-core/src/budget.rs`,
 `crates/apollia-oria/src/engine.rs`.
 
-### Permissions, three layers
+### Permissions
 
-1. `SafeList` : explicit always-allowed tool invocations.
-2. `InjectionDetector` : suspicious-payload heuristics.
-3. `PrefixRuleEngine` : prefix-scoped rules at three scopes (session, project,
+Live in the shipped runtime :
+
+1. `PrefixRuleEngine` : prefix-scoped rules at three scopes (session, project,
    global).
+2. `executor_guard` : code executors are never blanket-authorised, and a prefix
+   rule only matches a single simple command.
+3. HITL approval for everything not auto-approved.
+
+Present but not wired : `PermissionEngine`, which aggregates `SafeList` and
+`InjectionDetector`. No caller installs it, so those two never run. Details and
+rationale in `docs/agents/SECURITY.md`.
 
 Audit log is SQLite, append-only, no deletes. Each tool invocation produces
 a decision record.
@@ -302,6 +309,10 @@ here mirror the `#` heading of each file in `docs/adr/`.
 | ADR-026 | Agent install, bundle format and distribution | apollia-workspace |
 | ADR-041 | Inter-agent messaging (durable mailbox) | apollia-runtime, sdk |
 | ADR-042 | Audit-journal global anchor chain | apollia-runtime |
+| ADR-044 | Agent isolation hardening and honest posture reporting | apollia-tools, apollia-core |
+| ADR-047 | Native TLS on the API TCP listener, fail-fast on insecure remote bind | apollia-runtime |
+| ADR-048 | Code executors are never blanket-authorized | apollia-permissions |
+| ADR-049 | Windows is a supported platform for v0.1.0 | workspace-wide |
 
 Full index : `docs/adr/`.
 
