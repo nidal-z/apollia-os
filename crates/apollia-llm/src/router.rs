@@ -1470,12 +1470,14 @@ async fn instantiate_cloud_backend(
     };
 
     let base_url = extract_base_url(cfg, default_url);
+    let context_window = resolve_context_window(cfg, provider, &base_url).await;
 
     let api_cfg = ApiBackendConfig {
         name: cfg.name.clone(),
         api_url: base_url,
         api_key_env: String::new(), // key already resolved
         model: cfg.model.clone(),
+        context_window,
     };
 
     let idle_timeout = extract_idle_timeout(cfg);
@@ -1496,6 +1498,91 @@ async fn instantiate_cloud_backend(
         cancel,
         idle_timeout,
     )) as Arc<dyn CompletionModel>)
+}
+
+/// Establish the usable context window of a self-hosted OpenAI-compatible
+/// backend, so the router sizes compaction against the real window.
+///
+/// Order: the operator's `config_json["context_window"]` wins, because it is the
+/// only value that survives the server being down. Otherwise an Ollama backend
+/// is asked directly, since it is the one provider in this set that both
+/// auto-sizes its window from the machine's memory and exposes the resolved
+/// figure. Everything else stays `None`, which the router reads as unknown.
+///
+/// Never fails the build: a backend whose window cannot be established is still
+/// usable, it just falls back to the generic limit.
+#[cfg(feature = "cloud")]
+async fn resolve_context_window(
+    cfg: &LlmBackendConfig,
+    provider: &LlmProvider,
+    base_url: &str,
+) -> Option<usize> {
+    if let Some(configured) = cfg
+        .config_json
+        .get("context_window")
+        .and_then(|v| v.as_u64())
+        .filter(|v| *v > 0)
+    {
+        return Some(configured as usize);
+    }
+    if !matches!(provider, LlmProvider::Ollama) {
+        return None;
+    }
+    let probed = probe_ollama_context_window(base_url, &cfg.model).await;
+    if probed.is_none() {
+        tracing::warn!(
+            backend = %cfg.name,
+            model = %cfg.model,
+            "llm.context_window.unknown"
+        );
+    }
+    probed
+}
+
+/// Ask a running Ollama server what window it actually loaded the model with.
+///
+/// `/api/ps` reports the loaded window, which is the only authoritative source:
+/// Ollama sizes it from available memory when `OLLAMA_CONTEXT_LENGTH` is unset,
+/// so neither the model's trained length nor any local default predicts it. A
+/// model that is not currently loaded yields nothing, deliberately: reporting
+/// its trained length instead would over-state the window on exactly the small
+/// machines where overflowing it is a real risk.
+#[cfg(feature = "cloud")]
+async fn probe_ollama_context_window(base_url: &str, model: &str) -> Option<usize> {
+    let root = base_url.trim_end_matches('/');
+    let root = root.strip_suffix("/v1").unwrap_or(root);
+    let client = crate::http_client::build_llm_http_client(std::time::Duration::from_secs(5));
+    let body: serde_json::Value = client
+        .get(format!("{root}/api/ps"))
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    ollama_context_from_ps(&body, model)
+}
+
+/// Read the loaded window of `model` out of an Ollama `/api/ps` body.
+///
+/// Split from the request so the shape of the answer is tested without a
+/// server.
+#[cfg(feature = "cloud")]
+fn ollama_context_from_ps(body: &serde_json::Value, model: &str) -> Option<usize> {
+    body.get("models")?.as_array()?.iter().find_map(|m| {
+        let name = m.get("name").or_else(|| m.get("model"))?.as_str()?;
+        // Ollama reports the fully qualified tag; a backend configured without
+        // one refers to `:latest`.
+        let matches = name == model
+            || name
+                .strip_suffix(":latest")
+                .is_some_and(|base| base == model);
+        matches
+            .then(|| m.get("context_length")?.as_u64())
+            .flatten()
+            .map(|v| v as usize)
+    })
 }
 
 /// Reads how long a backend may stay silent before the call is abandoned.
@@ -2682,6 +2769,89 @@ mod tests {
 
         // THEN the ceiling is reported reached
         assert!(router.is_ceiling_reached());
+    }
+
+    // GIVEN an Ollama `/api/ps` body listing a loaded model
+    // WHEN its context window is read
+    // THEN the loaded figure is returned, which is the only authoritative one:
+    //      Ollama sizes the window from available memory, so neither the
+    //      model's trained length nor any local default predicts it
+    #[test]
+    fn test_ollama_context_is_read_from_the_loaded_model() {
+        let body = serde_json::json!({
+            "models": [
+                {"name": "other:8b", "context_length": 4096},
+                {"name": "qwen3:8b", "context_length": 32768}
+            ]
+        });
+
+        assert_eq!(ollama_context_from_ps(&body, "qwen3:8b"), Some(32768));
+    }
+
+    // GIVEN a backend configured without a tag, against a server that always
+    // reports one
+    // WHEN the window is read
+    // THEN `:latest` is matched, so the common shorthand is not a silent miss
+    #[test]
+    fn test_ollama_context_matches_an_implicit_latest_tag() {
+        let body = serde_json::json!({
+            "models": [{"name": "qwen3:latest", "context_length": 8192}]
+        });
+
+        assert_eq!(ollama_context_from_ps(&body, "qwen3"), Some(8192));
+    }
+
+    // GIVEN a server with the model not currently loaded
+    // WHEN the window is read
+    // THEN nothing is returned rather than a guess: reporting the trained
+    //      length would over-state the window on exactly the small machines
+    //      where overflowing it is a real risk
+    #[test]
+    fn test_ollama_context_is_unknown_when_the_model_is_not_loaded() {
+        let body = serde_json::json!({ "models": [] });
+
+        assert_eq!(ollama_context_from_ps(&body, "qwen3:8b"), None);
+    }
+
+    // GIVEN a backend whose operator pinned a context window
+    // WHEN the window is resolved
+    // THEN the configured value wins, because it is the only one that survives
+    //      the server being unreachable
+    #[tokio::test]
+    async fn test_configured_context_window_wins_over_any_probe() {
+        let cfg = LlmBackendConfig {
+            name: "ollama".into(),
+            provider: LlmProvider::Ollama,
+            model: "qwen3:8b".into(),
+            config_json: serde_json::json!({ "context_window": 16384 }),
+            enabled: true,
+            is_default: true,
+        };
+
+        let resolved =
+            resolve_context_window(&cfg, &LlmProvider::Ollama, "http://127.0.0.1:1/v1").await;
+
+        assert_eq!(resolved, Some(16384));
+    }
+
+    // GIVEN a cloud backend with no configured window
+    // WHEN the window is resolved
+    // THEN it stays unknown and no provider-specific probe is attempted
+    #[tokio::test]
+    async fn test_cloud_backend_without_configured_window_stays_unknown() {
+        let cfg = LlmBackendConfig {
+            name: "openai".into(),
+            provider: LlmProvider::OpenAi,
+            model: "gpt-4o".into(),
+            config_json: serde_json::json!({}),
+            enabled: true,
+            is_default: false,
+        };
+
+        let resolved =
+            resolve_context_window(&cfg, &LlmProvider::OpenAi, "https://api.openai.com/v1").await;
+
+        assert_eq!(resolved, None);
     }
 
     // GIVEN a legacy TOML backend with no explicit provider

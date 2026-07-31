@@ -1069,6 +1069,7 @@ mod tests {
             api_url: "https://api.anthropic.com".into(),
             api_key_env: "APOLLIA_ANT_TEST_KEY".into(),
             model: "claude-haiku-4-5-20251001".into(),
+            context_window: None,
         };
 
         let client = AnthropicClient::new(

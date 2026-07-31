@@ -62,22 +62,14 @@ impl LlamaServerBackend {
     /// Ensure the server is serving this backend's model, then return an OpenAI
     /// client pointed at its current base URL (rebuilt only when the URL changed).
     async fn ready_client(&self) -> Result<Arc<OpenAICompatibleClient>, LlmError> {
-        self.supervisor
-            .switch_model(self.model_path.clone())
+        let base = self
+            .supervisor
+            .ensure_model(self.model_path.clone())
             .await
             .map_err(|e| LlmError::BackendUnavailable {
                 backend: self.backend_name.clone(),
                 reason: format!("llama-server: {e}"),
             })?;
-
-        let base =
-            self.supervisor
-                .base_url()
-                .await
-                .ok_or_else(|| LlmError::BackendUnavailable {
-                    backend: self.backend_name.clone(),
-                    reason: "llama-server is not running".to_owned(),
-                })?;
 
         let mut guard = self.client.lock().await;
         if let Some((url, client)) = guard.as_ref() {
@@ -91,6 +83,9 @@ impl LlamaServerBackend {
             // llama-server ignores the key; async-openai requires a non-empty one.
             api_key_env: String::new(),
             model: self.model_id.clone(),
+            // Not set here: this backend answers `context_window` from the
+            // supervisor, which owns the `-c` the process was launched with.
+            context_window: None,
         };
         let client = Arc::new(OpenAICompatibleClient::new(
             &cfg,

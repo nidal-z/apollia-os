@@ -74,6 +74,15 @@ pub struct ApiBackendConfig {
     pub api_key_env: String,
     /// Default model identifier for this backend.
     pub model: String,
+    /// Usable context window in tokens, when it is known for this backend.
+    ///
+    /// The OpenAI-compatible protocol carries no way to ask, so this is either
+    /// configured by the operator or resolved by the router from a
+    /// provider-specific endpoint. `None` means unknown, and the router then
+    /// sizes compaction from a generic fallback, which is only safe as long as
+    /// nothing pretends the value was measured.
+    #[serde(default)]
+    pub context_window: Option<usize>,
 }
 
 impl ApiBackendConfig {
@@ -189,13 +198,14 @@ impl OpenAICompatibleClient {
         // wrapper keeps every existing behaviour and recovers that object.
         // Requires `stream` to be unset, which it is: this is the non-streaming
         // path and the builder never sets it.
-        let envelope: WithTimings<CreateChatCompletionResponse> = self
+        let envelope: WithExtras<CreateChatCompletionResponse> = self
             .client
             .chat()
             .create_byot(request)
             .await
             .map_err(map_openai_error)?;
         let engine_timings = envelope.timings;
+        let reasoning = envelope.reasoning;
         let response = envelope.inner;
 
         let latency_ms = started.elapsed().as_millis() as u64;
@@ -207,7 +217,7 @@ impl OpenAICompatibleClient {
             .ok_or_else(|| LlmError::ParseError("no choices in response".to_owned()))?;
 
         let finish_reason = map_finish_reason(choice.finish_reason.as_ref());
-        let content = choice.message.content.unwrap_or_default();
+        let content = inline_reasoning(reasoning, choice.message.content.unwrap_or_default());
 
         let tool_calls = choice
             .message
@@ -272,8 +282,116 @@ struct WithTimings<T> {
     timings: Option<serde_json::Value>,
 }
 
-/// One streamed chunk, plus any engine timings riding on it.
-type TimedStreamResponse = WithTimings<CreateChatCompletionStreamResponse>;
+/// The separate reasoning field carried by a non-streaming response.
+///
+/// See [`RawReasoning`] for why this is captured at all. Parsed from the same
+/// body as [`WithTimings`], in a second pass over the raw bytes, because the
+/// field sits inside `choices[].message` where a top-level flatten cannot reach.
+#[derive(serde::Deserialize)]
+struct ReasoningEnvelope {
+    #[serde(default)]
+    choices: Vec<ReasoningChoice>,
+}
+
+#[derive(serde::Deserialize)]
+struct ReasoningChoice {
+    /// Non-streaming responses carry the field under `message`, streamed ones
+    /// under `delta`. One of the two is present; both are optional.
+    #[serde(default)]
+    message: Option<RawReasoning>,
+    #[serde(default)]
+    delta: Option<RawReasoning>,
+}
+
+/// Reasoning a server streams beside the content instead of inside it.
+///
+/// The embedded `llama-server` runs with `--reasoning-format none`, so a
+/// reasoning model's thoughts stay inline in `content` as `<think>` tags, which
+/// is what the chat pipeline parses. Other OpenAI-compatible servers split them
+/// out instead: Ollama uses `reasoning`, vLLM and DeepSeek use
+/// `reasoning_content`. A client that reads only `content` drops them entirely,
+/// which on a reasoning model means the user watches an empty screen for the
+/// whole thinking phase and the pipeline sees no reasoning at all.
+///
+/// Both spellings are accepted here and re-inlined as `<think>` tags, so every
+/// backend reaches the rest of the runtime in the same shape.
+#[derive(serde::Deserialize)]
+struct RawReasoning {
+    #[serde(default, alias = "reasoning_content")]
+    reasoning: Option<String>,
+}
+
+/// Opening tag used to re-inline reasoning that arrived in a separate field.
+const THINK_OPEN: &str = "<think>";
+/// Closing counterpart of [`THINK_OPEN`].
+const THINK_CLOSE: &str = "</think>";
+
+/// Prefix `content` with the separate `reasoning`, wrapped in `<think>` tags.
+///
+/// A backend that already inlines its reasoning reports no separate field and
+/// its content passes through untouched, so the two shapes converge without the
+/// caller having to know which server answered.
+fn inline_reasoning(reasoning: Option<String>, content: String) -> String {
+    match reasoning {
+        Some(r) if !r.is_empty() => format!("{THINK_OPEN}{r}{THINK_CLOSE}{content}"),
+        _ => content,
+    }
+}
+
+impl ReasoningEnvelope {
+    /// The first choice's reasoning delta, when it is present and non-empty.
+    fn first(&self) -> Option<&str> {
+        self.choices
+            .first()
+            .and_then(|c| c.message.as_ref().or(c.delta.as_ref()))
+            .and_then(|r| r.reasoning.as_deref())
+            .filter(|s| !s.is_empty())
+    }
+}
+
+/// A response or chunk, plus both fields the declared type would discard.
+struct WithExtras<T> {
+    inner: T,
+    timings: Option<serde_json::Value>,
+    /// Reasoning from a server that reports it beside the content.
+    reasoning: Option<String>,
+}
+
+impl<'de, T> serde::Deserialize<'de> for WithExtras<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    /// Parses the body twice from one buffered value.
+    ///
+    /// A single derive cannot do this: `#[serde(flatten)]` reaches top-level
+    /// keys only, and the reasoning field sits two levels down inside `choices`,
+    /// which the flattened type already owns. Buffering into a `Value` and
+    /// reading it twice keeps the crate's own parsing byte-for-byte identical
+    /// rather than re-declaring the response type here, where it would drift on
+    /// every upstream change.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        // A body that carries no reasoning must still parse: this probe is
+        // best-effort by construction and never turns a good response into an
+        // error.
+        let reasoning = serde_json::from_value::<ReasoningEnvelope>(value.clone())
+            .ok()
+            .and_then(|e| e.first().map(str::to_owned));
+        let envelope: WithTimings<T> =
+            serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        Ok(Self {
+            inner: envelope.inner,
+            timings: envelope.timings,
+            reasoning,
+        })
+    }
+}
+
+/// One streamed chunk, plus the engine timings and reasoning riding on it.
+type TimedStreamResponse = WithExtras<CreateChatCompletionStreamResponse>;
 
 /// The byot equivalent of `ChatCompletionResponseStream`.
 type TimedChatStream = Pin<
@@ -349,7 +467,7 @@ impl CompletionModel for OpenAICompatibleClient {
         let sse_stream = match self
             .client
             .chat()
-            .create_stream_byot::<_, WithTimings<CreateChatCompletionStreamResponse>>(request)
+            .create_stream_byot::<_, TimedStreamResponse>(request)
             .await
         {
             Ok(stream) => stream,
@@ -405,6 +523,7 @@ impl CompletionModel for OpenAICompatibleClient {
             pending: HashMap::new(),
             model,
             pending_timings: None,
+            in_think: false,
         };
 
         let mapped = futures::stream::unfold(state, next_openai_stream_item);
@@ -415,6 +534,17 @@ impl CompletionModel for OpenAICompatibleClient {
     /// Return `true`: the client is configured and ready to send requests.
     fn is_available(&self) -> bool {
         true
+    }
+
+    /// Report the configured context window, when the operator or the router
+    /// established one.
+    ///
+    /// Left `None` otherwise rather than guessed: a self-hosted server sizes its
+    /// window from its own configuration and the machine it runs on, and an
+    /// invented number would have the router compact against a window no server
+    /// ever had.
+    fn context_window(&self) -> Option<usize> {
+        self.config.context_window
     }
 
     /// Logical backend name as configured in `apollia.toml`.
@@ -626,6 +756,16 @@ enum OpenAIStreamState {
         /// emit. Held back so they surface on the following poll, since the
         /// state machine yields one item at a time.
         pending_timings: Option<serde_json::Value>,
+        /// Whether a `<think>` block opened by a separate reasoning field is
+        /// still open. See [`RawReasoning`].
+        in_think: bool,
+    },
+    /// SSE ended inside a `<think>` block: the closing tag has been emitted and
+    /// the terminal items still owe an appearance. A distinct state because the
+    /// inner stream is exhausted and must not be polled again.
+    Ending {
+        timings: Option<serde_json::Value>,
+        pending: HashMap<u32, PartialToolCall>,
     },
     /// SSE stream ended; emitting accumulated tool calls one by one.
     Flushing { remaining: Vec<ToolCall> },
@@ -655,12 +795,22 @@ async fn next_openai_stream_item(
                 OpenAIStreamState::Flushing { remaining },
             )
         }),
+        OpenAIStreamState::Ending { timings, pending } => match timings {
+            Some(t) => Some((
+                Ok(StreamChunk::Timings(t)),
+                OpenAIStreamState::Flushing {
+                    remaining: drain_pending_tool_calls(pending),
+                },
+            )),
+            None => flush_pending_tool_calls(pending),
+        },
         OpenAIStreamState::Streaming {
             mut inner,
             mut first,
             mut pending,
             model,
             mut pending_timings,
+            mut in_think,
         } => {
             // Timings held back from an earlier chunk take priority, so they are
             // never lost behind a later text delta.
@@ -673,6 +823,7 @@ async fn next_openai_stream_item(
                         pending,
                         model,
                         pending_timings: None,
+                        in_think,
                     },
                 ));
             }
@@ -689,6 +840,7 @@ async fn next_openai_stream_item(
                         if let Some(t) = envelope.timings {
                             pending_timings = Some(t);
                         }
+                        let reasoning = envelope.reasoning;
                         let response = envelope.inner;
                         // The terminal chunk (empty `choices`, populated `usage`)
                         // carries the call's token accounting. Surface it as
@@ -712,10 +864,13 @@ async fn next_openai_stream_item(
                                     pending,
                                     model,
                                     pending_timings,
+                                    in_think,
                                 },
                             ));
                         }
-                        if let Some(text) = next_emittable_text(&mut pending, response) {
+                        if let Some(text) =
+                            next_emittable_text(&mut pending, response, reasoning, &mut in_think)
+                        {
                             return Some((
                                 Ok(StreamChunk::Text(text)),
                                 OpenAIStreamState::Streaming {
@@ -724,6 +879,7 @@ async fn next_openai_stream_item(
                                     pending,
                                     model,
                                     pending_timings,
+                                    in_think,
                                 },
                             ));
                         }
@@ -733,6 +889,20 @@ async fn next_openai_stream_item(
                         return Some((Err(map_openai_error(e)), OpenAIStreamState::Done));
                     }
                     None => {
+                        // A stream that ends while a reasoning block is open
+                        // (the model went straight from thinking to a tool call,
+                        // or was cut off) would leave an unbalanced `<think>`
+                        // that the downstream parser reads as reasoning
+                        // swallowing the rest of the turn.
+                        if in_think {
+                            return Some((
+                                Ok(StreamChunk::Text(THINK_CLOSE.to_owned())),
+                                OpenAIStreamState::Ending {
+                                    timings: pending_timings.take(),
+                                    pending,
+                                },
+                            ));
+                        }
                         // SSE ended. Timings from the final chunk outrank the
                         // tool-call flush: dropping them here would lose the
                         // measurement on every turn that ends in a tool call.
@@ -756,9 +926,16 @@ async fn next_openai_stream_item(
 /// Process an SSE chunk: accumulate tool call fragments into `pending` and
 /// return the delta text if it is non-empty (to emit immediately), otherwise
 /// `None` (chunk consumed, keep reading).
+///
+/// A `reasoning` delta is re-inlined as a `<think>` block so a backend that
+/// splits reasoning out reaches the pipeline in the same shape as one that
+/// keeps it in the content stream. `in_think` carries the open/closed state
+/// across chunks, since the tags straddle them.
 fn next_emittable_text(
     pending: &mut HashMap<u32, PartialToolCall>,
     response: async_openai::types::CreateChatCompletionStreamResponse,
+    reasoning: Option<String>,
+    in_think: &mut bool,
 ) -> Option<String> {
     let choice = response.choices.into_iter().next()?;
 
@@ -767,11 +944,27 @@ fn next_emittable_text(
     }
 
     let text = choice.delta.content.unwrap_or_default();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
+    let reasoning = reasoning.unwrap_or_default();
+    if text.is_empty() && reasoning.is_empty() {
+        return None;
     }
+
+    let mut out = String::with_capacity(text.len() + reasoning.len());
+    if !reasoning.is_empty() {
+        if !*in_think {
+            out.push_str(THINK_OPEN);
+            *in_think = true;
+        }
+        out.push_str(&reasoning);
+    }
+    if !text.is_empty() {
+        if *in_think {
+            out.push_str(THINK_CLOSE);
+            *in_think = false;
+        }
+        out.push_str(&text);
+    }
+    Some(out)
 }
 
 /// Accumulate the tool call fragments received in an SSE chunk, indexed by
@@ -868,6 +1061,7 @@ mod tests {
             api_url: "https://api.openai.com/v1".into(),
             api_key_env: "APOLLIA_TEST_KEY_ABSENT_XYZ".into(),
             model: "gpt-4o-mini".into(),
+            context_window: None,
         };
 
         let result = config.resolve_api_key();
@@ -934,6 +1128,7 @@ mod tests {
             api_url: "https://api.openai.com/v1".into(),
             api_key_env: "APOLLIA_TEST_KEY_PRESENT_XYZ".into(),
             model: "gpt-4o-mini".into(),
+            context_window: None,
         };
 
         let result = config.resolve_api_key();
@@ -1014,6 +1209,7 @@ mod tests {
             api_url: "https://api.openai.com/v1".into(),
             api_key_env: "OPENAI_API_KEY".into(),
             model: "gpt-4o-mini".into(),
+            context_window: None,
         };
         let client = OpenAICompatibleClient::new(
             &config,
@@ -1075,6 +1271,7 @@ mod tests {
             api_url: api_url.to_string(),
             api_key_env: "UNUSED_IN_TESTS".to_string(),
             model: "test-model".to_string(),
+            context_window: None,
         }
     }
 
@@ -1201,5 +1398,142 @@ mod tests {
         assert_eq!(call.id, "call_abc123");
         assert_eq!(call.name, "file_read");
         assert_eq!(call.arguments["path"], "/tmp/x");
+    }
+
+    // ── Reasoning reported beside the content ───────────────────────────────
+
+    fn stream_chunk(delta: serde_json::Value) -> TimedStreamResponse {
+        serde_json::from_value(serde_json::json!({
+            "id": "c1",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "m",
+            "choices": [{"index": 0, "delta": delta, "finish_reason": null}],
+        }))
+        .expect("chunk must parse")
+    }
+
+    fn emit(chunk: TimedStreamResponse, in_think: &mut bool) -> Option<String> {
+        let mut pending = HashMap::new();
+        next_emittable_text(&mut pending, chunk.inner, chunk.reasoning, in_think)
+    }
+
+    // GIVEN a streamed chunk shaped like Ollama's, with the reasoning in its own
+    // field and an empty content
+    // WHEN it is deserialized
+    // THEN the reasoning is recovered rather than dropped with the unknown keys
+    #[test]
+    fn test_stream_chunk_recovers_separate_reasoning_field() {
+        let chunk = stream_chunk(serde_json::json!({"content": "", "reasoning": "Here"}));
+
+        assert_eq!(chunk.reasoning.as_deref(), Some("Here"));
+    }
+
+    // GIVEN the other spelling of the same field, used by vLLM and DeepSeek
+    // WHEN it is deserialized
+    // THEN it is recovered too, so one client covers both conventions
+    #[test]
+    fn test_stream_chunk_recovers_reasoning_content_alias() {
+        let chunk = stream_chunk(serde_json::json!({"reasoning_content": "step"}));
+
+        assert_eq!(chunk.reasoning.as_deref(), Some("step"));
+    }
+
+    // GIVEN a chunk from a server that inlines its reasoning (the embedded
+    // llama-server with --reasoning-format none)
+    // WHEN it is deserialized
+    // THEN no separate reasoning is reported and the content is untouched, so
+    // the inlining below never fires and cannot double-wrap
+    #[test]
+    fn test_stream_chunk_without_reasoning_field_reports_none() {
+        let chunk = stream_chunk(serde_json::json!({"content": "<think>a</think>b"}));
+
+        assert!(chunk.reasoning.is_none());
+        assert_eq!(
+            chunk.inner.choices[0].delta.content.as_deref(),
+            Some("<think>a</think>b")
+        );
+    }
+
+    // GIVEN a reasoning stream followed by the visible answer
+    // WHEN the chunks are emitted in order
+    // THEN the block is opened once, kept open across chunks, and closed exactly
+    // when the first content arrives
+    #[test]
+    fn test_separate_reasoning_is_reinlined_as_one_think_block() {
+        let mut in_think = false;
+
+        let first = emit(
+            stream_chunk(serde_json::json!({"content": "", "reasoning": "Here"})),
+            &mut in_think,
+        );
+        let second = emit(
+            stream_chunk(serde_json::json!({"content": "", "reasoning": "'s why"})),
+            &mut in_think,
+        );
+        let third = emit(
+            stream_chunk(serde_json::json!({"content": "Answer"})),
+            &mut in_think,
+        );
+
+        assert_eq!(first.as_deref(), Some("<think>Here"));
+        assert_eq!(second.as_deref(), Some("'s why"));
+        assert_eq!(third.as_deref(), Some("</think>Answer"));
+        assert!(!in_think, "the block must be closed once content started");
+    }
+
+    // GIVEN a chunk carrying reasoning and content at once
+    // WHEN it is emitted
+    // THEN the block opens and closes within that single chunk
+    #[test]
+    fn test_reasoning_and_content_in_one_chunk_close_immediately() {
+        let mut in_think = false;
+
+        let out = emit(
+            stream_chunk(serde_json::json!({"content": "B", "reasoning": "A"})),
+            &mut in_think,
+        );
+
+        assert_eq!(out.as_deref(), Some("<think>A</think>B"));
+        assert!(!in_think);
+    }
+
+    // GIVEN a chunk with neither content nor reasoning (an SSE heartbeat)
+    // WHEN it is emitted
+    // THEN nothing is produced and no block is opened
+    #[test]
+    fn test_empty_chunk_emits_nothing() {
+        let mut in_think = false;
+
+        let out = emit(
+            stream_chunk(serde_json::json!({"content": ""})),
+            &mut in_think,
+        );
+
+        assert!(out.is_none());
+        assert!(!in_think);
+    }
+
+    // GIVEN a non-streaming response whose reasoning came in its own field
+    // WHEN the content is assembled
+    // THEN the reasoning precedes it inside a think block, the shape the chat
+    // pipeline already parses
+    #[test]
+    fn test_inline_reasoning_prefixes_content() {
+        let out = inline_reasoning(Some("why".to_owned()), "answer".to_owned());
+
+        assert_eq!(out, "<think>why</think>answer");
+    }
+
+    // GIVEN a response with no separate reasoning
+    // WHEN the content is assembled
+    // THEN it passes through byte for byte
+    #[test]
+    fn test_inline_reasoning_passthrough_without_reasoning() {
+        assert_eq!(inline_reasoning(None, "answer".to_owned()), "answer");
+        assert_eq!(
+            inline_reasoning(Some(String::new()), "answer".to_owned()),
+            "answer"
+        );
     }
 }

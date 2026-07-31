@@ -9,11 +9,13 @@
 //! `--jinja`, all behind the same OpenAI-compatible HTTP surface the
 //! `apollia-llm` OpenAI backend already speaks.
 //!
-//! This supervisor owns the `llama-server` child process: it picks a loopback
-//! port, launches the binary, waits for `/health`, and respawns the process if
-//! it dies. Switching the active model restarts the process (one model per
-//! server). Whisper STT still lives in `apollia-runner`; only the LLM engine
-//! moves here.
+//! This supervisor owns the `llama-server` child processes: it picks a loopback
+//! port, launches the binary, waits for `/health`, and respawns a process if it
+//! dies. A process serves exactly one model, so serving several means running
+//! several. [`ENV_MAX_LOADED`] caps how many stay resident, defaulting to one,
+//! which reproduces the historical behaviour of stopping the running server on
+//! every model change. Whisper STT still lives in `apollia-runner`; only the LLM
+//! engine moves here.
 
 mod config;
 
@@ -22,13 +24,14 @@ pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use thiserror::Error;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 
@@ -52,11 +55,63 @@ pub enum LlamaServerError {
     ExitedDuringStartup(String),
 }
 
-/// The running server's loopback port and the model it was launched with.
-#[derive(Clone, Debug)]
-struct RunningState {
-    port: u16,
+/// One running `llama-server`, serving exactly one model.
+///
+/// A process serves a single model: `-m` is fixed at launch. Serving a second
+/// model therefore means a second process, not a reconfiguration of this one.
+struct Instance {
     model_path: String,
+    port: u16,
+    child: Child,
+    /// Value of the supervisor's tick when this instance was last requested.
+    /// Orders eviction; a wall clock would not, since two requests inside the
+    /// same millisecond are common.
+    last_used: u64,
+}
+
+impl Instance {
+    fn base_url(&self) -> String {
+        format!("http://127.0.0.1:{}/v1", self.port)
+    }
+
+    /// Whether the child is still alive (has not exited).
+    fn is_running(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+}
+
+/// Environment variable setting how many models stay resident at once.
+const ENV_MAX_LOADED: &str = "APOLLIA_LLAMA_MAX_LOADED";
+
+/// Default number of resident models.
+///
+/// One, deliberately. Every additional resident model holds its weights in
+/// memory for as long as it stays loaded, and the right ceiling depends on the
+/// machine and on which models an installation actually alternates between.
+/// Auto-sizing it from total memory would silently commit gigabytes on the
+/// operator's behalf, so raising it is an explicit act.
+const DEFAULT_MAX_LOADED: usize = 1;
+
+/// Resolve [`ENV_MAX_LOADED`], floored at one.
+///
+/// A zero or unparseable value keeps the default rather than disabling local
+/// inference outright: a typo in an environment variable must not be the reason
+/// no model can load.
+fn resolve_max_loaded(get: impl Fn(&str) -> Option<String>) -> usize {
+    match get(ENV_MAX_LOADED) {
+        None => DEFAULT_MAX_LOADED,
+        Some(raw) => match raw.trim().parse::<usize>() {
+            Ok(n) if n >= 1 => n,
+            _ => {
+                tracing::warn!(
+                    var = ENV_MAX_LOADED,
+                    value = %raw,
+                    "llama.server.max_loaded.invalid"
+                );
+                DEFAULT_MAX_LOADED
+            }
+        },
+    }
 }
 
 /// Timeout for the initial (and post-respawn) `/health` handshake. Model load
@@ -69,24 +124,32 @@ const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// Interval between liveness checks of the running child.
 const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 
-/// Supervisor that owns the embedded `llama-server` child process.
+/// Supervisor that owns the embedded `llama-server` child processes.
+///
+/// Holds up to [`ENV_MAX_LOADED`] models resident at once, evicting the least
+/// recently used beyond that. With the default of one this is the historical
+/// behaviour exactly: every model change stops the running process and starts
+/// another. Raising it trades memory for hand-off latency, which is the whole
+/// cost of a fleet of agents that do not share a model.
 ///
 /// Cloneable state lives behind `Arc`; the supervisor itself is held behind an
-/// `Arc` by the runtime so the supervision task can respawn the child.
+/// `Arc` by the runtime so the supervision task can respawn a dead child.
 pub struct LlamaServerSupervisor {
     bin_path: PathBuf,
     /// Context window the server is launched with (`-c`), reported to the router
     /// as the model's usable window so it can size compaction. Immutable: every
     /// (re)spawn uses the same value.
     n_ctx: u32,
-    /// Desired launch configuration; updated by [`switch_model`](Self::switch_model)
-    /// and read by every (re)spawn.
+    /// How many models may stay resident simultaneously. At least one.
+    max_loaded: usize,
+    /// Launch configuration shared by every instance. Its `model_path` is a
+    /// template slot: the real path is supplied per instance at spawn.
     config: Arc<Mutex<LlamaServerConfig>>,
-    /// Port + model of the currently running server, or `None` when down.
-    inner: Arc<RwLock<Option<RunningState>>>,
-    /// The child process, owned exclusively by the supervisor (`kill_on_drop`).
-    child: Arc<Mutex<Option<Child>>>,
-    /// Serialises (re)spawns so [`switch_model`](Self::switch_model) and the
+    /// Running instances, most-recently-used ordering carried by `last_used`.
+    instances: Arc<Mutex<Vec<Instance>>>,
+    /// Monotonic counter feeding `Instance::last_used`.
+    tick: Arc<AtomicU64>,
+    /// Serialises (re)spawns so [`ensure_model`](Self::ensure_model) and the
     /// supervision task never launch two servers at once.
     respawn_lock: Arc<Mutex<()>>,
     /// Set during shutdown so the supervision task stops respawning.
@@ -98,8 +161,8 @@ impl LlamaServerSupervisor {
     ///
     /// Locates the `llama-server` binary (returning [`LlamaServerError::BinaryNotFound`]
     /// when it is absent, so the caller can treat local inference as unavailable)
-    /// but does not spawn a process. The server starts lazily on the first
-    /// [`switch_model`](Self::switch_model), so a fresh install with no model yet
+    /// but does not spawn a process. A server starts lazily on the first
+    /// [`ensure_model`](Self::ensure_model), so a fresh install with no model yet
     /// still yields a usable supervisor that the router factory can capture.
     /// Call [`spawn_supervision`](Self::spawn_supervision) to enable auto-respawn.
     pub fn new(config: LlamaServerConfig) -> Result<Arc<Self>, LlamaServerError> {
@@ -110,26 +173,17 @@ impl LlamaServerSupervisor {
         // resolution is pure and applied to the same base at spawn, so both
         // agree.
         let n_ctx = resolve_env_overrides(&config, env_getter).n_ctx;
+        let max_loaded = resolve_max_loaded(env_getter);
         Ok(Arc::new(Self {
             bin_path,
             n_ctx,
+            max_loaded,
             config: Arc::new(Mutex::new(config)),
-            inner: Arc::new(RwLock::new(None)),
-            child: Arc::new(Mutex::new(None)),
+            instances: Arc::new(Mutex::new(Vec::new())),
+            tick: Arc::new(AtomicU64::new(0)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
         }))
-    }
-
-    /// OpenAI-compatible base URL of the running server, or `None` when down.
-    ///
-    /// The `apollia-llm` OpenAI backend targets this as its `endpoint`.
-    pub async fn base_url(&self) -> Option<String> {
-        self.inner
-            .read()
-            .await
-            .as_ref()
-            .map(|s| format!("http://127.0.0.1:{}/v1", s.port))
     }
 
     /// Context window (`-c`) the server is launched with, in tokens.
@@ -137,27 +191,78 @@ impl LlamaServerSupervisor {
         self.n_ctx
     }
 
-    /// Model path the server is currently serving, or `None` when down.
-    pub async fn current_model(&self) -> Option<String> {
-        self.inner
-            .read()
-            .await
-            .as_ref()
-            .map(|s| s.model_path.clone())
+    /// Number of models kept resident at once.
+    pub fn max_loaded(&self) -> usize {
+        self.max_loaded
     }
 
-    /// Switch the active model, restarting the server (one model per process).
+    /// Make `model_path` servable and return the base URL that serves it.
     ///
-    /// A no-op when the requested model is already running. Serialised against
-    /// the supervision task via `respawn_lock`.
-    pub async fn switch_model(&self, model_path: String) -> Result<(), LlamaServerError> {
+    /// Returns immediately when that model already has a live process, which is
+    /// what makes a second resident model worth having: the hand-off between two
+    /// agents on two models costs a lookup rather than a reload. Otherwise a
+    /// process is started, evicting the least recently used one first when the
+    /// residency ceiling is reached.
+    ///
+    /// The URL is returned rather than read back through a separate accessor:
+    /// with several instances alive, "the current one" is not a well-defined
+    /// question, and a caller that asked for a specific model must not receive
+    /// another one's port.
+    ///
+    /// # Errors
+    ///
+    /// [`LlamaServerError`] when the process cannot be spawned or never becomes
+    /// healthy.
+    pub async fn ensure_model(&self, model_path: String) -> Result<String, LlamaServerError> {
         let _guard = self.respawn_lock.lock().await;
-        if self.inner.read().await.as_ref().map(|s| &s.model_path) == Some(&model_path) {
-            return Ok(());
+        if let Some(url) = self.touch_live_instance(&model_path).await {
+            return Ok(url);
         }
-        self.config.lock().await.model_path = model_path;
-        self.kill_child().await;
-        self.spawn_process().await
+        self.evict_until_below_ceiling().await;
+        self.spawn_instance(model_path).await
+    }
+
+    /// Return the base URL of a live instance for `model_path`, marking it as
+    /// just used. Drops an instance whose process has died, so the caller
+    /// respawns instead of handing out a dead port.
+    async fn touch_live_instance(&self, model_path: &str) -> Option<String> {
+        let mut instances = self.instances.lock().await;
+        let idx = instances.iter().position(|i| i.model_path == model_path)?;
+        if !instances[idx].is_running() {
+            let dead = instances.remove(idx);
+            tracing::warn!(model = %dead.model_path, port = dead.port, "llama.server.instance.dead");
+            return None;
+        }
+        instances[idx].last_used = self.next_tick();
+        Some(instances[idx].base_url())
+    }
+
+    /// Stop least-recently-used instances until one more fits under the ceiling.
+    async fn evict_until_below_ceiling(&self) {
+        let mut instances = self.instances.lock().await;
+        while instances.len() >= self.max_loaded {
+            let Some(idx) = instances
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, i)| i.last_used)
+                .map(|(idx, _)| idx)
+            else {
+                return;
+            };
+            let mut evicted = instances.remove(idx);
+            tracing::info!(
+                model = %evicted.model_path,
+                port = evicted.port,
+                "llama.server.instance.evicted"
+            );
+            let _ = evicted.child.kill().await;
+            let _ = evicted.child.wait().await;
+        }
+    }
+
+    /// Next value of the monotonic use counter.
+    fn next_tick(&self) -> u64 {
+        self.tick.fetch_add(1, Ordering::Relaxed)
     }
 
     /// Watch the child and respawn it if it dies unexpectedly.
@@ -178,94 +283,97 @@ impl LlamaServerSupervisor {
 
                 // Nothing to supervise until a model has been requested: a fresh
                 // install may never start a local server. Respawning here would
-                // launch llama-server with no `-m` and crash-loop.
-                if self.config.lock().await.model_path.is_empty() {
-                    tokio::time::sleep(SUPERVISION_POLL).await;
-                    continue;
-                }
-
-                let dead = {
-                    let mut guard = self.child.lock().await;
-                    match guard.as_mut() {
-                        Some(child) => match child.try_wait() {
-                            Ok(Some(status)) => Some(status.to_string()),
-                            Ok(None) => None,
-                            Err(e) => Some(format!("try_wait failed: {e}")),
-                        },
-                        None => Some("no child".to_owned()),
-                    }
-                };
-
-                let Some(reason) = dead else {
+                // launch llama-server with no `-m` and crash-loop. An evicted
+                // model is absent from this list on purpose: it was stopped
+                // deliberately and must not come back on its own.
+                let dead = self.take_dead_instances().await;
+                if dead.is_empty() {
                     backoff = MIN_BACKOFF;
                     tokio::time::sleep(SUPERVISION_POLL).await;
                     continue;
-                };
+                }
 
                 if *self.shutting_down.lock().await {
                     return;
                 }
-
-                // Serialise with switch_model, then re-check: it may have already
-                // respawned the server while we waited for the lock.
-                let _guard = self.respawn_lock.lock().await;
-                if self.child_is_running().await {
-                    continue;
-                }
-
-                tracing::error!(reason = %reason, "llama-server exited, respawning");
-                *self.inner.write().await = None;
 
                 tokio::time::sleep(backoff).await;
                 if *self.shutting_down.lock().await {
                     return;
                 }
-                match self.spawn_process().await {
-                    Ok(()) => {
-                        tracing::info!("llama-server respawned");
-                        backoff = MIN_BACKOFF;
+
+                // Serialise with ensure_model so two spawns never race.
+                let _guard = self.respawn_lock.lock().await;
+                let mut all_ok = true;
+                for (model_path, reason) in dead {
+                    tracing::error!(
+                        model = %model_path,
+                        reason = %reason,
+                        "llama-server exited, respawning"
+                    );
+                    // A caller may have re-requested this model while we waited
+                    // for the lock, in which case it is live again.
+                    if self.touch_live_instance(&model_path).await.is_some() {
+                        continue;
                     }
-                    Err(e) => {
-                        tracing::error!(error = %e, "llama-server respawn failed");
-                        backoff = (backoff * 2).min(MAX_BACKOFF);
+                    match self.spawn_instance(model_path.clone()).await {
+                        Ok(_) => tracing::info!(model = %model_path, "llama-server respawned"),
+                        Err(e) => {
+                            tracing::error!(
+                                model = %model_path,
+                                error = %e,
+                                "llama-server respawn failed"
+                            );
+                            all_ok = false;
+                        }
                     }
                 }
+                backoff = if all_ok {
+                    MIN_BACKOFF
+                } else {
+                    (backoff * 2).min(MAX_BACKOFF)
+                };
             }
         });
     }
 
-    /// Stop the server without consuming the supervisor (for the exit hook).
+    /// Stop every server without consuming the supervisor (for the exit hook).
     pub async fn shutdown_in_place(&self) {
         *self.shutting_down.lock().await = true;
         let _guard = self.respawn_lock.lock().await;
-        self.kill_child().await;
-        *self.inner.write().await = None;
-    }
-
-    /// Returns whether the child is currently alive (has not exited).
-    async fn child_is_running(&self) -> bool {
-        let mut guard = self.child.lock().await;
-        match guard.as_mut() {
-            Some(child) => matches!(child.try_wait(), Ok(None)),
-            None => false,
+        for mut instance in std::mem::take(&mut *self.instances.lock().await) {
+            let _ = instance.child.kill().await;
+            let _ = instance.child.wait().await;
         }
     }
 
-    /// Kill and reap the current child, if any.
-    async fn kill_child(&self) {
-        if let Some(mut child) = self.child.lock().await.take() {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
-        }
+    /// Remove every instance whose process has exited, returning what they were
+    /// serving and why they are gone, so the caller can respawn them.
+    async fn take_dead_instances(&self) -> Vec<(String, String)> {
+        let mut instances = self.instances.lock().await;
+        let mut dead = Vec::new();
+        instances.retain_mut(|instance| match instance.child.try_wait() {
+            Ok(None) => true,
+            Ok(Some(status)) => {
+                dead.push((instance.model_path.clone(), status.to_string()));
+                false
+            }
+            Err(e) => {
+                dead.push((instance.model_path.clone(), format!("try_wait failed: {e}")));
+                false
+            }
+        });
+        dead
     }
 
-    /// Spawn `llama-server` for the current config and wait until it is healthy.
+    /// Spawn `llama-server` for `model_path` and wait until it is healthy.
     ///
     /// Picks a free loopback port, resolves the `APOLLIA_LLAMA_` overrides onto
     /// the stored configuration, launches, drains the logs into tracing, and
-    /// polls `/health`.
-    async fn spawn_process(&self) -> Result<(), LlamaServerError> {
-        let config = resolve_env_overrides(&*self.config.lock().await, env_getter);
+    /// polls `/health`. Returns the base URL that serves the model.
+    async fn spawn_instance(&self, model_path: String) -> Result<String, LlamaServerError> {
+        let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
+        config.model_path = model_path;
         let port = pick_free_port()?;
         let args = build_args(&config, port);
 
@@ -330,13 +438,16 @@ impl LlamaServerSupervisor {
 
         self.wait_until_healthy(&mut child, port).await?;
 
-        *self.inner.write().await = Some(RunningState {
-            port,
+        let instance = Instance {
             model_path: config.model_path,
-        });
-        *self.child.lock().await = Some(child);
-        tracing::info!(port, "llama-server healthy");
-        Ok(())
+            port,
+            child,
+            last_used: self.next_tick(),
+        };
+        let url = instance.base_url();
+        tracing::info!(port, model = %instance.model_path, "llama-server healthy");
+        self.instances.lock().await.push(instance);
+        Ok(url)
     }
 
     /// Poll `GET /health` until the server answers or the deadline elapses,
