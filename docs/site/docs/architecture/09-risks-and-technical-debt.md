@@ -54,8 +54,11 @@ reader trusts the stale version:
 
 The moat is real and demonstrable: bounded autonomy with an enforced step
 budget, a signed and verifiable audit trail with rollback, permissions with
-human oversight and autonomy tiers, structural injection detection, and a
-governed tool path that native and MCP tools both pass through. The debt is
+human oversight and autonomy tiers, a guard that refuses chained or redirected
+shell commands, and a governed tool path that native and MCP tools both pass
+through. Structural injection detection is **not** part of that list: the
+component exists but is not wired into the shipped application, and it screens
+shell injection rather than prompt injection. The debt is
 mostly at the edges: hardening the inference sidecar, closing the shell-check
 half of verification, wiring cost ceilings, and finishing the copilot layer.
 Knowing exactly where those edges are is the point of this page.

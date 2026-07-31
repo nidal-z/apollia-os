@@ -1,0 +1,137 @@
+# Capability claims, replayed against the code by scripts/check_claims.py.
+#
+# One entry per statement in the documentation that asserts something about what
+# the software does. The corpus has, more than once, described a capability whose
+# symbol existed while nothing ever called it: a permission engine documented on
+# five pages that runs in no shipped binary, five capture switches with a settings
+# page and no reader. Prose review does not catch that, because the prose is
+# internally coherent. Only the code disagrees.
+#
+# Fields
+#   id        stable slug. The documented paragraph carries `<!-- claim:<id> -->`,
+#             an HTML comment invisible once rendered. No line numbers anywhere:
+#             they do not survive a page move, a merge, or a translation, and a
+#             stale line number is how the previous audit produced five wrong
+#             proofs out of fifteen sampled.
+#   scope     "public" for docs/site, "rulebook" for docs/agents and AGENTS.md.
+#   symbol    the code symbol the claim stands on.
+#   status    "wired"     the symbol must have a use outside test code
+#             "not-wired" the documentation says it is inactive, and `evidence`
+#                         must still appear in `proof`
+#             "absent"    the documentation says it does not exist
+#   proof     file holding the evidence (no line number, on purpose).
+#   evidence  exact substring that must still be found in `proof`.
+#   note      why this claim is worth guarding.
+#
+# Adding a capability sentence to the corpus means adding an entry here. A marker
+# with no entry, or an entry with no marker, fails the build.
+
+# ── Permissions: the drift this file was built for ───────────────────────────
+
+[[claim]]
+id = "permission-engine-not-wired"
+scope = "public"
+symbol = "ToolDispatcher::with_permission_engine"
+status = "not-wired"
+proof = "crates/apollia-tools/src/executor.rs"
+evidence = "**No production caller wires it.**"
+note = """
+Five pages described a three-layer permission engine as the gate in front of
+every tool call. Two of the three layers never execute. The version that shipped
+to a compliance page cited OWASP ASVS and CWE-78 in support of a control that
+runs in no binary. If this evidence string ever stops matching, someone wired the
+engine and the corrected pages have to be corrected back.
+"""
+
+[[claim]]
+id = "injection-detector-is-shell-not-prompt"
+scope = "public"
+symbol = "InjectionDetector"
+status = "not-wired"
+proof = "crates/apollia-permissions/src/lib.rs"
+evidence = "detects **shell** injection, not prompt injection"
+note = """
+Two errors compounded here: the detector was presented as active when it is not,
+and as prompt-injection protection when it screens shell metacharacters. Apollia
+ships no prompt-injection defence, and the documentation must not imply one.
+"""
+
+[[claim]]
+id = "executor-guard-blocks-command-chaining"
+scope = "public"
+symbol = "is_single_simple_command"
+status = "wired"
+proof = "crates/apollia-permissions/src/executor_guard.rs"
+evidence = ""
+note = """
+The protection people attribute to the injection detector is really delivered
+here, and this one does run. It is the honest replacement claim on the pages
+where the engine was removed, so it needs a guard of its own.
+"""
+
+# ── Observability: switches that promised what they did not do ───────────────
+
+[[claim]]
+id = "observability-capture-switches-enforced"
+scope = "public"
+symbol = "capture_tool_outputs"
+status = "wired"
+proof = "crates/apollia-runtime/src/observability/persistor.rs"
+evidence = ""
+note = """
+capture_thoughts, capture_tool_args, capture_tool_outputs and capture_agent_logs
+had a settings page, an informed-consent dialog, and no reader at all: turning
+one off changed nothing. They are now enforced in event_to_record, the single
+point where an event becomes a row of runtime_events.db, with one test per switch
+and a mutation check proving the guards are load-bearing.
+"""
+
+[[claim]]
+id = "retention-purges-runtime-events-only"
+scope = "public"
+symbol = "purge_older_than"
+status = "wired"
+proof = "crates/apollia-runtime/src/observability/persistor.rs"
+evidence = ""
+note = """
+retention_days defaulted to 90 and no purge existed anywhere: the event log grew
+without bound on a machine the user owns. The purge now runs at boot, logs the
+deleted count at INFO, and treats 0 as never purge rather than keep zero days.
+It is scoped to runtime_events.db by construction, since the actor that runs it
+owns the only connection to that file. That scope is the point: the audit journal
+is a hash chain walked end to end by audit verify, and deleting a link would
+break verification for every entry after it.
+"""
+
+[[claim]]
+id = "debug-log-prompt-logs-at-trace"
+scope = "public"
+symbol = "debug_log_prompt"
+status = "wired"
+proof = "crates/apollia-llm/src/router.rs"
+evidence = ""
+note = """
+The setting that can actually expose prompt content, and the only one. It emits
+the full prompt at TRACE on both the completion and the streaming path, and
+persists nothing. It replaces `capture_llm_prompts`, which was removed: that one
+warned the operator about a risk it did not create, because no prompt text is
+persisted anywhere. Two traps to keep in view. First, the flag lives under
+`[llm.observability]`; a value written under `[observability]` is overwritten
+before use. Second, the LLM-call repository still hardcodes `prompt_text: None`,
+so if that ever changes this claim needs a second proof for the database path.
+"""
+
+# ── Platform posture ─────────────────────────────────────────────────────────
+
+[[claim]]
+id = "windows-has-no-tool-sandbox"
+scope = "public"
+symbol = "apply_rlimits"
+status = "not-wired"
+proof = "crates/apollia-tools/src/tools/rlimits.rs"
+evidence = "#[cfg(not(unix))]"
+note = """
+On Windows there is no per-process resource cap and no namespace isolation: the
+non-Unix apply_rlimits is an empty function. A user choosing a platform is
+entitled to know that before running an autonomous agent, not after.
+"""

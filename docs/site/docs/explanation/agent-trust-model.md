@@ -39,6 +39,12 @@ child process, not the agent, that Apollia confines:
   with `setrlimit`: CPU time and open file descriptors everywhere, plus address
   space on Linux (macOS rejects the address-space limit, so Apollia does not set
   it there).
+<!-- claim:windows-has-no-tool-sandbox -->
+- On Windows there is **no confinement at all**: no namespaces, and no resource
+  limits either, because `setrlimit` has no Windows equivalent and the function
+  that applies it is empty on non-Unix targets. A tool call on Windows runs with
+  the same rights as the application. `bash_executor` additionally needs a POSIX
+  shell on `PATH` (Git Bash, WSL or MSYS2) and fails without one.
 
 The distinction matters: the sandbox protects the host from a tool call, not from
 the agent's own code.

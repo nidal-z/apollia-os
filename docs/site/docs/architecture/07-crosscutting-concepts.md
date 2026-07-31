@@ -46,13 +46,29 @@ posture and its limits in full.
 
 ## Permissions and autonomy tiers
 
-Before any action runs, a three-layer permission engine classifies it: structural
-injection detection, a safe-list, a prefix rule, then needs-approval. Safe
-operations proceed; anything consequential raises an approval request an operator
-resolves, and that decision is recorded. Permissions are scoped to the whole
-install, a project, or a single session. On top of that, an autonomy tier is a
-dial the operator sets for how much an agent may do without asking. The same
-agent can run cautiously or freely depending on the trust the operator extends.
+<!-- claim:permission-engine-not-wired -->
+<!-- claim:executor-guard-blocks-command-chaining -->
+Before any action runs, three mechanisms classify it, and it is worth being
+precise about which ones ship enabled. A **prefix rule** matches the call against
+the operator's standing decisions. A **code-executor guard** refuses a shell
+command that chains, pipes, redirects or substitutes, so an approval granted for
+one command cannot smuggle a second. Anything left raises a **human-in-the-loop
+approval** the operator resolves, and that decision is recorded. All three are
+applied by `apollia-runtime` in the chat dispatch path.
+
+<!-- claim:injection-detector-is-shell-not-prompt -->
+`apollia-permissions` also contains a `PermissionEngine` aggregating a safe-list
+and a shell-injection detector. **It is not active in the shipped application.**
+`ToolDispatcher` holds an `Option<PermissionEngine>` that no production caller
+populates, so those two components never run. They are kept for an embedder that
+opts in, and the crate says so in its own module documentation. Note also that
+the detector screens **shell** injection, not prompt injection: Apollia ships no
+prompt-injection defence.
+
+Permissions are scoped to the whole install, a project, or a single session. On
+top of that, an autonomy tier is a dial the operator sets for how much an agent
+may do without asking. The same agent can run cautiously or freely depending on
+the trust the operator extends.
 
 ## Memory at agent initiative
 

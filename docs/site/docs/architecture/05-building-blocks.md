@@ -115,7 +115,7 @@ For the full native tool list see the [native tool catalog](/reference/native-to
 
 | Crate | Role |
 |---|---|
-| **apollia-permissions** | The three-layer permission engine (injection detection, safe-list, prefix rule, needs-approval), scoped to install, project, or session, with four autonomy tiers and an approvals register. Every decision is audited. Structural command-injection detection screens shell commands before they run. |
+| **apollia-permissions** | Permission types and decisions, scoped to install, project, or session, with four autonomy tiers and an approvals register. Every decision is audited. What ships enabled is the prefix-rule engine; the `PermissionEngine` aggregate, its safe-list and its shell-injection detector are present but not wired into the application (see [crosscutting concepts](./07-crosscutting-concepts.md)). |
 | **apollia-notifications** | Operator notifications across desktop, terminal, and webhook, with severity, HITL, and an inactivity watcher. |
 | **apollia-triggers** | Scheduled and reactive agent starts: cron, interval, one-shot, and file-watch are wired; the webhook source is a stub. |
 | **apollia-eval** | Sovereign evaluation: declarative TOML suites, an LLM-as-judge, and success, length, wall-clock, and cost metrics. |

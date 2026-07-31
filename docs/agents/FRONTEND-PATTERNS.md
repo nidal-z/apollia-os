@@ -88,6 +88,18 @@ references so a rename surfaces at type-check time.
 Why HSL custom properties : light and dark themes resolve from the same
 class name. Hardcoding RGB or hex breaks dark mode silently.
 
+Silently is the point : nothing fails, the component just looks wrong in one
+theme, and only in that theme. Find the offenders by pattern rather than by
+eye, then check the survivors by toggling `.dark` on `<html>` in DevTools :
+
+```sh
+grep -rnE '(bg|text|border)-(neutral|white|black)|#[0-9a-fA-F]{3,8}' \
+  crates/apollia-desktop/ui/src --include='*.svelte'
+```
+
+A hit is not automatically a defect (an opaque overlay may legitimately be
+black), but every hit needs a reason.
+
 Categories of tokens (see `crates/apollia-desktop/ui/src/app.css` for the full table) :
 
 - **Color** : `--primary`, `--surface-1`, `--surface-2`, `--surface-3`,
