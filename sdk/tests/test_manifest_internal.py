@@ -23,7 +23,6 @@ def _mark_skill(
     *,
     skill_id: str | None = None,
     description: str = "",
-    requires_approval: bool = False,
     dangerous: bool = False,
     examples: list[dict[str, Any]] | None = None,
 ) -> Any:
@@ -36,7 +35,6 @@ def _mark_skill(
             {
                 "id": skill_id,
                 "description": description,
-                "requires_approval": requires_approval,
                 "dangerous": dangerous,
                 "examples": list(examples) if examples else [],
             },

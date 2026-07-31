@@ -21,7 +21,6 @@ def test_skill_marker_set_with_defaults() -> None:
     assert meta == {
         "id": "pdf.read",
         "description": "",
-        "requires_approval": False,
         "dangerous": False,
         "examples": [],
     }
@@ -31,7 +30,6 @@ def test_skill_marker_with_all_args() -> None:
     @skill(
         "billing.charge",
         description="Charge a customer",
-        requires_approval=True,
         dangerous=True,
     )
     async def fn(self: object) -> dict[str, str]:
@@ -40,7 +38,7 @@ def test_skill_marker_with_all_args() -> None:
     meta = getattr(fn, SKILL_ATTR)
     assert meta["id"] == "billing.charge"
     assert meta["description"] == "Charge a customer"
-    assert meta["requires_approval"] is True
+    assert "requires_approval" not in meta
     assert meta["dangerous"] is True
 
 

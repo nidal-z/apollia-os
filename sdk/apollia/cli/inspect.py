@@ -133,7 +133,6 @@ def _extract_agent_data(
                         "description": getattr(entry, "description", ""),
                         "input_schema": getattr(entry, "input_schema", {}),
                         "output_schema": getattr(entry, "output_schema", {}),
-                        "requires_approval": getattr(entry, "requires_approval", False),
                         "dangerous": getattr(entry, "dangerous", False),
                     }
                 )
@@ -189,7 +188,6 @@ def _skills_from_legacy_manifest(manifest: dict[str, Any]) -> list[dict[str, Any
                 "description": entry.get("description", ""),
                 "input_schema": entry.get("input_schema", {}),
                 "output_schema": entry.get("output_schema", {}),
-                "requires_approval": bool(entry.get("requires_approval", False)),
                 "dangerous": bool(entry.get("dangerous", False)),
             }
         )
@@ -279,8 +277,6 @@ def _skill_lines(skill: dict[str, Any]) -> list[str]:
         f"    Input:  {_format_schema_brief(skill.get('input_schema', {}))}",
         f"    Output: {_format_schema_brief(skill.get('output_schema', {}))}",
     ]
-    if skill.get("requires_approval"):
-        lines.append("    [HITL] Requires human approval")
     if skill.get("dangerous"):
         lines.append("    [!] Dangerous skill")
     return lines

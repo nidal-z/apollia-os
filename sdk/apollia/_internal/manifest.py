@@ -37,7 +37,7 @@ __all__ = [
 # Marker attributes (set by decorators)
 # ──────────────────────────────────────────────────────────────────────
 
-# Method attribute → dict {id, description, requires_approval, dangerous}.
+# Method attribute → dict {id, description, dangerous}.
 SKILL_ATTR = "__apollia_skill__"
 # Method attribute → True.
 ON_MESSAGE_ATTR = "__apollia_on_message__"
@@ -62,7 +62,6 @@ class SkillEntry:
         "description",
         "input_schema",
         "output_schema",
-        "requires_approval",
         "dangerous",
         "examples",
     )
@@ -74,7 +73,6 @@ class SkillEntry:
         description: str,
         input_schema: dict[str, Any],
         output_schema: dict[str, Any],
-        requires_approval: bool,
         dangerous: bool,
         examples: list[dict[str, Any]] | None = None,
     ) -> None:
@@ -83,7 +81,6 @@ class SkillEntry:
         self.description = description
         self.input_schema = input_schema
         self.output_schema = output_schema
-        self.requires_approval = requires_approval
         self.dangerous = dangerous
         self.examples: list[dict[str, Any]] = list(examples) if examples else []
 
@@ -138,7 +135,7 @@ def collect_skills(cls: type) -> dict[str, SkillEntry]:
     """Walk ``cls`` (and its MRO) to collect all ``@skill``-decorated methods.
 
     The decorator stamps :data:`SKILL_ATTR` on the method with a dict
-    ``{id, description, requires_approval, dangerous, examples}``. This function
+    ``{id, description, dangerous, examples}``. This function
     builds input/output JSON schemas via :mod:`apollia._internal.inference`
     and returns a ``{skill_id: SkillEntry}`` mapping.
 
@@ -170,7 +167,6 @@ def collect_skills(cls: type) -> dict[str, SkillEntry]:
             description=description,
             input_schema=input_schema,
             output_schema=output_schema,
-            requires_approval=bool(meta.get("requires_approval", False)),
             dangerous=bool(meta.get("dangerous", False)),
             examples=list(examples_meta) if isinstance(examples_meta, list) else [],
         )
@@ -312,7 +308,6 @@ def build_manifest(
             "output_modes": ["data"],
             "input_schema": entry.input_schema,
             "output_schema": entry.output_schema,
-            "requires_approval": entry.requires_approval,
             "dangerous": entry.dangerous,
         }
         # Only include examples when the author actually provided some, to

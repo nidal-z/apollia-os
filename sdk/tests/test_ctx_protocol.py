@@ -27,6 +27,7 @@ def test_each_subprotocol_importable() -> None:
     from apollia.context.llm import LlmProxy, LlmResponse, TokenUsage  # noqa: F401
     from apollia.context.logger import Logger  # noqa: F401
     from apollia.context.memory import MemoryInterface  # noqa: F401
+    from apollia.context.mail import MailInterface  # noqa: F401
     from apollia.context.notify import NotifyInterface  # noqa: F401
     from apollia.context.profile import ProfileInterface  # noqa: F401
     from apollia.context.secrets import SecretsInterface  # noqa: F401
@@ -59,6 +60,7 @@ def test_each_subprotocol_importable() -> None:
         ("apollia.context.profile", "ProfileInterface"),
         ("apollia.context.workspace", "WorkspaceContext"),
         ("apollia.context.stt", "SttInterface"),
+        ("apollia.context.mail", "MailInterface"),
         ("apollia.context.notify", "NotifyInterface"),
         ("apollia.context.budget", "BudgetView"),
     ],
@@ -93,6 +95,7 @@ class _CompleteCtxMock:
         self.memory: Any = MagicMock()
         self.tools: Any = MagicMock()
         self.a2a: Any = MagicMock()
+        self.mail: Any = MagicMock()
         self.datasources: Any = MagicMock()
         self.templates: Any = MagicMock()
         self.secrets: Any = MagicMock()
@@ -113,6 +116,7 @@ class _IncompleteCtxMock:
         self.memory: Any = MagicMock()
         self.tools: Any = MagicMock()
         self.a2a: Any = MagicMock()
+        self.mail: Any = MagicMock()
         self.datasources: Any = MagicMock()
         self.templates: Any = MagicMock()
         self.secrets: Any = MagicMock()

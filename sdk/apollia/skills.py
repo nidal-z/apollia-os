@@ -65,7 +65,6 @@ def skill(
     skill_id: str,
     *,
     description: str = "",
-    requires_approval: bool = False,
     dangerous: bool = False,
     examples: list[dict[str, Any]] | None = None,
 ) -> Callable[[F], F]:
@@ -80,7 +79,6 @@ def skill(
         description: Human-readable description for A2A discovery. When
             omitted, the manifest falls back to the first line of the
             method's docstring.
-        requires_approval: HITL gate before invocation.
         dangerous: Marks the skill as potentially destructive (display warning).
         examples: Optional list of sample payload dicts shown alongside
             the input schema in the manifest. Useful for steering small
@@ -116,7 +114,6 @@ def skill(
             {
                 "id": validated_id,
                 "description": description,
-                "requires_approval": bool(requires_approval),
                 "dangerous": bool(dangerous),
                 "examples": validated_examples,
             },
