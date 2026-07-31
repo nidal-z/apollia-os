@@ -3914,7 +3914,6 @@
     "untitled_session": "Session sans titre",
     "command_group": {
       "sessions": "Sessions récentes",
-      "templates": "Modèles",
       "agents": "Agents",
       "slash": "Commandes slash"
     },
@@ -4045,28 +4044,6 @@
     "rate_limit": {
       "too_fast": "Ralentissez…",
       "too_many": "Trop de messages - respirez"
-    },
-    "template": {
-      "dev_review": {
-        "title": "Revue de code",
-        "description": "Relire les changements en cours et détecter les tests manquants."
-      },
-      "spec_writing": {
-        "title": "Rédaction de spec",
-        "description": "Co-écrire une spec technique avec des questions de clarification."
-      },
-      "research": {
-        "title": "Recherche",
-        "description": "Rassembler des sources et résumer l'état de l'art."
-      },
-      "debug": {
-        "title": "Débogage",
-        "description": "Isoler un bug pas à pas et remonter à la cause."
-      },
-      "ops_playbook": {
-        "title": "Runbook ops",
-        "description": "Exécuter un runbook opérationnel avec garde-fous."
-      }
     },
     "attachments": {
       "add": "Joindre un fichier",
@@ -4247,7 +4224,6 @@
       "submit_hint": "Cmd+Entrée pour démarrer un chat libre",
       "start_free": "Chat libre",
       "plan_mode": "Démarrer en mode plan",
-      "templates_section": "Modèles",
       "agents_section": "Agents",
       "empty_agents": "Aucun agent n'est installé. Installes-en un pour commencer à déléguer.",
       "install_agent": "Installer un agent",

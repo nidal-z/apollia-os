@@ -1,7 +1,6 @@
 import { describe, test, expect } from "vitest";
 import type { AgentListItem } from "$lib/types";
 import type { AgentLiveStatus } from "$lib/stores/agentStatus";
-import { CHAT_TEMPLATES } from "$lib/templates/chatTemplates";
 
 /**
  * Unit tests for the QuickPicker pure logic.
@@ -45,30 +44,6 @@ function statusOf(
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
-
-describe("chatTemplates", () => {
-  test("seeds the 5 expected generic templates", () => {
-    // GIVEN the hardcoded template list
-    // WHEN we inspect it
-    // THEN the 5 ultra-generic use-case templates are present
-    const ids = CHAT_TEMPLATES.map((t) => t.id).sort((a, b) => a.localeCompare(b));
-    expect(ids).toEqual(
-      ["brainstorm", "draft-writing", "explain", "research", "summarize"].sort((a, b) =>
-        a.localeCompare(b),
-      ),
-    );
-  });
-
-  test("every template exposes i18n keys for title, description and prompt", () => {
-    for (const tpl of CHAT_TEMPLATES) {
-      expect(tpl.titleKey.startsWith("chat.template.")).toBe(true);
-      expect(tpl.descriptionKey.startsWith("chat.template.")).toBe(true);
-      expect(tpl.promptKey.startsWith("chat.template.")).toBe(true);
-    }
-  });
-});
-
-// ─── Agent status mapping ────────────────────────────────────────────────────
 
 describe("agent status derivation", () => {
   test("returns the mapped status when known", () => {

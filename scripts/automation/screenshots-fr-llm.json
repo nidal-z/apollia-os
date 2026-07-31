@@ -339,6 +339,48 @@
       "kind": "click",
       "testid": "inbox-filter-all",
       "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1"
+    },
+    {
+      "kind": "click",
+      "testid": "add-backend-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "installation-connecter-un-modele-distant-1"
     }
   ]
 }

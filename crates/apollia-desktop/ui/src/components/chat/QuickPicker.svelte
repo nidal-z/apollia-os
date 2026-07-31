@@ -3,7 +3,7 @@
    * Inline 1-click chat creation picker.
    *
    * Replaces the multi-step modal flow with an auto-focused textarea plus
-   * clickable template and agent cards. Opens inline (no full-screen modal),
+   * clickable agent cards. Opens inline (no full-screen modal),
    * traps focus within its root, and persists expansion state to
    * `localStorage` so power users keep their preferred layout.
    */
@@ -33,13 +33,11 @@
     startAgentStatusPolling,
     type AgentLiveStatus,
   } from "$lib/stores/agentStatus";
-  import { CHAT_TEMPLATES, type ChatTemplate } from "$lib/templates/chatTemplates";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
   import { projects } from "$lib/stores/projects";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
-  import TemplateCard from "./TemplateCard.svelte";
   import { focusTrap } from "$lib/shortcuts/focusTrap";
   import { Textarea } from "$lib/components/ui/textarea";
 
@@ -77,10 +75,9 @@
 
   const EXPANDED_STORAGE_KEY = "apollia.quickpicker.expanded";
   interface ExpandedState {
-    templates: boolean;
     agents: boolean;
   }
-  const DEFAULT_EXPANDED: ExpandedState = { templates: true, agents: true };
+  const DEFAULT_EXPANDED: ExpandedState = { agents: true };
   let expanded = $state<ExpandedState>(readExpanded());
 
   function readExpanded(): ExpandedState {
@@ -223,12 +220,6 @@
     }
   }
 
-  function applyTemplate(template: ChatTemplate): void {
-    const localizedPrompt = $t(template.promptKey);
-    prompt = localizedPrompt;
-    void createFreeChat(localizedPrompt, template.tools);
-  }
-
   // ─── Keyboard ─────────────────────────────────────────────────────────────
   // Tab cycling and focus restoration are handled by `use:focusTrap` on
   // the root - this handler only covers Escape (close) and the textarea
@@ -358,33 +349,6 @@
       <span>{createError}</span>
     </div>
   {/if}
-
-  <!-- Templates -->
-  <section class="mt-4">
-    <button
-      type="button"
-      class="mb-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase
-        tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded"
-      onclick={() => toggleSection("templates")}
-      aria-expanded={expanded.templates}
-      data-testid="quickpicker-toggle-templates"
-    >
-      {#if expanded.templates}
-        <ChevronDown size={10} />
-      {:else}
-        <ChevronRight size={10} />
-      {/if}
-      {$t("chat.quickpicker.templates_section")}
-    </button>
-    {#if expanded.templates}
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="quickpicker-templates">
-        {#each CHAT_TEMPLATES as template (template.id)}
-          <TemplateCard {template} disabled={creating} onselect={applyTemplate} />
-        {/each}
-      </div>
-    {/if}
-  </section>
 
   <!-- Agents -->
   <section class="mt-4">

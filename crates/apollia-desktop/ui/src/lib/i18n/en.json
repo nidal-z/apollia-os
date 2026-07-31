@@ -3914,7 +3914,6 @@
     "untitled_session": "Untitled session",
     "command_group": {
       "sessions": "Recent sessions",
-      "templates": "Templates",
       "agents": "Agents",
       "slash": "Slash commands"
     },
@@ -4045,28 +4044,6 @@
     "rate_limit": {
       "too_fast": "Slow down…",
       "too_many": "Too many messages - take a breath"
-    },
-    "template": {
-      "dev_review": {
-        "title": "Dev review",
-        "description": "Review pending changes and surface missing tests."
-      },
-      "spec_writing": {
-        "title": "Spec writing",
-        "description": "Co-author a technical spec with clarifying questions."
-      },
-      "research": {
-        "title": "Research",
-        "description": "Gather sources and summarise the current state of the art."
-      },
-      "debug": {
-        "title": "Debug",
-        "description": "Walk through a bug step by step and isolate the cause."
-      },
-      "ops_playbook": {
-        "title": "Ops playbook",
-        "description": "Execute an operational runbook with safety checks."
-      }
     },
     "attachments": {
       "add": "Attach file",
@@ -4247,7 +4224,6 @@
       "submit_hint": "Cmd+Enter to start a free chat",
       "start_free": "Start free chat",
       "plan_mode": "Start in plan mode",
-      "templates_section": "Templates",
       "agents_section": "Agents",
       "empty_agents": "No agents are installed yet. Install one to start delegating work.",
       "install_agent": "Install an agent",

@@ -877,36 +877,8 @@
       "label": "05-quickpicker-project-selected"
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker-templates",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "quickpicker-template-",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-toggle-templates"
-    },
-    {
       "kind": "sleep",
       "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-quickpicker-templates-collapsed"
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-toggle-templates"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-templates",
-      "timeoutMs": 2500
     },
     {
       "kind": "click",

@@ -7,7 +7,6 @@
    * wrapper enriches the palette while the chat route is mounted by
    * registering chat-specific entries:
    *   - recent open sessions (jump to)
-   *   - chat templates (open new picker pre-selected)
    *   - available agents (start a new conversation with)
    *   - chat slash commands (/clear, /export, …) for discoverability
    *
@@ -18,21 +17,20 @@
   import { onMount, onDestroy } from "svelte";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
-  import { MessageSquare, Bot, BookOpen, Slash } from "lucide-svelte";
+  import { MessageSquare, Bot, Slash } from "lucide-svelte";
   import {
     registerCommand,
     unregisterCommand,
     type CommandItem,
   } from "$lib/stores/commandPalette";
   import { chatSessions, agents } from "$lib/stores/sse";
-  import { CHAT_TEMPLATES } from "$lib/templates/chatTemplates";
   import { SLASH_COMMANDS } from "$lib/chat/slashCommands";
 
   interface Props {
     /** Open an existing session (called by palette session entries). */
     onselectSession: (sessionId: string) => void;
-    /** Open the new-chat picker, optionally pre-selecting a template/agent. */
-    onnewChat: (preset?: { templateId?: string; agentName?: string }) => void;
+    /** Open the new-chat picker, optionally pre-selecting an agent. */
+    onnewChat: (preset?: { agentName?: string }) => void;
     /** Append a slash-command marker into the current chat input. */
     onslashCommand?: (cmdId: string) => void;
   }
@@ -65,20 +63,6 @@
         group: sessionsLabel,
         keywords: ["session", "chat", title],
         action: () => onselectSession(session.id),
-      });
-    }
-
-    const templatesLabel = tt("chat.command_group.templates");
-    for (const tpl of CHAT_TEMPLATES) {
-      const title = tt(tpl.titleKey);
-      entries.push({
-        id: `chat.template.${tpl.id}`,
-        label: title,
-        description: tt(tpl.descriptionKey),
-        icon: BookOpen,
-        group: templatesLabel,
-        keywords: ["template", tpl.id, ...(tpl.tools ?? [])],
-        action: () => onnewChat({ templateId: tpl.id }),
       });
     }
 

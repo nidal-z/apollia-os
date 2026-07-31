@@ -41,6 +41,16 @@
 -- the LLM/HITL/A2A scripts route real inference through it. `local-qwen` (the
 -- embedded runner) is kept as a non-default row: under the HOME-swap its model
 -- path resolves to the seed placeholder GGUF, which does not load.
+-- Three backends, chosen so the page is legible in a screenshot rather than a
+-- wall of red. The list auto-pings every ENABLED backend when it opens
+-- (Llm.svelte:107), and a ping can only succeed against something reachable:
+--   * local-llama-server points at :8899, which the -llama recipe brings up, so
+--     it is the one that shows a healthy card. It is the default.
+--   * anthropic-claude stays enabled without a key, which is the honest error
+--     state the "provider does not answer" troubleshooting page documents.
+--   * openai-gpt4o-mini is disabled, so the list also shows a disabled card.
+-- local-qwen was dropped: it needs the apollia-runner sidecar, absent in dev, so
+-- it was red in every run and added nothing but a second identical error.
 INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_default, created_at, updated_at) VALUES
   ('local-llama-server',
    'openai',
@@ -50,19 +60,11 @@ INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_defaul
    1,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
-  ('local-qwen',
-   'llama-cpp',
-   '~/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf',
-   '{"model_path":"~/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf","context_size":8192,"temperature":0.7}',
-   1,
-   0,
-   '2026-07-01T00:00:00Z',
-   '2026-07-01T00:00:00Z'),
   ('openai-gpt4o-mini',
    'openai',
    'gpt-4o-mini',
    '{"base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}","context_size":128000,"temperature":0.7}',
-   1,
+   0,
    0,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
