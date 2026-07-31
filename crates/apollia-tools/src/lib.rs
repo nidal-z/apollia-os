@@ -16,7 +16,6 @@
 //! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep`: atomic filesystem operations
 //! - `http_fetch`: network-restricted HTTP client (feature `http`)
 //! - `memory_search`: FTS5 full-text search (feature `memory-search`)
-//! - `persistent_bash`: stateful shell executor (CWD + env vars persist across steps)
 //! - `notebook_read`: read and format Jupyter `.ipynb` cells for LLM consumption
 //! - `notebook_edit`: apply atomic cell operations to Jupyter `.ipynb` notebooks
 
@@ -85,11 +84,6 @@ pub use tools::notebook_edit::{
 };
 pub use tools::notebook_read::{
     NotebookRead, NotebookReadError, NotebookReadInput, NotebookReadOutput,
-};
-pub use tools::persistent_bash::{
-    registry::ShellSessionRegistry,
-    session::{PersistentBashError, SessionId, ShellOutput},
-    PersistentBashExecutor,
 };
 pub use tools::risk_classifier::{FilesystemOp, RiskCategory, RiskClassifier, RiskLevel};
 #[cfg(feature = "web-search")]
