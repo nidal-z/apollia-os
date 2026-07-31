@@ -1,7 +1,13 @@
 # ADR-044: Agent isolation hardening and posture visibility
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-10
+
+> Status moved from Proposed to Accepted on 2026-07-31.
+> Delivered: `SecurityPosture` and `ToolSandbox` live in
+> `crates/apollia-core/src/security_posture.rs` and are surfaced by the CLI
+> and the desktop app; `rlimits.rs` applies the limits on Unix and is an
+> explicit no-op elsewhere.
 
 ## Context
 

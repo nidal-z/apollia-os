@@ -1,7 +1,14 @@
 # ADR-045: Supervisor is fail-fast then degrade, no actor restart-on-crash
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-13
+
+> Status moved from Proposed to Accepted on 2026-07-31.
+> Delivered: the removal is done. `RestartPolicy`, `ChildSpec` and
+> `RestartTracker` have no occurrence left in `crates/apollia-runtime/src`.
+> For this ADR the absence of those symbols is the evidence of delivery, not
+> of an unfinished decision.
+
 
 ## Context
 
@@ -37,6 +44,9 @@ Note the naming collision: a genuinely live `RunnerSupervisor`
 
 ## Decision
 
+<!-- claim:supervisor-has-no-restart-machinery -->
+<!-- claim:supervisor-has-no-child-spec -->
+<!-- claim:supervisor-has-no-restart-tracker -->
 We adopt fail-fast then degrade as the runtime's actor supervision model for
 v0.1.0, and we delete the dead restart machinery instead of wiring it.
 

@@ -3,6 +3,12 @@
 - Status: Accepted
 - Date: 2026-06-04
 
+> **Amended by [ADR-023](ADR-023-sdk-agentkit-design.md).** Passages below
+> describing the agent contract as a `manifest()` method plus an async `run()`
+> record the state at the time of writing. That contract was removed: the runtime
+> calls no dynamic `manifest()`, and the bridge refuses an object without
+> `__apollia_dispatch__`. The decision this ADR records is otherwise unchanged.
+
 ## Context
 
 An agent must be able to suspend a task to ask for human approval before continuing.

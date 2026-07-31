@@ -3,6 +3,12 @@
 - Status: Accepted
 - Date: 2026-06-04
 
+> **Amended by [ADR-050](ADR-050-embedded-llama-server-replaces-in-tree-runner.md).**
+> Passages below describing local LLM inference as an in-tree runner built on
+> `llama-cpp-2` record the state at the time of writing. That crate is no longer
+> a workspace dependency: local inference runs on the upstream `llama-server`
+> binary, supervised by `apollia-runtime`. Backend and model management is unchanged; only the engine behind the local backend moved.
+
 ## Context
 
 An agent calls `ctx.llm.chat()` without requiring any external service, yet some
