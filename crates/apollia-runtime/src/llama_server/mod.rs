@@ -275,26 +275,37 @@ impl LlamaServerSupervisor {
             const MIN_BACKOFF: Duration = Duration::from_secs(1);
             const MAX_BACKOFF: Duration = Duration::from_secs(30);
             let mut backoff = MIN_BACKOFF;
+            // Models owed a respawn: newly dead ones, plus any whose respawn has
+            // not succeeded yet. Carried across iterations so a failure is
+            // retried under backoff instead of being forgotten, which is what
+            // keeps an endpoint alive between two requests.
+            let mut owed: Vec<String> = Vec::new();
 
             loop {
                 if *self.shutting_down.lock().await {
                     return;
                 }
 
-                // Nothing to supervise until a model has been requested: a fresh
-                // install may never start a local server. Respawning here would
-                // launch llama-server with no `-m` and crash-loop. An evicted
-                // model is absent from this list on purpose: it was stopped
-                // deliberately and must not come back on its own.
-                let dead = self.take_dead_instances().await;
-                if dead.is_empty() {
+                // An instance is only listed once it has existed, so a fresh
+                // install with no model yet has nothing to supervise and never
+                // launches llama-server without a `-m`. An evicted model is
+                // absent from this list on purpose: it was stopped deliberately
+                // and must not come back on its own.
+                for (model_path, reason) in self.take_dead_instances().await {
+                    tracing::error!(
+                        model = %model_path,
+                        reason = %reason,
+                        "llama-server exited, respawning"
+                    );
+                    if !owed.contains(&model_path) {
+                        owed.push(model_path);
+                    }
+                }
+
+                if owed.is_empty() {
                     backoff = MIN_BACKOFF;
                     tokio::time::sleep(SUPERVISION_POLL).await;
                     continue;
-                }
-
-                if *self.shutting_down.lock().await {
-                    return;
                 }
 
                 tokio::time::sleep(backoff).await;
@@ -304,13 +315,8 @@ impl LlamaServerSupervisor {
 
                 // Serialise with ensure_model so two spawns never race.
                 let _guard = self.respawn_lock.lock().await;
-                let mut all_ok = true;
-                for (model_path, reason) in dead {
-                    tracing::error!(
-                        model = %model_path,
-                        reason = %reason,
-                        "llama-server exited, respawning"
-                    );
+                let mut still_owed = Vec::new();
+                for model_path in owed.drain(..) {
                     // A caller may have re-requested this model while we waited
                     // for the lock, in which case it is live again.
                     if self.touch_live_instance(&model_path).await.is_some() {
@@ -324,15 +330,16 @@ impl LlamaServerSupervisor {
                                 error = %e,
                                 "llama-server respawn failed"
                             );
-                            all_ok = false;
+                            still_owed.push(model_path);
                         }
                     }
                 }
-                backoff = if all_ok {
+                backoff = if still_owed.is_empty() {
                     MIN_BACKOFF
                 } else {
                     (backoff * 2).min(MAX_BACKOFF)
                 };
+                owed = still_owed;
             }
         });
     }
@@ -600,5 +607,182 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
                 tracing::info!(target: "llama-server", line = %line);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a supervisor without touching the filesystem or spawning anything.
+    ///
+    /// `LlamaServerSupervisor::new` locates the binary, which is absent on a CI
+    /// runner; these tests exercise the residency bookkeeping, not the process
+    /// lifecycle, so the struct is assembled directly.
+    fn supervisor_with_ceiling(max_loaded: usize) -> LlamaServerSupervisor {
+        LlamaServerSupervisor {
+            bin_path: PathBuf::from("/nonexistent/llama-server"),
+            n_ctx: 32_768,
+            max_loaded,
+            config: Arc::new(Mutex::new(LlamaServerConfig::default())),
+            instances: Arc::new(Mutex::new(Vec::new())),
+            tick: Arc::new(AtomicU64::new(0)),
+            respawn_lock: Arc::new(Mutex::new(())),
+            shutting_down: Arc::new(Mutex::new(false)),
+        }
+    }
+
+    /// A instance backed by a long-lived child, so liveness checks see it alive.
+    async fn live_instance(sup: &LlamaServerSupervisor, model: &str, port: u16) -> Instance {
+        let child = Command::new("sleep")
+            .arg("60")
+            .kill_on_drop(true)
+            .spawn()
+            .expect("spawning sleep must succeed");
+        Instance {
+            model_path: model.to_owned(),
+            port,
+            child,
+            last_used: sup.next_tick(),
+        }
+    }
+
+    // GIVEN no environment override
+    // WHEN the residency ceiling is resolved
+    // THEN exactly one model stays resident, which is the historical behaviour:
+    //      raising memory use must never be a side effect of an upgrade
+    #[test]
+    fn test_residency_defaults_to_a_single_model() {
+        assert_eq!(resolve_max_loaded(|_| None), 1);
+    }
+
+    // GIVEN an explicit ceiling
+    // WHEN it is resolved
+    // THEN it is honoured verbatim
+    #[test]
+    fn test_residency_honours_an_explicit_ceiling() {
+        assert_eq!(resolve_max_loaded(|_| Some("3".to_owned())), 3);
+        assert_eq!(resolve_max_loaded(|_| Some(" 2 ".to_owned())), 2);
+    }
+
+    // GIVEN a value that is zero or unparseable
+    // WHEN it is resolved
+    // THEN the default holds, because a typo must not be the reason no model
+    //      can load at all
+    #[test]
+    fn test_residency_rejects_zero_and_garbage_without_disabling_inference() {
+        assert_eq!(resolve_max_loaded(|_| Some("0".to_owned())), 1);
+        assert_eq!(resolve_max_loaded(|_| Some("many".to_owned())), 1);
+        assert_eq!(resolve_max_loaded(|_| Some(String::new())), 1);
+    }
+
+    // GIVEN a live instance for a model
+    // WHEN that same model is requested again
+    // THEN its URL is returned without a respawn, which is the whole point of
+    //      residency: a hand-off costs a lookup, not a reload
+    #[tokio::test]
+    async fn test_a_resident_model_is_served_without_respawning() {
+        let sup = supervisor_with_ceiling(2);
+        let instance = live_instance(&sup, "/models/a.gguf", 9001).await;
+        sup.instances.lock().await.push(instance);
+
+        let url = sup.touch_live_instance("/models/a.gguf").await;
+
+        assert_eq!(url.as_deref(), Some("http://127.0.0.1:9001/v1"));
+        assert_eq!(sup.instances.lock().await.len(), 1);
+    }
+
+    // GIVEN a ceiling of two and two resident models, the first used least
+    //       recently
+    // WHEN room is made for a third
+    // THEN the least recently used one is stopped, not an arbitrary one
+    #[tokio::test]
+    async fn test_eviction_removes_the_least_recently_used_model() {
+        let sup = supervisor_with_ceiling(2);
+        let a = live_instance(&sup, "/models/a.gguf", 9001).await;
+        let b = live_instance(&sup, "/models/b.gguf", 9002).await;
+        sup.instances.lock().await.push(a);
+        sup.instances.lock().await.push(b);
+        // Re-request A, making B the least recently used.
+        sup.touch_live_instance("/models/a.gguf").await;
+
+        sup.evict_until_below_ceiling().await;
+
+        let instances = sup.instances.lock().await;
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].model_path, "/models/a.gguf");
+    }
+
+    // GIVEN a ceiling of one and a resident model
+    // WHEN room is made for another
+    // THEN the pool empties first, reproducing the stop-then-start behaviour the
+    //      default has always had
+    #[tokio::test]
+    async fn test_a_ceiling_of_one_stops_the_running_model_before_the_next() {
+        let sup = supervisor_with_ceiling(1);
+        let a = live_instance(&sup, "/models/a.gguf", 9001).await;
+        sup.instances.lock().await.push(a);
+
+        sup.evict_until_below_ceiling().await;
+
+        assert!(sup.instances.lock().await.is_empty());
+    }
+
+    // GIVEN an instance whose process has exited
+    // WHEN that model is requested
+    // THEN nothing is handed back, so the caller respawns instead of receiving
+    //      a port that answers nothing
+    #[tokio::test]
+    async fn test_a_dead_instance_is_dropped_rather_than_served() {
+        let sup = supervisor_with_ceiling(2);
+        let mut instance = live_instance(&sup, "/models/a.gguf", 9001).await;
+        instance.child.kill().await.expect("kill must succeed");
+        instance.child.wait().await.expect("wait must succeed");
+        sup.instances.lock().await.push(instance);
+
+        let url = sup.touch_live_instance("/models/a.gguf").await;
+
+        assert!(url.is_none());
+        assert!(sup.instances.lock().await.is_empty());
+    }
+
+    // GIVEN one dead instance and one live one
+    // WHEN the supervision sweep collects the dead
+    // THEN only the dead one is reported and removed, and the live one keeps
+    //      serving
+    #[tokio::test]
+    async fn test_supervision_collects_only_the_dead_instances() {
+        let sup = supervisor_with_ceiling(2);
+        let mut dead = live_instance(&sup, "/models/dead.gguf", 9001).await;
+        dead.child.kill().await.expect("kill must succeed");
+        dead.child.wait().await.expect("wait must succeed");
+        let live = live_instance(&sup, "/models/live.gguf", 9002).await;
+        sup.instances.lock().await.push(dead);
+        sup.instances.lock().await.push(live);
+
+        let collected = sup.take_dead_instances().await;
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].0, "/models/dead.gguf");
+        let instances = sup.instances.lock().await;
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].model_path, "/models/live.gguf");
+    }
+
+    // GIVEN two resident models
+    // WHEN the supervisor shuts down in place
+    // THEN every process is stopped, not only the most recent one
+    #[tokio::test]
+    async fn test_shutdown_stops_every_resident_model() {
+        let sup = supervisor_with_ceiling(2);
+        let a = live_instance(&sup, "/models/a.gguf", 9001).await;
+        let b = live_instance(&sup, "/models/b.gguf", 9002).await;
+        sup.instances.lock().await.push(a);
+        sup.instances.lock().await.push(b);
+
+        sup.shutdown_in_place().await;
+
+        assert!(sup.instances.lock().await.is_empty());
+        assert!(*sup.shutting_down.lock().await);
     }
 }
