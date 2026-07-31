@@ -1050,8 +1050,8 @@ Store a credential `(tool, key)` after an interactive masked prompt
 
 ###### **Arguments:**
 
-* `<TOOL>` - Owning tool name
-* `<KEY>` - Logical key name (e.g. `brave.api_key`)
+* `<TOOL>` - Owning tool name, or `agent` for a secret declared by an agent manifest
+* `<KEY>` - Logical key name (e.g. `brave.api_key`, or an agent's `hubspot_api_token`)
 
 
 
@@ -1595,9 +1595,11 @@ Create a new LLM backend.
 * `--device <DEVICE>` - Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`
 
   Default value: `metal`
-* `--timeout-sec <SECS>` - Inference timeout in seconds (default: 60)
+* `--timeout-sec <SECS>` - How long the backend may stay silent before the call is abandoned.
 
-  Default value: `60`
+   This is a backstop against a wedged backend, not a latency policy. On the non-streaming path a server sends nothing until generation is complete, so this budget has to cover the slowest honest answer: a large model on modest hardware legitimately takes minutes. Values below 60 seconds are raised to 60.
+
+  Default value: `600`
 * `--disabled` - Create the backend disabled
 * `--default` - Mark this backend as the default (only one at a time)
 

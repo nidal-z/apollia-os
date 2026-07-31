@@ -116,6 +116,25 @@ def public_classes(module: ast.Module) -> list[ast.ClassDef]:
     return [n for n in module.body if isinstance(n, ast.ClassDef)]
 
 
+def module_alias(module: ast.Module, name: str) -> str | None:
+    """Right-hand side of a module-level ``name = <expr>`` binding, if any.
+
+    Some ``Ctx`` services are not protocols but aliases onto a stdlib type
+    (``ctx.logger`` is ``logging.Logger``). Without this the page for such a
+    service renders as "source not resolved", which is a generator gap rather
+    than a real absence of contract.
+    """
+    for node in module.body:
+        if isinstance(node, ast.Assign):
+            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if name in targets:
+                return ast.unparse(node.value)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.target.id == name and node.value is not None:
+                return ast.unparse(node.value)
+    return None
+
+
 def build_service_index(types_mod: ast.Module):
     """Extract the ordered Ctx service attributes and their import modules."""
     # attr name -> type name, in declaration order
@@ -154,6 +173,7 @@ def main() -> None:
 
     # Cache parsed context modules and their classes by type name.
     module_classes: dict[str, list[ast.ClassDef]] = {}
+    module_asts: dict[str, ast.Module] = {}
     class_by_name: dict[str, tuple[str, ast.ClassDef]] = {}
     for path in sorted(CONTEXT_DIR.glob("*.py")):
         if path.name == "__init__.py":
@@ -161,6 +181,7 @@ def main() -> None:
         mod = parse_module(path)
         classes = public_classes(mod)
         module_classes[path.stem] = classes
+        module_asts[path.stem] = mod
         for cls in classes:
             class_by_name[cls.name] = (path.stem, cls)
 
@@ -184,7 +205,19 @@ def main() -> None:
                 if cls.name != type_name:
                     body_parts.append(render_class(cls))
         else:
-            body_parts.append(f"Service type: `{type_name}` (source not resolved).")
+            alias = module_alias(module_asts[stem], type_name) if stem else None
+            if alias is not None:
+                mod_doc = ast.get_docstring(module_asts[stem])
+                body_parts.append(
+                    f"Service type: `{type_name}`, an alias for `{alias}`"
+                    f" (from `apollia.context.{stem}`)."
+                )
+                body_parts.append("")
+                doc_summary[attr] = first_line(mod_doc)
+                if mod_doc:
+                    body_parts.append(mod_doc.strip())
+            else:
+                body_parts.append(f"Service type: `{type_name}` (source not resolved).")
         page = write_page(
             f"{attr}.md",
             {"sidebar_position": position, "title": f"ctx.{attr}"},
@@ -214,7 +247,7 @@ def main() -> None:
     )
     written.append("content-types.md")
 
-    # Index page: the Ctx docstring + the 14-service table.
+    # Index page: the Ctx docstring + one row per service declared on Ctx.
     ctx_cls = next(
         (n for n in types_mod.body if isinstance(n, ast.ClassDef) and n.name == "Ctx"),
         None,

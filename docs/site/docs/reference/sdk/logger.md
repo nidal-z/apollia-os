@@ -6,4 +6,10 @@ title: ctx.logger
 
 # `ctx.logger`
 
-Service type: `Logger` (source not resolved).
+Service type: `Logger`, an alias for `logging.Logger` (from `apollia.context.logger`).
+
+ctx.logger - structured logging via stdlib ``logging``.
+
+The runtime configures the actual logger so that records are piped into
+the Rust ``tracing`` subscriber.  Agents just use the standard
+:class:`logging.Logger` API.
