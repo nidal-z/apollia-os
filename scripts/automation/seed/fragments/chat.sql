@@ -36,19 +36,19 @@ VALUES
     ('seed-session-1', 'libre', NULL, '', 'active',
      '["fs.read","web.fetch"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Walkthrough of the sovereign runtime and local inference.',
-     'Découverte du runtime souverain', NULL, 0, NULL, 0, 'done'),
+     'Discovering the sovereign runtime', NULL, 0, NULL, 0, 'done'),
     ('seed-session-2', 'agent', 'apollia-guide', '', 'active',
      '["a2a.delegate","fs.read"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Preparing the preview release checklist.',
-     'Préparer la checklist de mise en production', NULL, 0, NULL, 1, 'done'),
+     'Preparing the release checklist', NULL, 0, NULL, 1, 'done'),
     ('seed-session-3', 'companion', 'apollia-guide', '', 'active',
      '[]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Companion coaching thread for the alpha project.',
-     'Séance avec la compagnonne', NULL, 0, 'seed-project-alpha', 0, 'done'),
+     'Session with the companion', NULL, 0, 'seed-project-alpha', 0, 'done'),
     ('seed-session-4', 'libre', NULL, '', 'active',
      '["mcp.list"]', '2026-07-01T00:00:00Z',
      NULL, 'local', 'Exploring the available MCP tools.',
-     'Exploration des outils MCP', NULL, 0, NULL, 0, 'done');
+     'Exploring the MCP tools', NULL, 0, NULL, 0, 'done');
 
 -- Conversation history for seed-session-1 (user + assistant turns).
 INSERT INTO chat_messages
@@ -90,3 +90,25 @@ VALUES
      '{"step_id":"seed-step-2","title":"Verify the build passes","description":"Run the workspace test suite before tagging the release.","status":"in_progress","depends_on":["seed-step-1"],"tool_hint":null,"model_hint":null,"rationale":"No release without a green build.","provenance":{"origin":"initial","reason":null,"at":0}}'),
     ('seed-session-2', 'seed-step-3', 2,
      '{"step_id":"seed-step-3","title":"Publish the preview tag","description":"Tag and publish the v0.1.0-preview build.","status":"pending","depends_on":["seed-step-2"],"tool_hint":null,"model_hint":null,"rationale":"Final delivery step.","provenance":{"origin":"initial","reason":null,"at":0}}');
+
+-- chat_approval_log: the Inbox "Recent history (last 14 days)" block.
+--
+-- The table was created empty, and InboxPendingTab only renders the history at
+-- all when a pending item exists, so this half of the screen had never been
+-- seen. Timestamps are relative for the same reason as audit.sql: the 14-day
+-- window would drop anything pinned to a fixed date.
+--
+-- One of each decision, because the row renders a different icon and label per
+-- decision (Approved / Always approved / Rejected), and a rejection carries the
+-- reason the operator typed.
+INSERT INTO chat_approval_log
+  (session_id, message_id, tool_name, decision, resolved_at, reason)
+VALUES
+  ('seed-session-libre-1', 'seed-msg-1', 'file_write',    'accept',
+   datetime('now', '-2 hours'),  NULL),
+  ('seed-session-libre-1', 'seed-msg-2', 'file_read',     'always_accept',
+   datetime('now', '-5 hours'),  NULL),
+  ('seed-session-libre-1', 'seed-msg-3', 'bash_executor', 'refuse',
+   datetime('now', '-1 day'),    'Outside the perimeter allowed for this workspace.'),
+  ('seed-session-agent-1', 'seed-msg-4', 'web_search',    'accept',
+   datetime('now', '-3 days'),   NULL);

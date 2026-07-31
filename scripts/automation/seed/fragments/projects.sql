@@ -30,7 +30,7 @@ INSERT INTO projects (id, name, description, instructions, workspace_path, creat
    '2026-07-01T00:00:00Z');
 
 -- Context providers for the first project (Alpha). provider_type values match
--- the built-in "Développement Git" template (git, rules, tree). Ordered by
+-- the built-in "Developer project" template (git, rules, tree). Ordered by
 -- priority ASC in the UI. config_json must be valid JSON (schema default '{}').
 INSERT INTO project_providers (id, project_id, provider_type, name, config_json, path, enabled, priority) VALUES
   ('seed-provider-alpha-git',

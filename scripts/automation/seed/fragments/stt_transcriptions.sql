@@ -33,7 +33,7 @@ VALUES
    'ggml-base.en',
    '2026-07-01T00:00:04Z'),
   ('seed-transcript-bravo',
-   'Deuxieme transcription de test issue d''un fichier audio importe. Elle demontre la variete des sources dans la liste.',
+   'Second seeded transcription, imported from an audio file. It shows the variety of sources in the list.',
    'fr',
    'file',
    9100,
