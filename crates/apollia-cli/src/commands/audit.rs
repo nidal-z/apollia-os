@@ -22,7 +22,7 @@ pub enum AuditCommand {
     },
     /// Display audit statistics.
     Stats,
-    /// Export the full audit trail as JSON.
+    /// Export the audit trail as JSON, up to `--limit` events.
     Export {
         /// Destination file (default: stdout).
         #[arg(long, value_name = "PATH")]
@@ -602,7 +602,34 @@ fn print_replay_error(report: &serde_json::Value, run: &str) {
     }
 }
 
-/// `apollia-os audit export`: dump the audit trail as JSON.
+/// Counts the exported events and warns when the count equals `limit`.
+///
+/// Equality is the only signal available: the endpoint returns a page, not a
+/// total. It can raise a false alarm when the trail holds exactly `limit`
+/// events, which is the right way round for an archival command.
+fn warn_if_truncated(body: &str, limit: u32) {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body) else {
+        return;
+    };
+    let count = parsed
+        .get("events")
+        .and_then(|v| v.as_array())
+        .map(Vec::len)
+        .or_else(|| parsed.as_array().map(Vec::len));
+    if count == Some(limit as usize) {
+        eprintln!(
+            "! export stopped at the --limit of {limit} events; older entries are \
+             missing. Re-run with a higher --limit for a complete archive."
+        );
+    }
+}
+
+/// `apollia-os audit export`: dump the audit trail as JSON, bounded by `limit`.
+///
+/// Warns when the export comes back exactly at the limit. A caller archiving a
+/// trail has no way of telling a complete export from a truncated one by looking
+/// at the file, and an archive silently missing its oldest entries is worse than
+/// one that is visibly partial.
 async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, limit: u32) -> i32 {
     let uri = format!("/api/v1/audit?limit={limit}");
     match client.get(&uri).await {
@@ -610,6 +637,7 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
             Some(path) => match std::fs::write(path, &resp.body) {
                 Ok(()) => {
                     eprintln!("* wrote {} bytes to {}", resp.body.len(), path.display());
+                    warn_if_truncated(&resp.body, limit);
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
@@ -619,6 +647,7 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
             },
             None => {
                 println!("{}", resp.body);
+                warn_if_truncated(&resp.body, limit);
                 exit_codes::SUCCESS
             }
         },
