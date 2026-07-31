@@ -24,7 +24,7 @@
 The level is set at launch, with `--autonomy`. It applies to that run only and does not modify `apollia.toml`.
 
 ```
-apollia-os run mon-agent "ma tâche" --autonomy supervised
+apollia-os run my-agent "my task" --autonomy supervised
 ```
 
 Replace `supervised` with one of the four values: `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
@@ -45,10 +45,10 @@ Restart the daemon after the change so the new default takes effect.
 After launch, the first log lines of the task show the active level:
 
 ```
-autonomy.level=supervised agent=mon-agent "autonomy.activated"
+autonomy.level=supervised agent=my-agent "autonomy.activated"
 ```
 
-Open the logs from the agent detail panel or with `apollia-os agent logs mon-agent --follow`.
+Open the logs from the agent detail panel or with `apollia-os agent logs my-agent --follow`.
 
 ## If it does not work
 

@@ -59,7 +59,7 @@ The system agent **Apollia Chat**, pinned at the top of the list, is **always ac
 By default, an agent starts at the `assisted` level: it asks for your approval on every sensitive action. You can choose a different level for a specific run with the `--autonomy` flag:
 
 ```
-apollia-os run --autonomy <palier>
+apollia-os run --autonomy <tier>
 ```
 
 The four available levels:

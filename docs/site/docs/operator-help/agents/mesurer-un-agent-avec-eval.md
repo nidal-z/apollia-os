@@ -13,30 +13,29 @@
 Create a `suite.toml` file in the directory of your choice. Minimal structure:
 
 ```toml
-name = "ma-suite-validation"
+name = "my-validation-suite"
 
 [[tasks]]
-id        = "resumer-texte"
-prompt    = "Résume ce texte en trois phrases : [...]"
+id        = "summarize-text"
+prompt    = "Summarize this text in three sentences: [...]"
 runs      = 3
 
   [[tasks.assertions]]
   type = "exit_code"
-  value = 0
+  equals = 0
 
   [[tasks.assertions]]
   type = "file_exists"
-  path = "output/resume.txt"
+  path = "output/summary.txt"
 
   [[tasks.assertions]]
   type = "regex"
-  pattern = "\\b(résumé|synthèse)\\b"
-  target = "stdout"
+  pattern = "\\b(summary|synthesis)\\b"
+  on = "stdout"
 
   [[tasks.assertions]]
   type = "llm_judge"
-  prompt = "La réponse est-elle une synthèse cohérente de trois phrases ? Réponds par OUI ou NON."
-  pass_if = "OUI"
+  rubric = "The answer must be a coherent three-sentence summary of the source text."
 ```
 
 Field by field:
@@ -47,19 +46,19 @@ Field by field:
 - `tasks[].runs`: number of independent runs per task (default: `3`). Use at least 3 to detect non-deterministic answers.
 - `tasks[].assertions`: list of checks applied to each run.
 
-The four assertion types:
+Four assertion types exist: `exit_code`, `file_exists`, `regex` and
+`llm_judge`. Each takes its own set of fields and rejects the others, so a
+mistyped key fails the load rather than skipping the check.
 
-| Type | What it checks |
-|---|---|
-| `exit_code` | The exit code of the run (0 = success). |
-| `file_exists` | A file produced by the agent exists at the given path. |
-| `regex` | A regular expression matches in `stdout` or in a file. |
-| `llm_judge` | A second LLM evaluates the output from a prompt and an expected value. |
+The exact fields per type are in the [evaluation suite schema](/reference/eval-suites),
+generated from the parser itself. Two are worth knowing before you write your
+first suite: a `regex` matches `stdout` or `result`, never a file, and an
+`llm_judge` takes a `rubric` and no expected value.
 
 ## Steps - Run the evaluation
 
 ```
-apollia-os eval run ma-suite.toml
+apollia-os eval run my-suite.toml
 ```
 
 The command shows a table of results in real time during the run. At the end, it writes a `.results.jsonl` file in the same directory as the suite.
@@ -67,20 +66,20 @@ The command shows a table of results in real time during the run. At the end, it
 To get machine-readable JSON output (CI integration, scripting):
 
 ```
-apollia-os eval run ma-suite.toml --json
+apollia-os eval run my-suite.toml --json
 ```
 
 ## Steps - Read the report
 
 ```
-apollia-os eval report ma-suite.results.jsonl
+apollia-os eval report my-suite.results.jsonl
 ```
 
 Shows a summary per task: success rate, median time, failed assertions. Use `--json` to get the report in JSON.
 
 ## Verification
 
-- The `ma-suite.results.jsonl` file is created in the same directory as `suite.toml`.
+- The `my-suite.results.jsonl` file is created in the same directory as `suite.toml`.
 - The `apollia-os eval run` command exits with exit code `0` if all assertions pass on all runs.
 - The `apollia-os eval report` command shows the overall success rate.
 

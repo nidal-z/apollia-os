@@ -1545,6 +1545,9 @@ Create a new LLM backend.
    This is a backstop against a wedged backend, not a latency policy. On the non-streaming path a server sends nothing until generation is complete, so this budget has to cover the slowest honest answer: a large model on modest hardware legitimately takes minutes. Values below 60 seconds are raised to 60.
 
   Default value: `600`
+* `--context-window <TOKENS>` - Usable context window of this backend, in tokens.
+
+   Sizes conversation compaction. A self-hosted OpenAI-compatible server does not report its window, and Ollama sizes its own from the machine's memory, so without this the runtime falls back to a generic limit that can exceed what the server actually loaded. Ollama backends are probed automatically when the model is loaded; set this to pin the value.
 * `--disabled` - Create the backend disabled
 * `--default` - Mark this backend as the default (only one at a time)
 

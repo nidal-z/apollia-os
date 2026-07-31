@@ -56,9 +56,9 @@ The patch is applied by recursive merge. Objects are merged, scalars and arrays 
 {
   "add": [
     {
-      "package_identifier": "@local/mon-mcp",
+      "package_identifier": "@local/my-mcp",
       "operator_label": { "fr": "Mon MCP", "en": "My MCP" },
-      "description": { "fr": "Serveur interne de mon équipe." },
+      "description": { "fr": "Serveur interne de mon equipe.", "en": "My team's internal server." },
       "category": "internal",
       "icon_name": "building",
       "trust_level": "custom",

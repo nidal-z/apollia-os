@@ -94,7 +94,7 @@ version of the body produces an invalid signature.
 Example with `curl` and `openssl`:
 
 ```sh
-SECRET='votre-secret-de-32-caracteres-minimum'
+SECRET='your-secret-32-characters-minimum'
 BODY='{"source":"github","action":"push"}'
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)
 

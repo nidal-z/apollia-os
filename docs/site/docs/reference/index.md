@@ -28,3 +28,5 @@ Refresh all three with `bash regen.sh`.
   clients, diagnostics.
 - **[Sampling defaults](/reference/sampling-defaults)** which sampling parameter
   reaches a model, and what is written but not applied.
+- **[Evaluation suite schema](/reference/eval-suites)** the TOML an
+  `apollia-os eval run` suite accepts, field by field and assertion by assertion.

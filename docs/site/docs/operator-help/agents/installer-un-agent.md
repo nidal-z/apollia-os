@@ -6,7 +6,7 @@
 
 - An AI provider is connected (green dot in the top bar).
 - You received **one of the two following deliverables**, already present on your disk:
-  - **A single Python file** (for example `mon-agent.py`) - a simple agent that does one thing.
+  - **A single Python file** (for example `my-agent.py`) - a simple agent that does one thing.
   - **A complete folder** (for example `mon-package/`) - a set that can contain several agents and their scheduling.
 
 > Apollia has no online catalog and no install-from-the-web (yet): everything starts from a local file. The **Connections** page is only for MCP servers, not for agents.

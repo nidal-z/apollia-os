@@ -22,7 +22,7 @@ runs      = 3
 
   [[tasks.assertions]]
   type = "exit_code"
-  value = 0
+  equals = 0
 
   [[tasks.assertions]]
   type = "file_exists"
@@ -31,12 +31,11 @@ runs      = 3
   [[tasks.assertions]]
   type = "regex"
   pattern = "\\b(résumé|synthèse)\\b"
-  target = "stdout"
+  on = "stdout"
 
   [[tasks.assertions]]
   type = "llm_judge"
-  prompt = "La réponse est-elle une synthèse cohérente de trois phrases ? Réponds par OUI ou NON."
-  pass_if = "OUI"
+  rubric = "La réponse doit être une synthèse cohérente du texte source, en trois phrases."
 ```
 
 Détail des champs :
@@ -47,14 +46,15 @@ Détail des champs :
 - `tasks[].runs` : nombre d'exécutions indépendantes par tâche (défaut : `3`). Utilisez au moins 3 pour détecter les réponses non déterministes.
 - `tasks[].assertions` : liste de vérifications appliquées à chaque exécution.
 
-Les quatre types d'assertions :
+Quatre types d'assertions existent : `exit_code`, `file_exists`, `regex` et
+`llm_judge`. Chacun prend son propre jeu de champs et refuse les autres, si bien
+qu'une clé mal orthographiée fait échouer le chargement au lieu d'ignorer le
+contrôle.
 
-| Type | Ce qu'il vérifie |
-|---|---|
-| `exit_code` | Le code de sortie de l'exécution (0 = succès). |
-| `file_exists` | Un fichier produit par l'agent existe au chemin indiqué. |
-| `regex` | Une expression régulière correspond dans `stdout` ou dans un fichier. |
-| `llm_judge` | Un second LLM évalue la sortie à partir d'un prompt et d'une valeur attendue. |
+Les champs exacts par type sont dans le [schéma des suites d'évaluation](/reference/eval-suites),
+généré depuis le parseur lui-même. Deux méritent d'être connus avant d'écrire
+votre première suite : un `regex` cible `stdout` ou `result`, jamais un fichier,
+et un `llm_judge` prend une `rubric` et aucune valeur attendue.
 
 ## Étapes - Lancer l'évaluation
 
