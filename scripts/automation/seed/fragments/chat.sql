@@ -105,10 +105,10 @@ INSERT INTO chat_approval_log
   (session_id, message_id, tool_name, decision, resolved_at, reason)
 VALUES
   ('seed-session-libre-1', 'seed-msg-1', 'file_write',    'accept',
-   datetime('now', '-2 hours'),  NULL),
+   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'),  NULL),
   ('seed-session-libre-1', 'seed-msg-2', 'file_read',     'always_accept',
-   datetime('now', '-5 hours'),  NULL),
+   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 hours'),  NULL),
   ('seed-session-libre-1', 'seed-msg-3', 'bash_executor', 'refuse',
-   datetime('now', '-1 day'),    'Outside the perimeter allowed for this workspace.'),
+   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day'),    'Outside the perimeter allowed for this workspace.'),
   ('seed-session-agent-1', 'seed-msg-4', 'web_search',    'accept',
-   datetime('now', '-3 days'),   NULL);
+   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days'),   NULL);
