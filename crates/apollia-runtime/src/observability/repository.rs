@@ -2,7 +2,13 @@
 //!
 //! Writes go exclusively through [`super::persistor::EventPersistorHandle`].
 //! This module provides the paginated queries consumed by the
-//! `GET /api/v1/tasks/{id}/trace` API and the purge routine.
+//! `GET /api/v1/tasks/{id}/trace` API.
+//!
+//! **There is no purge routine.** `ObservabilityConfig::retention_days` exists
+//! and defaults to 90, and the schema carries an index on `created_at_unix` to
+//! support a purge, but nothing deletes a row: the event log grows without
+//! bound. Either the routine gets written and honours `retention_days`, or the
+//! setting is withdrawn. Until then, do not describe retention as a feature.
 
 use std::path::{Path, PathBuf};
 
@@ -33,7 +39,7 @@ pub struct RuntimeEventRecord {
     pub payload_json: String,
     /// ISO 8601 RFC 3339, milliseconds included.
     pub ts: String,
-    /// Unix seconds, used by the purge.
+    /// Unix seconds. Indexed for a retention purge that is not implemented yet.
     pub created_at_unix: i64,
 }
 

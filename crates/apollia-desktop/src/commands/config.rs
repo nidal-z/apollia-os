@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider, ObservabilityConfig};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Key/value entry of a configuration section.
 #[derive(Debug, Serialize)]
@@ -245,6 +245,27 @@ pub async fn open_config_in_editor() -> Result<(), String> {
 
 /// Returns the full observability policy currently stored on disk.
 ///
+/// What the settings page reads and writes, spanning the two TOML sections that
+/// actually govern observability.
+///
+/// The capture switches and byte limits live under `[observability]`. The one
+/// setting that can expose prompt content, `debug_log_prompt`, lives under
+/// `[llm.observability]` and is read by a different type in `apollia-llm`. It is
+/// flattened into the same payload so the settings page stays one form, but it
+/// must be written to its own section: a `debug_log_prompt` under
+/// `[observability]` is read by nothing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservabilityView {
+    /// `[observability]`: capture switches and truncation limits.
+    #[serde(flatten)]
+    pub capture: ObservabilityConfig,
+    /// `[llm.observability] debug_log_prompt`. Logs the full prompt at `TRACE`
+    /// and persists nothing. Requires a `TRACE`-level log filter to have any
+    /// visible effect: the default filter is `apollia=info`.
+    #[serde(default)]
+    pub debug_log_prompt: bool,
+}
+
 /// Reads the `[observability]` section of `~/.apollia/apollia.toml` and
 /// deserialises it into an [`ObservabilityConfig`]. Every field carries a serde
 /// default, so a partial (or missing) section yields the default value for each
@@ -252,10 +273,13 @@ pub async fn open_config_in_editor() -> Result<(), String> {
 /// `debug_log_prompt`, the three byte limits, `retention_days`), unlike
 /// [`get_config`], which surfaces only two of them in its flat view.
 #[tauri::command]
-pub async fn get_observability_config() -> Result<ObservabilityConfig, String> {
+pub async fn get_observability_config() -> Result<ObservabilityView, String> {
     let path = default_config_path();
     if !path.exists() {
-        return Ok(ObservabilityConfig::default());
+        return Ok(ObservabilityView {
+            capture: ObservabilityConfig::default(),
+            debug_log_prompt: false,
+        });
     }
 
     let content = tokio::fs::read_to_string(&path)
@@ -266,13 +290,25 @@ pub async fn get_observability_config() -> Result<ObservabilityConfig, String> {
         .parse()
         .map_err(|e| format!("failed to parse {}: {e}", path.display()))?;
 
-    match doc.get("observability") {
+    let capture = match doc.get("observability") {
         Some(section) => section
             .clone()
             .try_into()
-            .map_err(|e| format!("invalid [observability] section: {e}")),
-        None => Ok(ObservabilityConfig::default()),
-    }
+            .map_err(|e| format!("invalid [observability] section: {e}"))?,
+        None => ObservabilityConfig::default(),
+    };
+
+    let debug_log_prompt = doc
+        .get("llm")
+        .and_then(|llm| llm.get("observability"))
+        .and_then(|obs| obs.get("debug_log_prompt"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false);
+
+    Ok(ObservabilityView {
+        capture,
+        debug_log_prompt,
+    })
 }
 
 /// Persists the observability policy to the `[observability]` section of
@@ -287,7 +323,7 @@ pub async fn get_observability_config() -> Result<ObservabilityConfig, String> {
 /// the config it captured at startup; there is no live-reload channel for
 /// observability today.
 #[tauri::command]
-pub async fn set_observability_config(config: ObservabilityConfig) -> Result<(), String> {
+pub async fn set_observability_config(config: ObservabilityView) -> Result<(), String> {
     let path = default_config_path();
 
     if let Some(parent) = path.parent() {
@@ -307,15 +343,16 @@ pub async fn set_observability_config(config: ObservabilityConfig) -> Result<(),
         toml_edit::DocumentMut::new()
     };
 
-    apply_observability_to_doc(&mut doc, &config);
+    apply_observability_to_doc(&mut doc, &config.capture);
+    apply_debug_log_prompt_to_doc(&mut doc, config.debug_log_prompt);
 
     tokio::fs::write(&path, doc.to_string())
         .await
         .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
 
     tracing::info!(
-        max_input_bytes = config.max_input_bytes,
-        retention_days = config.retention_days,
+        max_input_bytes = config.capture.max_input_bytes,
+        retention_days = config.capture.retention_days,
         debug_log_prompt = config.debug_log_prompt,
         "observability.config_saved"
     );
@@ -344,13 +381,30 @@ fn apply_observability_to_doc(doc: &mut toml_edit::DocumentMut, config: &Observa
     table["max_input_bytes"] = toml_edit::value(config.max_input_bytes as i64);
     table["max_output_bytes"] = toml_edit::value(config.max_output_bytes as i64);
     table["max_tool_output_bytes"] = toml_edit::value(config.max_tool_output_bytes as i64);
-    table["debug_log_prompt"] = toml_edit::value(config.debug_log_prompt);
     table["capture_thoughts"] = toml_edit::value(config.capture_thoughts);
-    table["capture_llm_prompts"] = toml_edit::value(config.capture_llm_prompts);
     table["capture_tool_args"] = toml_edit::value(config.capture_tool_args);
     table["capture_tool_outputs"] = toml_edit::value(config.capture_tool_outputs);
     table["capture_agent_logs"] = toml_edit::value(config.capture_agent_logs);
     table["retention_days"] = toml_edit::value(i64::from(config.retention_days));
+}
+
+/// Writes `debug_log_prompt` into `[llm.observability]`, creating both tables if
+/// needed. Deliberately not merged into [`apply_observability_to_doc`]: the two
+/// settings look alike in the interface and land in different sections, and
+/// writing this one under `[observability]` would silently do nothing.
+fn apply_debug_log_prompt_to_doc(doc: &mut toml_edit::DocumentMut, enabled: bool) {
+    let llm = doc
+        .entry("llm")
+        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
+    let Some(llm_table) = llm.as_table_mut() else {
+        return;
+    };
+    let obs = llm_table
+        .entry("observability")
+        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
+    if let Some(table) = obs.as_table_mut() {
+        table["debug_log_prompt"] = toml_edit::value(enabled);
+    }
 }
 
 /// Resolves the onboarding flag path `~/.apollia/.onboarded`.
@@ -1128,13 +1182,13 @@ mod tests {
             .expect("parse doc");
         let config = ObservabilityConfig {
             max_input_bytes: 1024,
-            debug_log_prompt: true,
             retention_days: 7,
             ..ObservabilityConfig::default()
         };
 
-        // WHEN writing the observability section
+        // WHEN writing both observability sections
         apply_observability_to_doc(&mut doc, &config);
+        apply_debug_log_prompt_to_doc(&mut doc, true);
         let rendered = doc.to_string();
 
         // THEN comments and the runtime section survive
@@ -1154,11 +1208,29 @@ mod tests {
             .try_into()
             .expect("deserialize");
         assert_eq!(obs.max_input_bytes, 1024);
-        assert!(obs.debug_log_prompt);
         assert_eq!(obs.retention_days, 7);
         // Untouched fields keep their defaults.
         assert!(obs.capture_thoughts);
         assert_eq!(obs.max_output_bytes, 32_768);
+
+        // AND debug_log_prompt landed under [llm.observability], not here: the
+        // two settings sit side by side in the interface and are read by two
+        // different types, so writing it in the wrong section is a silent no-op.
+        assert!(
+            reparsed
+                .get("observability")
+                .and_then(|o| o.get("debug_log_prompt"))
+                .is_none(),
+            "debug_log_prompt must not be written under [observability]"
+        );
+        assert_eq!(
+            reparsed
+                .get("llm")
+                .and_then(|l| l.get("observability"))
+                .and_then(|o| o.get("debug_log_prompt"))
+                .and_then(toml::Value::as_bool),
+            Some(true),
+        );
     }
 
     #[test]

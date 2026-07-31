@@ -54,7 +54,6 @@
 
   type BoolKey =
     | "capture_thoughts"
-    | "capture_llm_prompts"
     | "capture_tool_args"
     | "capture_tool_outputs"
     | "capture_agent_logs"
@@ -63,7 +62,6 @@
 
   const CAPTURE_FLAGS: ReadonlyArray<{ key: BoolKey; sensitive: boolean }> = [
     { key: "capture_thoughts", sensitive: false },
-    { key: "capture_llm_prompts", sensitive: true },
     { key: "capture_tool_args", sensitive: false },
     { key: "capture_tool_outputs", sensitive: false },
     { key: "capture_agent_logs", sensitive: false },
@@ -74,8 +72,12 @@
     "max_tool_output_bytes",
   ];
 
+  // `debug_log_prompt` is the only setting that can expose prompt content: it
+  // writes the full prompt to the TRACE log stream. It keeps the badge and the
+  // informed-consent dialog. `capture_llm_prompts` used to sit here too, and it
+  // never captured anything, so it warned about a risk that did not exist.
   function isSensitive(key: BoolKey): boolean {
-    return key === "capture_llm_prompts" || key === "debug_log_prompt";
+    return key === "debug_log_prompt";
   }
 
   let cfg = $state<ObservabilityConfig | null>(null);

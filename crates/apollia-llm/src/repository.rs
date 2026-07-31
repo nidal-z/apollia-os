@@ -3,8 +3,16 @@
 //! Each [`RuntimeEvent::LlmCallCompleted`] received on the EventBus is
 //! persisted into the `llm_calls` table via [`spawn_subscriber`].
 //!
-//! `prompt_text` is persisted only if `debug_log_prompt = true` in the
-//! observability config (privacy by default).
+//! `prompt_text` and `completion_text` are schema columns that the EventBus
+//! subscriber never fills: `LlmCallCompleted` carries token counts and latency,
+//! not text. They stay writable through [`LlmCallRepository::save`] for an
+//! embedder that has the text in hand, and are always NULL for the calls the
+//! runtime records itself.
+//!
+//! This module used to state that `prompt_text` was persisted when
+//! `debug_log_prompt = true`. That was never implemented. The only setting that
+//! can surface prompt content is `[llm.observability] debug_log_prompt`, which
+//! logs at `TRACE` and persists nothing.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -13,7 +21,6 @@ use rusqlite::{params, Connection};
 use tracing::{error, info};
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
-use apollia_core::ObservabilityConfig;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS llm_calls (
@@ -56,7 +63,9 @@ pub struct LlmCallRecord {
     pub cost_usd: Option<f64>,
     /// Total call latency in milliseconds.
     pub latency_ms: Option<u64>,
-    /// Prompt sent to the LLM (persisted only if `debug_log_prompt = true`).
+    /// Prompt sent to the LLM. Always `None` for calls recorded by the
+    /// runtime: the event carries no text. Set only by an embedder calling
+    /// [`LlmCallRepository::save`] directly.
     pub prompt_text: Option<String>,
     /// Text of the completion returned by the LLM.
     pub completion_text: Option<String>,
@@ -254,15 +263,14 @@ impl LlmCallRepository {
 /// Start an EventBus subscriber that persists each `LlmCallCompleted`.
 ///
 /// The subscriber runs in a dedicated `tokio::spawn`. Each persistence goes
-/// through `spawn_blocking` (rusqlite is sync). The prompt is persisted only
-/// if `obs_config.debug_log_prompt` is `true`.
+/// through `spawn_blocking` (rusqlite is sync). No prompt or completion text is
+/// written: the event does not carry any.
 ///
 /// The returned `JoinHandle` can be used to await shutdown (the subscriber
 /// stops when the EventBus is closed, a `RecvError`).
 pub fn spawn_subscriber(
     repo: Arc<Mutex<LlmCallRepository>>,
     event_bus: &EventBusSender,
-    obs_config: ObservabilityConfig,
 ) -> tokio::task::JoinHandle<()> {
     let mut rx = event_bus.subscribe();
     tokio::spawn(async move {
@@ -289,13 +297,11 @@ pub fn spawn_subscriber(
                         completion_tokens: Some(completion_tokens),
                         cost_usd,
                         latency_ms: Some(latency_ms),
-                        // prompt_text is omitted here because the event does not
-                        // carry it; only the debug_log_prompt flag controls future
-                        // persistence.
+                        // The event carries no text, so these stay NULL. See the
+                        // module header: there is no conditional persistence.
                         prompt_text: None,
                         completion_text: None,
                     };
-                    let _ = obs_config; // kept for future extensions
                     let repo = Arc::clone(&repo);
                     tokio::task::spawn_blocking(move || {
                         if let Ok(guard) = repo.lock() {
@@ -358,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_llm_call_prompt_null_when_not_provided() {
-        // GIVEN debug_log_prompt = false → prompt_text not passed
+        // GIVEN a record saved without prompt text
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
         // WHEN save(record with prompt_text = None)
@@ -523,9 +529,8 @@ mod tests {
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
         let repo = Arc::new(Mutex::new(repo));
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
-        let obs = ObservabilityConfig::default();
 
-        let _handle = spawn_subscriber(Arc::clone(&repo), &tx, obs);
+        let _handle = spawn_subscriber(Arc::clone(&repo), &tx);
 
         // WHEN an LlmCallCompleted is emitted
         let _ = tx.send(RuntimeEvent::LlmCallCompleted {

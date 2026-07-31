@@ -104,7 +104,21 @@ impl Supervisor {
         let db_path = self.config.data_dir.join("runtime_events.db");
         match crate::observability::EventPersistorHandle::open(&db_path).await {
             Ok(handle) => {
-                crate::observability::spawn_runtime_events_subscriber(handle, event_sender);
+                // Retention is applied once at boot. The event log is the only
+                // store purged on a timer: the audit journal is a hash chain and
+                // must stay whole for `audit verify`.
+                let now_unix = chrono::Utc::now().timestamp();
+                if let Err(e) = handle
+                    .purge_older_than(self.config.obs_config.retention_days, now_unix)
+                    .await
+                {
+                    warn!(error = %e, "runtime_events retention purge failed");
+                }
+                crate::observability::spawn_runtime_events_subscriber(
+                    handle,
+                    event_sender,
+                    self.config.obs_config.clone(),
+                );
                 info!(
                     path = %db_path.display(),
                     "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
@@ -130,11 +144,7 @@ impl Supervisor {
         match LlmCallRepository::open(&db_path) {
             Ok(repo) => {
                 let repo = Arc::new(std::sync::Mutex::new(repo));
-                let mut obs = self.config.obs_config.clone();
-                if let Some(c) = self.config.llm_config.as_ref() {
-                    obs.debug_log_prompt = c.observability.debug_log_prompt;
-                }
-                apollia_llm::spawn_llm_subscriber(repo.clone(), event_sender, obs);
+                apollia_llm::spawn_llm_subscriber(repo.clone(), event_sender);
                 info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
                 Some(repo)
             }

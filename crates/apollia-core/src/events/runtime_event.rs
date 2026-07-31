@@ -1465,9 +1465,11 @@ pub enum RuntimeEvent {
     /// An LLM call is about to be sent (before `LlmProxy::complete`).
     ///
     /// `LlmCallCompleted` (existing) is still emitted afterward. Lets the UI
-    /// detect LLM hangs (started without completed) and open a timer. The
-    /// `prompt_text` payload is `None` unless
-    /// `[observability] capture_llm_prompts = true`.
+    /// detect LLM hangs (started without completed) and open a timer.
+    ///
+    /// The event carries no prompt text, only its size in characters. Prompt
+    /// content is never persisted; the only way to see it is
+    /// `[llm.observability] debug_log_prompt`, which logs it at `TRACE`.
     LlmCallStarted {
         /// Current task.
         task_id: TaskId,

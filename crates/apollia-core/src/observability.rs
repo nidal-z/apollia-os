@@ -35,20 +35,11 @@ pub struct ObservabilityConfig {
     #[serde(default = "default_max_tool_output_bytes")]
     pub max_tool_output_bytes: usize,
 
-    /// If true, persists the LLM prompt_text (default false).
-    #[serde(default)]
-    pub debug_log_prompt: bool,
-
     // Granular capture for `runtime_events`.
     /// If `true`, persists ReAct `Thought` records on the trace (default
     /// `true`). Disabling empties the reasoning bubbles in the builder UI.
     #[serde(default = "default_capture_on")]
     pub capture_thoughts: bool,
-    /// If `true`, persists LLM prompts in clear on the trace (default `true`,
-    /// local-first). Distinct from `debug_log_prompt`, which controls the
-    /// `prompt_text` in `llm_calls.db`.
-    #[serde(default = "default_capture_on")]
-    pub capture_llm_prompts: bool,
     /// If `true`, persists the full `args_json` of tool calls (default
     /// `true`). Disabling leaves only the tool name and duration visible.
     #[serde(default = "default_capture_on")]
@@ -74,11 +65,9 @@ impl Default for ObservabilityConfig {
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
             max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             max_tool_output_bytes: DEFAULT_MAX_TOOL_OUTPUT_BYTES,
-            debug_log_prompt: false,
             // Local-first: capture everything by default. The operator can
             // disable individual captures in Settings, Observability.
             capture_thoughts: true,
-            capture_llm_prompts: true,
             capture_tool_args: true,
             capture_tool_outputs: true,
             capture_agent_logs: true,
@@ -194,7 +183,6 @@ mod tests {
         assert_eq!(config.max_input_bytes, 32_768);
         assert_eq!(config.max_output_bytes, 32_768);
         assert_eq!(config.max_tool_output_bytes, 10_240);
-        assert!(!config.debug_log_prompt);
     }
 
     #[test]
@@ -207,18 +195,16 @@ mod tests {
         assert_eq!(config.max_input_bytes, 32_768);
         assert_eq!(config.max_output_bytes, 32_768);
         assert_eq!(config.max_tool_output_bytes, 10_240);
-        assert!(!config.debug_log_prompt);
     }
 
     #[test]
     fn test_observability_config_serde_override() {
         // GIVEN a JSON with custom values
-        let json = r#"{"max_input_bytes": 1024, "debug_log_prompt": true}"#;
+        let json = r#"{"max_input_bytes": 1024}"#;
         // WHEN deserializing
         let config: ObservabilityConfig = serde_json::from_str(json).expect("deser failed");
         // THEN custom values applied, defaults for the rest
         assert_eq!(config.max_input_bytes, 1024);
         assert_eq!(config.max_output_bytes, 32_768);
-        assert!(config.debug_log_prompt);
     }
 }

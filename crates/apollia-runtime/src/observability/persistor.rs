@@ -13,6 +13,7 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::events::RuntimeEvent;
+use apollia_core::ObservabilityConfig;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
@@ -79,6 +80,13 @@ pub enum EventPersistorError {
 enum PersistorMessage {
     /// Fire-and-forget append of an event.
     Append(Box<RuntimeEventRecord>),
+    /// Delete every event older than `cutoff_unix`, and report how many went.
+    Purge {
+        /// Unix seconds. Rows strictly older than this are deleted.
+        cutoff_unix: i64,
+        /// Receives the number of deleted rows, or the SQLite error.
+        reply: oneshot::Sender<Result<usize, String>>,
+    },
     /// Clean shutdown after the queue has been drained.
     Shutdown,
 }
@@ -103,9 +111,28 @@ impl EventPersistor {
                         );
                     }
                 }
+                PersistorMessage::Purge { cutoff_unix, reply } => {
+                    let outcome = Self::purge(&self.conn, cutoff_unix).map_err(|e| e.to_string());
+                    let _ = reply.send(outcome);
+                }
                 PersistorMessage::Shutdown => break,
             }
         }
+    }
+
+    /// Delete every row strictly older than `cutoff_unix`.
+    ///
+    /// Scoped to `runtime_events` by construction: this actor owns the only
+    /// connection to `runtime_events.db` and opens nothing else. The audit trail
+    /// and the signed audit journal live in separate databases and are never
+    /// reachable from here, which matters because the journal is a hash chain
+    /// that `audit verify` walks: deleting a link would break verification for
+    /// every entry after it.
+    fn purge(conn: &rusqlite::Connection, cutoff_unix: i64) -> rusqlite::Result<usize> {
+        conn.execute(
+            "DELETE FROM runtime_events WHERE created_at_unix < ?1",
+            rusqlite::params![cutoff_unix],
+        )
     }
 
     fn insert(conn: &rusqlite::Connection, r: &RuntimeEventRecord) -> rusqlite::Result<()> {
@@ -205,6 +232,52 @@ impl EventPersistorHandle {
         }
     }
 
+    /// Apply the retention policy: delete events older than `retention_days`.
+    ///
+    /// `retention_days == 0` means **never purge** and returns `Ok(0)` without
+    /// touching the database. Any other value deletes rows whose
+    /// `created_at_unix` is strictly older than the cutoff, and logs the count
+    /// at `INFO`: a deletion the operator did not watch happen should still be
+    /// findable afterwards.
+    ///
+    /// Only `runtime_events.db` is affected. The audit trail and the signed
+    /// audit journal are separate databases with their own lifecycle, and the
+    /// journal in particular is a hash chain that `audit verify` walks end to
+    /// end, so it is never purged on a timer.
+    ///
+    /// # Errors
+    ///
+    /// Returns the SQLite error as a string when the delete fails, or a message
+    /// when the actor is gone.
+    pub async fn purge_older_than(
+        &self,
+        retention_days: u32,
+        now_unix: i64,
+    ) -> Result<usize, String> {
+        if retention_days == 0 {
+            tracing::debug!("runtime_events.retention_disabled");
+            return Ok(0);
+        }
+
+        let cutoff_unix = now_unix - i64::from(retention_days) * 86_400;
+        let (reply, rx) = oneshot::channel();
+        self.sender
+            .send(PersistorMessage::Purge { cutoff_unix, reply })
+            .await
+            .map_err(|_| "runtime_events persistor disconnected".to_string())?;
+        let deleted = rx
+            .await
+            .map_err(|_| "runtime_events persistor dropped the purge reply".to_string())??;
+
+        tracing::info!(
+            deleted,
+            retention_days,
+            cutoff_unix,
+            "runtime_events.purged"
+        );
+        Ok(deleted)
+    }
+
     /// Stops the actor after the queue has been drained.
     pub async fn shutdown(&self) {
         let _ = self.sender.send(PersistorMessage::Shutdown).await;
@@ -221,13 +294,14 @@ impl EventPersistorHandle {
 pub fn spawn_runtime_events_subscriber(
     handle: EventPersistorHandle,
     event_bus: &EventBusSender,
+    obs_config: ObservabilityConfig,
 ) -> tokio::task::JoinHandle<()> {
     let mut rx = event_bus.subscribe();
     tokio::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(event) => {
-                    if let Some(record) = event_to_record(event) {
+                    if let Some(record) = event_to_record(event, &obs_config) {
                         handle.append(record);
                     }
                 }
@@ -248,13 +322,28 @@ pub fn spawn_runtime_events_subscriber(
 
 /// Maps a `RuntimeEvent` to a persistable `RuntimeEventRecord`.
 ///
-/// Returns `None` for variants that do not participate in the event log.
+/// Returns `None` for variants that do not participate in the event log, and
+/// for variants whose content the operator has opted out of capturing.
 /// Each new persisted event type is a single extra arm in the `match`.
-fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
+///
+/// The capture switches of [`ObservabilityConfig`] are enforced here, at the
+/// single point where a `RuntimeEvent` becomes a row of `runtime_events.db`.
+/// Two shapes, matching what the setting means to an operator:
+///
+/// - an event whose whole reason to exist is the content (`Thought`,
+///   `AgentLog`) is dropped entirely, so the timeline shows nothing;
+/// - an event that also carries structural facts (`ToolCallStarted` and its
+///   companion `ToolCallCompleted`) keeps its row, and only the content field
+///   is left out. Dropping the row would break the `parent_event_id` chain that
+///   links a call to its result.
+fn event_to_record(event: RuntimeEvent, obs: &ObservabilityConfig) -> Option<RuntimeEventRecord> {
     let now_unix = chrono::Utc::now().timestamp();
     let now_iso = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
     match event {
+        RuntimeEvent::AgentLog { .. } if !obs.capture_agent_logs => None,
+        RuntimeEvent::Thought { .. } if !obs.capture_thoughts => None,
+
         RuntimeEvent::AgentLog {
             task_id,
             agent_id,
@@ -380,7 +469,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             kind: "tool_call_started".to_string(),
             payload_json: serde_json::json!({
                 "tool_name": tool_name,
-                "args_json": args_json,
+                "args_json": obs.capture_tool_args.then_some(args_json).flatten(),
             })
             .to_string(),
             ts: now_iso,
@@ -406,7 +495,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             kind: "tool_call_completed".to_string(),
             payload_json: serde_json::json!({
                 "tool_name": tool_name,
-                "output_json": output_json,
+                "output_json": obs.capture_tool_outputs.then_some(output_json).flatten(),
                 "exit_code": exit_code,
                 "duration_ms": duration_ms,
                 "success": success,
@@ -582,7 +671,8 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join =
+            spawn_runtime_events_subscriber(handle.clone(), &bus, ObservabilityConfig::default());
 
         // WHEN an agent emits a tool_call_started followed by the completed
         // event sharing the same event_id as parent_event_id
@@ -659,7 +749,8 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join =
+            spawn_runtime_events_subscriber(handle.clone(), &bus, ObservabilityConfig::default());
 
         bus.send(RuntimeEvent::Thought {
             task_id: "T".into(),
@@ -726,7 +817,8 @@ mod tests {
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
-        let join = spawn_runtime_events_subscriber(handle.clone(), &bus);
+        let join =
+            spawn_runtime_events_subscriber(handle.clone(), &bus, ObservabilityConfig::default());
 
         // WHEN an agent emits ctx.log via RuntimeEvent::AgentLog
         bus.send(RuntimeEvent::AgentLog {
@@ -759,6 +851,352 @@ mod tests {
         assert_eq!(rows[0].agent_id, "agent-smoke");
         assert!(rows[0].payload_json.contains("research tool unavailable"));
         assert!(rows[0].payload_json.contains("\"level\":\"warn\""));
+    }
+
+    // ── Capture switches ──────────────────────────────────────────────────
+    //
+    // One test per switch of `[observability]`. Each proves the same thing:
+    // with the switch off, the content does not reach `runtime_events.db`.
+    // Before these tests the five switches had no reader at all, so turning
+    // one off changed nothing while the settings page said otherwise.
+
+    /// Drives events through the bus with the given config and returns the rows
+    /// persisted for `task_id`.
+    ///
+    /// Asserting that a switch suppressed something means asserting a negative,
+    /// which a timeout cannot do: "not there yet" and "never written" look the
+    /// same. So a sentinel `Retry` event, which no switch gates, is emitted last
+    /// and the read waits for it. Bus, subscriber and actor channel are all
+    /// FIFO, so once the sentinel is on disk every earlier event has been
+    /// processed, and what is missing is missing by decision.
+    async fn rows_for(
+        obs: ObservabilityConfig,
+        task_id: &str,
+        events: Vec<RuntimeEvent>,
+    ) -> Vec<RuntimeEventRecord> {
+        let dir = tempdir().expect("tempdir");
+        let db = dir.path().join("runtime_events.db");
+        let handle = EventPersistorHandle::open(&db).await.expect("open");
+        let (bus, _rx_keepalive) = EventBus::new();
+        let join = spawn_runtime_events_subscriber(handle.clone(), &bus, obs);
+        for event in events {
+            bus.send(event).expect("bus send");
+        }
+        bus.send(RuntimeEvent::Retry {
+            task_id: task_id.into(),
+            agent_id: "agent-cap".into(),
+            step_num: 99,
+            cause: "capture-test-sentinel".into(),
+            attempt: 1,
+        })
+        .expect("bus send sentinel");
+        drop(bus);
+        join.await.expect("subscriber exits cleanly");
+        handle.shutdown().await;
+
+        let repo = RuntimeEventsRepository::open(&db).expect("open repo");
+        let landed = poll_until_async(Duration::from_secs(10), || async {
+            repo.list_for_task(task_id, None, 50)
+                .map(|r| r.iter().any(|row| row.kind == "retry"))
+                .unwrap_or(false)
+        })
+        .await;
+        assert!(
+            landed,
+            "sentinel never landed, the harness itself is broken"
+        );
+
+        repo.list_for_task(task_id, None, 50)
+            .expect("list_for_task")
+            .into_iter()
+            .filter(|r| r.kind != "retry")
+            .collect()
+    }
+
+    fn agent_log(task_id: &str) -> RuntimeEvent {
+        RuntimeEvent::AgentLog {
+            task_id: task_id.into(),
+            agent_id: "agent-cap".into(),
+            level: "info".into(),
+            message: "SECRET_LOG_LINE".into(),
+            extra_fields_json: None,
+        }
+    }
+
+    fn thought(task_id: &str) -> RuntimeEvent {
+        RuntimeEvent::Thought {
+            task_id: task_id.into(),
+            agent_id: "agent-cap".into(),
+            step_num: 1,
+            text: "SECRET_THOUGHT".into(),
+        }
+    }
+
+    fn tool_pair(task_id: &str) -> Vec<RuntimeEvent> {
+        let started_id = uuid::Uuid::now_v7().to_string();
+        vec![
+            RuntimeEvent::ToolCallStarted {
+                event_id: started_id.clone(),
+                task_id: task_id.into(),
+                agent_id: "agent-cap".into(),
+                tool_name: "file_read".into(),
+                args_json: Some("{\"path\":\"/SECRET_ARG\"}".into()),
+                run_id: None,
+            },
+            RuntimeEvent::ToolCallCompleted {
+                parent_event_id: started_id,
+                task_id: task_id.into(),
+                agent_id: "agent-cap".into(),
+                tool_name: "file_read".into(),
+                output_json: Some("{\"content\":\"SECRET_OUTPUT\"}".into()),
+                exit_code: Some(0),
+                duration_ms: 5,
+                success: true,
+                run_id: None,
+            },
+        ]
+    }
+
+    #[tokio::test]
+    async fn capture_agent_logs_false_persists_no_row() {
+        // GIVEN capture_agent_logs disabled
+        let obs = ObservabilityConfig {
+            capture_agent_logs: false,
+            ..ObservabilityConfig::default()
+        };
+
+        // WHEN an agent emits ctx.log
+        let rows = rows_for(
+            obs,
+            "task-cap-logs-off",
+            vec![agent_log("task-cap-logs-off")],
+        )
+        .await;
+
+        // THEN nothing reaches runtime_events.db
+        assert!(rows.is_empty(), "no agent_log row should be persisted");
+    }
+
+    #[tokio::test]
+    async fn capture_agent_logs_true_persists_the_message() {
+        // GIVEN the default (enabled)
+        // WHEN the same event is emitted
+        let rows = rows_for(
+            ObservabilityConfig::default(),
+            "task-cap-logs-on",
+            vec![agent_log("task-cap-logs-on")],
+        )
+        .await;
+
+        // THEN the row is there, so the test above proves the switch, not a
+        // broken harness
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].payload_json.contains("SECRET_LOG_LINE"));
+    }
+
+    #[tokio::test]
+    async fn capture_thoughts_false_persists_no_row() {
+        // GIVEN capture_thoughts disabled
+        let obs = ObservabilityConfig {
+            capture_thoughts: false,
+            ..ObservabilityConfig::default()
+        };
+
+        // WHEN the agent emits a ReAct thought
+        let rows = rows_for(obs, "task-cap-th-off", vec![thought("task-cap-th-off")]).await;
+
+        // THEN nothing reaches runtime_events.db
+        assert!(rows.is_empty(), "no thought row should be persisted");
+    }
+
+    #[tokio::test]
+    async fn capture_thoughts_true_persists_the_text() {
+        let rows = rows_for(
+            ObservabilityConfig::default(),
+            "task-cap-th-on",
+            vec![thought("task-cap-th-on")],
+        )
+        .await;
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].payload_json.contains("SECRET_THOUGHT"));
+    }
+
+    #[tokio::test]
+    async fn capture_tool_args_false_drops_the_args_but_keeps_the_row() {
+        // GIVEN capture_tool_args disabled
+        let obs = ObservabilityConfig {
+            capture_tool_args: false,
+            ..ObservabilityConfig::default()
+        };
+
+        // WHEN a tool call runs
+        let rows = rows_for(obs, "task-cap-args-off", tool_pair("task-cap-args-off")).await;
+
+        // THEN the call is still traced, but the argument content is gone
+        let started = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_started")
+            .expect("the tool call itself stays traced");
+        assert!(
+            !started.payload_json.contains("SECRET_ARG"),
+            "args content must not reach the database: {}",
+            started.payload_json
+        );
+        assert!(
+            started.payload_json.contains("file_read"),
+            "the structural fact stays: {}",
+            started.payload_json
+        );
+    }
+
+    #[tokio::test]
+    async fn capture_tool_args_true_persists_the_args() {
+        let rows = rows_for(
+            ObservabilityConfig::default(),
+            "task-cap-args-on",
+            tool_pair("task-cap-args-on"),
+        )
+        .await;
+        let started = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_started")
+            .expect("started row");
+        assert!(started.payload_json.contains("SECRET_ARG"));
+    }
+
+    #[tokio::test]
+    async fn capture_tool_outputs_false_drops_the_output_but_keeps_the_chain() {
+        // GIVEN capture_tool_outputs disabled
+        let obs = ObservabilityConfig {
+            capture_tool_outputs: false,
+            ..ObservabilityConfig::default()
+        };
+
+        // WHEN a tool call completes
+        let rows = rows_for(obs, "task-cap-out-off", tool_pair("task-cap-out-off")).await;
+
+        // THEN the output content is gone, and the parent link survives so the
+        // timeline still pairs the call with its result
+        let completed = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_completed")
+            .expect("completed row stays");
+        assert!(
+            !completed.payload_json.contains("SECRET_OUTPUT"),
+            "output content must not reach the database: {}",
+            completed.payload_json
+        );
+        assert!(
+            completed.parent_event_id.is_some(),
+            "dropping content must not break the parent_event_id chain"
+        );
+    }
+
+    #[tokio::test]
+    async fn capture_tool_outputs_true_persists_the_output() {
+        let rows = rows_for(
+            ObservabilityConfig::default(),
+            "task-cap-out-on",
+            tool_pair("task-cap-out-on"),
+        )
+        .await;
+        let completed = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_completed")
+            .expect("completed row");
+        assert!(completed.payload_json.contains("SECRET_OUTPUT"));
+    }
+
+    // ── Retention purge ───────────────────────────────────────────────────
+
+    /// Insert one row at `created_at_unix` directly through the handle.
+    async fn append_at(handle: &EventPersistorHandle, task_id: &str, id: &str, at_unix: i64) {
+        handle.append(RuntimeEventRecord {
+            event_id: id.to_string(),
+            task_id: task_id.to_string(),
+            agent_id: "agent-purge".into(),
+            parent_event_id: None,
+            correlation_id: None,
+            step_num: None,
+            kind: "agent_log".into(),
+            payload_json: "{}".into(),
+            ts: "2026-01-01T00:00:00.000Z".into(),
+            created_at_unix: at_unix,
+        });
+    }
+
+    async fn count_rows(db: &std::path::Path) -> i64 {
+        let conn = rusqlite::Connection::open(db).expect("reopen");
+        conn.query_row("SELECT COUNT(*) FROM runtime_events", [], |r| r.get(0))
+            .unwrap_or(-1)
+    }
+
+    #[tokio::test]
+    async fn purge_deletes_only_events_older_than_the_cutoff() {
+        // GIVEN one event well past the retention window and one inside it
+        let dir = tempdir().expect("tempdir");
+        let db = dir.path().join("runtime_events.db");
+        let handle = EventPersistorHandle::open(&db).await.expect("open");
+        let now = 1_800_000_000i64;
+        append_at(
+            &handle,
+            "task-purge",
+            "01900000-0000-7000-8000-00000000aa01",
+            now - 40 * 86_400,
+        )
+        .await;
+        append_at(
+            &handle,
+            "task-purge",
+            "01900000-0000-7000-8000-00000000aa02",
+            now - 2 * 86_400,
+        )
+        .await;
+        let landed = poll_until_async(Duration::from_secs(10), || async {
+            count_rows(&db).await == 2
+        })
+        .await;
+        assert!(landed, "both rows should be in before purging");
+
+        // WHEN a 30-day retention is applied
+        let deleted = handle
+            .purge_older_than(30, now)
+            .await
+            .expect("purge should succeed");
+
+        // THEN only the old one is gone
+        assert_eq!(deleted, 1);
+        assert_eq!(count_rows(&db).await, 1);
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn retention_days_zero_never_purges() {
+        // GIVEN an event far older than any plausible window
+        let dir = tempdir().expect("tempdir");
+        let db = dir.path().join("runtime_events.db");
+        let handle = EventPersistorHandle::open(&db).await.expect("open");
+        let now = 1_800_000_000i64;
+        append_at(
+            &handle,
+            "task-keep",
+            "01900000-0000-7000-8000-00000000bb01",
+            0,
+        )
+        .await;
+        let landed = poll_until_async(Duration::from_secs(10), || async {
+            count_rows(&db).await == 1
+        })
+        .await;
+        assert!(landed);
+
+        // WHEN retention is 0, which means never purge
+        let deleted = handle.purge_older_than(0, now).await.expect("no-op");
+
+        // THEN nothing is deleted. 0 must not be read as "keep zero days".
+        assert_eq!(deleted, 0);
+        assert_eq!(count_rows(&db).await, 1);
+        handle.shutdown().await;
     }
 
     #[tokio::test]

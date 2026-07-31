@@ -17,7 +17,6 @@ export interface ObservabilityConfig {
   /** Persist the LLM 'thought' field at each ReAct turn. */
   capture_thoughts: boolean;
   /** Persist raw prompts and responses. Sensitive. */
-  capture_llm_prompts: boolean;
   /** Persist the args JSON of each tool invocation. */
   capture_tool_args: boolean;
   /** Persist the output JSON of each tool invocation. */
