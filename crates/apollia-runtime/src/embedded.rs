@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use apollia_core::{A2AConfig, HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
+use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
 use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
@@ -224,12 +224,6 @@ pub struct EmbeddedConfig {
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub hitl_config: HitlConfig,
 
-    /// A2A configuration (chain timeout).
-    ///
-    /// Maps to the `[a2a]` section in `apollia.toml`.
-    /// Populated by [`EmbeddedConfig::apply_toml`].
-    pub a2a_config: A2AConfig,
-
     /// Native tools configuration (web_search, web_read, disabled).
     ///
     /// Maps to the `[tools]` section in `apollia.toml`.
@@ -274,7 +268,6 @@ impl Default for EmbeddedConfig {
             chat_agent_runner: None,
             runtime_config: RuntimeConfig::default(),
             hitl_config: HitlConfig::default(),
-            a2a_config: A2AConfig::default(),
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_config: apollia_core::McpConfig::default(),
             hooks_config: apollia_core::HooksConfig::default(),
@@ -295,7 +288,6 @@ impl EmbeddedConfig {
             llm: Option<apollia_llm::LlmConfig>,
             runtime: Option<RuntimeConfig>,
             hitl: Option<HitlConfig>,
-            a2a: Option<A2AConfig>,
             api: Option<apollia_core::ApiConfig>,
             tools: Option<apollia_core::ToolsConfig>,
             mcp: Option<apollia_core::McpConfig>,
@@ -313,9 +305,6 @@ impl EmbeddedConfig {
             }
             if let Some(hc) = s.hitl {
                 self.hitl_config = hc;
-            }
-            if let Some(ac) = s.a2a {
-                self.a2a_config = ac;
             }
             if let Some(api) = s.api {
                 // Update socket_path from [api].unix_socket when explicitly configured.

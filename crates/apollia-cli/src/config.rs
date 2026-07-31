@@ -27,8 +27,7 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    A2AConfig, ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig,
-    ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
+    ApiConfig, ChatConfig, HitlConfig, HooksConfig, McpConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -54,9 +53,10 @@ pub enum ConfigError {
 
 /// Global Apollia OS configuration validated from `apollia.toml`.
 ///
-/// Holds the LLM, REST API, core runtime, HITL, and A2A routing configuration.
-/// The operational configuration (triggers, notifications, agents, stt) is
-/// managed in SQLite.
+/// Holds the LLM, REST API, core runtime, HITL, tools, MCP, hooks and chat
+/// configuration. The operational configuration (triggers, notifications,
+/// agents, stt) is managed in SQLite. Sections that deserialized into a struct
+/// nothing ever read are listed in [`INERT_SECTIONS`] and no longer accepted.
 ///
 /// To deserialize from a file, use [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
@@ -82,21 +82,6 @@ pub struct ApolliaCConfig {
     /// `None` when absent; the [`HitlConfig`] defaults apply.
     pub hitl: Option<HitlConfig>,
 
-    /// Section `[a2a]`: inter-agent routing.
-    ///
-    /// `None` when absent; the [`A2AConfig`] defaults apply.
-    pub a2a: Option<A2AConfig>,
-
-    /// Section `[oria]`: Observer-Reasoner-Actor engine.
-    ///
-    /// `None` when absent; the [`ORIAConfig`] defaults apply.
-    pub oria: Option<ORIAConfig>,
-
-    /// Section `[registry]`: community registry URL.
-    ///
-    /// `None` when absent; the [`RegistryConfig`] default applies.
-    pub registry: Option<RegistryConfig>,
-
     /// Section `[tools]`: native tools (limits, static disabling,
     /// `web_search` / `web_read` configuration).
     ///
@@ -107,16 +92,6 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`McpConfig`] defaults apply.
     pub mcp: Option<McpConfig>,
-
-    /// Section `[permissions]`: permissions engine (SafeList, injection detection).
-    ///
-    /// `None` when absent; the [`PermissionsConfig`] defaults apply.
-    pub permissions: Option<PermissionsConfig>,
-
-    /// Section `[filesystem]`: reversible journal and filesystem configuration.
-    ///
-    /// `None` when absent; the [`FilesystemConfig`] defaults apply.
-    pub filesystem: Option<FilesystemConfig>,
 
     /// Section `[hooks]`: lifecycle hook handlers (command/http).
     ///
@@ -134,6 +109,34 @@ pub struct ApolliaCConfig {
 /// Used by [`check_deprecated_sections`] to emit warnings if an older
 /// `apollia.toml` file still contains these sections.
 const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
+
+/// Section names that were accepted as valid key paths but that nothing ever read.
+///
+/// Distinct from [`DEPRECATED_SECTIONS`]: those moved somewhere else, these never
+/// had a destination. `config set` no longer accepts them, and a file that still
+/// carries one gets a warning instead of a silent drop.
+///
+/// - `[memory]` and `[budget]` had no field on [`ApolliaCConfig`] and no module
+///   under `apollia-core/src/config/` at all.
+/// - `[a2a]`, `[oria]`, `[registry]`, `[permissions]` and `[filesystem]` did
+///   deserialize into a typed struct, and that struct was then never consulted.
+///   `[permissions]` is the one worth spelling out: its `safe_commands` and
+///   `injection_detection` feed `SafeList` and `InjectionDetector`, which only
+///   run behind a `PermissionEngine` that no production caller ever installs
+///   (see `apollia-tools/src/executor.rs`), while `prefix_rule_ttl_hours` and
+///   `db_path` had no reader at all. `PrefixRuleEngine`, the governance path
+///   that does run, takes nothing from this section.
+///
+/// Removing the surface does not change behaviour: these values had none.
+const INERT_SECTIONS: &[&str] = &[
+    "memory",
+    "budget",
+    "a2a",
+    "oria",
+    "registry",
+    "permissions",
+    "filesystem",
+];
 
 // ─────────────────────────────────────────────
 // Public functions
@@ -166,21 +169,7 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 /// the loose table before typed deserialization and to reject unknown keys in
 /// `config set` (see [`is_known_top_level_section`]).
 pub const KNOWN_SECTIONS: &[&str] = &[
-    "llm",
-    "runtime",
-    "memory",
-    "tools",
-    "budget",
-    "api",
-    "hitl",
-    "a2a",
-    "oria",
-    "registry",
-    "mcp",
-    "permissions",
-    "filesystem",
-    "hooks",
-    "chat",
+    "llm", "runtime", "tools", "api", "hitl", "mcp", "hooks", "chat",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -219,8 +208,9 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
 /// - [`ConfigError::Parse`]: the TOML is malformed or a value has an invalid
 ///   type / enum variant inside a known section.
 pub fn validate_apollia_toml_str(content: &str) -> Result<ApolliaCConfig, ConfigError> {
-    // Check for deprecated sections before strict deserialization.
+    // Check for deprecated and inert sections before strict deserialization.
     check_deprecated_sections(content);
+    check_inert_sections(content);
 
     // Parse as a loose table first to ignore unknown sections gracefully.
     let raw_table: toml::Value = toml::from_str(content)?;
@@ -265,6 +255,32 @@ fn check_deprecated_sections(content: &str) {
                     section = %section,
                     "apollia.toml contains deprecated section [{section}], \
                      use the desktop app or API to manage {section}"
+                );
+                break;
+            }
+        }
+    }
+}
+
+/// Reports sections that a file may still carry but that nothing reads.
+///
+/// Distinct from [`check_deprecated_sections`]: those moved somewhere else,
+/// these never had a destination. Emitting a warning turns a silent drop into a
+/// visible one, which is the whole point of listing them.
+fn check_inert_sections(content: &str) {
+    for section in INERT_SECTIONS {
+        let bracket_single = format!("[{section}]");
+        let bracket_double = format!("[[{section}]]");
+        let dotted = format!("[{section}.");
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed == bracket_single
+                || trimmed == bracket_double
+                || trimmed.starts_with(&dotted)
+            {
+                tracing::warn!(
+                    section = %section,
+                    "config.section.inert"
                 );
                 break;
             }
@@ -557,12 +573,12 @@ events = ["task.completed"]
         assert!(DEPRECATED_SECTIONS.contains(&"stt"));
     }
 
-    // GIVEN apollia.toml contains [mcp], [permissions], and [filesystem.journal]
+    // GIVEN apollia.toml contains [mcp] plus two sections that nothing reads
     // WHEN parse_apollia_toml is called
-    // THEN the custom values are deserialized correctly
+    // THEN [mcp] is deserialized and the inert sections are filtered out
     #[test]
-    fn test_mcp_permissions_filesystem_sections_deserialized() {
-        // GIVEN
+    fn test_mcp_deserialized_and_inert_sections_filtered() {
+        // GIVEN a file mixing a live section with two inert ones
         let toml = r#"
 [mcp]
 approval_ttl_hours = 48
@@ -579,33 +595,60 @@ max_sessions = 100
         // WHEN
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
 
-        // THEN
+        // THEN the live section is honoured
         let mcp = config.mcp.expect("mcp should be present");
         assert_eq!(mcp.approval_ttl_hours, 48);
 
-        let perms = config.permissions.expect("permissions should be present");
-        assert!(!perms.injection_detection);
-        assert_eq!(perms.safe_commands, vec!["bash_executor(git status)"]);
-
-        let fs = config.filesystem.expect("filesystem should be present");
-        assert_eq!(fs.journal.max_sessions, 100);
+        // AND the inert sections no longer exist on the typed config at all,
+        // so no caller can mistake them for a setting that does something.
+        // They used to deserialize into a struct nothing ever consulted.
+        assert!(!is_known_top_level_section("permissions"));
+        assert!(!is_known_top_level_section("filesystem"));
+        assert!(INERT_SECTIONS.contains(&"permissions"));
+        assert!(INERT_SECTIONS.contains(&"filesystem"));
     }
 
-    // GIVEN apollia.toml without [mcp]/[permissions]/[filesystem]
-    // WHEN parse_apollia_toml is called
-    // THEN the fields are None, no regression
+    // GIVEN the five sections that deserialized into an unread struct
+    // WHEN config set validates a key path
+    // THEN they are rejected instead of silently accepted then dropped
     #[test]
-    fn test_mcp_permissions_filesystem_absent_is_none() {
-        // GIVEN an empty TOML
-        let file = write_toml("");
+    fn test_inert_sections_are_rejected_as_key_paths() {
+        // GIVEN / WHEN / THEN
+        for section in ["a2a", "oria", "registry", "permissions", "filesystem"] {
+            assert!(
+                !is_known_top_level_section(section),
+                "[{section}] must not be settable: nothing reads it"
+            );
+            assert!(
+                INERT_SECTIONS.contains(&section),
+                "[{section}] must be listed so an operator gets a warning"
+            );
+        }
+    }
+
+    // GIVEN an apollia.toml carrying an inert section
+    // WHEN it is validated
+    // THEN parsing still succeeds: removing the surface breaks no existing file
+    #[test]
+    fn test_inert_section_does_not_break_an_existing_file() {
+        // GIVEN a file written before the sections were withdrawn
+        let toml = r#"
+[permissions]
+injection_detection = false
+
+[oria]
+max_replans = 3
+
+[hitl]
+timeout_hours = 12
+"#;
 
         // WHEN
-        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let config = validate_apollia_toml_str(toml).expect("parse should succeed");
 
-        // THEN
-        assert!(config.mcp.is_none());
-        assert!(config.permissions.is_none());
-        assert!(config.filesystem.is_none());
+        // THEN the live section is unaffected
+        let hitl = config.hitl.expect("hitl should be present");
+        assert_eq!(hitl.timeout_hours, Some(12));
     }
 
     // GIVEN apollia.toml with a [chat] section enabling plan mode by default
@@ -645,31 +688,37 @@ plan_mode_default = true
 
     // GIVEN the ApolliaCConfig struct
     // WHEN verifying its structure
-    // THEN it contains the static config fields (llm, api, runtime, hitl, a2a, oria, registry, tools, mcp, permissions, filesystem)
+    // THEN it carries exactly the sections a loader actually consults
     #[test]
     fn test_config_struct_has_expected_fields() {
+        // GIVEN a config with every section absent
         let config = ApolliaCConfig {
             llm: None,
             api: None,
             runtime: None,
             hitl: None,
-            a2a: None,
-            oria: None,
-            registry: None,
             tools: None,
             mcp: None,
-            permissions: None,
-            filesystem: None,
             hooks: None,
             chat: None,
         };
+
+        // THEN every field is optional and absent
         assert!(config.llm.is_none());
+        assert!(config.api.is_none());
         assert!(config.runtime.is_none());
         assert!(config.hitl.is_none());
-        assert!(config.a2a.is_none());
-        assert!(config.registry.is_none());
+        assert!(config.tools.is_none());
         assert!(config.mcp.is_none());
-        assert!(config.permissions.is_none());
-        assert!(config.filesystem.is_none());
+        assert!(config.hooks.is_none());
+        assert!(config.chat.is_none());
+
+        // AND the typed struct agrees with the key-path guard, so a section can
+        // never again be settable without a field to land in.
+        assert_eq!(
+            KNOWN_SECTIONS.len(),
+            8,
+            "adding a section here means adding a field above, and a reader below"
+        );
     }
 }
