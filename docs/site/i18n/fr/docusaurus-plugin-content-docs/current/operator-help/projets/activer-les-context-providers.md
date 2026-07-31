@@ -12,7 +12,7 @@
 1. Dans la sidebar, cliquez sur **Projets**, puis sur la carte du projet à configurer. Le panneau de détail s'ouvre.
 
 2. Faites défiler jusqu'à la section **Context providers**. Trois types de fournisseurs sont disponibles.
-   ![section Context providers dans le panneau projet, liste des providers avec toggle ON/OFF](/img/operator-help/projets-activer-les-context-providers-1.png)
+   ![section Context providers dans le panneau projet, liste des providers avec toggle ON/OFF](/img/operator-help/fr/projets-activer-les-context-providers-1.png)
 
 3. **Git Status** (`git`) - cliquez sur **Ajouter un fournisseur** et sélectionnez *Git Status*. Actif, ce fournisseur injecte l'état git courant (fichiers modifiés, branch) dans chaque message envoyé aux agents liés au projet.
 
@@ -21,10 +21,10 @@
 5. **Project Rules** (`rules`) - ajoutez *Project Rules (APOLLIA.md)* pour inclure automatiquement les instructions du fichier `APOLLIA.md` à la racine du projet.
 
 6. Basculez l'interrupteur de chaque fournisseur sur ON ou OFF selon vos besoins.
-   ![provider Git Status activé (toggle vert), provider Directory Tree désactivé (toggle gris)](/img/operator-help/projets-activer-les-context-providers-2.png)
+   ![provider Git Status activé (toggle vert), provider Directory Tree désactivé (toggle gris)](/img/operator-help/fr/projets-activer-les-context-providers-2.png)
 
 7. Pour voir exactement ce qui sera transmis à l'IA, cliquez sur **Aperçu du contexte** (Workspace Snapshot). Un panneau dépliable affiche le contenu de chaque fournisseur actif.
-   ![aperçu détaillé d'un context provider avec contenu git diff / arborescence](/img/operator-help/projets-activer-les-context-providers-3.png)
+   ![aperçu détaillé d'un context provider avec contenu git diff / arborescence](/img/operator-help/fr/projets-activer-les-context-providers-3.png)
 
    > **⚠️ Non disponible dans cette version :** un bandeau "Contexte injecté" avec le total estimé de tokens n'est pas encore disponible dans l'interface. Pour estimer la taille du contexte, consultez l'aperçu et tenez compte de la règle approximative : 1 token ≈ 4 caractères.
 

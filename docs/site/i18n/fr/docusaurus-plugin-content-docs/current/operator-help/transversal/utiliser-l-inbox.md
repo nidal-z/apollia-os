@@ -24,7 +24,7 @@ L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve v
 
 ## Onglet "À traiter"
 
-![Boite de reception sur l'onglet A traiter, puces de compteur dans la barre d'onglets et puces de filtre en dessous](/img/operator-help/transversal-utiliser-l-inbox-1.png)
+![Boite de reception sur l'onglet A traiter, puces de compteur dans la barre d'onglets et puces de filtre en dessous](/img/operator-help/fr/transversal-utiliser-l-inbox-1.png)
 
 ### Filtrer la liste
 
@@ -40,7 +40,7 @@ Cliquez sur une ligne d'approbation pour la déplier en carte de décision. Voir
 
 Quand un agent utilise l'outil `ask_user` pour vous interroger, l'item apparaît dans cet onglet sous le libellé **Question**. Cliquez pour déplier le formulaire dynamique.
 
-![Formulaire ask_user deplie, encart de contexte en haut suivi des questions auxquelles repondre](/img/operator-help/transversal-utiliser-l-inbox-2.png)
+![Formulaire ask_user deplie, encart de contexte en haut suivi des questions auxquelles repondre](/img/operator-help/fr/transversal-utiliser-l-inbox-2.png)
 
 Le formulaire affiche, dans l'ordre :
 
@@ -63,7 +63,7 @@ Sous la liste des items en attente, une section **Historique récent (14 jours)*
 
 ## Onglet "Activité"
 
-![Boite de reception sur l'onglet Activite, ses quatre puces de filtre et la liste des cartes d'evenement](/img/operator-help/transversal-utiliser-l-inbox-3.png)
+![Boite de reception sur l'onglet Activite, ses quatre puces de filtre et la liste des cartes d'evenement](/img/operator-help/fr/transversal-utiliser-l-inbox-3.png)
 
 Cet onglet liste les événements qui n'ont pas demandé d'action immédiate mais méritent un coup d'œil. Quatre catégories couvertes sur la fenêtre de 14 jours :
 
@@ -77,7 +77,7 @@ Filtrez avec les chips en haut. Chaque ligne propose un bouton **Voir les logs**
 
 ## Onglet "Notifications envoyées"
 
-![Boite de reception sur l'onglet Notifications envoyees, filtre par canal et tableau d'envoi a quatre colonnes](/img/operator-help/transversal-utiliser-l-inbox-4.png)
+![Boite de reception sur l'onglet Notifications envoyees, filtre par canal et tableau d'envoi a quatre colonnes](/img/operator-help/fr/transversal-utiliser-l-inbox-4.png)
 
 Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou Webhook, avec :
 

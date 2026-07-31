@@ -25,7 +25,7 @@ Open an agent detail page, **Tools** tab. The list shows, read-only:
 - The optional tools.
 - A badge indicates whether the tool requires an HITL approval by default.
 
-![Agent detail page, Tools tab: the list of required and optional tools with their approval badges](/img/operator-help/integration-comprendre-la-portee-d-une-integration-1.png)
+![Agent detail page, Tools tab: the list of required and optional tools with their approval badges](/img/operator-help/en/integration-comprendre-la-portee-d-une-integration-1.png)
 
 This list **cannot be edited from the interface in v0.1.0**. To add or remove a tool for an agent, you have to edit its manifest and reinstall it. See the Help page [Install an agent](../agents/installer-un-agent.md).
 

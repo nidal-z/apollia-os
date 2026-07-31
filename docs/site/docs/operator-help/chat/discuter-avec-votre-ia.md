@@ -11,7 +11,7 @@
 ## Steps
 
 1. In the sidebar, click **Chat**. The list of your conversations shows on the left, the input area in the middle.
-   ![Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom](/img/operator-help/chat-discuter-avec-votre-ia-1.png)
+   ![Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom](/img/operator-help/en/chat-discuter-avec-votre-ia-1.png)
 
 2. Click **New chat** at the top of the list. A blank conversation opens.
 
@@ -20,14 +20,14 @@
 4. Type your instruction in plain language in the input field at the bottom. Be specific: *"Summarise this file in 5 bullet points"* works better than *"Help me"*.
 
 5. Press **Enter** or click **Send**. The answer streams in, word by word.
-   ![conversation with a user message and an AI answer streaming in, markdown formatting rendered](/img/operator-help/chat-discuter-avec-votre-ia-2.png)
+   ![conversation with a user message and an AI answer streaming in, markdown formatting rendered](/img/operator-help/en/chat-discuter-avec-votre-ia-2.png)
 
-![conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued)](/img/operator-help/chat-discuter-avec-votre-ia-2bis.png)
+![conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued)](/img/operator-help/en/chat-discuter-avec-votre-ia-2bis.png)
 
 6. Ask your follow-up questions in the same thread. The AI keeps the whole conversation history.
 
 7. If you are talking to an Assistant, the reasoning steps show up **inline** in the message bubbles as expandable reasoning cards (not in a separate right-hand pane).
-   ![answer bubble with an expanded reasoning card showing the agent's steps](/img/operator-help/chat-discuter-avec-votre-ia-3.png)
+   ![answer bubble with an expanded reasoning card showing the agent's steps](/img/operator-help/en/chat-discuter-avec-votre-ia-3.png)
 
 8. If the AI wants to perform a sensitive action (write a file, run a command), an approval card appears: see [Approve or reject an action](../controle/approuver-ou-refuser-une-action.md).
 

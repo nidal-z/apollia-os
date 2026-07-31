@@ -26,7 +26,7 @@ Three cards side by side, and an activity strip below:
 - **Ready deliverables**: recently completed tasks. Clicking a row opens the **Tasks** tab.
 - **At work**: the agents currently active. Clicking one opens the agent detail.
 
-![dashboard in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
+![dashboard in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns](/img/operator-help/en/observabilite-lire-le-digest-quotidien-1.png)
 
 Below the cards, **Recent activity** lists the latest tasks across all statuses as mini-cards, and leads to the **Tasks** page.
 
@@ -39,7 +39,7 @@ The counters update on their own: start a task and *"At work"* increments withou
 2. At the top, **four KPIs** summarise the current window: Events · Tools · LLM calls · Errors (counter in red if > 0). The KPIs react to the filters: if you hide tools, their counter stays but the **Events** total goes down.
 
 3. Choose the **time window**: **30 min / 1 h / 6 h / 24 h / 7 d**. Default: 1 h. Events reload automatically about every 15 seconds.
-   ![Timeline tab: the KPI strip, the filter bar, then the events grouped by day](/img/operator-help/observabilite-consulter-l-historique-des-taches-1.png)
+   ![Timeline tab: the KPI strip, the filter bar, then the events grouped by day](/img/operator-help/en/observabilite-consulter-l-historique-des-taches-1.png)
 
 4. **Filter the events**:
    - **Type** - 7 rounded chips (Task / Tool / LLM / Approval / Memory / Delegation / Error). Each chip enables or disables its category; greyed-out chips are disabled.

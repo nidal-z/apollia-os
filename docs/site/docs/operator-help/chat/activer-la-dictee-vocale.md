@@ -11,14 +11,14 @@
 ## Steps
 
 1. In the sidebar, click **Settings**, then the **Speech-to-Text** section.
-   ![Settings page, Speech-to-Text section, Whisper model status shown at the top](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
+   ![Settings page, Speech-to-Text section, Whisper model status shown at the top](/img/operator-help/en/chat-activer-la-dictee-vocale-1.png)
 
 2. Check that the Whisper model appears with a green **Loaded** pill. If not, go back to the Model Hub to download it.
 
 3. Select the dictation **Language** (French, English, Spanish, etc.) in the picker. Choosing the right language improves accuracy noticeably.
 
 4. Click the **Global hotkey** field. A window prompts you to press the key combination you want (for example **Cmd + Shift + Space**).
-   ![HotkeyCapture window with the message "Press your hotkey combination" and the captured combination](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
+   ![HotkeyCapture window with the message "Press your hotkey combination" and the captured combination](/img/operator-help/en/chat-activer-la-dictee-vocale-2.png)
 
 5. In the **Trigger mode** picker, choose one of the two modes:
    - **Toggle (press = start/stop)**: a first press on the shortcut starts recording, a second one stops it.

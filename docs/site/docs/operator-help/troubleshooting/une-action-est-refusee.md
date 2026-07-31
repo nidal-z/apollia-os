@@ -12,7 +12,7 @@ Every manual refusal sends a clear message to the agent, which adapts or stops. 
 1. In the sidebar, click **Inbox**.
 2. The **To do** tab. Scroll down to the **Recent history (last 14 days)** section below the list of pending items.
 3. Find the line with the ❌ **Rejected** icon matching the action. The **reason entered at the time of the refusal** is displayed in red as sub-text just below it. It tells the agent what to change.
-   ![Inbox on the To do tab, with the recent history at the bottom showing a rejected line and its reason](/img/operator-help/troubleshooting-une-action-est-refusee-1.png)
+   ![Inbox on the To do tab, with the recent history at the bottom showing a rejected line and its reason](/img/operator-help/en/troubleshooting-une-action-est-refusee-1.png)
 4. If the refusal was a mistake, restart the agent or ask it in the chat to retry with a new instruction.
 
 ### 2. A persisted permission rule blocks the action

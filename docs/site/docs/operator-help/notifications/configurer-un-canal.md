@@ -36,7 +36,7 @@ In order: first enable globally what interests you, then narrow down channel by 
 1. In the sidebar, click **Notifications**.
 2. Spot the **Global events** section at the top of the page: a grid of checkboxes, one per type, with a label, a short description and the technical identifier.
 
-   ![Global events section, grid of 7 checkboxes with label, description and technical identifier](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
+   ![Global events section, grid of 7 checkboxes with label, description and technical identifier](/img/operator-help/en/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Check or uncheck according to what you want surfaced.
 4. Click **Save**. A *"Global events saved"* toast confirms. **Without that click, nothing is applied**: the checkmarks stay local to the screen.
@@ -50,7 +50,7 @@ Apollia automatically creates a default **Desktop** channel on the very first st
 1. In the sidebar, click **Notifications**. The list shows your existing channels, plus a *"Global events"* section at the top.
 
 2. Click **+ New channel** at the top right. The **Create channel** dialog opens.
-   ![Notifications page - Global events section, channel list, "New channel" button at the top right](/img/operator-help/notifications-configurer-un-canal-1.png)
+   ![Notifications page - Global events section, channel list, "New channel" button at the top right](/img/operator-help/en/notifications-configurer-un-canal-1.png)
 
 3. **Name** (first field, auto-focused) - type a clear, free-form name (spaces, accents and emojis accepted, 80 characters max). Examples: *Slack team alerts*, *Supervision webhook*, *Personal desktop*. This name will appear in the list, in the delivery history and in the toasts.
 
@@ -96,7 +96,7 @@ Once created, each channel is rendered as a card with:
 - At the far right of the events row, a small **⏱ … s** indicator appears if a throttle is configured.
 - In the card footer, separated by a thin rule, **three action icons** side by side: paper plane (Test), pencil (Edit), red bin (Delete). Hover each icon to see its tooltip.
 
-![A notification channel card, with its accent bar, channel icon, name and identifier, and its badges](/img/operator-help/notifications-configurer-un-canal-2.png)
+![A notification channel card, with its accent bar, channel icon, name and identifier, and its badges](/img/operator-help/en/notifications-configurer-un-canal-2.png)
 
 ## Test the channel
 

@@ -39,7 +39,7 @@ Apollia distinguishes three cases. Choose according to what you want to do:
 1. In the sidebar, open **Settings**, then the **LLM Backends** section.
 2. Click **+ Add LLM backend** at the top. A configuration window opens.
 
-   ![Add LLM backend dialog, empty, with the Name and Provider fields](/img/operator-help/installation-connecter-un-modele-distant-1.png)
+   ![Add LLM backend dialog, empty, with the Name and Provider fields](/img/operator-help/en/installation-connecter-un-modele-distant-1.png)
 
 3. Give it a unique **Name** (lowercase letters, digits and hyphens, for example `claude-anthropic`).
 4. Choose the **Provider** from the dropdown.

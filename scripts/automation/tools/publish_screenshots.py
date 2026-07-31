@@ -19,9 +19,9 @@ copied, because an unreferenced image in `static/` is a file that ships to every
 visitor and is served to no one.
 
 Usage:
-    python3 scripts/automation/tools/publish_screenshots.py            # dry run
-    python3 scripts/automation/tools/publish_screenshots.py --apply    # copy
-    python3 scripts/automation/tools/publish_screenshots.py --from DIR
+    python3 scripts/automation/tools/publish_screenshots.py --locale en
+    python3 scripts/automation/tools/publish_screenshots.py --locale en --apply
+    python3 scripts/automation/tools/publish_screenshots.py --locale fr --from DIR
 
 The default source is `$APOLLIA_AUTOMATION_OUT`, falling back to the runner's own
 default under the system temp directory.
@@ -47,10 +47,10 @@ MIRROR = (
     / "current"
     / "operator-help"
 )
-DEST = REPO_ROOT / "docs" / "site" / "static" / "img" / "operator-help"
+IMG = REPO_ROOT / "docs" / "site" / "static" / "img" / "operator-help"
 
 SEQ = re.compile(r"^\d{3}-(.+\.png)$")
-REF = re.compile(r"/img/operator-help/([a-z0-9-]+\.png)")
+REF = re.compile(r"/img/operator-help/(?:en|fr)/([a-z0-9-]+\.png)")
 
 
 def referenced() -> set[str]:
@@ -74,6 +74,13 @@ def default_source() -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--from", dest="source", type=Path, default=None)
+    parser.add_argument(
+        "--locale",
+        required=True,
+        choices=("en", "fr"),
+        help="which image set the run produced; the two locales are separate "
+        "directories because the interface language differs between them",
+    )
     parser.add_argument("--apply", action="store_true", help="copy, rather than report")
     args = parser.parse_args()
 
@@ -99,11 +106,13 @@ def main() -> int:
     missing = sorted(wanted - produced.keys())
     extra = sorted(produced.keys() - wanted)
 
+    dest = IMG / args.locale
+    dest.mkdir(parents=True, exist_ok=True)
     for name in published:
         if args.apply:
-            shutil.copy2(produced[name], DEST / name)
+            shutil.copy2(produced[name], dest / name)
     verb = "published" if args.apply else "would publish"
-    print(f"{verb}: {len(published)}")
+    print(f"{verb} into {args.locale}/: {len(published)}")
 
     if missing:
         print(f"\nmissing from this run ({len(missing)}), still stale on the site:")

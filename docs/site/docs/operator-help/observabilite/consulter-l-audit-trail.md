@@ -14,7 +14,7 @@
 2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. It is the immutable trace of every tool invoked by an agent.
 
 3. Just below, **four key indicators** (KPI) update according to the filters: **Entries shown**, **Distinct tools**, **Failures** (red if > 0), **Avg duration**.
-   ![Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
+   ![Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table](/img/operator-help/en/observabilite-consulter-l-audit-trail-1.png)
 
 4. The table lists every traced tool invocation, newest first. **Five columns**:
    - **Timestamp** (date + local time)
@@ -33,7 +33,7 @@
    - **stderr** - error output, shown in red.
 
    If the invocation produced nothing capturable (read-only MCP tools, tools with no standard I/O…), a *"No details available"* message appears.
-   ![expanded row showing the Arguments / stdout / stderr sections](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
+   ![expanded row showing the Arguments / stdout / stderr sections](/img/operator-help/en/observabilite-consulter-l-audit-trail-2.png)
 
 7. At the bottom of the table, the **Load more** button extends the list by 50 more entries.
 

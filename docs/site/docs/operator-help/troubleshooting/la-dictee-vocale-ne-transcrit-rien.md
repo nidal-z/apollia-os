@@ -12,7 +12,7 @@ The dictation hotkey can clash with a system shortcut (Spotlight, screen capture
 1. In the sidebar, click **Settings**, then the **Speech-to-Text** section.
 2. Find the **Global hotkey** row: the current combination is shown as styled keys.
 3. **Click the combination**: a full-screen capture dialog opens. Press the new combination you want, it is captured live and saved when you validate.
-   ![Keyboard shortcut capture dialog, waiting for a key combination](/img/operator-help/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
+   ![Keyboard shortcut capture dialog, waiting for a key combination](/img/operator-help/en/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
 4. Leave the dialog with **Escape** to cancel.
 5. Test the hotkey again: **a recording overlay with an audio visualizer** must appear as soon as you press it.
 

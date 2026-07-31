@@ -12,7 +12,7 @@
 
 1. In the **Connections** sidebar, click **+ Add custom** at the top. The panel opens on the **Custom** tab.
 
-   ![Custom tab of the catalogue: the blank form](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
+   ![Custom tab of the catalogue: the blank form](/img/operator-help/en/integration-cabler-son-propre-serveur-mcp-1.png)
 
 2. Fill in the form according to the transport you chose (see the subsections below).
 
@@ -28,7 +28,7 @@
 - **Arguments**: separated by spaces (for example `-y @modelcontextprotocol/server-filesystem ~/Documents`).
 - **Require approval**: tick this if you want an HITL approval on every tool call.
 
-![Custom form on stdio transport, with the command and the arguments filled in](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
+![Custom form on stdio transport, with the command and the arguments filled in](/img/operator-help/en/integration-cabler-son-propre-serveur-mcp-2.png)
 
 ### streamable-http case (remote server)
 
@@ -37,7 +37,7 @@
 - **URL**: HTTP endpoint of the server (`https://...`).
 - **Headers** (optional): one per line, in the `Header-Name=value` format. Example: `Authorization=Bearer sk-...` or `X-API-Key=...`.
 
-![Custom form on streamable-http transport, with the URL and the authentication headers](/img/operator-help/integration-cabler-son-propre-serveur-mcp-3.png)
+![Custom form on streamable-http transport, with the URL and the authentication headers](/img/operator-help/en/integration-cabler-son-propre-serveur-mcp-3.png)
 
 ### SSE case
 

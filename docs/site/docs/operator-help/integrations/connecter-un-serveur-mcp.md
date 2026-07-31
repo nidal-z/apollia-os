@@ -12,7 +12,7 @@
 
 1. In the sidebar, open **Connections**, then click **+ Discover** at the top. The catalogue opens in a dedicated panel.
 
-   ![Connections page: the catalogue open on the Discover tab, with its grid of entries](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
+   ![Connections page: the catalogue open on the Discover tab, with its grid of entries](/img/operator-help/en/integration-connecter-un-serveur-mcp-1.png)
 
 2. Filter or search for the entry you want, then click it. The 4-step wizard starts.
 

@@ -22,7 +22,7 @@ Before continuing, ask yourself:
 ## Step 2 - Start the reset
 
 1. In the sidebar, click **Settings**, then the **Danger Zone** section.
-   ![Settings Danger Zone page, red "Factory Reset" box with a clearly isolated button](/img/operator-help/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
+   ![Settings Danger Zone page, red "Factory Reset" box with a clearly isolated button](/img/operator-help/en/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
 2. Find the **Factory Reset** block. Read the list of data that will be deleted carefully.
 3. Click the red **Factory Reset** button.
 

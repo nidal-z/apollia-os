@@ -10,7 +10,7 @@
 
 1. From any screen, press **Cmd+K** (macOS) or **Ctrl+K** (Windows and Linux). The palette opens in the middle of the screen.
 
-   ![command palette open in the middle of the screen, search field at the top, grouped suggestions below](/img/operator-help/transversal-naviguer-au-clavier-command-palette-1.png)
+   ![command palette open in the middle of the screen, search field at the top, grouped suggestions below](/img/operator-help/en/transversal-naviguer-au-clavier-command-palette-1.png)
 
    > **Note:** there is only one shortcut to open it. Cmd+K (or Ctrl+K) covers every case: page, action, shortcut. Type a few letters to narrow the list.
 
@@ -32,7 +32,7 @@ To see at a glance the shortcuts available in the current context, press **?** (
 
 To browse every shortcut (global, navigation, chat, settings, companion, approvals) grouped by category, go to **Settings → Shortcuts**. The page offers a **search** to find a combination by name (*"sidebar"*, *"new chat"*, *"help"*…).
 
-![Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
+![Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category](/img/operator-help/en/transversal-naviguer-au-clavier-command-palette-2.png)
 
 > **Read only.** This page does not allow customising the combinations for now. The shortcuts are fixed and aligned with the native macOS / Windows conventions.
 

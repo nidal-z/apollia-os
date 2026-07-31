@@ -14,7 +14,7 @@
 2. Find the card of the agent whose activity you want to review.
 
 3. Click **Logs** on its card. A panel opens on the right, titled **Agent Logs**, with a task counter at the top.
-   ![Logs panel open with counter, search bar, status filters and sorting](/img/operator-help/agents-consulter-les-logs-d-un-agent-1.png)
+   ![Logs panel open with counter, search bar, status filters and sorting](/img/operator-help/en/agents-consulter-les-logs-d-un-agent-1.png)
 
    > **Note:** this panel shows the history of the tasks run by the agent. It is not a text journal with Info/Warning/Error levels.
 

@@ -17,13 +17,13 @@
 
    The button is **greyed out and not clickable** as long as no AI provider is ready. On hover, a tooltip spells it out: *"Configure an LLM model to enable contextual help"*.
 
-   ![The dashboard, with the sidebar and the entry point to Apollia Help](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
+   ![The dashboard, with the sidebar and the entry point to Apollia Help](/img/operator-help/en/transversal-activer-la-compagnonne-ia-1.png)
 
 2. Click the button. A **floating panel** opens, docked to the right of the screen by default. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
 
 3. Ask a quick question. Apollia Help answers without interrupting your work on the main page.
 
-   ![Apollia Help panel open, with its welcome message and the input area](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
+   ![Apollia Help panel open, with its welcome message and the input area](/img/operator-help/en/transversal-activer-la-compagnonne-ia-2.png)
 
 4. **Move the panel**: grab the **handle at the top of the panel** (grip-handle icon) and drag it wherever you want. It snaps to the screen edges so it stays reachable.
 

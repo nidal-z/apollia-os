@@ -14,7 +14,7 @@
 2. Find the row of the automation you care about in the table. Hover it to reveal the actions on the right.
 
 3. Click the **⋯** icon (three dots) on the right of the row → **View history**. A sliding panel opens from the right, titled **Trigger run history**, with a counter at the top showing the total number of events.
-   ![Automation row on hover, with its three-dot menu open on View history](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-1.png)
+   ![Automation row on hover, with its three-dot menu open on View history](/img/operator-help/en/automatisations-suivre-l-historique-d-un-trigger-1.png)
 
 4. Each row of the list already carries the essentials - no need to click to open a detail view:
    - **Status** (on the left) - coloured FIRED / SKIPPED / ERROR badge.
@@ -23,7 +23,7 @@
    - **Short identifier** of the task created (first 8 characters, or `-` if no task was produced).
    - **Reason** shown in red on a dedicated line for ERROR statuses.
 
-   ![Trigger run history panel, with the status filter chips at the top and the stacked run cards below](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
+   ![Trigger run history panel, with the status filter chips at the top and the stacked run cards below](/img/operator-help/en/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
 5. Learn the **possible statuses**:
    - **FIRED** - the run did happen and a task was created for the assistant. This status says nothing about the outcome of the task itself: to know whether the agent succeeded at its work, see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md).

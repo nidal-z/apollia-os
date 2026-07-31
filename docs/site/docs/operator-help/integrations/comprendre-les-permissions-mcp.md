@@ -19,7 +19,7 @@ Every tool exposed by a connector or an MCP has an **approval policy**:
 
 When you see the popup, you can tick *"Always allow for this project"*. That creates a **persistent rule** which you will find, and can revoke, under **Settings, Permissions**.
 
-![Approval popup in the chat: the tool title, the exposed parameters, the Allow once and Deny buttons, and the Always allow menu](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
+![Approval popup in the chat: the tool title, the exposed parameters, the Allow once and Deny buttons, and the Always allow menu](/img/operator-help/en/integration-comprendre-les-permissions-mcp-1.png)
 
 ## Viewing and changing the rules
 
@@ -31,7 +31,7 @@ Open **Settings, Permissions**. Three sections:
 
 A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to type your name as confirmation.
 
-![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
+![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/en/integration-comprendre-les-permissions-mcp-2.png)
 
 Rules are created two ways. Most of the time they appear on their own, when you answer an approval popup with "Always allow". You can also create one by hand from this page, through the **Add rule** form, which is the way to authorize something before an agent ever asks for it.
 

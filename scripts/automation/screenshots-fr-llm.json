@@ -1,39 +1,344 @@
 {
-  "name": "screenshots-fr-llm (operator-help HITL popup, French, needs model)",
+  "name": "screenshots-fr-llm (operator-help doc captures needing a model turn, French, seeded)",
+  "notes": [
+    "Derive de screenshots-en-llm.json : memes pas, meme jeu de labels, seule la bascule de langue change. Les deux jeux d'images sont separes par locale sous /img/operator-help/{en,fr}/.",
+    "Complement de screenshots-en.json. A lancer avec desktop-dev-automation-seeded-llama, pas avec la recette deterministe.",
+    "La boite de reception ne peut pas etre peuplee par le seed : list_pending_approvals lit l'ensemble en memoire PendingApprovals, pas la base (seed/fragments/hitl.sql:21-27 le documente). Il faut donc provoquer une vraie suspension.",
+    "Prerequis : llama-server demasque et un modele charge."
+  ],
   "stopOnError": false,
   "steps": [
-    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 8000 },
-    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 5000 },
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu" },
-    { "kind": "click", "testid": "sidebar-mode-option-operator" },
-    { "kind": "sleep", "ms": 400 },
-    { "kind": "waitFor", "testid": "app-main" },
-
-    { "kind": "goto", "route": "settings" },
-    { "kind": "waitFor", "testid": "settings-page" },
-    { "kind": "waitFor", "testid": "settings-nav" },
-    { "kind": "click", "testid": "settings-nav-appearance" },
-    { "kind": "waitFor", "testid": "settings-content" },
-    { "kind": "click", "testid": "language-fr" },
-    { "kind": "sleep", "ms": 600 },
-
-    { "kind": "goto", "route": "chat" },
-    { "kind": "waitFor", "testid": "chat-page" },
-    { "kind": "click", "testid": "chat-new-chat-btn" },
-    { "kind": "waitFor", "testid": "quickpicker" },
-    { "kind": "fill", "testid": "quickpicker-textarea", "text": "Écris le texte « Bonjour » dans le fichier notes/demo.txt." },
-    { "kind": "click", "testid": "quickpicker-submit" },
-    { "kind": "waitFor", "testid": "chat-input", "timeoutMs": 30000 },
-    { "kind": "waitFor", "testid": "chat-approval-inline", "timeoutMs": 120000 },
-    { "kind": "waitFor", "testidPrefix": "approval-card-", "timeoutMs": 5000 },
-    { "kind": "sleep", "ms": 1200 },
-    { "kind": "screenshot", "label": "integration-comprendre-les-permissions-mcp-1" },
-
-    { "kind": "click", "testidPrefix": "approval-refuse-", "nth": 0 },
-    { "kind": "waitFor", "testid": "inbox-reject-dialog", "timeoutMs": 5000 },
-    { "kind": "fill", "testid": "inbox-reject-reason", "text": "Capture de documentation" },
-    { "kind": "click", "testid": "inbox-reject-confirm" },
-    { "kind": "sleep", "ms": 500 }
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "language-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "language-fr"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Write the word Hello in the file notes/demo.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-card-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-refuse-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Out of the allowed perimeter for this documentation capture."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "sendChat",
+      "text": "Write the words Quarterly report in the file notes/report.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "troubleshooting-un-agent-est-bloque-1"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "troubleshooting-une-action-est-refusee-1"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-card-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-refuse-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Out of the allowed perimeter for this documentation capture."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "sendChat",
+      "text": "Use the ask_user tool to ask me my first name and my preferred language, and give the context explaining why you need them."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-ask-user-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-ask_user",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-ask_user",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ask-user-form",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ask-user-context",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "transversal-utiliser-l-inbox-2"
+    },
+    {
+      "kind": "click",
+      "testid": "ask-user-refuse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Documentation capture, no answer needed for this question."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 5000
+    }
   ]
 }
