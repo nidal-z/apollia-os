@@ -102,8 +102,10 @@ and is treated as data, not instructions.
 |---|---|---|
 | `memory_search` | Full-text search (FTS5, BM25 ranking) over the agent's own namespace and declared shared namespaces. FTS5 operators are escaped automatically. | `query`, `namespace`, `limit`, `source` |
 
-Memory retrieval is always agent-initiated: the runtime never injects memory
-automatically.
+Memory retrieval is always agent-initiated: the runtime never injects memory into
+an agent's prompt. The built-in conversational assistant is the exception, and
+these tools are not how it does it. See
+[the eight principles](/explanation/the-8-principles).
 
 ## Interaction
 

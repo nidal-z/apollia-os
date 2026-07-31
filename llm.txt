@@ -234,7 +234,8 @@ Three layers (all in SQLite FTS5):
 - **Semantic:** searchable knowledge fragments
 - **Procedural:** `learn_procedure(trigger, steps)` / `recall_procedure(trigger)`
 
-Memory is **always at agent initiative** (ADR-010) - the runtime never auto-injects.
+Memory is **always at agent initiative** (ADR-010) - the runtime never auto-injects
+into an agent's prompt. The built-in chat assistant is the documented exception.
 Namespace convention: `{project_id}:{manifest_namespace}` (ADR-010).
 
 ---

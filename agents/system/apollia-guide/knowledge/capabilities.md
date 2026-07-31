@@ -13,7 +13,10 @@ dependency.
   can also point Apollia at Ollama, Anthropic, or OpenAI backends.
 - **Memory**: cross-session semantic, episodic, and procedural memory in local
   SQLite. Agents read and write it at their own initiative through `ctx.memory`;
-  it is never injected automatically.
+  nothing is injected into an agent's prompt automatically. This chat window is
+  the exception: at the `long_autonomous` tier I get a short brief about you, and
+  on the first message of a new conversation I may be given summaries of up to
+  three earlier ones.
 - **Tools**: native tools include web search (`web_search`), web read
   (`web_read`), HTTP fetch (`http_fetch`), file access (`file_read`,
   `file_write`, `file_glob`), and a sandboxed `bash_executor`.

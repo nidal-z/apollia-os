@@ -3,6 +3,16 @@
 - Status: Accepted
 - Date: 2026-06-04
 
+<!-- claim:memory-injection-confined-to-builtin-assistant -->
+
+> **Scope note, 2026-07-31.** The decision below stands for agents, which is what
+> it was written about. Read "the runtime never injects memory into an LLM call"
+> as "into an agent's LLM call". The built-in conversational assistant, which did
+> not exist in this form when this was decided, injects in two places: a
+> user-persona brief at the `long_autonomous` tier, and up to three past session
+> summaries on the first message of a free chat session. Neither is reachable
+> from an agent execution path, so the decision is not reversed, only bounded.
+
 ## Context
 
 Apollia agents need three distinct capabilities that are easy to conflate: durable

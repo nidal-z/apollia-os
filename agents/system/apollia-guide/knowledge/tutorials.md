@@ -36,8 +36,8 @@ apollia-os task run hello '{"message": "hi"}'
 
 ## Use memory
 
-Memory is read and written at the agent's initiative through `ctx.memory`. It is
-never injected automatically.
+Memory is read and written at the agent's initiative through `ctx.memory`. The
+runtime never injects it into your agent's prompt.
 
 ```python
 # Store a value (source and confidence are optional)

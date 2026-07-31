@@ -72,10 +72,19 @@ the trust the operator extends.
 
 ## Memory at agent initiative
 
-The runtime never injects memory context into a prompt automatically. An agent
-recalls when it decides to, through `ctx.memory`. This keeps context assembly
-explicit and auditable rather than a hidden side effect, and it is a deliberate
-principle, not an omission.
+<!-- claim:memory-injection-confined-to-builtin-assistant -->
+
+The runtime never injects memory context into an agent's prompt automatically. An
+agent recalls when it decides to, through `ctx.memory`. This keeps context
+assembly explicit and auditable rather than a hidden side effect, and it is a
+deliberate principle, not an omission.
+
+The built-in conversational assistant is outside that rule, in two ways: a
+user-persona brief at the `long_autonomous` tier, and past session summaries on
+the first message of a free chat session. Both live in the assistant's own prompt
+builder and chat manager, so no agent execution path reaches either, which is why
+the principle holds where it is stated. See
+[the eight principles](/explanation/the-8-principles).
 
 ## Observability
 

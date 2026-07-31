@@ -74,13 +74,23 @@ is an actor. See Section C and `docs/agents/RUST-PATTERNS.md` §2.
 
 ### 6. Memory at agent initiative
 
-**Rule.** The runtime never automatically injects memory context.
+<!-- claim:memory-injection-confined-to-builtin-assistant -->
+
+**Rule.** The runtime never automatically injects memory context into an agent's
+prompt.
 
 **Why.** Auto-injected memory pollutes the prompt with stale or irrelevant
 content, costs tokens, and surprises the agent author.
 
 **How.** The agent calls `ctx.memory.recall(...)` when it wants context. The
 runtime provides the capability, never the policy.
+
+**Scope of the rule.** Say "an agent's prompt", not "a prompt". The built-in
+conversational assistant injects in two places, and neither is reachable from an
+agent execution path: a user-persona brief at the `long_autonomous` tier, and up
+to three past session summaries on the first message of a free chat session.
+Writing the rule as an unqualified absolute is what let six files state something
+the code contradicts.
 
 ### 7. Non-negotiable safeguards
 

@@ -88,9 +88,10 @@ Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
    between actors.
 6. **Memory at agent initiative** : never inject memory context into an agent's
-   prompt. The one exception is the built-in conversational assistant at the
-   `long_autonomous` tier, which appends a user-persona brief by operator choice;
-   no agent execution path does this.
+   prompt. Two exceptions, both inside the built-in conversational assistant and
+   unreachable from an agent execution path: a user-persona brief at the
+   `long_autonomous` tier, and past session summaries on the first message of a
+   free chat. See `docs/site/docs/explanation/the-8-principles.md`.
 7. **Non-negotiable safeguards** : `StepBudget` enforced by the runtime, never
    bypassable.
 8. **Human CLI, machine API** : `--json` global, TTY auto-detected.

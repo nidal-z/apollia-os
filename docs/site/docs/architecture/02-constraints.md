@@ -24,7 +24,9 @@ from the eight principles that govern the project.
 5. **One actor, one responsibility.** The runtime core is a set of Tokio actors
    with no shared mutable state between them. They communicate only by message.
 6. **Memory at agent initiative.** The runtime never auto-injects memory context
-   into a prompt. An agent recalls when it chooses to.
+   into an agent's prompt. An agent recalls when it chooses to. The built-in
+   conversational assistant is the one place that does inject, in two ways, and
+   [the eight principles](/explanation/the-8-principles) says which.
 7. **Non-negotiable safeguards.** A step budget is enforced by the runtime and
    cannot be bypassed by an agent.
 8. **Human CLI, machine API.** The CLI is for people (TTY-aware, a global
