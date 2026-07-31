@@ -17,19 +17,11 @@ Snapshot of the workspace at task start.
 Exposes the parsed ``APOLLIA.md`` (project rules) and named sections.
 The snapshot is immutable for the duration of the task.
 
-#### `rules`
-
-```python
-def rules(self) -> str | None
-```
-
-APOLLIA.md content (alias for :attr:`apollia_md`).
-
-#### `apollia_md`
-
-```python
-def apollia_md(self) -> str | None
-```
+| Field | Type | Default |
+| --- | --- | --- |
+| `rules` | `str | None` |  |
+| `apollia_md` | `str | None` |  |
+| `sections` | `list[dict[str, str]]` |  |
 
 #### `get`
 
@@ -38,9 +30,3 @@ def get(self, title: str) -> str | None
 ```
 
 Custom section by title.
-
-#### `sections`
-
-```python
-def sections(self) -> list[dict[str, str]]
-```

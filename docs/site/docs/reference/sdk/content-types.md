@@ -154,3 +154,42 @@ Serialize to dict for runtime consumption.
 
 Only fields with non-``None`` values (and non-empty ``data``) are
 included so the runtime receives a compact payload.
+
+## Helpers
+
+### `text`
+
+```python
+def text(content: str) -> TextContent
+```
+
+Create a text content block for multi-modal LLM messages.
+
+### `image_from_path`
+
+```python
+def image_from_path(path: str) -> ImageContent
+```
+
+Load an image file from disk and encode it as base64.
+
+Raises :class:`ValueError` if the file's MIME type cannot be inferred
+or is not an ``image/*`` type.
+
+### `image_from_bytes`
+
+```python
+def image_from_bytes(data: bytes, mime: str) -> ImageContent
+```
+
+Wrap raw bytes as a base64 image content block.
+
+Raises :class:`ValueError` if ``mime`` does not start with ``image/``.
+
+### `image_from_url`
+
+```python
+def image_from_url(url: str) -> ImageContent
+```
+
+Reference a remote image by URL.

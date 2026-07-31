@@ -13,10 +13,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os stop`↴](#apollia-os-stop)
 * [`apollia-os status`↴](#apollia-os-status)
 * [`apollia-os run`↴](#apollia-os-run)
-* [`apollia-os auth`↴](#apollia-os-auth)
-* [`apollia-os auth login`↴](#apollia-os-auth-login)
-* [`apollia-os auth status`↴](#apollia-os-auth-status)
-* [`apollia-os auth logout`↴](#apollia-os-auth-logout)
 * [`apollia-os agent`↴](#apollia-os-agent)
 * [`apollia-os agent list`↴](#apollia-os-agent-list)
 * [`apollia-os agent start`↴](#apollia-os-agent-start)
@@ -272,7 +268,6 @@ Apollia OS CLI binary (apollia-os)
 * `stop` - Stop a running runtime
 * `status` - Display runtime and agent status
 * `run` - Submit a task to an agent and wait for the result
-* `auth` - OAuth2 PKCE authentication management (login, status, logout)
 * `agent` - Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair)
 * `a2a` - Agent-to-Agent skill discovery and direct invocation
 * `task` - Task management (list, status, cancel, inspect, resume, approvals)
@@ -393,56 +388,6 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
-
-
-
-## `apollia-os auth`
-
-OAuth2 PKCE authentication management (login, status, logout)
-
-**Usage:** `apollia-os auth <COMMAND>`
-
-###### **Subcommands:**
-
-* `login` - Authenticate with a provider via OAuth2 PKCE and store the token in the OS keyring
-* `status` - Display the authentication status for all supported providers
-* `logout` - Remove the stored token for the given provider
-
-
-
-## `apollia-os auth login`
-
-Authenticate with a provider via OAuth2 PKCE and store the token in the OS keyring.
-
-Opens the browser to the provider authorization page. After the user grants access, the token is exchanged and stored locally. Requires `{PROVIDER}_CLIENT_ID` to be set.
-
-**Usage:** `apollia-os auth login <PROVIDER>`
-
-###### **Arguments:**
-
-* `<PROVIDER>` - Provider name: `anthropic`, `openai`, or `vertex`
-
-
-
-## `apollia-os auth status`
-
-Display the authentication status for all supported providers.
-
-For each provider reports whether a token is stored, valid, or expired.
-
-**Usage:** `apollia-os auth status`
-
-
-
-## `apollia-os auth logout`
-
-Remove the stored token for the given provider
-
-**Usage:** `apollia-os auth logout <PROVIDER>`
-
-###### **Arguments:**
-
-* `<PROVIDER>` - Provider name: `anthropic`, `openai`, or `vertex`
 
 
 
@@ -1140,7 +1085,7 @@ Audit trail (list, stats, export, verify, show, replay)
 
 * `list` - List recent audit events (default)
 * `stats` - Display audit statistics
-* `export` - Export the full audit trail as JSON
+* `export` - Export the audit trail as JSON, up to `--limit` events
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
 * `replay` - Replay a captured run and detect divergences
@@ -1172,7 +1117,7 @@ Display audit statistics
 
 ## `apollia-os audit export`
 
-Export the full audit trail as JSON
+Export the audit trail as JSON, up to `--limit` events
 
 **Usage:** `apollia-os audit export [OPTIONS]`
 
@@ -1680,7 +1625,7 @@ First-run helper: configure a local LLM in one step.
 
 ###### **Options:**
 
-* `--local` - Use the local llama-cpp backend (required for v0.1.0; cloud providers go through `auth login` + `llm backends create`)
+* `--local` - Use the local llama-cpp backend (required for v0.1.0; a cloud provider is declared with `llm backends create --api-key`)
 * `--model <PATH>` - Path to the `.gguf` model file
 * `--name <NAME>` - Backend name (default: `local`). Overwrites the existing entry of the same name
 
@@ -3196,7 +3141,7 @@ Print the binary version (use `--json` for machine-readable output)
 
 Native SaaS connector management (list, accounts, test, revoke).
 
-Operates on the multi-account keyring without requiring the runtime to be started. Use `apollia-os auth login <provider>` first to connect an account.
+Operates on the multi-account keyring without requiring the runtime to be started. Accounts are connected from the desktop app (Settings > Integrations); the OAuth flow needs a browser redirect, so there is no CLI equivalent.
 
 **Usage:** `apollia-os connector <COMMAND>`
 
@@ -3567,7 +3512,7 @@ Cascades through file > defaults. Environment overlay is performed at runtime st
 
 Wipe `~/.apollia/`, an irreversible factory reset.
 
-Deletes every SQLite database, log, journal, memory file, OAuth client override, and apollia.toml stored under `~/.apollia/`. Keychain entries (OS-managed) are NOT touched: use `auth logout`, `connector revoke`, or `mcp oauth logout` to clear those.
+Deletes every SQLite database, log, journal, memory file, OAuth client override, and apollia.toml stored under `~/.apollia/`. Keychain entries (OS-managed) are NOT touched: use `connector revoke` or `mcp oauth logout` to clear those.
 
 **Usage:** `apollia-os config reset [OPTIONS]`
 

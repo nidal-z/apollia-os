@@ -18,11 +18,9 @@ Read-only by default; write methods require the agent manifest to
 declare ``@agent(user_memory_write=True)``.  Calling :meth:`set` or
 :meth:`update` from a non-writable context raises a runtime error.
 
-#### `writable`
-
-```python
-def writable(self) -> bool
-```
+| Field | Type | Default |
+| --- | --- | --- |
+| `writable` | `bool` |  |
 
 #### `get`
 

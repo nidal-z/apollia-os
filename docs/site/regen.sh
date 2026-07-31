@@ -6,6 +6,7 @@
 #   HTTP API  <- clients/openapi.json   (docusaurus-plugin-openapi-docs)
 #   CLI       <- apollia-os clap tree   (clap-markdown, behind the gen-docs feature)
 #   SDK / ctx <- sdk/apollia/*.py        (stdlib ast introspection)
+#   Config    <- crates/**/config/*.rs   (field tables, spliced between markers)
 #
 # The API output under docs/reference/api is regenerated at build time and is
 # gitignored. The CLI and SDK pages are committed (they need cargo / python that
@@ -20,6 +21,9 @@ HEADER="<!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. --
 
 echo "==> SDK / ctx reference (ast introspection of sdk/apollia)"
 python3 "$HERE/scripts/gen_sdk_ref.py"
+
+echo "==> Configuration reference (field tables from the Rust config types)"
+python3 "$HERE/scripts/gen_config_ref.py"
 
 echo "==> CLI reference (apollia-os clap tree via the gen-docs feature)"
 CLI_OUT="$HERE/docs/reference/cli/index.md"

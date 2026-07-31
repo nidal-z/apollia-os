@@ -18,11 +18,9 @@ Three primary methods: :meth:`complete` for single-shot, :meth:`stream`
 for token iteration, :meth:`embed` for embeddings.  Stream cleanup
 propagates cancellation to the Rust backend.
 
-#### `default_backend`
-
-```python
-def default_backend(self) -> str
-```
+| Field | Type | Default |
+| --- | --- | --- |
+| `default_backend` | `str` |  |
 
 #### `complete`
 
@@ -104,9 +102,4 @@ Synchronous LLM response (after completion).
 | --- | --- | --- |
 | `content` | `str` |  |
 | `latency_ms` | `int` |  |
-
-#### `usage`
-
-```python
-def usage(self) -> TokenUsage
-```
+| `usage` | `TokenUsage` |  |

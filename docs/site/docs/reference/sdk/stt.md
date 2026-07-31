@@ -23,5 +23,5 @@ async def transcribe(self, path: str, *, language: str | None=None, backend: str
 #### `status`
 
 ```python
-async def status(self) -> dict[str, Any]
+def status(self) -> dict[str, Any]
 ```

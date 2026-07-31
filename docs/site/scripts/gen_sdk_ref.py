@@ -44,13 +44,38 @@ def method_signature(node: ast.AST) -> str:
     return rendered.splitlines()[0].rstrip(":")
 
 
+def is_property(node: ast.AST) -> bool:
+    """True when the function is decorated with `@property`.
+
+    A `@property` reads as an attribute, not a call. Rendering one as a method
+    signature tells the reader to write `ctx.budget.steps_remaining()`, which
+    raises `TypeError` on an `int`. The decorator is stripped before unparsing
+    (see `method_signature`), so it has to be detected here, before that.
+    """
+    for decorator in getattr(node, "decorator_list", []):
+        if isinstance(decorator, ast.Name) and decorator.id == "property":
+            return True
+        if isinstance(decorator, ast.Attribute) and decorator.attr == "property":
+            return True
+    return False
+
+
 def class_members(cls: ast.ClassDef):
-    """Split a class body into (methods, annotated attributes)."""
+    """Split a class body into (methods, annotated attributes).
+
+    Properties are counted as attributes, with their return annotation as type.
+    """
     methods = []
     attributes = []
     for item in cls.body:
         if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if item.name.startswith("_"):
+                continue
+            if is_property(item):
+                annotation = (
+                    ast.unparse(item.returns) if item.returns is not None else "Any"
+                )
+                attributes.append((item.name, annotation, None))
                 continue
             methods.append(item)
         elif isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
@@ -114,6 +139,31 @@ def parse_module(path: Path) -> ast.Module:
 
 def public_classes(module: ast.Module) -> list[ast.ClassDef]:
     return [n for n in module.body if isinstance(n, ast.ClassDef)]
+
+
+def public_functions(module: ast.Module) -> list[ast.AST]:
+    """Module-level functions that are not private.
+
+    `types.py` exports the constructors for multi-modal content next to the
+    classes they build. Filtering the module body down to `ClassDef` dropped
+    them, so a page titled "Content types and helpers" documented no helper.
+    """
+    return [
+        n
+        for n in module.body
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and not n.name.startswith("_")
+    ]
+
+
+def render_function(node: ast.AST) -> str:
+    """Render a module-level function the way a method is rendered."""
+    lines = [f"### `{node.name}`", "", "```python", method_signature(node), "```", ""]
+    doc = ast.get_docstring(node)
+    if doc:
+        lines.append(doc.strip())
+        lines.append("")
+    return "\n".join(lines)
 
 
 def module_alias(module: ast.Module, name: str) -> str | None:
@@ -240,6 +290,14 @@ def main() -> None:
     ]
     for cls in typed_dicts:
         body_parts.append(render_class(cls))
+
+    helpers = public_functions(types_mod)
+    if helpers:
+        body_parts.append("## Helpers")
+        body_parts.append("")
+        for fn in helpers:
+            body_parts.append(render_function(fn))
+
     write_page(
         "content-types.md",
         {"sidebar_position": len(services) + 1, "title": "Content types and helpers"},
