@@ -27,7 +27,7 @@
 6. When it finishes, the model status becomes **Available locally** with a green dot.
 
 7. (Optional) Click **Set as default** to use this model automatically in new chats (GGUF) or for dictation (Whisper).
-   ![Model Hub: the Installed models section, with the active model marked by an In use badge](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
+   ![Model Hub: the Installed models section, with the active model marked by an In use badge](/img/operator-help/installation-telecharger-des-modeles-locaux-1bis.png)
 
 8. The disk space used by all your models is displayed at the bottom of the page. To free space, click **Delete** on any model already downloaded.
 

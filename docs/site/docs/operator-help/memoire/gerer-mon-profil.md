@@ -61,7 +61,7 @@ Several paths, depending on what you want to erase.
 
 At the bottom of the **Settings → Profile** page, the **Danger zone** offers a **Reset profile** button. Confirm in the modal.
 
-![The profile danger zone with the Reset profile confirmation modal in the foreground](/img/operator-help/memoire-gerer-mon-profil-1.png)
+![The profile danger zone with the Reset profile confirmation modal in the foreground](/img/operator-help/memoire-gerer-mon-profil-1bis.png)
 
 - The whole profile is erased (all 5 sections).
 - The onboarding agent restarts **immediately** to rebuild your preferences from scratch.

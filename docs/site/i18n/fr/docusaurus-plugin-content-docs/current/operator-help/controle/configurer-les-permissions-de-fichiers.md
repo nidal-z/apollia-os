@@ -57,7 +57,7 @@ Chaque entrée indique le nom de l'outil, la session concernée (titre ou identi
    - *Partout* - supprime les règles globales
    - *Toutes portées* - supprime toutes les règles persistées
 3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
-   ![Dialogue Tout révoquer : le sélecteur de portée et le bouton de révocation](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
+   ![Dialogue Tout révoquer : le sélecteur de portée et le bouton de révocation](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1bis.png)
 
 ## Règles du chat (Apollia Chat)
 

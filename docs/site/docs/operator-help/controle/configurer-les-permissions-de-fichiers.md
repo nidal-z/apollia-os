@@ -57,7 +57,7 @@ Each entry states the tool name, the session involved (title or short identifier
    - *Everywhere* - removes the global rules
    - *All scopes* - removes every persisted rule
 3. Check the number of affected rules shown in the dialog, then click **Revoke**.
-   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
+   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1bis.png)
 
 ## Chat rules (Apollia Chat)
 
