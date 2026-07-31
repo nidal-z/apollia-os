@@ -47,15 +47,24 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAIMS_FILE = REPO_ROOT / "docs" / "CLAIMS.toml"
 
-# Where a `<!-- claim:id -->` marker may live. The published corpus, its
-# translations, and the rulebook the assistants read.
+# Where a `<!-- claim:id -->` marker may live: the published corpus, its
+# translations, and the decision record.
+#
+# The rulebook (`docs/agents/` and the `AGENTS.md` files) is deliberately absent,
+# and this is a constraint rather than an oversight. That corpus is removed when
+# the public repository is seeded, so a marker placed there would vanish with it
+# and take a claim's only anchor along. Keeping the anchor roots to files that
+# survive publication means the gate cannot be broken by a packaging step.
+#
+# A rule in the rulebook that asserts a capability therefore states it by
+# pointing at the published page that carries the claim, rather than by carrying
+# a marker of its own. Nothing is lost: the claim is still replayed, and the
+# rulebook stops being load-bearing for a gate it cannot guarantee to be part of.
 ANCHOR_ROOTS = [
     REPO_ROOT / "docs" / "site" / "docs",
     REPO_ROOT / "docs" / "site" / "i18n",
-    REPO_ROOT / "docs" / "agents",
     REPO_ROOT / "docs" / "adr",
 ]
-ANCHOR_EXTRA_GLOBS = ["AGENTS.md", "*/AGENTS.md", "*/*/AGENTS.md", "*/*/*/AGENTS.md"]
 
 VALID_STATUS = {"wired", "not-wired", "absent"}
 
@@ -102,8 +111,6 @@ def anchor_files() -> list[Path]:
     for root in ANCHOR_ROOTS:
         if root.is_dir():
             files.extend(root.rglob("*.md"))
-    for pattern in ANCHOR_EXTRA_GLOBS:
-        files.extend(REPO_ROOT.glob(pattern))
     return files
 
 

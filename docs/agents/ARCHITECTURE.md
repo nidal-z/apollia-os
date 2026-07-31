@@ -74,8 +74,6 @@ is an actor. See Section C and `docs/agents/RUST-PATTERNS.md` §2.
 
 ### 6. Memory at agent initiative
 
-<!-- claim:memory-injection-confined-to-builtin-assistant -->
-
 **Rule.** The runtime never automatically injects memory context into an agent's
 prompt.
 

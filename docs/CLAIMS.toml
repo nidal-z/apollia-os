@@ -61,7 +61,11 @@
 #             they do not survive a page move, a merge, or a translation, and a
 #             stale line number is how the previous audit produced five wrong
 #             proofs out of fifteen sampled.
-#   scope     "public" for docs/site, "rulebook" for docs/agents and AGENTS.md.
+#   scope     "public". The rulebook (docs/agents and the AGENTS.md files) cannot
+#             carry a marker: it is removed when the public repository is seeded,
+#             so an anchor there would disappear with it. A rule that asserts a
+#             capability cites the published page instead. See ANCHOR_ROOTS in
+#             scripts/check_claims.py.
 #   symbol    the code symbol the claim stands on.
 #   status    "wired"     the symbol must have a use outside test code
 #             "not-wired" the documentation says it is inactive, and `evidence`
