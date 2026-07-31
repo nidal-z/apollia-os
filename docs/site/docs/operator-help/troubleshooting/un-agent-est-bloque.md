@@ -1,69 +1,69 @@
-# Un agent est bloqué
+# An agent is stuck
 
-> Pour tout operator qui voit un agent en statut "En cours" sans progression depuis plusieurs minutes : identifier la cause et relancer le travail.
+> For operators who see an agent in "Running" status with no progress for several minutes: identify the cause and get the work moving again.
 
-## Vérifications rapides (par ordre de probabilité)
+## Quick checks (in order of likelihood)
 
-### 1. L'agent attend votre approbation
+### 1. The agent is waiting for your approval
 
-C'est de loin le cas le plus fréquent. L'agent a tenté une action sensible (écrire un fichier, envoyer un mail, appeler un outil externe) et patiente jusqu'à votre validation.
+By far the most frequent case. The agent tried a sensitive action (writing a file, sending an email, calling an external tool) and is waiting for your validation.
 
-**Solution :**
-1. Dans la sidebar, cliquez sur **Boîte de réception**.
-2. Onglet **À traiter** par défaut. Filtrez sur la chip **Approbations** pour ne voir que les approbations en attente, et utilisez le sélecteur **Agent** à droite pour isoler l'agent concerné.
-   ![Boîte de réception → À traiter, chips de filtre + sélecteur Agent, une carte d'approbation dépliée avec ses...](/img/operator-help/troubleshooting-un-agent-est-bloque-1.png)
-3. Cliquez sur l'item pour le déplier en carte HITL, puis **Autoriser** / **Refuser**. L'agent reprend immédiatement son travail. Voir [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md) pour le détail.
+**Solution:**
+1. In the sidebar, click **Inbox**.
+2. The **To do** tab is selected by default. Filter on the **Approvals** chip to see only pending approvals, and use the **Agent** selector on the right to isolate the agent concerned.
+   ![Inbox → To do, filter chips + Agent selector, one approval card expanded with its...](/img/operator-help/troubleshooting-un-agent-est-bloque-1.png)
+3. Click the item to expand it into a HITL card, then **Allow** / **Refuse**. The agent resumes its work immediately. See [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md) for the details.
 
-### 2. L'agent attend une réponse d'un outil externe
+### 2. The agent is waiting for an answer from an external tool
 
-Un appel à un serveur MCP (Notion, GitHub, Slack) ou à une API distante peut prendre du temps si le service est lent ou injoignable.
+A call to an MCP server (Notion, GitHub, Slack) or to a remote API can take time if the service is slow or unreachable.
 
-**Solution :**
-1. Dans la sidebar, ouvrez **Mes assistants**.
-2. Repérez la carte de l'agent concerné, passez la souris dessus pour faire apparaître les actions à droite.
-3. Cliquez sur le menu **⋯** → **Voir les logs**. Un panneau coulissant s'ouvre depuis la droite avec l'historique des tâches.
-4. Utilisez la **barre de recherche** en haut du panneau pour taper un nom d'outil (`notion`, `github`, `fetch`, etc.) - seules les tâches dont l'entrée ou la sortie mentionne cet outil restent affichées.
-5. Si la dernière tâche en cours est figée depuis plusieurs minutes sur cet outil, ouvrez **Connexions** dans la sidebar et testez le serveur correspondant.
+**Solution:**
+1. In the sidebar, open **My Assistants**.
+2. Find the card of the agent concerned, hover it to reveal the actions on the right.
+3. Click the **⋯** menu → **View logs**. A sliding panel opens from the right with the task history.
+4. Use the **search bar** at the top of the panel to type a tool name (`notion`, `github`, `fetch`, and so on) - only the tasks whose input or output mentions that tool stay visible.
+5. If the last running task has been frozen on that tool for several minutes, open **Connections** in the sidebar and test the matching server.
 
-### 3. Un identifiant ou une autorisation a expiré
+### 3. A credential or an authorization expired
 
-Les jetons OAuth (Google, Notion, GitHub) expirent régulièrement. L'agent reste alors en boucle d'erreur silencieuse.
+OAuth tokens (Google, Notion, GitHub) expire regularly. The agent then sits in a silent error loop.
 
-**Solution :**
-1. Ouvrez le panneau **Logs** de l'agent (cf. étape 2 ci-dessus).
-2. Filtrez sur le statut **Échouée** dans la barre des chips. Tapez `401`, `403`, `expired` ou `unauthorized` dans la **recherche** pour cibler les erreurs d'autorisation.
-3. Si vous en trouvez, allez dans **Connexions** et reconnectez le service concerné.
+**Solution:**
+1. Open the agent's **Logs** panel (see step 2 above).
+2. Filter on the **Failed** status in the chip bar. Type `401`, `403`, `expired` or `unauthorized` in the **search** to target authorization errors.
+3. If you find some, go to **Connections** and reconnect the service concerned.
 
-### 4. L'agent tourne en boucle sur la même action
+### 4. The agent loops on the same action
 
-Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfiniment. Apollia applique une limite (StepBudget) dont le plafond varie selon le palier d'autonomie : il est plus bas en `assisted` et plus élevé en `bounded_autonomous` ou `long_autonomous`.
+Some agents can get stuck on a step they retry indefinitely. Apollia applies a limit (StepBudget) whose ceiling depends on the autonomy tier: it is lower in `assisted` and higher in `bounded_autonomous` or `long_autonomous`.
 
-**Solution :**
-1. Dans le panneau **Logs** de l'agent, repérez plusieurs tâches consécutives avec la même entrée ou sortie.
-2. Sur la carte de l'agent dans **Mes assistants**, cliquez sur l'**icône Stop** (action inline visible au hover). Une confirmation s'affiche.
-3. Confirmez l'arrêt. L'agent passe en statut **ARRÊTÉ**. Relancez-le après avoir corrigé la cause (instructions trop vagues, outil manquant).
+**Solution:**
+1. In the agent's **Logs** panel, look for several consecutive tasks with the same input or output.
+2. On the agent card in **My Assistants**, click the **Stop icon** (inline action visible on hover). A confirmation appears.
+3. Confirm the stop. The agent moves to **STOPPED** status. Restart it once you have fixed the cause (instructions too vague, missing tool).
 
-   > **Note :** il n'existe pas de bouton *« Forcer l'arrêt »* distinct - l'icône Stop envoie un signal d'arrêt normal. Si l'agent ne réagit pas après quelques secondes, redémarrez l'application.
+   > **Note:** there is no separate *"Force stop"* button - the Stop icon sends a normal stop signal. If the agent does not react after a few seconds, restart the application.
 
-### 5a. L'agent prend plus de temps que prévu en palier supervised ou bounded_autonomous
+### 5a. The agent takes longer than expected in the supervised or bounded_autonomous tier
 
-En palier `supervised` ou `bounded_autonomous`, l'agent contrôle son travail après l'exécution et tente une auto-correction si nécessaire. Cela allonge la durée apparente avant que l'agent se déclare terminé. C'est un comportement normal, pas un blocage.
+In the `supervised` or `bounded_autonomous` tier, the agent checks its own work after execution and attempts a self-correction if needed. This lengthens the apparent duration before the agent declares itself done. It is normal behaviour, not a blockage.
 
-Si la durée vous semble excessive, ouvrez le panneau **Logs** : les tâches de vérification apparaissent avec le statut **Vérification** (voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)). Si elles s'enchaînent en boucle sans fin, c'est que la vérification n'arrive pas à converger : arrêtez l'agent et reformulez les instructions ou ajustez le manifest.
+If the duration looks excessive to you, open the **Logs** panel: verification tasks appear with the **Verification** status (see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md)). If they chain endlessly, the verification is failing to converge: stop the agent and rephrase the instructions or adjust the manifest.
 
-### 5b. Une dépendance manque (outil, fichier, modèle)
+### 5b. A dependency is missing (tool, file, model)
 
-L'agent peut requérir un outil MCP non installé, un fichier introuvable ou un modèle local non téléchargé.
+The agent may require an MCP tool that is not installed, a file that cannot be found or a local model that has not been downloaded.
 
-**Solution :**
-1. Dans le panneau **Logs**, filtrez sur **Échouée** et tapez `not found`, `missing` ou `unavailable` dans la recherche.
-2. Installez l'outil manquant via **Connexions**, ou téléchargez le modèle depuis **Paramètres → Hub de modèles**.
-3. Relancez l'agent depuis sa carte.
+**Solution:**
+1. In the **Logs** panel, filter on **Failed** and type `not found`, `missing` or `unavailable` in the search.
+2. Install the missing tool through **Connections**, or download the model from **Settings → Model Hub**.
+3. Restart the agent from its card.
 
-## Si rien ne fonctionne
+## If nothing works
 
-1. Cliquez sur l'**icône Stop** sur la carte de l'agent, puis relancez-le.
-2. Si le blocage se reproduit immédiatement, désactivez l'agent depuis la liste **Mes assistants** (toggle on/off sur la carte) pour éviter toute consommation de ressources.
-3. **Récupérer les logs pour le support** : ouvrez le panneau **Logs** de l'agent, cliquez sur l'**icône Copier** (à gauche du bouton Rafraîchir dans l'en-tête). Les tâches actuellement affichées (filtres + recherche pris en compte) sont copiées dans le presse-papiers au format texte, prêtes à coller dans un ticket. Un toast confirme le nombre de tâches copiées.
+1. Click the **Stop icon** on the agent card, then restart it.
+2. If the blockage comes back immediately, disable the agent from the **My Assistants** list (on/off toggle on the card) to avoid any resource consumption.
+3. **Collect the logs for support**: open the agent's **Logs** panel, click the **Copy icon** (to the left of the Refresh button in the header). The currently displayed tasks (filters + search taken into account) are copied to the clipboard as text, ready to paste into a ticket. A toast confirms the number of tasks copied.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - comprendre le superviseur qui surveille l'avancement des agents et déclenche les timeouts.
+> **Technical reference:** [Apollia reference](/reference) - understand the supervisor that watches agent progress and triggers timeouts.

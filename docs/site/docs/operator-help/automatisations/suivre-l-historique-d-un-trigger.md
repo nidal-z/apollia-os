@@ -1,64 +1,64 @@
-# Suivre l'historique d'un trigger
+# Track a trigger's history
 
-> Pour les operators qui veulent vérifier qu'une automatisation a bien tourné cette nuit, ou comprendre pourquoi un déclenchement a été ignoré ou a échoué.
+> For operators who want to check that an automation did run overnight, or understand why a run was skipped or failed.
 
-## Prérequis
+## Prerequisites
 
-- Une automatisation déjà créée.
-- Au moins un déclenchement passé (manuel via l'icône lecture, ou programmé).
+- An automation already created.
+- At least one past run (manual through the play icon, or scheduled).
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Mes déclencheurs**.
+1. In the sidebar, click **My Triggers**.
 
-2. Repérez la ligne de l'automatisation qui vous intéresse dans la table. Passez la souris dessus pour faire apparaître les actions à droite.
+2. Find the row of the automation you care about in the table. Hover it to reveal the actions on the right.
 
-3. Cliquez sur l'icône **⋯** (trois points) à droite de la ligne → **Voir l'historique**. Un panneau coulissant s'ouvre depuis la droite, intitulé **Historique des déclenchements**, avec un compteur en haut indiquant le nombre total d'événements.
-   ![ligne d'automatisation au hover, menu trois points ouvert avec "Voir l'historique" surligné, panneau d'hist...](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-1.png)
+3. Click the **⋯** icon (three dots) on the right of the row → **View history**. A sliding panel opens from the right, titled **Trigger run history**, with a counter at the top showing the total number of events.
+   ![automation row on hover, three-dot menu open with "View history" highlighted, history pan...](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-1.png)
 
-4. Chaque ligne de la liste contient déjà l'essentiel - pas besoin de cliquer pour ouvrir un détail :
-   - **Statut** (à gauche) - badge coloré DÉCLENCHÉ / IGNORÉ / ERREUR.
-   - **Horodatage relatif** à droite (ex. `5min ago`) - survolez-le pour voir la date et l'heure exactes.
-   - **Agent** ciblé par le déclenchement.
-   - **Identifiant court** de la tâche créée (8 premiers caractères, ou `-` si aucune tâche n'a été produite).
-   - **Raison** affichée en rouge sur une ligne dédiée pour les statuts ERREUR.
+4. Each row of the list already carries the essentials - no need to click to open a detail view:
+   - **Status** (on the left) - coloured FIRED / SKIPPED / ERROR badge.
+   - **Relative timestamp** on the right (e.g. `5min ago`) - hover it to see the exact date and time.
+   - **Agent** targeted by the run.
+   - **Short identifier** of the task created (first 8 characters, or `-` if no task was produced).
+   - **Reason** shown in red on a dedicated line for ERROR statuses.
 
-   ![panneau Historique des déclenchements ouvert - chips de filtre statut en haut, liste de cartes empilées : u...](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
+   ![Trigger run history panel open - status filter chips at the top, list of stacked cards: o...](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
-5. Repérez les **statuts possibles** :
-   - **DÉCLENCHÉ** - le déclenchement a bien eu lieu et une tâche a été créée pour l'assistant. Ce statut ne dit rien du résultat de la tâche elle-même : pour savoir si l'agent a réussi son travail, voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md).
-   - **IGNORÉ** - le déclenchement a été ignoré parce qu'une exécution précédente était encore en cours. Comportement contrôlé par le réglage *« si un déclenchement est déjà en cours »* du mode avancé (file d'attente ou abandon).
-   - **ERREUR** - le déclenchement lui-même a échoué (avant même de créer la tâche). La **raison** s'affiche en rouge sur une ligne dédiée juste en dessous.
+5. Learn the **possible statuses**:
+   - **FIRED** - the run did happen and a task was created for the assistant. This status says nothing about the outcome of the task itself: to know whether the agent succeeded at its work, see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md).
+   - **SKIPPED** - the run was skipped because an earlier run was still in progress. Behaviour controlled by the *"if a run is already in progress"* setting of the advanced mode (queue or drop).
+   - **ERROR** - the run itself failed (before even creating the task). The **reason** shows in red on a dedicated line right below.
 
-6. **Filtrer la liste** quand il y a beaucoup de déclenchements :
-   - Cliquez sur une **puce de statut** (Tous / Déclenché / Ignoré / Erreur) pour ne voir que ce statut.
-   - Utilisez le **menu de tri** en haut à droite des filtres pour ordonner par : Plus récents (défaut) ou Plus anciens.
-   - Le compteur en haut indique le nombre de déclenchements affichés vs total (ex. `4 / 27 déclenchements`).
-   - Si aucun déclenchement ne correspond, un bouton **Réinitialiser les filtres** apparaît.
+6. **Filter the list** when there are many runs:
+   - Click a **status chip** (All / Fired / Skipped / Error) to see only that status.
+   - Use the **sort menu** at the top right of the filters to order by: Most recent (default) or Oldest.
+   - The counter at the top shows the number of runs displayed vs total (e.g. `4 / 27 runs`).
+   - If no run matches, a **Reset filters** button appears.
 
-7. **Rafraîchir** la liste sans fermer le panneau : cliquez sur l'icône `↻` en haut à droite du panneau. Pour fermer le panneau, cliquez en dehors ou utilisez la touche `Échap`.
+7. **Refresh** the list without closing the panel: click the `↻` icon at the top right of the panel. To close the panel, click outside it or use the `Esc` key.
 
-## Voir le résultat de la tâche associée
+## See the result of the associated task
 
-Le panneau Historique n'affiche que les événements de déclenchement, pas le détail de ce que l'assistant a produit. Pour ça :
+The History panel only shows the trigger events, not the detail of what the assistant produced. For that:
 
-1. Notez l'identifiant court de tâche affiché sur la ligne DÉCLENCHÉ.
-2. Fermez le panneau, rendez-vous sur **Mes assistants**.
-3. Ouvrez les logs de l'assistant correspondant ([Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)) et repérez la tâche par son préfixe d'identifiant.
+1. Note the short task identifier shown on the FIRED row.
+2. Close the panel, go to **My Assistants**.
+3. Open the logs of the matching assistant ([View an agent's logs](../agents/consulter-les-logs-d-un-agent.md)) and find the task by its identifier prefix.
 
-## Vérifier la prochaine exécution
+## Check the next run
 
-Le panneau Historique n'affiche pas la prochaine échéance. Elle est visible directement sur la ligne du tableau **Automatisations**, dans la colonne **Prochain déclenchement** (par exemple *« dans 2 h »* ou *« demain 08:00 »*).
+The History panel does not show the next due date. It is visible directly on the row of the **Automations** table, in the **Next run** column (for example *"in 2h"* or *"tomorrow 08:00"*).
 
-## Vérification
+## Verification
 
-L'historique affiche au moins une ligne avec le statut attendu. Pour une automatisation qui tourne sans accroc, vous verrez une succession de **DÉCLENCHÉ** verts.
+The history shows at least one row with the expected status. For an automation that runs without a hitch, you will see a series of green **FIRED** entries.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **L'historique est vide** : aucun déclenchement n'a encore eu lieu. Lancez-en un manuellement avec l'icône **▶︎** sur la ligne du tableau, puis cliquez sur **↻** dans le panneau pour rafraîchir.
-- **Tous les déclenchements sont en IGNORÉ** : la précédente exécution n'a jamais terminé. Vérifiez l'état de l'assistant dans **Mes assistants** ; consultez ses logs pour voir si la tâche en cours est encore au statut **En cours** depuis trop longtemps. Si oui, voir [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md). Une fois la tâche débloquée, les futurs déclenchements repasseront en DÉCLENCHÉ.
-- **Tous les déclenchements sont en ERREUR** : lisez la raison affichée en rouge sous chaque ligne. Causes fréquentes : assistant désinstallé, secret de webhook invalide, expression cron invalide.
-- **Je ne vois pas d'identifiant de tâche associé à un DÉCLENCHÉ** : rare ; la tâche a peut-être été créée puis immédiatement supprimée. Cherchez par préfixe d'identifiant dans **Mes assistants → Logs**.
+- **The history is empty**: no run has happened yet. Start one manually with the **▶︎** icon on the table row, then click **↻** in the panel to refresh.
+- **Every run is SKIPPED**: the previous run never finished. Check the state of the assistant in **My Assistants**; read its logs to see whether the current task has been in the **Running** status for too long. If so, see [An agent is stuck](../troubleshooting/un-agent-est-bloque.md). Once the task is unblocked, future runs will go back to FIRED.
+- **Every run is in ERROR**: read the reason shown in red under each row. Frequent causes: assistant uninstalled, invalid webhook secret, invalid cron expression.
+- **I do not see a task identifier associated with a FIRED entry**: rare; the task may have been created then deleted right away. Search by identifier prefix in **My Assistants → Logs**.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - interprétation détaillée des statuts FIRED/SKIPPED/ERROR, comportement `on_busy`, dépannage des déclenchements bloqués.
+> **Technical reference:** [Apollia reference](/reference) - detailed reading of the FIRED/SKIPPED/ERROR statuses, `on_busy` behaviour, troubleshooting stuck runs.

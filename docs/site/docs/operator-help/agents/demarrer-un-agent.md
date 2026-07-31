@@ -1,93 +1,93 @@
-# Démarrer un agent ou un package
+# Start an agent or a package
 
-> Pour tout operator qui a installé un agent (ou un package d'agents) : le mettre en marche pour pouvoir lui parler ou laisser ses déclencheurs s'activer.
+> For any operator who has installed an agent (or a package of agents): put it into service so you can talk to it or let its triggers fire.
 
-## Prérequis
+## Prerequisites
 
-- L'agent ou le package est installé et visible dans la colonne de gauche de **Mes assistants**.
-- Un fournisseur d'IA est connecté (pastille verte dans le bandeau supérieur).
+- The agent or the package is installed and visible in the left column of **My Assistants**.
+- An AI provider is connected (green dot in the top bar).
 
-## Agent ou package : quelle différence côté usage ?
+## Agent or package: what is the difference in practice?
 
-Dans la page **Mes assistants**, la colonne de gauche affiche deux sections distinctes :
+On the **My Assistants** page, the left column shows two distinct sections:
 
-- **Mes assistants** - un agent unique, identifié par une icône d'étoile. On le démarre seul. C'est le format livré pour un agent simple (un fichier `.py`).
-- **Mes packages** - un ensemble cohérent d'agents qui travaillent souvent ensemble, identifié par une icône de boîte. Démarrer un package, c'est démarrer **tous ses agents et activer ses déclencheurs** d'un coup.
+- **My assistants** - a single agent, identified by a star icon. You start it on its own. This is the format delivered for a simple agent (one `.py` file).
+- **My packages** - a coherent set of agents that often work together, identified by a box icon. Starting a package means starting **all its agents and activating its triggers** at once.
 
-Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : il est toujours disponible et ne nécessite ni installation ni démarrage.
+You will also find a system agent pinned at the top, **Apollia Chat**: it is always available and requires neither installation nor start.
 
-## Étapes - Démarrer un assistant seul
+## Steps - Start a single assistant
 
-1. Dans la sidebar, ouvrez **Mes assistants**. La colonne de gauche liste vos assistants sous **Mes assistants · N**.
-   ![page Mes assistants - colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](/img/operator-help/agents-demarrer-un-agent-1.png)
+1. In the sidebar, open **My Assistants**. The left column lists your assistants under **My assistants · N**.
+   ![My Assistants page - left column with the two sections "My assistants" and "My packages" visible](/img/operator-help/agents-demarrer-un-agent-1.png)
 
-2. Repérez votre agent dans la liste. La pastille à droite de son nom indique son état : **grise** (arrêté), **verte** (actif), **orange** (dégradé).
+2. Find your agent in the list. The dot to the right of its name shows its state: **grey** (stopped), **green** (active), **orange** (degraded).
 
-3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. La pastille passe au vert et le bouton se transforme en bouton stop (■).
+3. Click the **play button** (▶) at the right of the row. The dot turns green and the button becomes a stop button (■).
 
-4. Cliquez sur la ligne (n'importe où sauf le bouton lecture) pour ouvrir le panneau de détail à droite. Vous y voyez son statut, ses outils, sa version et son activité.
+4. Click the row (anywhere except the play button) to open the detail panel on the right. There you see its status, its tools, its version and its activity.
 
-5. Pour discuter avec lui, cliquez sur **Nouveau chat** en haut à droite du panneau de détail. Une conversation dédiée s'ouvre.
+5. To talk to it, click **New chat** at the top right of the detail panel. A dedicated conversation opens.
 
-6. Pour libérer les ressources quand vous n'en avez plus besoin, recliquez sur le bouton stop de la ligne. La pastille redevient grise.
+6. To free resources when you no longer need it, click the stop button on the row again. The dot turns grey again.
 
-> Les agents marqués comme **workers** (uniquement appelés en interne par d'autres agents) n'apparaissent pas dans la section **Mes assistants** - vous les retrouverez dans le détail d'un package.
+> Agents marked as **workers** (only called internally by other agents) do not appear in the **My assistants** section - you will find them in the detail of a package.
 
-## Étapes - Démarrer un package entier
+## Steps - Start a whole package
 
-1. Dans la sidebar, ouvrez **Mes assistants**. Faites défiler la colonne de gauche jusqu'à la section **Mes packages · N**.
+1. In the sidebar, open **My Assistants**. Scroll the left column down to the **My packages · N** section.
 
-2. La ligne du package indique combien d'agents et de déclencheurs il contient au total et combien sont actifs (par exemple `0/2 agents · 0/1 triggers` quand tout est arrêté).
+2. The package row shows how many agents and triggers it contains in total and how many are active (for example `0/2 agents · 0/1 triggers` when everything is stopped).
 
-3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. Apollia démarre tous les agents du package et active leurs déclencheurs en une seule opération. La pastille passe au vert ; le compteur affiche `2/2 agents · 1/1 triggers`.
+3. Click the **play button** (▶) at the right of the row. Apollia starts every agent of the package and activates their triggers in a single operation. The dot turns green; the counter shows `2/2 agents · 1/1 triggers`.
 
-4. Cliquez sur la ligne pour ouvrir le détail du package : vous y voyez la liste des agents qu'il contient, leurs rôles (*director* ou *worker*), et la liste des déclencheurs configurés (cron, webhook…).
-   ![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers](/img/operator-help/agents-demarrer-un-agent-2.png)
+4. Click the row to open the package detail: there you see the list of the agents it contains, their roles (*director* or *worker*), and the list of the configured triggers (cron, webhook, and so on).
+   ![package detail panel - Information, Agents (with director/worker roles) and Triggers sections](/img/operator-help/agents-demarrer-un-agent-2.png)
 
-![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers (suite)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
+![package detail panel - Information, Agents (with director/worker roles) and Triggers sections (continued)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
 
-5. Si certains agents seulement ont démarré, la pastille du package devient **orange** (statut **partiel**). Cliquez sur la ligne d'un agent dans le panneau pour identifier celui qui pose problème, puis ouvrez ses logs.
+5. If only some of the agents started, the package dot turns **orange** (**partial** status). Click an agent row in the panel to identify the one that is failing, then open its logs.
 
-6. Pour tout arrêter d'un coup : recliquez sur le bouton stop de la ligne du package, ou utilisez **Tout arrêter** en haut à droite du panneau de détail.
+6. To stop everything at once: click the stop button on the package row again, or use **Stop all** at the top right of the detail panel.
 
-## Cas particulier - Apollia Chat
+## Special case - Apollia Chat
 
-L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours actif** : pas de bouton démarrer/arrêter. Cliquez dessus pour ouvrir son panneau de configuration (personnalité, outils, modèle).
+The system agent **Apollia Chat**, pinned at the top of the list, is **always active**: no start/stop button. Click it to open its configuration panel (personality, tools, model).
 
-## Choisir le palier d'autonomie avant de lancer
+## Choose the autonomy level before launching
 
-Par défaut, un agent démarre en palier `assisted` : il demande votre approbation à chaque action sensible. Vous pouvez choisir un palier différent pour une exécution précise avec le flag `--autonomy` :
+By default, an agent starts at the `assisted` level: it asks for your approval on every sensitive action. You can choose a different level for a specific run with the `--autonomy` flag:
 
 ```
 apollia-os run --autonomy <palier>
 ```
 
-Les quatre paliers disponibles :
+The four available levels:
 
-| Palier | Comportement |
+| Level | Behavior |
 |---|---|
-| `assisted` | Défaut. Approbation humaine à chaque action sensible. |
-| `supervised` | Boucle de vérification automatique après chaque étape. Les anomalies détectées sont corrigées sans vous solliciter ; seules les situations résistantes remontent. |
-| `bounded_autonomous` | Autonomie étendue dans un périmètre défini. Moins d'interruptions, StepBudget plus large. |
-| `long_autonomous` | Exécution longue durée. Vérification finale en sortie. Réservé aux tâches qui tolèrent un cycle sans approbation intermédiaire. |
+| `assisted` | Default. Human approval on every sensitive action. |
+| `supervised` | Automatic verification loop after each step. Detected anomalies are corrected without involving you; only the stubborn situations are escalated. |
+| `bounded_autonomous` | Extended autonomy within a defined perimeter. Fewer interruptions, wider StepBudget. |
+| `long_autonomous` | Long-running execution. Final verification on exit. Reserved for tasks that tolerate a cycle without intermediate approval. |
 
-Si vous omettez le flag, le palier configuré dans vos préférences s'applique (par défaut `assisted`).
+If you omit the flag, the level configured in your preferences applies (`assisted` by default).
 
-> Pour le détail des paliers et leurs garanties, voir [Paliers d'autonomie](choisir-un-palier-d-autonomie.md).
+> For the detail of the levels and their guarantees, see [Autonomy levels](choisir-un-palier-d-autonomie.md).
 
-## Vérification
+## Verification
 
-- **Assistant seul** - pastille verte sur la ligne et dans le panneau de détail. L'envoi d'un message dans **Nouveau chat** déclenche une réponse en streaming.
-- **Package** - pastille verte et compteur du type `N/N agents · M/M triggers`. Les déclencheurs (cron, webhook…) sont actifs.
+- **Single assistant** - green dot on the row and in the detail panel. Sending a message in **New chat** triggers a streaming answer.
+- **Package** - green dot and a counter such as `N/N agents · M/M triggers`. The triggers (cron, webhook, and so on) are active.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **La pastille reste orange ou rouge :** ouvrez les logs de l'agent depuis son panneau de détail (lien **Logs** en bas) pour lire l'erreur précise.
-- **Erreur « fournisseur d'IA indisponible » :** vérifiez la pastille du bandeau supérieur et reconnectez le fournisseur si besoin.
-- **Bouton lecture grisé sur un agent :** son chemin d'installation est introuvable (fichier déplacé ou supprimé). Réinstallez-le.
-- **Bouton lecture grisé sur un package :** le dossier source du package a disparu (icône d'avertissement à côté du nom). Réinstallez le package depuis sa source.
-- **Package en statut « partiel » :** un ou plusieurs agents n'ont pas démarré. Le détail du package liste l'état de chaque agent - ouvrez les logs de celui qui est en échec.
-- **L'agent s'arrête trop vite :** le StepBudget du palier actuel est atteint. Montez le palier avec `--autonomy supervised` ou `--autonomy bounded_autonomous` selon votre niveau de confiance. Voir [Paliers d'autonomie](choisir-un-palier-d-autonomie.md).
-- **L'agent démarre mais ne répond pas :** consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
+- **The dot stays orange or red:** open the agent logs from its detail panel (**Logs** link at the bottom) to read the precise error.
+- **"AI provider unavailable" error:** check the dot in the top bar and reconnect the provider if needed.
+- **Play button greyed out on an agent:** its installation path cannot be found (file moved or deleted). Reinstall it.
+- **Play button greyed out on a package:** the source folder of the package is gone (warning icon next to the name). Reinstall the package from its source.
+- **Package in "partial" status:** one or more agents did not start. The package detail lists the state of each agent - open the logs of the one that failed.
+- **The agent stops too soon:** the StepBudget of the current level has been reached. Raise the level with `--autonomy supervised` or `--autonomy bounded_autonomous` depending on your level of confidence. See [Autonomy levels](choisir-un-palier-d-autonomie.md).
+- **The agent starts but does not answer:** see [An agent is stuck](../troubleshooting/un-agent-est-bloque.md).
 
-> **Concept :** [Explication Apollia](../../explanation/index.md) - comprendre la différence director/worker dans un package et leur cycle de vie.
+> **Concept:** [Apollia explanation](/explanation) - understanding the director/worker distinction inside a package and their lifecycle.

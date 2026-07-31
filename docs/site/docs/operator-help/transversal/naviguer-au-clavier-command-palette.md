@@ -1,58 +1,58 @@
-# Naviguer au clavier (command palette)
+# Navigate with the keyboard (command palette)
 
-> Pour les operators qui veulent ouvrir n'importe quelle page, lancer une action ou retrouver un agent en quelques touches, sans passer par la souris.
+> For operators who want to open any page, run an action or find an agent in a few keystrokes, without reaching for the mouse.
 
-## Prérequis
+## Prerequisites
 
-- Aucun. La command palette est disponible partout dans l'application.
+- None. The command palette is available everywhere in the application.
 
-## Étapes
+## Steps
 
-1. Depuis n'importe quel écran, appuyez sur **Cmd+K** (macOS) ou **Ctrl+K** (Windows et Linux). La palette s'ouvre au centre de l'écran.
+1. From any screen, press **Cmd+K** (macOS) or **Ctrl+K** (Windows and Linux). The palette opens in the middle of the screen.
 
-   ![command palette ouverte au centre de l'écran, champ de recherche en haut, suggestions groupées en dessous](/img/operator-help/transversal-naviguer-au-clavier-command-palette-1.png)
+   ![command palette open in the middle of the screen, search field at the top, grouped suggestions below](/img/operator-help/transversal-naviguer-au-clavier-command-palette-1.png)
 
-   > **Note :** il n'y a qu'un seul raccourci d'ouverture. Cmd+K (ou Ctrl+K) couvre tous les cas - page, action, raccourci. Tapez quelques lettres pour réduire la liste.
+   > **Note:** there is only one shortcut to open it. Cmd+K (or Ctrl+K) covers every case: page, action, shortcut. Type a few letters to narrow the list.
 
-2. Tapez quelques lettres de ce que vous cherchez. La liste se filtre en temps réel. Exemple en tapant **agent** : *Agents* (page), *Créer un agent*, *Démarrer tous les agents*, *Arrêter tous les agents*.
+2. Type a few letters of what you are looking for. The list filters in real time. For example, typing **agent** gives: *Agents* (page), *Create agent*, *Start all agents*, *Stop all agents*.
 
-   Les entrées sont **groupées par catégorie** (Pages, Actions, Sessions récentes, Modèles de chat, Slash commands…) - les sections changent selon la page courante.
+   Entries are **grouped by category** (Pages, Actions, Recent sessions, Templates, Slash commands…) and the sections change depending on the current page.
 
-3. Utilisez les flèches **Haut** et **Bas** pour parcourir les résultats. La ligne sélectionnée est mise en évidence.
+3. Use the **Up** and **Down** arrow keys to move through the results. The selected row is highlighted.
 
-4. Appuyez sur **Entrée** pour exécuter l'action ou ouvrir la page correspondante. La palette se ferme automatiquement.
+4. Press **Enter** to run the action or open the matching page. The palette closes on its own.
 
-5. Appuyez sur **Échap** à tout moment pour la refermer sans rien faire. Un second **Cmd+K** la rouvre vide.
+5. Press **Esc** at any time to close it without doing anything. A second **Cmd+K** reopens it empty.
 
-## Cheatsheet rapide
+## Quick cheatsheet
 
-Pour voir d'un coup d'œil les raccourcis disponibles dans le contexte courant, appuyez sur **?** (ou **Shift+/**) sans aucun modificateur. Un overlay condensé apparaît avec les combinaisons utiles à l'écran où vous êtes. Re-pressez **Échap** pour le fermer.
+To see at a glance the shortcuts available in the current context, press **?** (or **Shift+/**) with no modifier. A condensed overlay appears with the combinations that are useful on the screen you are on. Press **Esc** again to close it.
 
-## Liste complète des raccourcis
+## Full list of shortcuts
 
-Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, companion, approbations) groupés par catégorie, allez sur **Paramètres → Raccourcis**. La page propose une **recherche** pour retrouver une combinaison par nom (*« sidebar »*, *« nouveau chat »*, *« aide »*…).
+To browse every shortcut (global, navigation, chat, settings, companion, approvals) grouped by category, go to **Settings → Shortcuts**. The page offers a **search** to find a combination by name (*"sidebar"*, *"new chat"*, *"help"*…).
 
-![page Paramètres → Raccourcis, barre de recherche en haut, raccourcis groupés par catégorie (Global / Naviga...](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
+![Settings → Shortcuts page, search bar at the top, shortcuts grouped by category (Global / Naviga...](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
 
-> **Lecture seule.** Cette page n'autorise pas la personnalisation des combinaisons pour le moment. Les raccourcis sont fixés et alignés sur les conventions natives de macOS / Windows.
+> **Read only.** This page does not allow customising the combinations for now. The shortcuts are fixed and aligned with the native macOS / Windows conventions.
 
-## Quelques raccourcis utiles
+## A few useful shortcuts
 
-- **Cmd+K / Ctrl+K** - ouvrir la command palette.
-- **?** - afficher la cheatsheet contextuelle.
-- **Cmd+B / Ctrl+B** - replier / déplier la sidebar.
-- **Cmd+[ / Ctrl+[** - page précédente (navigation historique).
-- **Cmd+] / Ctrl+]** - page suivante.
-- **Cmd+/ / Ctrl+/** - basculer l'affichage de l'**Aide Apollia** (le Companion).
-- **Cmd+Enter / Ctrl+Enter** - envoyer le message courant (dans un chat).
-- **Échap** - fermer le dialog / chat-input courant.
+- **Cmd+K / Ctrl+K** - open the command palette.
+- **?** - show the contextual cheatsheet.
+- **Cmd+B / Ctrl+B** - collapse / expand the sidebar.
+- **Cmd+[ / Ctrl+[** - previous page (history navigation).
+- **Cmd+] / Ctrl+]** - next page.
+- **Cmd+/ / Ctrl+/** - toggle **Apollia Help** (the Companion).
+- **Cmd+Enter / Ctrl+Enter** - send the current message (inside a chat).
+- **Esc** - close the current dialog / chat input.
 
-## Vérification
+## Verification
 
-La palette s'ouvre instantanément avec **Cmd+K** / **Ctrl+K**, et l'action choisie s'exécute correctement après pression sur **Entrée**.
+The palette opens instantly with **Cmd+K** / **Ctrl+K**, and the chosen action runs correctly after pressing **Enter**.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Cmd+K n'ouvre rien** : un autre logiciel (Slack, Notion, navigateur…) intercepte peut-être la combinaison en premier. Cliquez d'abord dans la fenêtre d'Apollia pour qu'elle reçoive le focus, puis ré-essayez. Si le problème persiste, l'autre logiciel doit être quitté ou son raccourci changé.
-- **L'action recherchée n'apparaît pas** : certaines entrées sont **contextuelles**. Par exemple, *Sessions récentes* / *Modèles de chat* / *Slash commands* n'apparaissent que si vous êtes sur la page **Chat**. Naviguez d'abord vers la page correspondante puis rouvrez la palette.
-- **Je veux personnaliser un raccourci** : non disponible pour le moment - la page **Paramètres → Raccourcis** est en lecture seule. Les conventions natives (Cmd / Ctrl) sont respectées partout.
+- **Cmd+K opens nothing**: another piece of software (Slack, Notion, a browser…) may be intercepting the combination first. Click inside the Apollia window so that it gets the focus, then try again. If the problem persists, the other software has to be quit or its shortcut changed.
+- **The action I am looking for does not show up**: some entries are **contextual**. For example, *Recent sessions* / *Templates* / *Slash commands* only appear if you are on the **Chat** page. Navigate to the matching page first, then reopen the palette.
+- **I want to customise a shortcut**: not available for now, the **Settings → Shortcuts** page is read only. The native conventions (Cmd / Ctrl) are respected everywhere.

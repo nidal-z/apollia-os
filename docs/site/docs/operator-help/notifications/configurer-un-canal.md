@@ -1,157 +1,158 @@
-# Configurer un canal de notification
+# Set up a notification channel
 
-> Pour les operators qui veulent recevoir les alertes Apollia là où ils travaillent : sur leur bureau, dans Slack, dans Discord, ou sur un endpoint maison.
+> For operators who want to receive Apollia alerts where they work: on their desktop, in Slack, in Discord, or on a homemade endpoint.
 
-## Prérequis
+## Prerequisites
 
-- Vous savez où vous voulez recevoir les notifications (bureau, Slack, Discord, endpoint personnalisé).
-- Pour un canal Webhook, vous avez l'URL d'envoi prête (par exemple une URL d'intégration entrante Slack).
+- You know where you want to receive the notifications (desktop, Slack, Discord, custom endpoint).
+- For a Webhook channel, you have the delivery URL ready (a Slack incoming webhook URL, for example).
 
-> **Note :** la page **Notifications** est accessible directement depuis la sidebar en mode **Opérateur** comme en mode **Builder**. Plus besoin de basculer en Builder pour configurer vos canaux.
+> **Note:** the **Notifications** page is reachable directly from the sidebar in **Operator** mode as well as in **Builder** mode. No need to switch to Builder to set up your channels any more.
 
-## Le modèle à deux niveaux
+## The two-level model
 
-Le contrôle des notifications se joue sur deux étages, et les confondre est la
-cause la plus fréquente d'un canal muet.
+Notification control happens on two levels, and confusing them is the most
+frequent cause of a silent channel.
 
-1. **Événements globaux**, section en haut de la page **Notifications** : décide quels événements le système suit et route. Un événement décoché ici ne partira **sur aucun canal**, quoi qu'ait été réglé par ailleurs.
-2. **Événements par canal**, dans le dialogue Créer ou Modifier d'un canal : parmi les événements activés globalement, filtre ceux qui vont sur **ce canal**. Liste vide = ce canal reçoit tous les événements globaux.
+1. **Global events**, the section at the top of the **Notifications** page: decides which events the system tracks and routes. An event unchecked here will go out **on no channel at all**, whatever was set elsewhere.
+2. **Per-channel events**, in the Create or Edit dialog of a channel: among the globally enabled events, filters the ones that go to **this channel**. Empty list = this channel receives every global event.
 
-Dans l'ordre : activez d'abord au global ce qui vous intéresse, affinez ensuite canal par canal.
+In order: first enable globally what interests you, then narrow down channel by channel.
 
-## Les 7 événements disponibles
+## The 7 available events
 
-| Identifiant | Libellé | Description |
+| Identifier | Label | Description |
 |---|---|---|
-| `task.completed` | **Tâche terminée avec succès** | Un agent vient d'achever sa mission. |
-| `task.failed` | **Tâche échouée** | Une tâche d'agent s'est interrompue sur un échec. |
-| `task.input_required` | **Approbation requise** | Un agent attend votre décision (HITL). |
-| `agent.degraded` | **Agent en mode dégradé** | L'agent tourne mais quelque chose d'optionnel n'est pas monté : soit un outil optionnel déclaré et non résolu, soit l'installation de son environnement Python qui a échoué. |
-| `trigger.error` | **Erreur de déclencheur** | Une automatisation programmée n'a pas pu se déclencher. |
-| `llm.backend_down` | **Fournisseur LLM indisponible** | Le fournisseur d'IA configuré ne répond plus. |
-| `chat.user_input_required` | **Question d'agent** | Un agent attend votre réponse à une question (`ask_user`). |
+| `task.completed` | **Task completed successfully** | An agent has just completed its mission. |
+| `task.failed` | **Task failed** | An agent task aborted on failure. |
+| `task.input_required` | **Approval required** | An agent is waiting for your decision (HITL). |
+| `agent.degraded` | **Agent degraded** | The agent is running but something optional did not come up: either an optional declared tool that was not resolved, or a failed install of its Python environment. |
+| `trigger.error` | **Trigger error** | A scheduled automation failed to trigger. |
+| `llm.backend_down` | **LLM provider unavailable** | The configured AI provider is no longer responding. |
+| `chat.user_input_required` | **Agent question** | An agent is waiting for your answer to a question (`ask_user`). |
 
-## Activer ou désactiver un événement globalement
+## Enable or disable an event globally
 
-1. Dans la sidebar, cliquez sur **Notifications**.
-2. Repérez la section **Événements globaux** en haut de la page : une grille de cases à cocher, une par type, avec libellé, description courte et identifiant technique.
+1. In the sidebar, click **Notifications**.
+2. Spot the **Global events** section at the top of the page: a grid of checkboxes, one per type, with a label, a short description and the technical identifier.
 
-   ![section Événements globaux, grille de 7 cases à cocher avec libellé, description et identifiant technique](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
+   ![Global events section, grid of 7 checkboxes with label, description and technical identifier](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
 
-3. Cochez ou décochez selon ce que vous voulez voir remonter.
-4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. **Sans ce clic, rien n'est appliqué** : les coches restent locales à l'écran.
+3. Check or uncheck according to what you want surfaced.
+4. Click **Save**. A *"Global events saved"* toast confirms. **Without that click, nothing is applied**: the checkmarks stay local to the screen.
 
-## Au premier lancement
+## At first launch
 
-Apollia crée automatiquement un canal **Bureau** par défaut au tout premier démarrage : il s'appelle *« Bureau de {votre prénom} »* (ou *« Bureau »* si votre profil ne contient pas encore de prénom). Vous le retrouvez dans la liste, activé, sans événements filtrés (il reçoit donc tous les événements globaux). Si vous le supprimez, il n'est pas recréé.
+Apollia automatically creates a default **Desktop** channel on the very first start: it is named *"Bureau de {your first name}"* (or *"Bureau"* if your profile does not hold a first name yet). You find it in the list, enabled, with no filtered events (so it receives every global event). If you delete it, it is not recreated.
 
-## Étapes - créer un nouveau canal
+## Steps - create a new channel
 
-1. Dans la sidebar, cliquez sur **Notifications**. La liste affiche vos canaux existants, plus une section *« Événements globaux »* en haut et l'historique d'envoi en bas.
+1. In the sidebar, click **Notifications**. The list shows your existing channels, plus a *"Global events"* section at the top.
 
-2. Cliquez sur **+ Nouveau canal** en haut à droite. Le dialog **Créer un canal** s'ouvre.
-   ![page Notifications - section Événements globaux, liste de canaux, bouton "Nouveau canal" en haut à droite](/img/operator-help/notifications-configurer-un-canal-1.png)
+2. Click **+ New channel** at the top right. The **Create channel** dialog opens.
+   ![Notifications page - Global events section, channel list, "New channel" button at the top right](/img/operator-help/notifications-configurer-un-canal-1.png)
 
-3. **Nom** (premier champ, focus automatique) - saisissez un nom clair, libre (espaces, accents et emojis acceptés, 80 caractères max). Exemples : *Alertes Slack équipe*, *Webhook supervision*, *Bureau perso*. Ce nom apparaîtra dans la liste, dans l'historique d'envoi et dans les toasts.
+3. **Name** (first field, auto-focused) - type a clear, free-form name (spaces, accents and emojis accepted, 80 characters max). Examples: *Slack team alerts*, *Supervision webhook*, *Personal desktop*. This name will appear in the list, in the delivery history and in the toasts.
 
-4. **Identifiant technique** (section repliable, optionnelle) - au fur et à mesure que vous tapez le nom, Apollia génère automatiquement un identifiant en *kebab-case* (`alertes-slack-equipe`). Ouvrez le bloc *« Identifiant technique »* pour le voir et le personnaliser si nécessaire ; il reste validé sur la regex *minuscules + tirets*. Une fois posé, il ne change plus.
+4. **Technical identifier** (collapsible section, optional) - as you type the name, Apollia automatically generates an identifier in *kebab-case* (`slack-team-alerts`). Open the *"Technical identifier"* block to see it and customise it if needed; it stays validated against the *lowercase + hyphens* regex. Once set, it never changes.
 
-5. **Type** - choisissez :
-   - **Desktop** - notification système de votre ordinateur (toast / centre de notifications natif).
-   - **Webhook** - POST HTTP JSON vers une URL externe. C'est la voie pour **Slack**, **Discord**, **Teams** ou tout endpoint maison ; collez simplement leur URL d'intégration entrante.
+5. **Type** - choose:
+   - **Desktop** - system notification of your computer (toast / native notification centre).
+   - **Webhook** - HTTP JSON POST to an external URL. This is the way for **Slack**, **Discord**, **Teams** or any homemade endpoint; just paste their incoming webhook URL.
 
-6. Pour **Webhook** uniquement :
-   - **URL du webhook** - colle l'URL d'envoi.
-   - **En-têtes (JSON)** *(optionnel)* - un Textarea monospace qui accepte un objet JSON, par exemple `{"Authorization": "Bearer xyz"}`. Le format est validé à la frappe ; un message d'erreur s'affiche si le JSON est mal formé. Laissez vide si l'endpoint ne demande pas d'authentification supplémentaire.
+6. For **Webhook** only:
+   - **Webhook URL** - paste the delivery URL.
+   - **Headers (JSON)** *(optional)* - a monospace textarea that accepts a JSON object, for example `{"Authorization": "Bearer xyz"}`. The format is validated as you type; an error message shows if the JSON is malformed. Leave it empty if the endpoint does not ask for extra authentication.
 
-7. **Événements** *(visible dès que des événements globaux sont actifs)* - cochez les types d'événements qui doivent partir sur **ce canal**. Chaque ligne affiche :
-   - Un **libellé humain** (*Tâche échouée*, *Approbation requise*…).
-   - Une **description courte** sous le libellé.
-   - L'**identifiant technique** en monospace plus petit (utile si vous parsez le payload côté Slack/Discord).
+7. **Events** *(visible as soon as global events are active)* - check the event types that must go out on **this channel**. Each row shows:
+   - A **human label** (*Task failed*, *Approval required*…).
+   - A **short description** under the label.
+   - The **technical identifier** in smaller monospace (useful if you parse the payload on the Slack/Discord side).
 
-   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Le détail des 7 types et la logique à deux niveaux sont en haut de cette page.
+   Leave everything unchecked to receive **every global event** on this channel. The detail of the 7 types and the two-level logic are at the top of this page.
 
-8. **Limiter les notifications** *(anti-spam, par canal et par type d'événement)* - un sélecteur déroulant :
-   - **Aucune limite** (défaut).
-   - **1 par minute** (60 s).
-   - **1 toutes les 5 min** (300 s).
-   - **1 par heure** (3600 s).
-   - **Personnalisé…** - affiche un champ numérique pour saisir un intervalle entre 1 s et 86 400 s (24 h).
+8. **Throttle notifications** *(anti-spam, per channel and per event type)* - a dropdown selector:
+   - **No limit** (default).
+   - **1 per minute** (60 s).
+   - **1 every 5 min** (300 s).
+   - **1 per hour** (3600 s).
+   - **Custom…** - shows a numeric field to enter an interval between 1 s and 86 400 s (24 h).
 
-   La limite est calculée **par couple (canal, type d'événement)**. Exemple : régler 60 s laisse passer la première *Tâche terminée*, ignore les suivantes pendant 60 s, et envoie en fin de fenêtre un **récapitulatif** du type *« 12 événements « task.completed » au cours des 60 dernières secondes »*. Pendant ce temps, les *Approbations requises* continuent à passer sans throttling (couple différent).
+   The limit is computed **per (channel, event type) pair**. Example: setting 60 s lets the first *Task completed* through, ignores the following ones for 60 s, and sends at the end of the window a **summary** of the form *"12 ‘task.completed’ events over the last 60 seconds"*. Meanwhile, *Approval required* keeps going through without throttling (different pair).
 
-9. **Activé** *(case cochée par défaut)* - décochez pour créer le canal en pause.
+9. **Enabled** *(checked by default)* - uncheck to create the channel paused.
 
-10. Cliquez sur **Créer le canal**. Un toast confirme la création et le canal apparaît dans la liste.
+10. Click **Create channel**. A toast confirms the creation and the channel appears in the list.
 
-## Anatomie d'une carte de canal
+## Anatomy of a channel card
 
-Une fois créé, chaque canal est rendu sous forme de carte avec :
+Once created, each channel is rendered as a card with:
 
-- Une **fine barre d'accent horizontale en haut** - bleu *info* pour un Desktop, bleu *primary* pour un Webhook ; grisée si le canal est désactivé.
-- À gauche du titre, une **vignette colorée** avec l'icône du type (écran pour Desktop, prise webhook pour Webhook).
-- Le **nom** du canal en titre, son **identifiant technique** en monospace en sous-texte (si vous avez personnalisé le nom), puis un badge **Desktop** ou **Webhook**.
-- À droite du titre, le **toggle on/off** pour mettre en pause / réactiver.
-- En dessous, les **pastilles d'événements** filtrés (ou la mention *« Tous les événements »* si la liste est vide).
-- À l'extrême droite de la ligne d'événements, un petit indicateur **⏱ … s** apparaît si un throttling est configuré.
-- En pied de carte, séparé par un trait fin, **trois icônes d'action** côte à côte : avion en papier (Tester), crayon (Modifier), corbeille rouge (Supprimer). Survolez chaque icône pour voir son tooltip.
+- A **thin horizontal accent bar at the top** - *info* blue for a Desktop, *primary* blue for a Webhook; greyed out if the channel is disabled.
+- To the left of the title, a **coloured thumbnail** with the type icon (screen for Desktop, webhook plug for Webhook).
+- The channel **name** as the title, its **technical identifier** in monospace as subtext (if you customised the name), then a **Desktop** or **Webhook** badge.
+- To the right of the title, the **on/off toggle** to pause / resume.
+- Below, the filtered **event pills** (or the wording *"All events"* if the list is empty).
+- At the far right of the events row, a small **⏱ … s** indicator appears if a throttle is configured.
+- In the card footer, separated by a thin rule, **three action icons** side by side: paper plane (Test), pencil (Edit), red bin (Delete). Hover each icon to see its tooltip.
 
-![carte de canal - barre d'accent bleue en haut, icône Desktop dans une vignette ronde à gauche, nom + ID + b...](/img/operator-help/notifications-configurer-un-canal-2.png)
+![channel card - blue accent bar at the top, Desktop icon in a round thumbnail on the left, name + ID + b...](/img/operator-help/notifications-configurer-un-canal-2.png)
 
-## Tester le canal
+## Test the channel
 
-Le test n'est pas dans le dialog de création ; il vit sur la **carte du canal** une fois créé.
+The test is not in the creation dialog; it lives on the **channel card** once created.
 
-1. Repérez la carte du canal dans la liste.
-2. Cliquez sur l'**icône avion en papier** dans le pied de carte (tooltip *« Tester »*). Apollia envoie une notification de test générique.
-3. Un badge **OK · xxx ms** vert s'affiche dans le pied de carte pendant ~5 s + un toast *« Notification de test envoyée »*. En cas d'échec, un badge rouge porte le message d'erreur de l'endpoint.
+1. Spot the channel card in the list.
+2. Click the **paper plane icon** in the card footer (tooltip *"Test"*). Apollia sends a generic test notification.
+3. A green **OK · xxx ms** badge shows in the card footer for about 5 s, plus a *"Test notification sent"* toast. On failure, a red badge carries the endpoint error message.
 
-> **Note :** l'icône **Tester** est désactivée tant que le canal est en pause (toggle off).
+> **Note:** the **Test** icon is disabled as long as the channel is paused (toggle off).
 
-## Mettre en pause un canal
+## Pause a channel
 
-Le **toggle on/off** est directement en en-tête de la carte. Un clic suffit pour basculer ; le changement est persisté immédiatement (toast *« Canal {nom} activé »* / *« désactivé »*). La barre d'accent en haut de la carte passe de sa couleur de type au gris.
+The **on/off toggle** sits directly in the card header. One click is enough to flip it; the change is persisted immediately (toast *"Channel {name} enabled"* / *"disabled"*). The accent bar at the top of the card turns from its type colour to grey.
 
-## Modifier ou supprimer un canal
+## Edit or delete a channel
 
-- **Icône crayon** *(tooltip « Modifier »)* - ouvre le même dialog que la création, pré-rempli. Le nom reste éditable, l'identifiant technique non. Toute modification doit être confirmée par **Enregistrer**.
-- **Icône corbeille** rouge *(tooltip « Supprimer »)* - ouvre une modale de confirmation (*« Supprimer le canal {id} ? Cette action est irréversible »*). Aucun undo n'est proposé.
+- **Pencil icon** *(tooltip "Edit")* - opens the same dialog as the creation, pre-filled. The name stays editable, the technical identifier does not. Any change must be confirmed with **Save**.
+- Red **bin icon** *(tooltip "Delete")* - opens a confirmation modal (*"Delete the channel {id}? This action cannot be undone"*). No undo is offered.
 
-## Ce que fait exactement une limite
+## What a throttle actually does
 
-La limite agit **par couple (canal, type d'événement)**. Quand plusieurs
-notifications du même type tombent dans la fenêtre :
+The limit acts **per (channel, event type) pair**. When several notifications of
+the same type land inside the window:
 
-- la **première** part normalement ;
-- les **suivantes** sont absorbées silencieusement ;
-- en fin de fenêtre, Apollia envoie un **récapitulatif**, *« 12 événements « task.completed » au cours des 60 dernières secondes »*.
+- the **first** goes out normally;
+- the **following ones** are absorbed silently;
+- at the end of the window, Apollia sends a **summary**, *"12 ‘task.completed’ events over the last 60 seconds"*.
 
-Les autres types continuent de partir sans contrainte : un throttle agressif sur `task.completed` ne retiendra jamais une `task.input_required`. Dès qu'une limite est posée, la carte du canal affiche un indicateur **⏱ … s** à droite de la rangée des événements.
+The other types keep going out unconstrained: an aggressive throttle on `task.completed` will never hold back a `task.input_required`. As soon as a limit is set, the channel card shows a **⏱ … s** indicator to the right of the events row.
 
-## Vérifier ce qui est réellement parti
+## Check what actually went out
 
-La section **Historique**, en bas de la page **Notifications**, liste les 50 derniers événements traités :
+The delivery history is **not** on the Notifications page. That page now carries
+only a line pointing elsewhere. Open the **Inbox** and go to the **Notifications
+sent** tab.
 
-- **Horodatage**, en relatif (`5min ago`).
-- **Canal**, par son nom si défini, sinon son identifiant technique.
-- **Événement**, libellé humain si traduisible, sinon l'identifiant brut.
-- **Statut**, badge vert *« envoyé »* ou rouge *« échoué »*.
+The list gives you, per entry, when it went out, which channel took it, which
+event triggered it, and whether the send succeeded or failed.
 
-Un filtre par canal permet de cibler. Le motif d'erreur n'apparaît pas ici : pour l'obtenir, lancez **Tester** depuis la carte du canal.
+The failure reason is not shown there. To get it, run **Test** from the channel
+card on the Notifications page.
 
-## Vérification
+## Verification
 
-- Après création, la carte du canal apparaît dans la liste avec sa **barre d'accent en haut** colorée selon le type et son **toggle activé** à droite du titre.
-- Cliquer sur l'**icône Tester** envoie un message qui arrive sur le canal cible en quelques secondes.
-- Le canal apparaît dans la section **Historique** en bas de page dès le premier envoi réel.
+- After creation, the channel card appears in the list with its **accent bar at the top** coloured by type and its **toggle enabled** to the right of the title.
+- Clicking the **Test** icon sends a message that lands on the target channel within a few seconds.
+- The channel appears in the **Inbox**, tab **Notifications sent**, from the first real delivery.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Notification bureau invisible** : vérifiez que les notifications de l'application sont autorisées dans les réglages système (macOS : *Réglages → Notifications → Apollia* ; Windows 11 : *Paramètres → Système → Notifications*).
-- **Webhook en erreur 401 / 403** : l'URL ou l'en-tête d'authentification est incorrect. Re-générez l'URL côté Slack/Discord/Teams et collez-la à nouveau.
-- **Webhook en erreur 404 ou délai dépassé** : l'URL est mal recopiée ou l'endpoint est hors-ligne.
-- **Webhook bloqué (SSRF)** : si le message d'erreur contient *« SSRF blocked »*, l'URL pointe vers une adresse privée (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, ou un endpoint metadata cloud). Apollia OS refuse ces envois par sécurité ; utilisez uniquement des URLs publiques.
-- **Nom déjà utilisé** : le nom est libre mais l'identifiant technique doit être unique. Si la création échoue avec un conflit, ouvrez la section *« Identifiant technique »* et changez-le manuellement.
-- **Notification de test reçue mais pas les vraies** : vérifiez la section *Événements globaux* en haut de la page **Notifications** - un événement décoché globalement ne partira sur aucun canal, même si ce canal le coche localement.
+- **Desktop notification invisible**: check that the application's notifications are allowed in the system settings (macOS: *Settings → Notifications → Apollia*; Windows 11: *Settings → System → Notifications*).
+- **Webhook returning 401 / 403**: the URL or the authentication header is wrong. Regenerate the URL on the Slack/Discord/Teams side and paste it again.
+- **Webhook returning 404 or timing out**: the URL was copied wrong or the endpoint is offline.
+- **Webhook blocked (SSRF)**: if the error message contains *"SSRF blocked"*, the URL points to a private address (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, or a cloud metadata endpoint). Apollia OS refuses these deliveries for safety; use public URLs only.
+- **Name already taken**: the name is free-form but the technical identifier must be unique. If the creation fails with a conflict, open the *"Technical identifier"* section and change it manually.
+- **Test notification received but not the real ones**: check the *Global events* section at the top of the **Notifications** page - an event unchecked globally will go out on no channel, even if that channel checks it locally.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md)
+> **Technical reference:** [Apollia reference](/reference)

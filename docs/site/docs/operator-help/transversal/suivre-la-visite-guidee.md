@@ -1,77 +1,77 @@
 ---
 sidebar_position: 5
-title: Suivre la visite guidée
+title: Take the guided tour
 ---
 
-# Suivre la visite guidée
+# Take the guided tour
 
-Apollia vous propose six visites guidées courtes, qui surlignent un élément de
-l'interface et expliquent ce qu'il fait. Elles servent à découvrir le produit en
-le manipulant plutôt qu'en lisant. Vous pouvez les lancer, les interrompre et les
-relancer à tout moment.
+Apollia offers six short guided tours that highlight an element of the interface
+and explain what it does. They are there so you discover the product by handling
+it rather than by reading about it. You can start them, interrupt them and start
+them again at any time.
 
-## La bande « Prise en main »
+## The "Getting started" band
 
-Elle occupe le haut du **Tableau de bord**, l'écran sur lequel Apollia s'ouvre.
-Elle affiche cinq jalons, chacun lié à une visite :
+It sits at the top of the **Dashboard**, the screen Apollia opens on. It shows
+five milestones, each tied to a tour:
 
-| Jalon | Ce qu'il propose | Il se coche quand |
+| Milestone | What it offers | It gets ticked when |
 |---|---|---|
-| **Discuter** | Obtenez votre première réponse | vous avez au moins une session de chat |
-| **Cadrer** | Donnez du contexte à vos échanges | vous avez au moins un projet |
-| **Automatiser** | Faites tourner une tâche toute seule | vous avez au moins une automatisation |
-| **Connecter** | Branchez vos outils | au moins une intégration est connectée |
-| **Suivre** | Voyez ce qui s'est passé | vous avez ouvert l'observabilité une fois |
+| **Converse** | Get your first answer | you have at least one chat session |
+| **Frame** | Give your work some context | you have at least one project |
+| **Automate** | Let a task run on its own | you have at least one automation |
+| **Connect** | Plug in your tools | at least one integration is connected |
+| **Follow** | See what happened | you have opened observability once |
 
-Les jalons se cochent **en observant ce que vous faites**, pas en cliquant sur un
-bouton « terminé ». Créer un projet coche « Cadrer », que vous soyez passé par la
-visite ou non.
+Milestones get ticked **by watching what you do**, not by clicking a "done"
+button. Creating a project ticks "Frame", whether you went through the tour or
+not.
 
-## Lancer une visite
+## Starting a tour
 
-Trois chemins mènent au même endroit :
+Three paths lead to the same place:
 
-1. **Le bouton d'un jalon**, dans la bande. Il lance la visite de ce jalon.
-2. **Le bouton principal de la bande**, qui lance la visite du prochain jalon non
-   coché.
-3. **Le bouton « Les repères »**, qui lance la visite d'orientation générale.
+1. **A milestone button**, in the band. It starts the tour for that milestone.
+2. **The main button of the band**, which starts the tour for the next unticked
+   milestone.
+3. **The button labelled "The landmarks"**, which starts the general orientation
+   tour.
 
-Pendant une visite, l'élément concerné est surligné et une carte explique de quoi
-il s'agit. Vous avancez, revenez en arrière, ou interrompez. Interrompre ne perd
-rien : la visite se relance depuis le début.
+During a tour, the element in question is highlighted and a card explains what it
+is. You move forward, go back, or stop. Stopping loses nothing: the tour starts
+again from the beginning.
 
-## Les six visites
+## The six tours
 
-- **Votre première réponse.** Le champ de saisie, l'approbation d'une action, et
-  la trace de ce qui vient de se passer.
-- **Les repères.** Vos surfaces, la palette de commandes au clavier, les deux
-  niveaux de détail Opérateur et Builder, et l'inbox.
-- **Cadrer avec un projet.** Ce qu'un projet regroupe, l'onglet Contexte, et
-  comment l'assistant s'en sert sans que vous ayez à le redire.
-- **Automatiser une tâche.** Décrire ce que vous voulez, choisir quand, et lancer
-  une fois pour vérifier.
-- **Connecter vos outils.** Le catalogue, l'état de vos connexions, et ce que
-  chaque outil sait faire.
-- **Suivre ce qui s'est passé.** La chronologie, le coût, et le journal chaîné.
+- **Your first answer.** The input field, approving an action, and the trace of
+  what just happened.
+- **The landmarks.** Your surfaces, the keyboard command palette, the two levels
+  of detail Operator and Builder, and the inbox.
+- **Frame it with a project.** What a project brings together, the Context tab,
+  and how the assistant uses it without you having to say it again.
+- **Automate a task.** Describing what you want, choosing when, and running it
+  once to check.
+- **Connect your tools.** The catalogue, the state of your connections, and what
+  each tool can do.
+- **Follow what happened.** The timeline, the cost, and the chained journal.
 
-## Quand la bande disparaît
+## When the band goes away
 
-Une fois les cinq jalons cochés, la bande se retire d'elle-même : un panneau de
-découverte qui survit à la découverte devient du bruit. Un bouton vous permet de
-la garder si vous préférez.
+Once the five milestones are ticked, the band retires on its own: a discovery
+panel that outlives discovery becomes noise. A button lets you keep it if you
+prefer.
 
-**Elle n'est pas perdue pour autant.** Pour la faire revenir, ouvrez
-**Réglages > Aide** et choisissez **Revoir la prise en main**. Vous êtes ramené
-au tableau de bord avec la bande rétablie, et les visites sont de nouveau à un
-clic.
+**It is not lost for all that.** To bring it back, open **Settings > Help** and
+choose **Revisit getting started**. You are taken back to the dashboard with the
+band restored, and the tours are one click away again.
 
-## Repartir de zéro
+## Starting over
 
-**Réglages > Zone sensible > Réinitialiser l'onboarding** efface aussi l'état de
-la visite : les cinq jalons redeviennent vides et la bande réapparaît comme au
-premier démarrage. Le wizard d'onboarding se rouvre dans la foulée. C'est le
-geste à faire pour préparer une démonstration.
+**Settings > Danger Zone > Reset Onboarding** also clears the state of the tour:
+the five milestones go back to empty and the band reappears as on first launch.
+The onboarding wizard reopens right after. This is the move to make when
+preparing a demonstration.
 
-L'état de la visite vit dans l'application, pas dans vos données : le remettre à
-zéro ne touche ni vos sessions, ni vos projets, ni vos automatisations. Les
-jalons se recocheront d'eux-mêmes, puisqu'ils observent ce qui existe.
+The state of the tour lives in the application, not in your data: resetting it
+touches neither your sessions, nor your projects, nor your automations. The
+milestones will tick themselves again, since they observe what exists.

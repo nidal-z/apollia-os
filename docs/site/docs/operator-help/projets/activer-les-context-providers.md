@@ -1,41 +1,41 @@
-# Activer les context providers
+# Enable context providers
 
-> Pour les operators qui veulent que l'IA arrive briefée sur leur projet sans avoir à coller du contexte à chaque message.
+> For operators who want the AI to arrive already briefed on their project, without pasting context into every message.
 
-## Prérequis
+## Prerequisites
 
-- Un projet déjà créé.
-- (Pour Git) Le dossier racine est un repo git.
+- A project already created.
+- (For Git) The root folder is a git repo.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Projets**, puis sur la carte du projet à configurer. Le panneau de détail s'ouvre.
+1. In the sidebar, click **Projects**, then click the card of the project to configure. The detail panel opens.
 
-2. Faites défiler jusqu'à la section **Context providers**. Trois types de fournisseurs sont disponibles.
-   ![section Context providers dans le panneau projet, liste des providers avec toggle ON/OFF](/img/operator-help/projets-activer-les-context-providers-1.png)
+2. Scroll down to the **Context Providers** section. Three provider types are available.
+   ![Context Providers section in the project panel, provider list with ON/OFF toggle](/img/operator-help/projets-activer-les-context-providers-1.png)
 
-3. **Git Status** (`git`) - cliquez sur **Ajouter un fournisseur** et sélectionnez *Git Status*. Actif, ce fournisseur injecte l'état git courant (fichiers modifiés, branch) dans chaque message envoyé aux agents liés au projet.
+3. **Git Status** (`git`) - click **Add provider** and select *Git Status*. When active, this provider injects the current git state (modified files, branch) into every message sent to the agents linked to the project.
 
-4. **Arborescence** (`tree`) - ajoutez *Directory Tree* pour inclure la structure de fichiers du dossier racine dans le contexte.
+4. **File tree** (`tree`) - add *Directory Tree* to include the file structure of the root folder in the context.
 
-5. **Project Rules** (`rules`) - ajoutez *Project Rules (APOLLIA.md)* pour inclure automatiquement les instructions du fichier `APOLLIA.md` à la racine du projet.
+5. **Project Rules** (`rules`) - add *Project Rules (APOLLIA.md)* to automatically include the instructions from the `APOLLIA.md` file at the project root.
 
-6. Basculez l'interrupteur de chaque fournisseur sur ON ou OFF selon vos besoins.
-   ![provider Git Status activé (toggle vert), provider Directory Tree désactivé (toggle gris)](/img/operator-help/projets-activer-les-context-providers-2.png)
+6. Switch each provider to ON or OFF depending on your needs.
+   ![Git Status provider enabled (green toggle), Directory Tree provider disabled (grey toggle)](/img/operator-help/projets-activer-les-context-providers-2.png)
 
-7. Pour voir exactement ce qui sera transmis à l'IA, cliquez sur **Aperçu du contexte** (Workspace Snapshot). Un panneau dépliable affiche le contenu de chaque fournisseur actif.
-   ![aperçu détaillé d'un context provider avec contenu git diff / arborescence](/img/operator-help/projets-activer-les-context-providers-3.png)
+7. To see exactly what will be handed to the AI, click **Preview context** (Workspace Snapshot). A collapsible panel shows the content of each active provider.
+   ![detailed preview of a context provider with git diff / file tree content](/img/operator-help/projets-activer-les-context-providers-3.png)
 
-   > **⚠️ Non disponible dans cette version :** un bandeau "Contexte injecté" avec le total estimé de tokens n'est pas encore disponible dans l'interface. Pour estimer la taille du contexte, consultez l'aperçu et tenez compte de la règle approximative : 1 token ≈ 4 caractères.
+   > **⚠️ Not available in this version:** an "Injected context" banner with the estimated token total is not available in the interface yet. To estimate the size of the context, look at the preview and use the rough rule: 1 token ≈ 4 characters.
 
-## Vérification
+## Verification
 
-Ouvrez un chat lié au projet et posez une question précise (par exemple : *"Quels fichiers ont changé cette semaine ?"*). La réponse doit citer des fichiers et des commits réels.
+Open a chat linked to the project and ask a precise question (for example: *"Which files changed this week?"*). The answer must cite real files and commits.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **L'aperçu Git est vide** : votre dossier n'est pas un repo git ou n'a aucun commit. Initialisez-le ou désactivez le fournisseur.
-- **Le provider n'apparaît pas** : cliquez sur **Ajouter un fournisseur** pour le créer s'il n'existe pas encore.
-- **Le contexte est trop lourd** : désactivez le provider *Directory Tree* si la structure de fichiers est volumineuse.
+- **The Git preview is empty**: your folder is not a git repo, or it has no commit. Initialize it or disable the provider.
+- **The provider does not appear**: click **Add provider** to create it if it does not exist yet.
+- **The context is too heavy**: disable the *Directory Tree* provider if the file structure is large.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md) - savoir quel fournisseur activer selon le type de projet.
+> **Concept:** [Apollia explanation](/explanation) - knowing which provider to enable depending on the project type.

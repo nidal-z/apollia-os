@@ -1,42 +1,42 @@
-# Lier un projet à un chat
+# Link a project to a chat
 
-> Pour les operators qui veulent qu'une conversation IA charge automatiquement les fichiers, l'historique git et les documents d'un projet.
+> For operators who want an AI conversation to load a project's files, git history and documents automatically.
 
-## Prérequis
+## Prerequisites
 
-- Un projet créé avec au moins un context provider activé.
-- Un fournisseur d'IA connecté.
-- (Optionnel) Le dossier projet est un repo git, pour activer le fournisseur Git.
+- A project created with at least one context provider enabled.
+- An AI provider connected.
+- (Optional) The project folder is a git repo, to enable the Git provider.
 
-## Étapes
+## Steps
 
-1. **Depuis la page Projets** : cliquez sur **Projets** dans la sidebar, ouvrez le projet, puis cliquez sur **+ Nouveau chat lié** en haut à droite.
-   ![page de détail projet, bouton + Nouveau chat lié surligné](/img/operator-help/projets-lier-un-projet-a-un-chat-1.png)
+1. **From the Projects page**: click **Projects** in the sidebar, open the project, then click **+ New Chat** at the top right.
+   ![project detail page, + New Chat button highlighted](/img/operator-help/projets-lier-un-projet-a-un-chat-1.png)
 
-2. Le chat s'ouvre automatiquement. L'icône du projet apparaît dans son en-tête : il est attaché.
+2. The chat opens automatically. The project icon appears in its header: it is attached.
 
-3. **Depuis un chat existant** : ouvrez le chat, cliquez sur le menu en haut (trois points), puis sur **Lier à un projet**.
-   ![en-tête de chat, menu déroulant avec option Lier à un projet](/img/operator-help/projets-lier-un-projet-a-un-chat-2.png)
+3. **From an existing chat**: open the chat, click the menu at the top (three dots), then click **Link to a project**.
+   ![chat header, drop-down menu with the Link to a project option](/img/operator-help/projets-lier-un-projet-a-un-chat-2.png)
 
-4. Sélectionnez le projet cible dans la liste déroulante. Le contexte s'attache instantanément.
+4. Select the target project in the drop-down list. The context is attached instantly.
 
-5. Vérifiez les **blocs de contexte** affichés en bas du chat. Vous pouvez les replier ou les déplier pour voir ce qui est réellement transmis à l'IA.
+5. Check the **context blocks** shown at the bottom of the chat. You can collapse or expand them to see what is actually handed to the AI.
 
-6. Posez une question spécifique au projet pour valider - par exemple : *"Quels fichiers ont changé cette semaine ?"*. La réponse doit citer des fichiers et des commits réels.
+6. Ask a project-specific question to validate, for example: *"Which files changed this week?"*. The answer must cite real files and commits.
 
-7. Vous pouvez créer plusieurs chats liés au même projet. Chacun garde son propre historique mais partage le même contexte.
-   ![page projet avec liste de chats liés, chacun avec son titre et sa date](/img/operator-help/projets-lier-un-projet-a-un-chat-3.png)
+7. You can create several chats linked to the same project. Each keeps its own history but shares the same context.
+   ![project page with the list of linked chats, each with its title and date](/img/operator-help/projets-lier-un-projet-a-un-chat-3.png)
 
-8. Pour délier un chat, ouvrez son menu en haut et cliquez sur **Délier du projet**. Le chat est conservé, seul le contexte projet disparaît.
+8. To unlink a chat, open its menu at the top and click **Unlink from the project**. The chat is kept, only the project context goes away.
 
-## Vérification
+## Verification
 
-L'icône projet est visible dans l'en-tête du chat et le bandeau de contexte affiche les blocs Git, Arborescence ou Documents que vous avez activés.
+The project icon is visible in the chat header and the context bar shows the Git, File tree or Documents blocks you enabled.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le bouton + Nouveau chat lié est grisé** : aucun fournisseur d'IA n'est connecté, ouvrez **Paramètres → Backends LLM** pour en configurer un.
-- **Les blocs de contexte sont vides** : retournez sur la page projet et activez au moins un context provider.
-- **L'IA ne semble rien savoir du projet** : le contexte est probablement plié, dépliez-le ou rechargez le chat.
+- **The + New Chat button is greyed out**: no AI provider is connected, open **Settings → LLM backends** to configure one.
+- **The context blocks are empty**: go back to the project page and enable at least one context provider.
+- **The AI seems to know nothing about the project**: the context is probably collapsed, expand it or reload the chat.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md) - comprendre comment le contexte d'un projet est utilisé par l'IA.
+> **Concept:** [Apollia explanation](/explanation) - understanding how a project's context is used by the AI.

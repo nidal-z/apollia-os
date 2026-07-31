@@ -1,46 +1,46 @@
-# Discuter avec votre IA
+# Chat with your AI
 
-> Pour tout operator qui veut commencer à dialoguer avec son IA : ouvrir une conversation, envoyer des messages et obtenir des réponses adaptées au contexte.
+> For any operator who wants to start a dialogue with their AI: open a conversation, send messages and get answers that fit the context.
 
-## Prérequis
+## Prerequisites
 
-- Un fournisseur d'IA est connecté (pastille verte dans le bandeau supérieur).
-- (Optionnel) Un projet est lié pour injecter automatiquement votre contexte de travail.
-- (Optionnel) Un agent Assistant est démarré si vous voulez discuter avec un agent spécialisé.
+- An AI provider is connected (green pill in the top bar).
+- (Optional) A project is linked so your working context is injected automatically.
+- (Optional) An Assistant agent is started if you want to talk to a specialised agent.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Chat**. La liste de vos conversations s'affiche à gauche, la zone de saisie au centre.
-   ![page Chat, sidebar conversations à gauche, zone vide au centre avec champ de saisie en bas](/img/operator-help/chat-discuter-avec-votre-ia-1.png)
+1. In the sidebar, click **Chat**. The list of your conversations shows on the left, the input area in the middle.
+   ![Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom](/img/operator-help/chat-discuter-avec-votre-ia-1.png)
 
-2. Cliquez sur **Nouveau chat** en haut de la liste. Une conversation vierge s'ouvre.
+2. Click **New chat** at the top of the list. A blank conversation opens.
 
-3. (Optionnel) Pour choisir le **fournisseur d'IA** et le **mode** (Libre ou Agent spécifique), cliquez sur le bouton de configuration en haut de la conversation. Un panneau s'ouvre avec les options disponibles.
+3. (Optional) To pick the **AI provider** and the **mode** (Free or a specific Agent), click the configuration button at the top of the conversation. A panel opens with the available options.
 
-4. Tapez votre instruction en langage naturel dans le champ de saisie en bas. Soyez précis : *"Résume ce fichier en 5 points"* est plus efficace que *"Aide-moi"*.
+4. Type your instruction in plain language in the input field at the bottom. Be specific: *"Summarise this file in 5 bullet points"* works better than *"Help me"*.
 
-5. Appuyez sur **Entrée** ou cliquez sur **Envoyer**. La réponse s'affiche en streaming, mot après mot.
-   ![conversation avec un message utilisateur et une réponse IA en cours de streaming, formatage markdown rendu](/img/operator-help/chat-discuter-avec-votre-ia-2.png)
+5. Press **Enter** or click **Send**. The answer streams in, word by word.
+   ![conversation with a user message and an AI answer streaming in, markdown formatting rendered](/img/operator-help/chat-discuter-avec-votre-ia-2.png)
 
-![conversation avec un message utilisateur et une réponse IA en cours de streaming, formatage markdown rendu (suite)](/img/operator-help/chat-discuter-avec-votre-ia-2bis.png)
+![conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued)](/img/operator-help/chat-discuter-avec-votre-ia-2bis.png)
 
-6. Posez vos questions de suivi dans le même fil. L'IA conserve tout l'historique de la conversation.
+6. Ask your follow-up questions in the same thread. The AI keeps the whole conversation history.
 
-7. Si vous discutez avec un Assistant, les étapes de raisonnement s'affichent **inline** dans les bulles de message sous forme de cartes de raisonnement dépliables (pas dans un volet droit séparé).
-   ![bulle de réponse avec carte de raisonnement dépliée montrant les étapes de l'agent](/img/operator-help/chat-discuter-avec-votre-ia-3.png)
+7. If you are talking to an Assistant, the reasoning steps show up **inline** in the message bubbles as expandable reasoning cards (not in a separate right-hand pane).
+   ![answer bubble with an expanded reasoning card showing the agent's steps](/img/operator-help/chat-discuter-avec-votre-ia-3.png)
 
-8. Si l'IA veut effectuer une action sensible (écrire un fichier, lancer une commande), une carte d'approbation apparaît : voir [Approuver ou refuser une action](../controle/approuver-ou-refuser-une-action.md).
+8. If the AI wants to perform a sensitive action (write a file, run a command), an approval card appears: see [Approve or reject an action](../controle/approuver-ou-refuser-une-action.md).
 
-9. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer** ou **Supprimer**.
+9. To organise your conversations, click the menu at the top of the conversation: **Rename** or **Delete**.
 
-## Vérification
+## Verification
 
-Votre conversation apparaît dans la liste de gauche avec un titre et la date du dernier message. Vous pouvez la rouvrir à tout moment, l'historique est conservé.
+Your conversation shows up in the list on the left with a title and the date of the last message. You can reopen it at any time, the history is kept.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Pas de réponse :** vérifiez que la pastille du fournisseur est verte dans le bandeau supérieur.
-- **Réponse en erreur ou tronquée :** changez de modèle dans le panneau de configuration, ou consultez [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
-- **L'IA ne connaît pas vos fichiers :** liez la conversation à un projet et activez les context providers.
+- **No answer:** check that the provider pill is green in the top bar.
+- **Answer in error or truncated:** switch models in the configuration panel, or read [The AI provider does not respond](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
+- **The AI does not know about your files:** link the conversation to a project and enable the context providers.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md) - comprendre comment le contexte est injecté et comment les modes Libre et Agent diffèrent.
+> **Concept:** [Apollia explanation](/explanation) - understand how context is injected and how the Free and Agent modes differ.

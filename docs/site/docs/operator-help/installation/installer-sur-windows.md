@@ -1,68 +1,66 @@
-# Installer Apollia sur Windows
+# Install Apollia on Windows
 
-Apollia est distribué pour Windows x86_64 sous trois formats :
+Apollia ships for Windows x86_64 in three formats:
 
-- **`.msi`** (recommandé) : installeur Windows standard avec entrées Démarrer + désinstallateur.
-- **`.exe` (NSIS)** : installeur portable single-file.
-- **`apollia-os-windows-x86-*.zip`** : bundles CLI par accélérateur (CPU, CUDA, Vulkan).
+- **`.msi`** (recommended): standard Windows installer with Start menu entries + uninstaller.
+- **`.exe` (NSIS)**: portable single-file installer.
+- **`apollia-os-windows-x86-*.zip`**: CLI bundles per accelerator (CPU, CUDA, Vulkan).
 
-## Pré-requis
+## Requirements
 
 - Windows 10 22H2 / Windows 11.
-- 4 Go de RAM libres minimum.
-- Pour GPU : driver NVIDIA 550+ (CUDA) ou driver Vulkan-capable.
-- **Pas besoin** d'installer Visual C++ Redistributable : le CRT est statiquement embarqué.
+- 4 GB of free RAM minimum.
+- For GPU: NVIDIA 550+ driver (CUDA) or a Vulkan-capable driver.
+- **No need** to install the Visual C++ Redistributable: the CRT is statically embedded.
 
 ## Installation (MSI)
 
-1. Téléchargez `Apollia-OS_<version>_x64.msi`.
-2. Double-cliquez, suivez l'assistant.
-3. L'app apparaît dans le menu Démarrer.
+1. Download `Apollia-OS_<version>_x64.msi`.
+2. Double-click, follow the wizard.
+3. The app shows up in the Start menu.
 
-Le pare-feu Windows demandera à autoriser `apollia-os.exe`, le moteur d'inférence `llama-server.exe` et `apollia-runner-*.exe` (reconnaissance vocale) au premier lancement : **autorisez-les pour les réseaux privés** (ces composants communiquent avec le daemon en loopback 127.0.0.1).
+The Windows firewall will ask you to allow `apollia-os.exe`, the `llama-server.exe` inference engine and `apollia-runner-*.exe` (speech-to-text) on first launch: **allow them on private networks** (these components talk to the daemon over loopback 127.0.0.1).
 
-## Vérification
+## Verification
 
-Depuis PowerShell :
+From PowerShell:
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" --version
 & "C:\Program Files\Apollia OS\apollia-os.exe" doctor --json | ConvertFrom-Json | Select-Object -ExpandProperty gpu
 ```
 
-## Accélération GPU
+## GPU acceleration
 
-L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'installeur MSI embarque la variante CPU. Pour accélérer la dictée sur GPU CUDA / Vulkan :
+Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the MSI installer embeds its CPU variant. To accelerate dictation on a CUDA / Vulkan GPU:
 
-1. Téléchargez `apollia-os-windows-x86-cuda.zip` (ou vulkan).
-2. Décompressez et copiez `apollia-runner-cuda.exe` (ou `apollia-runner-vulkan.exe`) dans `C:\Program Files\Apollia OS\`.
-3. Relancez l'app.
+1. Download `apollia-os-windows-x86-cuda.zip` (or vulkan).
+2. Extract it and copy `apollia-runner-cuda.exe` (or `apollia-runner-vulkan.exe`) into `C:\Program Files\Apollia OS\`.
+3. Restart the app.
 
-## Ce qui change sur Windows
+## What is different on Windows
 
-Windows est une plateforme supportée, mais deux points la distinguent des deux
-autres et méritent d'être connus avant de confier une tâche à un agent.
+Windows is a supported platform, but two points set it apart from the other
+two and are worth knowing before you hand a task to an agent.
 
-**Aucun confinement des outils.** Sur Linux, une commande lancée par un agent
-s'exécute dans des espaces de noms isolés et avec des limites de ressources ; sur
-macOS, avec des limites de ressources. Sur Windows, ni l'un ni l'autre : une
-commande lancée par un agent tourne avec exactement vos droits, sur vos fichiers,
-sans plafond de mémoire ni de temps processeur. La contrepartie pratique : ne
-faites tourner sur Windows que des agents dont vous avez lu le code, et gardez
-l'approbation manuelle active dans le chat.
+**No tool confinement.** On Linux, a command started by an agent runs in
+isolated namespaces and under resource limits; on macOS, under resource limits.
+On Windows, neither: a command started by an agent runs with exactly your
+rights, on your files, with no memory or CPU time cap. The practical
+consequence: on Windows, only run agents whose code you have read, and keep
+manual approval enabled in the chat.
 
-**L'outil shell exige un shell POSIX.** `bash_executor` cherche un `sh` dans
-votre `PATH`. Sans Git Bash, WSL ou MSYS2 installé, tout agent qui utilise cet
-outil échoue. Les autres outils, fichiers, web et Python, fonctionnent
-normalement.
+**The shell tool requires a POSIX shell.** `bash_executor` looks for an `sh` in
+your `PATH`. Without Git Bash, WSL or MSYS2 installed, any agent that uses that
+tool fails. The other tools, files, web and Python, work normally.
 
-## Mettre à jour
+## Update
 
-Voir [Mettre à jour Apollia](./mettre-a-jour-apollia.md).
+See [Update Apollia](./mettre-a-jour-apollia.md).
 
-## Désinstallation
+## Uninstall
 
-`Paramètres > Applications > Apollia OS > Désinstaller`. Données utilisateur :
+`Settings > Apps > Apollia OS > Uninstall`. User data:
 
 ```powershell
 Remove-Item -Recurse "$env:USERPROFILE\.apollia"

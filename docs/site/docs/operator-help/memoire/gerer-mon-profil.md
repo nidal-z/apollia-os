@@ -1,94 +1,94 @@
-# Gérer mon profil
+# Manage my profile
 
-> Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux - prénom, rôle, secteur, supervision, contraintes.
+> For operators who want to **review and change**, day to day, what all their agents know about them: first name, role, sector, supervision, constraints.
 >
-> Cette page couvre **l'édition d'un profil existant**. Si vous lancez Apollia pour la première fois, le parcours guidé peuple les valeurs initiales : voir **[Configurer votre profil au premier lancement](../installation/configurer-votre-profil.md)**.
+> This page covers **editing an existing profile**. If you are launching Apollia for the first time, the guided flow fills the initial values: see **[Set up your profile on first launch](../installation/configurer-votre-profil.md)**.
 
-## Pourquoi un profil utilisateur
+## Why a user profile
 
-Tous vos agents partagent un **profil utilisateur** unique. Quand vous dites à l'un d'eux que vous êtes développeur·euse en fintech, les autres agents profitent de cette information : vocabulaire adapté, ton ajusté, suggestions pertinentes. Pas de re-saisie à chaque agent.
+All your agents share a single **user profile**. When you tell one of them that you are a developer in fintech, the other agents benefit from that information: matching vocabulary, adjusted tone, relevant suggestions. No re-entry for each agent.
 
-Ce profil est **local**. Aucune donnée ne quitte votre machine.
+This profile is **local**. No data leaves your machine.
 
-## Où l'éditer
+## Where to edit it
 
-**Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
+**Settings → Profile**, reachable from the ⚙️ icon in the sidebar.
 
-![page Paramètres → Profil - 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](/img/operator-help/memoire-gerer-mon-profil-1.png)
+![Settings → Profile page - 5 stacked sections (Identity, Agent supervision, Tools & business context,...](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
-L'écran est divisé en sections :
+The screen is split into sections:
 
-- **Identité** - prénom, rôle, secteur, taille d'équipe, objectifs.
-- **Supervision des agents** *(sensible)* - niveau HITL (Human-in-the-Loop), domaines d'autonomie, déclenchement.
-- **Outils & contexte métier** - outils du quotidien, niveau technique, intégrations connectées *(la dernière est sensible)*.
-- **Contraintes** *(sensible)* - souveraineté des données, conformité.
-- **Préférences** - langue préférée, backend LLM par défaut.
+- **Identity** - first name, role, sector, team size, goals.
+- **Agent supervision** *(sensitive)* - HITL level (Human-in-the-Loop), autonomy areas, triggering.
+- **Tools & business context** - everyday tools, technical level, connected integrations *(the last one is sensitive)*.
+- **Constraints** *(sensitive)* - data sovereignty, compliance.
+- **Preferences** - preferred language, default LLM backend.
 
-## Étapes
+## Steps
 
-1. Ouvrez **Paramètres → Profil**.
+1. Open **Settings → Profile**.
 
-2. Saisissez ou modifiez les champs voulus. Chaque champ est sauvegardé automatiquement quand vous quittez le champ (sortie de focus) ou changez d'option. Un toast confirme l'enregistrement.
+2. Enter or change the fields you want. Each field is saved automatically when you leave it (focus out) or change an option. A toast confirms the save.
 
-3. Vider un champ et quitter le focus **supprime** l'entrée du profil.
+3. Emptying a field and leaving the focus **deletes** the profile entry.
 
-## Qui a renseigné chaque champ
+## Who filled each field
 
-Une **pastille** apparaît à côté des champs déjà renseignés et indique l'origine de la valeur :
+A **chip** appears next to the fields already filled in and shows where the value came from:
 
-- **onboarding** - valeur posée par le parcours guidé au premier démarrage. Vous la verrez sur les quelques champs que l'onboarding remplit (prénom, rôle, niveau de supervision, souveraineté des données).
-- **vous** - valeur saisie ou modifiée depuis ce formulaire. Toute modification que vous faites ici remplace l'origine précédente par **vous**.
-- **agent** - valeur déduite par un agent au fil d'une conversation (par exemple un agent qui aurait observé votre rôle dans un échange).
+- **onboarding** - value set by the guided flow at first start. You will see it on the few fields the onboarding fills (first name, role, supervision level, data sovereignty).
+- **you** - value entered or changed from this form. Any change you make here replaces the previous origin with **you**.
+- **agent** - value inferred by an agent during a conversation (for example an agent that noticed your role in an exchange).
 
-Un champ vide ne porte pas de pastille. Tant que vous ne touchez pas à un champ, la pastille d'origine est préservée - passer le focus dessus sans rien changer ne la remplace pas.
+An empty field carries no chip. As long as you do not touch a field, its origin chip is preserved, focusing it without changing anything does not replace it.
 
-## Champs sensibles
+## Sensitive fields
 
-Quatre champs portent un badge **Sensible** :
+Four fields carry a **Sensitive** badge:
 
-- **Niveau HITL** (Supervision des agents)
-- **Souveraineté des données** (Contraintes)
-- **Conformité** (Contraintes)
-- **Intégrations connectées** (Outils & contexte métier)
+- **HITL level** (Agent supervision)
+- **Data sovereignty** (Constraints)
+- **Compliance** (Constraints)
+- **Connected integrations** (Tools & business context)
 
-Modifier ces champs **ne ré-applique pas automatiquement** vos règles de permissions. Apollia respecte le principe « la mémoire ne change pas l'environnement sans décision explicite ». Pour que les nouvelles valeurs influencent les permissions, relancez l'onboarding (voir ci-dessous).
+Changing these fields **does not automatically re-apply** your permission rules. Apollia honours the principle "memory does not change the environment without an explicit decision". For the new values to influence permissions, rerun the onboarding (see below).
 
-## Réinitialiser votre profil
+## Resetting your profile
 
-Plusieurs chemins, selon ce que vous voulez effacer.
+Several paths, depending on what you want to erase.
 
-### A - Effacer uniquement le profil et reposer les questions
+### A - Erase only the profile and ask the questions again
 
-Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale.
+At the bottom of the **Settings → Profile** page, the **Danger zone** offers a **Reset profile** button. Confirm in the modal.
 
-![La zone de danger du profil avec la modale de confirmation Réinitialiser le profil au premier plan](/img/operator-help/memoire-gerer-mon-profil-1.png)
+![The profile danger zone with the Reset profile confirmation modal in the foreground](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
-- Tout le profil est effacé (les 5 sections).
-- L'agent d'onboarding redémarre **immédiatement** pour reconstruire vos préférences depuis zéro.
-- L'historique des conversations et les mémoires des autres agents **ne sont pas touchés**.
+- The whole profile is erased (all 5 sections).
+- The onboarding agent restarts **immediately** to rebuild your preferences from scratch.
+- Conversation history and the memories of other agents **are not touched**.
 
-C'est l'option à choisir si vous voulez juste « repasser le questionnaire de configuration » sans toucher au reste.
+This is the option to pick if you only want to "take the configuration questionnaire again" without touching the rest.
 
-### B - Repasser uniquement le parcours guidé (sans effacer le profil)
+### B - Take the guided flow again (without erasing the profile)
 
-Dans **Paramètres → Zone de danger** (entrée distincte de la sidebar Paramètres), le bouton **Réinitialiser l'onboarding** relance le parcours guidé sans effacer ce qui est déjà renseigné. Utile si vous voulez juste re-télécharger un modèle, recalibrer une intégration ou voir les écrans de bienvenue à nouveau.
+In **Settings → Danger Zone** (a separate entry in the Settings sidebar), the **Reset Onboarding** button restarts the guided flow without erasing what is already filled in. Useful if you only want to re-download a model, recalibrate an integration, or see the welcome screens again.
 
-### C - Effacer toutes les mémoires (profil + agents + projets)
+### C - Erase all memories (profile + agents + projects)
 
-Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires Apollia, sur tous les namespaces : profil utilisateur, mémoire des agents, mémoire de projet. C'est plus large que la réinitialisation du profil - à utiliser si vous voulez repartir d'une page complètement blanche côté mémoire (les conversations, agents installés et permissions restent en place).
+In **Settings → Danger Zone**, the **Clear Memories** button deletes **all** Apollia memories, across every namespace: user profile, agent memory, project memory. This is broader than resetting the profile, use it if you want to start from a completely blank slate on the memory side (conversations, installed agents and permissions stay in place).
 
-> Pour aller encore plus loin (effacer aussi les agents installés, les permissions, les paramètres système), c'est l'option **Réinitialisation usine** au bas de la même Zone de danger.
+> To go even further (erasing installed agents, permissions and system settings too), the option is **Factory Reset** at the bottom of the same Danger Zone.
 
-## Vérification
+## Verification
 
-- Rechargez la page : les valeurs saisies persistent.
-- Démarrez une nouvelle conversation avec n'importe quel agent et observez qu'il vous adresse par votre prénom / adapte son ton à votre rôle.
-- Sur un champ que vous venez de modifier, la pastille bascule sur **vous**.
+- Reload the page: the values you entered persist.
+- Start a new conversation with any agent and notice that it addresses you by your first name / adapts its tone to your role.
+- On a field you just changed, the chip switches to **you**.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Les champs restent vides après saisie** : un agent était peut-être en train d'écrire. Réessayez après quelques secondes.
-- **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : ouvrez la sidebar et cliquez sur **Onboarding** pour relancer manuellement.
-- **Un agent ignore votre profil** : tous les agents Python ont accès au profil par défaut. Si l'agent en question est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
+- **Fields stay empty after entry**: an agent may have been writing. Try again after a few seconds.
+- **The "Reset profile" button does not restart the onboarding**: open the sidebar and click **Onboarding** to restart it manually.
+- **An agent ignores your profile**: all Python agents have access to the profile by default. If the agent in question is third-party, open its code (or contact its author) to check that it reads `ctx.profile`.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.
+> **Technical reference:** [Apollia reference](/reference) - canonical field schema, single source of truth for the global profile, Python SDK contract `ctx.profile.*`.

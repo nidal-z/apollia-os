@@ -1,69 +1,69 @@
-# Le fournisseur d'IA ne répond pas
+# The AI provider does not answer
 
-> Pour tout operator dont le chat reste figé ou dont le **point d'état à gauche du mot *Apollia*** dans le bandeau supérieur passe à l'ambre ou au rouge : retrouver une IA fonctionnelle en moins de cinq minutes.
+> For operators whose chat stays frozen, or whose **status dot to the left of the word *Apollia*** in the top bar turns amber or red: get a working AI back in under five minutes.
 
-## Comprendre le point d'état Apollia
+## Understanding the Apollia status dot
 
-Apollia affiche **un seul indicateur global** d'état runtime + LLM, en haut à gauche, à côté du mot *Apollia* dans le breadcrumb :
+Apollia shows **a single global indicator** for runtime + LLM state, at the top left, next to the word *Apollia* in the breadcrumb:
 
-- 🟢 **vert** - runtime sain et au moins un backend LLM prêt.
-- 🟡 **ambre** - runtime sain mais aucun backend LLM connecté.
-- 🔴 **rouge clignotant** - runtime déconnecté ou reconnexion en cours.
+- 🟢 **green** - healthy runtime and at least one LLM backend ready.
+- 🟡 **amber** - healthy runtime but no LLM backend connected.
+- 🔴 **blinking red** - runtime disconnected or reconnection in progress.
 
-Survolez le point pour voir l'état exact (tooltip natif). Ce point est le repère central de cette page.
+Hover the dot to see the exact state (native tooltip). This dot is the central reference point of this page.
 
-## Vérifications rapides (par ordre de probabilité)
+## Quick checks (in order of likelihood)
 
-### 1. Votre connexion internet est tombée
+### 1. Your internet connection dropped
 
-Les fournisseurs cloud (Anthropic, OpenAI, Vertex…) sont en ligne. Une coupure Wi-Fi ou VPN coupe le chat.
+Cloud providers (Anthropic, OpenAI, Vertex…) are online services. A Wi-Fi or VPN outage cuts the chat off.
 
-**Solution :**
-1. Ouvrez un onglet de navigateur pour confirmer que vous êtes en ligne.
-2. Une fois la connexion rétablie, attendez quelques secondes : le point d'état repasse au vert et vous pouvez relancer votre message.
+**Solution:**
+1. Open a browser tab to confirm that you are online.
+2. Once the connection is back, wait a few seconds: the status dot returns to green and you can send your message again.
 
-### 2. La clé API du backend est invalide ou expirée
+### 2. The backend API key is invalid or expired
 
-Une clé révoquée, expirée ou recopiée avec un espace en trop fait échouer toutes les requêtes.
+A revoked key, an expired one, or one copied with an extra space makes every request fail.
 
-**Solution :**
-1. Dans la sidebar, ouvrez **Paramètres**, puis la section **Backends LLM**.
-2. Repérez le backend marqué `✗ erreur` dans la liste. **Survolez le label de statut** : un tooltip natif affiche le motif d'erreur exact (ex. *« 401 Unauthorized »*, *« connection refused »*).
-   ![Page Backends LLM : une carte de backend en erreur, avec son icône rouge et le libellé Erreur](/img/operator-help/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
-3. Cliquez sur l'**icône Plug** (en première position dans les actions de la carte) pour re-tester la connexion. Un badge **OK · *Nms*** vert s'affiche en cas de succès, **Erreur** rouge sinon. Le badge s'efface après 5 secondes.
-4. Si l'échec persiste, cliquez sur l'**icône crayon** pour ouvrir le dialog d'édition, collez une clé valide depuis la console du fournisseur, puis cliquez à nouveau sur **Tester la connexion** en bas du dialog.
+**Solution:**
+1. In the sidebar, open **Settings**, then the **LLM backends** section.
+2. Find the backend marked `✗ error` in the list. **Hover the status label**: a native tooltip shows the exact error reason (for example *"401 Unauthorized"*, *"connection refused"*).
+   ![LLM backends page: a backend card in error, with its red icon and the Error label](/img/operator-help/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
+3. Click the **Plug icon** (first in the card actions) to test the connection again. A green **OK · *Nms*** badge appears on success, a red **Error** one otherwise. The badge fades after 5 seconds.
+4. If the failure persists, click the **pencil icon** to open the edit dialog, paste a valid key from the provider console, then click **Test connection** again at the bottom of the dialog.
 
-### 3. Le nom du modèle est incorrect ou indisponible
+### 3. The model name is wrong or unavailable
 
-Les fournisseurs renomment ou retirent régulièrement leurs modèles. Un identifiant obsolète provoque une erreur à chaque appel.
+Providers regularly rename or retire their models. An obsolete identifier causes an error on every call.
 
-**Solution :**
-1. Cliquez sur l'**icône crayon** de la carte en erreur.
-2. Vérifiez le champ **Modèle** : il doit correspondre exactement à un identifiant valide chez le fournisseur. Consultez la documentation à jour du fournisseur - les identifiants évoluent au fil des mois.
-3. Corrigez, cliquez sur **Tester la connexion** dans le dialog, puis sur **Enregistrer**.
+**Solution:**
+1. Click the **pencil icon** on the failing card.
+2. Check the **Model** field: it must match exactly a valid identifier at the provider. Check the provider's up-to-date documentation, identifiers change over the months.
+3. Fix it, click **Test connection** in the dialog, then click **Save**.
 
-### 4. Le service du fournisseur est en panne
+### 4. The provider service is down
 
-Anthropic, OpenAI et les autres fournisseurs cloud publient des incidents sur leur page de statut publique. Si le test échoue alors que tout semble correct côté Apollia, l'origine est de leur côté.
+Anthropic, OpenAI and the other cloud providers publish incidents on their public status page. If the test fails while everything looks right on the Apollia side, the cause is on theirs.
 
-**Solution :**
-1. Consultez la page de statut du fournisseur concerné.
-2. Si un incident est en cours, ajoutez un backend de secours (un autre fournisseur ou un modèle local) dans **Paramètres → Backends LLM** pour ne pas rester bloqué. Le routage choisira automatiquement un backend prêt.
+**Solution:**
+1. Check the status page of the provider concerned.
+2. If an incident is ongoing, add a fallback backend (another provider or a local model) in **Settings → LLM backends** so you are not stuck. Routing will automatically pick a backend that is ready.
 
-### 5. Le service local n'est plus actif
+### 5. The local service is no longer running
 
-Si vous utilisez un modèle local Apollia (llama.cpp) ou Ollama, le moteur doit tourner sur votre machine.
+If you use a local Apollia model (llama.cpp) or Ollama, the engine must be running on your machine.
 
-**Solution :**
-1. Pour **Ollama**, vérifiez que le service Ollama est démarré sur votre poste.
-2. Pour un **modèle local Apollia**, ouvrez **Paramètres → Hub de modèles** et confirmez que le modèle est bien chargé.
-3. Cliquez sur l'**icône Plug** sur la carte du backend correspondant pour re-tester.
+**Solution:**
+1. For **Ollama**, check that the Ollama service is started on your workstation.
+2. For a **local Apollia model**, open **Settings → Model Hub** and confirm that the model is loaded.
+3. Click the **Plug icon** on the matching backend card to test again.
 
-## Si rien ne fonctionne
+## If nothing works
 
-1. **Quittez complètement Apollia et relancez** : la connexion au fournisseur est re-testée automatiquement au démarrage. Le point d'état repasse au vert si tout va bien.
-2. Si le point reste rouge clignotant (runtime down) : c'est un problème côté runtime Apollia, pas LLM. Consultez `~/.apollia/logs/` (ou `Paramètres → Zone de danger → Effacer les logs` pour repartir d'un état propre).
-3. Pour suivre **quand exactement** la perte a eu lieu, ouvrez **Boîte de réception → onglet Activité** : les événements `llm.backend_down` y apparaissent avec leur horodatage si vous avez activé la notification correspondante.
-4. En dernier recours, contactez le support en joignant le message d'erreur visible au survol du statut + l'identifiant du backend.
+1. **Quit Apollia completely and restart it**: the connection to the provider is tested again automatically at startup. The status dot returns to green if all is well.
+2. If the dot stays blinking red (runtime down): the problem is on the Apollia runtime side, not the LLM. Check `~/.apollia/logs/` (or `Settings → Danger Zone → Clear Logs` to start from a clean state).
+3. To track **exactly when** the loss happened, open **Inbox → Activity tab**: `llm.backend_down` events appear there with their timestamp if you enabled the matching notification.
+4. As a last resort, contact support and include the error message visible when hovering the status + the backend identifier.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - comprendre comment Apollia isole les clés API et la mécanique de ping périodique.
+> **Technical reference:** [Apollia reference](/reference) - understand how Apollia isolates API keys and how the periodic ping works.

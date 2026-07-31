@@ -1,53 +1,53 @@
-# Réinitialiser Apollia (factory reset)
+# Reset Apollia (factory reset)
 
-> Pour tout operator qui souhaite remettre Apollia dans son état d'usine : effacer agents, mémoire, projets, intégrations et préférences. Cette action est irréversible - lisez chaque étape avant d'agir.
+> For operators who want to put Apollia back in its factory state: erase agents, memory, projects, integrations and preferences. This action is irreversible - read every step before acting.
 
-## Avant de commencer - à lire impérativement
+## Before you start - read this carefully
 
-Une réinitialisation supprime **toutes** vos données locales : agents installés, mémoire des conversations, projets, intégrations MCP, transcriptions, historique de chat, règles de permissions, clés API enregistrées et préférences.
+A reset deletes **all** your local data: installed agents, conversation memory, projects, MCP integrations, transcriptions, chat history, permission rules, saved API keys and preferences.
 
-**Aucune de ces données n'est récupérable après confirmation.** Les fichiers stockés ailleurs sur votre disque (vos documents, vos rapports) ne sont pas touchés.
+**None of this data can be recovered after confirmation.** Files stored elsewhere on your disk (your documents, your reports) are untouched.
 
-Avant de continuer, demandez-vous :
+Before continuing, ask yourself:
 
-- Souhaitez-vous vraiment tout perdre, ou voulez-vous simplement résoudre un problème précis ? Consultez d'abord [Un agent est bloqué](un-agent-est-bloque.md) ou [Le fournisseur d'IA ne répond pas](le-fournisseur-d-ia-ne-repond-pas.md).
-- Avez-vous fait une **sauvegarde** de ce qui compte ? Voir l'étape 1 ci-dessous.
+- Do you really want to lose everything, or do you simply want to solve one specific problem? Check [An agent is stuck](un-agent-est-bloque.md) or [The AI provider does not answer](le-fournisseur-d-ia-ne-repond-pas.md) first.
+- Have you made a **backup** of what matters? See step 1 below.
 
-## Étape 1 - Sauvegarder ce qui compte (recommandé)
+## Step 1 - Back up what matters (recommended)
 
-1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace> --output <fichier>` pour exporter la mémoire de chaque agent. Réimport ensuite avec `apollia-os memory import --input <fichier>`.
-2. **Transcriptions :** ouvrez **Transcriptions** *(mode Builder)* et notez les transcriptions importantes.
-3. **Liste de vos agents et connexions :** prenez une capture d'écran ou notez les noms : vous devrez les réinstaller manuellement après le reset.
+1. **Memory:** use the CLI `apollia-os memory export --namespace <namespace> --output <file>` to export each agent's memory. Import it back later with `apollia-os memory import --input <file>`.
+2. **Transcriptions:** open **Transcriptions** *(Builder mode)* and note the transcriptions that matter.
+3. **List of your agents and connections:** take a screenshot or write down the names: you will have to reinstall them manually after the reset.
 
-## Étape 2 - Lancer la réinitialisation
+## Step 2 - Start the reset
 
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Zone de danger**.
-   ![page Paramètres Zone de danger, encart rouge "Réinitialisation d'usine" avec bouton clairement isolé](/img/operator-help/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
-2. Repérez le bloc **Réinitialisation d'usine**. Lisez attentivement la liste des données qui vont être supprimées.
-3. Cliquez sur le bouton rouge **Réinitialisation d'usine**.
+1. In the sidebar, click **Settings**, then the **Danger Zone** section.
+   ![Settings Danger Zone page, red "Factory Reset" box with a clearly isolated button](/img/operator-help/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
+2. Find the **Factory Reset** block. Read the list of data that will be deleted carefully.
+3. Click the red **Factory Reset** button.
 
-## Étape 3 - Confirmer explicitement
+## Step 3 - Confirm explicitly
 
-Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 secondes** pendant lesquelles le bouton de confirmation reste désactivé.
+A confirmation window opens with a **3-second safety pause** during which the confirmation button stays disabled.
 
-1. Lisez à nouveau la liste des données concernées.
-2. Dans le champ de confirmation, **tapez exactement** `FACTORY RESET` (en majuscules, espace inclus). Le coller au presse-papiers est **bloqué** : vous devez taper la phrase au clavier.
-3. Le bouton **Confirmer la réinitialisation** devient actif uniquement quand le mot est correct **et** la pause de 3 secondes écoulée.
-4. Cliquez sur **Confirmer la réinitialisation**.
+1. Read the list of data concerned again.
+2. In the confirmation field, **type exactly** `FACTORY RESET` (in capitals, space included). Pasting from the clipboard is **blocked**: you must type the phrase on the keyboard.
+3. The **Confirm the reset** button becomes active only when the word is correct **and** the 3-second pause has elapsed.
+4. Click **Confirm the reset**.
 
-## Étape 4 - Après la réinitialisation
+## Step 4 - After the reset
 
-1. Apollia redémarre automatiquement. Si le redémarrage automatique échoue (environnement de développement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
-2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
-3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) - la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un modele distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
-4. Une fois le parcours terminé, réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
-5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --input <fichier>`.
+1. Apollia restarts automatically. If the automatic restart fails (development environment without a packaged bundle), an orange banner invites you to relaunch the application manually.
+2. On restart, the **four-step setup flow** opens automatically: **Welcome → Profile → Models → Calibration**. It is the same flow as on the very first launch.
+3. At the **Models** step, you must configure the LLM again (download a local model or add a cloud backend) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
+4. Once the flow is finished, reinstall your agents, your MCP integrations and your projects as needed.
+5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import --input <file>`.
 
-## Si quelque chose se passe mal
+## If something goes wrong
 
-- **Apollia ne redémarre pas après la réinitialisation :** lancez l'application manuellement depuis votre menu d'applications.
-- **Le parcours de configuration ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Vérifiez que `~/.apollia/` est absent ou vide - sinon, supprimez-le manuellement et relancez. Si le problème persiste, contactez le support en précisant l'instant exact du reset.
-- **Le bouton Continuer reste grisé à l'étape Modèles :** c'est normal tant qu'aucun LLM n'est configuré. Téléchargez un modèle GGUF depuis la liste curée, ou cliquez sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic, OpenAI ou Ollama. Le parcours reprend automatiquement après l'ajout du backend.
-- **Vous regrettez la suppression :** restaurez vos sauvegardes de l'étape 1. Sans sauvegarde, les données sont définitivement perdues.
+- **Apollia does not restart after the reset:** launch the application manually from your applications menu.
+- **The setup flow does not appear:** the reset may have failed partially. Check that `~/.apollia/` is absent or empty, otherwise delete it manually and relaunch. If the problem persists, contact support and state the exact time of the reset.
+- **The Continue button stays greyed out at the Models step:** that is expected as long as no LLM is configured. Download a GGUF model from the curated list, or click **Use a cloud provider** to add an Anthropic, OpenAI or Ollama backend. The flow resumes automatically once the backend is added.
+- **You regret the deletion:** restore the backups from step 1. Without a backup, the data is permanently lost.
 
-> **Concept :** [Référence Apollia](../../reference/index.md) - comprendre où Apollia stocke vos données et ce qui est effacé exactement lors d'une réinitialisation.
+> **Concept:** [Apollia reference](/reference) - understand where Apollia stores your data and what exactly is erased during a reset.

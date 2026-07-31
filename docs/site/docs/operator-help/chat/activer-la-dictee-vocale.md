@@ -1,51 +1,51 @@
-# Activer la dictée vocale
+# Enable voice dictation
 
-> Pour tout operator qui veut parler à son IA au lieu de taper : configurer un raccourci clavier qui transcrit votre voix directement dans le champ de chat, en local.
+> For any operator who wants to talk to their AI instead of typing: set up a keyboard shortcut that transcribes your voice straight into the chat field, locally.
 
-## Prérequis
+## Prerequisites
 
-- Un modèle Whisper est téléchargé via [Télécharger des modèles locaux](../installation/telecharger-des-modeles-locaux.md).
-- Le microphone de votre machine fonctionne et Apollia a l'autorisation d'y accéder.
-- Un raccourci clavier libre, qui n'entre pas en conflit avec l'OS ou une autre application.
+- A Whisper model is downloaded via [Download local models](../installation/telecharger-des-modeles-locaux.md).
+- Your machine's microphone works and Apollia is allowed to use it.
+- A free keyboard shortcut that does not conflict with the OS or another application.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
+1. In the sidebar, click **Settings**, then the **Speech-to-Text** section.
+   ![Settings page, Speech-to-Text section, Whisper model status shown at the top](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
 
-2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
+2. Check that the Whisper model appears with a green **Loaded** pill. If not, go back to the Model Hub to download it.
 
-3. Sélectionnez la **langue** de dictée (français, anglais, espagnol, etc.) dans le sélecteur. Choisir la bonne langue améliore nettement la précision.
+3. Select the dictation **Language** (French, English, Spanish, etc.) in the picker. Choosing the right language improves accuracy noticeably.
 
-4. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
-   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
+4. Click the **Global hotkey** field. A window prompts you to press the key combination you want (for example **Cmd + Shift + Space**).
+   ![HotkeyCapture window with the message "Press your hotkey combination" and the captured combination](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
 
-5. Dans le sélecteur **Mode de déclenchement**, choisissez l'un des deux modes :
-   - **Toggle (appui = start/stop)** : un premier appui sur le raccourci démarre l'enregistrement, un second l'arrête.
-   - **Push-to-talk (maintien)** : vous maintenez le raccourci pendant que vous parlez, et la transcription se déclenche au relâchement.
+5. In the **Trigger mode** picker, choose one of the two modes:
+   - **Toggle (press = start/stop)**: a first press on the shortcut starts recording, a second one stops it.
+   - **Push-to-talk (hold)**: you hold the shortcut down while you speak, and transcription starts when you release it.
 
-   Pour la suite de cette procédure, choisissez **Push-to-talk (maintien)**.
+   For the rest of this procedure, choose **Push-to-talk (hold)**.
 
-6. Ouvrez un chat depuis la sidebar.
+6. Open a chat from the sidebar.
 
-7. Maintenez votre raccourci enfoncé. Un **overlay sombre plein écran** s'affiche avec un visualiseur audio à barres. Parlez naturellement.
-   *Figure : l'overlay d'enregistrement plein écran, avec le visualiseur audio à barres et le texte {hotkey} pour arrêter · Esc pour annuler.*
+7. Hold your shortcut down. A **full-screen dark overlay** appears with a bar audio visualiser. Speak naturally.
+   *Figure: the full-screen recording overlay, with the bar audio visualiser and the text {hotkey} to stop · Esc to cancel.*
 
-8. Relâchez le raccourci. La transcription est injectée dans le champ de saisie via le presse-papiers.
+8. Release the shortcut. The transcription is injected into the input field through the clipboard.
 
-   > **Note :** la transcription est insérée par simulation de collage (`Ctrl+V` / `Cmd+V`). Le champ de saisie doit être actif pour recevoir le texte.
+   > **Note:** the transcription is inserted by simulating a paste (`Ctrl+V` / `Cmd+V`). The input field must be focused to receive the text.
 
-9. Relisez, corrigez si besoin, puis appuyez sur **Entrée** pour envoyer.
+9. Read it back, fix it if needed, then press **Enter** to send.
 
-## Vérification
+## Verification
 
-Une phrase parlée de quelques secondes apparaît transcrite dans le champ de saisie, sans qu'aucune donnée n'ait quitté votre machine.
+A spoken sentence of a few seconds shows up transcribed in the input field, without any data leaving your machine.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Aucune transcription :** vérifiez que le microphone est bien sélectionné dans les préférences système, puis consultez [La dictée vocale ne transcrit rien](../troubleshooting/la-dictee-vocale-ne-transcrit-rien.md).
-- **Raccourci ignoré :** une autre application capte peut-être la même combinaison ; choisissez-en une moins courante.
-- **Transcription approximative :** vérifiez que la langue sélectionnée correspond bien à celle parlée, et envisagez un modèle Whisper plus gros.
-- **Le texte n'apparaît pas dans le champ :** assurez-vous que le champ de saisie du chat est actif (cliquez dessus) avant d'utiliser le raccourci.
+- **No transcription:** check that the microphone is properly selected in your system preferences, then read [Voice dictation transcribes nothing](../troubleshooting/la-dictee-vocale-ne-transcrit-rien.md).
+- **Shortcut ignored:** another application may be capturing the same combination; pick a less common one.
+- **Rough transcription:** check that the selected language matches the one you speak, and consider a larger Whisper model.
+- **The text does not show up in the field:** make sure the chat input field is focused (click it) before using the shortcut.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - moteurs supportés, tailles de modèles Whisper, formats audio, optimisations de latence.
+> **Technical reference:** [Apollia reference](/reference) - supported engines, Whisper model sizes, audio formats, latency optimisations.

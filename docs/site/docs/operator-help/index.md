@@ -1,56 +1,57 @@
 ---
 sidebar_position: 0
-title: Centre d'aide operateur
+title: Operator help center
 ---
 
-# Apollia, centre d'aide
+# Apollia, help center
 
-Guides pas-a-pas pour configurer, automatiser et controler votre IA au quotidien.
+Step-by-step guides for setting up, automating and keeping control of your AI
+day to day.
 
-Ce corpus est en francais. Il couvre l'application desktop cote operateur :
-installer, connecter un fournisseur d'IA, lancer des agents, automatiser,
-garder la main sur les actions sensibles et suivre ce qui se passe.
+This corpus covers the desktop application from the operator's side: install it,
+connect a model provider, run agents, automate work, keep a hand on sensitive
+actions, and follow what happens.
 
-## Par ou commencer
+## Where to start
 
-- [Suivre la visite guidee](./transversal/suivre-la-visite-guidee.md), six visites
-  courtes lancees depuis la bande « Prise en main » du tableau de bord.
-- [Configurer votre profil](./installation/configurer-votre-profil.md), le parcours initial.
-- [Connecter un modele distant](./installation/connecter-un-modele-distant.md), brancher un fournisseur cloud ou un serveur Ollama.
+- [Follow the guided tour](./transversal/suivre-la-visite-guidee.md), six short
+  tours launched from the "Getting started" band on the dashboard.
+- [Set up your profile](./installation/configurer-votre-profil.md), the initial flow.
+- [Connect a remote model](./installation/connecter-un-modele-distant.md), wire a cloud provider or an Ollama server.
 
-## Les grands blocs
+## The main blocks
 
-- **Demarrer** : [connecter un modele](./installation/connecter-un-modele-distant.md), [installer un agent](./agents/installer-un-agent.md), [creer un projet](./projets/creer-un-projet.md).
-- **Discuter** : [conversation libre et dictee vocale](./chat/discuter-avec-votre-ia.md), contexte projet automatique.
-- **Automatiser** : [programmer un trigger](./automatisations/programmer-un-trigger.md), suivre l'historique des declenchements.
-- **Garder la main** : [approuver ou refuser une action](./controle/approuver-ou-refuser-une-action.md), [configurer les permissions de fichiers](./controle/configurer-les-permissions-de-fichiers.md), [choisir le palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), [mesurer un agent avec eval](./agents/mesurer-un-agent-avec-eval.md).
-- **Connecter** : brancher vos outils via le [catalogue MCP](./integrations/connecter-un-serveur-mcp.md).
-- **Suivre** : [tableau de bord et chronologie](./observabilite/consulter-l-historique-des-taches.md), [couts LLM](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
-- **Maintenir** : [mettre a jour Apollia](./installation/mettre-a-jour-apollia.md).
-- **Si ca coince** : [diagnostic des cas frequents](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), IA muette, agent bloque, action refusee, dictee KO.
+- **Get going** : [connect a model](./installation/connecter-un-modele-distant.md), [install an agent](./agents/installer-un-agent.md), [create a project](./projets/creer-un-projet.md).
+- **Talk** : [free conversation and voice dictation](./chat/discuter-avec-votre-ia.md), automatic project context.
+- **Automate** : [schedule a trigger](./automatisations/programmer-un-trigger.md), follow the firing history.
+- **Keep control** : [approve or refuse an action](./controle/approuver-ou-refuser-une-action.md), [set file permissions](./controle/configurer-les-permissions-de-fichiers.md), [choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), [measure an agent with eval](./agents/mesurer-un-agent-avec-eval.md).
+- **Connect** : wire your tools through the [MCP catalog](./integrations/connecter-un-serveur-mcp.md).
+- **Follow** : [dashboard and timeline](./observabilite/consulter-l-historique-des-taches.md), [LLM costs](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
+- **Maintain** : [update Apollia](./installation/mettre-a-jour-apollia.md).
+- **When something jams** : [diagnosing the common cases](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), a silent AI, a stuck agent, a refused action, dictation that produces nothing.
 
-## Comment lire ce centre d'aide
+## How to read this help center
 
-Chaque page suit le meme format :
+Every page follows the same shape :
 
-- **Prerequis**, ce qu'il faut avoir avant de commencer.
-- **Etapes**, actions UI numerotees avec captures.
-- **Verification**, comment confirmer que ca a marche.
-- **Si ca ne marche pas**, les cas d'erreur frequents.
+- **Prerequisites**, what you need before you start.
+- **Steps**, numbered interface actions with screenshots.
+- **Verification**, how to confirm it worked.
+- **When it does not work**, the frequent error cases.
 
-Quand une page mentionne un concept technique, le lien renvoie soit vers
-l'**Explication** (comprendre comment ca fonctionne), soit vers la **Reference**
-(spec exhaustive). Un seul saut, vers le bon endroit.
+When a page mentions a technical concept, the link goes either to the
+**Explanation** (how it works) or to the **Reference** (the exhaustive spec). One
+jump, to the right place.
 
-## Aller plus loin avec vos agents
+## Going further with your agents
 
-- [Choisir un palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), ajuster jusqu'ou l'agent agit seul avant de demander votre accord.
-- [Mesurer les performances d'un agent avec eval](./agents/mesurer-un-agent-avec-eval.md), creer une suite de tests reproductibles et lire le rapport de resultats.
+- [Choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), adjust how far an agent goes on its own before asking for your agreement.
+- [Measure an agent's performance with eval](./agents/mesurer-un-agent-avec-eval.md), build a reproducible test suite and read the results report.
 
-## Vous etes developpeur, pas operateur ?
+## A developer rather than an operator ?
 
-Le centre d'aide est concu pour utiliser l'application. Si vous voulez **creer**
-des agents Python ou comprendre l'architecture interne :
+This help center is about using the application. If you want to **build** Python
+agents or understand the internal architecture :
 
-- les [tutoriels](/tutorials), apprendre a construire des agents pas a pas.
-- la [reference technique](/reference), CLI, API HTTP, contrat SDK, configuration.
+- the [tutorials](/tutorials), learning to build agents step by step.
+- the [technical reference](/reference), CLI, HTTP API, SDK contract, configuration.

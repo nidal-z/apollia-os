@@ -372,7 +372,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/site/docs/**/*.md'"
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/site/docs/**/*.md' 'docs/site/i18n/**/*.md'"
           fail: true
 
   # ── Unused dependencies : keeps the Cargo graph honest ─────────────────────

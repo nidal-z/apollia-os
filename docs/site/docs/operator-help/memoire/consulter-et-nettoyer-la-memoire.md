@@ -1,63 +1,63 @@
-# Consulter et nettoyer la mémoire
+# Review and clean up memory
 
-> Pour les operators qui veulent voir ce que leurs IA ont retenu, et supprimer ce qui ne devrait plus être là.
+> For operators who want to see what their AI has retained, and delete what should no longer be there.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un agent qui a déjà conversé ou exécuté une tâche.
+- At least one agent that has already held a conversation or run a task.
 
-## Où trouver quoi
+## Where to find what
 
-Deux endroits distincts, deux usages distincts :
+Two distinct places, two distinct uses:
 
-- **Paramètres → Profil** - votre profil utilisateur (prénom, rôle, secteur, supervision des agents, souveraineté…). C'est ce que tous vos agents savent de vous. Voir [Mon profil](gerer-mon-profil.md).
-- **Mémoire** (depuis la sidebar) - l'explorateur des **namespaces mémoire** par agent et par projet. C'est ce que chaque agent retient pour lui-même (épisodes de conversation, faits sémantiques, procédures apprises).
+- **Settings → Profile** - your user profile (first name, role, sector, agent supervision, sovereignty, and so on). This is what all your agents know about you. See [My profile](gerer-mon-profil.md).
+- **Memory** (from the sidebar) - the explorer of **memory namespaces** per agent and per project. This is what each agent retains for itself (conversation episodes, semantic facts, learned procedures).
 
-Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supprimer des entrées.
+This page covers the second one: browsing the memory namespaces and deleting entries in them.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
+1. In the sidebar, click **Memory**. The page shows a two-column layout: the namespace sidebar on the left, the central panel with the list of entries for the selected namespace.
 
-   ![Page Mémoire : la liste des namespaces à gauche, les filtres par type et la recherche au centre, et les entrées de la mémoire du profil utilisateur](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
+   ![Memory page: the namespace list on the left, the type filters and the search in the middle, and the entries of the user profile memory](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
 
-2. **Sidebar gauche** - la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
-   - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
-   - **Agents** : namespaces d'agents installés (un par agent - ex: `veille-ia`, `email-triage`).
-   - **Projets** : namespaces scopés à un projet (format `{project_id}:{ns}`).
-   - **Autres** : namespaces legacy ou d'agents désinstallés.
+2. **Left sidebar** - the list of **namespaces** (one namespace = one isolated memory space). Each namespace is classified automatically:
+   - **Profile**: your shared user profile (`__user__`). Read-only from this page, editing happens in **Settings → Profile**. A banner reminds you of that when you select `__user__`.
+   - **Agents**: namespaces of installed agents (one per agent, for example `veille-ia`, `email-triage`).
+   - **Projects**: namespaces scoped to a project (format `{project_id}:{ns}`).
+   - **Other**: legacy namespaces or namespaces of uninstalled agents.
 
-   Un **segmented control** en haut permet de filtrer la liste par catégorie. Un champ **Filtrer…** permet de retrouver un namespace par nom.
+   A **segmented control** at the top filters the list by category. A **Filter…** field lets you find a namespace by name.
 
-3. **Panneau central** - la liste des entrées du namespace sélectionné, avec :
-   - Un **segmented control** par type d'entrée : **Toutes / Épisodique / Sémantique / Procédurale**.
-   - Une **barre de recherche** plein texte (FTS5) qui interroge le contenu.
-   - Un **breadcrumb** sous le filtre qui rappelle le namespace courant.
-   - Chaque ligne montre l'icône du type, la clé, un aperçu de la valeur, et la date relative.
+3. **Central panel** - the list of entries for the selected namespace, with:
+   - A **segmented control** per entry type: **All / Episodic / Semantic / Procedural**.
+   - A full-text **search bar** (FTS5) that queries the content.
+   - A **breadcrumb** under the filter that recalls the current namespace.
+   - Each row shows the type icon, the key, a preview of the value, and the relative date.
 
-4. **Cliquez sur une entrée** pour ouvrir le **panneau de détail** à droite. Il affiche la valeur complète (avec pretty-print JSON automatique si applicable), toutes les métadonnées (type, namespace, ID, dates, score BM25 en mode recherche), et expose deux actions : **Copier** la valeur et **Supprimer** l'entrée.
+4. **Click an entry** to open the **detail panel** on the right. It shows the full value (with automatic JSON pretty-print when applicable), all the metadata (type, namespace, ID, dates, BM25 score in search mode), and exposes two actions: **Copy** the value and **Delete** the entry.
 
-   ![Panneau de détail d'une entrée de mémoire, avec sa valeur, ses métadonnées et les actions Copier et Supprimer](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-2.png)
+   ![Detail panel of a memory entry, with its value, its metadata and the Copy and Delete actions](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-2.png)
 
-5. Pour **rechercher**, tapez quelques mots-clés dans la **barre de recherche** en haut du panneau central. Les entrées correspondantes s'affichent triées par pertinence (score BM25), et le breadcrumb indique « *N résultats* ».
+5. To **search**, type a few keywords in the **search bar** at the top of the central panel. Matching entries are shown sorted by relevance (BM25 score), and the breadcrumb reads "*N results*".
 
-6. Pour **supprimer une entrée** précise, deux options équivalentes :
-   - Survolez la ligne, cliquez sur le menu **⋯** en bout de ligne, choisissez **Supprimer**, puis confirmez sur le bouton **Confirmer** qui apparaît.
-   - Ou ouvrez le panneau de détail (click sur la ligne) et utilisez le bouton **Supprimer** en bas.
+6. To **delete a specific entry**, two equivalent options:
+   - Hover the row, click the **⋯** menu at the end of the row, choose **Delete**, then confirm on the **Confirm** button that appears.
+   - Or open the detail panel (click the row) and use the **Delete** button at the bottom.
 
-   L'entrée disparaît immédiatement et ne reviendra pas.
+   The entry disappears immediately and will not come back.
 
-## Vérification
+## Verification
 
-L'entrée supprimée n'apparaît plus dans la liste, même après recharge de la page. Une recherche par mot-clé sur cette entrée ne retourne plus de résultat. Le compteur du namespace dans la sidebar et le compteur du type dans le segmented control sont décrémentés.
+The deleted entry no longer appears in the list, even after reloading the page. A keyword search on that entry no longer returns a result. The namespace counter in the sidebar and the type counter in the segmented control are decremented.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **La page est vide** : aucun agent n'a encore généré de mémoire. Lancez une conversation et revenez.
-- **La suppression échoue** : l'agent est en train d'écrire dans la mémoire, attendez quelques secondes et réessayez.
-- **Le namespace attendu n'apparaît pas** : vérifiez que l'agent est bien installé (l'agent doit être listé dans **Agents** pour apparaître sous la catégorie *Agents*, sinon le namespace bascule en *Autres*).
-- **Vous voulez vider tout un namespace ou tout effacer d'un coup** : la suppression en masse depuis l'UI n'est pas encore disponible ; voir [Réinitialiser Apollia (factory reset)](../troubleshooting/reinitialiser-apollia-factory-reset.md) pour la procédure de réinitialisation complète, ou utilisez la CLI : `apollia-os memory clear --agent <NAME> --confirm`.
+- **The page is empty**: no agent has generated memory yet. Start a conversation and come back.
+- **Deletion fails**: the agent is writing to memory, wait a few seconds and try again.
+- **The expected namespace does not appear**: check that the agent is installed (the agent must be listed under **Agents** to appear under the *Agents* category, otherwise the namespace falls into *Other*).
+- **You want to empty a whole namespace or wipe everything at once**: bulk deletion from the UI is not available yet; see [Reset Apollia (factory reset)](../troubleshooting/reinitialiser-apollia-factory-reset.md) for the full reset procedure, or use the CLI: `apollia-os memory clear --agent <NAME> --confirm`.
 
-> **Note** : Pour gérer les **outils** disponibles à vos agents (recherche web, lecture de fichiers, etc.), ouvrez **Paramètres → Outils**. La page propose le détail de chaque outil, son activation/désactivation, et sa configuration éventuelle.
+> **Note**: To manage the **tools** available to your agents (web search, file reading, and so on), open **Settings → Tools**. The page offers the detail of each tool, its enabling and disabling, and its optional configuration.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - types de mémoire, durées de rétention par défaut, limites.
+> **Technical reference:** [Apollia reference](/reference) - memory types, default retention durations, limits.

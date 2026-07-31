@@ -1,26 +1,26 @@
-# Configurer le routage hybride local + frontier
+# Configure hybrid local + frontier routing
 
-> Pour tout operator qui veut combiner un modèle local rapide pour les étapes simples et un modèle cloud puissant pour les étapes complexes, avec un plafond de coût automatique.
+> For any operator who wants to combine a fast local model for simple steps and a powerful cloud model for complex steps, with an automatic cost ceiling.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un backend local déclaré dans `apollia.toml` (fichier `.gguf` ou serveur Ollama). Voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
-- Au moins un backend cloud (frontier) déclaré. Voir [Connecter un modèle distant](connecter-un-modele-distant.md).
-- Le nom exact de chaque backend tel que vous l'avez nommé lors de la configuration.
+- At least one local backend declared in `apollia.toml` (`.gguf` file or Ollama server). See [Download local models](telecharger-des-modeles-locaux.md).
+- At least one cloud (frontier) backend declared. See [Connect a remote model](connecter-un-modele-distant.md).
+- The exact name of each backend as you named it during configuration.
 
-## Comportement du routage hybride
+## How hybrid routing behaves
 
-Le routeur hybride achemine chaque étape de raisonnement de l'agent selon sa complexité estimée :
+The hybrid router routes each agent reasoning step according to its estimated complexity:
 
-1. Les étapes simples (récupération d'information, formatage, appels d'outils directs) sont traitées par le modèle local.
-2. Les étapes complexes (raisonnement multi-sauts, synthèse longue, jugement incertain) sont escaladées vers le backend frontier.
-3. Quand le cumul de coût cloud atteint `cost_ceiling_usd`, toutes les étapes restantes sont traitées en local, quel que soit leur niveau de complexité.
+1. Simple steps (information retrieval, formatting, direct tool calls) are handled by the local model.
+2. Complex steps (multi-hop reasoning, long synthesis, uncertain judgement) are escalated to the frontier backend.
+3. When the cumulative cloud cost reaches `cost_ceiling_usd`, all remaining steps are handled locally, whatever their complexity level.
 
-Le routeur ne garantit pas une coupure nette à l'euro près : les étapes déjà en cours au moment du dépassement se terminent sur le backend qui les a commencées.
+The router does not guarantee a clean cut to the cent: steps already in flight when the ceiling is crossed finish on the backend that started them.
 
-## Étapes - Activer le routage hybride
+## Steps - Enable hybrid routing
 
-Éditez `apollia.toml` et ajoutez la section suivante :
+Edit `apollia.toml` and add the following section:
 
 ```toml
 [llm.routing.hybrid]
@@ -28,26 +28,26 @@ frontier          = "claude-anthropic"
 cost_ceiling_usd  = 2.00
 ```
 
-- `frontier` : nom exact du backend cloud déclaré dans `[llm.backends]`. La valeur ne peut pas être vide.
-- `cost_ceiling_usd` : plafond en dollars US par session de routing (doit être strictement positif). Toute valeur nulle ou négative est rejetée au démarrage.
+- `frontier`: exact name of the cloud backend declared in `[llm.backends]`. The value cannot be empty.
+- `cost_ceiling_usd`: ceiling in US dollars per routing session (must be strictly positive). Any zero or negative value is rejected at startup.
 
-Redémarrez le daemon après modification.
+Restart the daemon after the change.
 
-## Vérification
+## Verification
 
-Les valeurs invalides sont détectées au démarrage du daemon. Si la config est correcte, les logs indiquent :
+Invalid values are detected when the daemon starts. If the config is correct, the logs show:
 
 ```
 llm.routing=hybrid frontier=claude-anthropic ceiling_usd=2.00 "routing.activated"
 ```
 
-Pour surveiller l'escalade et le cumul de coût en temps réel, consultez la page d'observabilité. Voir [Surveiller les coûts LLM](../observabilite/surveiller-les-couts-llm.md).
+To watch escalation and cumulative cost in real time, see the observability page. See [Monitor LLM costs](../observabilite/surveiller-les-couts-llm.md).
 
-## Si ca ne marche pas
+## If it does not work
 
-- **"backend frontier inconnu" au démarrage :** la valeur de `frontier` ne correspond à aucun backend déclaré dans `[llm.backends]`. Vérifiez le nom exact, la correspondance est sensible à la casse.
-- **"plafond invalide" au démarrage :** `cost_ceiling_usd` est à zéro, négatif ou absent. Mettez une valeur strictement positive (exemple : `0.50`).
-- **Le plafond est atteint immédiatement :** votre plafond est trop bas par rapport aux tâches lancées. Augmentez `cost_ceiling_usd` ou découpez vos tâches en sessions plus courtes.
-- **Toutes les étapes passent en local alors que vous attendez de l'escalade :** votre modèle local est peut-être évalué comme suffisant pour vos tâches. Réduisez `cost_ceiling_usd` ou testez avec une tâche explicitement complexe pour confirmer que le routeur fonctionne.
+- **"unknown frontier backend" at startup:** the `frontier` value does not match any backend declared in `[llm.backends]`. Check the exact name, the match is case sensitive.
+- **"invalid ceiling" at startup:** `cost_ceiling_usd` is zero, negative or missing. Set a strictly positive value (example: `0.50`).
+- **The ceiling is reached immediately:** your ceiling is too low for the tasks you are running. Raise `cost_ceiling_usd` or split your tasks into shorter sessions.
+- **Every step stays local when you expect escalation:** your local model may be judged good enough for your tasks. Lower `cost_ceiling_usd` or test with an explicitly complex task to confirm the router works.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - paramètres de routing multi-backend, politique de fallback, calcul du coût par étape.
+> **Technical reference:** [Apollia reference](/reference) - multi-backend routing parameters, fallback policy, per-step cost computation.

@@ -1,55 +1,55 @@
-# Tester une connexion MCP
+# Test an MCP connection
 
-> Pour tout operator qui veut vérifier qu'un serveur MCP installé répond bien, ou diagnostiquer un voyant rouge.
+> For any operator who wants to check that an installed MCP server really responds, or diagnose a red light.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un serveur MCP installé (voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md)).
+- At least one MCP server installed (see [Connect an MCP server](connecter-un-serveur-mcp.md)).
 
-## Étapes
+## Steps
 
-1. Dans la sidebar **Connexions**, sélectionnez le serveur MCP à tester.
+1. In the **Connections** sidebar, select the MCP server to test.
 
-   ![Page Connexions : un serveur MCP sélectionné dans la barre latérale, sa fiche de détail à droite](/img/operator-help/integration-tester-une-connexion-mcp-1.png)
+   ![Connections page: an MCP server selected in the sidebar, its detail page on the right](/img/operator-help/integration-tester-une-connexion-mcp-1.png)
 
-2. Dans le panneau de détail, cliquez sur l'icône **plug** (prise) à côté du nom du serveur, ou sur **Tester la connexion** dans le menu d'actions.
+2. In the detail panel, click the **plug** icon next to the server name, or **Test connection** in the actions menu.
 
-   ![Fiche d'un serveur MCP installé, avec le bouton Test dans la zone d'actions](/img/operator-help/integration-tester-une-connexion-mcp-2.png)
+   ![Page of an installed MCP server, with the Test button in the actions area](/img/operator-help/integration-tester-une-connexion-mcp-2.png)
 
-3. Pendant le test, l'icône pulse et le bouton est désactivé. Le test dure typiquement moins d'une seconde.
+3. During the test, the icon pulses and the button is disabled. The test typically takes less than a second.
 
-4. Le résultat s'affiche sous forme d'un badge :
+4. The result appears as a badge:
 
-   - **Vert** : *"OK · XXX ms"*. Le serveur répond, la latence est indiquée.
-   - **Rouge** : *"Erreur : <message traduit>"*. Le serveur ne répond pas, le message précise la cause.
+   - **Green**: *"OK · XXX ms"*. The server responds, the latency is shown.
+   - **Red**: *"Error: <translated message>"*. The server does not respond, the message states the cause.
 
-   *Figure : le badge vert OK · 247 ms affiché sous le bouton de test.*
+   *Figure: the green OK · 247 ms badge shown under the test button.*
 
-## Messages d'erreur traduits
+## Translated error messages
 
-Apollia traduit les erreurs techniques en messages clairs :
+Apollia turns technical errors into clear messages:
 
-- *"Authentification refusée, vérifiez votre clé API"* : token invalide ou expiré (HTTP 401).
-- *"Accès interdit, votre clé n'a pas les droits requis"* : permissions insuffisantes (HTTP 403).
-- *"Service introuvable, vérifiez l'URL ou le nom du serveur"* : mauvaise URL ou serveur absent (HTTP 404).
-- *"Erreur réseau, le service n'a pas répondu à temps"* : timeout ou connexion impossible.
-- *"Commande introuvable, le paquet n'est probablement pas installé"* : transport stdio, binaire absent.
-- *"La connexion a échoué, vérifiez vos identifiants et réessayez"* : erreur générique.
+- *"Authentication refused - check your API key."*: invalid or expired token (HTTP 401).
+- *"Access forbidden - your key doesn't have the required rights."*: insufficient permissions (HTTP 403).
+- *"Service not found - check the URL or server name."*: wrong URL or missing server (HTTP 404).
+- *"Network error - the service did not respond in time."*: timeout or connection failure.
+- *"Command not found - the package is probably not installed."*: stdio transport, missing binary.
+- *"The connection failed. Check your credentials and try again."*: generic error.
 
-Un lien **Voir le détail technique** affiche le message brut du backend pour les utilisateurs avancés.
+A **Show technical details** link displays the raw backend message for advanced users.
 
-## Vérification
+## Verification
 
-- Latence inférieure à 1 seconde pour un serveur en bonne santé.
-- Le compteur d'outils dans le panneau de détail est non nul.
-- Les outils attendus apparaissent dans la liste. Si certains manquent, le serveur distant a peut-être désactivé des fonctionnalités côté compte.
+- Latency below 1 second for a healthy server.
+- The tool counter in the detail panel is non-zero.
+- The expected tools appear in the list. If some are missing, the remote server may have disabled features on the account side.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Erreur réseau** : votre machine ne peut pas joindre le serveur. Vérifiez votre connexion internet ou, pour un MCP stdio, le PATH de la commande.
-- **Authentification refusée** : déconnectez le MCP puis reconnectez avec des identifiants valides, ou utilisez le bouton **Modifier l'authentification** pour mettre à jour le token sans tout réinstaller.
-- **Accès interdit** : votre compte n'a pas les droits côté fournisseur. Vérifiez les scopes accordés ou augmentez les permissions côté outil métier.
-- **Commande introuvable (stdio)** : pour un MCP en transport stdio, le binaire n'est pas dans le PATH d'Apollia. Installez l'outil ou ajustez la commande.
-- **Test OK mais l'agent n'appelle pas l'outil** : ouvrez la fiche de l'agent, vérifiez que ce MCP figure dans son manifest. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
+- **Network error**: your machine cannot reach the server. Check your internet connection or, for a stdio MCP, the PATH of the command.
+- **Authentication refused**: disconnect the MCP then reconnect with valid credentials, or use the **Fix authentication** button to update the token without reinstalling everything.
+- **Access forbidden**: your account does not have the rights on the provider side. Check the granted scopes or raise the permissions in the business tool.
+- **Command not found (stdio)**: for an MCP on stdio transport, the binary is not in Apollia's PATH. Install the tool or adjust the command.
+- **Test OK but the agent does not call the tool**: open the agent's page, check that this MCP is in its manifest. See [Understand the scope of an integration](comprendre-la-portee-d-une-integration.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , codes d'erreur complets, sémantique handshake MCP.
+> **Technical reference:** [Apollia reference](/reference) , full error codes, MCP handshake semantics.

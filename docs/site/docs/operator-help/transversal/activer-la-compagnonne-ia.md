@@ -1,61 +1,61 @@
-# Activer l'Aide Apollia
+# Enable Apollia Help
 
-> Pour les operators qui veulent garder un assistant flottant à portée de clic, capable de répondre à une question rapide sans quitter l'écran courant.
+> For operators who want a floating assistant one click away, able to answer a quick question without leaving the current screen.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un fournisseur d'IA est configuré et prêt. L'état est visible **en haut à gauche** : un **point coloré à gauche du mot *Apollia*** dans le bandeau supérieur indique l'état combiné runtime + LLM.
-  - 🟢 vert - runtime sain + au moins un LLM prêt → l'Aide Apollia peut démarrer.
-  - 🟡 ambre - aucun LLM connecté → le bouton est grisé.
-  - 🔴 rouge - runtime déconnecté → rien ne fonctionnera ; quittez et relancez l'application.
+- At least one AI provider is configured and ready. The state is visible **in the top left corner**: a **coloured dot to the left of the word *Apollia*** in the top bar shows the combined runtime + LLM state.
+  - 🟢 green - healthy runtime + at least one LLM ready, Apollia Help can start.
+  - 🟡 amber - no LLM connected, the button is greyed out.
+  - 🔴 red - runtime disconnected, nothing will work; quit and relaunch the application.
 
-  Pour configurer un LLM, allez sur **Paramètres → Modèles LLM**.
+  To configure an LLM, go to **Settings → LLM models**.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, repérez le bouton **Aide Apollia** (logo Apollia, dans le bas de la sidebar).
+1. In the sidebar, find the **Apollia Help** button (Apollia logo, at the bottom of the sidebar).
 
-   Le bouton est **grisé et non cliquable** tant qu'aucun fournisseur d'IA n'est prêt - au survol, un tooltip explicite : *« Configurez un modèle LLM pour activer l'aide contextuelle »*.
+   The button is **greyed out and not clickable** as long as no AI provider is ready. On hover, a tooltip spells it out: *"Configure an LLM model to enable contextual help"*.
 
-   ![Le tableau de bord, avec la barre latérale et l'accès à l'Aide Apollia](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
+   ![The dashboard, with the sidebar and the entry point to Apollia Help](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
-2. Cliquez sur le bouton. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
+2. Click the button. A **floating panel** opens, docked to the right of the screen by default. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
 
-3. Posez une question rapide. L'Aide Apollia répond sans interrompre votre travail sur la page principale.
+3. Ask a quick question. Apollia Help answers without interrupting your work on the main page.
 
-   ![Panneau de l'Aide Apollia ouvert, avec son message d'accueil et la zone de saisie](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
+   ![Apollia Help panel open, with its welcome message and the input area](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
 
-4. **Déplacer le panneau** : saisissez la **poignée en haut du panneau** (icône grip-handle) et glissez-le où vous voulez. Il s'aligne automatiquement aux bords de l'écran pour rester accessible.
+4. **Move the panel**: grab the **handle at the top of the panel** (grip-handle icon) and drag it wherever you want. It snaps to the screen edges so it stays reachable.
 
-5. **Redimensionner** : tirez le **coin inférieur gauche** pour ajuster la largeur et la hauteur.
+5. **Resize**: drag the **bottom left corner** to adjust width and height.
 
-   Votre position et votre taille préférées sont **mémorisées** d'une session à l'autre.
+   Your preferred position and size are **remembered** from one session to the next.
 
-6. L'Aide Apollia **connaît la page que vous êtes en train de regarder**. Si vous êtes sur *Mes assistants* et que vous demandez *« pourquoi cet agent a échoué ? »*, elle saura à quoi vous faites référence.
+6. Apollia Help **knows which page you are looking at**. If you are on *My Assistants* and you ask *"why did this agent fail?"*, it will know what you are referring to.
 
-7. **Réduire en bulle** : cliquez sur l'icône Moins (−) en haut du panneau. Il se condense en une mini-bulle cliquable que vous pouvez redéployer plus tard. L'historique de la conversation est conservé.
+7. **Collapse into a bubble**: click the Minus icon (−) at the top of the panel. It shrinks into a clickable mini-bubble that you can expand again later. The conversation history is kept.
 
-8. **Fermer** : cliquez sur l'icône X en haut du panneau (ou utilisez le raccourci **Cmd+/** / **Ctrl+/** depuis n'importe où dans l'app). Le panneau disparaît mais l'Aide reste *activée* - un nouveau Cmd+/ le rouvre instantanément sur la même session.
+8. **Close**: click the X icon at the top of the panel (or use the **Cmd+/** / **Ctrl+/** shortcut from anywhere in the app). The panel disappears but Help stays *enabled*, and another Cmd+/ reopens it instantly on the same session.
 
-9. **Désactiver complètement** : cliquez à nouveau sur le bouton **Aide Apollia** dans la sidebar. Cette fois, c'est la désactivation : le panneau se ferme et l'historique est fermé. La préférence est persistée - la prochaine ouverture redémarrera une session vierge.
+9. **Disable entirely**: click the **Apollia Help** button in the sidebar again. This time it disables the feature: the panel closes and the history is closed with it. The preference is persisted, so the next time you open it a fresh session starts.
 
-## Raccourci clavier
+## Keyboard shortcut
 
-- **Cmd+/** (macOS) / **Ctrl+/** (Windows et Linux) - bascule l'affichage du panneau **sans toucher à l'activation**. Pratique pour cacher rapidement l'Aide pendant une démo et la rappeler ensuite.
+- **Cmd+/** (macOS) / **Ctrl+/** (Windows and Linux) - toggles the panel **without touching the enabled state**. Handy to hide Help quickly during a demo and bring it back afterwards.
 
-## Vérification
+## Verification
 
-- Cliquer le bouton **Aide Apollia** ouvre le panneau en moins de 2 secondes.
-- Le panneau peut être déplacé et redimensionné sans tomber hors écran.
-- Le raccourci **Cmd+/** bascule l'affichage instantanément.
-- L'Aide répond à *« sur quelle page suis-je ? »* en nommant correctement la page courante.
+- Clicking the **Apollia Help** button opens the panel in under 2 seconds.
+- The panel can be moved and resized without ending up off screen.
+- The **Cmd+/** shortcut toggles the display instantly.
+- Help answers *"which page am I on?"* by naming the current page correctly.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **L'Aide ne répond pas / aucune réponse n'arrive** : vérifiez le **point d'état Apollia** dans le bandeau. S'il est ambre, configurez un fournisseur LLM dans **Paramètres → Modèles LLM**.
-- **Le bouton dans la sidebar est grisé** : aucun LLM n'est prêt. Tooltip explicite au survol. Voir point précédent.
-- **Le panneau s'ouvre puis affiche une erreur** : la session n'a pas pu démarrer. Cliquez sur **Réessayer** dans le panneau, ou fermez et rouvrez via la sidebar.
-- **Le panneau est invisible alors que je l'ai déjà ouvert** : il est peut-être minimisé en bulle dans un coin de l'écran. Cherchez la bulle Aide Apollia ; sinon **Cmd+/** force la réouverture.
-- **Le panneau s'ouvre dans un coin inaccessible** : maintenez le bouton **Aide Apollia** de la sidebar enfoncé (ou désactivez puis réactivez) pour réinitialiser la position par défaut (côté droit).
+- **Help does not answer / no reply arrives**: check the **Apollia state dot** in the top bar. If it is amber, configure an LLM provider in **Settings → LLM models**.
+- **The sidebar button is greyed out**: no LLM is ready. The tooltip on hover explains it. See the previous point.
+- **The panel opens then shows an error**: the session could not start. Click **Retry** in the panel, or close and reopen it from the sidebar.
+- **The panel is invisible even though I already opened it**: it may be minimised into a bubble in a corner of the screen. Look for the Apollia Help bubble; otherwise **Cmd+/** forces it back open.
+- **The panel opens in a corner I cannot reach**: press and hold the **Apollia Help** button in the sidebar (or disable then re-enable it) to reset the default position (right side).
 
-> **Concept :** [Explication Apollia](../../explanation/index.md)
+> **Concept:** [Apollia explanation](/explanation)

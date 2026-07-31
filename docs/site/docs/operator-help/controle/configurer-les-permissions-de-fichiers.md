@@ -1,76 +1,76 @@
-# Gérer les autorisations d'outils
+# Manage tool permissions
 
-> Pour les operators qui veulent visualiser, filtrer ou révoquer les autorisations accordées aux outils d'un agent - sans attendre qu'une action déclenche une nouvelle carte d'approbation.
+> For operators who want to review, filter or revoke the permissions granted to an agent's tools - without waiting for an action to raise a new approval card.
 
-## Prérequis
+## Prerequisites
 
-- L'application est ouverte et au moins un agent a été exécuté.
-- Des autorisations ont été accordées lors d'une session précédente (lors d'une approbation, vous avez choisi « Toujours autoriser » ou une portée persistée).
+- The application is open and at least one agent has been run.
+- Permissions were granted during an earlier session (during an approval, you chose "Always allow" or a persisted scope).
 
-## Comment les autorisations sont-elles créées ?
+## How are permissions created?
 
-Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous ne créez pas de règle manuellement depuis cet écran : cet onglet sert uniquement à les consulter et à les révoquer.
+Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *This project* or *Everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You do not create a rule by hand from this screen: this tab only exists to review and revoke them.
 
-## Visualiser les autorisations actives
+## Review the active permissions
 
-1. Dans la sidebar, cliquez sur **Paramètres**.
+1. In the sidebar, click **Settings**.
 
-2. Dans le menu de gauche, sélectionnez **Autorisations**.
-   ![page Settings > Autorisations, liste de cartes d'autorisation (PermissionRuleCard) avec badges de portée](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
+2. In the left menu, select **Permissions**.
+   ![Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
 
-3. Le panneau central affiche toutes les règles actives sous forme de **liste de cartes**. Chaque carte indique :
-   - le **nom de l'outil** autorisé (ex. : `bash`, `file_write`, `mcp_call`)
-   - un **badge de portée** : *Ce projet* ou *Partout*
-   - le **préfixe d'argument** (si la règle est limitée à certaines invocations)
-   - la **date d'expiration** ou la mention *Permanente*
-   - l'**auteur** de la décision (agent ou utilisateur)
+3. The central panel shows every active rule as a **list of cards**. Each card states:
+   - the **tool name** that is authorised (e.g.: `bash`, `file_write`, `mcp_call`)
+   - a **scope badge**: *This project* or *Everywhere*
+   - the **argument prefix** (if the rule is limited to certain invocations)
+   - the **expiry date** or the mention *Permanent*
+   - the **author** of the decision (agent or user)
 
-> **Préfixe et exécuteurs de code :** pour un outil ordinaire, une règle de préfixe auto-approuve tout argument commençant par le préfixe. Pour un exécuteur de code (`bash_executor`, `python_executor`), elle est plus stricte : elle ne s'applique qu'à une **commande simple unique** partageant ce préfixe, sans enchaînement (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) ni substitution (`` ` ``, `$(...)`). Une règle sans préfixe n'auto-approuve jamais un exécuteur de code : chaque invocation redemande une confirmation.
+> **Prefix and code executors:** for an ordinary tool, a prefix rule auto-approves any argument starting with the prefix. For a code executor (`bash_executor`, `python_executor`), it is stricter: it only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
 
-4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
-   - **Portée** : *Toutes*, *Ce projet*, *Chat / agent*, *Partout*
-   - **Outil** : sélectionnez un outil précis dans la liste des outils présents
+4. Use the filters in the left panel to narrow the list:
+   - **Scope**: *All*, *This project*, *Chat / agent*, *Everywhere*
+   - **Tool**: pick a specific tool from the list of tools present
 
-## Révoquer une autorisation individuelle
+## Revoke a single permission
 
-1. Repérez la carte correspondant à la règle à supprimer.
-2. Cliquez sur le bouton **Révoquer** (icône corbeille, à droite de la carte).
-3. Un message de confirmation apparaît brièvement. La carte disparaît immédiatement.
-   ![carte d'autorisation avec bouton Révoquer visible, toast de confirmation "Règle bash révoquée"](/img/operator-help/controle-configurer-les-permissions-de-fichiers-2.png)
+1. Find the card matching the rule you want to remove.
+2. Click the **Revoke** button (bin icon, on the right of the card).
+3. A confirmation message appears briefly. The card disappears immediately.
+   ![permission card with the Revoke button visible, confirmation toast "Rule bash revoked"](/img/operator-help/controle-configurer-les-permissions-de-fichiers-2.png)
 
-Une fois révoquée, l'outil concerné redemandera une approbation manuelle à la prochaine invocation.
+Once revoked, the tool involved will ask for manual approval again at its next invocation.
 
-## Sessions actives
+## Active sessions
 
-La section **Sessions actives** liste les outils auto-approuvés via « Pour cette session » dans les conversations de chat en cours. Ces autorisations sont **in-memory uniquement** - elles disparaissent à la fermeture de la session et ne sont pas persistées.
+The **Active sessions** section lists the tools auto-approved through "For this session" in the ongoing chat conversations. These permissions are **in-memory only** - they disappear when the session closes and are not persisted.
 
-Chaque entrée indique le nom de l'outil, la session concernée (titre ou identifiant court), le mode (*Apollia Chat*, *Agent*, *Companion*) et un badge *Session* orange. Cliquez sur **Révoquer** pour retirer l'autorisation immédiatement. L'outil demandera de nouveau confirmation lors du prochain appel dans cette session.
+Each entry states the tool name, the session involved (title or short identifier), the mode (*Apollia Chat*, *Agent*, *Companion*) and an orange *Session* badge. Click **Revoke** to remove the permission immediately. The tool will ask for confirmation again at the next call in that session.
 
-![section Sessions actives, liste d'entrées avec badge orange Session et bouton Révoquer](/img/operator-help/controle-configurer-les-permissions-de-fichiers-3.png)
+![Active sessions section, list of entries with an orange Session badge and a Revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-3.png)
 
-## Révoquer toutes les autorisations d'un coup
+## Revoke every permission at once
 
-1. Cliquez sur le bouton rouge **Tout révoquer** en haut à droite.
-2. Choisissez la portée à purger :
-   - *Ce projet* - supprime les règles liées au projet courant
-   - *Chat / agent* - supprime les règles liées à l'agent Apollia Chat et aux agents Python
-   - *Partout* - supprime les règles globales
-   - *Toutes portées* - supprime toutes les règles persistées
-3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
-   ![Dialogue Tout révoquer : le sélecteur de portée et le bouton de révocation](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
+1. Click the red **Revoke all** button at the top right.
+2. Choose the scope to purge:
+   - *This project* - removes the rules tied to the current project
+   - *Chat / agent* - removes the rules tied to the Apollia Chat agent and to Python agents
+   - *Everywhere* - removes the global rules
+   - *All scopes* - removes every persisted rule
+3. Check the number of affected rules shown in the dialog, then click **Revoke**.
+   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
 
-## Règles du chat (Apollia Chat)
+## Chat rules (Apollia Chat)
 
-La section **Chat - Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat. Les exécuteurs de code (`bash_executor`, `python_executor`) n'y figurent jamais : ils ne peuvent pas être auto-approuvés en bloc et repassent toujours par une confirmation par invocation.
+The **Apollia Chat** section lists the tools auto-approved for every free chat session. These rules are created through **"Always allow"** in the chat and persist from one session to the next. Revoke them one by one here so the tool asks for confirmation again at the next invocation from the chat. Code executors (`bash_executor`, `python_executor`) never show up there: they cannot be auto-approved in bulk and always go back through a per-invocation confirmation.
 
-## Consulter l'audit récent
+## Review the recent audit
 
-En bas de la page, la section **Audit récent** (lecture seule) liste les 20 dernières décisions de permission : outil, décision (allow / deny), portée, numéro de règle appliquée et agent impliqué. Cela permet de vérifier qu'une règle est bien appliquée sans avoir à lancer un agent.
+At the bottom of the page, the **Recent audit** section (read-only) lists the last 20 permission decisions: tool, decision (allow / deny), scope, number of the rule applied and agent involved. This lets you check that a rule is properly applied without having to run an agent.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Aucune autorisation affichée** : aucune règle persistée n'existe pour les filtres sélectionnés. Réinitialisez les filtres ou exécutez un agent et accordez une autorisation persistée via la carte d'approbation.
-- **La règle revient après révocation** : un autre agent (ou une configuration globale) crée la même règle automatiquement. Vérifiez vos agents ou contactez le support.
-- **Le bouton "Tout révoquer" est grisé** : la liste est vide - il n'y a rien à révoquer pour les filtres actuels.
+- **No permission shown**: no persisted rule exists for the selected filters. Reset the filters, or run an agent and grant a persisted permission through the approval card.
+- **The rule comes back after revocation**: another agent (or a global configuration) creates the same rule automatically. Check your agents or contact support.
+- **The "Revoke all" button is greyed out**: the list is empty - there is nothing to revoke for the current filters.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md)
+> **Technical reference:** [Apollia reference](/reference)

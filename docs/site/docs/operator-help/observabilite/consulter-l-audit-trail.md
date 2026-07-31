@@ -1,84 +1,84 @@
-# Consulter l'audit trail
+# Read the audit trail
 
-> Pour les operators qui veulent retrouver précisément qui a fait quoi, quand - typiquement pour un contrôle interne ou une enquête après incident.
+> For operators who want to find out precisely who did what, and when - typically for an internal control or a post-incident investigation.
 
-## Prérequis
+## Prerequisites
 
-- Au moins une action sensible (écriture de fichier, commande, appel d'outil) a été exécutée.
-- Vous savez approximativement la période ou l'agent à investiguer.
+- At least one sensitive action (file write, command, tool call) has been executed.
+- You roughly know the period or the agent to investigate.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Piste d'audit**.
+1. In the sidebar, click **Observability**, then the **Audit Trail** tab.
 
-2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent. C'est la trace immuable de chaque outil invoqué par un agent.
+2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. It is the immutable trace of every tool invoked by an agent.
 
-3. Juste en dessous, **quatre indicateurs clés** (KPI) se mettent à jour selon les filtres : **Entrées affichées**, **Outils distincts**, **Échecs** (en rouge si > 0), **Durée moyenne**.
-   ![onglet Piste d'audit - bannière de purpose en haut, 4 KPI, filtres, puis tableau](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
+3. Just below, **four key indicators** (KPI) update according to the filters: **Entries shown**, **Distinct tools**, **Failures** (red if > 0), **Avg duration**.
+   ![Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
 
-4. Le tableau présente toutes les invocations d'outils tracées, du plus récent au plus ancien. **Cinq colonnes** :
-   - **Horodatage** (date + heure locale)
-   - **Outil** (nom technique en monospace : `bash`, `file_write`, `mcp:notion.search`, etc.)
-   - **Agent** (nom lisible ; à défaut l'identifiant brut si l'agent n'est plus enregistré)
-   - **Durée** (`850ms` ou `2.1s`, ou `-` si non mesuré)
-   - **Statut** - badge **Succès** (vert, ✓) ou **Échec** (rouge, ✕). Le statut est déduit du code de sortie *et* de la présence de stderr ; un outil MCP sans code de sortie est considéré OK s'il s'est terminé sans erreur.
+4. The table lists every traced tool invocation, newest first. **Five columns**:
+   - **Timestamp** (date + local time)
+   - **Tool** (technical name in monospace: `bash`, `file_write`, `mcp:notion.search`, and so on)
+   - **Agent** (readable name; failing that, the raw identifier if the agent is no longer registered)
+   - **Duration** (`850ms` or `2.1s`, or `-` if not measured)
+   - **Status** - an **OK** badge (green, ✓) or **Error** (red, ✕). The status is derived from the exit code *and* from the presence of stderr; an MCP tool with no exit code counts as OK if it finished without an error.
 
-5. Affinez la recherche avec les deux sélecteurs au-dessus du tableau :
-   - **Outil** - isole les invocations d'un outil précis (la liste se construit à partir des entrées chargées).
-   - **Agent** - isole le travail d'un seul agent.
+5. Narrow the search with the two selectors above the table:
+   - **Tool** - isolates the invocations of one specific tool (the list is built from the loaded entries).
+   - **Agent** - isolates the work of a single agent.
 
-6. Cliquez sur une ligne pour déplier son détail. Selon ce qui a été capturé, trois sections peuvent apparaître :
-   - **Arguments** - JSON envoyé à l'outil, formaté.
-   - **stdout** - sortie standard.
-   - **stderr** - sortie d'erreur, affichée en rouge.
+6. Click a row to expand its detail. Depending on what was captured, three sections can appear:
+   - **Arguments** - JSON sent to the tool, formatted.
+   - **stdout** - standard output.
+   - **stderr** - error output, shown in red.
 
-   Si l'invocation n'a rien produit de capturable (outils MCP en lecture seule, outils sans I/O standard…), un message *« Aucun détail disponible »* s'affiche.
-   ![ligne dépliée affichant les sections Arguments / stdout / stderr](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
+   If the invocation produced nothing capturable (read-only MCP tools, tools with no standard I/O…), a *"No details available"* message appears.
+   ![expanded row showing the Arguments / stdout / stderr sections](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
 
-7. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
+7. At the bottom of the table, the **Load more** button extends the list by 50 more entries.
 
-   > **L'export et la vérification se font en ligne de commande**, pas depuis
-   > l'interface. Voir la section suivante.
+   > **Export and verification happen on the command line**, not from the
+   > interface. See the next section.
 
-## Exporter et vérifier en ligne de commande
+## Export and verify on the command line
 
-L'interface montre le journal ; la ligne de commande permet de le sortir et de
-prouver qu'il n'a pas été modifié.
+The interface shows the journal; the command line is what lets you extract it and
+prove it has not been modified.
 
 ```sh
-apollia-os audit list --limit 200        # consulter
-apollia-os audit stats                   # compter
+apollia-os audit list --limit 200        # browse
+apollia-os audit stats                   # count
 apollia-os audit export --output audit.json --limit 100000
-apollia-os audit verify                  # vérifier toute la chaîne
-apollia-os audit verify <RUN_ID>         # vérifier une exécution
-apollia-os audit anchor                  # imprimer l'ancre de tête
+apollia-os audit verify                  # verify the whole chain
+apollia-os audit verify <RUN_ID>         # verify one run
+apollia-os audit anchor                  # print the head anchor
 ```
 
-**`verify`** recalcule la chaîne de hachage et contrôle les signatures. Sans
-argument, il parcourt le journal entier ; avec un identifiant d'exécution, il se
-limite à celle-ci. C'est ce qui distingue un journal d'une simple liste : une
-entrée modifiée après coup casse la chaîne et se voit.
+**`verify`** recomputes the hash chain and checks the signatures. With no
+argument it walks the entire journal; with a run identifier it is limited to that
+run. This is what separates a journal from a plain list: an entry modified after
+the fact breaks the chain and shows.
 
-**`anchor`** imprime l'ancre de tête de la chaîne globale. La conserver hors de
-la machine est la seule défense contre une troncature de la fin du journal par
-quelqu'un qui aurait obtenu la clé de signature. Cette clé est un fichier local,
-lisible par le compte qui exécute Apollia : l'ancre exportée est donc la
-protection réelle, pas une précaution avancée.
+**`anchor`** prints the head anchor of the global chain. Keeping it off the
+machine is the only defence against a truncation of the end of the journal by
+someone who obtained the signing key. That key is a local file, readable by the
+account running Apollia: the exported anchor is therefore the real protection,
+not an advanced precaution.
 
-**`export`** écrit le journal en JSON. Il s'arrête à `--limit`, 10000 par défaut,
-et prévient sur la sortie d'erreur quand il atteint ce plafond.
+**`export`** writes the journal as JSON. It stops at `--limit`, 10000 by default,
+and warns on the error output when it reaches that ceiling.
 
-Détail de ces commandes dans
-[Audit, verify and roll back a run](../../how-to/audit-verify-rollback.md).
+Details of these commands in
+[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
 
-## Vérification
+## Verification
 
-Vous retrouvez dans le tableau les actions que vous savez avoir validées récemment, avec leur statut correct (Succès en vert, Échec en rouge). Les KPI en haut reflètent la sélection courante : si vous filtrez par agent, le compteur d'**Entrées affichées** baisse en conséquence.
+You find in the table the actions you know you approved recently, with the correct status (OK in green, Error in red). The KPIs at the top reflect the current selection: if you filter by agent, the **Entries shown** counter drops accordingly.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Une action attendue ne figure pas** : vérifiez les filtres **Outil** et **Agent** - un filtre actif peut masquer la ligne. Cliquez sur **Charger plus** si la fenêtre par défaut (50 entrées) ne remonte pas assez loin.
-- **Le détail d'une ligne ne montre rien** : l'invocation provient probablement d'un outil sans capture stdout/stderr (outil MCP, appel API interne). La ligne reste tracée mais ses entrées-sorties ne le sont pas.
-- **Le tableau est vide** : aucune action outillée n'a encore été exécutée. Lancez un agent sur une tâche utilisant des outils (bash, file_write, etc.).
+- **An expected action is missing**: check the **Tool** and **Agent** filters - an active filter can hide the row. Click **Load more** if the default window (50 entries) does not reach far enough back.
+- **A row detail shows nothing**: the invocation probably comes from a tool with no stdout/stderr capture (MCP tool, internal API call). The row stays traced but its inputs and outputs do not.
+- **The table is empty**: no tooled action has run yet. Start an agent on a task that uses tools (bash, file_write, and so on).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md)
+> **Technical reference:** [Apollia reference](/reference)

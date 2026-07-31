@@ -1,46 +1,46 @@
-# Télécharger des modèles locaux
+# Download local models
 
-> Pour tout operator qui veut faire tourner Apollia 100 % hors ligne : télécharger un modèle d'IA et un modèle de transcription vocale directement sur votre machine.
+> For any operator who wants to run Apollia 100 % offline: download an AI model and a voice transcription model directly onto your machine.
 
-## Prérequis
+## Prerequisites
 
-- Au moins 5 Go d'espace disque libre (jusqu'à 30 Go selon le modèle).
-- Connexion internet active pendant le téléchargement uniquement.
-- Apollia est lancé et le bandeau supérieur ne signale pas d'erreur.
+- At least 5 GB of free disk space (up to 30 GB depending on the model).
+- Active internet connection during the download only.
+- Apollia is running and the top banner reports no error.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Hub de modèles**.
-   ![page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
+1. In the sidebar, click **Settings**, then the **Model Hub** section.
+   ![Model Hub page, list of available models with Name, Size, Type, Status columns](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
 
-2. Filtrez la liste par type **GGUF** pour les modèles d'IA conversationnelle.
+2. Filter the list by type **GGUF** for conversational AI models.
 
-   > **Note :** les modèles Whisper (dictée vocale) sont gérés depuis la section **Reconnaissance vocale** dans Paramètres, pas depuis le Hub de modèles.
+   > **Note:** Whisper models (voice dictation) are managed from the **Speech-to-Text** section in Settings, not from the Model Hub.
 
-3. Cliquez sur la ligne du modèle qui vous intéresse. Un panneau affiche la taille exacte, la durée estimée de téléchargement et la configuration matérielle recommandée.
+3. Click the row of the model you are interested in. A panel shows the exact size, the estimated download time and the recommended hardware configuration.
 
-4. Cliquez sur **Télécharger**. Une barre de progression apparaît à côté du modèle.
-   ![ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler](/img/operator-help/installation-telecharger-des-modeles-locaux-2.png)
+4. Click **Download**. A progress bar appears next to the model.
+   ![model row "Llama 3.1 8B" with a progress bar at 42 % and a Cancel button](/img/operator-help/installation-telecharger-des-modeles-locaux-2.png)
 
-5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue - seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
+5. Leave the window open (the download can take 5 to 30 minutes depending on your throughput and the model size). You can keep using the rest of Apollia. The download is not interrupted because it takes too long - only establishing the initial connection is subject to a timeout (30 seconds).
 
-6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
+6. When it finishes, the model status becomes **Available locally** with a green dot.
 
-7. (Optionnel) Cliquez sur **Définir par défaut** pour utiliser ce modèle automatiquement dans les nouveaux chats (GGUF) ou pour la dictée (Whisper).
-   ![Hub de modèles : la section Modèles installés, avec le modèle actif marqué d'un badge Utilisé](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
+7. (Optional) Click **Set as default** to use this model automatically in new chats (GGUF) or for dictation (Whisper).
+   ![Model Hub: the Installed models section, with the active model marked by an In use badge](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
 
-8. L'espace disque utilisé par tous vos modèles est affiché en bas de la page. Pour libérer de la place, cliquez sur **Supprimer** sur n'importe quel modèle déjà téléchargé.
+8. The disk space used by all your models is displayed at the bottom of the page. To free space, click **Delete** on any model already downloaded.
 
-## Vérification
+## Verification
 
-Pour un modèle GGUF, ouvrez un nouveau chat, sélectionnez votre modèle local dans le sélecteur de backend, et envoyez un message : la réponse arrive sans connexion internet. Pour un modèle Whisper, suivez la page [Activer la dictée vocale](../chat/activer-la-dictee-vocale.md).
+For a GGUF model, open a new chat, select your local model in the backend picker, and send a message: the answer arrives without an internet connection. For a Whisper model, follow the [Enable voice dictation](../chat/activer-la-dictee-vocale.md) page.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Téléchargement bloqué à 0 % :** vérifiez votre connexion internet et redémarrez le téléchargement.
-- **Espace disque insuffisant :** supprimez un modèle existant ou libérez de la place avant de relancer.
-- **Modèle absent du sélecteur après téléchargement :** redémarrez Apollia pour qu'il détecte le nouveau modèle.
+- **Download stuck at 0 %:** check your internet connection and restart the download.
+- **Not enough disk space:** delete an existing model or free up space before starting again.
+- **Model missing from the picker after download:** restart Apollia so it detects the new model.
 
-> **Modèles locaux fiables :** les modèles locaux GGUF appellent vos outils de manière fiable, sans réglage de votre part.
+> **Reliable local models:** local GGUF models call your tools reliably, with no tuning on your part.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - formats GGUF supportés, paramètres de quantization, recommandations matériel.
+> **Technical reference:** [Apollia reference](/reference) - supported GGUF formats, quantization parameters, hardware recommendations.

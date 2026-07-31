@@ -1,61 +1,61 @@
-# La dictée vocale ne transcrit rien
+# Voice dictation transcribes nothing
 
-> Pour tout operator qui appuie sur son raccourci de dictée sans voir apparaître de texte : retrouver une transcription fluide en quelques minutes.
+> For operators who press their dictation hotkey without seeing any text appear: get a working transcription back in a few minutes.
 
-## Vérifications rapides (par ordre de probabilité)
+## Quick checks (in order of likelihood)
 
-### 1. Le raccourci clavier n'est pas reconnu
+### 1. The keyboard shortcut is not recognized
 
-Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotlight, capture d'écran) ou avec une autre application.
+The dictation hotkey can clash with a system shortcut (Spotlight, screen capture) or with another application.
 
-**Solution :**
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-2. Repérez la ligne **Raccourci global** : la combinaison actuelle s'affiche sous forme de touches stylisées.
-3. **Cliquez sur la combinaison** : un dialog plein écran de capture s'ouvre. Appuyez sur la nouvelle combinaison souhaitée - elle est capturée en temps réel et enregistrée à la validation.
-   ![Dialogue de capture de raccourci clavier, en attente d'une combinaison de touches](/img/operator-help/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
-4. Quittez le dialog avec **Échap** pour annuler.
-5. Testez à nouveau le raccourci : **un overlay d'enregistrement avec visualizer audio** doit s'afficher dès l'appui.
+**Solution:**
+1. In the sidebar, click **Settings**, then the **Speech-to-Text** section.
+2. Find the **Global hotkey** row: the current combination is shown as styled keys.
+3. **Click the combination**: a full-screen capture dialog opens. Press the new combination you want, it is captured live and saved when you validate.
+   ![Keyboard shortcut capture dialog, waiting for a key combination](/img/operator-help/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
+4. Leave the dialog with **Escape** to cancel.
+5. Test the hotkey again: **a recording overlay with an audio visualizer** must appear as soon as you press it.
 
-### 2. Le modèle de transcription n'est pas téléchargé
+### 2. The transcription model is not downloaded
 
-Apollia transcrit en local avec un modèle Whisper. Sans modèle chargé, l'appui sur le raccourci ne produit rien.
+Apollia transcribes locally with a Whisper model. With no model loaded, pressing the hotkey produces nothing.
 
-**Solution :**
-1. Ouvrez **Paramètres → Reconnaissance vocale** et regardez l'état du moteur en haut de la page.
-2. Si l'état affiche *« Modèle non chargé »* ou équivalent, ouvrez **Paramètres → Hub de modèles** et téléchargez au minimum le modèle **Whisper Small** (suffisant pour le français).
-3. Revenez sur la page **Reconnaissance vocale** : l'état doit afficher **Modèle chargé**.
+**Solution:**
+1. Open **Settings → Speech-to-Text** and look at the engine status at the top of the page.
+2. If the status reads *"Model not loaded"* or equivalent, open **Settings → Model Hub** and download at least the **Whisper Small** model (enough for French).
+3. Go back to the **Speech-to-Text** page: the status must read **Model loaded**.
 
-### 3. Votre microphone système est muet ou mal sélectionné
+### 3. Your system microphone is muted or wrongly selected
 
-Si le micro est désactivé au niveau du système d'exploitation, Apollia n'entend rien - sans message d'erreur.
+If the microphone is disabled at the operating system level, Apollia hears nothing, with no error message.
 
-**Solution :**
-1. Ouvrez les réglages son de votre système et vérifiez que le bon microphone est sélectionné comme entrée par défaut.
-2. Parlez normalement : le niveau d'entrée doit bouger.
-3. Si rien ne bouge, débranchez et rebranchez le micro (ou ajustez le volume d'entrée).
+**Solution:**
+1. Open your system sound settings and check that the right microphone is selected as the default input.
+2. Speak normally: the input level must move.
+3. If nothing moves, unplug and plug the microphone back in (or raise the input volume).
 
-### 4. Apollia n'a pas l'autorisation d'utiliser le microphone
+### 4. Apollia is not allowed to use the microphone
 
-Au premier usage, le système demande la permission d'accès au micro. Si elle a été refusée, Apollia reste muette.
+On first use, the system asks for microphone access. If it was denied, Apollia stays silent.
 
-**Solution :**
-1. Dans les réglages **Confidentialité** de votre système, ouvrez la section **Microphone**.
-2. Vérifiez qu'**Apollia** figure dans la liste des applications autorisées et que la case est cochée.
-3. Si elle ne l'est pas, cochez-la, puis relancez Apollia.
+**Solution:**
+1. In the **Privacy** settings of your system, open the **Microphone** section.
+2. Check that **Apollia** appears in the list of allowed applications and that the box is ticked.
+3. If it is not, tick it, then restart Apollia.
 
-### 5. La langue de transcription ne correspond pas
+### 5. The transcription language does not match
 
-Le modèle Whisper transcrit selon la langue configurée. Une langue erronée produit du texte incohérent ou rien d'utile.
+The Whisper model transcribes according to the configured language. A wrong language produces incoherent text, or nothing useful.
 
-**Solution :**
-1. Dans **Paramètres → Reconnaissance vocale**, vérifiez le champ **Langue**.
-2. Sélectionnez **Français** (ou la langue effective de votre dictée).
-3. Refaites un essai court de quelques secondes.
+**Solution:**
+1. In **Settings → Speech-to-Text**, check the **Language** field.
+2. Select **Français** (or the language you actually dictate in).
+3. Try again with a short test of a few seconds.
 
-## Si rien ne fonctionne
+## If nothing works
 
-1. Allez dans **Transcriptions** *(visible dans la sidebar en mode Builder)* pour voir si des essais récents ont produit du contenu vide ou incohérent : cela aide à localiser le problème.
-2. Téléchargez un modèle Whisper plus précis (**Medium** ou **Large**) depuis **Paramètres → Hub de modèles** si vos dictées sont systématiquement floues.
-3. Relancez Apollia après chaque changement de modèle ou de raccourci pour que le moteur recharge sa configuration.
+1. Go to **Transcriptions** *(visible in the sidebar in Builder mode)* to see whether recent attempts produced empty or incoherent content: this helps narrow the problem down.
+2. Download a more accurate Whisper model (**Medium** or **Large**) from **Settings → Model Hub** if your dictations are consistently blurry.
+3. Restart Apollia after each model or hotkey change so the engine reloads its configuration.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - comprendre comment Apollia capte, traite et stocke vos dictées en local.
+> **Technical reference:** [Apollia reference](/reference) - understand how Apollia captures, processes and stores your dictations locally.

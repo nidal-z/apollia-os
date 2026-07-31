@@ -1,58 +1,58 @@
-# Consulter les logs d'un agent
+# View an agent's logs
 
-> Pour comprendre ce qu'un agent a fait, ou pourquoi il a échoué : ouvrir son panneau Logs et parcourir l'historique de ses tâches.
+> To understand what an agent did, or why it failed: open its Logs panel and browse the history of its tasks.
 
-## Prérequis
+## Prerequisites
 
-- L'agent est installé et a été démarré au moins une fois.
-- Idéalement, l'agent a déjà exécuté une mission (au moins quelques tâches disponibles).
+- The agent is installed and has been started at least once.
+- Ideally, the agent has already run a mission (at least a few tasks available).
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Mes assistants**.
+1. In the sidebar, click **My Assistants**.
 
-2. Localisez la carte de l'agent dont vous voulez consulter l'activité.
+2. Find the card of the agent whose activity you want to review.
 
-3. Cliquez sur **Logs** sur sa carte. Un panneau s'ouvre à droite, intitulé **Logs de l'agent**, avec un compteur de tâches en haut.
-   ![panneau Logs ouvert avec compteur, barre de recherche, filtres de statut et tri](/img/operator-help/agents-consulter-les-logs-d-un-agent-1.png)
+3. Click **Logs** on its card. A panel opens on the right, titled **Agent Logs**, with a task counter at the top.
+   ![Logs panel open with counter, search bar, status filters and sorting](/img/operator-help/agents-consulter-les-logs-d-un-agent-1.png)
 
-   > **Note :** ce panneau affiche l'historique des tâches exécutées par l'agent. Il ne s'agit pas d'un journal textuel avec niveaux Info/Warning/Error.
+   > **Note:** this panel shows the history of the tasks run by the agent. It is not a text journal with Info/Warning/Error levels.
 
-4. Chaque ligne de la liste contient déjà l'essentiel - pas besoin de cliquer pour ouvrir un détail :
-   - **Statut** (à gauche) - voir la liste ci-dessous.
-   - **Durée** d'exécution (ex. `850ms`, `2.4s`).
-   - **Horodatage relatif** (ex. `5min ago`) - survolez-le pour voir la date et l'heure exactes.
-   - **Entrée reçue** - la demande qui a déclenché la tâche.
-   - **Résultat** ou **Erreur** - la sortie produite, ou le message d'erreur si la tâche a échoué.
+4. Each row in the list already carries the essentials - no need to click to open a detail view:
+   - **Status** (on the left) - see the list below.
+   - Execution **duration** (e.g. `850ms`, `2.4s`).
+   - **Relative timestamp** (e.g. `5min ago`) - hover it to see the exact date and time.
+   - **Input received** - the request that triggered the task.
+   - **Result** or **Error** - the output produced, or the error message if the task failed.
 
-5. Repérez les tâches par leur **statut** :
-   - **Terminée** - tâche exécutée avec succès.
-   - **Échouée** - tâche en erreur, à examiner.
-   - **En cours** - tâche encore en cours d'exécution.
-   - **Vérification** - statut transitoire visible aux paliers `supervised`, `bounded_autonomous` et `long_autonomous` : la boucle de vérification post-run est en cours : l'agent contrôle son travail avant de conclure. Ce statut précède toujours **Terminée** ou **Échouée** et peut durer plusieurs secondes selon la complexité de la tâche.
-   - **Approbation** - l'agent attend une décision humaine (à traiter depuis l'Inbox).
-   - **Soumise** - tâche enregistrée, pas encore prise en charge.
-   - **Annulée** - tâche interrompue avant la fin.
+5. Identify tasks by their **status**:
+   - **Completed** - task executed successfully.
+   - **Failed** - task in error, to be examined.
+   - **Working** - task still running.
+   - **Verification** - transient status visible at the `supervised`, `bounded_autonomous` and `long_autonomous` levels: the post-run verification loop is running, the agent is checking its work before concluding. This status always precedes **Completed** or **Failed** and can last several seconds depending on the complexity of the task.
+   - **Approval** - the agent is waiting for a human decision (to be handled from the Inbox).
+   - **Submitted** - task recorded, not yet picked up.
+   - **Canceled** - task interrupted before the end.
 
-6. **Filtrer la liste** quand il y a beaucoup de tâches :
-   - Tapez dans la **barre de recherche** pour ne garder que les tâches dont l'entrée ou le résultat contient ce mot.
-   - Cliquez sur une **puce de statut** (Toutes / Terminée / Échouée / En cours / Vérification / Approbation / Soumise / Annulée) pour ne voir que ce statut.
-   - Utilisez le **menu de tri** en haut à droite des filtres pour ordonner par : Plus récentes (défaut), Plus anciennes, Plus longues, Plus courtes.
-   - Le compteur en haut indique le nombre de tâches affichées vs total (ex. `4 / 27 tâches`).
-   - Si aucune tâche ne correspond, un bouton **Réinitialiser les filtres** apparaît.
+6. **Filter the list** when there are many tasks:
+   - Type in the **search bar** to keep only the tasks whose input or result contains that word.
+   - Click a **status chip** (All / Completed / Failed / Working / Verification / Approval / Submitted / Canceled) to see only that status.
+   - Use the **sort menu** at the top right of the filters to order by: Most recent (default), Oldest, Longest, Shortest.
+   - The counter at the top shows the number of tasks displayed vs total (e.g. `4 / 27 tasks`).
+   - If no task matches, a **Reset filters** button appears.
 
-7. **Rafraîchir** la liste sans fermer le panneau : cliquez sur l'icône `↻` en haut à droite du panneau.
+7. **Refresh** the list without closing the panel: click the `↻` icon at the top right of the panel.
 
-8. Fermez le panneau pour revenir à la liste des agents.
+8. Close the panel to go back to the agent list.
 
-## Vérification
+## Verification
 
-Vous voyez la liste des tâches de l'agent avec leur statut, leur durée et un aperçu de la demande et du résultat. Une tâche échouée récente est repérable d'un coup d'œil grâce à son statut rouge **Échouée** et son message d'erreur affiché juste en dessous.
+You see the list of the agent's tasks with their status, their duration and a preview of the request and the result. A recently failed task is spotted at a glance thanks to its red **Failed** status and its error message shown right below.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Aucune tâche affichée :** l'agent n'a jamais été démarré ou n'a reçu aucune mission. Lancez-le et envoyez-lui une instruction.
-- **Panneau vide après une exécution :** vérifiez que l'agent est bien démarré (statut ACTIF sur sa carte), puis cliquez sur `↻` pour rafraîchir.
-- **Erreur incompréhensible :** copiez le message et consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
+- **No task displayed:** the agent was never started or received no mission. Start it and send it an instruction.
+- **Empty panel after a run:** check that the agent is indeed started (ACTIVE status on its card), then click `↻` to refresh.
+- **Unintelligible error:** copy the message and see [An agent is stuck](../troubleshooting/un-agent-est-bloque.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - interprétation des statuts de tâche, dépannage agent bloqué ou en timeout.
+> **Technical reference:** [Apollia reference](/reference) - interpreting task statuses, troubleshooting a stuck agent or an agent in timeout.

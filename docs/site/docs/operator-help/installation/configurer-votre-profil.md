@@ -1,161 +1,161 @@
-# Configurer votre profil au premier lancement
+# Set up your profile on first launch
 
-> Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en quatre étapes - accueil, choix du profil, configuration de l'IA, calibrage conversationnel - pour qu'Apollia soit prêt à l'emploi.
-> Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
+> On the first start of Apollia (or after a reset), a configuration flow opens automatically.
+> It walks you through four steps - welcome, profile choice, AI setup, conversational calibration - so that Apollia is ready to use.
+> Total duration: 3 to 8 minutes depending on model downloads.
 >
-> Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/gerer-mon-profil.md)**.
+> This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/gerer-mon-profil.md)**.
 
-## Prérequis
+## Prerequisites
 
-- Apollia est installé et lancé pour la première fois (ou votre profil a été réinitialisé).
-- Connexion internet active pendant l'étape **Modèles** si vous téléchargez un modèle local ou utilisez un fournisseur cloud.
+- Apollia is installed and started for the first time (or your profile has been reset).
+- Active internet connection during the **Models** step if you download a local model or use a cloud provider.
 
-## Vue d'ensemble du parcours
+## Flow overview
 
-Le parcours est rythmé par un rail de progression visible en haut de la fenêtre : **Accueil · Profil · Modèles · Calibrage**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en bas pour ajourner l'ensemble.
+The flow is paced by a progress rail visible at the top of the window: **Welcome · Profile · Models · Calibration**. You can go back at any step, and **Configure later** is available at the bottom to postpone the whole thing.
 
-| Étape | Ce qui s'y passe |
+| Step | What happens there |
 |---|---|
-| **Accueil** | Présentation d'Apollia et lancement du parcours. |
-| **Profil** | Choix entre **Opérateur** (interface simplifiée, validation explicite) et **Builder** (observabilité complète, SDK Python). |
-| **Modèles** | Configuration du LLM (local GGUF avec téléchargement embarqué, ou fournisseur cloud) et, en option, du modèle de dictée vocale Whisper. |
-| **Calibrage** | Conversation avec un agent qui collecte 4 informations rapides (nom, rôle, niveau de supervision, souveraineté des données) et propose des règles de permissions adaptées. |
+| **Welcome** | Introduction to Apollia and start of the flow. |
+| **Profile** | Choice between **Operator** (simplified interface, explicit validation) and **Builder** (full observability, Python SDK). |
+| **Models** | LLM setup (local GGUF with built-in download, or cloud provider) and, optionally, the Whisper voice dictation model. |
+| **Calibration** | Conversation with an agent that collects 4 quick pieces of information (name, role, supervision level, data sovereignty) and suggests matching permission rules. |
 
-## Étapes détaillées
+## Detailed steps
 
-### Étape 1 - Accueil
+### Step 1 - Welcome
 
-Au lancement, Apollia détecte qu'aucun profil n'existe et ouvre la fenêtre de configuration centrée sur l'écran.
+At launch, Apollia detects that no profile exists and opens the configuration window centered on the screen.
 
-![Fenêtre d'accueil avec logo Apollia, sous-titre "Le runtime souverain pour tes agents IA en local", trois cartes Local-first / LLM au choix / Agents autonomes, bouton "Commencer la configuration"](/img/operator-help/installation-configurer-votre-profil-1.png)
+![Welcome window with the Apollia logo, subtitle "The sovereign runtime to run your AI agents locally", three cards Local-first / LLM of your choice / Autonomous agents, "Start configuration" button](/img/operator-help/installation-configurer-votre-profil-1.png)
 
-Lisez le bandeau de bienvenue, puis cliquez sur **Commencer la configuration**.
+Read the welcome banner, then click **Start configuration**.
 
-### Étape 2 - Choisir votre profil
+### Step 2 - Choose your profile
 
-Deux cartes vous sont proposées côte à côte. Cliquez sur celle qui correspond le mieux à votre usage - vous pourrez le changer plus tard depuis **Paramètres → Profil**.
+Two cards are offered side by side. Click the one that best matches your use - you can change it later from **Settings → Profile**.
 
-![Étape Profil avec deux cartes Opérateur (icône étincelles) et Builder (icône code), chacune avec 3 puces et un exemple de rôle](/img/operator-help/installation-configurer-votre-profil-2.png)
+![Profile step with two cards Operator (sparkles icon) and Builder (code icon), each with 3 bullets and a sample role](/img/operator-help/installation-configurer-votre-profil-2.png)
 
-- **Opérateur** : pour qui veut des agents qui exécutent des tâches concrètes (emails, veille, synthèses) sans toucher à du code. Validation explicite des actions sensibles, agents prêts à l'emploi.
-- **Builder** : pour qui veut concevoir, debugger et observer ses agents. Observabilité complète (timeline, traces, coûts), SDK Python, permissions granulaires.
+- **Operator**: for anyone who wants agents that carry out concrete tasks (emails, monitoring, summaries) without touching code. Explicit validation of sensitive actions, ready-to-use agents.
+- **Builder**: for anyone who wants to design, debug and observe their agents. Full observability (timeline, traces, costs), Python SDK, granular permissions.
 
-Un lien discret en bas - **Je suis les deux → mode Builder** - permet de basculer en mode Builder si vous hésitez (le mode Builder expose toutes les fonctionnalités d'Opérateur en plus).
+A discreet link at the bottom - **I'm both → Builder mode** - switches you to Builder mode if you hesitate (Builder mode exposes every Operator feature on top of its own).
 
-### Étape 3 - Configurer le moteur d'IA
+### Step 3 - Configure the AI engine
 
-Cette étape calibre Apollia à votre matériel et à vos préférences de souveraineté. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir.
+This step calibrates Apollia to your hardware and your sovereignty preferences. A system information banner (RAM, OS, GPU) appears at the top to help you choose.
 
-![Étape Modèles, bandeau RAM · macOS · GPU, section LLM avec liste curée de modèles Qwen3 et badge "Recommandé"](/img/operator-help/installation-configurer-votre-profil-3.png)
+![Models step, RAM · macOS · GPU banner, LLM section with a curated list of Qwen3 models and a "Recommended" badge](/img/operator-help/installation-configurer-votre-profil-3.png)
 
-#### Section LLM (obligatoire)
+#### LLM section (required)
 
-Trois chemins possibles, selon votre situation :
+Three possible paths, depending on your situation:
 
-1. **Modèles déjà présents sur la machine.** Si vous avez déjà placé un fichier `.gguf` dans `~/.apollia/models/` ou `~/Downloads/`, Apollia le détecte automatiquement. Cliquez sur la ligne correspondante pour le configurer en un clic.
-2. **Modèles recommandés à télécharger.** Si aucun GGUF n'est trouvé, Apollia affiche une liste curée de modèles Qwen3 (4B, 8B, 14B, 30B-A3B) filtrée selon votre RAM, avec un badge **Recommandé** sur le plus pertinent. Cliquez sur la ligne pour lancer le téléchargement - une barre de progression avec débit en MB/s s'affiche, vous pouvez l'annuler à tout moment.
-3. **Recherche HuggingFace.** Le bouton **Rechercher sur HuggingFace** ouvre un mini-navigateur intégré : tapez le nom d'un modèle, dépliez les fichiers GGUF disponibles, et cliquez pour télécharger celui qui correspond à votre RAM (les fichiers sont étiquetés *fits* / *might fit* / *too large*).
-4. **Fournisseur cloud.** Le bouton **Utiliser un fournisseur cloud** ferme la fenêtre et vous emmène vers la page **Backends LLM** des paramètres pour brancher Anthropic, OpenAI ou Ollama. Une fois un backend ajouté, le parcours d'onboarding se rouvre automatiquement à cette même étape.
+1. **Models already present on the machine.** If you have already placed a `.gguf` file in `~/.apollia/models/` or `~/Downloads/`, Apollia detects it automatically. Click the matching row to configure it in one click.
+2. **Recommended models to download.** If no GGUF is found, Apollia displays a curated list of Qwen3 models (4B, 8B, 14B, 30B-A3B) filtered by your RAM, with a **Recommended** badge on the most relevant one. Click the row to start the download - a progress bar with the throughput in MB/s appears, and you can cancel at any time.
+3. **HuggingFace search.** The **Search on HuggingFace** button opens a built-in mini browser: type a model name, expand the available GGUF files, and click to download the one that matches your RAM (files are tagged *fits* / *might fit* / *too large*).
+4. **Cloud provider.** The **Use a cloud provider** button closes the window and takes you to the **LLM Backends** settings page to plug in Anthropic, OpenAI or Ollama. Once a backend is added, the onboarding flow reopens automatically at this same step.
 
-![Téléchargement Qwen3 en cours avec barre de progression et débit, plus modèle Whisper téléchargé en parallèle](/img/operator-help/installation-configurer-votre-profil-4.png)
+![Qwen3 download in progress with a progress bar and throughput, plus a Whisper model downloaded in parallel](/img/operator-help/installation-configurer-votre-profil-4.png)
 
-Une fois la configuration LLM réussie (badge vert **Configuré** ou liste de backends détectée), le bouton **Continuer** en bas devient actif.
+Once the LLM setup succeeds (green **Configured** badge or a detected backend list), the **Continue** button at the bottom becomes active.
 
-#### Section Reconnaissance vocale (optionnel)
+#### Voice recognition section (optional)
 
-L'interrupteur **Reconnaissance vocale** active la dictée. Si aucun modèle Whisper n'est présent, vous pouvez en télécharger un depuis la liste curée :
+The **Voice recognition** toggle enables dictation. If no Whisper model is present, you can download one from the curated list:
 
-| Modèle | Taille | Idéal pour |
+| Model | Size | Best for |
 |---|---|---|
-| Whisper Tiny | 75 MB | Tests rapides, machines limitées |
-| Whisper Base | 142 MB | Usage courant équilibré |
-| Whisper Large-v3 Turbo Q5 | 547 MB | **Recommandé** - haute qualité, 6× plus rapide que Large-v3 |
-| Whisper Large-v3 Q5 | 1.1 GB | Précision maximale, multi-langues |
-| Whisper Large-v3 French | 1.1 GB | Fine-tuné spécifiquement pour le français |
+| Whisper Tiny | 75 MB | Quick tests, constrained machines |
+| Whisper Base | 142 MB | Balanced everyday use |
+| Whisper Large-v3 Turbo Q5 | 547 MB | **Recommended** - high quality, 6× faster than Large-v3 |
+| Whisper Large-v3 Q5 | 1.1 GB | Maximum precision, multilingual |
+| Whisper Large-v3 French | 1.1 GB | Fine-tuned specifically for French |
 
-Vous pouvez sauter cette section et l'activer plus tard depuis **Paramètres → Reconnaissance vocale**.
+You can skip this section and enable it later from **Settings → Speech-to-Text**.
 
-#### Boutons disponibles en pied de page
+#### Buttons available in the footer
 
-- **← Retour** - revient à l'étape Profil.
-- **Configurer plus tard** - saute directement au calibrage conversationnel (uniquement si un LLM est déjà disponible).
-- **Continuer** - désactivé tant qu'aucun LLM n'est utilisable, devient actif dès qu'un backend cloud ou local est configuré.
+- **← Back** - returns to the Profile step.
+- **Configure later** - jumps straight to the conversational calibration (only if an LLM is already available).
+- **Continue** - disabled as long as no LLM is usable, becomes active as soon as a cloud or local backend is configured.
 
-### Étape 4 - Calibrage conversationnel
+### Step 4 - Conversational calibration
 
-L'agent d'onboarding s'ouvre dans la fenêtre. Il vous pose jusqu'à 4 questions, progressivement.
+The onboarding agent opens in the window. It asks you up to 4 questions, one after another.
 
-![Étape Calibrage avec 4 pips de progression en haut, l'agent onboarding pose la première question et l'utilisateur répond en présentant son rôle](/img/operator-help/installation-configurer-votre-profil-5.png)
+![Calibration step with 4 progress pips at the top, the onboarding agent asking the first question and the user answering by describing their role](/img/operator-help/installation-configurer-votre-profil-5.png)
 
-Les questions couvrent :
+The questions cover:
 
-| Information collectée | Pourquoi |
+| Information collected | Why |
 |---|---|
-| Votre nom ou alias | Les agents vous appellent par votre nom |
-| Votre rôle | Les réponses et suggestions restent dans votre domaine |
-| Niveau de supervision souhaité | Fréquence à laquelle les agents vous demandent une validation |
-| Préférence de souveraineté des données | Avec ou sans services cloud tiers |
+| Your name or alias | Agents address you by your name |
+| Your role | Answers and suggestions stay within your domain |
+| Desired supervision level | How often agents ask you to confirm |
+| Data sovereignty preference | With or without third-party cloud services |
 
-Répondez naturellement, sans formulation précise. Après la dernière question, l'agent dérive un jeu de règles de permissions à partir de vos réponses et les propose **inline dans la fenêtre d'onboarding, juste avant le bouton « Terminer »**. Chaque proposition est une mini-carte avec deux boutons :
+Answer naturally, no precise wording required. After the last question, the agent derives a set of permission rules from your answers and offers them **inline in the onboarding window, right before the "Finish" button**. Each suggestion is a small card with two buttons:
 
-- **Appliquer** - la règle est enregistrée immédiatement dans la base `governance.db` avec l'auteur `onboarding-agent`.
-- **Ignorer** - la règle est écartée, aucune permission n'est créée. Vous pourrez toujours l'ajouter plus tard depuis **Paramètres → Permissions**.
+- **Apply** - the rule is stored immediately in the `governance.db` database with author `onboarding-agent`.
+- **Dismiss** - the rule is discarded, no permission is created. You can always add it later from **Settings → Permissions**.
 
-> Le bouton **Terminer** ne s'active que lorsque toutes les cartes ont été appliquées ou ignorées - Apollia s'assure ainsi que vous avez vu chaque proposition.
+> The **Finish** button only becomes active once every card has been applied or dismissed - this is how Apollia makes sure you have seen each suggestion.
 
-Le nombre et la nature des cartes proposées dépendent de vos choix précédents :
+The number and nature of the cards offered depend on your earlier choices:
 
-| Vos choix | Règles proposées |
+| Your choices | Suggested rules |
 |---|---|
-| Souveraineté `Local strict` | `deny http_fetch https://` et `http://` (global) - bloque toute sortie réseau |
-| Souveraineté `Local préféré` | `deny http_fetch` sur `api.openai.com` et `api.anthropic.com` (global) - bloque les LLM cloud par défaut |
-| Souveraineté `Cloud autorisé` | aucune règle réseau |
-| Supervision `Critique seulement` ou `Jamais` | `allow file_read` (global) + `allow shell_exec` sur `ls`/`cat`/`grep`/`pwd`/`head`/`tail` - réduit la friction sur les actions en lecture |
-| Supervision `Toujours valider` | aucune règle d'allow - chaque action sensible déclenchera une carte d'approbation |
-| Intégrations cochées (GitHub, Slack, Notion, Gmail) | `allow http_fetch` sur l'API correspondante (global) |
+| Sovereignty `Strictly local` | `deny http_fetch https://` and `http://` (global) - blocks all network egress |
+| Sovereignty `Local preferred` | `deny http_fetch` on `api.openai.com` and `api.anthropic.com` (global) - blocks cloud LLMs by default |
+| Sovereignty `Cloud allowed` | no network rule |
+| Supervision `Critical only` or `Never` | `allow file_read` (global) + `allow shell_exec` on `ls`/`cat`/`grep`/`pwd`/`head`/`tail` - reduces friction on read actions |
+| Supervision `Always confirm` | no allow rule - every sensitive action will raise an approval card |
+| Integrations ticked (GitHub, Slack, Notion, Gmail) | `allow http_fetch` on the matching API (global) |
 
-![Cartes de règles de permissions proposées par l'agent à la fin du calibrage : deny http_fetch sur api.openai.com et api.anthropic.com, allow file_read, boutons Ignorer et Appliquer sur chaque carte](/img/operator-help/installation-configurer-votre-profil-6.png)
+![Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com and api.anthropic.com, allow file_read, Dismiss and Apply buttons on each card](/img/operator-help/installation-configurer-votre-profil-6.png)
 
-Une fois toutes les cartes traitées, la fenêtre se ferme automatiquement. Apollia est prêt.
+Once every card is handled, the window closes automatically. Apollia is ready.
 
-### Sauter le parcours
+### Skip the flow
 
-Si vous préférez configurer Apollia plus tard, cliquez sur **Configurer plus tard** (en bas de la fenêtre, disponible à toutes les étapes). Apollia s'ouvre normalement, mais sans LLM configuré le chat ne pourra pas répondre - vous devrez brancher un fournisseur depuis **Paramètres → Backends LLM** avant la première conversation.
+If you prefer to configure Apollia later, click **Configure later** (at the bottom of the window, available at every step). Apollia opens normally, but without a configured LLM the chat cannot answer - you will have to plug in a provider from **Settings → LLM Backends** before the first conversation.
 
-Pour rouvrir le parcours après coup, voir la section [Relancer le parcours](#relancer-le-parcours) ci-dessous.
+To reopen the flow afterwards, see the [Restart the flow](#restart-the-flow) section below.
 
-### Reprendre après une interruption
+### Resume after an interruption
 
-Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (par exemple en cliquant sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic), au retour Apollia reprend exactement à l'étape où vous étiez. La progression est persistée côté backend, pas en mémoire de session.
+The flow is **resumable**: if you leave the window midway (for example by clicking **Use a cloud provider** to add an Anthropic backend), Apollia picks up exactly where you left off when you come back. Progress is persisted on the backend side, not in session memory.
 
-## Relancer le parcours
+## Restart the flow
 
-Si vous avez significativement modifié votre profil (changement de rôle, de politique de souveraineté…) et souhaitez que vos règles de permissions soient recalibrées :
+If you have significantly changed your profile (new role, new sovereignty policy and so on) and want your permission rules recalibrated:
 
-1. Ouvrez **Paramètres → Zone de danger**.
-2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil - vos backends LLM, modèles téléchargés et autres données restent intacts.
-3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
-4. Le parcours en quatre étapes redémarre depuis l'Accueil.
+1. Open **Settings → Danger Zone**.
+2. Click **Reset Onboarding**. This action only clears the progress and profile markers - your LLM backends, downloaded models and other data stay intact.
+3. A confirmation window asks you to type `RESET`. Confirm.
+4. The four-step flow restarts from Welcome.
 
-Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien, basculer une intégration) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/gerer-mon-profil.md).
+For **small adjustments** (fixing your name, adding a daily tool, toggling an integration) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/gerer-mon-profil.md).
 
-:::warning Réinitialiser entièrement Apollia
-Le bouton **Réinitialisation d'usine** (zone danger, bas de page) supprime **toutes** vos données - agents, mémoire, modèles téléchargés, backends LLM, intégrations. Cette action ne peut pas être annulée. Voir [Réinitialiser Apollia](../troubleshooting/reinitialiser-apollia-factory-reset.md).
+:::warning Reset Apollia entirely
+The **Factory Reset** button (danger zone, bottom of the page) deletes **all** your data - agents, memory, downloaded models, LLM backends, integrations. This action cannot be undone. See [Reset Apollia](../troubleshooting/reinitialiser-apollia-factory-reset.md).
 :::
 
-## Vérification
+## Verification
 
-Une fois le parcours terminé, ouvrez un chat et posez une question relative à votre domaine. L'agent vous appelle par votre nom et adapte sa réponse à votre contexte. Dans **Paramètres → Permissions**, les règles proposées lors du calibrage sont visibles, et dans **Paramètres → Profil** vous retrouvez l'ensemble des informations collectées, modifiables à tout moment.
+Once the flow is finished, open a chat and ask a question about your domain. The agent addresses you by your name and adapts its answer to your context. In **Settings → Permissions**, the rules suggested during calibration are visible, and in **Settings → Profile** you find every piece of information collected, editable at any time.
 
-![Page Paramètres → Profil après onboarding, sections Identité (prénom, rôle, secteur), Objectifs, et Supervision des agents avec les niveaux HITL](/img/operator-help/installation-configurer-votre-profil-7.png)
+![Settings → Profile page after onboarding, Identity (first name, role, sector), Goals, and Agent supervision sections with the HITL levels](/img/operator-help/installation-configurer-votre-profil-7.png)
 
-## Si ça ne marche pas
+## If it does not work
 
-- **La fenêtre ne s'ouvre pas au premier lancement :** consultez les logs au démarrage. Si l'erreur évoque l'agent d'onboarding, redémarrez Apollia ; il est provisionné automatiquement à chaque lancement.
-- **Le bouton Continuer reste désactivé en étape Modèles :** vérifiez qu'au moins un backend LLM est listé. Le téléchargement d'un GGUF doit être achevé (pastille verte **Configuré**), ou un backend cloud doit être ajouté via **Utiliser un fournisseur cloud**.
-- **Le téléchargement d'un modèle bloque à 0 % :** vérifiez votre connexion internet, annulez avec le bouton **X**, puis relancez. Le débit attendu est de 5 à 50 MB/s selon votre lien.
-- **L'agent ne répond plus pendant le calibrage :** fermez la fenêtre via **Configurer plus tard** et relancez depuis **Paramètres → Zone de danger → Réinitialiser l'onboarding**.
-- **Les règles de permissions ne s'appliquent pas :** consultez [Une action a été refusée](../troubleshooting/une-action-est-refusee.md).
+- **The window does not open on first launch:** check the startup logs. If the error mentions the onboarding agent, restart Apollia; it is provisioned automatically at every launch.
+- **The Continue button stays disabled on the Models step:** check that at least one LLM backend is listed. A GGUF download must be complete (green **Configured** dot), or a cloud backend must be added through **Use a cloud provider**.
+- **A model download is stuck at 0 %:** check your internet connection, cancel with the **X** button, then start again. Expected throughput is 5 to 50 MB/s depending on your link.
+- **The agent stops answering during calibration:** close the window through **Configure later** and restart from **Settings → Danger Zone → Reset Onboarding**.
+- **The permission rules do not apply:** see [An action was denied](../troubleshooting/une-action-est-refusee.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - spec complète des 4 étapes, persistence backend, commandes IPC, événements runtime.
+> **Technical reference:** [Apollia reference](/reference) - full spec of the 4 steps, backend persistence, IPC commands, runtime events.

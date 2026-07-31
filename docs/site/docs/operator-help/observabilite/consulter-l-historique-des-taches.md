@@ -1,66 +1,66 @@
-# Consulter la chronologie d'activité
+# Read the activity timeline
 
-> Pour les operators qui veulent voir ce qui s'est passé dans l'application sur une fenêtre temporelle donnée : tâches lancées, outils appelés, approbations, appels LLM, mémoire, délégations entre agents, erreurs.
+> For operators who want to see what happened in the application over a given time window: tasks launched, tools called, approvals, LLM calls, memory, delegations between agents, errors.
 
-## Prérequis
+## Prerequisites
 
-- Au moins une tâche ou un agent s'est exécuté récemment.
+- At least one task or agent has run recently.
 
-## Où regarder selon le besoin
+## Where to look, depending on what you need
 
-| Vous cherchez… | Allez plutôt sur… |
+| You are looking for… | Go to… |
 |---|---|
-| Un **coup d'œil sur l'instant** : ce qui attend votre décision, ce qui vient d'être livré, ce qui tourne | Le **Tableau de bord**, écran d'accueil de l'application (section ci-dessous). |
-| L'historique d'**un agent précis** (statuts, durées, input/output des tâches) | **Mes assistants → Logs** - voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md). |
-| Un **événement précis** (un appel LLM, un outil exécuté, une approbation) sur une fenêtre temporelle | **Observabilité → Chronologie** (cette page). |
-| Une **invocation d'outil** avec ses entrées-sorties | **Observabilité → Piste d'audit** - voir [Consulter l'audit trail](consulter-l-audit-trail.md). |
+| A **snapshot of right now**: what is waiting for your decision, what has just been delivered, what is running | The **Dashboard**, the application home screen (section below). |
+| The history of **one specific agent** (statuses, durations, task input/output) | **My Assistants → Logs** - see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md). |
+| A **specific event** (an LLM call, a tool run, an approval) over a time window | **Observability → Timeline** (this page). |
+| A **tool invocation** with its inputs and outputs | **Observability → Audit Trail** - see [Read the audit trail](consulter-l-audit-trail.md). |
 
-## Le tableau de bord, pour l'instant présent
+## The dashboard, for the present moment
 
-C'est l'écran sur lequel s'ouvre l'application. Là où la chronologie répond à
-« que s'est-il passé », le tableau de bord répond à « où en est-on maintenant ».
+This is the screen the application opens on. Where the timeline answers
+"what happened", the dashboard answers "where do things stand now".
 
-Trois cartes côte à côte, et une bande d'activité en dessous :
+Three cards side by side, and an activity strip below:
 
-- **Décisions en attente** *(la plus large, à gauche)* : les actions qui attendent votre approbation. Compteur en en-tête, liste compacte des premiers items, et un lien *« Voir tout → »* vers la **Boîte de réception**.
-- **Livrables prêts** : les tâches récemment complétées. Un clic sur une ligne ouvre l'onglet **Tâches**.
-- **Au travail** : les agents actuellement actifs. Un clic ouvre le détail de l'agent.
+- **Decisions waiting** *(the widest one, on the left)*: the actions waiting for your approval. Counter in the header, compact list of the first items, and a *"See all →"* link to the **Inbox**.
+- **Ready deliverables**: recently completed tasks. Clicking a row opens the **Tasks** tab.
+- **At work**: the agents currently active. Clicking one opens the agent detail.
 
-![tableau de bord en mode opérateur, trois cartes en grille, Décisions en attente à gauche occupant deux colonnes](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
+![dashboard in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
 
-Sous les cartes, **Activité récente** liste les dernières tâches tous statuts confondus sous forme de mini-cartes, et mène à la page **Tâches**.
+Below the cards, **Recent activity** lists the latest tasks across all statuses as mini-cards, and leads to the **Tasks** page.
 
-Les compteurs se mettent à jour tout seuls : lancez une tâche et *« Au travail »* s'incrémente sans rafraîchissement manuel. Si tout reste vide alors qu'un agent vient de tourner, la connexion temps réel a probablement sauté ; quittez et rouvrez l'application.
+The counters update on their own: start a task and *"At work"* increments without a manual refresh. If everything stays empty although an agent has just run, the real-time connection has probably dropped; quit and reopen the application.
 
-## La chronologie, pour ce qui s'est passé
+## The timeline, for what happened
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Chronologie**.
+1. In the sidebar, click **Observability**, then the **Timeline** tab.
 
-2. En haut, **quatre KPIs** résument la fenêtre courante : Événements · Outils · Appels LLM · Erreurs (compteur en rouge si > 0). Les KPIs réagissent aux filtres : si vous masquez les outils, leur compteur reste mais le total **Événements** descend.
+2. At the top, **four KPIs** summarise the current window: Events · Tools · LLM calls · Errors (counter in red if > 0). The KPIs react to the filters: if you hide tools, their counter stays but the **Events** total goes down.
 
-3. Choisissez la **fenêtre temporelle** : **30 min / 1 h / 6 h / 24 h / 7 j**. Par défaut : 1 h. Les événements se rechargent automatiquement environ toutes les 15 secondes.
-   ![Onglet Chronologie : la bande de KPIs, la barre de filtres, puis les événements groupés par jour](/img/operator-help/observabilite-consulter-l-historique-des-taches-1.png)
+3. Choose the **time window**: **30 min / 1 h / 6 h / 24 h / 7 d**. Default: 1 h. Events reload automatically about every 15 seconds.
+   ![Timeline tab: the KPI strip, the filter bar, then the events grouped by day](/img/operator-help/observabilite-consulter-l-historique-des-taches-1.png)
 
-4. **Filtrez les événements** :
-   - **Type** - 7 chips arrondies (Tâche / Outil / LLM / Approbation / Mémoire / Délégation / Erreur). Chaque chip active/désactive sa catégorie ; les chips grisés sont désactivés.
-   - **Agent** - sélecteur déroulant pour ne voir que les événements d'un assistant précis. *Tous les agents* par défaut.
+4. **Filter the events**:
+   - **Type** - 7 rounded chips (Task / Tool / LLM / Approval / Memory / Delegation / Error). Each chip enables or disables its category; greyed-out chips are disabled.
+   - **Agent** - dropdown selector to see only the events of one specific assistant. *All agents* by default.
 
-5. Les événements sont **groupés par jour** avec un en-tête (« Aujourd'hui », « Hier » ou date complète) et un compteur à droite. Chaque ligne affiche :
-   - Une **pastille colorée** + **icône lucide** correspondant au type (ClipboardList pour Tâche, Wrench pour Outil, Bot pour LLM, Hand pour Approbation, Brain pour Mémoire, Link2 pour Délégation, AlertTriangle pour Erreur).
-   - Le **titre lisible** *« Tâche → completed »*, *« Tool: bash (2.1 s) »*, *« LLM: claude-sonnet-4 · $0.42 »*…
-   - Un **badge** de type, l'**agent**, l'**horodatage** précis (HH:MM:SS) **et** l'âge relatif (*« il y a 3 min »*).
+5. Events are **grouped by day** with a header ("Today", "Yesterday" or the full date) and a counter on the right. Each row shows:
+   - A **coloured dot** + **lucide icon** matching the type (ClipboardList for Task, Wrench for Tool, Bot for LLM, Hand for Approval, Brain for Memory, Link2 for Delegation, AlertTriangle for Error).
+   - The **readable title** *"Task → completed"*, *"Tool: bash (2.1 s)"*, *"LLM: claude-sonnet-4 · $0.42"*…
+   - A type **badge**, the **agent**, the exact **timestamp** (HH:MM:SS) **and** the relative age (*"3 min ago"*).
 
-6. Cliquez sur une ligne pour **déplier le payload brut** de l'événement (JSON formaté en monospace, incluant le champ `source` qui indique de quelle base SQLite provient l'événement). Re-cliquez pour replier.
+6. Click a row to **expand the raw payload** of the event (JSON formatted in monospace, including the `source` field that tells which SQLite database the event comes from). Click again to collapse.
 
-## Vérification
+## Verification
 
-Vous retrouvez vos exécutions récentes dans la fenêtre choisie. Élargir la fenêtre depuis `1h` à `24h` fait apparaître plus d'événements anciens sans rafraîchissement manuel.
+You find your recent runs in the chosen window. Widening the window from `1h` to `24h` brings up more older events without a manual refresh.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **La chronologie est vide** : la fenêtre par défaut (1 h) ne contient peut-être pas d'activité. Élargissez à `24 h` ou `7 j`. La chronologie scanne désormais directement chaque source SQLite par horodatage : tâches, outils (audit), appels LLM, HITL, déclenchements de triggers, ouvertures de sessions chat, raisonnements et erreurs runtime. Si elle reste vide sur `7 j`, aucune activité n'a été enregistrée dans cette fenêtre.
-- **Mes appels LLM faits depuis Chat n'apparaissent pas** : seul l'**ouverture/fermeture de la session chat** et ses **approbations d'outils** apparaissent. Les appels LLM internes au chat ne sont pas (encore) persistés dans `llm_calls.db` - limitation connue (issue tracker). Les sessions chat avec un agent qui déclenche une tâche font, eux, remonter tous les événements normalement.
-- **Un événement attendu n'apparaît pas** : vérifiez les chips de type et le sélecteur d'agent - un filtre actif peut masquer la ligne. Les chips de type fonctionnent en logique additive : si tous sont grisés, rien ne s'affiche.
-- **Je veux le détail d'une tâche complète, pas un événement granulaire** : passez par **Mes assistants → Logs** sur l'agent concerné. La chronologie est volontairement granulaire et factuelle.
+- **The timeline is empty**: the default window (1 h) may hold no activity. Widen it to `24 h` or `7 d`. The timeline now scans each SQLite source directly by timestamp: tasks, tools (audit), LLM calls, HITL, trigger firings, chat session openings, reasoning and runtime errors. If it stays empty over `7 d`, no activity was recorded in that window.
+- **My LLM calls made from Chat do not appear**: only the **opening and closing of the chat session** and its **tool approvals** appear. LLM calls internal to the chat are not (yet) persisted in `llm_calls.db` - known limitation (issue tracker). Chat sessions with an agent that starts a task do surface every event normally.
+- **An expected event does not appear**: check the type chips and the agent selector - an active filter can hide the row. The type chips work additively: if all of them are greyed out, nothing shows.
+- **I want the detail of a whole task, not a granular event**: go through **My Assistants → Logs** on the agent concerned. The timeline is deliberately granular and factual.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md)
+> **Concept:** [Apollia explanation](/explanation)

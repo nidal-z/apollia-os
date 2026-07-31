@@ -1,115 +1,115 @@
-# Gérer les tokens OAuth
+# Manage OAuth tokens
 
-> Pour tout operator qui veut savoir où Apollia stocke ses tokens OAuth, comment les inspecter, les révoquer, et comprendre le refresh automatique.
+> For any operator who wants to know where Apollia stores its OAuth tokens, how to inspect them, revoke them, and understand automatic refresh.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un compte connecté (Google, Microsoft ou serveur MCP OAuth).
-- Accès à l'outil de trousseau de votre système (Keychain Access, Gestionnaire d'identifiants, `secret-tool`).
+- At least one connected account (Google, Microsoft or an OAuth MCP server).
+- Access to your system's keyring tool (Keychain Access, Credential Manager, `secret-tool`).
 
-## Où sont stockés mes tokens
+## Where my tokens are stored
 
-Apollia stocke tous les tokens OAuth dans le trousseau de votre système.
+Apollia stores every OAuth token in your system keyring.
 
-| Système | Backend | Comment inspecter |
+| System | Backend | How to inspect |
 |---|---|---|
-| macOS | Keychain Services | Application **Trousseau d'accès**, recherche `apollia-connector-` |
-| Windows | Credential Manager | **Gestionnaire d'identifiants Windows**, **Identifiants génériques** |
-| Linux | Secret Service (gnome-keyring ou KWallet via D-Bus) | `secret-tool search service apollia-connector-google` |
+| macOS | Keychain Services | **Keychain Access** application, search `apollia-connector-` |
+| Windows | Credential Manager | **Windows Credential Manager**, **Generic Credentials** |
+| Linux | Secret Service (gnome-keyring or KWallet via D-Bus) | `secret-tool search service apollia-connector-google` |
 
-Convention de nommage :
+Naming convention:
 
-- Service : `apollia-connector-<provider>` (par exemple `apollia-connector-google`, `apollia-connector-microsoft`).
-- User : l'identifiant du compte, typiquement l'adresse email.
-- Pour les serveurs MCP OAuth, service `apollia.mcp.<server-id>`.
+- Service: `apollia-connector-<provider>` (for example `apollia-connector-google`, `apollia-connector-microsoft`).
+- User: the account identifier, typically the email address.
+- For OAuth MCP servers, service `apollia.mcp.<server-id>`.
 
-Un index `~/.apollia/connectors-index.json` énumère les comptes connectés par provider (la plupart des trousseaux ne supportent pas l'énumération native).
+An index at `~/.apollia/connectors-index.json` lists the connected accounts per provider (most keyrings do not support native enumeration).
 
-## Inspecter un token
+## Inspect a token
 
-1. Ouvrir l'outil trousseau du système.
-2. Chercher `apollia-connector-`.
-3. Double-cliquer sur l'entrée du compte concerné.
-4. Le contenu est un JSON sérialisé avec `access_token`, `refresh_token`, `expires_at`, `scopes`.
+1. Open your system's keyring tool.
+2. Search for `apollia-connector-`.
+3. Double-click the entry of the account concerned.
+4. The content is a serialized JSON with `access_token`, `refresh_token`, `expires_at`, `scopes`.
 
-## Révoquer un compte
+## Revoke an account
 
-**Côté Apollia (trousseau local)** :
+**On the Apollia side (local keyring)**:
 
-1. Ouvrir **Connexions**.
-2. Sélectionner le compte.
-3. Cliquer **Déconnecter**. Le token est supprimé immédiatement du trousseau et de l'index.
+1. Open **Connections**.
+2. Select the account.
+3. Click **Disconnect**. The token is removed immediately from the keyring and from the index.
 
-Le token reste valide côté Google ou Microsoft jusqu'à son expiration naturelle (typiquement une heure pour l'access token).
+The token stays valid on the Google or Microsoft side until its natural expiry (typically one hour for the access token).
 
-**Côté provider (révocation complète)** :
+**On the provider side (full revocation)**:
 
-- Google : https://myaccount.google.com/permissions, cliquer sur Apollia, **Supprimer l'accès**.
-- Microsoft : https://myaccount.microsoft.com/consent, trouver Apollia, **Supprimer l'autorisation**.
+- Google: https://myaccount.google.com/permissions, click Apollia, **Remove access**.
+- Microsoft: https://myaccount.microsoft.com/consent, find Apollia, **Remove permission**.
 
-Cette opération invalide aussi le refresh token. Recommandé pour une révocation propre.
+This operation also invalidates the refresh token. Recommended for a clean revocation.
 
-## Multi-comptes
+## Multi-account
 
-Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. Quand un agent appelle un outil natif (`gmail.send`, `outlook.search`, etc.), il peut passer un paramètre `account` pour choisir le compte. Sans paramètre, le compte primaire (premier connecté) est utilisé.
+Each account lives in its own keyring entry with the email as user. When an agent calls a native tool (`gmail.send`, `outlook.search`, etc.), it can pass an `account` parameter to pick the account. Without that parameter, the primary account (the first one connected) is used.
 
-## Refresh automatique
+## Automatic refresh
 
-Apollia rafraîchit les tokens proactivement :
+Apollia refreshes tokens proactively:
 
-- Le refresh est déclenché 5 minutes avant l'expiration de l'access token.
-- Une protection **singleflight** : si plusieurs appels concurrents déclenchent un refresh sur le même compte, une seule requête HTTP est envoyée vers le provider. Sans cette protection, un burst d'appels d'agent ferait N requêtes parallèles et déclencherait un rate-limit cascade.
+- The refresh is triggered 5 minutes before the access token expires.
+- A **singleflight** protection: if several concurrent calls trigger a refresh on the same account, a single HTTP request is sent to the provider. Without this protection, a burst of agent calls would fire N parallel requests and trigger a rate-limit cascade.
 
-## Changer les scopes d'un compte
+## Change the scopes of an account
 
-La v0.1.0 ne supporte pas le step-up auth automatique (demander seulement les nouveaux scopes). Procédure :
+v0.1.0 does not support automatic step-up auth (requesting only the new scopes). Procedure:
 
-1. Déconnecter le compte dans **Connexions**.
-2. Reconnecter en ajustant les cases à cocher avant de cliquer **Connecter**.
+1. Disconnect the account in **Connections**.
+2. Reconnect, adjusting the checkboxes before clicking **Connect**.
 
-## Vérification
+## Verification
 
-- Sur la carte du connecteur, le compte n'apparaît plus après déconnexion.
-- L'outil trousseau du système ne montre plus d'entrée correspondante.
-- Un appel d'outil natif sur le compte révoqué retourne `NotConnected`.
+- On the connector card, the account no longer appears after disconnection.
+- The system keyring tool no longer shows a matching entry.
+- A native tool call on the revoked account returns `NotConnected`.
 
 <details>
-<summary>Configuration avancée</summary>
+<summary>Advanced configuration</summary>
 
-### Mode fichier chiffré, Linux headless
+### Encrypted file mode, headless Linux
 
-Sur un Linux sans environnement graphique (container Docker, VM minimale, distribution serveur), le trousseau Secret Service n'est pas disponible. Apollia propose un stockage de secours sur fichier chiffré.
+On a Linux box without a graphical environment (Docker container, minimal VM, server distribution), the Secret Service keyring is not available. Apollia offers a fallback storage on an encrypted file.
 
-Variables d'environnement :
+Environment variables:
 
 ```bash
 APOLLIA_TOKEN_STORAGE=file \
-APOLLIA_TOKEN_PASSPHRASE="votre-phrase-secrète" \
+APOLLIA_TOKEN_PASSPHRASE="your-secret-passphrase" \
 apollia-os start
 ```
 
-Les tokens sont stockés dans `~/.apollia/secrets/` chiffrés avec age (scrypt + ChaCha20-Poly1305). La passphrase est gardée en mémoire pour la session.
+Tokens are stored in `~/.apollia/secrets/` encrypted with age (scrypt + ChaCha20-Poly1305). The passphrase is kept in memory for the session.
 
-**Attention** : passphrase perdue = tokens perdus définitivement, il faut reconnecter chaque compte.
+**Warning**: a lost passphrase means permanently lost tokens, and every account has to be reconnected.
 
-### Audit des actions
+### Action audit
 
-Toutes les exécutions d'outils sont loggées dans `governance.db` (table `tool_executions`) avec horodatage, agent, outil, hash du compte, statut d'approbation, latence. Consultable via **Paramètres, Historique des actions**.
+Every tool execution is logged in `governance.db` (table `tool_executions`) with timestamp, agent, tool, account hash, approval status, latency. Viewable through **Settings, Action history**.
 
-Les approbations MCP (acceptations HITL durables) sont stockées séparément dans `~/.apollia/mcp-approvals.db`.
+MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mcp-approvals.db`.
 
-### Erreurs courantes mode fichier
+### Common errors in file mode
 
-- **`keyring: no entry`** : le daemon Secret Service n'est pas disponible. Bascule sur le mode fichier ci-dessus.
-- **`NoRefreshToken`** au refresh : le compte a été connecté sans `offline_access` (Microsoft) ou sans `access_type=offline` (Google). Reconnectez.
-- **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
+- **`keyring: no entry`**: the Secret Service daemon is not available. Switch to the file mode above.
+- **`NoRefreshToken`** on refresh: the account was connected without `offline_access` (Microsoft) or without `access_type=offline` (Google). Reconnect it.
+- **Refresh looping on 401**: the refresh token was revoked on the provider side. Disconnect then reconnect.
 
 </details>
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Linux, "keyring: no entry"** : voir la section Configuration avancée pour le mode fichier chiffré.
-- **`NoRefreshToken`** : reconnectez le compte, le scope `offline_access` a été oublié.
-- **Refresh boucle 401** : déconnectez puis reconnectez le compte, le refresh token a été révoqué côté provider.
+- **Linux, "keyring: no entry"**: see the Advanced configuration section for the encrypted file mode.
+- **`NoRefreshToken`**: reconnect the account, the `offline_access` scope was forgotten.
+- **Refresh looping on 401**: disconnect then reconnect the account, the refresh token was revoked on the provider side.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , stockage trousseau, refresh proactif, audit governance.db.
+> **Technical reference:** [Apollia reference](/reference) , keyring storage, proactive refresh, governance.db audit.

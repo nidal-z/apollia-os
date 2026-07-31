@@ -1,69 +1,69 @@
-# Connecter un serveur MCP depuis le catalogue
+# Connect an MCP server from the catalogue
 
-> Pour tout operator qui veut activer un serveur MCP du catalogue (Notion, GitHub, Linear, Atlassian, Stripe, Time, etc.) en quelques clics.
+> For any operator who wants to enable an MCP server from the catalogue (Notion, GitHub, Linear, Atlassian, Stripe, Time, etc.) in a few clicks.
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé, page **Connexions** accessible.
-- Vous savez quel service vous voulez brancher. Le catalogue v0.1.0 propose 18 entrées soigneusement sélectionnées (voir la liste complète dans [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md)).
-- Pour les services authentifiés, vos identifiants (clé API ou compte OAuth chez le fournisseur).
+- Apollia running, the **Connections** page reachable.
+- You know which service you want to plug in. The v0.1.0 catalogue offers 18 carefully selected entries (see the full list in [Integrations overview](vue-d-ensemble-integrations.md)).
+- For authenticated services, your credentials (API key or OAuth account with the provider).
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, ouvrez **Connexions**, puis cliquez sur **+ Découvrir** en haut. Le catalogue s'ouvre en panneau dédié.
+1. In the sidebar, open **Connections**, then click **+ Discover** at the top. The catalogue opens in a dedicated panel.
 
-   ![Page Connexions : le catalogue ouvert sur l'onglet Découvrir, avec sa grille d'entrées](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
+   ![Connections page: the catalogue open on the Discover tab, with its grid of entries](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
 
-2. Filtrez ou cherchez l'entrée souhaitée, puis cliquez dessus. L'assistant en 4 étapes démarre.
+2. Filter or search for the entry you want, then click it. The 4-step wizard starts.
 
-### Étape 1, Disclaimer
+### Step 1, Disclaimer
 
-Quatre cases à cocher rappellent les implications d'installer un MCP externe (du code tiers s'exécute sur votre machine, des données peuvent être transférées, vous pouvez révoquer à tout moment, les capabilities sont visibles avant install). Cochez les quatre, puis cliquez **Suivant**.
+Four checkboxes recall the implications of installing an external MCP (third-party code runs on your machine, data may be transferred, you can revoke at any time, capabilities are visible before install). Tick all four, then click **Next**.
 
-*Figure : l'étape 1 de l'assistant, avec les 4 cases à cocher et leurs libellés, et le bouton Suivant grisé tant que tout n'est pas coché.*
+*Figure: step 1 of the wizard, with the 4 checkboxes and their labels, and the Next button greyed out until everything is ticked.*
 
-### Étape 2, Authentification
+### Step 2, Authentication
 
-Apollia détecte automatiquement le type d'authentification requis par le serveur. Trois cas possibles :
+Apollia automatically detects the authentication type required by the server. Three possible cases:
 
-- **Aucune authentification** : message *"Pas d'authentification nécessaire"*. Cliquez **Suivant**.
-- **Clé API ou jeton statique** : un champ mot de passe apparaît. Collez votre clé.
-- **OAuth** : un bouton *"Se connecter avec [Provider]"* apparaît avec la liste des scopes demandés. Cliquez, votre navigateur ouvre la page de consentement, autorisez, le retour est automatique.
+- **No authentication**: message *"No authentication required"*. Click **Next**.
+- **API key or static token**: a password field appears. Paste your key.
+- **OAuth**: a *"Sign in to [Provider]"* button appears with the list of requested scopes. Click it, your browser opens the consent page, authorize, the return is automatic.
 
-*Figure : l'étape 2 de l'assistant dans le cas OAuth, avec le bouton Se connecter avec [Provider] et la liste des scopes demandés en dessous.*
+*Figure: step 2 of the wizard in the OAuth case, with the Sign in to [Provider] button and the list of requested scopes below it.*
 
-### Étape 3, Test
+### Step 3, Test
 
-Cliquez sur **Tester la connexion**. Pendant le test, l'icône pulse. À la fin, un badge affiche le résultat :
+Click **Test connection**. During the test, the icon pulses. At the end, a badge shows the result:
 
-- **Vert** : *"X outils détectés"*. Le serveur répond.
-- **Rouge** : message d'erreur précis (clé invalide, URL injoignable, etc.).
+- **Green**: *"X tools discovered"*. The server responds.
+- **Red**: a precise error message (invalid key, unreachable URL, etc.).
 
-Si le test échoue, revenez à l'étape 2 pour corriger.
+If the test fails, go back to step 2 to correct it.
 
-*Figure : l'étape 3 de l'assistant, avec le bouton Tester la connexion et un badge vert indiquant 12 outils détectés.*
+*Figure: step 3 of the wizard, with the Test connection button and a green badge showing 12 tools discovered.*
 
-### Étape 4, Coaching
+### Step 4, Coaching
 
-Apollia affiche quelques cartes d'exemples avec un bouton *"Essayer ce prompt"* qui pré-remplit la zone de chat. Cliquez **Terminer** pour clôturer l'assistant.
+Apollia shows a few example cards with a *"Try"* button that pre-fills the chat box. Click **Finish** to close the wizard.
 
-*Figure : l'étape 4 de l'assistant, avec 3 cartes d'exemples portant chacune un bouton Essayer ce prompt, et le bouton Terminer.*
+*Figure: step 4 of the wizard, with 3 example cards each carrying a Try button, and the Finish button.*
 
-## Vérification
+## Verification
 
-- Le serveur apparaît dans la sidebar **Connexions** avec une pastille verte.
-- Le panneau de détail affiche les outils déclarés par le serveur, avec leur description.
-- Dans le chat libre, lancez un prompt suggéré par l'étape Coaching. L'outil correspondant est appelé.
+- The server appears in the **Connections** sidebar with a green dot.
+- The detail panel shows the tools declared by the server, with their description.
+- In free chat, run a prompt suggested by the Coaching step. The matching tool is called.
 
-> **Note - chargement différé :** par défaut, `[mcp] tool_loading = "deferred"`. Les outils du serveur ne sont pas tous chargés en contexte au démarrage : l'agent invoque `tool_search` à la demande pour récupérer l'outil pertinent. Le nombre d'outils affiché dans l'UI reste complet. Ce comportement est intentionnel et permet de gérer des serveurs avec de nombreux outils sans saturer le contexte.
+> **Note - deferred loading:** by default, `[mcp] tool_loading = "deferred"`. The server's tools are not all loaded into context at startup: the agent invokes `tool_search` on demand to fetch the relevant tool. The tool count shown in the UI stays complete. This behaviour is intentional and makes it possible to handle servers with many tools without saturating the context.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le test échoue avec "Authentification refusée"** : votre clé ou token est invalide ou révoqué. Revenez à l'étape 2 et recollez la valeur sans espaces parasites.
-- **Le test échoue avec "Service introuvable"** : le serveur n'est pas joignable. Vérifiez votre connexion ou le statut du fournisseur.
-- **Le serveur installé n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](tester-une-connexion-mcp.md) pour relancer le test, puis vérifier les logs côté fournisseur.
-- **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-- **L'agent dit qu'il n'a pas accès à l'outil en mode deferred** : en mode `deferred`, l'agent doit appeler `tool_search` pour charger l'outil à la demande. Si l'agent ne le fait pas, vérifiez que son manifest liste bien ce serveur MCP parmi ses connexions autorisées. Sinon, mettez le manifest à jour.
-- **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
+- **The test fails with "Authentication refused"**: your key or token is invalid or revoked. Go back to step 2 and paste the value again without stray spaces.
+- **The test fails with "Service not found"**: the server is not reachable. Check your connection or the provider's status.
+- **The installed server exposes no tool**: the server starts but declares nothing. See [Test an MCP connection](tester-une-connexion-mcp.md) to run the test again, then check the logs on the provider side.
+- **You want to plug in a server that is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
+- **The agent says it has no access to the tool in deferred mode**: in `deferred` mode, the agent has to call `tool_search` to load the tool on demand. If the agent does not do it, check that its manifest does list this MCP server among its allowed connections. Otherwise, update the manifest.
+- **The agent says it has no access to the tool**: open the agent's page, the Tools tab lists what its manifest declares. If the tool is not there, the agent is what needs updating. See [Understand the scope of an integration](comprendre-la-portee-d-une-integration.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , protocole MCP, transports, trust levels, gouvernance.
+> **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.

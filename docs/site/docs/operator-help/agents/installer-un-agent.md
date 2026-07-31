@@ -1,83 +1,83 @@
-# Installer un agent
+# Install an agent
 
-> Pour tout operator qui veut ajouter un agent à Apollia : à partir d'un fichier ou d'un dossier que vous avez reçu (par e-mail, via une prestation, depuis un dépôt Git…), l'enregistrer dans l'application en quelques clics.
+> For any operator who wants to add an agent to Apollia: starting from a file or a folder you received (by email, through a service engagement, from a Git repository…), register it in the application in a few clicks.
 
-## Prérequis
+## Prerequisites
 
-- Un fournisseur d'IA est connecté (pastille verte dans le bandeau supérieur).
-- Vous avez reçu **l'un des deux livrables suivants**, déjà présent sur votre disque :
-  - **Un fichier Python seul** (par exemple `mon-agent.py`) - un agent simple qui fait une seule chose.
-  - **Un dossier complet** (par exemple `mon-package/`) - un ensemble qui peut contenir plusieurs agents et leur planification.
+- An AI provider is connected (green dot in the top bar).
+- You received **one of the two following deliverables**, already present on your disk:
+  - **A single Python file** (for example `mon-agent.py`) - a simple agent that does one thing.
+  - **A complete folder** (for example `mon-package/`) - a set that can contain several agents and their scheduling.
 
-> Apollia n'a pas (encore) de catalogue en ligne ni d'installation depuis le web : tout part d'un fichier local. La page **Connexions** sert uniquement aux serveurs MCP, pas aux agents.
+> Apollia has no online catalog and no install-from-the-web (yet): everything starts from a local file. The **Connections** page is only for MCP servers, not for agents.
 
-## Fichier seul ou dossier : comment savoir ?
+## Single file or folder: how do you tell?
 
-Si la personne qui vous a livré l'agent vous a remis **un seul fichier `.py`**, c'est un agent simple - utilisez le parcours **Nouvel assistant**.
+If the person who delivered the agent gave you **a single `.py` file**, it is a simple agent - use the **New assistant** path.
 
-Si elle vous a remis **un dossier**, ouvrez-le : s'il contient un fichier nommé `agent.toml` à sa racine, c'est un **package**. Un package permet de regrouper plusieurs agents qui travaillent ensemble (un agent principal et ses assistants) et de programmer leur déclenchement automatique (chaque matin à 7h, à chaque nouveau fichier déposé, etc.). Utilisez alors le parcours **Installer un package**.
+If they gave you **a folder**, open it: if it contains a file named `agent.toml` at its root, it is a **package**. A package makes it possible to group several agents that work together (a main agent and its assistants) and to schedule their automatic triggering (every morning at 7am, on every new file dropped, and so on). In that case use the **Install a package** path.
 
-En cas de doute, demandez à la personne qui vous a livré l'agent.
+If in doubt, ask the person who delivered the agent.
 
-## Étapes - Installer un fichier Python seul
+## Steps - Install a single Python file
 
-1. Dans la sidebar, ouvrez **Mes assistants**. La page liste vos assistants existants, et le bouton **Nouvel assistant** est en haut à droite.
+1. In the sidebar, open **My Assistants**. The page lists your existing assistants, and the **New assistant** button is at the top right.
 
-   ![Page Mes assistants : liste à gauche, détail de l'agent sélectionné à droite, bouton "Nouvel assistant" en haut à droite](/img/operator-help/agents-installer-un-agent-1.png)
+   ![My Assistants page: list on the left, detail of the selected agent on the right, "New assistant" button at the top right](/img/operator-help/agents-installer-un-agent-1.png)
 
-2. En haut à droite, cliquez sur **Nouvel assistant**. Un sélecteur de fichier s'ouvre, filtré sur les fichiers `.py`.
+2. At the top right, click **New assistant**. A file picker opens, filtered on `.py` files.
 
-3. Choisissez le fichier qu'on vous a livré et validez. Apollia le copie dans son dossier d'installation et enregistre l'agent.
+3. Choose the file you were delivered and confirm. Apollia copies it into its installation folder and registers the agent.
 
-4. Le nouvel agent apparaît dans la colonne de gauche, sous **Mes assistants**, avec une pastille grise (statut **arrêté**). Vous pouvez maintenant le démarrer.
+4. The new agent appears in the left column, under **My assistants**, with a grey dot (**stopped** status). You can now start it.
 
-## Étapes - Installer un package (dossier)
+## Steps - Install a package (folder)
 
-1. Dans la sidebar, ouvrez **Mes assistants**.
+1. In the sidebar, open **My Assistants**.
 
-2. En haut à droite, cliquez sur **Installer un package**. Une fenêtre **Installer un package d'agents** s'ouvre.
+2. At the top right, click **Install a package**. An **Install an agent package** window opens.
 
-3. Cliquez sur **Choisir un dossier** et sélectionnez le dossier qu'on vous a livré. Apollia lit son descripteur - si quelque chose cloche (dossier sans `agent.toml`, manifeste invalide), un message d'erreur vous l'indique précisément.
+3. Click **Choose a folder** and select the folder you were delivered. Apollia reads its descriptor - if something is off (folder without `agent.toml`, invalid manifest), an error message tells you precisely what.
 
-4. **Aperçu du package.** Apollia affiche un résumé : nom, version, auteur, la liste des agents du package, leurs déclencheurs (s'il y en a) et le nombre de dépendances. Prenez le temps de vérifier que ça correspond bien à ce que vous attendez.
+4. **Package preview.** Apollia shows a summary: name, version, author, the list of the agents in the package, their triggers (if any) and the number of dependencies. Take the time to check that it matches what you expect.
 
-   Certains packages déclarent des vérifications : aux paliers `supervised` et supérieurs, le runtime contrôle automatiquement que l'agent a produit le résultat attendu. C'est prévu par l'auteur du package, vous n'avez rien à configurer.
+   Some packages declare verifications: at the `supervised` level and above, the runtime automatically checks that the agent produced the expected result. This is planned by the package author, you have nothing to configure.
 
-   ![Dialogue d'installation, étape preview : sections Agents et Triggers, badge vert Valide](/img/operator-help/agents-installer-un-agent-2.png)
+   ![Installation dialog, preview step: Agents and Triggers sections, green Valid badge](/img/operator-help/agents-installer-un-agent-2.png)
 
-   Si le package déclare un déclencheur **webhook**, une ligne supplémentaire le signale avec un badge orange « config » et le bouton du bas devient **Configurer →**.
+   If the package declares a **webhook** trigger, an extra row flags it with an orange "config" badge and the bottom button becomes **Configure →**.
 
-   ![Aperçu avec un trigger webhook nécessitant une configuration, bouton Configurer →](/img/operator-help/agents-installer-un-agent-2bis.png)
+   ![Preview with a webhook trigger requiring configuration, Configure → button](/img/operator-help/agents-installer-un-agent-2bis.png)
 
-5. Cliquez sur **Installer**. Si le package contient des déclencheurs **webhook** à paramétrer, le bouton affiche **Configurer →** à la place, voir l'étape suivante.
+5. Click **Install**. If the package contains **webhook** triggers to set up, the button shows **Configure →** instead, see the next step.
 
-6. **(Optionnel) Configuration des webhooks.** Si on vous le demande, chaque webhook nécessite un **secret** (au moins 32 caractères) qui sécurise les appels entrants. Trois cas :
-   - Si la personne qui a préparé le package vous a fourni un secret, copiez-le dans le champ.
-   - Sinon, générez-en un long et imprévisible (n'importe quel mot de passe robuste fait l'affaire) et conservez-le précieusement, vous en aurez besoin pour configurer le service qui appellera le webhook.
-   - L'URL affichée au-dessus du champ est l'adresse à laquelle ce webhook répondra : copiez-la avec le bouton dédié.
+6. **(Optional) Webhook configuration.** If you are asked for it, each webhook requires a **secret** (at least 32 characters) that secures the incoming calls. Three cases:
+   - If the person who prepared the package gave you a secret, copy it into the field.
+   - Otherwise, generate a long and unpredictable one (any robust password will do) and keep it safe, you will need it to configure the service that will call the webhook.
+   - The URL shown above the field is the address this webhook will answer on: copy it with the dedicated button.
 
-   ![Dialogue d'installation, étape configure : carte d'un trigger webhook avec endpoint URL et champ secret HMAC-SHA256](/img/operator-help/agents-installer-un-agent-3.png)
+   ![Installation dialog, configure step: webhook trigger card with endpoint URL and HMAC-SHA256 secret field](/img/operator-help/agents-installer-un-agent-3.png)
 
-7. Cliquez sur **Installer**. Apollia copie le package, enregistre les agents et active leurs déclencheurs. Un écran final confirme l'installation avec le nombre d'agents et de déclencheurs créés.
+7. Click **Install**. Apollia copies the package, registers the agents and activates their triggers. A final screen confirms the installation with the number of agents and triggers created.
 
-   ![Écran de confirmation Package installé ! avec compteur agents et triggers, bouton Fermer](/img/operator-help/agents-installer-un-agent-4.png)
+   ![Package installed! confirmation screen with agents and triggers counters, Close button](/img/operator-help/agents-installer-un-agent-4.png)
 
-8. Fermez le dialogue. Le package apparaît dans la colonne de gauche, sous **Mes packages**. Les agents qu'il contient sont aussi listés sous **Mes assistants** (sauf ceux qui sont uniquement appelés en interne par d'autres agents).
+8. Close the dialog. The package appears in the left column, under **My packages**. The agents it contains are also listed under **My assistants** (except those that are only called internally by other agents).
 
-## Vérification
+## Verification
 
-- Un fichier seul → l'agent apparaît sous **Mes assistants** avec une pastille grise.
-- Un package → la carte du package apparaît sous **Mes packages** avec un compteur du type `0/2 agents · 0/1 triggers`. Cliquez dessus pour voir le détail.
-- Le bouton **Démarrer** (icône lecture) à droite de la ligne est actif.
+- A single file → the agent appears under **My assistants** with a grey dot.
+- A package → the package card appears under **My packages** with a counter such as `0/2 agents · 0/1 triggers`. Click it to see the detail.
+- The **Start** button (play icon) at the right of the row is enabled.
 
-Pour la suite, voir [Démarrer un agent](demarrer-un-agent.md).
+For the next step, see [Start an agent](demarrer-un-agent.md).
 
-## Si ça ne marche pas
+## If it does not work
 
-- **« Le dossier doit contenir un fichier `agent.toml` »** : vous avez sans doute sélectionné un dossier parent. Ouvrez le dossier livré et cherchez à quel niveau se trouve `agent.toml` - c'est ce niveau-là qu'il faut sélectionner.
-- **Badge rouge « Invalide » dans l'aperçu** : le descripteur du package contient une erreur. Le message rouge sous le badge précise laquelle. Renvoyez-le à la personne qui a préparé le package, c'est à elle de le corriger.
-- **« Le secret doit faire au moins 32 caractères »** : votre secret est trop court. Tapez (ou collez) une chaîne plus longue.
-- **L'agent installé n'apparaît pas** : l'enregistrement a échoué silencieusement. Ouvrez les logs depuis la carte pour lire l'erreur précise.
-- **Avertissements « trigger » sur l'écran final** : l'agent est installé, mais certains de ses déclencheurs n'ont pas pu être activés. Notez le détail affiché et signalez-le à la personne qui a préparé le package.
+- **"The folder must contain an `agent.toml` file"**: you probably selected a parent folder. Open the folder you were delivered and look for the level where `agent.toml` sits - that is the level to select.
+- **Red "Invalid" badge in the preview**: the package descriptor contains an error. The red message under the badge says which one. Send it back to the person who prepared the package, it is their job to fix it.
+- **"The secret must be at least 32 characters"**: your secret is too short. Type (or paste) a longer string.
+- **The installed agent does not appear**: registration failed silently. Open the logs from the card to read the precise error.
+- **"trigger" warnings on the final screen**: the agent is installed, but some of its triggers could not be activated. Note the detail shown and report it to the person who prepared the package.
 
-> **Pour les profils techniques :** [Référence Apollia](../../reference/index.md) (format `agent.toml`, outils natifs activables, structure d'un package).
+> **For technical profiles:** [Apollia reference](/reference) (`agent.toml` format, native tools that can be enabled, structure of a package).

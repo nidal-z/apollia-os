@@ -1,16 +1,16 @@
-# Mesurer les performances d'un agent avec apollia-os eval
+# Measure an agent's performance with apollia-os eval
 
-> Pour tout operator qui veut quantifier la fiabilité d'un agent sur un ensemble de tâches reproductibles avant de l'utiliser en production.
+> For any operator who wants to quantify the reliability of an agent on a set of reproducible tasks before using it in production.
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé, daemon actif.
-- L'agent à évaluer installé et démarrable.
-- Un fichier `suite.toml` à créer (voir ci-dessous).
+- Apollia running, daemon active.
+- The agent to evaluate installed and startable.
+- A `suite.toml` file to create (see below).
 
-## Créer une suite d'évaluation
+## Create an evaluation suite
 
-Créez un fichier `suite.toml` dans le répertoire de votre choix. Structure minimale :
+Create a `suite.toml` file in the directory of your choice. Minimal structure:
 
 ```toml
 name = "ma-suite-validation"
@@ -39,56 +39,56 @@ runs      = 3
   pass_if = "OUI"
 ```
 
-Détail des champs :
+Field by field:
 
-- `name` : identifiant lisible de la suite, apparaît dans le rapport.
-- `tasks[].id` : identifiant de la tâche, unique dans la suite.
-- `tasks[].prompt` : texte de la tâche envoyée à l'agent.
-- `tasks[].runs` : nombre d'exécutions indépendantes par tâche (défaut : `3`). Utilisez au moins 3 pour détecter les réponses non déterministes.
-- `tasks[].assertions` : liste de vérifications appliquées à chaque exécution.
+- `name`: readable identifier of the suite, appears in the report.
+- `tasks[].id`: identifier of the task, unique within the suite.
+- `tasks[].prompt`: text of the task sent to the agent.
+- `tasks[].runs`: number of independent runs per task (default: `3`). Use at least 3 to detect non-deterministic answers.
+- `tasks[].assertions`: list of checks applied to each run.
 
-Les quatre types d'assertions :
+The four assertion types:
 
-| Type | Ce qu'il vérifie |
+| Type | What it checks |
 |---|---|
-| `exit_code` | Le code de sortie de l'exécution (0 = succès). |
-| `file_exists` | Un fichier produit par l'agent existe au chemin indiqué. |
-| `regex` | Une expression régulière correspond dans `stdout` ou dans un fichier. |
-| `llm_judge` | Un second LLM évalue la sortie à partir d'un prompt et d'une valeur attendue. |
+| `exit_code` | The exit code of the run (0 = success). |
+| `file_exists` | A file produced by the agent exists at the given path. |
+| `regex` | A regular expression matches in `stdout` or in a file. |
+| `llm_judge` | A second LLM evaluates the output from a prompt and an expected value. |
 
-## Étapes - Lancer l'évaluation
+## Steps - Run the evaluation
 
 ```
 apollia-os eval run ma-suite.toml
 ```
 
-La commande affiche un tableau de résultats en temps réel pendant l'exécution. À la fin, elle écrit un fichier `.results.jsonl` dans le même répertoire que la suite.
+The command shows a table of results in real time during the run. At the end, it writes a `.results.jsonl` file in the same directory as the suite.
 
-Pour obtenir une sortie JSON machine (intégration CI, scripting) :
+To get machine-readable JSON output (CI integration, scripting):
 
 ```
 apollia-os eval run ma-suite.toml --json
 ```
 
-## Étapes - Lire le rapport
+## Steps - Read the report
 
 ```
 apollia-os eval report ma-suite.results.jsonl
 ```
 
-Affiche un résumé par tâche : taux de réussite, temps médian, assertions échouées. Utilisez `--json` pour obtenir le rapport en JSON.
+Shows a summary per task: success rate, median time, failed assertions. Use `--json` to get the report in JSON.
 
-## Vérification
+## Verification
 
-- Le fichier `ma-suite.results.jsonl` est créé dans le même répertoire que `suite.toml`.
-- La commande `apollia-os eval run` se termine avec le code de sortie `0` si toutes les assertions passent sur toutes les exécutions.
-- La commande `apollia-os eval report` affiche le taux de réussite global.
+- The `ma-suite.results.jsonl` file is created in the same directory as `suite.toml`.
+- The `apollia-os eval run` command exits with exit code `0` if all assertions pass on all runs.
+- The `apollia-os eval report` command shows the overall success rate.
 
-## Si ca ne marche pas
+## If it does not work
 
-- **"runtime non joignable" au lancement :** le daemon Apollia n'est pas démarré. Lancez `apollia-os start` puis relancez l'évaluation.
-- **"suite invalide" :** vérifiez la syntaxe TOML de votre fichier (parenthèses, guillemets, nom de clé) et assurez-vous que le champ `type` de chaque assertion est l'une des quatre valeurs reconnues.
-- **Les assertions `llm_judge` échouent systématiquement :** vérifiez que le backend LLM par défaut est configuré et joignable. Le juge LLM utilise le même backend que l'agent évalué.
-- **Le fichier `.results.jsonl` n'est pas créé :** l'évaluation a échoué avant de produire des résultats. Relancez avec `--json` pour voir l'erreur brute.
+- **"runtime unreachable" at launch:** the Apollia daemon is not started. Run `apollia-os start` then launch the evaluation again.
+- **"invalid suite":** check the TOML syntax of your file (brackets, quotes, key names) and make sure that the `type` field of each assertion is one of the four recognized values.
+- **The `llm_judge` assertions always fail:** check that the default LLM backend is configured and reachable. The LLM judge uses the same backend as the evaluated agent.
+- **The `.results.jsonl` file is not created:** the evaluation failed before producing any results. Run it again with `--json` to see the raw error.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - commandes `eval run` et `eval report`, format `.results.jsonl`, intégration CI.
+> **Technical reference:** [Apollia reference](/reference) - `eval run` and `eval report` commands, `.results.jsonl` format, CI integration.

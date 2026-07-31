@@ -1,97 +1,97 @@
-# Programmer un trigger
+# Schedule a trigger
 
-> Pour les operators qui veulent qu'une tâche IA s'exécute toute seule, à heure fixe ou sur événement, sans intervention manuelle.
+> For operators who want an AI task to run on its own, at a fixed time or on an event, with no manual step.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un agent installé et démarrable depuis la page Mes assistants.
-- Un fournisseur d'IA configuré (depuis **Paramètres → Modèles**).
-- Vous savez à quelle fréquence vous voulez que la tâche se répète.
+- At least one agent installed and startable from the My Assistants page.
+- An AI provider configured (from **Settings → Models**).
+- You know how often you want the task to repeat.
 
-## Étapes - créer une automatisation en langage naturel (parcours par défaut)
+## Steps - create an automation in plain language (default path)
 
-1. Dans la sidebar, cliquez sur **Mes déclencheurs**. La page s'intitule **Automatisations**.
+1. In the sidebar, click **My Triggers**. The page is titled **Automations**.
 
-2. Cliquez sur le bouton **Créer une automatisation** en haut à droite. Un assistant en **4 étapes** s'ouvre (Décrire → Planifier → Assistant → Aperçu).
-   ![page Automatisations, bouton "Créer une automatisation" surligné en haut à droite, stepper 4 étapes visible...](/img/operator-help/automatisations-programmer-un-trigger-1.png)
+2. Click the **Create an automation** button at the top right. A **4-step** wizard opens (Describe → Schedule → Assistant → Preview).
+   ![Automations page, "Create an automation" button highlighted at the top right, 4-step stepper visible...](/img/operator-help/automatisations-programmer-un-trigger-1.png)
 
-3. **Étape Décrire** - Décrivez **le quand** : à quel moment ou à quelle fréquence le déclencheur doit se déclencher. Exemples : *« Tous les matins à 8 h »*, *« Chaque lundi à 9 h pour préparer la semaine »*, *« Toutes les 30 minutes »*. Vous n'avez pas besoin de nommer un assistant à ce stade : un déclencheur est indépendant de l'assistant qui l'exécutera, vous choisirez cet assistant à l'étape **Assistant**. Cliquez sur **Suivant** ; Apollia analyse la phrase (l'étiquette du bouton passe à *« Analyse… »*).
+3. **Describe step** - Describe **the when**: at what moment or how often the trigger should fire. Examples: *"Every morning at 8am"*, *"Every Monday at 9am to prep the week"*, *"Every 30 minutes"*. You do not need to name an assistant at this stage: a trigger is independent from the assistant that will run it, and you pick that assistant at the **Assistant** step. Click **Next**; Apollia parses the sentence (the button label switches to *"Parsing…"*).
 
-4. **Étape Planifier** - Apollia affiche sa lecture de votre phrase dans un encadré (par exemple *« Tous les jours à 08:00 »*) avec la **prochaine exécution prévue**. Si quelque chose vous semble inexact, ajustez en langage naturel dans le champ du bas (*« plutôt à 9 h »*) et appuyez sur Entrée - la planification se met à jour. Si Apollia a besoin d'une précision sur le calendrier (heure manquante, jour ambigu…), un bandeau orange affiche les points à clarifier ; complétez-les via le champ d'ajustement. L'absence d'assistant dans la description n'est pas bloquante à cette étape.
-   ![étape Planifier - encadré schedule humain ("Tous les jours à 08:00"), ligne "Prochaine exécution : …", cham...](/img/operator-help/automatisations-programmer-un-trigger-2.png)
+4. **Schedule step** - Apollia shows how it read your sentence in a box (for example *"Every day at 08:00"*) with the **next scheduled run**. If something looks off, adjust it in plain language in the field at the bottom (*"actually 9am"*) and press Enter - the schedule updates. If Apollia needs a detail about the calendar (missing time, ambiguous day…), an orange banner lists the points to clarify; fill them in through the refine field. A missing assistant in the description does not block this step.
+   ![Schedule step - human-readable schedule box ("Every day at 08:00"), "Next run: …" line, refine fie...](/img/operator-help/automatisations-programmer-un-trigger-2.png)
 
-5. **Étape Assistant** - Sélectionnez l'assistant qui exécutera ce déclencheur. Un déclencheur lance toujours **un assistant à la fois**. Si votre phrase nommait un agent existant, il est pré-sélectionné et un sous-texte indique *« Reconnu automatiquement : … »*. Sinon, un encart orange rappelle qu'aucun assistant n'a été reconnu, et vous le choisissez dans la liste déroulante. Seuls les assistants installés apparaissent.
+5. **Assistant step** - Select the assistant that will run this trigger. A trigger always launches **one assistant at a time**. If your sentence named an existing agent, it is preselected and a sub-label reads *"Recognized automatically: …"*. Otherwise, an orange box reminds you that no assistant was recognised, and you pick it from the dropdown. Only installed assistants show up.
 
-6. **Étape Aperçu** - Apollia récapitule le déclencheur : la planification en clair, l'assistant cible, et la consigne transmise au déclenchement si elle a été détectée. Cliquez sur **Activer cette automatisation**.
+6. **Preview step** - Apollia sums the trigger up: the schedule in plain words, the target assistant, and the prompt sent at trigger time if one was detected. Click **Activate this automation**.
 
-7. Une notification confirme la création. L'automatisation apparaît dans la table avec un voyant **Active** vert et la colonne **Prochain déclenchement** indique la date prévue.
+7. A notification confirms the creation. The automation appears in the table with a green **Active** indicator, and the **Next run** column shows the scheduled date.
 
-## Lancer manuellement et suivre
+## Run it manually and follow it
 
-8. Pour vérifier que tout fonctionne sans attendre la prochaine échéance, passez la souris sur la ligne de l'automatisation et cliquez sur l'**icône lecture ▶︎** à droite. Une exécution démarre immédiatement et un toast confirme le lancement.
-   *Figure : une ligne d'automatisation au survol, avec l'icône Play visible à droite et son infobulle Lancer maintenant.*
+8. To check that everything works without waiting for the next due date, hover the automation row and click the **play icon ▶︎** on the right. A run starts immediately and a toast confirms the launch.
+   *Figure: an automation row on hover, with the Play icon visible on the right and its Run now tooltip.*
 
-9. Pour consulter l'historique d'exécution, cliquez sur l'icône **⋯** sur la ligne (visible au hover) → **Voir l'historique**. Voir la page [Suivre l'historique d'un trigger](suivre-l-historique-d-un-trigger.md).
+9. To review the run history, click the **⋯** icon on the row (visible on hover) → **View history**. See the page [Track a trigger's history](suivre-l-historique-d-un-trigger.md).
 
-## Mode avancé (optionnel)
+## Advanced mode (optional)
 
-Pour les opérateurs qui préfèrent saisir directement les paramètres techniques (expression cron exacte, chemin de fichier précis, secret webhook…), le wizard propose un lien **Mode avancé** en bas à gauche. Il ouvre une fenêtre de création détaillée où vous choisissez :
+For operators who prefer to enter the technical parameters directly (exact cron expression, precise file path, webhook secret…), the wizard offers an **Advanced mode** link at the bottom left. It opens a detailed creation window where you choose:
 
-- **L'assistant cible** (en haut).
-- **Le type de déclenchement** parmi cinq cartes :
-  - **Sur un calendrier** - quotidien, hebdomadaire, ou à heure précise.
-  - **À intervalle régulier** - toutes les 30 minutes, toutes les heures, etc.
-  - **Une seule fois** - à une date et heure données.
-  - **Quand un fichier ou un dossier change** - surveille un fichier précis ou un dossier (option **récursif** pour inclure les sous-dossiers).
-  - **Via une URL externe** - déclenché par appel HTTP entrant (webhook).
-- **Les paramètres du type choisi** - voir détails ci-dessous.
-- Un interrupteur **Activée** (vrai par défaut).
-- Une section **Paramètres avancés** repliée par défaut : nom technique (ID) personnalisable, comportement *« si un déclenchement est déjà en cours »* (mettre en file ou ignorer), et **consigne** envoyée à l'assistant.
+- **The target assistant** (at the top).
+- **The trigger type** among five cards:
+  - **On a schedule** - daily, weekly, or at a specific time.
+  - **At regular intervals** - every 30 minutes, every hour, and so on.
+  - **Once at a date/time** - at a given date and time.
+  - **When a file or folder changes** - watches a specific file or a folder (**recursive** option to include sub-folders).
+  - **Via an external URL** - fired by an incoming HTTP call (webhook).
+- **The parameters of the chosen type** - details below.
+- An **Enabled** toggle (true by default).
+- An **Advanced settings** section, collapsed by default: customisable technical name (ID), behaviour *"if a run is already in progress"* (queue or drop), and the **input template** sent to the assistant.
 
-### Paramètres par type - mode avancé
+### Parameters per type - advanced mode
 
-- **Sur un calendrier** : sélectionnez un preset (*Toutes les 15 min, 30 min, Toutes les heures, Quotidien, Hebdomadaire*) ou **Personnalisé** pour saisir une expression cron brute (`min heure jour mois jour-semaine`). Les presets **Quotidien** et **Hebdomadaire** affichent un sélecteur d'heure ; **Hebdomadaire** ajoute des puces pour choisir les jours.
-- **À intervalle régulier** : sélecteur d'unité + valeur (toutes les N secondes / minutes / heures).
-- **Une seule fois** : un sélecteur de date + un sélecteur d'heure côte à côte.
-- **Quand un fichier ou un dossier change** : un champ **Chemin surveillé** (acceptant un chemin de fichier précis **ou** un chemin de dossier), trois puces à activer/désactiver pour le type d'événement - **Création**, **Modification**, **Suppression** - et un interrupteur **Inclure les sous-dossiers**. Cet interrupteur active la surveillance récursive : tous les sous-dossiers (à n'importe quelle profondeur) sont alors également surveillés. Désactivé par défaut, il n'a d'effet que pour un chemin de dossier ; il est ignoré pour un fichier précis.
-- **Via une URL externe** : un encart d'explication (l'URL de réception sera affichée après création) + un champ **Secret** avec un bouton **Générer** pour produire une clé aléatoire.
+- **On a schedule**: pick a preset (*Every 15 min, Every 30 min, Every hour, Daily, Weekly*) or **Custom** to enter a raw cron expression (`min hour day month weekday`). The **Daily** and **Weekly** presets show a time picker; **Weekly** adds chips to choose the days.
+- **At regular intervals**: unit picker + value (every N seconds / minutes / hours).
+- **Once at a date/time**: a date picker and a time picker side by side.
+- **When a file or folder changes**: a **Watch path** field (accepting a specific file path **or** a folder path), three chips to toggle the event type - **Create**, **Modify**, **Delete** - and an **Include sub-folders** toggle. That toggle turns on recursive watching: every sub-folder (at any depth) is then watched too. Off by default, it only has an effect on a folder path; it is ignored for a specific file.
+- **Via an external URL**: an explanation box (the receiving URL is shown after creation) + a **Secret** field with a **Generate** button to produce a random key.
 
-## Vérification
+## Verification
 
-L'automatisation figure dans la table **Automatisations** avec :
-- Un chip **Active** vert (point lumineux animé).
-- Une colonne **Prochain déclenchement** indiquant la date/heure prévue.
-- Une colonne **Dernière exéc** qui se remplit après le premier déclenchement.
+The automation shows up in the **Automations** table with:
+- A green **Active** chip (animated glowing dot).
+- A **Next run** column showing the scheduled date and time.
+- A **Last run** column that fills in after the first trigger.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **L'assistant cible n'apparaît pas dans la liste** : il n'est pas installé. Allez sur **Mes assistants** et installez-le, puis rouvrez le wizard.
-- **Apollia n'a pas compris ma phrase** : un message *« Nous n'avons pas pu comprendre automatiquement »* apparaît. Reformulez plus simplement en énonçant clairement la fréquence et l'heure (ex. *« Tous les jours à 9 h »*).
-- **L'étape Planifier indique des points à clarifier** : l'encart orange en haut liste les ambiguïtés sur le calendrier (par exemple « heure manquante »). Tapez la précision dans le champ d'ajustement et validez avec Entrée. Si la seule chose qu'Apollia n'a pas trouvée est l'assistant, vous pouvez quand même passer à l'étape suivante : la sélection se fait à l'étape Assistant.
-- **Le bouton "Activer" est désactivé** : il manque une donnée - vérifiez que l'étape Planifier n'a plus d'ambiguïté de calendrier et qu'un assistant est sélectionné.
-- **Le lancement immédiat (icône ▶︎) est grisé** : l'automatisation est en pause. Réactivez-la depuis le mode avancé (interrupteur **Activée**) ou recréez-en une.
+- **The target assistant does not show up in the list**: it is not installed. Go to **My Assistants** and install it, then reopen the wizard.
+- **Apollia did not understand my sentence**: a *"We couldn't understand automatically"* message appears. Rephrase more simply, stating the frequency and the time clearly (e.g. *"Every day at 9am"*).
+- **The Schedule step lists points to clarify**: the orange box at the top lists the calendar ambiguities (for example "missing time"). Type the detail in the refine field and confirm with Enter. If the only thing Apollia did not find is the assistant, you can still move to the next step: the selection happens at the Assistant step.
+- **The "Activate" button is disabled**: something is missing - check that the Schedule step has no calendar ambiguity left and that an assistant is selected.
+- **The immediate run (▶︎ icon) is greyed out**: the automation is paused. Re-enable it from the advanced mode (**Enabled** toggle) or create a new one.
 
-## Appeler un webhook depuis un service externe
+## Call a webhook from an external service
 
-Une automatisation de type **webhook** ne se déclenche pas toute seule : c'est un
-service extérieur qui l'appelle. Apollia refuse l'appel s'il n'est pas signé, ce
-qui évite que n'importe qui puisse déclencher votre agent en connaissant l'URL.
+A **webhook** automation does not fire on its own: an outside service calls it.
+Apollia refuses the call if it is not signed, which prevents anyone who knows the
+URL from launching your agent.
 
-**L'adresse** est celle affichée à la création, de la forme :
+**The address** is the one shown at creation time, of the form:
 
 ```
 POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation>
 ```
 
-Notez qu'elle n'est **pas** sous `/api/v1`, et qu'elle n'utilise pas le jeton
-d'API : la signature tient lieu d'authentification.
+Note that it is **not** under `/api/v1`, and that it does not use the API token:
+the signature acts as the authentication.
 
-**La signature** va dans l'en-tête `X-Apollia-Signature`, au format
-`sha256=<hexadécimal>`. C'est le HMAC-SHA256 du **corps brut** de la requête,
-octet pour octet, avec votre secret comme clé. Signer une version reformatée du
-corps produit une signature invalide.
+**The signature** goes into the `X-Apollia-Signature` header, in the
+`sha256=<hexadecimal>` format. It is the HMAC-SHA256 of the **raw body** of the
+request, byte for byte, with your secret as the key. Signing a reformatted
+version of the body produces an invalid signature.
 
-Exemple avec `curl` et `openssl` :
+Example with `curl` and `openssl`:
 
 ```sh
 SECRET='votre-secret-de-32-caracteres-minimum'
@@ -104,17 +104,17 @@ curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
   -d "$BODY"
 ```
 
-**Les réponses possibles :**
+**The possible responses:**
 
-| Code | Ce que ça veut dire |
+| Code | What it means |
 |---|---|
-| `200` | L'événement est accepté, l'automatisation part |
-| `401` | En-tête `X-Apollia-Signature` absent, ou signature qui ne correspond pas |
-| `404` | Aucune automatisation de type webhook avec cet identifiant |
-| `503` | Le moteur d'automatisations n'est pas démarré |
+| `200` | The event is accepted, the automation starts |
+| `401` | `X-Apollia-Signature` header missing, or signature that does not match |
+| `404` | No webhook automation with that identifier |
+| `503` | The automation engine is not started |
 
-Un `401` ne dit pas laquelle des deux causes s'applique, c'est volontaire. Si
-vous en recevez un, vérifiez d'abord que vous signez le corps brut et non une
-version réindentée.
+A `401` does not say which of the two causes applies, and that is on purpose. If
+you get one, first check that you are signing the raw body and not a reindented
+version.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md).
+> **Technical reference:** [Apollia reference](/reference).

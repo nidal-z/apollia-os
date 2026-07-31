@@ -1,42 +1,42 @@
-# Créer un projet
+# Create a project
 
-> Pour les operators qui veulent regrouper un dossier de travail, ses fichiers et ses chats sous une même enveloppe réutilisable.
+> For operators who want to group a working folder, its files and its chats under one reusable envelope.
 
-## Prérequis
+## Prerequisites
 
-- Un dossier existant sur votre machine (un repo, un workspace, un dossier de travail).
-- Un fournisseur d'IA connecté (la connexion est verte dans le bandeau supérieur).
-- Vous savez quel travail vous allez piloter depuis ce projet (site, étude, dossier client…).
+- An existing folder on your machine (a repo, a workspace, a working folder).
+- An AI provider connected (the connection is green in the top bar).
+- You know which work you will drive from this project (website, study, client file, and so on).
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Projets**.
+1. In the sidebar, click **Projects**.
 
-2. Cliquez sur **+ Nouveau projet** en haut à droite.
-   ![page Projets, bouton + Nouveau projet surligné en haut à droite](/img/operator-help/projets-creer-un-projet-1.png)
+2. Click **+ New Project** at the top right.
+   ![Projects page, + New Project button highlighted at the top right](/img/operator-help/projets-creer-un-projet-1.png)
 
-3. Donnez un **nom** clair à votre projet (par exemple : *Site marketing 2026*). Ce nom apparaîtra dans la sidebar, dans les chats liés et dans les notifications.
+3. Give your project a clear **name** (for example: *Marketing website 2026*). This name appears in the sidebar, in the linked chats and in the notifications.
 
-4. Cliquez sur **Parcourir** et sélectionnez le **dossier racine** du projet sur votre machine.
+4. Click **Browse** and select the **root folder** of the project on your machine.
 
-5. (Optionnel) Choisissez un **modèle de projet** dans la liste déroulante. Le modèle pré-active les fournisseurs de contexte adaptés (un projet de code aura par défaut Git et Arborescence).
-   ![modal Nouveau projet avec champs Nom, Dossier racine, Modèle](/img/operator-help/projets-creer-un-projet-2.png)
+5. (Optional) Pick a **project template** in the drop-down list. The template pre-enables the matching context providers (a code project gets Git and File tree by default).
+   ![New Project modal with Name, Root folder and Template fields](/img/operator-help/projets-creer-un-projet-2.png)
 
-6. Cliquez sur **Créer**. Le projet apparaît immédiatement dans la liste.
+6. Click **Create**. The project appears in the list immediately.
 
-7. Cliquez sur la carte du projet pour ouvrir son **panneau de détail** (Sheet latérale). Vous y voyez le chemin, les agents liés, les context providers actifs, les documents attachés et les chats liés - dans des sections scrollables, sans onglets formels.
-   ![panneau de détail projet (Sheet latérale), sections Description, Agents, Context providers, Documents, Chat...](/img/operator-help/projets-creer-un-projet-3.png)
+7. Click the project card to open its **detail panel** (side Sheet). It shows the path, the linked agents, the active context providers, the attached documents and the linked chats, in scrollable sections, with no formal tabs.
+   ![project detail panel (side Sheet), Description, Agents, Context Providers, Documents, Chat sections...](/img/operator-help/projets-creer-un-projet-3.png)
 
-8. Continuez avec **Activer les context providers** pour charger automatiquement les bonnes informations dans vos futurs chats.
+8. Carry on with **Enable context providers** to load the right information into your future chats automatically.
 
-## Vérification
+## Verification
 
-Le projet est listé dans la sidebar sous **Projets** et sa page de détail affiche bien le dossier racine que vous avez choisi.
+The project is listed in the sidebar under **Projects** and its detail page shows the root folder you picked.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le dossier n'apparaît pas dans le sélecteur** : vérifiez les permissions du dossier (Apollia doit pouvoir le lire).
-- **Le bouton Créer reste grisé** : un nom et un dossier sont obligatoires, le modèle est facultatif.
-- **Le projet apparaît mais reste vide** : c'est normal, les fournisseurs de contexte s'activent à l'étape suivante.
+- **The folder does not show up in the picker**: check the folder permissions (Apollia must be able to read it).
+- **The Create button stays greyed out**: a name and a folder are required, the template is optional.
+- **The project appears but stays empty**: that is expected, the context providers are enabled in the next step.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md) - comprendre pourquoi un projet sert d'enveloppe contextuelle pour vos chats.
+> **Concept:** [Apollia explanation](/explanation) - understanding why a project acts as a context envelope for your chats.

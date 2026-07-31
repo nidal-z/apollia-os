@@ -1,53 +1,53 @@
-# Une action a été refusée
+# An action was refused
 
-> Pour tout operator qui voit une action refusée dans la Boîte de réception, ou dont l'agent semble avoir abandonné une tâche : comprendre pourquoi et débloquer la suite.
+> For operators who see a refused action in the Inbox, or whose agent seems to have abandoned a task: understand why and unblock what comes next.
 
-## Vérifications rapides (par ordre de probabilité)
+## Quick checks (in order of likelihood)
 
-### 1. Vous avez vous-même refusé l'action récemment
+### 1. You refused the action yourself recently
 
-Chaque refus manuel envoie un message clair à l'agent, qui s'adapte ou s'arrête. C'est le comportement normal.
+Every manual refusal sends a clear message to the agent, which adapts or stops. That is the normal behaviour.
 
-**Solution :**
-1. Dans la sidebar, cliquez sur **Boîte de réception**.
-2. Onglet **À traiter**. Faites défiler vers le bas jusqu'à la section **Historique récent (14 jours)** sous la liste des items en attente.
-3. Repérez la ligne avec l'icône ❌ **Refusé** correspondant à l'action. La **raison saisie au moment du refus** est affichée en rouge en sous-texte juste en dessous. Elle explique à l'agent ce qu'il doit changer.
-   ![Boîte de réception → À traiter, section Historique récent en bas, une ligne refusée avec sa raison "Mauvais...](/img/operator-help/troubleshooting-une-action-est-refusee-1.png)
-4. Si le refus était une erreur, relancez l'agent ou demandez-lui dans le chat de retenter avec une nouvelle instruction.
+**Solution:**
+1. In the sidebar, click **Inbox**.
+2. The **To do** tab. Scroll down to the **Recent history (last 14 days)** section below the list of pending items.
+3. Find the line with the ❌ **Rejected** icon matching the action. The **reason entered at the time of the refusal** is displayed in red as sub-text just below it. It tells the agent what to change.
+   ![Inbox → To do, Recent history section at the bottom, one rejected line with its reason "Wrong...](/img/operator-help/troubleshooting-une-action-est-refusee-1.png)
+4. If the refusal was a mistake, restart the agent or ask it in the chat to retry with a new instruction.
 
-### 2. Une règle de permissions persistée bloque l'action
+### 2. A persisted permission rule blocks the action
 
-Une règle créée auparavant (via le parcours d'onboarding ou la configuration initiale) peut refuser ce type d'action automatiquement sans afficher de carte d'approbation.
+A rule created earlier (through the onboarding flow or the initial configuration) can refuse this type of action automatically without showing an approval card.
 
-**Solution :**
-1. Dans la sidebar, ouvrez **Paramètres → Autorisations**.
-2. Faites défiler la **section Audit récent** en bas de page : elle liste les 20 dernières décisions de permission (autorisé / refusé) avec l'outil, la portée, le numéro de règle appliquée et l'agent concerné. C'est ici que vous identifierez si un refus est dû à une règle persistée - la colonne **décision** affiche `deny` et la colonne suivante précise quelle règle a appliqué le refus.
-3. Repérez la règle dans la liste principale **Autorisations actives** au-dessus, puis cliquez sur **Révoquer** (icône corbeille) pour la supprimer si elle est en cause.
+**Solution:**
+1. In the sidebar, open **Settings → Permissions**.
+2. Scroll to the **Recent audit section** at the bottom of the page: it lists the last 20 permission decisions (allowed / denied) with the tool, the scope, the number of the rule applied and the agent concerned. This is where you will identify whether a refusal comes from a persisted rule - the **decision** column shows `deny` and the next column tells which rule applied the refusal.
+3. Find the rule in the main **Active permissions** list above, then click **Revoke** (trash icon) to delete it if it is the cause.
 
-   > **Note :** il n'existe pas de bouton *« Toujours refuser »* dans les cartes HITL - un refus est toujours ponctuel. Les règles `deny` proviennent uniquement de la configuration initiale ou d'une édition directe.
+   > **Note:** there is no *"Always deny"* button in HITL cards - a refusal is always one-off. `deny` rules only come from the initial configuration or from a direct edit.
 
-### 3. L'agent n'a pas accès au dossier ou à l'outil
+### 3. The agent has no access to the folder or the tool
 
-Apollia restreint par défaut certains chemins et outils sensibles. Une action sur un chemin interdit est refusée sans même afficher de carte d'approbation.
+Apollia restricts some sensitive paths and tools by default. An action on a forbidden path is refused without even showing an approval card.
 
-**Solution :**
-1. Si vous voyez la ligne de refus dans l'historique de la Boîte de réception, lisez la raison technique - elle mentionne le chemin ou l'outil concerné.
-2. Si l'accès est légitime, ouvrez **Paramètres → Autorisations** et utilisez la portée *Toujours pour cet assistant* / *Toujours pour ce projet* lors de la **prochaine** approbation (au lieu d'une règle deny). Voir [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md).
-3. Relancez la tâche depuis le chat.
+**Solution:**
+1. If you see the refusal line in the Inbox history, read the technical reason - it mentions the path or the tool concerned.
+2. If the access is legitimate, open **Settings → Permissions** and use the *Always for this assistant* / *Always for this project* scope on the **next** approval (instead of a deny rule). See [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md).
+3. Restart the task from the chat.
 
-### 4. Le même type d'action est refusé en boucle
+### 4. The same type of action is refused over and over
 
-Si un agent enchaîne plusieurs refus, il peut s'arrêter de lui-même. Cela indique souvent une instruction mal formulée plutôt qu'un blocage de permissions.
+If an agent hits several refusals in a row, it may stop on its own. This often points to a badly phrased instruction rather than a permission blockage.
 
-**Solution :**
-1. Dans la Boîte de réception → Historique récent, comptez les refus consécutifs sur le même outil/chemin.
-2. Reformulez votre demande dans le chat en précisant le périmètre autorisé (par exemple : *« travaille uniquement dans `~/Rapports` »*).
-3. Pour automatiser les approbations futures sur ce type d'action, utilisez **Toujours autoriser → Pour cet assistant / Pour ce projet** lors de la prochaine carte d'approbation.
+**Solution:**
+1. In the Inbox → Recent history, count the consecutive refusals on the same tool/path.
+2. Rephrase your request in the chat and state the allowed perimeter (for example: *"work only in `~/Reports`"*).
+3. To automate future approvals for this type of action, use **Always allow → For this assistant / For this project** on the next approval card.
 
-## Si rien ne fonctionne
+## If nothing works
 
-1. **Vue d'ensemble** : la section **Audit récent** de **Paramètres → Autorisations** affiche les 20 dernières décisions de permission avec leur outil, leur décision (`allow` / `deny`), leur portée, le numéro de règle appliquée et l'agent. Si une suite de refus inattendus apparaît, la règle responsable se voit directement.
-2. **Tout révoquer** : si le comportement est devenu incohérent, ouvrez **Paramètres → Autorisations**, cliquez sur **Tout révoquer** (bouton rouge en haut à droite) et sélectionnez la portée concernée (*Ce projet* / *Chat / agent* / *Partout* / *Toutes portées*). Confirmez. Les approbations recommenceront à zéro.
-3. **Dernier recours :** désactiver l'agent depuis sa carte (toggle on/off dans **Mes assistants**), supprimer toutes ses règles dédiées (filtre `agent_id` dans Autorisations), puis le réactiver pour repartir d'une configuration propre.
+1. **Overview**: the **Recent audit** section of **Settings → Permissions** shows the last 20 permission decisions with their tool, their decision (`allow` / `deny`), their scope, the number of the rule applied and the agent. If a run of unexpected refusals appears, the rule responsible is immediately visible.
+2. **Revoke everything**: if the behaviour has become inconsistent, open **Settings → Permissions**, click **Revoke all** (red button at the top right) and select the scope concerned (*This project* / *Chat / agent* / *Everywhere* / *All scopes*). Confirm. Approvals will start over from scratch.
+3. **Last resort:** disable the agent from its card (on/off toggle in **My Assistants**), delete all its dedicated rules (`agent_id` filter in Permissions), then re-enable it to start from a clean configuration.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - comprendre comment Apollia décide d'approuver, refuser ou demander pour chaque action sensible.
+> **Technical reference:** [Apollia reference](/reference) - understand how Apollia decides to approve, refuse or ask for each sensitive action.

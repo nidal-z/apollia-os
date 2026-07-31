@@ -1,50 +1,50 @@
-# Comprendre la portée d'une intégration
+# Understand the scope of an integration
 
-> Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un projet précis.
+> For any operator who wonders why one agent can call a tool while another cannot, or how to scope an integration to a specific project.
 
-## Prérequis
+## Prerequisites
 
-- Au moins une intégration connectée (connecteur natif ou serveur MCP).
-- Au moins un agent installé ou un projet actif.
+- At least one connected integration (native connector or MCP server).
+- At least one installed agent or one active project.
 
-## Les trois filtres qui contrôlent un appel d'outil
+## The three filters that control a tool call
 
-Quand un agent tente d'utiliser un outil, Apollia applique trois filtres dans l'ordre :
+When an agent tries to use a tool, Apollia applies three filters in order:
 
-1. **Le manifest de l'agent** déclare la liste d'outils requis et optionnels. Un outil absent du manifest n'est pas accessible à cet agent.
-2. **Les règles de permission** (voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md)) décident si l'outil peut s'exécuter automatiquement ou demande une approbation.
-3. **Le profil de souveraineté** bloque les outils cloud quand il est sur `local_only`.
+1. **The agent manifest** declares the list of required and optional tools. A tool absent from the manifest is not reachable by that agent.
+2. **The permission rules** (see [Understand MCP permissions](comprendre-les-permissions-mcp.md)) decide whether the tool can run automatically or requires an approval.
+3. **The sovereignty profile** blocks cloud tools when it is set to `local_only`.
 
-Si l'un des trois filtres refuse, l'outil ne s'exécute pas.
+If any of the three filters refuses, the tool does not run.
 
-## Côté agent
+## On the agent side
 
-Ouvrez la fiche d'un agent, onglet **Outils**. La liste affiche en lecture seule :
+Open an agent detail page, **Tools** tab. The list shows, read-only:
 
-- Les outils requis par le manifest, avec leur identifiant (par exemple `outlook.send`).
-- Les outils optionnels.
-- Un badge indique si l'outil exige une approbation HITL par défaut.
+- The tools required by the manifest, with their identifier (for example `outlook.send`).
+- The optional tools.
+- A badge indicates whether the tool requires an HITL approval by default.
 
-![Fiche d'un agent, onglet Outils : la liste des outils requis et optionnels avec leurs badges d'approbation](/img/operator-help/integration-comprendre-la-portee-d-une-integration-1.png)
+![Agent detail page, Tools tab: the list of required and optional tools with their approval badges](/img/operator-help/integration-comprendre-la-portee-d-une-integration-1.png)
 
-Cette liste **n'est pas modifiable depuis l'interface en v0.1.0**. Pour ajouter ou retirer un outil à un agent, il faut éditer son manifest et le réinstaller. Voir la page Aide [Installer un agent](../agents/installer-un-agent.md).
+This list **cannot be edited from the interface in v0.1.0**. To add or remove a tool for an agent, you have to edit its manifest and reinstall it. See the Help page [Install an agent](../agents/installer-un-agent.md).
 
-## Côté projet
+## On the project side
 
-Ouvrez un projet, onglet **Contexte**. Vous y trouvez des **Context Providers** (dossiers locaux, dépôts Git, etc.), qui alimentent le contexte des chats du projet. **Ce ne sont pas des outils MCP**, et il n'est pas possible en v0.1.0 de scoper un MCP ou un connecteur à un projet précis.
+Open a project, **Context** tab. There you find **Context Providers** (local folders, Git repositories, and so on), which feed the context of the project chats. **These are not MCP tools**, and it is not possible in v0.1.0 to scope an MCP or a connector to a specific project.
 
-Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous les agents qui les déclarent dans leur manifest, indépendamment du projet actif.
+Every installed MCP and every native connector is visible to every agent that declares them in its manifest, regardless of the active project.
 
-## Vérifier ce qu'un agent peut faire
+## Checking what an agent can do
 
-- Onglet **Outils** de l'agent, liste complète.
-- Dans le chat, demander à l'agent *"Liste les outils que tu peux utiliser"*. Il répond avec sa toolbelt si son prompt système l'autorise.
-- Tester un appel concret. Si l'outil est refusé, l'agent retourne un message clair (`outil non autorisé`, `SovereigntyBlocked`, etc.).
+- **Tools** tab of the agent, full list.
+- In the chat, ask the agent *"List the tools you can use"*. It answers with its toolbelt if its system prompt allows it.
+- Test a concrete call. If the tool is refused, the agent returns a clear message (`tool not allowed`, `SovereigntyBlocked`, and so on).
 
-## Si ça ne marche pas
+## If it does not work
 
-- **L'agent dit "outil non autorisé"** : l'outil n'est pas dans son manifest. Mettez à jour l'agent (réinstallation avec un manifest étendu) ou utilisez un autre agent qui le déclare.
-- **L'agent voit l'outil mais l'appel échoue** : c'est probablement une question de permission (token expiré, scope manquant) ou de souveraineté. Voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md) et [Gérer les tokens OAuth](gerer-les-tokens-oauth.md).
-- **Deux agents devraient voir le même outil et un seul le voit** : vérifiez les deux manifests, l'outil doit être déclaré dans chacun.
+- **The agent says "tool not allowed"**: the tool is not in its manifest. Update the agent (reinstall with an extended manifest) or use another agent that declares it.
+- **The agent sees the tool but the call fails**: this is most likely a permission issue (expired token, missing scope) or a sovereignty issue. See [Understand MCP permissions](comprendre-les-permissions-mcp.md) and [Manage OAuth tokens](gerer-les-tokens-oauth.md).
+- **Two agents should see the same tool and only one does**: check both manifests, the tool has to be declared in each of them.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , résolution des outils par agent, scoping projet, ContextProvider.
+> **Technical reference:** [Apollia reference](/reference) , per-agent tool resolution, project scoping, ContextProvider.

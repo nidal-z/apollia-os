@@ -1,68 +1,68 @@
-# Vue d'ensemble des intégrations
+# Integrations overview
 
-> Pour tout operator qui veut comprendre les deux mécanismes d'extension d'Apollia, connecteurs natifs et serveurs MCP, et savoir par où commencer.
+> For any operator who wants to understand Apollia's two extension mechanisms, native connectors and MCP servers, and know where to start.
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé, page **Connexions** accessible depuis la sidebar.
-- Un compte chez le service que vous voulez brancher (Google, Microsoft, Notion, etc.) si l'intégration est authentifiée.
+- Apollia running, the **Connections** page reachable from the sidebar.
+- An account with the service you want to plug in (Google, Microsoft, Notion, etc.) if the integration is authenticated.
 
-## Les deux familles
+## The two families
 
-Apollia distingue deux mécanismes complémentaires.
+Apollia distinguishes two complementary mechanisms.
 
-### Connecteurs natifs OAuth
+### Native OAuth connectors
 
-Maintenus directement par Apollia pour les services qui n'exposent pas (encore) de serveur MCP officiel : **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks, YouTube) et **Microsoft 365** (Outlook, Calendar, OneDrive).
+Maintained directly by Apollia for services that do not (yet) expose an official MCP server: **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks, YouTube) and **Microsoft 365** (Outlook, Calendar, OneDrive).
 
-- Tokens stockés dans le trousseau du système (Keychain macOS, Credential Manager Windows, Secret Service Linux).
-- Appels directs depuis votre machine vers `gmail.googleapis.com` ou `graph.microsoft.com`, aucun relai cloud Apollia.
-- Approbation HITL automatique sur toutes les écritures.
-- Multi-comptes supporté.
+- Tokens stored in the system keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service).
+- Direct calls from your machine to `gmail.googleapis.com` or `graph.microsoft.com`, no Apollia cloud relay.
+- Automatic HITL approval on every write.
+- Multi-account supported.
 
-### Serveurs MCP
+### MCP servers
 
-Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. Apollia inclut un catalogue de **18 entrées** curées :
+The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. Apollia ships a curated catalogue of **18 entries**:
 
 Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Filesystem, Memory, Puppeteer, Brave Search.
 
-Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
+You can also add your own servers or modify the catalogue.
 
-![page Connexions, sidebar gauche listant les connecteurs natifs (Google Workspace, Microsoft 365) et les serveurs MCP, panneau de droite avec l'onglet Aperçu du connecteur sélectionné et le bouton Ajouter un connecteur en bas](/img/operator-help/integration-overview-1.png)
+![Connections page, left sidebar listing the native connectors (Google Workspace, Microsoft 365) and the MCP servers, right panel with the Overview tab of the selected connector and the Add a connector button at the bottom](/img/operator-help/integration-overview-1.png)
 
-## Par où commencer
+## Where to start
 
-- Mail, calendrier, drive perso ou pro : voir [Connecter Google Workspace](connecter-google-workspace.md) ou [Connecter Microsoft 365](connecter-microsoft-365.md).
-- Notion, GitHub, Linear, Atlassian, Stripe, etc. : voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md).
-- Vos serveurs MCP internes : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-- Adapter le catalogue à votre équipe : voir [Personnaliser le catalogue MCP](personnaliser-le-catalogue-mcp.md).
+- Mail, calendar, personal or work drive: see [Connect Google Workspace](connecter-google-workspace.md) or [Connect Microsoft 365](connecter-microsoft-365.md).
+- Notion, GitHub, Linear, Atlassian, Stripe, etc.: see [Connect an MCP server](connecter-un-serveur-mcp.md).
+- Your internal MCP servers: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
+- Tailoring the catalogue to your team: see [Customize the MCP catalogue](personnaliser-le-catalogue-mcp.md).
 
-## Comment choisir
+## How to choose
 
-| Service | Connecteur natif | MCP officiel | Recommandation |
+| Service | Native connector | Official MCP | Recommendation |
 |---|---|---|---|
-| Gmail, Google Calendar, Drive | Apollia | Aucun | Connecteur natif |
-| Outlook, Calendar, OneDrive | Apollia | Aucun | Connecteur natif |
-| Notion, Slack, Linear, GitHub | Aucun | Officiel | MCP du catalogue |
-| Atlassian (Jira + Confluence) | Aucun | Atlassian Rovo | MCP du catalogue |
-| Stripe, Figma, Sentry, Cloudflare | Aucun | Officiel | MCP du catalogue |
-| Votre serveur interne | Aucun | À câbler | MCP personnalisé |
+| Gmail, Google Calendar, Drive | Apollia | None | Native connector |
+| Outlook, Calendar, OneDrive | Apollia | None | Native connector |
+| Notion, Slack, Linear, GitHub | None | Official | Catalogue MCP |
+| Atlassian (Jira + Confluence) | None | Atlassian Rovo | Catalogue MCP |
+| Stripe, Figma, Sentry, Cloudflare | None | Official | Catalogue MCP |
+| Your internal server | None | To be wired | Custom MCP |
 
-## Garder le contrôle
+## Staying in control
 
-- **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md).
-- **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](gerer-les-tokens-oauth.md).
-- **Profil de souveraineté** : Apollia accepte par défaut les connecteurs cloud (`cloud_allowed`). En profil `local_only`, les boutons de connexion cloud sont désactivés et seuls les MCPs stdio purement locaux restent disponibles. En v0.1.0, le profil se règle côté configuration backend (pas encore de bascule dans l'interface).
+- **HITL approval**: every write (sending mail, creating an event, writing a file) asks for your confirmation before execution. See [Understand MCP permissions](comprendre-les-permissions-mcp.md).
+- **Local tokens**: no secret leaves your machine. See [Manage OAuth tokens](gerer-les-tokens-oauth.md).
+- **Sovereignty profile**: Apollia accepts cloud connectors by default (`cloud_allowed`). Under the `local_only` profile, the cloud connection buttons are disabled and only purely local stdio MCPs remain available. In v0.1.0, the profile is set on the backend configuration side (no toggle in the interface yet).
 
-## Vérification
+## Verification
 
-- La page **Connexions** s'ouvre et affiche la sidebar des connecteurs (vide si rien n'est encore branché).
-- Les boutons **+ Découvrir** et **+ Ajouter personnalisé** sont visibles en haut.
+- The **Connections** page opens and shows the connector sidebar (empty if nothing is plugged in yet).
+- The **+ Discover** and **+ Add custom** buttons are visible at the top.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **La page Connexions est vide ou ne charge pas** : redémarrez Apollia, le runtime n'a peut-être pas fini d'initialiser le client MCP.
-- **Le bouton Connecter d'un connecteur natif est grisé** : votre profil de souveraineté est `local_only`, voir la section précédente.
-- **Vous voyez "Section en cours de refonte"** : votre application est antérieure à la v0.1.0, mettez à jour.
+- **The Connections page is empty or does not load**: restart Apollia, the runtime may not have finished initializing the MCP client.
+- **The Connect button of a native connector is greyed out**: your sovereignty profile is `local_only`, see the previous section.
+- **You see "Section being redesigned"**: your application predates v0.1.0, update it.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , architecture du Tool Registry, scoping, gouvernance des outils.
+> **Technical reference:** [Apollia reference](/reference) , Tool Registry architecture, scoping, tool governance.

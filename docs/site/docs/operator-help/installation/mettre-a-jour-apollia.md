@@ -1,72 +1,70 @@
 ---
 sidebar_position: 8
-title: Mettre à jour Apollia
+title: Update Apollia
 ---
 
-# Mettre à jour Apollia
+# Update Apollia
 
-Apollia se met à jour depuis les versions publiées sur GitHub. Deux chemins, un
-par surface. Aucun des deux ne touche à vos données.
+Apollia updates itself from the releases published on GitHub. Two paths, one
+per surface. Neither of them touches your data.
 
-## Depuis l'application
+## From the application
 
-**Réglages > Système** affiche un panneau de mise à jour, également accessible
-depuis **Réglages > À propos**.
+**Settings > System** shows an update panel, also reachable from
+**Settings > About**.
 
-1. Cliquez sur **Vérifier les mises à jour**. Apollia interroge la page des
-   versions publiées et compare avec la vôtre.
-2. Si une version plus récente existe, elle s'affiche avec ses notes.
-3. Lancez l'installation. Une barre de progression suit le téléchargement.
-4. Redémarrez l'application quand elle vous le demande.
+1. Click **Check for updates**. Apollia queries the published releases page
+   and compares them with yours.
+2. If a newer version exists, it is displayed with its notes.
+3. Start the installation. A progress bar tracks the download.
+4. Restart the application when it asks you to.
 
-## Depuis la ligne de commande
+## From the command line
 
 ```sh
-apollia-os update --check   # regarde s'il y a du neuf, sans rien installer
-apollia-os update           # télécharge, vérifie, remplace
+apollia-os update --check   # looks for something new, installs nothing
+apollia-os update           # downloads, verifies, replaces
 ```
 
-La mise à jour se déroule en trois temps, et chacun peut échouer sans conséquence :
+The update runs in three stages, and each one can fail without consequence:
 
-- le binaire de votre plateforme est téléchargé dans un fichier temporaire ;
-- sa somme de contrôle SHA256 est vérifiée. **En cas d'écart, l'opération
-  s'arrête sans toucher au binaire en place** ;
-- le remplacement est atomique. Vous n'obtenez jamais un binaire à moitié écrit.
+- the binary for your platform is downloaded into a temporary file;
+- its SHA256 checksum is verified. **On a mismatch, the operation stops
+  without touching the binary in place**;
+- the replacement is atomic. You never end up with a half-written binary.
 
-Un verrou empêche deux mises à jour simultanées.
+A lock prevents two simultaneous updates.
 
-## Ce qui arrive à vos données
+## What happens to your data
 
-**Rien.** La mise à jour remplace un exécutable, pas votre répertoire
-`~/.apollia`. Vos sessions, projets, agents, mémoire, journal d'audit et
-`apollia.toml` sont conservés tels quels.
+**Nothing.** The update replaces an executable, not your `~/.apollia`
+directory. Your sessions, projects, agents, memory, audit journal and
+`apollia.toml` are kept as they are.
 
-Un point à connaître avant de mettre à jour un poste que vous ne pourrez pas
-réinstaller facilement : **il n'existe pas de chemin de retour arrière**.
-`apollia-os update` ne prend pas de version cible, il installe la plus récente,
-et rien n'est prévu pour réinstaller la précédente ni pour ramener vos bases à un
-état antérieur. Une version plus ancienne relancée sur des données écrites par
-une plus récente n'est pas un cas testé.
+One point to know before updating a machine you could not easily reinstall:
+**there is no rollback path**. `apollia-os update` takes no target version, it
+installs the most recent one, and nothing is provided to reinstall the previous
+one nor to bring your databases back to an earlier state. An older version
+restarted on data written by a newer one is not a tested case.
 
-Si vous voulez pouvoir revenir en arrière, copiez `~/.apollia` avant la mise à
-jour :
+If you want to be able to go back, copy `~/.apollia` before the update:
 
 ```sh
 cp -R ~/.apollia ~/.apollia.backup-$(date +%F)
 ```
 
-Sur Windows :
+On Windows:
 
 ```powershell
 Copy-Item -Recurse "$env:USERPROFILE\.apollia" "$env:USERPROFILE\.apollia.backup"
 ```
 
-## Si ça ne marche pas
+## If it does not work
 
-- **« SHA256 mismatch »** : le téléchargement a été corrompu ou interrompu.
-  Relancez. Votre binaire en place n'a pas été modifié.
-- **Le remplacement échoue** sous Windows si l'application tourne encore. Fermez
-  Apollia, puis relancez la commande.
-- **Rien de neuf n'est proposé alors qu'une version existe** : l'artefact de
-  votre plateforme n'est peut-être pas attaché à cette version. Regardez la page
-  des versions publiées et installez à la main si besoin.
+- **"SHA256 mismatch"**: the download was corrupted or interrupted.
+  Run it again. Your binary in place was not modified.
+- **The replacement fails** on Windows if the application is still running. Close
+  Apollia, then run the command again.
+- **Nothing new is offered although a version exists**: the artifact for your
+  platform may not be attached to that release. Check the published releases
+  page and install by hand if needed.

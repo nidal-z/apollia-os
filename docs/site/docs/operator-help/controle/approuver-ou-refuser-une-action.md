@@ -1,89 +1,89 @@
-# Approuver ou refuser une action d'agent
+# Approve or reject an agent action
 
-> Pour les operators qui veulent garder la main sur chaque action sensible déclenchée par un agent (écriture, commande, appel d'outil externe).
+> For operators who want to keep control over every sensitive action triggered by an agent (write, command, external tool call).
 
-> **Note - paliers d'autonomie :** le flux d'approbation dépend du palier choisi au lancement. En palier `assisted` (défaut), toute action sensible passe par votre validation, comme décrit sur cette page. A partir du palier `supervised`, la boucle de vérification automatique peut corriger les anomalies sans vous solliciter et ne soumet à votre approbation que ce qui résiste à cette correction. Les paliers `bounded_autonomous` et `long_autonomous` réduisent encore davantage les interruptions. Voir [Paliers d'autonomie](../agents/choisir-un-palier-d-autonomie.md).
+> **Note on autonomy levels:** the approval flow depends on the level chosen at launch. At the `assisted` level (default), every sensitive action goes through your validation, as described on this page. From the `supervised` level on, the automatic verification loop can fix anomalies without asking you, and only submits for approval what resists that correction. The `bounded_autonomous` and `long_autonomous` levels reduce interruptions even further. See [Autonomy levels](../agents/choisir-un-palier-d-autonomie.md).
 
-## Prérequis
+## Prerequisites
 
-- Un agent en cours d'exécution sur une tâche qui touche fichiers, commandes ou outils externes.
-- Vous comprenez ce que l'agent est censé faire (la mission est claire pour vous).
+- An agent running a task that touches files, commands or external tools.
+- You understand what the agent is supposed to do (the mission is clear to you).
 
-## Où la demande d'approbation apparaît
+## Where the approval request appears
 
-Une demande d'approbation peut surgir à deux endroits, selon le contexte :
+An approval request can pop up in two places, depending on the context:
 
-- **Dans le chat** (avec Apollia Chat ou un agent conversationnel) : une **carte d'approbation** s'insère dans le flux des messages, à la position chronologique de la demande. La carte porte une icône bouclier ⛨ et une bordure orange.
-  ![carte d'approbation inline dans le chat, icône bouclier orange, aperçu de la commande à autoriser, trois bo...](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
+- **In the chat** (with Apollia Chat or a conversational agent): an **approval card** is inserted into the message flow, at the chronological position of the request. The card carries a shield icon ⛨ and an orange border.
+  ![inline approval card in the chat, orange shield icon, preview of the command to authorise, three but...](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
 
-- **Dans la sidebar → Approbations** (qui ouvre la page **Boîte de réception**) : pour les agents qui tournent en arrière-plan ou qui ont mis leur tâche en pause pour vérification humaine. Chaque demande apparaît sous forme d'une ligne dans une liste groupée par date (Aujourd'hui / Hier / Plus tôt). Cliquer une ligne déplie la **carte HITL** avec les détails et les boutons d'action.
-  ![page Boîte de réception - chips de filtres en haut, ligne au survol avec badge risque, carte HITL dépliée e...](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
+- **In the sidebar → Approvals** (which opens the **Inbox** page): for agents running in the background or that paused their task for a human check. Each request appears as a row in a list grouped by date (Today / Yesterday / Earlier). Clicking a row expands the **HITL card** with the details and the action buttons.
+  ![Inbox page - filter chips at the top, hovered row with risk badge, expanded HITL card a...](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
 
-> **Note :** Les demandes apparaissent **en temps réel** sans rafraîchissement. Un compteur dans le sous-titre de la page indique le nombre total en attente.
+> **Note:** Requests appear **in real time** without refreshing. A counter in the page subtitle shows the total number pending.
 
-## Les trois décisions possibles
+## The three possible decisions
 
-Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'outil), les actions disponibles sont les mêmes :
+Whatever the entry point (chat or Inbox for a tool call), the available actions are the same:
 
-1. **Autoriser une fois** - l'action s'exécute immédiatement pour cette demande uniquement. L'agent reprend, la prochaine occurrence redemandera confirmation.
+1. **Allow once** - the action runs immediately, for this request only. The agent resumes, and the next occurrence will ask for confirmation again.
 
-2. **Refuser** - un dialog **Raison du refus** s'ouvre. Saisissez une explication de **5 à 500 caractères** (compteur en bas du textarea) puis confirmez. Le bouton n'est actif qu'à partir de 5 caractères.
-   ![dialog Raison du refus avec textarea, compteur "12 / 500", boutons Annuler / Confirmer le refus en bas](/img/operator-help/controle-approuver-ou-refuser-une-action-3.png)
+2. **Refuse** - a **Reject action** dialog opens. Enter an explanation of **5 to 500 characters** (counter at the bottom of the textarea) then confirm. The button only becomes active from 5 characters on.
+   ![Reject action dialog with textarea, "12 / 500" counter, Cancel / Confirm rejection buttons at the bottom](/img/operator-help/controle-approuver-ou-refuser-une-action-3.png)
 
-   La raison est **transmise à l'agent** : elle est injectée dans le message d'outil que voit le LLM à l'itération suivante, sous la forme *« Outil refusé par l'utilisateur. Raison : … »*. Cela permet à l'agent de corriger sa trajectoire plutôt que de retenter aveuglément. La raison est aussi **persistée** dans l'historique récent (voir plus bas) pour retrouver le contexte plus tard.
+   The reason is **passed on to the agent**: it is injected into the tool message the LLM sees at the next iteration, in the form *"Tool refused by the user. Reason: ..."*. This lets the agent correct its trajectory instead of retrying blindly. The reason is also **persisted** in the recent history (see below) so you can find the context later.
 
-3. **Toujours autoriser** - ouvre un menu avec **4 portées** au choix :
+3. **Always allow** - opens a menu with **4 scopes** to choose from:
 
-   | Portée | Effet |
+   | Scope | Effect |
    |---|---|
-   | **Pour cette session** | Auto-approuvé jusqu'à la fermeture du chat. Non persistée. |
-   | **Toujours pour cet assistant** | Règle persistée - l'assistant courant ne redemandera plus pour cet outil. |
-   | **Toujours pour ce projet** | Règle persistée pour tous les assistants utilisés dans le projet courant. *Désactivée si la session n'est rattachée à aucun projet.* |
-   | **Toujours, partout** | Règle persistée globalement - tous les assistants, tous les projets. Affichée en orange comme signal de la portée maximale. |
+   | **For this session** | Auto-approved until the chat is closed. Not persisted. |
+   | **Always for this assistant** | Persisted rule - the current assistant will no longer ask for this tool. |
+   | **Always for this project** | Persisted rule for every assistant used in the current project. *Disabled if the session is not attached to any project.* |
+   | **Always, everywhere** | Persisted rule, globally - every assistant, every project. Shown in orange as a signal of the widest scope. |
 
-   Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md)).
+   Persisted rules can be reviewed and revoked in **Settings → Permissions** (see [Manage tool permissions](configurer-les-permissions-de-fichiers.md)).
 
-> **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation. Pour auto-approuver une commande précise, configurez une règle de préfixe ciblée dans **Paramètres → Autorisations** : elle ne s'applique qu'à une commande simple unique (sans enchaînement `;`, `&&`, pipe, redirection ni substitution).
+> **Special case of code executors** (`bash_executor`, `python_executor`): *Always allow* is never honoured for them, whatever scope you pick. Their argument is a shell command or arbitrary code; a blanket authorisation would be a blank cheque on the whole interpreter. The current call does run once, but the next invocation asks for confirmation again. To auto-approve a specific command, set up a targeted prefix rule in **Settings → Permissions**: it only applies to a single simple command (no chaining with `;`, `&&`, no pipe, redirection or substitution).
 
-> **Cas particulier des tâches en pause** (« approbation de tâche ») : un agent qui se suspend lui-même via un point de contrôle HITL n'expose qu'**Autoriser** / **Refuser** (pas de *Toujours autoriser*) puisqu'il ne s'agit pas d'un outil mémorisable. Le dialog de raison reste obligatoire au refus.
+> **Special case of paused tasks** ("task approval"): an agent that suspends itself through a HITL checkpoint only exposes **Allow** / **Refuse** (no *Always allow*) since this is not a memorisable tool. The reason dialog is still mandatory on rejection.
 
-## Étapes - résolution d'une demande
+## Steps - resolving a request
 
-1. Cliquez sur **Autoriser une fois** pour valider ponctuellement, ou ouvrez le menu **Toujours autoriser** pour installer une règle persistante.
+1. Click **Allow once** to validate this one occurrence, or open the **Always allow** menu to install a persistent rule.
 
-2. Pour refuser, cliquez sur **Refuser** : le dialog de raison s'ouvre. Tapez une explication courte mais utile à l'agent (ex. *« Mauvais dossier - utilise ./tmp à la place »* plutôt que *« Non »*), puis cliquez sur **Confirmer le refus**.
+2. To reject, click **Refuse**: the reason dialog opens. Type a short explanation that is useful to the agent (e.g. *"Wrong folder - use ./tmp instead"* rather than *"No"*), then click **Confirm rejection**.
 
-3. La carte disparaît du chat (ou de la Boîte de réception), un toast confirme la décision (*« Action approuvée »* / *« Action refusée »* / *« Règle enregistrée - futurs appels auto-approuvés »*).
+3. The card disappears from the chat (or from the Inbox), and a toast confirms the decision (*"Action approved"* / *"Action rejected"* / *"Rule saved - future calls auto-approved"*).
 
-4. Dans le chat, l'agent reçoit immédiatement le résultat (refus + raison, ou résultat de l'outil) et poursuit sa réflexion à la prochaine itération de raisonnement.
+4. In the chat, the agent immediately receives the result (rejection + reason, or the tool result) and continues its thinking at the next reasoning iteration.
 
-## Consulter l'historique des décisions
+## Review the decision history
 
-Au bas de la page **Boîte de réception**, sous la liste des actions en attente, une section **Historique récent (14 jours)** affiche les **50 dernières** décisions HITL résolues (chronologie inverse) :
+At the bottom of the **Inbox** page, below the list of pending actions, a **Recent history (last 14 days)** section shows the **last 50** resolved HITL decisions (reverse chronological order):
 
-- Icône colorée : ✅ Autorisé (vert) · 🛡 Toujours autorisé (bleu primaire) · ❌ Refusé (rouge).
-- Nom de l'outil concerné.
-- Pour les refus : la **raison saisie** au moment du refus, en rouge.
-- Horodatage relatif (`5min ago`, `2h ago`…) avec date absolue en tooltip.
-- Préfixe court de la session d'origine.
+- Coloured icon: ✅ Approved (green) · 🛡 Always approved (primary blue) · ❌ Rejected (red).
+- Name of the tool involved.
+- For rejections: the **reason you entered** at rejection time, in red.
+- Relative timestamp (`5min ago`, `2h ago`…) with the absolute date in a tooltip.
+- Short prefix of the originating session.
 
-![section Historique récent - quatre lignes avec icônes différentes, un refus avec sa raison affichée en rouge](/img/operator-help/controle-approuver-ou-refuser-une-action-4.png)
+![Recent history section - four rows with different icons, one rejection with its reason shown in red](/img/operator-help/controle-approuver-ou-refuser-une-action-4.png)
 
-L'historique est en **lecture seule** ; il ne se remplace pas par la page Paramètres → Autorisations → Audit récent, qui affiche en plus les décisions automatiques (déclenchées par règles persistées) sur 20 entrées.
+The history is **read-only**; it does not replace the Settings → Permissions → Recent audit page, which also shows automatic decisions (triggered by persisted rules) over 20 entries.
 
-## Vérification
+## Verification
 
-- La carte d'approbation disparaît du chat (ou la ligne de la Boîte de réception) immédiatement après votre décision.
-- Un toast confirme l'opération.
-- Si vous avez choisi **Toujours autoriser**, ouvrez **Paramètres → Autorisations** et vérifiez qu'une nouvelle règle apparaît dans la liste, avec le bon scope.
-- Pour un refus, l'agent doit prendre en compte la raison à sa prochaine itération (vous le verrez dans la suite de la conversation ou dans les logs de l'agent).
+- The approval card disappears from the chat (or the Inbox row) immediately after your decision.
+- A toast confirms the operation.
+- If you chose **Always allow**, open **Settings → Permissions** and check that a new rule appears in the list, with the right scope.
+- For a rejection, the agent should take the reason into account at its next iteration (you will see it in the rest of the conversation or in the agent logs).
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Aucune carte n'apparaît alors que l'agent semble bloqué** : ouvrez la **Boîte de réception** depuis la sidebar. Les agents en arrière-plan y déposent leurs demandes au lieu de les afficher dans le chat.
-- **L'agent réessaie sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Ouvrez ses logs depuis **Mes assistants** ; la raison transmise s'y retrouve dans la sortie de l'outil refusé. Refusez à nouveau avec une raison plus actionnable (chemin alternatif, valeur attendue…).
-- **Une règle "Toujours" crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et révoquez ou affinez le périmètre de la règle. Voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md).
-- **L'option "Toujours pour ce projet" est grisée** : la session de chat courante n'est rattachée à aucun projet. Liez-la depuis l'en-tête du chat, ou utilisez la portée *Toujours pour cet assistant* à la place.
-- **Moins de demandes d'approbation que d'habitude** : c'est normal si l'agent tourne en palier `supervised` ou supérieur. La boucle de vérification automatique résout une partie des situations sans vous solliciter. Si vous souhaitez rétablir un contrôle complet, relancez l'agent avec `--autonomy assisted`.
+- **No card appears while the agent seems stuck**: open the **Inbox** from the sidebar. Background agents drop their requests there instead of showing them in the chat.
+- **The agent keeps retrying the same rejected action**: the reason may not have been usable by the agent. Open its logs from **My Assistants**; the reason that was passed on shows up there in the rejected tool output. Reject again with a more actionable reason (alternative path, expected value…).
+- **An "Always" rule creates too many automatic actions**: open **Settings → Permissions** and revoke or narrow the rule's scope. See [Manage tool permissions](configurer-les-permissions-de-fichiers.md).
+- **The "Always for this project" option is greyed out**: the current chat session is not attached to any project. Link it from the chat header, or use the *Always for this assistant* scope instead.
+- **Fewer approval requests than usual**: this is expected if the agent runs at the `supervised` level or above. The automatic verification loop resolves part of the situations without asking you. If you want full control back, relaunch the agent with `--autonomy assisted`.
 
-> **Concept :** [Explication Apollia](../../explanation/index.md)
+> **Concept:** [Apollia explanation](/explanation)

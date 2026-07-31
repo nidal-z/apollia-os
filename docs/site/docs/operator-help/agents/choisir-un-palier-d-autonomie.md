@@ -1,59 +1,59 @@
-# Choisir un palier d'autonomie pour un agent
+# Choose an autonomy level for an agent
 
-> Pour tout operator qui veut ajuster jusqu'où un agent peut agir seul avant de demander une confirmation.
+> For any operator who wants to adjust how far an agent can go on its own before asking for a confirmation.
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé et le daemon actif.
-- Au moins un agent installé et démarré.
-- Familiarité avec la commande `apollia-os run`.
+- Apollia running and the daemon active.
+- At least one agent installed and started.
+- Familiarity with the `apollia-os run` command.
 
-## Les quatre paliers
+## The four levels
 
-| Palier | Quand l'utiliser | Budget d'étapes | Vérification auto | Injection mémoire |
+| Level | When to use it | Step budget | Automatic verification | Memory injection |
 |---|---|---|---|---|
-| `assisted` | Travail exploratoire, tâche inconnue, premier lancement. L'agent propose chaque action avant de l'exécuter. | Très court - convient pour valider un prototype. | Approbation HITL à chaque étape. | Non. |
-| `supervised` | Usage quotidien standard. L'agent avance seul sur les étapes simples et pause sur les actions à risque. | Modéré - couvre la majorité des tâches courantes. | Pause automatique avant toute écriture ou appel externe. | Non. |
-| `bounded_autonomous` | Automatisations configurées, pipelines récurrents dont vous connaissez le comportement. L'agent court jusqu'au bout sauf dépassement de budget. | Généreux - adapté aux workflows longs mais bornés. | Vérification uniquement au dépassement de budget. | Non. |
-| `long_autonomous` | Tâches de fond longues durée, travail de nuit sur données volumineuses. Réservé aux agents éprouvés. | Maximum disponible. | Aucune interruption automatique en cours de tâche. | Non. |
+| `assisted` | Exploratory work, unknown task, first run. The agent proposes each action before executing it. | Very short - suitable for validating a prototype. | HITL approval at every step. | No. |
+| `supervised` | Standard daily use. The agent moves forward on its own for simple steps and pauses on risky actions. | Moderate - covers most everyday tasks. | Automatic pause before any write or external call. | No. |
+| `bounded_autonomous` | Configured automations, recurring pipelines whose behavior you already know. The agent runs to the end unless the budget is exceeded. | Generous - suited to long but bounded workflows. | Verification only when the budget is exceeded. | No. |
+| `long_autonomous` | Long-running background tasks, overnight work on large volumes of data. Reserved for proven agents. | Maximum available. | No automatic interruption during the task. | No. |
 
-> La colonne "Injection mémoire" est `Non` pour tous les paliers : Apollia n'injecte jamais de contexte mémoire automatiquement, quel que soit le palier choisi.
+> The "Memory injection" column is `No` for every level: Apollia never injects memory context automatically, whichever level you choose.
 
-## Étapes - Appliquer un palier pour une exécution
+## Steps - Apply a level to one run
 
-Le palier se précise au lancement, avec `--autonomy`. Il s'applique uniquement à cette exécution et ne modifie pas `apollia.toml`.
+The level is set at launch, with `--autonomy`. It applies to that run only and does not modify `apollia.toml`.
 
 ```
 apollia-os run mon-agent "ma tâche" --autonomy supervised
 ```
 
-Remplacez `supervised` par l'une des quatre valeurs : `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
+Replace `supervised` with one of the four values: `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
 
-## Étapes - Modifier le palier par défaut global
+## Steps - Change the global default level
 
-Pour que toutes les exécutions utilisent un palier donné sans le préciser à chaque fois, éditez `apollia.toml` :
+So that every run uses a given level without specifying it each time, edit `apollia.toml`:
 
 ```toml
 [autonomy]
 default_level = "supervised"
 ```
 
-Redémarrez le daemon après modification pour que le nouveau défaut prenne effet.
+Restart the daemon after the change so the new default takes effect.
 
-## Vérification
+## Verification
 
-Après le lancement, les premières lignes de log de la tâche indiquent le palier actif :
+After launch, the first log lines of the task show the active level:
 
 ```
 autonomy.level=supervised agent=mon-agent "autonomy.activated"
 ```
 
-Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent logs mon-agent --follow`.
+Open the logs from the agent detail panel or with `apollia-os agent logs mon-agent --follow`.
 
-## Si ca ne marche pas
+## If it does not work
 
-- **Valeur inconnue au lancement :** si vous passez une valeur incorrecte à `--autonomy`, la CLI rejette la commande et liste les quatre valeurs valides (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Vérifiez l'orthographe, les valeurs sont en `snake_case`.
-- **Le palier `--autonomy` est ignoré :** vérifiez que vous utilisez bien `apollia-os run`, pas `apollia-os start`. La commande `start` démarre le daemon sans exécuter de tâche ; `--autonomy` n'y a pas de sens.
-- **Le défaut global ne change pas :** redémarrez le daemon après avoir modifié `apollia.toml`. Un daemon déjà en cours de fonctionnement lit la config au démarrage uniquement.
+- **Unknown value at launch:** if you pass an incorrect value to `--autonomy`, the CLI rejects the command and lists the four valid values (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Check the spelling, the values are in `snake_case`.
+- **The `--autonomy` level is ignored:** check that you are using `apollia-os run`, not `apollia-os start`. The `start` command starts the daemon without running a task; `--autonomy` has no meaning there.
+- **The global default does not change:** restart the daemon after modifying `apollia.toml`. A daemon that is already running reads the config at startup only.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - StepBudget, ResilienceLayer, comportement de chaque palier d'autonomie.
+> **Technical reference:** [Apollia reference](/reference) - StepBudget, ResilienceLayer, behavior of each autonomy level.

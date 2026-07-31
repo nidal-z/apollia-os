@@ -1,113 +1,113 @@
-# Utiliser la Boîte de réception
+# Use the Inbox
 
-> Pour les operators qui veulent traiter au même endroit tout ce qui demande leur attention : approbations d'actions, questions d'agents, échecs récents, historique des notifications envoyées.
+> For operators who want to handle everything that needs their attention in one place: action approvals, agent questions, recent failures, and the history of notifications sent.
 
-## Prérequis
+## Prerequisites
 
-- Au moins un agent ou trigger a tourné récemment.
+- At least one agent or trigger has run recently.
 
-## Où la trouver
+## Where to find it
 
-Dans la sidebar, l'entrée **Boîte de réception** (icône bouclier). Le badge à côté du libellé indique le nombre d'**actions à traiter** (approbations + questions en attente). Ce compteur reste strictement sur les actions concrètes - il n'inclut pas les événements informatifs ni les notifications passées.
+In the sidebar, the **Inbox** entry (shield icon). The badge next to the label shows the number of **actions to handle** (pending approvals + questions). This counter stays strictly on concrete actions, it does not include informational events or past notifications.
 
-## Architecture de la page
+## How the page is laid out
 
-La page est organisée en **trois onglets**, accessibles via la barre d'onglets en tête :
+The page is organised into **three tabs**, reachable from the tab bar at the top:
 
-| Onglet | Contenu |
+| Tab | Content |
 |---|---|
-| **À traiter** | Approbations HITL en attente + questions `ask_user` que les agents vous posent. C'est ici que vit l'interactivité bloquante. |
-| **Activité** | Événements récents qui demandent votre attention sans bloquer un agent : échecs de tâche, erreurs de déclencheur, agents en mode dégradé, fournisseur LLM indisponible. Fenêtre glissante de 14 jours. |
-| **Notifications envoyées** | Historique des notifications poussées vers vos canaux Desktop / Webhook (50 dernières). |
+| **To do** | Pending HITL approvals + `ask_user` questions that agents are asking you. This is where blocking interactivity lives. |
+| **Activity** | Recent events that deserve your attention without blocking an agent: task failures, trigger errors, agents running degraded, LLM provider unavailable. Rolling 14-day window. |
+| **Notifications sent** | History of the notifications pushed to your Desktop / Webhook channels (last 50). |
 
-L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve votre dernière vue). Vous pouvez aussi y arriver directement via un lien (la page **Paramètres → Notifications** redirige par exemple sur l'onglet *Notifications envoyées*).
+The active tab is remembered between sessions (refreshing the page keeps your last view). You can also land there directly through a link (the **Settings → Notifications** page redirects to the *Notifications sent* tab, for instance).
 
-## Onglet "À traiter"
+## The "To do" tab
 
-![onglet À traiter - barre d'onglets en haut avec compteurs en chip, chips de filtre (Tous / Approbations / Q...](/img/operator-help/transversal-utiliser-l-inbox-1.png)
+![To do tab - tab bar at the top with chip counters, filter chips (All / Approvals / Q...](/img/operator-help/transversal-utiliser-l-inbox-1.png)
 
-### Filtrer la liste
+### Filter the list
 
-- **Trois chips de type** au-dessus de la liste - **Tous** / **Approbations** / **Questions**. Cliquez pour ne voir que ce qui vous intéresse.
-- **Sélecteur Agent** à droite de la rangée de chips - isole le travail d'un seul agent.
-- Les items sont **groupés automatiquement par jour** (Aujourd'hui / Hier / Plus tôt), du plus récent en haut.
+- **Three type chips** above the list: **All** / **Approvals** / **Questions**. Click to see only what interests you.
+- **Agent selector** to the right of the chip row, isolates the work of a single agent.
+- Items are **grouped automatically by day** (Today / Yesterday / Earlier), most recent at the top.
 
-### Traiter une approbation
+### Handle an approval
 
-Cliquez sur une ligne d'approbation pour la déplier en carte de décision. Voir la page dédiée [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md) pour le détail des 4 portées de *Toujours autoriser* et du dialog de raison de refus (5 à 500 caractères).
+Click an approval row to expand it into a decision card. See the dedicated page [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md) for the detail of the 4 scopes of *Always allow* and of the refusal reason dialog (5 to 500 characters).
 
-### Répondre à une question d'agent (`ask_user`)
+### Answer an agent question (`ask_user`)
 
-Quand un agent utilise l'outil `ask_user` pour vous interroger, l'item apparaît dans cet onglet sous le libellé **Question**. Cliquez pour déplier le formulaire dynamique.
+When an agent uses the `ask_user` tool to question you, the item shows up in this tab under the **Question** label. Click to expand the dynamic form.
 
-![formulaire ask_user déplié - contexte en encart bleu en haut, une question texte avec hint, une question à...](/img/operator-help/transversal-utiliser-l-inbox-2.png)
+![ask_user form expanded - context in a blue callout at the top, a text question with a hint, a question wi...](/img/operator-help/transversal-utiliser-l-inbox-2.png)
 
-Le formulaire affiche, dans l'ordre :
+The form displays, in order:
 
-- Un **encart bleu** avec le contexte fourni par l'agent (s'il en a fourni un - *"pourquoi je vous pose ces questions"*).
-- Une à dix **questions**, chacune rendue selon son type :
-  - **Question ouverte** - champ texte libre, avec une indication d'aide si l'agent en a précisé une.
-  - **Choix unique** - radios, une seule option sélectionnable.
-  - **Choix multiple** - cases à cocher, plusieurs options possibles.
+- A **blue callout** with the context supplied by the agent (if it supplied one, the *"why I am asking you these questions"*).
+- One to ten **questions**, each rendered according to its type:
+  - **Open question** - free text field, with a hint if the agent provided one.
+  - **Single choice** - radio buttons, only one option selectable.
+  - **Multiple choice** - checkboxes, several options possible.
 
-Deux actions en bas :
+Two actions at the bottom:
 
-- **Répondre** *(bouton primaire)* - envoie vos réponses à l'agent, qui reprend son exécution. Les champs laissés vides sont marqués *« non répondu »* dans la réponse transmise - pas de blocage.
-- **Refuser de répondre** *(ghost rouge)* - ouvre le dialog de raison (5 à 500 caractères). L'agent reçoit votre refus motivé et adapte sa suite.
+- **Reply** *(primary button)* - sends your answers to the agent, which resumes its execution. Fields left empty are marked *"not answered"* in the payload passed along, nothing blocks.
+- **Decline to answer** *(red ghost)* - opens the reason dialog (5 to 500 characters). The agent receives your reasoned refusal and adapts what it does next.
 
-> **Note :** une notification (toast desktop ou webhook si configuré) part automatiquement quand un agent appelle `ask_user`. Vous pouvez désactiver cette notification dans **Paramètres → Notifications** en décochant *Question d'agent*.
+> **Note:** a notification (desktop toast, or webhook if configured) goes out automatically when an agent calls `ask_user`. You can turn this notification off in **Settings → Notifications** by unchecking *Agent question*.
 
-### Historique récent
+### Recent history
 
-Sous la liste des items en attente, une section **Historique récent (14 jours)** liste les 50 dernières décisions HITL résolues : ✅ Autorisé / 🛡 Toujours autorisé / ❌ Refusé (avec la raison saisie). Lecture seule.
+Below the list of pending items, a **Recent history (last 14 days)** section lists the last 50 resolved HITL decisions: ✅ Approved / 🛡 Always approved / ❌ Rejected (with the reason you typed). Read only.
 
-## Onglet "Activité"
+## The "Activity" tab
 
-![onglet Activité - 4 chips de filtre Toutes / Échecs / Dégradations / LLM, liste de cartes avec icône coloré...](/img/operator-help/transversal-utiliser-l-inbox-3.png)
+![Activity tab - 4 filter chips All / Failures / Degradations / LLM, list of cards with a coloured icon...](/img/operator-help/transversal-utiliser-l-inbox-3.png)
 
-Cet onglet liste les événements qui n'ont pas demandé d'action immédiate mais méritent un coup d'œil. Quatre catégories couvertes sur la fenêtre de 14 jours :
+This tab lists the events that did not call for immediate action but are worth a look. Four categories covered over the 14-day window:
 
-- **Échecs** ❌ - `task.failed` (tâche d'agent échouée) et `trigger.error` (déclencheur en erreur).
-- **Dégradations** ⚠️ - `agent.degraded` (un outil optionnel n'est plus disponible, l'agent continue en capacités réduites).
-- **LLM** 🔌 - `llm.backend_down` (fournisseur d'IA injoignable).
+- **Failures** ❌ - `task.failed` (agent task failed) and `trigger.error` (trigger in error).
+- **Degradations** ⚠️ - `agent.degraded` (an optional tool is no longer available, the agent carries on with reduced capabilities).
+- **LLM** 🔌 - `llm.backend_down` (AI provider unreachable).
 
-Filtrez avec les chips en haut. Chaque ligne propose un bouton **Voir les logs** qui ouvre **Observabilité → Chronologie** pré-positionnée sur la tâche concernée si disponible.
+Filter with the chips at the top. Each row offers a **View logs** button that opens **Observability → Timeline** pre-positioned on the task concerned when available.
 
-> **Source :** cet onglet consomme la même base de données que la page Notifications. Un événement apparaît ici uniquement s'il a déclenché au moins une tentative d'envoi vers un canal (notification globale activée). Sinon, retrouvez-le dans **Observabilité → Chronologie**.
+> **Source:** this tab reads the same database as the Notifications page. An event only appears here if it triggered at least one delivery attempt towards a channel (global notification enabled). Otherwise, find it in **Observability → Timeline**.
 
-## Onglet "Notifications envoyées"
+## The "Notifications sent" tab
 
-![onglet Notifications envoyées - sélecteur de filtre par canal, tableau 4 colonnes Horodatage / Canal / Évén...](/img/operator-help/transversal-utiliser-l-inbox-4.png)
+![Notifications sent tab - channel filter selector, 4-column table Timestamp / Channel / Even...](/img/operator-help/transversal-utiliser-l-inbox-4.png)
 
-Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou Webhook, avec :
+Table of the **last 50 notifications** pushed to your Desktop or Webhook channels, with:
 
-- **Horodatage** relatif (avec date absolue en tooltip).
-- **Canal** - affiché par son nom (label) si défini, sinon son identifiant.
-- **Événement** - libellé humain (*Tâche échouée*, *Approbation requise*, etc.).
-- **Statut** - badge vert *« envoyé »* ou rouge *« échoué »*.
+- Relative **Timestamp** (with the absolute date in a tooltip).
+- **Channel** - shown by its name (label) when set, otherwise by its identifier.
+- **Event** - human label (*Task failed*, *Approval required*, and so on).
+- **Status** - green *"sent"* badge or red *"failed"* badge.
 
-Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Paramètres → Notifications** (voir [Configurer un canal](../notifications/configurer-un-canal.md)).
+A selector at the top filters by channel. To configure channels or global events, go to **Settings → Notifications** (see [Configure a channel](../notifications/configurer-un-canal.md)).
 
-## Vérification
+## Verification
 
-- L'onglet "À traiter" se vide quand vous avez tout résolu - le badge sidebar redescend à zéro.
-- Une nouvelle approbation ou question d'agent fait remonter le badge **sans rafraîchissement manuel** (push temps réel).
-- Refuser un item le déplace immédiatement dans la section *Historique récent*.
+- The "To do" tab empties out once you have resolved everything, and the sidebar badge drops back to zero.
+- A new approval or agent question pushes the badge up **without a manual refresh** (real-time push).
+- Refusing an item moves it immediately into the *Recent history* section.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le badge sidebar reste à zéro alors qu'un agent attend** : vérifiez le **point d'état** à côté du mot *Apollia* dans le bandeau supérieur. S'il est rouge, le runtime est déconnecté ; quittez et rouvrez l'application.
-- **Un item `ask_user` ne propose pas le formulaire** : c'est un cas limite. Ouvrez la conversation correspondante (id de session affiché sur la carte) ; l'agent y attend une réponse via le chat lui-même.
-- **L'onglet Activité est vide alors qu'une tâche a clairement échoué** : l'événement n'a probablement pas été poussé dans la chaîne de notifications (aucun canal abonné). Ouvrez **Observabilité → Chronologie** pour la trace brute.
-- **Vous voulez éviter de réapprouver toujours la même action** : utilisez les options *Toujours autoriser* sur la carte. Voir [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md).
+- **The sidebar badge stays at zero while an agent is waiting**: check the **state dot** next to the word *Apollia* in the top bar. If it is red, the runtime is disconnected; quit and reopen the application.
+- **An `ask_user` item does not offer the form**: this is an edge case. Open the matching conversation (the session id is shown on the card); the agent is waiting there for an answer through the chat itself.
+- **The Activity tab is empty while a task clearly failed**: the event was most likely not pushed into the notification chain (no channel subscribed). Open **Observability → Timeline** for the raw trace.
+- **You want to avoid re-approving the same action over and over**: use the *Always allow* options on the card. See [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md).
 
-## Demandes provenant d'un serveur MCP
+## Requests coming from an MCP server
 
-À partir de v0.1.0, deux types d'événements émis par des serveurs MCP peuvent atterrir dans votre boîte de réception :
+From v0.1.0 onwards, two kinds of events emitted by MCP servers can land in your inbox:
 
-- **Demande d'input structurée** (`elicitation/create` MCP) - le serveur veut une saisie utilisateur (formulaire dynamique généré depuis un JSON Schema). Tombe dans **À traiter** sous la même forme qu'un `ask_user` classique.
-- **Demande de sampling LLM** (`sampling/createMessage` MCP) - le serveur demande un appel LLM. Le prompt complet + l'identifiant du serveur source sont affichés avant approbation. Au-delà de 100 sampling/heure par serveur, les demandes sont automatiquement rejetées sans arriver ici.
+- **Structured input request** (MCP `elicitation/create`) - the server wants user input (dynamic form generated from a JSON Schema). Lands in **To do** in the same shape as a classic `ask_user`.
+- **LLM sampling request** (MCP `sampling/createMessage`) - the server asks for an LLM call. The full prompt and the identifier of the source server are displayed before approval. Beyond 100 samplings per hour per server, requests are rejected automatically without reaching here.
 
-Ces deux types réutilisent les composants existants (`AskUserForm` pour elicitation, `HITLCard` pour sampling). Pas de nouvel onglet. Plus de détails : [Comprendre les permissions MCP](../integrations/comprendre-les-permissions-mcp.md).
+Both kinds reuse the existing components (`AskUserForm` for elicitation, `HITLCard` for sampling). No new tab. More detail: [Understand MCP permissions](../integrations/comprendre-les-permissions-mcp.md).
 
-> **Concept :** [Explication Apollia](../../explanation/index.md)
+> **Concept:** [Apollia explanation](/explanation)

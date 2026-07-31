@@ -1,42 +1,42 @@
-# Personnaliser le catalogue MCP
+# Customize the MCP catalogue
 
-> Pour les power users et administrateurs d'équipe qui veulent ajouter, désactiver ou modifier des entrées du catalogue MCP, sans attendre une release d'Apollia.
+> For power users and team administrators who want to add, disable or modify MCP catalogue entries, without waiting for an Apollia release.
 
-## Prérequis
+## Prerequisites
 
-- Vous savez éditer un fichier JSON.
-- Vous avez un éditeur de texte.
-- Apollia doit être fermé pendant l'édition (la v0.1.0 ne fait pas de hot-reload).
+- You know how to edit a JSON file.
+- You have a text editor.
+- Apollia must be closed while you edit (v0.1.0 does no hot-reload).
 
-## Le fichier `mcp-overrides.json`
+## The `mcp-overrides.json` file
 
-Chemin : `~/.apollia/mcp-overrides.json`.
+Path: `~/.apollia/mcp-overrides.json`.
 
-Format : un objet JSON avec trois clés optionnelles, appliquées dans cet ordre :
+Format: a JSON object with three optional keys, applied in this order:
 
-1. **`disable`** : retirer des entrées du catalogue.
-2. **`override`** : patcher des entrées existantes (deep merge).
-3. **`add`** : ajouter de nouvelles entrées.
+1. **`disable`**: remove entries from the catalogue.
+2. **`override`**: patch existing entries (deep merge).
+3. **`add`**: add new entries.
 
-## Étapes
+## Steps
 
-1. Fermer Apollia Desktop.
-2. Créer ou éditer `~/.apollia/mcp-overrides.json` selon les cas d'usage ci-dessous.
-3. Sauvegarder.
-4. Relancer Apollia Desktop.
-5. Ouvrir **Connexions, + Découvrir** et vérifier le résultat.
+1. Close Apollia Desktop.
+2. Create or edit `~/.apollia/mcp-overrides.json` following the use cases below.
+3. Save.
+4. Restart Apollia Desktop.
+5. Open **Connections, + Discover** and check the result.
 
-## Cas d'usage
+## Use cases
 
-### Masquer une entrée
+### Hide an entry
 
 ```json
 { "disable": ["@modelcontextprotocol/server-puppeteer"] }
 ```
 
-L'entrée disparaît du catalogue. Les serveurs déjà installés ne sont pas désinstallés.
+The entry disappears from the catalogue. Already installed servers are not uninstalled.
 
-### Modifier une entrée existante (deep merge)
+### Modify an existing entry (deep merge)
 
 ```json
 {
@@ -48,9 +48,9 @@ L'entrée disparaît du catalogue. Les serveurs déjà installés ne sont pas d�
 }
 ```
 
-Le patch est appliqué par fusion récursive. Les objets sont fusionnés, les scalaires et les tableaux sont remplacés entièrement.
+The patch is applied by recursive merge. Objects are merged, scalars and arrays are replaced entirely.
 
-### Ajouter une entrée maison
+### Add your own entry
 
 ```json
 {
@@ -71,25 +71,25 @@ Le patch est appliqué par fusion récursive. Les objets sont fusionnés, les sc
 }
 ```
 
-Les champs obligatoires sont `package_identifier`, `operator_label`, `category`, `icon_name`, `trust_level`. Le schéma complet (tous les champs disponibles) est documenté dans la référence technique.
+The required fields are `package_identifier`, `operator_label`, `category`, `icon_name`, `trust_level`. The full schema (every available field) is documented in the technical reference.
 
-## Vérification
+## Verification
 
-- Les entrées de `disable` ne sont plus visibles dans **+ Découvrir**.
-- Les entrées de `add` apparaissent avec leur logo et un badge `Custom`.
-- Les overrides sont reflétés (par exemple `default_requires_approval=false` rend les outils auto-approuvés).
-- Si vous voulez confirmer côté logs, regardez `~/.apollia/logs/runtime.log`, ligne `mcp.catalog.overrides.applied`.
+- The entries in `disable` are no longer visible under **+ Discover**.
+- The entries in `add` appear with their logo and a `Custom` badge.
+- Overrides are reflected (for example `default_requires_approval=false` makes the tools auto-approved).
+- If you want to confirm from the logs, look at `~/.apollia/logs/runtime.log`, line `mcp.catalog.overrides.applied`.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le fichier semble ignoré** : il est probablement mal formé (JSON invalide). Apollia logge un warning `mcp.catalog.overrides.parse_failed` mais ne crashe pas. Validez avec `jq . ~/.apollia/mcp-overrides.json`.
-- **Une entrée `add` n'apparaît pas** : un champ obligatoire manque. Les autres entrées du fichier sont quand même appliquées.
-- **Vous voulez recharger sans redémarrer** : non supporté en v0.1.0, redémarrage requis.
+- **The file looks ignored**: it is probably malformed (invalid JSON). Apollia logs a `mcp.catalog.overrides.parse_failed` warning but does not crash. Validate with `jq . ~/.apollia/mcp-overrides.json`.
+- **An `add` entry does not appear**: a required field is missing. The other entries in the file are still applied.
+- **You want to reload without restarting**: not supported in v0.1.0, a restart is required.
 
-## Limitations v0.1.0
+## v0.1.0 limitations
 
-- Pas de hot-reload.
-- Pas de validation cryptographique sur les entrées `add` (vous êtes responsable du contenu).
-- Pas de gouvernance multi-utilisateur (PR review), prévu en v0.3 avec un registry remote optionnel.
+- No hot-reload.
+- No cryptographic validation on `add` entries (you are responsible for the content).
+- No multi-user governance (PR review), planned for v0.3 with an optional remote registry.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , schéma complet `ConnectorEnrichment`, ordre d'application, cas particuliers.
+> **Technical reference:** [Apollia reference](/reference) , full `ConnectorEnrichment` schema, application order, edge cases.

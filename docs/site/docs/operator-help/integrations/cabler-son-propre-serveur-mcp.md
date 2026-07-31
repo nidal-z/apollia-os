@@ -1,91 +1,91 @@
-# Câbler son propre serveur MCP
+# Wire your own MCP server
 
-> Pour tout operator ou builder qui veut connecter un serveur MCP qui n'est pas dans le catalogue, en local (stdio) ou distant (HTTP, SSE).
+> For any operator or builder who wants to connect an MCP server that is not in the catalogue, locally (stdio) or remotely (HTTP, SSE).
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé.
-- Un serveur MCP conforme à la spec, en transport **stdio** (sous-processus local), **streamable-http** ou **sse**.
-- L'accès au serveur : commande locale + arguments, ou URL distante + en-têtes d'authentification.
+- Apollia running.
+- An MCP server that conforms to the spec, over **stdio** transport (local subprocess), **streamable-http** or **sse**.
+- Access to the server: local command + arguments, or remote URL + authentication headers.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar **Connexions**, cliquez sur **+ Ajouter personnalisé** en haut. Le panneau s'ouvre sur l'onglet **Personnalisé**.
+1. In the **Connections** sidebar, click **+ Add custom** at the top. The panel opens on the **Custom** tab.
 
-   ![Onglet Personnalisé du catalogue : le formulaire vierge](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
+   ![Custom tab of the catalogue: the blank form](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
 
-2. Remplissez le formulaire selon le transport choisi (voir sous-sections).
+2. Fill in the form according to the transport you chose (see the subsections below).
 
-3. Cliquez sur **Tester**. Apollia tente une connexion réelle et compte les outils déclarés par le serveur.
+3. Click **Test**. Apollia attempts a real connection and counts the tools declared by the server.
 
-4. Si le test passe, cliquez sur **Installer**. Le serveur apparaît dans la sidebar.
+4. If the test passes, click **Install**. The server appears in the sidebar.
 
-### Cas stdio (commande locale)
+### stdio case (local command)
 
-- **Nom** : identifiant unique, lettres minuscules, chiffres et tirets uniquement (exemple : `test-fs`).
-- **Transport** : `stdio`.
-- **Commande** : exécutable à lancer (par exemple `npx`, `uvx`, ou un chemin absolu).
-- **Arguments** : séparés par des espaces (par exemple `-y @modelcontextprotocol/server-filesystem ~/Documents`).
-- **Exiger approbation** : cochez si vous voulez une approbation HITL à chaque appel d'outil.
+- **Name**: unique identifier, lowercase letters, digits and hyphens only (example: `test-fs`).
+- **Transport**: `stdio`.
+- **Command**: executable to launch (for example `npx`, `uvx`, or an absolute path).
+- **Arguments**: separated by spaces (for example `-y @modelcontextprotocol/server-filesystem ~/Documents`).
+- **Require approval**: tick this if you want an HITL approval on every tool call.
 
-![Formulaire Personnalisé en transport stdio, avec la commande et les arguments remplis](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
+![Custom form on stdio transport, with the command and the arguments filled in](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
 
-### Cas streamable-http (serveur distant)
+### streamable-http case (remote server)
 
-- **Nom** : identifiant unique.
-- **Transport** : `streamable-http`.
-- **URL** : endpoint HTTP du serveur (`https://...`).
-- **En-têtes** (optionnel) : un par ligne au format `Nom-Header=valeur`. Exemple : `Authorization=Bearer sk-...` ou `X-API-Key=...`.
+- **Name**: unique identifier.
+- **Transport**: `streamable-http`.
+- **URL**: HTTP endpoint of the server (`https://...`).
+- **Headers** (optional): one per line, in the `Header-Name=value` format. Example: `Authorization=Bearer sk-...` or `X-API-Key=...`.
 
-![Formulaire Personnalisé en transport streamable-http, avec l'URL et les en-têtes d'authentification](/img/operator-help/integration-cabler-son-propre-serveur-mcp-3.png)
+![Custom form on streamable-http transport, with the URL and the authentication headers](/img/operator-help/integration-cabler-son-propre-serveur-mcp-3.png)
 
-### Cas SSE
+### SSE case
 
-Identique au cas streamable-http mais avec **Transport** : `sse`. Utilisé pour les serveurs qui maintiennent une connexion SSE persistante.
+Identical to the streamable-http case but with **Transport**: `sse`. Used for servers that keep a persistent SSE connection open.
 
-## OAuth 2.1, automatique
+## OAuth 2.1, automatic
 
-Si votre serveur MCP annonce un endpoint OAuth conforme à la spec d'autorisation MCP (RFC 9728 Protected Resource Metadata + RFC 8414 Authorization Server Metadata), Apollia gère seul :
+If your MCP server advertises an OAuth endpoint that conforms to the MCP authorization spec (RFC 9728 Protected Resource Metadata + RFC 8414 Authorization Server Metadata), Apollia handles it all on its own:
 
-1. La découverte des métadonnées (PRM puis OIDC fallback).
-2. L'identification client via le CIMD Apollia, ou Dynamic Client Registration (RFC 7591) en fallback.
-3. L'échange de code avec PKCE S256 et Resource Indicators (RFC 8707).
-4. Le stockage du token dans le trousseau local et le refresh proactif avec singleflight.
+1. Metadata discovery (PRM, then OIDC fallback).
+2. Client identification through the Apollia CIMD, or Dynamic Client Registration (RFC 7591) as a fallback.
+3. Code exchange with PKCE S256 and Resource Indicators (RFC 8707).
+4. Token storage in the local keychain and proactive refresh with singleflight.
 
-Vous n'avez rien à configurer côté Apollia. Le serveur déclenche tout au premier 401.
+You have nothing to configure on the Apollia side. The server triggers everything on the first 401.
 
-## Découverte mDNS locale
+## Local mDNS discovery
 
-Apollia peut découvrir des serveurs MCP sur votre réseau local via mDNS (service type `_apollia-mcp._tcp.local.`). Activez l'option dans **Connexions, Préférences** si votre serveur l'annonce.
+Apollia can discover MCP servers on your local network through mDNS (service type `_apollia-mcp._tcp.local.`). Enable the option in **Connections, Preferences** if your server advertises it.
 
-## Vérification
+## Verification
 
-- Pastille verte à côté du serveur dans la sidebar.
-- La vue détail affiche les sections `tools`, `resources`, `prompts` renseignées avec ce que le serveur annonce.
-- Un test ping confirme la latence (voir [Tester une connexion MCP](tester-une-connexion-mcp.md)).
+- Green dot next to the server in the sidebar.
+- The detail view shows the `tools`, `resources` and `prompts` sections filled in with what the server advertises.
+- A ping test confirms the latency (see [Test an MCP connection](tester-une-connexion-mcp.md)).
 
-## Sécurité, ce qu'Apollia applique par défaut
+## Security, what Apollia applies by default
 
-- **Trust level** : tout serveur ajouté manuellement est marqué `custom`. Pas de niveau `verified_official` automatique.
-- **Approbation HITL** : par défaut, l'outil est en mode *requires_approval*, chaque appel demande votre validation. Vous pouvez assouplir par outil dans la page [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md).
-- **Roots** : Apollia déclare au serveur les répertoires accessibles (workspace de l'agent + projet courant). Le serveur ne voit rien d'autre.
-- **Sampling** : si le serveur demande un appel LLM via `sampling/createMessage`, le prompt arrive dans votre boîte de réception et vous approuvez avant exécution.
-- **Elicitation** : si le serveur veut un input utilisateur via `elicitation/create`, un formulaire arrive dans votre boîte de réception.
+- **Trust level**: any manually added server is marked `custom`. No automatic `verified_official` level.
+- **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](comprendre-les-permissions-mcp.md) page.
+- **Roots**: Apollia declares the accessible directories to the server (the agent workspace + the current project). The server sees nothing else.
+- **Sampling**: if the server requests an LLM call through `sampling/createMessage`, the prompt lands in your inbox and you approve before execution.
+- **Elicitation**: if the server wants user input through `elicitation/create`, a form lands in your inbox.
 
-## Mode de chargement deferred
+## Deferred loading mode
 
-Par défaut, Apollia charge les outils d'un serveur MCP en mode `deferred` : ils ne sont pas injectés en contexte au démarrage. L'agent utilise `tool_search` pour les récupérer à la demande. C'est le bon réglage pour la plupart des serveurs.
+By default, Apollia loads the tools of an MCP server in `deferred` mode: they are not injected into the context at startup. The agent uses `tool_search` to fetch them on demand. This is the right setting for most servers.
 
-Si votre serveur expose peu d'outils (moins d'une dizaine) ou si vos agents les utilisent systématiquement à chaque exécution, vous pouvez passer en mode `eager` dans votre configuration :
+If your server exposes few tools (fewer than ten) or if your agents use them systematically on every run, you can switch to `eager` mode in your configuration:
 
 ```toml
 [mcp]
 tool_loading = "eager"
 ```
 
-En mode `eager`, tous les outils du serveur sont chargés en contexte à chaque appel. Cela simplifie le comportement de l'agent mais augmente la consommation de tokens.
+In `eager` mode, every tool of the server is loaded into the context on every call. This simplifies the agent behaviour but increases token consumption.
 
-Le paramètre `tool_search_limit` borne le nombre d'outils renvoyés par `tool_search` en mode `deferred`. Valeur par défaut : `20`. Plage valide : `1` à `500`.
+The `tool_search_limit` parameter bounds the number of tools returned by `tool_search` in `deferred` mode. Default value: `20`. Valid range: `1` to `500`.
 
 ```toml
 [mcp]
@@ -93,15 +93,15 @@ tool_loading = "deferred"
 tool_search_limit = 20
 ```
 
-## Si ça ne marche pas
+## If it does not work
 
-- **"Commande introuvable" en stdio** : votre binaire n'est pas dans le PATH d'Apollia. Donnez le chemin absolu ou ajustez votre PATH avant de lancer Apollia.
-- **"Connexion refusée" en HTTP ou SSE** : URL ou port incorrects, ou firewall bloque la sortie. Vérifiez l'accessibilité depuis votre machine avec `curl <url>`.
-- **OAuth en boucle** : votre serveur annonce mal son endpoint metadata, ou un scope refusé. Apollia refuse fail-fast les serveurs d'autorisation non conformes (PKCE S256 obligatoire). Vérifiez les logs côté serveur.
-- **"Aucun outil détecté"** : le handshake réussit mais le serveur ne déclare pas la capability `tools` dans son `InitializeResult`. Vérifiez l'implémentation côté serveur.
+- **"Command not found" on stdio**: your binary is not in Apollia's PATH. Give the absolute path or adjust your PATH before launching Apollia.
+- **"Connection refused" on HTTP or SSE**: wrong URL or port, or a firewall blocking outbound traffic. Check that the server is reachable from your machine with `curl <url>`.
+- **OAuth loop**: your server advertises its metadata endpoint incorrectly, or a scope was refused. Apollia rejects non-conformant authorization servers fail-fast (PKCE S256 is mandatory). Check the server-side logs.
+- **"No tool detected"**: the handshake succeeds but the server does not declare the `tools` capability in its `InitializeResult`. Check the server-side implementation.
 
-## Faire apparaître votre serveur dans le catalogue UI
+## Getting your server to show up in the UI catalogue
 
-Pour que votre serveur interne apparaisse aux côtés des entrées officielles (avec logo, description, badge trust level), voir [Personnaliser le catalogue MCP](personnaliser-le-catalogue-mcp.md).
+To make your internal server appear alongside the official entries (with a logo, a description and a trust level badge), see [Customize the MCP catalogue](personnaliser-le-catalogue-mcp.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , schéma complet du protocole, capabilities, transports, sécurité.
+> **Technical reference:** [Apollia reference](/reference) , full protocol schema, capabilities, transports, security.

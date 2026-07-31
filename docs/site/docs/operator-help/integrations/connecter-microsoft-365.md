@@ -1,90 +1,90 @@
-# Connecter Microsoft 365
+# Connect Microsoft 365
 
-> Pour tout operator qui veut brancher Outlook, Calendar et OneDrive à Apollia, que son compte soit personnel (outlook.com, hotmail.com, live.com) ou professionnel (Microsoft 365, Entra ID).
+> For any operator who wants to plug Outlook, Calendar and OneDrive into Apollia, whether the account is personal (outlook.com, hotmail.com, live.com) or professional (Microsoft 365, Entra ID).
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé.
-- Un compte Microsoft, personnel ou professionnel.
-- Votre profil de souveraineté n'est pas réglé sur `local_only`.
-- Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver Apollia.
-- Connexion internet active.
+- Apollia running.
+- A Microsoft account, personal or professional.
+- Your sovereignty profile is not set to `local_only`.
+- If your Entra ID tenant requires administrative approval, the administrator has to pre-approve Apollia.
+- An active internet connection.
 
-## Quel type de compte je peux utiliser
+## Which account type I can use
 
-Les deux fonctionnent nativement avec l'app Apollia, sans configuration supplémentaire. L'endpoint utilisé (`/common/`) accepte indifféremment :
+Both work natively with the Apollia app, with no extra configuration. The endpoint used (`/common/`) accepts either:
 
-- les comptes personnels Microsoft (outlook.com, hotmail.com, live.com),
-- les comptes professionnels ou d'éducation (Entra ID, M365 Business, M365 Developer tenant).
+- personal Microsoft accounts (outlook.com, hotmail.com, live.com),
+- professional or education accounts (Entra ID, M365 Business, M365 Developer tenant).
 
-Voir les différences observables dans le tableau plus bas.
+See the observable differences in the table further down.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, ouvrez **Connexions**, puis sélectionnez la carte **Microsoft 365**.
+1. In the sidebar, open **Connections**, then select the **Microsoft 365** card.
 
-   *Figure : la page Connexions, avec la carte Microsoft 365 mise en évidence et le bouton Connecter un compte dans le panneau de droite.*
+   *Figure: the Connections page, with the Microsoft 365 card highlighted and the Connect an account button in the right-hand panel.*
 
-2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre la page de consentement Microsoft.
+2. Click **Connect an account**. A window opens inside Apollia and your browser opens the Microsoft consent page.
 
-3. Authentifiez-vous avec votre compte Microsoft, puis acceptez les autorisations (Mail, Calendar, Files).
+3. Authenticate with your Microsoft account, then accept the permissions (Mail, Calendar, Files).
 
-   *Figure : la page de consentement Microsoft, avec la liste des accès demandés (Mail, Calendar, Files) et les boutons Non et Oui.*
+   *Figure: the Microsoft consent page, with the list of requested accesses (Mail, Calendar, Files) and the No and Yes buttons.*
 
-4. De retour dans Apollia, la fenêtre détecte le retour automatiquement et se ferme. Votre compte apparaît dans la sidebar avec une pastille verte.
+4. Back in Apollia, the window detects the return automatically and closes. Your account appears in the sidebar with a green dot.
 
-   *Figure : la sidebar Connexions, avec la carte Microsoft 365 dépliée affichant le compte connecté et sa pastille verte.*
+   *Figure: the Connections sidebar, with the Microsoft 365 card expanded showing the connected account and its green dot.*
 
-## Ce que vous pouvez faire
+## What you can do
 
-**Outlook (mail)** :
-- Lecture automatique : chercher des messages, lire un mail précis, lister vos dossiers.
-- Écriture avec approbation HITL : envoyer un mail, répondre, déplacer un message.
+**Outlook (mail)**:
+- Automatic reads: search messages, read a specific mail, list your folders.
+- Writes with HITL approval: send a mail, reply, move a message.
 
-**Calendar** :
-- Lecture automatique : lister des événements, ouvrir un événement précis.
-- Écriture avec approbation HITL : créer ou modifier un événement.
-- Suppression avec phrase de confirmation : supprimer un événement.
+**Calendar**:
+- Automatic reads: list events, open a specific event.
+- Writes with HITL approval: create or change an event.
+- Deletion with a confirmation phrase: delete an event.
 
-**OneDrive (lecture seule v0.1.0)** :
-- Chercher dans vos fichiers, lire les métadonnées, télécharger un fichier, lister les fichiers récents.
-- L'écriture OneDrive et le pattern workspace folder (équivalent du `Drive/Apollia/<agent>/` Google) arriveront dans une version ultérieure.
+**OneDrive (read-only in v0.1.0)**:
+- Search your files, read the metadata, download a file, list recent files.
+- OneDrive writing and the workspace folder pattern (the equivalent of Google's `Drive/Apollia/<agent>/`) will land in a later version.
 
-Microsoft Teams n'est pas couvert en v0.1.0.
+Microsoft Teams is not covered in v0.1.0.
 
-## Multi-comptes
+## Multiple accounts
 
-Comme pour Google, vous pouvez connecter plusieurs comptes Microsoft. Chaque compte garde son token séparé dans le trousseau. Au moment où un agent appelle un outil Microsoft, il peut choisir le compte cible si plusieurs sont connectés.
+As with Google, you can connect several Microsoft accounts. Each account keeps its own token in the keychain. When an agent calls a Microsoft tool, it can pick the target account if several are connected.
 
-## Différences perso vs pro
+## Personal vs professional differences
 
-| Capacité | Compte personnel | Compte professionnel |
+| Capability | Personal account | Professional account |
 |---|---|---|
-| Backend Mail | Outlook.com | Exchange Online |
-| Backend Calendar | Outlook.com | Exchange Online |
-| Backend Drive | OneDrive Personal | OneDrive for Business |
-| Consentement admin | Sans objet | Possible selon politique du tenant |
-| Domaines | outlook.com, hotmail.com, live.com | `<vous>@<entreprise>.onmicrosoft.com` ou domaine custom |
+| Mail backend | Outlook.com | Exchange Online |
+| Calendar backend | Outlook.com | Exchange Online |
+| Drive backend | OneDrive Personal | OneDrive for Business |
+| Admin consent | Not applicable | Possible depending on tenant policy |
+| Domains | outlook.com, hotmail.com, live.com | `<you>@<company>.onmicrosoft.com` or a custom domain |
 
-Les outils sont les mêmes des deux côtés, seul le backend qui répond change.
+The tools are the same on both sides, only the backend answering changes.
 
-## Vérification
+## Verification
 
-- La pastille à côté du compte est verte.
-- Dans le chat libre, demandez *"Liste mes 3 derniers mails Outlook"*. La réponse arrive sans demande d'approbation.
-- Tentez ensuite *"Envoie un mail à <votre adresse> avec le sujet test"*. Une popup d'approbation s'affiche avant l'envoi.
-- Le trousseau du système contient une entrée `apollia-connector-microsoft` associée à votre adresse.
+- The dot next to the account is green.
+- In free chat, ask *"List my last 3 Outlook mails"*. The answer comes back without an approval request.
+- Then try *"Send a mail to <your address> with the subject test"*. An approval popup appears before sending.
+- The system keychain holds an `apollia-connector-microsoft` entry tied to your address.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **AADSTS90094, "administrateur consent requis"** : votre tenant Entra ID exige une approbation au niveau organisation. Contactez votre administrateur pour qu'il pré-approuve Apollia, ou utilisez un compte Microsoft personnel.
-- **AADSTS500011, "application introuvable dans le tenant"** : votre administrateur a restreint les apps externes. Demandez-lui de pré-approuver Apollia, ou utilisez un compte personnel.
-- **`outlook.send` échoue avec `ErrorRecipientNotResolved`** : Microsoft Graph valide les destinataires plus strictement que Google. Vérifiez l'adresse cible et l'absence d'alias mort.
-- **OneDrive en écriture refusé** : c'est attendu en v0.1.0, OneDrive est en lecture seule.
-- **Le bouton Connecter est grisé** : votre profil de souveraineté est `local_only`.
+- **AADSTS90094, "admin consent required"**: your Entra ID tenant requires an organization-level approval. Contact your administrator so they pre-approve Apollia, or use a personal Microsoft account.
+- **AADSTS500011, "application not found in the tenant"**: your administrator has restricted external apps. Ask them to pre-approve Apollia, or use a personal account.
+- **`outlook.send` fails with `ErrorRecipientNotResolved`**: Microsoft Graph validates recipients more strictly than Google. Check the target address and make sure there is no dead alias.
+- **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
+- **The Connect button is greyed out**: your sovereignty profile is `local_only`.
 
-## Déconnecter un compte
+## Disconnecting an account
 
-Sur la carte Microsoft 365, cliquez sur **Déconnecter** à côté du compte. Le token est supprimé du trousseau local. Pour révoquer également côté Microsoft, allez sur https://myaccount.microsoft.com et retirez l'autorisation de l'application Apollia.
+On the Microsoft 365 card, click **Disconnect** next to the account. The token is deleted from the local keychain. To revoke on the Microsoft side too, go to https://myaccount.microsoft.com and remove the Apollia application permission.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , flow OAuth Microsoft, scopes complets, refresh proactif.
+> **Technical reference:** [Apollia reference](/reference) , Microsoft OAuth flow, full scopes, proactive refresh.

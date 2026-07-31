@@ -1,24 +1,24 @@
-# Configurer le chargement différé des outils MCP
+# Configure deferred loading of MCP tools
 
-> Pour tout operator qui veut contrôler quand les outils MCP sont chargés en mémoire : au démarrage (eager) ou à la demande de l'agent (deferred).
+> For any operator who wants to control when MCP tools are loaded into memory: at startup (eager) or on the agent's request (deferred).
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé avec au moins un serveur MCP connecté.
-- Accès à `apollia.toml` pour modifier la configuration.
+- Apollia running with at least one MCP server connected.
+- Access to `apollia.toml` to change the configuration.
 
-## Eager vs deferred : quand choisir quoi
+## Eager vs deferred: when to pick which
 
-| Mode | Chargement | Mémoire au démarrage | Conseillé quand |
+| Mode | Loading | Memory at startup | Recommended when |
 |---|---|---|---|
-| `deferred` (défaut) | À la demande, via `tool_search` | Faible : seuls les métadonnées sont indexées. | Vous avez beaucoup de serveurs MCP connectés, ou des serveurs avec de nombreux outils. L'agent cherche l'outil qu'il lui faut via `tool_search`. |
-| `eager` | Au démarrage du daemon | Plus élevée : tous les outils sont chargés immédiatement. | L'ensemble d'outils est petit et fixe. Vos agents ne savent pas utiliser `tool_search` (par exemple : agents anciens ou agents très spécialisés). |
+| `deferred` (default) | On demand, through `tool_search` | Low: only the metadata is indexed. | You have many MCP servers connected, or servers with a lot of tools. The agent looks for the tool it needs through `tool_search`. |
+| `eager` | At daemon startup | Higher: every tool is loaded immediately. | The tool set is small and fixed. Your agents do not know how to use `tool_search` (for example: older agents or very specialized agents). |
 
-En mode `deferred`, le daemon ne charge pas les schémas d'outils complets au démarrage. L'agent émet des appels `tool_search` pour trouver et charger les outils à la volée. Cela réduit le temps de démarrage et la consommation mémoire sur les installations avec de nombreux serveurs MCP.
+In `deferred` mode, the daemon does not load the full tool schemas at startup. The agent issues `tool_search` calls to find and load the tools on the fly. This shortens the startup time and lowers the memory footprint on installations with many MCP servers.
 
-## Étapes - Configurer le mode de chargement
+## Steps - Configure the loading mode
 
-Éditez `apollia.toml` :
+Edit `apollia.toml`:
 
 ```toml
 [mcp]
@@ -26,21 +26,21 @@ tool_loading      = "deferred"
 tool_search_limit = 20
 ```
 
-- `tool_loading` : `"deferred"` (défaut) ou `"eager"`.
-- `tool_search_limit` : nombre maximum d'outils retournés par un appel `tool_search` (défaut : `20`, bornes : `1` à `500`). Augmentez cette valeur si vos agents ont besoin de parcourir un catalogue étendu en une seule recherche.
+- `tool_loading`: `"deferred"` (default) or `"eager"`.
+- `tool_search_limit`: maximum number of tools returned by a `tool_search` call (default: `20`, bounds: `1` to `500`). Raise this value if your agents need to browse a wide catalogue in a single search.
 
-Redémarrez le daemon après modification.
+Restart the daemon after changing it.
 
-## Vérification
+## Verification
 
-En mode `deferred`, observez les logs au démarrage du daemon : aucun message de type "loading tools from <serveur>" n'apparaît. Les messages de chargement apparaissent uniquement quand un agent émet un appel `tool_search`.
+In `deferred` mode, watch the logs at daemon startup: no message of the form "loading tools from <server>" shows up. The loading messages appear only when an agent issues a `tool_search` call.
 
-En mode `eager`, les logs au démarrage listent tous les outils chargés par serveur.
+In `eager` mode, the startup logs list every tool loaded per server.
 
-## Si ca ne marche pas
+## If it does not work
 
-- **"L'agent ne trouve pas un outil pourtant connecté" en mode `deferred` :** vérifiez que l'agent déclare `tool_search` dans son manifest (clé `skills` ou `tools`). Sans cette déclaration, l'agent ne peut pas chercher des outils à la demande. Passez temporairement en `eager` pour déboguer et confirmer que l'outil est bien exposé par le serveur MCP.
-- **Le temps de démarrage reste long malgré le mode `deferred` :** un autre serveur MCP déclare ses outils automatiquement au démarrage, indépendamment de ce paramètre. Vérifiez la configuration de chaque serveur dans la page **Connexions**.
-- **`tool_search` retourne trop peu de résultats :** augmentez `tool_search_limit` dans `apollia.toml`. La borne maximale est `500`.
+- **"The agent cannot find a tool that is nonetheless connected" in `deferred` mode:** check that the agent declares `tool_search` in its manifest (`skills` or `tools` key). Without that declaration, the agent cannot search for tools on demand. Switch temporarily to `eager` to debug and confirm that the tool really is exposed by the MCP server.
+- **Startup time stays long despite `deferred` mode:** another MCP server declares its tools automatically at startup, independently of this parameter. Check the configuration of each server on the **Connections** page.
+- **`tool_search` returns too few results:** raise `tool_search_limit` in `apollia.toml`. The upper bound is `500`.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - architecture du client MCP, protocole `tool_search`, gouvernance des outils, scoping.
+> **Technical reference:** [Apollia reference](/reference) - MCP client architecture, `tool_search` protocol, tool governance, scoping.

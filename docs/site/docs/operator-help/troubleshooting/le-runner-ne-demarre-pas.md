@@ -1,64 +1,64 @@
-# Le runner sidecar ne démarre pas
+# The sidecar runner does not start
 
-Le **runner** (`apollia-runner-<backend>`) est le sidecar de reconnaissance vocale (STT, whisper). Le daemon le spawn au démarrage et communique avec lui en HTTP loopback. L'inférence LLM locale, elle, ne passe pas par le runner : elle est servie par le moteur embarqué `llama-server`. Si c'est le LLM local qui ne répond pas, voir plutôt [Le fournisseur d'IA ne répond pas](le-fournisseur-d-ia-ne-repond-pas.md).
+The **runner** (`apollia-runner-<backend>`) is the speech recognition sidecar (STT, whisper). The daemon spawns it at startup and talks to it over HTTP loopback. Local LLM inference does not go through the runner: it is served by the embedded `llama-server` engine. If it is the local LLM that does not answer, see [The AI provider does not answer](le-fournisseur-d-ia-ne-repond-pas.md) instead.
 
-Si vous voyez des messages comme :
+If you see messages such as:
 
 - `RUNNER_HANDSHAKE_TIMEOUT`
 - `runner sidecar not available (spawn failed)`
 
-...le sidecar STT n'a pas pu démarrer et la dictée vocale est indisponible. Voici les causes courantes.
+...the STT sidecar could not start and voice dictation is unavailable. Here are the common causes.
 
-## 1. Le binaire runner est absent
+## 1. The runner binary is missing
 
-Le bundle d'installation doit contenir au minimum `apollia-runner-cpu` à côté du daemon.
+The installation bundle must contain at least `apollia-runner-cpu` next to the daemon.
 
-**macOS :** `~/Applications/Apollia\ OS.app/Contents/Resources/apollia-runner-*`
-**Linux :** dans l'AppImage `.AppDir/usr/bin/` ou à côté de `apollia-os` (paquet `.deb`)
-**Windows :** `C:\Program Files\Apollia OS\apollia-runner-*.exe`
+**macOS:** `~/Applications/Apollia\ OS.app/Contents/Resources/apollia-runner-*`
+**Linux:** in the AppImage `.AppDir/usr/bin/` or next to `apollia-os` (`.deb` package)
+**Windows:** `C:\Program Files\Apollia OS\apollia-runner-*.exe`
 
-Vérifiez via :
+Check with:
 
 ```sh
 apollia-os doctor --json | jq .runner
 ```
 
-Si `apollia-runner-cpu` est absent : ré-installez Apollia (le bundle a été altéré).
+If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been altered).
 
-## 2. Le driver GPU est manquant ou trop ancien
+## 2. The GPU driver is missing or too old
 
-Le daemon a détecté votre GPU et tenté de spawner le runner STT correspondant (ex `apollia-runner-cuda`), mais les libs runtime sont absentes.
+The daemon detected your GPU and tried to spawn the matching STT runner (for example `apollia-runner-cuda`), but the runtime libraries are missing.
 
-**Symptômes :**
+**Symptoms:**
 
-- macOS : rarement bloquant (Metal est dans le système).
-- Linux/Windows CUDA : `libcuda.so.1 not found` ou `nvcuda.dll not found`.
-- Linux ROCm : `libhip.so not found`.
-- Vulkan : `libvulkan.so.1 not found`.
+- macOS: rarely blocking (Metal ships with the system).
+- Linux/Windows CUDA: `libcuda.so.1 not found` or `nvcuda.dll not found`.
+- Linux ROCm: `libhip.so not found`.
+- Vulkan: `libvulkan.so.1 not found`.
 
-**Fix :** mettez à jour le driver GPU, ou revenez au runner CPU en copiant `apollia-runner-cpu` à côté du binaire `apollia-os` (voir la page d'installation de votre système). Redémarrez ensuite : `apollia-os stop && apollia-os start`.
+**Fix:** update the GPU driver, or fall back to the CPU runner by copying `apollia-runner-cpu` next to the `apollia-os` binary (see the installation page for your system). Then restart: `apollia-os stop && apollia-os start`.
 
-## 3. Pare-feu bloque la connexion loopback (Windows)
+## 3. Firewall blocks the loopback connection (Windows)
 
-Le runner écoute sur `127.0.0.1:<port-auto>`. Si le Windows Defender Firewall a bloqué `apollia-runner-cuda.exe` au premier lancement, le daemon ne peut pas s'y connecter.
+The runner listens on `127.0.0.1:<auto-port>`. If Windows Defender Firewall blocked `apollia-runner-cuda.exe` on first launch, the daemon cannot connect to it.
 
-**Fix :** `Paramètres > Confidentialité et sécurité > Sécurité Windows > Pare-feu et protection réseau > Autoriser une application` puis cochez Apollia OS pour les réseaux privés.
+**Fix:** `Settings > Privacy & security > Windows Security > Firewall & network protection > Allow an app`, then tick Apollia OS for private networks.
 
-## 4. Cold start lent (Apple Silicon)
+## 4. Slow cold start (Apple Silicon)
 
-Le premier spawn du runner Metal peut prendre 5 à 15 secondes (init MTLDevice). Si le handshake timeout déclenche : ré-essayez. Si récurrent, vérifiez que `xcode-select -p` retourne un chemin valide.
+The first spawn of the Metal runner can take 5 to 15 seconds (MTLDevice init). If the handshake timeout fires: try again. If it happens repeatedly, check that `xcode-select -p` returns a valid path.
 
-## 5. Recueillir des logs
+## 5. Collecting logs
 
 ```sh
 apollia-os stop
 APOLLIA_LOG=debug apollia-os start 2>&1 | tee /tmp/apollia.log
 ```
 
-Cherchez :
+Look for:
 
-- `RunnerSupervisor: spawning <binary>` (le daemon trouve le binaire)
-- `runner handshake ok` (succès)
-- `runner exited prematurely` (le runner a crashé - joindre les lignes précédentes au rapport)
+- `RunnerSupervisor: spawning <binary>` (the daemon finds the binary)
+- `runner handshake ok` (success)
+- `runner exited prematurely` (the runner crashed - attach the preceding lines to your report)
 
-Ouvrez une issue GitHub avec `apollia.log` + sortie de `apollia-os doctor --json`.
+Open a GitHub issue with `apollia.log` + the output of `apollia-os doctor --json`.

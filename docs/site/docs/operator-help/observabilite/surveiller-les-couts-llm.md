@@ -1,41 +1,41 @@
-# Surveiller les coûts d'IA
+# Monitor AI costs
 
-> Pour les operators qui veulent suivre la dépense des appels à leur fournisseur d'IA sur la semaine écoulée.
+> For operators who want to track what the calls to their AI provider cost over the past week.
 
-## Prérequis
+## Prerequisites
 
-- Au moins une conversation ou un agent a déjà appelé votre fournisseur d'IA.
-- Vous utilisez un fournisseur facturé (Anthropic, OpenAI, Bedrock, Vertex…). Les modèles locaux n'apparaissent pas dans les coûts.
+- At least one conversation or agent has already called your AI provider.
+- You use a billed provider (Anthropic, OpenAI, Bedrock, Vertex…). Local models do not appear in the costs.
 
-## Étapes
+## Steps
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Coûts LLM**.
+1. In the sidebar, click **Observability**, then the **LLM Costs** tab.
 
-2. En haut à droite de la carte, un **sélecteur de période** vous permet de basculer entre **7 j / 14 j / 30 j / 90 j / 1 an**. Tous les indicateurs, le graphique et la légende se recalculent instantanément sur la nouvelle fenêtre. La densité de l'axe horizontal s'adapte automatiquement (étiquettes thinnées au-delà de 14 jours).
+2. At the top right of the card, a **period selector** lets you switch between **7 d / 14 d / 30 d / 90 d / 1 yr**. Every indicator, the chart and the legend recompute instantly over the new window. The density of the horizontal axis adapts automatically (labels thinned out beyond 14 days).
 
-3. En haut, **quatre indicateurs clés** (KPI) résument la fenêtre sélectionnée :
-   - **Total** - somme de toutes les dépenses sur la fenêtre.
-   - **Moyenne / jour** - total divisé par le nombre de jours de la fenêtre.
-   - **Jour le plus cher** - montant + date du jour qui a le plus consommé.
-   - **Backend principal** - nom du backend qui pèse le plus, avec son total cumulé.
-   ![onglet Coûts LLM - sélecteur de période en haut à droite, 4 KPI, histogramme empilé centré, légende en past...](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
+3. At the top, **four key indicators** (KPI) summarise the selected window:
+   - **Total** - sum of all spending over the window.
+   - **Avg / day** - total divided by the number of days in the window.
+   - **Peak day** - amount + date of the day that consumed the most.
+   - **Top backend** - name of the backend that weighs the most, with its cumulative total.
+   ![LLM Costs tab - period selector at the top right, 4 KPIs, centred stacked bar chart, legend in pill...](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
 
-4. Au centre, un **histogramme empilé** présente la période sélectionnée. Une barre par jour, chaque barre découpée en segments colorés par **backend** (Anthropic, OpenAI, etc.). L'axe vertical est en dollars avec des ticks arrondis ; l'axe horizontal indique la date (jour de la semaine + date courte pour les courtes fenêtres, date seule pour 30 j et plus).
+4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend** (Anthropic, OpenAI, and so on). The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above).
 
-5. Survolez une colonne : les autres jours s'estompent légèrement et le **total du jour** s'affiche au-dessus de la barre. Un tooltip apparaît aussi sur chaque segment avec le **nom du backend** et son **coût exact** (ex. `anthropic: $0.42 - May 11`).
+5. Hover a column: the other days fade slightly and the **day total** appears above the bar. A tooltip also appears on each segment with the **backend name** and its **exact cost** (for example `anthropic: $0.42 - May 11`).
 
-6. Sous le graphique, la **légende** liste tous les backends actifs sous forme de **pastilles** affichant le **total cumulé par backend** sur la fenêtre. Permet de comparer la part de chaque fournisseur d'un coup d'œil.
+6. Below the chart, the **legend** lists every active backend as **pills** showing the **cumulative total per backend** over the window. Handy to compare each provider's share at a glance.
 
-## Vérification
+## Verification
 
-Les chiffres en bas correspondent à votre intuition de la consommation. Les données se rafraîchissent automatiquement environ une fois par minute.
+The figures at the bottom match your intuition about consumption. The data refreshes automatically about once a minute.
 
-> **Note - routage hybride :** si vous utilisez le routage hybride (`[llm.routing.hybrid]`), les étapes escaladées vers le modèle frontier apparaissent sous le backend frontier dans le graphique et dans la légende. Surveillez ce backend pour contrôler votre consommation réelle par rapport au plafond `cost_ceiling_usd` configuré.
+> **Note - hybrid routing:** if you use hybrid routing (`[llm.routing.hybrid]`), the steps escalated to the frontier model appear under the frontier backend in the chart and in the legend. Watch that backend to keep your real consumption in check against the configured `cost_ceiling_usd` ceiling.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Le graphique est vide** : aucun appel facturé n'a été enregistré sur 7 jours. Vérifiez que votre fournisseur n'est pas un modèle 100 % local.
-- **Les coûts paraissent trop élevés** : ouvrez les **Logs** de l'assistant le plus actif (page **Mes assistants**) et regardez les tâches les plus longues - un contexte injecté volumineux gonfle rapidement les jetons d'entrée.
-- **Coûts en hausse après activation du routage hybride** : le frontier est appelé plus souvent que prévu. Abaissez `cost_ceiling_usd` dans `[llm.routing.hybrid]` pour limiter l'escalade, ou désactivez temporairement le routage hybride. Voir [Connecter un modèle distant](../installation/connecter-un-modele-distant.md).
+- **The chart is empty**: no billed call was recorded over 7 days. Check that your provider is not a 100 % local model.
+- **The costs look too high**: open the **Logs** of the busiest assistant (**My Assistants** page) and look at the longest tasks - a bulky injected context inflates input tokens fast.
+- **Costs went up after enabling hybrid routing**: the frontier is being called more often than expected. Lower `cost_ceiling_usd` in `[llm.routing.hybrid]` to limit escalation, or disable hybrid routing temporarily. See [Connect a remote model](../installation/connecter-un-modele-distant.md).
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md)
+> **Technical reference:** [Apollia reference](/reference)

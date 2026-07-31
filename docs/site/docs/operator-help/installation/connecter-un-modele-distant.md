@@ -1,120 +1,120 @@
-# Connecter un modèle distant
+# Connect a remote model
 
-> Pour tout operator qui veut brancher Anthropic, OpenAI (ou compatible LM Studio, vLLM), Mistral, ou un serveur Ollama distant à Apollia.
+> For any operator who wants to plug Anthropic, OpenAI (or a compatible LM Studio, vLLM), Mistral, or a remote Ollama server into Apollia.
 
-## Prérequis
+## Prerequisites
 
-- Apollia lancé.
-- Pour un modèle cloud, une clé API valide chez le fournisseur (lien vers la console plus bas par provider).
-- Pour Ollama distant, l'URL d'une instance accessible depuis votre machine (et `ollama serve` qui tourne côté serveur).
-- Connexion internet active, sauf si Ollama est sur votre réseau local.
+- Apollia running.
+- For a cloud model, a valid API key with the provider (link to the console further down, per provider).
+- For remote Ollama, the URL of an instance reachable from your machine (and `ollama serve` running on the server side).
+- Active internet connection, unless Ollama is on your local network.
 
-## Ce que ce choix implique
+## What this choice implies
 
-Deux points à connaître avant de brancher un backend distant. Apollia les
-rappelle aussi dans le formulaire, mais ils méritent d'être posés ici.
+Two points to know before plugging in a remote backend. Apollia also
+reminds you of them in the form, but they deserve to be stated here.
 
-**Vos prompts quittent la machine.** Un backend distant reçoit ce qu'Apollia lui
-envoie, ce qui peut inclure du contenu de fichiers, des souvenirs mémoire et des
-données de workspace. C'est le comportement attendu d'un modèle distant, et c'est
-précisément ce qu'un modèle local évite : avec le moteur `llama-server` embarqué,
-rien ne sort. Le choix vous appartient, il doit juste être conscient.
+**Your prompts leave the machine.** A remote backend receives what Apollia
+sends it, which can include file contents, memory entries and workspace
+data. This is the expected behaviour of a remote model, and it is
+precisely what a local model avoids: with the embedded `llama-server` engine,
+nothing goes out. The choice is yours, it just has to be a conscious one.
 
-**En `http://`, la clé d'API circule en clair.** Si l'endpoint n'est pas en
-`https://` et pointe vers une autre machine, la clé transite sans chiffrement sur
-le réseau. Sur un réseau local de confiance ou dans un tunnel, c'est acceptable.
-Sinon, préférez `https://`. Ollama distant n'utilisant pas de clé, seul le premier
-point s'applique à lui.
+**Over `http://`, the API key travels in cleartext.** If the endpoint is not
+`https://` and points to another machine, the key transits unencrypted over
+the network. On a trusted local network or inside a tunnel, that is acceptable.
+Otherwise, prefer `https://`. Remote Ollama uses no key, so only the first
+point applies to it.
 
-## Pour quel cas d'usage
+## For which use case
 
-Apollia distingue trois cas. Choisissez selon ce que vous voulez faire :
+Apollia distinguishes three cases. Choose according to what you want to do:
 
-- **Brancher un fournisseur cloud ou un serveur Ollama** : c'est cette page. Une clé API ou une URL suffit, rien à télécharger.
-- **Faire tourner un modèle local** au format `.gguf`, servi par le moteur `llama-server` embarqué et géré automatiquement par Apollia : voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md). C'est le choix qui garde tout sur la machine.
-- **Voir et gérer les backends déjà configurés** : ouvrez **Paramètres**, puis **Backends LLM**.
+- **Plug in a cloud provider or an Ollama server**: this is that page. An API key or a URL is enough, nothing to download.
+- **Run a local model** in `.gguf` format, served by the embedded `llama-server` engine and managed automatically by Apollia: see [Download local models](telecharger-des-modeles-locaux.md). That is the choice that keeps everything on the machine.
+- **See and manage the backends already configured**: open **Settings**, then **LLM Backends**.
 
-## Étapes communes
+## Common steps
 
-1. Dans la sidebar, ouvrez **Paramètres**, puis la section **Backends LLM**.
-2. Cliquez sur **+ Ajouter un backend LLM** en haut. Une fenêtre de configuration s'ouvre.
+1. In the sidebar, open **Settings**, then the **LLM Backends** section.
+2. Click **+ Add LLM backend** at the top. A configuration window opens.
 
-   ![Dialogue Ajouter un backend LLM, vide, avec les champs Nom et Fournisseur](/img/operator-help/installation-connecter-un-modele-distant-1.png)
+   ![Add LLM backend dialog, empty, with the Name and Provider fields](/img/operator-help/installation-connecter-un-modele-distant-1.png)
 
-3. Donnez un **nom** unique (lettres minuscules, chiffres et tirets, par exemple `claude-anthropic`).
-4. Choisissez le **fournisseur** dans la liste déroulante.
-5. Renseignez les champs spécifiques au fournisseur (voir sections ci-dessous).
-6. Cliquez sur **Tester** pour valider la connexion. Un badge vert *"OK · XXX ms"* confirme que le fournisseur répond.
+3. Give it a unique **Name** (lowercase letters, digits and hyphens, for example `claude-anthropic`).
+4. Choose the **Provider** from the dropdown.
+5. Fill in the provider-specific fields (see the sections below).
+6. Click **Test** to validate the connection. A green *"OK · XXX ms"* badge confirms that the provider answers.
 
-   *Capture : le dialogue de configuration avec le fournisseur sélectionné, les champs Endpoint et API Key remplis, et un badge vert « OK · 312 ms » affiché sous le bouton Tester.*
+   *Screenshot: the configuration dialog with the provider selected, the Endpoint and API Key fields filled in, and a green "OK · 312 ms" badge shown under the Test button.*
 
-7. Si le test passe, cliquez sur **Enregistrer**. Le backend apparaît dans la liste.
-8. (Optionnel) Cochez **Backend par défaut** pour qu'il soit sélectionné automatiquement à l'ouverture d'un nouveau chat.
+7. If the test passes, click **Save**. The backend appears in the list.
+8. (Optional) Tick **Default backend** so that it is selected automatically when a new chat opens.
 
 ## Anthropic
 
-- **Endpoint par défaut** : `https://api.anthropic.com` (laissez tel quel sauf gateway custom).
-- **Où obtenir la clé** : https://console.anthropic.com, section **API Keys**.
-- **Modèles recommandés v0.1.0** (identifiants datés, format exact attendu par l'API) :
-  - `claude-opus-4-20250514` pour la qualité maximale.
-  - `claude-sonnet-4-20250514` pour un bon rapport qualité/vitesse.
-  - `claude-3-5-haiku-20241022` pour la rapidité et un coût bas.
+- **Default endpoint**: `https://api.anthropic.com` (leave as is unless you use a custom gateway).
+- **Where to get the key**: https://console.anthropic.com, **API Keys** section.
+- **Recommended models for v0.1.0** (dated identifiers, exact format expected by the API):
+  - `claude-opus-4-20250514` for maximum quality.
+  - `claude-sonnet-4-20250514` for a good quality/speed ratio.
+  - `claude-3-5-haiku-20241022` for speed and low cost.
 
-  Les identifiants de modèles évoluent : reprenez toujours l'identifiant exact du modèle courant depuis la [liste des modèles Anthropic](https://docs.anthropic.com/en/docs/about-claude/models).
+  Model identifiers change over time: always take the exact identifier of the current model from the [Anthropic model list](https://docs.anthropic.com/en/docs/about-claude/models).
 
-Apollia applique automatiquement le prompt caching côté Anthropic.
+Apollia applies prompt caching on the Anthropic side automatically.
 
-## OpenAI (ou compatible)
+## OpenAI (or compatible)
 
-- **Endpoint par défaut** : `https://api.openai.com/v1`.
-- **Endpoint custom** : utilisez l'URL `/v1` correspondante pour LM Studio, vLLM, OpenRouter, Azure OpenAI ou tout autre service compatible.
-- **Où obtenir la clé** : https://platform.openai.com, section **API keys**.
-- **Modèles recommandés** : `gpt-4o-mini`, `gpt-4o`, `o1-mini`.
+- **Default endpoint**: `https://api.openai.com/v1`.
+- **Custom endpoint**: use the matching `/v1` URL for LM Studio, vLLM, OpenRouter, Azure OpenAI or any other compatible service.
+- **Where to get the key**: https://platform.openai.com, **API keys** section.
+- **Recommended models**: `gpt-4o-mini`, `gpt-4o`, `o1-mini`.
 
 ## Mistral
 
-- **Endpoint par défaut** : `https://api.mistral.ai/v1`.
-- **Où obtenir la clé** : https://console.mistral.ai, section **API keys**.
-- **Modèles recommandés** : `mistral-large-2`, `mistral-small`.
+- **Default endpoint**: `https://api.mistral.ai/v1`.
+- **Where to get the key**: https://console.mistral.ai, **API keys** section.
+- **Recommended models**: `mistral-large-2`, `mistral-small`.
 
-## Ollama distant
+## Remote Ollama
 
-- **Endpoint** : `http://<host>:11434/v1` pour un serveur distant, ou `http://localhost:11434/v1` si Ollama tourne sur votre machine.
-- **API Key** : optionnelle (utile si vous avez un reverse-proxy avec authentification).
-- **Prérequis service** : `ollama serve` doit tourner sur l'hôte cible.
-- **Modèles** : voir `ollama list` sur l'hôte. Exemples : `llama3.1:8b`, `qwen2.5:14b`.
+- **Endpoint**: `http://<host>:11434/v1` for a remote server, or `http://localhost:11434/v1` if Ollama runs on your machine.
+- **API Key**: optional (useful if you have a reverse proxy with authentication).
+- **Service prerequisite**: `ollama serve` must be running on the target host.
+- **Models**: see `ollama list` on the host. Examples: `llama3.1:8b`, `qwen2.5:14b`.
 
-Pour un modèle GGUF géré directement par Apollia via son moteur embarqué (sans daemon Ollama), voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
+For a GGUF model managed directly by Apollia through its embedded engine (without an Ollama daemon), see [Download local models](telecharger-des-modeles-locaux.md).
 
-## Routage hybride : escalader vers un modèle frontier
+## Hybrid routing: escalate to a frontier model
 
-Le routage hybride permet à Apollia d'utiliser un modèle local par défaut et de basculer automatiquement vers un modèle frontier (cloud) pour les étapes qui dépassent les capacités locales, dans la limite d'un plafond de coût.
+Hybrid routing lets Apollia use a local model by default and switch automatically to a frontier (cloud) model for steps that exceed local capabilities, within a cost ceiling.
 
-Configurez-le dans votre fichier de configuration Apollia :
+Configure it in your Apollia configuration file:
 
 ```toml
 [llm.routing.hybrid]
-frontier = "claude-anthropic"   # nom du backend distant à utiliser en escalade
-cost_ceiling_usd = 0.50         # plafond en dollars par exécution
+frontier = "claude-anthropic"   # name of the remote backend to use on escalation
+cost_ceiling_usd = 0.50         # ceiling in dollars per run
 ```
 
-Avec ce réglage, le runtime évalue chaque étape : si elle nécessite le modèle frontier et que le plafond n'est pas encore atteint, l'escalade se fait automatiquement. Au-delà du plafond, le runtime repasse en local.
+With this setting, the runtime evaluates each step: if it needs the frontier model and the ceiling has not been reached yet, escalation happens automatically. Past the ceiling, the runtime falls back to local.
 
-Le backend désigné dans `frontier` doit être configuré et actif dans **Paramètres - Backends LLM**.
+The backend named in `frontier` must be configured and active in **Settings - LLM Backends**.
 
-## Vérification
+## Verification
 
-- Le backend apparaît dans la liste avec une pastille verte.
-- Ouvrez un chat, sélectionnez ce backend dans le sélecteur en haut, envoyez un message court. La réponse arrive en streaming.
-- Le bandeau supérieur d'Apollia affiche le nom du backend actif.
+- The backend appears in the list with a green dot.
+- Open a chat, select that backend in the picker at the top, send a short message. The answer streams in.
+- The Apollia top banner shows the name of the active backend.
 
-## Si ça ne marche pas
+## If it does not work
 
-- **Erreur 401 ou 403 au test** : votre clé API est invalide, expirée ou révoquée. Recopiez la clé depuis la console du fournisseur sans espaces parasites.
-- **Erreur "Modèle non trouvé"** : vérifiez l'orthographe exacte du nom (case-sensitive, par exemple `claude-3-5-sonnet-20241022` et pas `Claude-3.5-Sonnet`).
-- **Timeout sur cloud** : vérifiez votre connexion internet ou le statut du fournisseur.
-- **Ollama injoignable** : vérifiez que `ollama serve` tourne sur l'hôte cible et que le port 11434 est ouvert. Pour Ollama distant, testez avec `curl http://<host>:11434/api/tags` depuis votre machine.
-- **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
-- **Plafond atteint et l'agent ne termine pas** : quand `cost_ceiling_usd` est atteint, le runtime dégrade automatiquement en local pour la suite de l'exécution. Si la tâche nécessite absolument le modèle frontier jusqu'au bout, augmentez le plafond ou désactivez le routage hybride en retirant la section `[llm.routing.hybrid]`.
+- **401 or 403 error on the test**: your API key is invalid, expired or revoked. Copy the key again from the provider console without stray whitespace.
+- **"Model not found" error**: check the exact spelling of the name (case sensitive, for example `claude-3-5-sonnet-20241022` and not `Claude-3.5-Sonnet`).
+- **Timeout on cloud**: check your internet connection or the provider status.
+- **Ollama unreachable**: check that `ollama serve` is running on the target host and that port 11434 is open. For remote Ollama, test with `curl http://<host>:11434/api/tags` from your machine.
+- **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
+- **Ceiling reached and the agent does not finish**: when `cost_ceiling_usd` is reached, the runtime degrades to local automatically for the rest of the run. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.
+> **Technical reference:** [Apollia reference](/reference) , every supported provider, advanced parameters (temperature, top_k, context_size, fallback policy), multi-backend routing.
