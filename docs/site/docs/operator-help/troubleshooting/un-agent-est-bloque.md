@@ -11,7 +11,7 @@ C'est de loin le cas le plus fréquent. L'agent a tenté une action sensible (é
 **Solution :**
 1. Dans la sidebar, cliquez sur **Boîte de réception**.
 2. Onglet **À traiter** par défaut. Filtrez sur la chip **Approbations** pour ne voir que les approbations en attente, et utilisez le sélecteur **Agent** à droite pour isoler l'agent concerné.
-   ![Boîte de réception → À traiter, chips de filtre + sélecteur Agent, une carte d'approbation dépliée avec ses...](../_screenshots/troubleshooting-un-agent-est-bloque-1.png)
+   ![Boîte de réception → À traiter, chips de filtre + sélecteur Agent, une carte d'approbation dépliée avec ses...](/img/operator-help/troubleshooting-un-agent-est-bloque-1.png)
 3. Cliquez sur l'item pour le déplier en carte HITL, puis **Autoriser** / **Refuser**. L'agent reprend immédiatement son travail. Voir [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md) pour le détail.
 
 ### 2. L'agent attend une réponse d'un outil externe

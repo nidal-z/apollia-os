@@ -23,7 +23,7 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
 
 1. Dans la sidebar, ouvrez **Mes assistants**. La page liste vos assistants existants, et le bouton **Nouvel assistant** est en haut à droite.
 
-   ![Page Mes assistants : liste à gauche, détail de l'agent sélectionné à droite, bouton "Nouvel assistant" en haut à droite](../_screenshots/agents-installer-un-agent-1.png)
+   ![Page Mes assistants : liste à gauche, détail de l'agent sélectionné à droite, bouton "Nouvel assistant" en haut à droite](/img/operator-help/agents-installer-un-agent-1.png)
 
 2. En haut à droite, cliquez sur **Nouvel assistant**. Un sélecteur de fichier s'ouvre, filtré sur les fichiers `.py`.
 
@@ -43,11 +43,11 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
 
    Certains packages déclarent des vérifications : aux paliers `supervised` et supérieurs, le runtime contrôle automatiquement que l'agent a produit le résultat attendu. C'est prévu par l'auteur du package, vous n'avez rien à configurer.
 
-   ![Dialogue d'installation, étape preview : sections Agents et Triggers, badge vert Valide](../_screenshots/agents-installer-un-agent-2.png)
+   ![Dialogue d'installation, étape preview : sections Agents et Triggers, badge vert Valide](/img/operator-help/agents-installer-un-agent-2.png)
 
    Si le package déclare un déclencheur **webhook**, une ligne supplémentaire le signale avec un badge orange « config » et le bouton du bas devient **Configurer →**.
 
-   ![Aperçu avec un trigger webhook nécessitant une configuration, bouton Configurer →](../_screenshots/agents-installer-un-agent-2bis.png)
+   ![Aperçu avec un trigger webhook nécessitant une configuration, bouton Configurer →](/img/operator-help/agents-installer-un-agent-2bis.png)
 
 5. Cliquez sur **Installer**. Si le package contient des déclencheurs **webhook** à paramétrer, le bouton affiche **Configurer →** à la place, voir l'étape suivante.
 
@@ -56,11 +56,11 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
    - Sinon, générez-en un long et imprévisible (n'importe quel mot de passe robuste fait l'affaire) et conservez-le précieusement, vous en aurez besoin pour configurer le service qui appellera le webhook.
    - L'URL affichée au-dessus du champ est l'adresse à laquelle ce webhook répondra : copiez-la avec le bouton dédié.
 
-   ![Dialogue d'installation, étape configure : carte d'un trigger webhook avec endpoint URL et champ secret HMAC-SHA256](../_screenshots/agents-installer-un-agent-3.png)
+   ![Dialogue d'installation, étape configure : carte d'un trigger webhook avec endpoint URL et champ secret HMAC-SHA256](/img/operator-help/agents-installer-un-agent-3.png)
 
 7. Cliquez sur **Installer**. Apollia copie le package, enregistre les agents et active leurs déclencheurs. Un écran final confirme l'installation avec le nombre d'agents et de déclencheurs créés.
 
-   ![Écran de confirmation Package installé ! avec compteur agents et triggers, bouton Fermer](../_screenshots/agents-installer-un-agent-4.png)
+   ![Écran de confirmation Package installé ! avec compteur agents et triggers, bouton Fermer](/img/operator-help/agents-installer-un-agent-4.png)
 
 8. Fermez le dialogue. Le package apparaît dans la colonne de gauche, sous **Mes packages**. Les agents qu'il contient sont aussi listés sous **Mes assistants** (sauf ceux qui sont uniquement appelés en interne par d'autres agents).
 

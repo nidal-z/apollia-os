@@ -25,7 +25,7 @@ Ouvrez la fiche d'un agent, onglet **Outils**. La liste affiche en lecture seule
 - Les outils optionnels.
 - Un badge indique si l'outil exige une approbation HITL par défaut.
 
-![Fiche d'un agent, onglet Outils : la liste des outils requis et optionnels avec leurs badges d'approbation](../_screenshots/integration-comprendre-la-portee-d-une-integration-1.png)
+![Fiche d'un agent, onglet Outils : la liste des outils requis et optionnels avec leurs badges d'approbation](/img/operator-help/integration-comprendre-la-portee-d-une-integration-1.png)
 
 Cette liste **n'est pas modifiable depuis l'interface en v0.1.0**. Pour ajouter ou retirer un outil à un agent, il faut éditer son manifest et le réinstaller. Voir la page Aide [Installer un agent](../agents/installer-un-agent.md).
 

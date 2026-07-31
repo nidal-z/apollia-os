@@ -10,7 +10,7 @@
 
 1. Depuis n'importe quel écran, appuyez sur **Cmd+K** (macOS) ou **Ctrl+K** (Windows et Linux). La palette s'ouvre au centre de l'écran.
 
-   ![command palette ouverte au centre de l'écran, champ de recherche en haut, suggestions groupées en dessous](../_screenshots/transversal-naviguer-au-clavier-command-palette-1.png)
+   ![command palette ouverte au centre de l'écran, champ de recherche en haut, suggestions groupées en dessous](/img/operator-help/transversal-naviguer-au-clavier-command-palette-1.png)
 
    > **Note :** il n'y a qu'un seul raccourci d'ouverture. Cmd+K (ou Ctrl+K) couvre tous les cas - page, action, raccourci. Tapez quelques lettres pour réduire la liste.
 
@@ -32,7 +32,7 @@ Pour voir d'un coup d'œil les raccourcis disponibles dans le contexte courant, 
 
 Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, companion, approbations) groupés par catégorie, allez sur **Paramètres → Raccourcis**. La page propose une **recherche** pour retrouver une combinaison par nom (*« sidebar »*, *« nouveau chat »*, *« aide »*…).
 
-![page Paramètres → Raccourcis, barre de recherche en haut, raccourcis groupés par catégorie (Global / Naviga...](../_screenshots/transversal-naviguer-au-clavier-command-palette-2.png)
+![page Paramètres → Raccourcis, barre de recherche en haut, raccourcis groupés par catégorie (Global / Naviga...](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
 
 > **Lecture seule.** Cette page n'autorise pas la personnalisation des combinaisons pour le moment. Les raccourcis sont fixés et alignés sur les conventions natives de macOS / Windows.
 

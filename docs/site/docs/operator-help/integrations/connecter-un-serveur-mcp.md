@@ -12,7 +12,7 @@
 
 1. Dans la sidebar, ouvrez **Connexions**, puis cliquez sur **+ Découvrir** en haut. Le catalogue s'ouvre en panneau dédié.
 
-   ![Page Connexions : le catalogue ouvert sur l'onglet Découvrir, avec sa grille d'entrées](../_screenshots/integration-connecter-un-serveur-mcp-1.png)
+   ![Page Connexions : le catalogue ouvert sur l'onglet Découvrir, avec sa grille d'entrées](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
 
 2. Filtrez ou cherchez l'entrée souhaitée, puis cliquez dessus. L'assistant en 4 étapes démarre.
 

@@ -14,7 +14,7 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 **Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
-![page Paramètres → Profil - 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](../_screenshots/memoire-gerer-mon-profil-1.png)
+![page Paramètres → Profil - 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
 L'écran est divisé en sections :
 
@@ -61,7 +61,7 @@ Plusieurs chemins, selon ce que vous voulez effacer.
 
 Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale.
 
-![La zone de danger du profil avec la modale de confirmation Réinitialiser le profil au premier plan](../_screenshots/memoire-gerer-mon-profil-1.png)
+![La zone de danger du profil avec la modale de confirmation Réinitialiser le profil au premier plan](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
 - Tout le profil est effacé (les 5 sections).
 - L'agent d'onboarding redémarre **immédiatement** pour reconstruire vos préférences depuis zéro.

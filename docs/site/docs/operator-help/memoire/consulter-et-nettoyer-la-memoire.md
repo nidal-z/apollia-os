@@ -19,7 +19,7 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
 1. Dans la sidebar, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
 
-   ![Page Mémoire : la liste des namespaces à gauche, les filtres par type et la recherche au centre, et les entrées de la mémoire du profil utilisateur](../_screenshots/memoire-consulter-et-nettoyer-la-memoire-1.png)
+   ![Page Mémoire : la liste des namespaces à gauche, les filtres par type et la recherche au centre, et les entrées de la mémoire du profil utilisateur](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
 
 2. **Sidebar gauche** - la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
    - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
@@ -37,7 +37,7 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
 4. **Cliquez sur une entrée** pour ouvrir le **panneau de détail** à droite. Il affiche la valeur complète (avec pretty-print JSON automatique si applicable), toutes les métadonnées (type, namespace, ID, dates, score BM25 en mode recherche), et expose deux actions : **Copier** la valeur et **Supprimer** l'entrée.
 
-   ![Panneau de détail d'une entrée de mémoire, avec sa valeur, ses métadonnées et les actions Copier et Supprimer](../_screenshots/memoire-consulter-et-nettoyer-la-memoire-2.png)
+   ![Panneau de détail d'une entrée de mémoire, avec sa valeur, ses métadonnées et les actions Copier et Supprimer](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-2.png)
 
 5. Pour **rechercher**, tapez quelques mots-clés dans la **barre de recherche** en haut du panneau central. Les entrées correspondantes s'affichent triées par pertinence (score BM25), et le breadcrumb indique « *N résultats* ».
 

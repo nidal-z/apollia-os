@@ -39,7 +39,7 @@ Apollia distingue trois cas. Choisissez selon ce que vous voulez faire :
 1. Dans la sidebar, ouvrez **Paramètres**, puis la section **Backends LLM**.
 2. Cliquez sur **+ Ajouter un backend LLM** en haut. Une fenêtre de configuration s'ouvre.
 
-   ![Dialogue Ajouter un backend LLM, vide, avec les champs Nom et Fournisseur](../_screenshots/installation-connecter-un-modele-distant-1.png)
+   ![Dialogue Ajouter un backend LLM, vide, avec les champs Nom et Fournisseur](/img/operator-help/installation-connecter-un-modele-distant-1.png)
 
 3. Donnez un **nom** unique (lettres minuscules, chiffres et tirets, par exemple `claude-anthropic`).
 4. Choisissez le **fournisseur** dans la liste déroulante.

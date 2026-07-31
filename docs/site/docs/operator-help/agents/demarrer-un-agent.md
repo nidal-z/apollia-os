@@ -19,7 +19,7 @@ Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : i
 ## Étapes - Démarrer un assistant seul
 
 1. Dans la sidebar, ouvrez **Mes assistants**. La colonne de gauche liste vos assistants sous **Mes assistants · N**.
-   ![page Mes assistants - colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](../_screenshots/agents-demarrer-un-agent-1.png)
+   ![page Mes assistants - colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](/img/operator-help/agents-demarrer-un-agent-1.png)
 
 2. Repérez votre agent dans la liste. La pastille à droite de son nom indique son état : **grise** (arrêté), **verte** (actif), **orange** (dégradé).
 
@@ -42,9 +42,9 @@ Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : i
 3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. Apollia démarre tous les agents du package et active leurs déclencheurs en une seule opération. La pastille passe au vert ; le compteur affiche `2/2 agents · 1/1 triggers`.
 
 4. Cliquez sur la ligne pour ouvrir le détail du package : vous y voyez la liste des agents qu'il contient, leurs rôles (*director* ou *worker*), et la liste des déclencheurs configurés (cron, webhook…).
-   ![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers](../_screenshots/agents-demarrer-un-agent-2.png)
+   ![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers](/img/operator-help/agents-demarrer-un-agent-2.png)
 
-![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers (suite)](../_screenshots/agents-demarrer-un-agent-2bis.png)
+![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers (suite)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
 
 5. Si certains agents seulement ont démarré, la pastille du package devient **orange** (statut **partiel**). Cliquez sur la ligne d'un agent dans le panneau pour identifier celui qui pose problème, puis ouvrez ses logs.
 

@@ -11,14 +11,14 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](../_screenshots/chat-activer-la-dictee-vocale-1.png)
+   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
 
 2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
 
 3. Sélectionnez la **langue** de dictée (français, anglais, espagnol, etc.) dans le sélecteur. Choisir la bonne langue améliore nettement la précision.
 
 4. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
-   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](../_screenshots/chat-activer-la-dictee-vocale-2.png)
+   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
 
 5. Dans le sélecteur **Mode de déclenchement**, choisissez l'un des deux modes :
    - **Toggle (appui = start/stop)** : un premier appui sur le raccourci démarre l'enregistrement, un second l'arrête.
