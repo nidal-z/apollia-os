@@ -160,12 +160,22 @@ pip install -e ./sdk
 
 An agent that generates text needs a backend. Pick one path.
 
-Cloud: authenticate to a provider and register a backend.
+`llm setup --local` writes straight to the local database and works offline.
+Every other `llm` subcommand, including `backends create`, `reload` and `status`,
+talks to the daemon. If you take the cloud path, or want to check with `llm
+status`, start the daemon first with step 4 and come back here.
+
+<!-- claim:cloud-llm-auth-is-api-key-only -->
+Cloud: register a backend with an API key. That is the only way a cloud provider
+authenticates; there is no OAuth flow for one.
 
 ```sh
-apollia-os auth login anthropic
-apollia-os llm backends create prod --provider anthropic --model claude-sonnet-4-20250514 --default
+apollia-os llm backends create prod --provider anthropic \
+  --model claude-sonnet-4-20250514 --api-key "$ANTHROPIC_API_KEY" --default
 ```
+
+`--api-key` also accepts a `${VAR}` form, resolved from the environment at
+startup, so the key need not sit in `apollia.toml`.
 
 Use your provider's current model id for `--model`; the value above is only an
 example.
@@ -210,7 +220,7 @@ apollia-os agent enable echo
 apollia-os run echo "hello from Apollia"
 ```
 
-Without the `enable` step, `run` reports `agent 'echo' not found`.
+Without the `enable` step, `run` fails with `agent not found: echo` and a hint listing the install, enable and load sequence.
 
 You should see the echoed result. To write your own agent from scratch, follow
 [Your first agent](/tutorials/your-first-agent).
@@ -262,14 +272,13 @@ A packaged desktop build stages `llama-server` automatically, next to the
 speech-to-text runners, so nothing is needed there. On a source build the daemon
 looks for `llama-server` on your `PATH`. Provide one of:
 
-- the repository recipe, which runs an upstream binary for local testing:
+an upstream install that puts `llama-server` on your `PATH`, for example
+`brew install llama.cpp` on macOS or a llama.cpp build on Linux.
 
-  ```sh
-  just llama-server /path/to/model.gguf
-  ```
-
-- or an upstream install that puts `llama-server` on your `PATH`, for example
-  `brew install llama.cpp` on macOS or a llama.cpp build on Linux.
+The repository also has a `just llama-server` recipe. It does **not** satisfy this
+prerequisite: it expects `llama-server` to be on the `PATH` already, and it starts
+a separate server on port 8899 that the daemon does not talk to. It is a
+developer bench for comparing against a hand-tuned server, not an install step.
 
 If a local backend is configured but no `llama-server` is reachable, LLM calls
 fail with a `503 Service Unavailable` and a `BackendUnavailable` reason; put the

@@ -57,11 +57,25 @@ and [wiring your own MCP server](/operator-help/integrations/cabler-son-propre-s
 Federation usually means the agent can trigger changes in your product. Keep a
 human in the loop on those.
 
-Apollia's permission engine classifies each tool call and can require explicit
-approval before an action runs. Route your write-capable tools (whether MCP
-tools or the callbacks to your REST API) through a rule that raises an approval
-request, so an operator confirms before anything is written back. Approvals are
-recorded, so the decision is part of the trail alongside the action.
+<!-- claim:permission-engine-not-wired -->
+For an MCP server you register, approval is per server or per tool:
+
+```sh
+apollia-os mcp add my-product https://example.internal/mcp --require-approval
+apollia-os mcp set-approval my-product write_record
+apollia-os mcp list-pending
+```
+
+An operator then confirms before anything is written back, and the approval is
+recorded alongside the action.
+
+Two limits to design around rather than discover. This approval flow covers the
+**chat** path; the tool calls an installed Python agent makes are not gated, so
+do not rely on approvals to contain an agent you did not write. And the
+`PermissionEngine` that `apollia-permissions` ships is not installed by any
+production caller: rules written for it enforce nothing. What runs is the
+per-server MCP approval above, the persisted prefix rules, and the guard that
+refuses a chained shell command.
 
 For how approvals and autonomy levels shape this, see
 [Autonomy tiers](/explanation/autonomy-tiers) and the explanation of

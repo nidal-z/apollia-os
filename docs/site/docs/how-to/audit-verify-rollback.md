@@ -30,11 +30,15 @@ resolve it by run identifier or by a task identifier that maps to one:
 apollia-os audit show <run-or-task-id>
 ```
 
-To take the whole trail out for archival or external review:
+To take the trail out for archival or external review:
 
 ```sh
-apollia-os audit export --output audit.json
+apollia-os audit export --output audit.json --limit 100000
 ```
+
+`--limit` defaults to 10000 events, so an archive of a busy install needs a
+higher value. The command warns on stderr when the export comes back exactly at
+the limit, which is the signal that older entries were left behind.
 
 The same records are available over the HTTP API for a host integration; see the
 audit operations in the
@@ -79,7 +83,9 @@ To undo the most recent sessions instead of naming one, use `--last-n`:
 apollia-os rollback --last-n 1
 ```
 
-Add `--json` to any of these for machine-readable output.
+Add `--json` to `audit list`, `audit show`, `audit stats`, `audit verify` and
+`rollback` for machine-readable output. `audit export` always writes JSON and
+takes no `--json`.
 
 ## Putting it together
 

@@ -7,6 +7,54 @@
 # page and no reader. Prose review does not catch that, because the prose is
 # internally coherent. Only the code disagrees.
 #
+# What counts as a claim
+#
+# A capability claim is a sentence asserting that the software does something,
+# which rests on a named code symbol that must exist AND be reached outside
+# `#[cfg(test)]`. That is the whole criterion. If removing the symbol would make
+# the sentence false and nothing else in the build would notice, it belongs here.
+#
+# Deliberately out of scope, because another gate already covers it:
+#
+#   - Commands, flags and their help text. Guarded by the `docs-generated` job,
+#     which replays the CLI generator and fails on a diff.
+#   - SDK signatures, schemas and service lists. Same job, via the ast walk of
+#     `sdk/apollia`.
+#   - Repository facts: crate counts, file trees, section lists. Generated from
+#     `cargo metadata` and the config sources.
+#   - Links and page targets. Guarded by lychee and by the Docusaurus build,
+#     which throws on a broken link.
+#   - Style, language, project-management tokens. Guarded by `prose-guard`.
+#   - Intent, roadmap and philosophy that names no symbol. Nothing to replay.
+#   - Numbers, unless the number is the capability (a retention window is; a
+#     buffer size is not).
+#   - Anything under `docs/internal`. Not published.
+#
+# `docs/adr/` IS in scope, and deliberately so, although it is committed rather
+# than published on the site. An ADR is where a capability decision is recorded,
+# and a decision that the code stopped honouring is the same failure as a page
+# that overstates a feature: nothing in the build notices. Four ADRs described a
+# runner that is no longer a dependency, three described a removed agent
+# contract, and none of that surfaced anywhere. Markers may therefore sit in an
+# ADR, and `scripts/check_claims.py` scans `docs/adr/` for them.
+#
+# What stays out of `docs/adr/` scope: the historical record itself. An ADR
+# records what was decided at a date. It is not made false by a later decision,
+# only by a claim inside it that the code never honoured. When a later ADR
+# supersedes it, the fix is an amendment box, not a claim.
+#
+# So this file does not cover "the documentation is correct". It covers one
+# failure mode: **a capability described as active whose code is never reached**.
+# That mode is invisible to every other gate, because the prose is coherent, the
+# symbol compiles, and the tests pass. It is the mode that shipped a permission
+# engine onto a compliance page and five capture switches onto a settings screen.
+#
+# The scale follows from the criterion. The public corpus holds several hundred
+# statements; the audit of 2026-07-31 found forty that meet it, roughly one per
+# three pages. A file that listed every sentence would be a second corpus to
+# maintain, and would rot the same way. A narrow criterion is what makes the
+# replay meaningful: every entry here is falsifiable by grep.
+#
 # Fields
 #   id        stable slug. The documented paragraph carries `<!-- claim:<id> -->`,
 #             an HTML comment invisible once rendered. No line numbers anywhere:
@@ -69,6 +117,43 @@ here, and this one does run. It is the honest replacement claim on the pages
 where the engine was removed, so it needs a guard of its own.
 """
 
+[[claim]]
+id = "hitl-wired-in-chat-path-only"
+scope = "public"
+symbol = "push_hitl_natives"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
+evidence = ""
+note = """
+Human approval is real and it covers the chat path only. `push_hitl_natives` has
+exactly one caller, the chat dispatcher. The three dispatchers on the agent path
+build the bare dispatcher, so an installed Python agent's `ctx.tools` calls meet
+no checkpoint.
+
+Three pages presented HITL as the primary gate for anything leaving a mark, one
+of them mapping it to Article 14 of the EU AI Act. The scope is a deliberate
+position, not a defect: an installed agent already runs arbitrary Python under
+the user account and can write a file without going through `ctx.tools` at all,
+so a gate on one call path would not contain a hostile agent. Wiring it is v0.2
+work. What this claim guards is that the documentation keeps saying which path is
+covered. If `push_hitl_natives` gains a second caller, the pages get to promise
+more.
+"""
+
+[[claim]]
+id = "rollback-covers-file-write-and-file-edit-only"
+scope = "public"
+symbol = "with_journal"
+status = "wired"
+proof = "crates/apollia-tools/src/tools/file_write.rs"
+evidence = ""
+note = """
+The reversible journal is fed by two tools, `file_write` and `file_edit`. A
+mutation caused by a shell command inside `bash_executor`, an `rm` or a redirect,
+never reaches it and cannot be rolled back. The accountability page said
+"filesystem changes an agent makes", which reads as all of them.
+"""
+
 # ── Observability: switches that promised what they did not do ───────────────
 
 [[claim]]
@@ -119,6 +204,275 @@ persisted anywhere. Two traps to keep in view. First, the flag lives under
 `[llm.observability]`; a value written under `[observability]` is overwritten
 before use. Second, the LLM-call repository still hardcodes `prompt_text: None`,
 so if that ever changes this claim needs a second proof for the database path.
+"""
+
+[[claim]]
+id = "cloud-llm-auth-is-api-key-only"
+scope = "public"
+symbol = "extract_api_key_value"
+status = "wired"
+proof = "crates/apollia-llm/src/router.rs"
+evidence = ""
+note = """
+A cloud backend authenticates with one thing: the `api_key` entry of its
+`config_json`, read here, resolving a `${VAR}` form through the environment.
+There is no OAuth path to a cloud LLM provider, and there never was one that
+worked.
+
+Recorded rather than quietly corrected, because three separate places told the
+operator otherwise and each was wrong before the `auth` command group was
+removed. `llm setup` refused a non-local backend with "cloud providers go
+through `auth login`". The connector command told an operator with no connected
+account to run `auth login <provider>`, which wrote to a keyring service that
+`AuthManager` does not read. And `apollia-os auth login` itself stored a token
+under `apollia-auth` that no consumer in the workspace ever loaded: it
+authenticated, persisted, and nothing read it back.
+
+Three messages pointing at one dead path is not three mistakes, it is one
+missing check. If an OAuth path to a cloud provider is ever added, this entry is
+where the change gets noticed.
+"""
+
+[[claim]]
+id = "memory-injection-only-in-builtin-assistant-top-tier"
+scope = "public"
+symbol = "inject_memory"
+status = "wired"
+proof = "crates/apollia-core/src/config/autonomy.rs"
+evidence = ""
+note = """
+Principle 6 said memory is never injected automatically. One tier of the built-in
+assistant does inject: `long_autonomous` sets `inject_memory: true`, read in the
+react loop and applied by the prompt builder, which appends a persona brief.
+
+The invariant survives, because the injection is confined to the built-in
+assistant and chosen by the operator through a tier. What was wrong is the
+wording, which claimed more than the code delivers. This claim guards the
+boundary: if `inject_memory` is ever read outside the built-in assistant, or if a
+lower tier turns it on, one of the eight principles becomes false and the
+sentence has to change with it.
+"""
+
+[[claim]]
+id = "agent-contract-is-decorators-not-manifest-run"
+scope = "public"
+symbol = "__apollia_dispatch__"
+status = "wired"
+proof = "crates/apollia-aip/src/bridge.rs"
+evidence = ""
+note = """
+The bridge accepts an agent only when it carries `__apollia_dispatch__`, the
+attribute the `@agent` / `@skill` / `@on_message` decorators install. The
+`manifest()` plus `run()` contract was removed by ADR-023 and the runtime no
+longer calls any dynamic `manifest()`.
+
+Both the root briefing and the principles page still described the removed
+contract, which is worse than a stale sentence: an author following it writes an
+agent the bridge refuses outright. Three ADRs predating ADR-023 still describe it
+too, and carry no supersession marker.
+"""
+
+[[claim]]
+id = "tcp-listener-is-loopback-with-token"
+scope = "public"
+symbol = "default_require_token"
+status = "wired"
+proof = "crates/apollia-core/src/config/api.rs"
+evidence = ""
+note = """
+Both shipped binaries open the TCP listener at startup: the CLI daemon always
+passes a port, and the desktop hardcodes 7771. The page said TCP was opt-in,
+which was wrong in fact.
+
+It is not a security defect, and the correction should not read as one. The
+listener binds `127.0.0.1`, so it is unreachable from the network, and
+`require_token` defaults to true, so every TCP request needs a Bearer token. The
+Unix socket is exempt because the filesystem already answers the question of who
+may connect. What was wrong was describing an always-on, locked-down listener as
+something the operator has to switch on.
+
+This claim guards the two defaults, not the listener. If either `bind` or
+`require_token` changes default, the sovereignty page stops being true.
+"""
+
+[[claim]]
+id = "unshare-sandbox-requires-cap-sys-admin"
+scope = "public"
+symbol = "build_command"
+status = "wired"
+proof = "crates/apollia-tools/src/tools/bash_executor.rs"
+evidence = "--fork"
+note = """
+`unshare --pid --mount --fork`, called without `--user`. That flag set needs
+CAP_SYS_ADMIN, which an unprivileged service user does not have and which
+enabling unprivileged user namespaces does not confer.
+
+The production guide told the operator to run under a dedicated unprivileged user
+and, four paragraphs later, that the shell sandbox works once user namespaces are
+enabled. Both instructions were reasonable; together they produced a procedure
+where the two code-execution tools fail every call. That is worse than a wrong
+sentence, it is a runbook that cannot be followed.
+
+The evidence string is `--fork` because it is the flag whose presence, alongside
+the absence of `--user`, sets the capability requirement. If `--user` is ever
+added, the guide can drop the capability discussion entirely.
+"""
+
+[[claim]]
+id = "sampling-only-temperature-reaches-the-backend"
+scope = "public"
+symbol = "CompletionRequest"
+status = "wired"
+proof = "crates/apollia-llm/src/types.rs"
+evidence = "pub seed: Option<u64>"
+note = """
+The request struct is the whole sampling contract: messages, tools, model,
+temperature, max_tokens, seed, grammar. `top_p`, `top_k` and
+`repetition_penalty` are not fields of it and reach no backend, while the page
+documented a four-level resolution precedence for them, hard-fallback values
+included. `seed` is a field and is read by nobody, so the reproducibility section
+promised something the code cannot deliver.
+
+More than half the page described machinery that is written and never applied:
+the curated table and the user override file are populated at download time, and
+the resolver that would consult them has no caller outside test code.
+
+The evidence string pins `seed` deliberately. It is the field whose presence
+makes the struct look like it supports reproducibility; if a backend ever reads
+it, this claim fails and the page gets rewritten in the other direction.
+"""
+
+[[claim]]
+id = "tier-sets-budget-runtime-ceiling-caps-it"
+scope = "public"
+symbol = "default_for"
+status = "wired"
+proof = "crates/apollia-core/src/config/autonomy.rs"
+evidence = "long_autonomous    | 500"
+note = """
+The page said the tier does not change the step budget. It does: 100, 200, 300,
+500 reasoning steps across the four tiers, capped afterwards by the runtime
+ceiling. What a tier cannot change is that ceiling.
+
+The evidence string pins the doc-comment table, which is the only place all four
+tiers are stated together, and which the code below it must keep matching.
+"""
+
+[[claim]]
+id = "orchestrated-parallelism-not-active"
+scope = "public"
+symbol = "is_tool_read_only"
+status = "not-wired"
+proof = "crates/apollia-oria/src/actor.rs"
+evidence = "fn is_tool_read_only"
+note = """
+Intra-level parallelism is implemented and never happens. The engine asks the
+tool proxy whether a step is read-only; the single production implementation
+keeps the trait default, which is false for everything, so every step runs
+sequentially.
+
+Guarded because the page described a performance property a reader could plan
+around. The topological levels remain meaningful as a dependency graph; they are
+not a scheduler. If a production proxy ever overrides the default, this claim
+fails and the page can promise parallelism again.
+"""
+
+[[claim]]
+id = "desktop-downloads-models-in-app"
+scope = "public"
+symbol = "start_model_download"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/model_hub.rs"
+evidence = ""
+note = """
+The install page said there is no in-app model downloader. There is one, reached
+from onboarding and from the Model Hub screen, and it is the path most first-time
+users take. Denying a shipped feature sends a reader hunting for a GGUF by hand
+on their first five minutes with the product.
+"""
+
+[[claim]]
+id = "llama-server-env-overrides"
+scope = "public"
+symbol = "APOLLIA_LLAMA_N_PARALLEL"
+status = "wired"
+proof = "crates/apollia-runtime/src/llama_server/config.rs"
+evidence = "APOLLIA_LLAMA_EXTRA_ARGS"
+note = """
+Twelve overrides, applied at every engine start, and none of them appeared
+anywhere under docs/site. The page sent a reader wanting throughput to a
+hand-launched llama-server the daemon does not talk to, while the embedded engine
+was tunable in place.
+
+The same page claimed concurrency rides the batch for free. Continuous batching
+is on, but `n_parallel` defaults to 1, so requests queue. Both halves of that
+sentence were true and the conclusion was wrong.
+"""
+
+[[claim]]
+id = "tool-sandbox-covers-child-processes-only"
+scope = "public"
+symbol = "SandboxRoot"
+status = "wired"
+proof = "crates/apollia-tools/src/sandbox_path.rs"
+evidence = ""
+note = """
+Three pages used "sandbox" for three different things: the OS confinement of a
+tool's child process, the path root of the filesystem tools, and a disposable
+test machine. One page said there is no sandbox around the agent while two others
+treated it as a real boundary, and both were right about different objects.
+
+The word now has one meaning across the corpus, fixed on this page. What this
+claim guards is the second regime, the path-prefix check, because it is the one
+that reads like containment and is not: for an installed agent the root is the
+user's entire home directory.
+"""
+
+# ── Decisions whose content is a removal ────────────────────────────────────
+
+[[claim]]
+id = "supervisor-has-no-restart-machinery"
+scope = "public"
+symbol = "RestartPolicy"
+status = "absent"
+proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+evidence = ""
+note = """
+ADR-045 decided that the runtime supervises actors fail-fast then degrades, and
+that the dead restart machinery gets deleted rather than wired. `RestartPolicy`,
+`ChildSpec` and `RestartTracker` are gone.
+
+This is the corpus's one case where the evidence for a decision is an absence,
+and it is the only kind of claim nothing else can guard. A `wired` claim fails
+when a caller disappears; a `not-wired` claim fails when the evidence text moves.
+A removal has no such trace: reintroducing `RestartPolicy` would compile, pass
+every test, and leave ADR-045 quietly saying the opposite. Hence `status =
+"absent"`, which fails when the symbol comes back.
+
+`ChildSpec` and `RestartTracker` have their own entries: one symbol per claim, so
+the failure message names the one that returned.
+"""
+
+[[claim]]
+id = "supervisor-has-no-child-spec"
+scope = "public"
+symbol = "ChildSpec"
+status = "absent"
+proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+evidence = ""
+note = """
+Second of the three symbols ADR-045 removed. See `supervisor-has-no-restart-machinery`.
+"""
+
+[[claim]]
+id = "supervisor-has-no-restart-tracker"
+scope = "public"
+symbol = "RestartTracker"
+status = "absent"
+proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+evidence = ""
+note = """
+Third of the three symbols ADR-045 removed. See `supervisor-has-no-restart-machinery`.
 """
 
 # ── Platform posture ─────────────────────────────────────────────────────────

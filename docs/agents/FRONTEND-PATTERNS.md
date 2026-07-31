@@ -3,7 +3,7 @@
 > Rules for any UI change in `crates/apollia-desktop/ui/`. Read this before
 > editing Svelte components or Tauri IPC. Pair with
 > `crates/apollia-desktop/ui/AGENTS.md` for the local routing map and the
-> 114-command IPC catalogue.
+> IPC catalogue.
 
 Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
 + bits-ui + svelte-i18n v4.
@@ -149,8 +149,9 @@ and tokens.
 
 ## 6. Tauri IPC
 
-The desktop UI calls into the Rust backend via `~114 Tauri commands`. Full
-catalogue in `crates/apollia-desktop/ui/AGENTS.md`. Patterns here :
+The desktop UI calls into the Rust backend through Tauri commands, 285 of them
+at last count. Do not memorise a number: read
+`grep -rc '#\[tauri::command\]' crates/apollia-desktop/src`. Patterns here :
 
 ```ts
 import { invoke } from "@tauri-apps/api/core";
@@ -177,18 +178,26 @@ Rules :
 
 ## 7. Routing
 
-SvelteKit-style routes in `src/routes/`. One file per view. Layouts in
-`+layout.svelte`. Loaders live in `+page.ts` when present.
+**This is not SvelteKit.** There is no filesystem router, no `+page.svelte`, no
+`+layout.svelte`, and no `$app/navigation`. Writing any of those produces a file
+nothing ever mounts.
 
-- One route = one screen. No multi-purpose pages.
-- Navigation : `import { goto } from "$app/navigation"`. Never window.location.
+Routing is a store. `src/lib/stores/navigation.ts` holds a `Route` union type and
+a `currentRoute` writable; `lib/components/app/Main.svelte` switches on it to
+mount the matching component from `src/routes/`.
+
+- Adding a screen means : a component in `src/routes/`, a member in the `Route`
+  union, and an arm in the switch. Three edits, no convention magic.
+- Navigate with the helpers exported by the navigation store, which also
+  maintain back and forward history. Never `window.location`.
 
 ---
 
 ## 8. Internationalization
 
-`svelte-i18n` v4 with parallel FR + EN JSON namespaces in
-`src/i18n/<lang>/<namespace>.json`.
+`svelte-i18n` v4 with two flat catalogues, `src/lib/i18n/fr.json` and
+`src/lib/i18n/en.json`. There is no per-namespace file: the namespace is a key
+prefix inside those two files.
 
 ```svelte
 <script lang="ts">
@@ -203,7 +212,7 @@ Rules :
 
 - Never hardcode user-facing strings. Always go through `$t(...)`.
 - Every key has both FR and EN entries. CI fails on parity break.
-- Namespace per feature : `transcriptions`, `agents`, `settings`, ...
+- Namespace by key prefix : `transcriptions.*`, `agents.*`, `settings.*`.
 - Pluralization via ICU MessageFormat where Svelte-i18n supports it,
   otherwise compose at the call site.
 
@@ -236,11 +245,22 @@ field exposed). When fusing duplicated screens or features :
 ## 11. Testing
 
 - Unit : Vitest. Component tests via `@testing-library/svelte`.
-- E2E : Playwright against a built Tauri app, or `tauri-driver` for native
-  shell integration.
-- Visual regression : Playwright screenshots in `tests/visual/`. Update
-  baselines via `pnpm test:visual:update`.
-- See `docs/agents/TESTING.md` for the cross-stack matrix.
+- **Browser tests : Playwright**, in `crates/apollia-desktop/ui/tests/`, run
+  against the production bundle served by `vite preview` with the Tauri bridge
+  stubbed through `window.__TAURI_INTERNALS__.invoke`. They cover UI machinery
+  that needs a real browser (dirty state, nav guards, hotkey capture,
+  responsive layout, perf). They do **not** exercise the packaged application.
+  Run with `npm run test:perf` and the sibling scripts; the package manager is
+  `npm`, not pnpm.
+- **End-to-end on the real application : the gestural automaton** in
+  `scripts/automation/`. macOS has no WebDriver for WKWebView, so the driver
+  injects gestures by `data-testid` into the running Tauri app against a seeded
+  throwaway `HOME`. 37 scripts today. Read `scripts/automation/README.md` before
+  touching one, and regenerate `master-det` with `tools/regen_master.py` after
+  editing a per-page script. Adding a UI surface means adding its `data-testid`s
+  and a step in the matching `<page>-det.json`.
+- There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
+  write a test that assumes either.
 
 ---
 

@@ -77,10 +77,23 @@ sudo systemctl status apollia
   interface.
 - **Protect the token file.** `~/.apollia/api-token` for the service user grants
   full control of the runtime. Keep it readable only by that user.
-- **Sandbox prerequisites (Linux).** The `bash_executor` tool isolates commands
-  with Linux namespaces (`unshare --pid --mount`). If your distribution restricts
-  unprivileged user namespaces, enable them on the host, otherwise sandboxed shell
-  execution fails.
+- **Sandbox prerequisites (Linux), and they conflict with the unprivileged user
+  above.** `bash_executor` and `python_executor` isolate their child process with
+  `unshare --pid --mount --fork`. Those flags are called **without** `--user`, so
+  they need `CAP_SYS_ADMIN`: enabling unprivileged user namespaces on the host
+  does not grant it. Under a plain `User=apollia` service, both executors fail,
+  and `python_executor` fails closed.
+  <!-- claim:unshare-sandbox-requires-cap-sys-admin -->
+
+  Pick one, knowingly:
+
+  - grant the capability to the unit, `AmbientCapabilities=CAP_SYS_ADMIN` plus
+    `CapabilityBoundingSet=CAP_SYS_ADMIN`, and keep the unprivileged user;
+  - or run without the two code-execution tools, disabling them in `[tools]`;
+  - or accept that they will fail at call time.
+
+  Running the service as root to get the capability trades a contained tool for
+  an uncontained daemon, which is the wrong way round.
 
 ### Reverse proxy with TLS termination
 

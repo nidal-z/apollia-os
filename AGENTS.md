@@ -80,12 +80,17 @@ Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
 1. **Local-first** : zero user data leaves the machine without an explicit action.
 2. **Zero external dependency** : the binary runs on any clean Linux without
    prior install.
-3. **Minimal contract** : Python duck typing, `manifest()` + `run()` async is
-   enough.
+3. **Minimal contract** : a class decorated with `@agent`, one `@skill` or one
+   `@on_message` async method, and nothing else. The legacy `manifest()` plus
+   `run()` escape hatch is gone (ADR-023): the bridge refuses an object without
+   `__apollia_dispatch__`.
 4. **Fail fast** : any startup-detectable error is detected at startup.
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
    between actors.
-6. **Memory at agent initiative** : never automatically inject memory context.
+6. **Memory at agent initiative** : never inject memory context into an agent's
+   prompt. The one exception is the built-in conversational assistant at the
+   `long_autonomous` tier, which appends a user-persona brief by operator choice;
+   no agent execution path does this.
 7. **Non-negotiable safeguards** : `StepBudget` enforced by the runtime, never
    bypassable.
 8. **Human CLI, machine API** : `--json` global, TTY auto-detected.

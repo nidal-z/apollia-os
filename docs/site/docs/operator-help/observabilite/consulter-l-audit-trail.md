@@ -37,9 +37,39 @@
 
 7. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
 
-   > **⚠️ Non disponible dans cette version :** l'export de l'audit trail depuis l'interface. Côté CLI, les commandes disponibles sont :
-   > - `apollia-os audit list [--limit N]`
-   > - `apollia-os audit stats`
+   > **L'export et la vérification se font en ligne de commande**, pas depuis
+   > l'interface. Voir la section suivante.
+
+## Exporter et vérifier en ligne de commande
+
+L'interface montre le journal ; la ligne de commande permet de le sortir et de
+prouver qu'il n'a pas été modifié.
+
+```sh
+apollia-os audit list --limit 200        # consulter
+apollia-os audit stats                   # compter
+apollia-os audit export --output audit.json --limit 100000
+apollia-os audit verify                  # vérifier toute la chaîne
+apollia-os audit verify <RUN_ID>         # vérifier une exécution
+apollia-os audit anchor                  # imprimer l'ancre de tête
+```
+
+**`verify`** recalcule la chaîne de hachage et contrôle les signatures. Sans
+argument, il parcourt le journal entier ; avec un identifiant d'exécution, il se
+limite à celle-ci. C'est ce qui distingue un journal d'une simple liste : une
+entrée modifiée après coup casse la chaîne et se voit.
+
+**`anchor`** imprime l'ancre de tête de la chaîne globale. La conserver hors de
+la machine est la seule défense contre une troncature de la fin du journal par
+quelqu'un qui aurait obtenu la clé de signature. Cette clé est un fichier local,
+lisible par le compte qui exécute Apollia : l'ancre exportée est donc la
+protection réelle, pas une précaution avancée.
+
+**`export`** écrit le journal en JSON. Il s'arrête à `--limit`, 10000 par défaut,
+et prévient sur la sortie d'erreur quand il atteint ce plafond.
+
+Détail de ces commandes dans
+[Audit, verify and roll back a run](../../how-to/audit-verify-rollback.md).
 
 ## Vérification
 

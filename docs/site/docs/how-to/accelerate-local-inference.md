@@ -51,11 +51,40 @@ that move throughput are upstream of it:
   quantization that leaves headroom for the KV cache.
 - **Serve one model per server process.** The engine loads a single-file GGUF
   model. Switching the default backend switches which model the daemon serves.
-- **Let concurrency ride the batch.** Because continuous batching is always on,
-  several agents (or several steps of one orchestrated run) can decode together
-  without you provisioning extra slots by hand.
+- **Provision the slots before expecting concurrency.** Continuous batching is
+  on by default, but the engine starts with a single decode slot, so requests
+  queue rather than decode together. Raise `APOLLIA_LLAMA_N_PARALLEL` (below).
 
-## Developer: run a tuned `llama-server`
+## Tune the embedded engine
+
+<!-- claim:llama-server-env-overrides -->
+
+The embedded engine reads twelve environment variables at every start, so a knob
+can be turned without a source build. Set them in the environment of whatever
+launches the daemon.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `APOLLIA_LLAMA_N_CTX` | model-derived | Context window in tokens. |
+| `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
+| `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
+| `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |
+| `APOLLIA_LLAMA_N_PARALLEL` | `1` | Decode slots served concurrently. |
+| `APOLLIA_LLAMA_CONT_BATCHING` | `true` | Continuous batching. |
+| `APOLLIA_LLAMA_CACHE_TYPE_K` | engine default | KV cache quantization, keys. |
+| `APOLLIA_LLAMA_CACHE_TYPE_V` | engine default | KV cache quantization, values. |
+| `APOLLIA_LLAMA_FLASH_ATTN` | `on` | Flash attention mode. |
+| `APOLLIA_LLAMA_CACHE_REUSE` | engine default | Prefix-reuse threshold. |
+| `APOLLIA_LLAMA_METRICS` | `false` | Exposes the engine's metrics endpoint. |
+| `APOLLIA_LLAMA_EXTRA_ARGS` | empty | Extra flags passed through verbatim. |
+
+Raising `N_PARALLEL` is what turns continuous batching into real concurrency: at
+the default of one slot, requests queue.
+
+The full list, including the secret-storage and diagnostic variables, is in
+[Environment variables](/reference/environment-variables).
+
+## Developer: run a separate tuned `llama-server`
 
 On a source build the daemon uses the `llama-server` it finds on your `PATH`
 rather than a bundled binary. The repository ships a recipe to start one for

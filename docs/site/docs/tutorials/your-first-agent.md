@@ -16,11 +16,20 @@ write a class, declare an entry point, install, enable, run.
 ## Before you start
 
 - Apollia installed, with the `apollia-os` command on your `PATH`.
+- **The daemon running**, in a second terminal:
+
+  ```sh
+  apollia-os start --port 7771
+  ```
+
+  `agent enable`, `run` and `llm status` all talk to it; without it they exit
+  with `runtime not started (connection refused)`. Leave it running for the whole
+  tutorial and stop it with `apollia-os stop` at the end.
 - An LLM backend configured. Check it with `apollia-os llm status`. If nothing
   is set up yet, register a local model with
   `apollia-os llm setup --local --model /path/to/model.gguf`, or a cloud backend
-  with `apollia-os auth login <provider>` then
-  `apollia-os llm backends create`. See
+  with `apollia-os llm backends create --provider <p> --model <m> --api-key <key>`.
+  See
   [Install and run the runtime](/how-to/install-and-run#step-3-configure-a-model-backend)
   and the [CLI reference](/reference/cli) for every `llm` subcommand.
 

@@ -20,7 +20,7 @@ Separating "what the agent can do" from "how far it may go unattended" is the ke
 idea. An agent declares the tools it needs; the tier decides how much human
 oversight sits between the agent's intent and its actions. That separation is
 what lets you deploy the same agent conservatively in a sensitive context and
-loosely in a sandbox, without rewriting it. The tier reflects the trust you
+loosely on an isolated test machine, without rewriting it. The tier reflects the trust you
 extend for a given task, and trust is a decision about context, not code.
 
 ## The four tiers
@@ -57,9 +57,13 @@ and the safeguards it runs under belong to the
 [accountability model](/explanation/accountability-model). What matters here is
 that the tier is the single dial that governs both.
 
-Note what the tier does not change: the step budget. The ceiling on reasoning
-steps, tool calls, and wall-clock time is enforced by the runtime on every tier,
-including the most autonomous one. Raising autonomy widens what an agent may
+<!-- claim:tier-sets-budget-runtime-ceiling-caps-it -->
+Note what the tier does not change: the runtime ceiling. Each tier carries its
+own budget, from 100 reasoning steps at the most cautious to 500 at the most
+autonomous, and that budget is always capped by the runtime ceiling, which no
+tier can exceed. The ceiling on reasoning steps, tool calls and wall-clock time
+is enforced by the runtime on every tier, including the most autonomous one.
+Raising autonomy widens what an agent may
 attempt; it never removes the hard edge.
 
 ## Choosing a tier

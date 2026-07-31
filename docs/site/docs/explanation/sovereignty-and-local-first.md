@@ -13,9 +13,13 @@ onto it.
 
 ## The default never leaves the machine
 
+<!-- claim:tcp-listener-is-loopback-with-token -->
 The starting posture is the sovereign one. Storage is a local SQLite database.
-The runtime's API binds to a Unix socket, and it only listens on TCP when you
-explicitly enable it. There is no telemetry and no automatic upload of anything.
+The runtime's API binds to a Unix socket, reachable only by the owner of the
+socket file, and also to TCP on `127.0.0.1:7771`, where every request must carry
+a Bearer token. Loopback means the listener is not reachable from the network at
+all; opening it up is a deliberate edit of `[api] bind`. There is no telemetry
+and no automatic upload of anything.
 This is what "local-first" means operationally: the path that runs when you do
 nothing special is the path that keeps everything on your hardware. Sovereignty
 that you have to configure your way into is not sovereignty; here it is the

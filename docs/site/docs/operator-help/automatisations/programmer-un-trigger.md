@@ -71,4 +71,50 @@ L'automatisation figure dans la table **Automatisations** avec :
 - **Le bouton "Activer" est désactivé** : il manque une donnée - vérifiez que l'étape Planifier n'a plus d'ambiguïté de calendrier et qu'un assistant est sélectionné.
 - **Le lancement immédiat (icône ▶︎) est grisé** : l'automatisation est en pause. Réactivez-la depuis le mode avancé (interrupteur **Activée**) ou recréez-en une.
 
-> **Référence technique :** [Référence Apollia](../../reference/index.md) - table complète des types, paramètres acceptés et expressions cron supportées.
+## Appeler un webhook depuis un service externe
+
+Une automatisation de type **webhook** ne se déclenche pas toute seule : c'est un
+service extérieur qui l'appelle. Apollia refuse l'appel s'il n'est pas signé, ce
+qui évite que n'importe qui puisse déclencher votre agent en connaissant l'URL.
+
+**L'adresse** est celle affichée à la création, de la forme :
+
+```
+POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation>
+```
+
+Notez qu'elle n'est **pas** sous `/api/v1`, et qu'elle n'utilise pas le jeton
+d'API : la signature tient lieu d'authentification.
+
+**La signature** va dans l'en-tête `X-Apollia-Signature`, au format
+`sha256=<hexadécimal>`. C'est le HMAC-SHA256 du **corps brut** de la requête,
+octet pour octet, avec votre secret comme clé. Signer une version reformatée du
+corps produit une signature invalide.
+
+Exemple avec `curl` et `openssl` :
+
+```sh
+SECRET='votre-secret-de-32-caracteres-minimum'
+BODY='{"source":"github","action":"push"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)
+
+curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
+  -H "X-Apollia-Signature: sha256=$SIG" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+**Les réponses possibles :**
+
+| Code | Ce que ça veut dire |
+|---|---|
+| `200` | L'événement est accepté, l'automatisation part |
+| `401` | En-tête `X-Apollia-Signature` absent, ou signature qui ne correspond pas |
+| `404` | Aucune automatisation de type webhook avec cet identifiant |
+| `503` | Le moteur d'automatisations n'est pas démarré |
+
+Un `401` ne dit pas laquelle des deux causes s'applique, c'est volontaire. Si
+vous en recevez un, vérifiez d'abord que vous signez le corps brut et non une
+version réindentée.
+
+> **Référence technique :** [Référence Apollia](../../reference/index.md).

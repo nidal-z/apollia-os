@@ -163,10 +163,10 @@ class WebResearch:
             "web_search",
             input={"query": f'"{company_name}" company headquarters employees'},
         )
-        if not results.get("hits"):
+        if not results.get("results"):
             raise DomainError("COMPANY_NOT_FOUND", f"No public info on {company_name}")
 
-        top = results["hits"][0]
+        top = results["results"][0]
         page = await ctx.tools.call("web_read", input={"url": top["url"]})
 
         # A production worker would summarize with ctx.llm here.
@@ -195,12 +195,12 @@ class WebResearch:
             input={"query": f'"{company_name}" news 2026', "max_results": max_signals * 2},
         )
 
-        for hit in results.get("hits", [])[:max_signals]:
+        for hit in results.get("results", [])[:max_signals]:
             if not any(src in hit["url"] for src in TRUSTED_NEWS_DOMAINS):
                 continue
             page = await ctx.tools.call("web_read", input={"url": hit["url"]})
             signals.append({
-                "date": hit.get("date", "Unknown"),
+                "date": hit.get("age", "Unknown"),
                 "title": hit["title"],
                 "source": hit["url"],
                 "url": hit["url"],
@@ -223,11 +223,11 @@ class WebResearch:
             "web_search",
             input={"query": f'site:linkedin.com/company "{company_name}"'},
         )
-        if not results.get("hits"):
+        if not results.get("results"):
             return {"company_name": company_name, "linkedin_url": None, "key_people": []}
         return {
             "company_name": company_name,
-            "linkedin_url": results["hits"][0]["url"],
+            "linkedin_url": results["results"][0]["url"],
             "key_people": [],
         }
 
@@ -417,12 +417,20 @@ class MeetingPrep:
 agent = MeetingPrep()
 ```
 
-## Install the workers
+## Install and enable the workers
+
+Installing records the agent; enabling loads it into the running registry. A
+director that calls a skill of an installed-but-not-enabled worker gets
+`unknown A2A skill` on its first message, so do both.
 
 ```bash
 apollia-os agent install ./web_research.py
 apollia-os agent install ./crm_lookup.py
 apollia-os agent install ./meeting_prep.py
+
+apollia-os agent enable web-research
+apollia-os agent enable crm-lookup
+apollia-os agent enable meeting-prep
 ```
 
 Provide the CRM credential the `crm-lookup` worker declared. Agent-declared

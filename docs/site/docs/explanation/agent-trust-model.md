@@ -27,9 +27,10 @@ in-language confinement. A malicious or buggy agent can do anything the current
 user can do. This is a deliberate v0.1.0 decision (recorded in ADR-003): the
 audience is builders who write or audit the agents they run.
 
-**Native tools are the confined surface.** When an agent calls a tool like the
-shell or the Python executor, that tool spawns a child process, and it is the
-child process, not the agent, that Apollia confines:
+<!-- claim:tool-sandbox-covers-child-processes-only -->
+**Two tools are the confined surface, and only their child process.** When an
+agent calls `bash_executor` or `python_executor`, that tool spawns a child
+process, and it is the child process, not the agent, that Apollia confines:
 
 - On Linux, tool commands run inside PID and mount namespaces via `unshare`.
 - On macOS, there is no OS sandbox for tools; Apollia emits a warning on every
@@ -46,8 +47,21 @@ child process, not the agent, that Apollia confines:
   the same rights as the application. `bash_executor` additionally needs a POSIX
   shell on `PATH` (Git Bash, WSL or MSYS2) and fails without one.
 
-The distinction matters: the sandbox protects the host from a tool call, not from
-the agent's own code.
+Every other tool runs unconfined in the runtime process. Filesystem tools are
+bounded by a path-prefix check: a canonicalised root they refuse to leave, symlink
+escapes included. That root is the workspace in a chat session and **the user's
+whole home directory** for an installed agent. Network tools are bounded by an
+application-level allowlist. Neither is an OS boundary.
+
+Three consequences worth carrying. A mount namespace without `pivot_root` is not
+a filesystem jail: the child sees the same filesystem you do. A path-prefix check
+is an application guarantee, not a kernel one, and does not survive a tool that
+ignores it. And none of it applies to the agent's own code, which can reach
+directly what the tools refuse.
+
+**In this documentation the word sandbox has one meaning: the OS confinement of a
+tool's child process.** It never refers to the agent, never to the path root of
+the filesystem tools, and never to a disposable test environment.
 
 ## What actually holds the line
 
@@ -57,19 +71,28 @@ human-in-the-loop, layered as defense in depth.
 - **Audit before install.** The operator is responsible for reviewing an agent
   before installing it. The command-line install prints a notice restating that
   the agent will run with full user rights and no sandbox.
-- **Human approval (HITL).** Sensitive actions route through a permission engine
-  whose default decision is to ask. A file write or an outbound call surfaces an
-  approval to the operator rather than running silently. This is the primary gate
-  for anything that leaves a mark.
+- **Human approval (HITL).** In a chat session, file writes, edits, shell and
+  Python execution route through an approval wrapper whose default decision is to
+  ask: the action surfaces to the operator rather than running silently.
+  <!-- claim:hitl-wired-in-chat-path-only -->
+  **This wrapper is not placed on an installed agent's dispatcher.** An agent's
+  own `ctx.tools` calls meet no human checkpoint, which is consistent with the
+  rest of this page: an agent already runs arbitrary Python under your account,
+  so a gate on one call path would not contain a hostile one. Treat HITL as
+  supervision of the conversational path, not as containment of an agent.
 - **Capability declarations.** An agent's manifest declares the tools, secrets,
   data sources, and messaging it intends to use, and the matching `ctx.*`
   interfaces enforce those allowlists by default. This is least-privilege
   ergonomics, not an OS boundary: an unsandboxed agent can ignore `ctx.secrets`
   and read the environment directly. Treat the allowlists as a clarity and
   convenience mechanism, not as containment.
-- **Runtime safeguards.** The step budget, the audit trail, and the permission
-  engine are enforced by the runtime, independently of the OS trust model, and
-  cannot be reconfigured away by the agent.
+- **Runtime safeguards.** The step budget and the audit trail are enforced by the
+  runtime, independently of the OS trust model, and cannot be reconfigured away by
+  the agent. Persisted permission rules and the code-executor guard apply on the
+  chat path.
+  <!-- claim:permission-engine-not-wired -->
+  The `PermissionEngine` that `apollia-permissions` also ships is **not installed
+  by any production caller** and enforces nothing today.
 
 ## What an operator must assume
 

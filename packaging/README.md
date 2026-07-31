@@ -12,6 +12,9 @@ bundle Tauri signé.
 | `fetch-python-standalone.sh` | Télécharge et extrait `python-build-standalone` d'Astral pour une target donnée. Cache sous `target/python-bundle/<triple>/.cache/`. |
 | `build-universal-python.sh` | Compose un bundle macOS universal2 en `lipo -create` des Mach-O Python ARM + Intel. |
 | `build-python-bundle.sh` | Orchestrateur : fetch + `pip install -r requirements-bundled.txt` + pruning + patch `install_name` (macOS). |
+| `fetch-llama-server.sh` | Télécharge le binaire `llama-server` amont pour une plateforme et vérifie sa somme de contrôle. |
+| `llama-server-checksums.txt` | Sommes de contrôle attendues, une par plateforme, lues par le script ci-dessus. |
+| `launchers/` | Lanceurs par plateforme empaquetés avec l'application. |
 
 ## Version pinnée
 
@@ -42,12 +45,12 @@ rustup target add aarch64-apple-darwin
 # 2. Préparer le bundle Python (~3 min la 1ère fois, cached ensuite)
 ./packaging/build-python-bundle.sh aarch64-apple-darwin target/python-bundle/aarch64-apple-darwin
 
-# 3. Builder l'app Tauri (invoque bundle-cli.sh qui refait le step 2 si besoin)
+# 3. Builder l'app Tauri
 cd crates/apollia-desktop
 cargo tauri build --target aarch64-apple-darwin
 
 # 4. Post-bundle : patcher install_names + signer ad-hoc
-bash scripts/after-bundle.sh
+bash crates/apollia-desktop/scripts/after-bundle.sh
 codesign --force --deep --sign - \
   --options runtime \
   --entitlements entitlements.plist \
@@ -71,7 +74,7 @@ les 5 étapes ci-dessus avec validation des prérequis.
 cd crates/apollia-desktop
 cargo tauri build
 
-bash scripts/after-bundle.sh
+bash crates/apollia-desktop/scripts/after-bundle.sh
 # AppImage: target/release/bundle/appimage/*.AppImage
 # .deb:     target/release/bundle/deb/*.deb
 ```
@@ -93,7 +96,7 @@ bash scripts/after-bundle.sh
 1. Ajouter la ligne dans `requirements-bundled.txt` avec une version pinnée.
 2. Rebuild local : `./packaging/build-python-bundle.sh <target> target/python-bundle/<target>`.
 3. Vérifier la taille : `du -sh target/python-bundle/<target>/python/`.
-4. Documenter dans KNOWN-ISSUES.md si la dép ajoute > 10 MB.
+4. Noter dans le CHANGELOG si la dépendance ajoute plus de 10 Mo au bundle.
 
 ## Debug : Python refuse de se charger au runtime
 
@@ -110,4 +113,4 @@ patchelf --print-rpath target/release/apollia-desktop
 ```
 
 Si c'est `/opt/homebrew/...` ou `/Users/...`, c'est que le post-build patch n'a
-pas tourné ou a échoué. Relancer `scripts/after-bundle.sh`.
+pas tourné ou a échoué. Relancer `crates/apollia-desktop/scripts/after-bundle.sh`.

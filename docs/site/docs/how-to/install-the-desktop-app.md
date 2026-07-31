@@ -15,17 +15,22 @@ your machine, and does not need an account to start.
 
 ## Platform availability
 
-The installers are published on the project's GitHub Releases page. Availability
-differs by platform today:
+Three platforms are supported. Installers are published on the project's GitHub
+Releases page:
 
-| Platform | Installer | Status |
+| Platform | Installer | Notes |
 |---|---|---|
-| macOS (Apple Silicon) | `.dmg` | Available, ad-hoc signed. Gatekeeper shows a warning on first launch (see below). |
-| Windows (x86-64) | `.msi` / `.exe` | Produced by the release pipeline. Use it from the release assets once published for your version. |
-| Linux (x86-64) | `.AppImage` / `.deb` | Produced by the release pipeline. Use it from the release assets once published for your version. |
+| macOS (Apple Silicon) | `.dmg` | Gatekeeper shows a warning on first launch unless the build is Developer ID signed (see below). |
+| Windows (x86-64) | `.msi` / `.exe` | SmartScreen warns on an unrecognised publisher. Needs the WebView2 runtime, preinstalled on current Windows. |
+| Linux (x86-64) | `.AppImage` / `.deb` | Needs WebKitGTK, present on current desktop distributions. |
 
-If your platform's installer is not attached to the latest release yet, build the
-app from source with [Install and run the runtime](/how-to/install-and-run), which
+Tool confinement is not uniform across the three, and that difference is not
+cosmetic: see [what is confined and what is
+not](/explanation/agent-trust-model). On Windows there is none.
+
+If your platform's installer is not attached to the release you are looking at,
+build the app from source with
+[Install and run the runtime](/how-to/install-and-run), which
 covers the developer bring-up on all three operating systems.
 
 ## Download
@@ -58,9 +63,10 @@ Get-FileHash .\<downloaded-file> -Algorithm SHA256
 2. Drag **Apollia OS** into the **Applications** folder.
 3. Eject the disk image, then open **Apollia OS** from Applications or Launchpad.
 
-The macOS build is ad-hoc signed, not notarized by an Apple Developer account.
-The first time you open it, macOS may say the app "cannot be opened because the
-developer cannot be verified". To open it anyway:
+A macOS build is signed and notarized with an Apple Developer ID when the release
+pipeline has the signing secrets, and ad-hoc signed otherwise. If yours is
+ad-hoc, the first launch may say the app "cannot be opened because the developer
+cannot be verified". To open it anyway:
 
 - Right-click (or Control-click) the app icon and choose **Open**, then confirm
   **Open** in the dialog. macOS remembers the choice for later launches.
@@ -109,8 +115,10 @@ menu. The app relies on the system WebKitGTK runtime; on a minimal system, insta
 On first launch the app creates its data directory and walks you through a short
 onboarding flow (choosing a model backend, granting permissions). You can start
 with a cloud backend or point the app at a local model file you already have. To
-run fully local inference, place a `.gguf` model file in `~/.apollia/models/`
-before or after onboarding; there is no in-app model downloader.
+<!-- claim:desktop-downloads-models-in-app -->
+run fully local inference, download a GGUF from within the app: onboarding offers
+it, and Settings, Model Hub does the same afterwards. Dropping a `.gguf` file
+into `~/.apollia/models/` by hand also works, before or after onboarding.
 
 ## Where the app stores your data
 

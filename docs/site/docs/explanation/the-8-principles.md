@@ -35,11 +35,18 @@ reason about and one thing to keep running.
 
 ## 3. Minimal contract
 
-An agent is Python duck typing: a `manifest()` and an async `run()` are enough.
-There is no base class to inherit and no framework to adopt. The point is to keep
-the surface an author must learn small, so the runtime can carry the hard parts
-(governance, budgets, tools) rather than pushing them into every agent. For the
-exact contract an agent sees, read the [SDK reference](/reference/sdk).
+<!-- claim:agent-contract-is-decorators-not-manifest-run -->
+An agent is a class decorated with `@agent`, holding at least one async method
+decorated with `@skill` or `@on_message`. There is no base class to inherit and
+no framework to adopt. The point is to keep the surface an author must learn
+small, so the runtime can carry the hard parts (governance, budgets, tools)
+rather than pushing them into every agent. For the exact contract an agent sees,
+read the [SDK reference](/reference/sdk).
+
+The earlier contract, a `manifest()` method plus an async `run()`, is gone
+(ADR-023). The bridge refuses any object without `__apollia_dispatch__`, the
+attribute the decorators install, so an agent written the old way does not load
+at all rather than half-working.
 
 ## 4. Fail fast
 
@@ -60,12 +67,22 @@ behind this is in [Solution strategy](/architecture/solution-strategy).
 
 ## 6. Memory at agent initiative
 
-Apollia never silently injects memory into a prompt. An agent recalls what it
-decides to recall, when it decides to. Automatic memory injection is convenient
-and quietly corrosive: it makes a run's inputs opaque and its behaviour hard to
-attribute. Leaving recall to the agent's initiative keeps the record of what fed
-a decision honest. The memory layer itself is exportable and importable, which is
-why it belongs to sovereignty as much as to agency.
+<!-- claim:memory-injection-only-in-builtin-assistant-top-tier -->
+Apollia never injects memory into an agent's prompt. An agent recalls what it
+decides to recall, when it decides to, through `ctx.memory`. Automatic memory
+injection is convenient and quietly corrosive: it makes a run's inputs opaque and
+its behaviour hard to attribute. Leaving recall to the agent's initiative keeps
+the record of what fed a decision honest.
+
+One exception exists, and it is an operator's decision rather than a silent one.
+The built-in conversational assistant, the one behind the chat window, appends a
+short user-persona brief to its system prompt at the highest autonomy tier only,
+`long_autonomous`. The three lower tiers do not. Nothing in that path applies to
+a Python agent you install: the injection lives in the built-in assistant's
+prompt builder, and no agent execution path reaches it.
+
+The memory layer itself is exportable and importable, which is why it belongs to
+sovereignty as much as to agency.
 
 ## 7. Non-negotiable safeguards
 

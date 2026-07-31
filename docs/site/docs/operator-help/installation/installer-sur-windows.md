@@ -38,6 +38,28 @@ L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré ave
 2. Décompressez et copiez `apollia-runner-cuda.exe` (ou `apollia-runner-vulkan.exe`) dans `C:\Program Files\Apollia OS\`.
 3. Relancez l'app.
 
+## Ce qui change sur Windows
+
+Windows est une plateforme supportée, mais deux points la distinguent des deux
+autres et méritent d'être connus avant de confier une tâche à un agent.
+
+**Aucun confinement des outils.** Sur Linux, une commande lancée par un agent
+s'exécute dans des espaces de noms isolés et avec des limites de ressources ; sur
+macOS, avec des limites de ressources. Sur Windows, ni l'un ni l'autre : une
+commande lancée par un agent tourne avec exactement vos droits, sur vos fichiers,
+sans plafond de mémoire ni de temps processeur. La contrepartie pratique : ne
+faites tourner sur Windows que des agents dont vous avez lu le code, et gardez
+l'approbation manuelle active dans le chat.
+
+**L'outil shell exige un shell POSIX.** `bash_executor` cherche un `sh` dans
+votre `PATH`. Sans Git Bash, WSL ou MSYS2 installé, tout agent qui utilise cet
+outil échoue. Les autres outils, fichiers, web et Python, fonctionnent
+normalement.
+
+## Mettre à jour
+
+Voir [Mettre à jour Apollia](./mettre-a-jour-apollia.md).
+
 ## Désinstallation
 
 `Paramètres > Applications > Apollia OS > Désinstaller`. Données utilisateur :

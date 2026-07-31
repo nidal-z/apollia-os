@@ -32,6 +32,121 @@ ever consult.
 The desktop application reads one more section, `[observability]`, documented
 below. It is not settable from the CLI.
 
+The tables below are generated from the Rust types, so a field cannot drift out
+of them. They cover the **top level of each section**. A nested table, such as an
+entry of `[[llm.backends]]` or `[[mcp.servers]]`, has its own fields: the MCP one
+is documented in full below, the others are read from the types they name.
+
+<!-- BEGIN GENERATED: config-fields -->
+
+### `[llm]`
+
+LLM backends and routing.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `default` | `String` | **required** | Default backend name (must exist in `backends`). |
+| `backends` | `Vec<BackendConfig>` | **required** | Backends to instantiate from `[[llm.backends]]`. |
+| `observability` | `ObservabilityConfig` | type default | Observability settings (tokens, latency, cost, prompt debug). |
+| `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). |
+| `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section). |
+| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which [`RuntimeEvent::TokenBudgetUpdated`] is emitted with `threshold_exceeded = true`. |
+| `vertex` | `Option<VertexConfig>` | `None` | Optional Google Vertex AI backend configuration (`[llm.vertex]`). |
+| `runner` | `LlmRunnerConfig` | type default | Local LLM sidecar runner configuration (`[llm.runner]` section). |
+
+### `[runtime]`
+
+EventBus and mailbox capacities.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `eventbus_capacity` | `usize` | `1024` | EventBus broadcast channel capacity. |
+| `mailbox_capacity` | `usize` | `100` | Maximum capacity of an actor mailbox. |
+| `mailbox_visibility_timeout_secs` | `u64` | `60` | Visibility timeout of a leased mailbox message, in seconds. |
+| `mailbox_message_ttl_secs` | `u64` | `86_400` | Time-to-live of a never-received mailbox message, in seconds. |
+| `mailbox_send_quota_per_run` | `u32` | `50` | Maximum number of mailbox sends allowed per run (anti-spam guard). |
+| `mailbox_max_payload_bytes` | `usize` | `65_536` | Maximum serialized payload size of a mailbox message, in bytes. |
+| `mailbox_audit_full_payload` | `bool` | `false` | Whether the audit journal records the full message payload. |
+| `startup_timeout_secs` | `u64` | `300` | Runtime startup timeout in seconds. |
+
+### `[api]`
+
+TCP listener, authentication, TLS, Unix socket.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `bind` | `String` | `"127.0.0.1".to_owned()` | IP address to bind the TCP listener to. |
+| `port` | `u16` | `7771` | TCP port of the REST server. |
+| `require_token` | `bool` | `true` | Require a Bearer token on every inbound TCP connection. |
+| `unix_socket` | `PathBuf` | `PathBuf::from("/tmp/apollia.sock")` | Local Unix socket path. |
+| `tls_cert` | `Option<PathBuf>` | `None` | PEM certificate chain for native TLS on the TCP listener. |
+| `tls_key` | `Option<PathBuf>` | `None` | PEM private key matching [`tls_cert`](Self::tls_cert). |
+
+### `[hitl]`
+
+Human-in-the-loop timeout and scan interval.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `timeout_hours` | `Option<u64>` | `None` | Maximum wait for human approval, in hours. |
+| `scan_interval_secs` | `u64` | `60` | Scan interval for expired HITL tasks, in seconds. |
+
+### `[tools]`
+
+Native tools: static disabling and per-tool settings.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `max_output_chars` | `usize` | `30_000` | Maximum size of a tool output forwarded to the LLM, in UTF-8 bytes. |
+| `file_path_extraction_pattern` | `Option<String>` | `None` | Regex pattern for extracting paths from bash output. |
+| `disabled` | `Vec<String>` | empty | Native tools statically disabled by the operator in `apollia.toml`. |
+| `web_search` | `WebSearchConfig` | type default | Configuration of the native `web_search` tool. |
+| `web_read` | `WebReadConfig` | type default | Configuration of the native `web_read` tool. |
+
+### `[mcp]`
+
+MCP client: tool loading and response limits.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `approval_ttl_hours` | `u64` | `24` | Validity duration of MCP HITL approvals, in hours. |
+| `tool_loading` | `McpToolLoading` | type default | Tool schema loading strategy for all MCP servers. |
+| `tool_search_limit` | `usize` | `20` | Maximum number of results returned by the `tool_search` synthetic tool. |
+
+### `[hooks]`
+
+Lifecycle hook handlers.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `handlers` | `Vec<HookHandlerConfig>` | empty | Registered hook handlers. |
+
+### `[chat]`
+
+Chat session defaults.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `plan_mode_default` | `bool` | `false` | Default plan-mode state inherited by every new chat session. |
+| `default_workspace` | `Option<String>` | `None` | Default working directory for free-chat (project-less) sessions. |
+| `tool_turn_temperature` | `Option<f32>` | `None` | LLM temperature applied to a chat turn that advertises tools to the model. |
+
+### `[observability]`
+
+Trace capture and retention. Read by the desktop application only.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `max_input_bytes` | `usize` | `DEFAULT_MAX_INPUT_BYTES` | Max size of task/step inputs in bytes (default 32768). |
+| `max_output_bytes` | `usize` | `DEFAULT_MAX_OUTPUT_BYTES` | Max size of task/step/completion outputs in bytes (default 32768). |
+| `max_tool_output_bytes` | `usize` | `DEFAULT_MAX_TOOL_OUTPUT_BYTES` | Max size of tool stdout/stderr in bytes (default 10240). |
+| `capture_thoughts` | `bool` | `true` | If `true`, persists ReAct `Thought` records on the trace (default `true`). Disabling empties the reasoning bubbles in the builder UI. |
+| `capture_tool_args` | `bool` | `true` | If `true`, persists the full `args_json` of tool calls (default `true`). Disabling leaves only the tool name and duration visible. |
+| `capture_tool_outputs` | `bool` | `true` | If `true`, persists the full `output_json` of tool calls (default `true`). Disabling leaves only success/failure visible. |
+| `capture_agent_logs` | `bool` | `true` | If `true`, persists Python `ctx.log()` calls on the trace (default `true`). Disabling keeps `tracing::*` working but writes no record in `runtime_events.db`. |
+| `retention_days` | `u32` | `90` | Retention period in days for `runtime_events` before automatic purge (default 90, consistent with audit.db). |
+<!-- END GENERATED: config-fields -->
+
 ### Sections that were withdrawn
 
 `[a2a]`, `[oria]`, `[registry]`, `[permissions]`, `[filesystem]`, `[memory]` and

@@ -26,6 +26,12 @@ Three checks, none of which uses a line number:
    that says "not available" has to be revisited. A claim of absence rots exactly
    like a claim of presence.
 
+4. **`status = "absent"`.** The symbol must have no occurrence at all outside
+   test code. This is the inverse of `wired`, and it exists for a case the corpus
+   really has: a decision whose content is a removal. There, the absence of the
+   symbol *is* the delivery, and nothing else in the build would notice its
+   silent return.
+
 Usage:
     python3 scripts/check_claims.py            # replay, exit 1 on divergence
     python3 scripts/check_claims.py --list     # print the inventory
@@ -59,14 +65,22 @@ class Failure(Exception):
 
 
 def strip_test_code(text: str) -> str:
-    """Blank out everything from the first `#[cfg(test)]` attribute onward.
+    """Drop everything from the first `#[cfg(test)]` attribute onward.
 
     Apollia puts unit tests in a trailing `mod tests` guarded by `#[cfg(test)]`,
-    so truncating there removes test callers without needing a Rust parser. The
-    trade-off is deliberate: this may keep a little code that follows an inline
-    `#[cfg(test)]` block, so the check can report a caller that is really a test.
-    It errs toward accepting a claim rather than toward a false alarm, which is
-    the right way round for a gate that blocks a release.
+    so cutting there removes test callers without needing a Rust parser.
+
+    Know which way this errs before trusting it. The cut is at the *first*
+    marker, so any production code that happens to follow an inline
+    `#[cfg(test)]` block in the same file is dropped too. `check_wired` returns
+    on the first use it finds, so fewer lines to search means a higher chance of
+    finding none: **the bias is toward a false alarm**, a claim reported broken
+    while its caller exists just below a test block.
+
+    In practice the trailing-`mod tests` convention keeps this rare. When it does
+    bite, the fix is to move the production code above the test module rather
+    than to loosen the check: a gate that cries wolf is the one that ends up
+    behind `continue-on-error`, and this repository has had to repair that twice.
     """
     marker = text.find("#[cfg(test)]")
     return text if marker == -1 else text[:marker]
@@ -124,6 +138,39 @@ def check_wired(claim: dict, sources: list[Path]) -> None:
         f"Either a caller was removed, or the documentation overstates what "
         f"ships. This is the exact shape of every drift this file exists to stop."
     )
+
+
+def check_absent(claim: dict, sources: list[Path]) -> None:
+    """The symbol must not appear anywhere in the sources.
+
+    Reintroducing a symbol a decision removed is invisible: it compiles, tests
+    pass, and the ADR that recorded the removal keeps saying it is gone.
+
+    Unlike the other checks this one does **not** call `strip_test_code`, and the
+    two err in opposite directions. For `wired`, cutting at the first
+    `#[cfg(test)]` removes candidate lines, so it can report a claim broken while
+    its caller sits just below a test block: a false alarm. For `absent`, cutting
+    would hide a symbol reintroduced after a test module: a missed regression,
+    and this check exists precisely to catch that. So it reads the whole file.
+
+    A removal decision also removes the tests that exercised the symbol, so a hit
+    anywhere is worth a look. False alarm is the right failure mode here, because
+    the alternative is silence on the one thing nothing else can see.
+    """
+    symbol = claim["symbol"]
+    for path in sources:
+        try:
+            body = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for number, line in enumerate(body.splitlines(), start=1):
+            if symbol in line:
+                raise Failure(
+                    f"`{symbol}` is declared removed but appears at "
+                    f"{path.relative_to(REPO_ROOT)}:{number}. Either it came "
+                    f"back, in which case the decision that removed it needs "
+                    f"revisiting, or this entry is stale."
+                )
 
 
 def check_not_wired(claim: dict) -> None:
@@ -188,6 +235,8 @@ def main() -> int:
                 check_wired(claim, sources)
             elif claim["status"] == "not-wired":
                 check_not_wired(claim)
+            elif claim["status"] == "absent":
+                check_absent(claim, sources)
         except (Failure, KeyError) as exc:
             failures.append((cid, str(exc)))
 

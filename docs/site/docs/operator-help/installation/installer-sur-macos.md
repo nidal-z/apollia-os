@@ -39,6 +39,10 @@ Le bundle macOS contient :
 
 Le daemon sélectionne automatiquement l'accélération Metal au démarrage.
 
+## Mettre à jour
+
+Voir [Mettre à jour Apollia](./mettre-a-jour-apollia.md).
+
 ## Désinstallation
 
 Glissez `Apollia OS.app` dans la corbeille. Données utilisateur :

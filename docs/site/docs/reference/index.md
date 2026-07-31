@@ -23,5 +23,8 @@ Refresh all three with `bash regen.sh`.
   file sections and their fields.
 - **[Native tool catalog](/reference/native-tools)** the tools the runtime exposes
   to agents out of the box.
-- **[Sampling defaults](/reference/sampling-defaults)** the default sampling
-  parameters per model family and the precedence rule.
+- **[Environment variables](/reference/environment-variables)** what the runtime
+  reads from its environment: the local engine, secret storage, connector OAuth
+  clients, diagnostics.
+- **[Sampling defaults](/reference/sampling-defaults)** which sampling parameter
+  reaches a model, and what is written but not applied.

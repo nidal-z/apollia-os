@@ -134,6 +134,38 @@ goes through `svelte-i18n` with parallel FR + EN entries.
 
 ---
 
+## Markdown that is a resource, not documentation
+
+**NEVER delete or reword a `.md` file without grepping its name across `crates/`,
+`sdk/`, `scripts/`, `agents/`, `.github/` and `justfile` first.** A handful of
+markdown files are program input. Deleting one breaks the build; editing one
+changes what the product says to a user.
+
+The three families, and how to recognise a new one:
+
+- `crates/apollia-llm/prompts/meta/*.md`, pulled in by `include_str!` from
+  `meta_orchestrator.rs`. These are LLM prompts. `include_str!` resolves at
+  compile time, so removing a file is a compilation error, and rewording one
+  changes model behaviour with no test to catch it.
+- `agents/system/apollia-guide/knowledge/*.md`, also `include_str!`, and
+  additionally written to disk at first run. These are what the companion agent
+  answers with. Stale content here is a product defect, not a stale document.
+- `scripts/automation/seed/files/**/*.md`, copied by `build-seed.sh` into the
+  throwaway `HOME` of the end-to-end automaton. Removing one breaks the suite.
+
+The test is mechanical: `grep -rn '<basename>.md' crates sdk scripts agents
+.github justfile`. A hit inside an `include_str!`, a `cp`, or a path join means
+the file is a resource. A hit inside a comment means it is a document, and two of
+those exist as known false positives:
+`crates/apollia-desktop/ui/src/lib/i18n/operator-glossary.md` and
+`crates/apollia-desktop/ui/src/lib/design/breakpoints.md`.
+
+This rule exists because a documentation audit proposed deleting fifteen files
+that would have broken the build, and the trap was caught by one grep rather than
+by review.
+
+---
+
 ## Documentation and prose
 
 **NEVER use em-dash `—` in any prose, comment, or documentation file.** It is a

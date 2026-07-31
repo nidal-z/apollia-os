@@ -51,6 +51,10 @@ L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré ave
 
 Le daemon détecte automatiquement le runner ajouté.
 
+## Mettre à jour
+
+Voir [Mettre à jour Apollia](./mettre-a-jour-apollia.md).
+
 ## Désinstallation
 
 ```sh

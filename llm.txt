@@ -10,7 +10,7 @@
 
 Apollia OS is an **open-source Rust runtime for executing autonomous AI agents locally and
 sovereignly**. It bridges any Python agent (LangGraph, CrewAI, custom) with a production-grade
-runtime that handles tool execution, memory, permissions, LLM routing, pipelines, HITL approval,
+runtime that handles tool execution, memory, permissions, LLM routing, HITL approval,
 and observability - without any cloud dependency.
 
 The key differentiator is **ReAct autonomous agents** (not deterministic LLM pipelines): agents
@@ -28,24 +28,27 @@ observe → reason → act in a loop bounded by a StepBudget, with the runtime e
 apollia-v2/
 ├── crates/                 ← All Rust crates (workspace)
 │   ├── apollia-aip/        ← PyO3 bridge: exposes RuntimeContext to Python agents
-│   ├── apollia-auth/       ← OAuth2 PKCE, keyring token storage
-│   ├── apollia-cli/        ← CLI binary (clap v4, 40+ subcommands)
-│   ├── apollia-core/       ← Shared types: AgentId, TaskId, StepBudget, errors
-│   ├── apollia-desktop/    ← Tauri v2 desktop app (Svelte 5 frontend, ~114 IPC commands)
-│   ├── apollia-llm/        ← LLM router: llama.cpp local + Anthropic/OpenAI/Ollama/Bedrock/Vertex
+│   ├── apollia-auth/       ← OAuth2 PKCE, keyring token storage, connector accounts
+│   ├── apollia-cli/        ← CLI binary (clap v4, noun-verb)
+│   ├── apollia-connectors/ ← Google Workspace + Microsoft 365 operation catalogue
+│   ├── apollia-core/       ← Shared types: AgentId, TaskId, StepBudget, config, errors
+│   ├── apollia-desktop/    ← Tauri v2 desktop app (Svelte 5 frontend)
+│   ├── apollia-eval/       ← Eval suites: assertions, LLM judge, runner
+│   ├── apollia-llm/        ← LLM router: local llama-server + Anthropic/OpenAI/Vertex
+│   ├── apollia-loom-models/ ← Loom concurrency models (workspace-excluded)
 │   ├── apollia-mcp/        ← MCP client (JSON-RPC 2.0, stdio + HTTP/SSE)
 │   ├── apollia-memory/     ← Memory engine (SQLite FTS5, episodic/semantic/procedural)
-│   ├── apollia-notifications/ ← Desktop + webhook notifications
+│   ├── apollia-notifications/ ← Desktop, terminal and webhook notifications
 │   ├── apollia-oria/       ← ORIA engine (Observer-Reasoner-Actor loop, plan cache)
-│   ├── apollia-permissions/ ← Permission rules (3 scopes: session/project/global)
-│   ├── apollia-pipelines/  ← DAG pipeline engine (fan-out, fan-in, HITL, fallback)
+│   ├── apollia-permissions/ ← Prefix rules, executor guard, decision log
+│   ├── apollia-prompts/    ← Shared prompt blocks and composition
+│   ├── apollia-runner/     ← Sidecar runner for local speech-to-text
 │   ├── apollia-runtime/    ← Core runtime (Tokio actors, axum API, EventBus, Supervisor)
 │   ├── apollia-stt/        ← Speech-to-text (whisper-rs, SttBackend trait)
-│   ├── apollia-tools/      ← 15 native tools + sandbox + audit trail + governance.db
+│   ├── apollia-tools/      ← Native tools + path confinement + audit trail + governance.db
 │   ├── apollia-triggers/   ← Trigger engine (cron, interval, filewatch, webhook, SQLite)
-│   └── apollia-workspace/  ← Workspace isolation, ContextProvider trait, project scoping
-│
-├── sdk/apollia/            ← Python SDK (pip-installable)
+│   └── apollia-workspace/  ← Workspace context collection, ContextProvider trait
+── sdk/apollia/            ← Python SDK (pip-installable)
 │   ├── types.py            ← Ctx Protocol (15 typed services) - the type contract
 │   ├── context/            ← per-service interfaces (llm, memory, tools, mail, ...)
 │   └── agent.py, skills.py ← @agent / @skill decorators, errors, react
@@ -193,13 +196,13 @@ Scope = crate name or a doc target (`docs`, `site`). One commit = one logical ta
 
 ---
 
-## 15 Native Tools
+## Native tools
 
 Available via `ctx.tools.call(name, params)`:
 
 | Tool | Purpose |
 |---|---|
-| `bash_executor` | Execute shell commands (sandbox-gated) |
+| `bash_executor` | Execute shell commands (child process confined on Linux, resource limits on Unix, nothing on Windows) |
 | `python_executor` | Execute Python scripts |
 | `file_read` | Read file contents |
 | `file_write` | Write/create files |
@@ -214,6 +217,14 @@ Available via `ctx.tools.call(name, params)`:
 | `notebook_read` | Read Jupyter notebook cells |
 | `notebook_edit` | Edit a specific notebook cell |
 | `memory_search` | Search agent memory (shortcut for `ctx.memory.recall`) |
+| `permission_rule_add` | Record a standing permission decision |
+| `permission_rule_remove` | Drop a standing permission decision |
+| `permission_rule_list` | List standing permission decisions |
+
+The registration list is `crates/apollia-runtime/src/supervisor/bundled.rs`; the
+dispatcher that gates them is `crates/apollia-tools/src/native_dispatcher.rs`.
+Connector operations (Google Workspace, Microsoft 365) are registered as tools
+too, from `crates/apollia-connectors`.
 
 ---
 
@@ -261,7 +272,6 @@ apollia-os task list|status|result|cancel|retry|resume|inspect
 apollia-os memory inspect|list|clear|purge|learn-procedure|export|import
 apollia-os tools list|enable|disable|config|reload|credentials|describe
 apollia-os permissions list|revoke|audit
-apollia-os pipeline list|run|runs|status
 apollia-os trigger list|status
 ```
 
@@ -286,7 +296,7 @@ Global flags: `--json` · `--socket PATH` · `-q/--quiet` · `-v/--verbose` · `
 (`--background: 28 8% 9%`). Primary blue `#3435f5`. Glass morphism layers. Rim light accents.
 Full spec: `crates/apollia-desktop/ui/src/app.css`.
 
-**i18n:** svelte-i18n v4, FR/EN JSON namespaces in `ui/src/lib/i18n/`. ~1700 keys.
+**i18n:** svelte-i18n v4, FR/EN JSON namespaces in `ui/src/lib/i18n/`.
 Default locale: system → FR fallback.
 
 ---
@@ -333,9 +343,9 @@ Public documentation lives in `docs/site/` (Docusaurus, en + fr, Diataxis).
 **Status:** v0.1.0-preview. Single-maintainer, MIT OR Apache-2.0, no published
 package yet. Local-first Rust runtime for autonomous AI agents.
 
-**ADR count:** 48 records (numbered ADR-001 to ADR-049, ADR-029 absent) plus a
-template. Latest: ADR-047, native TLS on the API TCP listener + fail-fast on an
-insecure non-loopback bind.
+**ADR count:** read `ls docs/adr/`. Numbering is ADR-001 upward, append-only,
+with ADR-029 deliberately skipped. Do not trust a count written here: it drifts
+within a week.
 
 ---
 

@@ -56,21 +56,38 @@ recent activity even when the key itself is at risk.
 
 ### Reversibility
 
-Filesystem changes an agent makes during a chat session are written to a
-reversible journal, so they can be undone by replaying the inverse of each
-mutation in reverse order. An action that can be reviewed and reversed is far
-safer to delegate than one that is final the moment it happens.
+<!-- claim:rollback-covers-file-write-and-file-edit-only -->
+Filesystem changes made through the `file_write` and `file_edit` tools are
+written to a reversible journal, so they can be undone by replaying the inverse
+of each mutation in reverse order. An action that can be reviewed and reversed is
+far safer to delegate than one that is final the moment it happens.
+
+The boundary matters: a mutation caused by a shell command, an `rm` or a
+redirect inside `bash_executor`, goes through no journal and cannot be rolled
+back.
 
 For the commands behind these three, see
 [Audit, verify and roll back a run](/how-to/audit-verify-rollback).
 
 ### Permissions and human oversight
 
-Before an action runs, a permission engine classifies it. Safe operations
-proceed; anything that needs a human decision raises an approval request that an
-operator resolves, and that decision is itself recorded. Permissions are scoped,
-so authority can be granted at the level of the whole install, a project, or a
-single session.
+<!-- claim:permission-engine-not-wired -->
+<!-- claim:hitl-wired-in-chat-path-only -->
+Before a tool call runs in a chat session, persisted permission rules classify
+it, a guard refuses a shell command that chains or redirects, and anything left
+raises an approval request that an operator resolves. That decision is itself
+recorded. Permissions are scoped, so authority can be granted at the level of the
+whole install, a project, or a single session.
+
+Two boundaries, both worth stating plainly. `apollia-permissions` also ships a
+`PermissionEngine` with a safe-list and a shell-injection detector; **no
+production caller installs it**, so those two components never run. And the
+approval wrapper is placed on the **chat** dispatcher only: the tool calls an
+installed Python agent makes through `ctx.tools` meet no human checkpoint. That
+is a deliberate position rather than an oversight, and the
+[agent trust model](/explanation/agent-trust-model) explains why: an installed
+agent already executes arbitrary Python under your account, so a gate on one call
+path would not contain a hostile one.
 
 ### Autonomy tiers
 
@@ -87,11 +104,17 @@ reasoning steps, on tool calls, and on wall-clock time. It is enforced by the
 runtime itself and cannot be bypassed by an agent, so a run cannot loop or spend
 without bound. This is the guarantee that autonomy has a hard edge.
 
-### Structural injection detection
+### Shell command screening
 
-Shell commands an agent would run are screened for structural command injection
-before execution, and that screening is recorded. It is one more control that
-sits between the agent's intent and a real effect on the system.
+<!-- claim:injection-detector-is-shell-not-prompt -->
+Shell commands are screened before execution: a risk classifier reads the command,
+a syntax check rejects what will not parse, and a guard refuses any command that
+chains, pipes, redirects or substitutes, so an approval granted for one command
+cannot smuggle a second. The screening is recorded.
+
+This screens **shell** injection. Apollia ships no defence against prompt
+injection, and nothing here should be read as one. The crate also contains an
+`InjectionDetector`, which is part of the permission engine that does not run.
 
 ### Self-checking on the orchestrated path
 
@@ -119,7 +142,7 @@ With that framing, the mapping is direct:
 | Requirement (theme) | Apollia primitive |
 |---|---|
 | Article 10, data provenance and quality | the signed, hash-chained audit trail plus verification, which records and lets you confirm what data and actions a run touched |
-| Article 14, human oversight | the permission engine, human-in-the-loop approvals, and autonomy tiers, which keep a person in control of consequential actions |
+| Article 14, human oversight | persisted permission rules, the code-executor guard, human-in-the-loop approvals **on the chat path**, and autonomy tiers, which keep a person in control of consequential actions. An installed agent's own tool calls are outside this loop, see above |
 | Article 16, documentation and traceability | the audit journal and run trace, plus reversibility, which document what happened and let you act on it |
 
 The value is that these are wired into the runtime and demonstrable today, not

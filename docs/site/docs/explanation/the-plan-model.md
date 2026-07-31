@@ -39,12 +39,17 @@ control flow. It is a directed acyclic graph of steps: each step can depend on
 others, and those dependencies are the graph's edges. Because the plan is
 explicit, it can be shown, approved, audited, and revised.
 
-Parallelism comes from the graph. The engine walks the plan in topological
-levels, and steps in the same level can run concurrently, but only when they are
-read-only tool calls that need no approval. Anything that writes, or anything that
-requires a human decision, runs sequentially. This is the honest scope of the
-parallelism: it speeds up safe, independent reads, and it deliberately does not
-race consequential actions against each other.
+<!-- claim:orchestrated-parallelism-not-active -->
+The graph is what would make parallelism possible. The engine walks the plan in
+topological levels, and steps in the same level may run concurrently when they
+are read-only tool calls needing no approval.
+
+**In the shipped runtime they never do.** Deciding that a step is read-only is
+delegated to the tool proxy, and the one production implementation keeps the
+trait default, which answers no for every tool. Every step therefore runs
+sequentially. The levels still matter, they order the plan and express what
+depends on what, but they buy no speed today. Treat the plan as a dependency
+graph, not as a scheduler.
 
 ## The plan gate
 
