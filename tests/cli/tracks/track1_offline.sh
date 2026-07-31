@@ -70,12 +70,6 @@ check         "project link --unlink"                  "$BIN" project link seed-
 check_exit    "project link empty session → 1"  1      "$BIN" project link seed-project-alpha --session ""
 check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
 
-# ── A.3b auth (read-only) ───────────────────────────────────────────────────
-section "A.3b auth"
-check        "auth status"                             "$BIN" auth status
-check_json   "auth status --json"                      "$BIN" --json auth status
-check        "auth logout anthropic (no-op)"           "$BIN" auth logout anthropic
-
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
 section "A.4 profile"
 check_content "profile show has seeded language=fr" "preferences.language" "$BIN" profile show
@@ -239,7 +233,6 @@ check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK
 # ── A.14 justified offline skips (network / UI / browser) ────────────────────
 section "A.14 justified skips"
 skip "chat (REPL)"            "interactive rustyline REPL - covered in Track 3 via pty"
-skip "auth login <provider>"  "opens the browser at the provider authorize URL"
 skip "update / update --check" "outbound HTTPS to api.github.com"
 skip "model search / model show" "outbound HTTPS to huggingface.co"
 skip "stt model download"     "whisper model HF download (~1 GB)"

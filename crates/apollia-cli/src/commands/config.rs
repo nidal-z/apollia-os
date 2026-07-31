@@ -74,8 +74,8 @@ pub enum ConfigCommand {
     ///
     /// Deletes every SQLite database, log, journal, memory file, OAuth client
     /// override, and apollia.toml stored under `~/.apollia/`. Keychain entries
-    /// (OS-managed) are NOT touched: use `auth logout`, `connector revoke`,
-    /// or `mcp oauth logout` to clear those.
+    /// (OS-managed) are NOT touched: use `connector revoke` or
+    /// `mcp oauth logout` to clear those.
     Reset {
         /// Skip the interactive confirmation prompt (required for scripts).
         #[arg(long)]

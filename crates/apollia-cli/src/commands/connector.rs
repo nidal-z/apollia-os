@@ -359,7 +359,10 @@ async fn run_accounts(filter: Option<&str>, json: bool) -> i32 {
         let total: usize = rows.iter().map(|(_, a)| a.len()).sum();
         if total == 0 {
             println!("No connected accounts.");
-            println!("  -> Run `apollia-os auth login <provider>` to connect an account.");
+            println!("  -> Connect an account from the desktop app, Settings > Integrations.");
+            println!(
+                "     There is no CLI command for this: the OAuth flow needs a browser redirect."
+            );
             return exit_codes::SUCCESS;
         }
         println!("  Connected accounts:");
@@ -847,7 +850,7 @@ async fn run_drive_folder_list(json: bool) -> i32 {
             serde_json::to_string_pretty(&serde_json::Value::Array(array)).unwrap_or_default()
         );
     } else if rows.is_empty() {
-        println!("No connected Google accounts. Run `apollia-os auth login google` first.");
+        println!("No connected Google accounts. Connect one from the desktop app, Settings > Integrations.");
     } else {
         println!("  Drive folder configuration (google):");
         for (account_id, override_path, effective) in &rows {

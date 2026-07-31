@@ -54,7 +54,6 @@ mod truncate_tests {
 pub mod a2a;
 pub mod agent;
 pub mod audit;
-pub mod auth;
 pub mod chat;
 pub mod chat_config;
 pub mod chat_stream;

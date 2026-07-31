@@ -55,7 +55,7 @@ const TOPICS: &[(&str, &str)] = &[
     (
         "integrations",
         "Connect external services and MCP servers.\n\n\
-         apollia-os auth login <provider>   connect a SaaS account\n\
+         (desktop app)                      connect a SaaS account\n\
          apollia-os connector list          native connectors\n\
          apollia-os mcp list                MCP servers\n\
          apollia-os mcp add <name> <url>    register an MCP server\n\

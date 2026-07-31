@@ -22,7 +22,6 @@ use clap::{CommandFactory, Parser};
 use commands::a2a::A2aCommand;
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
-use commands::auth::AuthCommand;
 use commands::chat;
 use commands::config::ConfigCommand;
 use commands::connector::ConnectorCommand;
@@ -165,13 +164,6 @@ enum Commands {
             help = "Autonomy tier: assisted (default), supervised, bounded_autonomous, long_autonomous"
         )]
         autonomy: Option<String>,
-    },
-
-    /// OAuth2 PKCE authentication management (login, status, logout).
-    Auth {
-        /// Auth subcommand.
-        #[command(subcommand)]
-        command: AuthCommand,
     },
 
     /// Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair).
@@ -372,8 +364,9 @@ enum Commands {
     /// Native SaaS connector management (list, accounts, test, revoke).
     ///
     /// Operates on the multi-account keyring without requiring the runtime
-    /// to be started. Use `apollia-os auth login <provider>` first to
-    /// connect an account.
+    /// to be started. Accounts are connected from the desktop app (Settings >
+    /// Integrations); the OAuth flow needs a browser redirect, so there is no
+    /// CLI equivalent.
     Connector {
         /// Connector subcommand.
         #[command(subcommand)]
@@ -673,7 +666,6 @@ fn main() {
                 })
                 .await
             }
-            Commands::Auth { command } => commands::auth::run(&command, json).await,
             Commands::Agent { command } => {
                 commands::agent::run(&command, cli.socket, json, quiet).await
             }

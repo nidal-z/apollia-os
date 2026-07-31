@@ -191,8 +191,8 @@ apollia-os llm backends create ollama-remote --provider ollama --model qwen2.5:1
 Configure a provider from the CLI:
 
 ```bash
-apollia-os auth login anthropic
-apollia-os llm backends create prod --provider anthropic --model claude-sonnet-4-6 --default
+apollia-os llm backends create prod --provider anthropic \
+  --model claude-sonnet-4-6 --api-key "$ANTHROPIC_API_KEY" --default
 apollia-os llm status
 ```
 

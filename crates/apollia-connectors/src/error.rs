@@ -6,9 +6,9 @@ use thiserror::Error;
 ///
 /// Connector implementations should map upstream API errors onto these
 /// variants. Apollia tools use the variant to decide whether to surface the
-/// failure to the user (e.g. `NotConnected` becomes "Run `apollia-os auth
-/// connect google` to connect Gmail") or retry transparently (`RateLimited`,
-/// `Network`).
+/// failure to the user (e.g. `NotConnected` becomes "connect a Google account
+/// from the desktop app, Settings > Integrations") or retry transparently
+/// (`RateLimited`, `Network`).
 #[derive(Debug, Error)]
 pub enum ConnectorError {
     /// No OAuth token is stored for the requested `(provider, account_id)`.

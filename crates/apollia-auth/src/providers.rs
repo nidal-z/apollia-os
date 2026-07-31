@@ -29,7 +29,12 @@ pub struct ProviderConfig {
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-/// Provider identifiers supported by `apollia-os auth`.
+/// Provider identifiers for the LLM-provider OAuth table.
+///
+/// The `apollia-os auth` command group that consumed this table was removed:
+/// it stored a token under its own keyring service that no backend ever read.
+/// The router resolves a cloud key from `config_json["api_key"]` only. This
+/// module is kept for an embedder that wires its own provider flow.
 pub const SUPPORTED_PROVIDERS: &[&str] = &["anthropic", "openai", "vertex"];
 
 /// Return the [`ProviderConfig`] for the named provider, or `None` if unknown.

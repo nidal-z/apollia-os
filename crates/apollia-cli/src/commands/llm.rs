@@ -68,8 +68,8 @@ pub enum LlmCommand {
     /// `is_default=true` in `system.db`. The runtime picks the new default
     /// on the next `llm reload` (or daemon restart).
     Setup {
-        /// Use the local llama-cpp backend (required for v0.1.0; cloud
-        /// providers go through `auth login` + `llm backends create`).
+        /// Use the local llama-cpp backend (required for v0.1.0; a cloud
+        /// provider is declared with `llm backends create --api-key`).
         #[arg(long)]
         local: bool,
         /// Path to the `.gguf` model file.
@@ -145,6 +145,16 @@ pub enum LlmBackendsCommand {
         /// below 60 seconds are raised to 60.
         #[arg(long, value_name = "SECS", default_value = "600")]
         timeout_sec: u64,
+        /// Usable context window of this backend, in tokens.
+        ///
+        /// Sizes conversation compaction. A self-hosted OpenAI-compatible
+        /// server does not report its window, and Ollama sizes its own from the
+        /// machine's memory, so without this the runtime falls back to a generic
+        /// limit that can exceed what the server actually loaded. Ollama
+        /// backends are probed automatically when the model is loaded; set this
+        /// to pin the value.
+        #[arg(long, value_name = "TOKENS")]
+        context_window: Option<usize>,
         /// Create the backend disabled.
         #[arg(long)]
         disabled: bool,
@@ -811,7 +821,7 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
 fn validate_setup_model(local: bool, model: &std::path::Path, json: bool) -> Result<(), i32> {
     if !local {
         return Err(emit_llm_error(
-            "only --local is supported in v0.1.0 (cloud providers go through `auth login` + `llm backends create`)".into(),
+            "only --local is supported in v0.1.0 (declare a cloud provider with `llm backends create --api-key`)".into(),
             json,
         ));
     }
@@ -914,6 +924,7 @@ async fn run_backends(client: &RuntimeClient, command: &LlmBackendsCommand, json
             base_url,
             device,
             timeout_sec,
+            context_window,
             disabled,
             default,
         } => {
@@ -927,6 +938,7 @@ async fn run_backends(client: &RuntimeClient, command: &LlmBackendsCommand, json
                 base_url.as_deref(),
                 device,
                 *timeout_sec,
+                *context_window,
                 !*disabled,
                 *default,
                 json,
@@ -1008,6 +1020,16 @@ struct BuildConfigArgs<'a> {
     base_url: Option<&'a str>,
     device: &'a str,
     timeout_sec: u64,
+    context_window: Option<usize>,
+}
+
+/// Whether an Ollama model tag names a model executed on Ollama's servers.
+///
+/// Ollama routes these through the same local daemon and the same loopback URL
+/// as local models, so nothing about the endpoint reveals that the inference is
+/// remote. The tag suffix is the only signal available before a call is made.
+fn is_ollama_cloud_model(provider: &str, model: &str) -> bool {
+    provider == "ollama" && model.trim_end().to_ascii_lowercase().ends_with("-cloud")
 }
 
 /// Hosts for which cleartext HTTP never reaches a network interface.
@@ -1028,15 +1050,37 @@ fn is_loopback_host(host: &str) -> bool {
 /// - a remote backend moves prompt content off this machine, which is worth
 ///   saying out loud for a runtime whose first principle is local-first.
 ///
+/// A third fact does not follow from the URL at all: Ollama serves hosted models
+/// through the same loopback endpoint as local ones, distinguished only by a
+/// `-cloud` model tag. Judging on the host alone would clear that setup in
+/// silence while every prompt leaves the machine, so the model name is examined
+/// too.
+///
 /// Advisory, never blocking: plain HTTP over a trusted LAN or through a tunnel
 /// is a legitimate deployment.
 fn backend_security_notes(
     provider: &str,
+    model: &str,
     base_url: Option<&str>,
     api_key: Option<&str>,
     api_key_env: Option<&str>,
 ) -> Vec<String> {
     let mut notes = Vec::new();
+    if is_ollama_cloud_model(provider, model) {
+        notes.push(
+            "    NOTE: this is an Ollama hosted model. Despite the local URL, prompts are"
+                .to_string(),
+        );
+        notes.push(
+            "          executed on ollama.com servers and leave this machine, which can"
+                .to_string(),
+        );
+        notes.push("          include file contents, memory and workspace data.".to_string());
+        notes.push(
+            "          Use a model tag without the -cloud suffix to stay on this machine."
+                .to_string(),
+        );
+    }
     let Some(url) = base_url else {
         return notes;
     };
@@ -1092,10 +1136,17 @@ fn build_config_json(args: BuildConfigArgs<'_>) -> serde_json::Value {
         base_url,
         device,
         timeout_sec,
+        context_window,
     } = args;
 
     let mut cfg = serde_json::Map::new();
     cfg.insert("timeout_sec".into(), serde_json::Value::from(timeout_sec));
+    if let Some(window) = context_window {
+        cfg.insert(
+            "context_window".into(),
+            serde_json::Value::from(window as u64),
+        );
+    }
 
     match provider {
         "llama-cpp" => {
@@ -1302,6 +1353,7 @@ async fn run_backends_create(
     base_url: Option<&str>,
     device: &str,
     timeout_sec: u64,
+    context_window: Option<usize>,
     enabled: bool,
     is_default: bool,
     json: bool,
@@ -1315,6 +1367,7 @@ async fn run_backends_create(
         base_url,
         device,
         timeout_sec,
+        context_window,
     });
 
     let body = serde_json::json!({
@@ -1338,7 +1391,8 @@ async fn run_backends_create(
                 if is_default {
                     println!("    marked as default backend");
                 }
-                for line in backend_security_notes(canonical, base_url, api_key, api_key_env) {
+                for line in backend_security_notes(canonical, model, base_url, api_key, api_key_env)
+                {
                     println!("{line}");
                 }
                 if !enabled {
@@ -2008,6 +2062,7 @@ mod tests {
             base_url,
             device: "auto",
             timeout_sec: 60,
+            context_window: None,
         })
     }
 
@@ -2029,6 +2084,7 @@ mod tests {
         // THEN both the cleartext transport and the credential are named
         let notes = backend_security_notes(
             "openai",
+            "gpt-4o",
             Some("http://192.168.1.55:8000/v1"),
             Some("sk-secret"),
             None,
@@ -2040,18 +2096,77 @@ mod tests {
     }
 
     #[test]
+    fn test_security_notes_flag_an_ollama_cloud_model_behind_a_local_url() {
+        // GIVEN an Ollama backend on loopback whose model tag is a hosted one
+        // WHEN the notes are built
+        // THEN the egress is reported even though the URL says localhost, which
+        // is the only place this fact can surface before the first prompt
+        let notes = backend_security_notes(
+            "ollama",
+            "qwen3-coder:480b-cloud",
+            Some("http://localhost:11434/v1"),
+            None,
+            None,
+        );
+        let joined = notes.join(" ");
+        assert!(joined.contains("leave this machine"), "notes: {joined}");
+        assert!(joined.contains("ollama.com"), "notes: {joined}");
+    }
+
+    #[test]
+    fn test_cloud_model_detection_is_scoped_to_ollama_and_the_tag_suffix() {
+        // GIVEN tags that merely contain the word, and the same tag on another
+        // provider
+        // WHEN the suffix is tested
+        // THEN only a genuine Ollama -cloud tag matches
+        assert!(is_ollama_cloud_model("ollama", "gpt-oss:120b-cloud"));
+        assert!(is_ollama_cloud_model("ollama", "Qwen3-Coder:480B-Cloud"));
+        assert!(!is_ollama_cloud_model("ollama", "cloud-llama:8b"));
+        assert!(!is_ollama_cloud_model("ollama", "qwen3:8b"));
+        assert!(!is_ollama_cloud_model("openai", "gpt-4o-cloud"));
+    }
+
+    #[test]
+    fn test_context_window_is_persisted_only_when_set() {
+        // GIVEN a backend created with an explicit window, and one without
+        // WHEN the config is built
+        // THEN the key appears only in the first, so an unset window stays
+        // unknown rather than being pinned to a default nobody chose
+        let with = build_config_json(BuildConfigArgs {
+            provider: "ollama",
+            model: "qwen3:8b",
+            api_key: None,
+            api_key_env: None,
+            base_url: None,
+            device: "auto",
+            timeout_sec: 60,
+            context_window: Some(32768),
+        });
+        assert_eq!(with["context_window"], 32768);
+        assert!(ollama_config(None).get("context_window").is_none());
+    }
+
+    #[test]
     fn test_security_notes_stay_quiet_on_loopback() {
         // GIVEN a local backend
         // WHEN the notes are built
         // THEN nothing is said: no network hop, no data egress
-        assert!(
-            backend_security_notes("ollama", Some("http://localhost:11434/v1"), None, None)
-                .is_empty()
-        );
-        assert!(
-            backend_security_notes("ollama", Some("http://127.0.0.1:11434/v1"), None, None)
-                .is_empty()
-        );
+        assert!(backend_security_notes(
+            "ollama",
+            "qwen3:8b",
+            Some("http://localhost:11434/v1"),
+            None,
+            None
+        )
+        .is_empty());
+        assert!(backend_security_notes(
+            "ollama",
+            "qwen3:8b",
+            Some("http://127.0.0.1:11434/v1"),
+            None,
+            None
+        )
+        .is_empty());
     }
 
     #[test]
@@ -2059,8 +2174,13 @@ mod tests {
         // GIVEN a LAN Ollama, which needs no credential
         // WHEN the notes are built
         // THEN the data leaving the machine is reported, but no key is claimed
-        let notes =
-            backend_security_notes("ollama", Some("http://192.168.1.55:11434/v1"), None, None);
+        let notes = backend_security_notes(
+            "ollama",
+            "qwen3:8b",
+            Some("http://192.168.1.55:11434/v1"),
+            None,
+            None,
+        );
         let joined = notes.join(" ");
         assert!(joined.contains("leave this machine"), "notes: {joined}");
         assert!(
@@ -2076,6 +2196,7 @@ mod tests {
         // THEN only the egress note applies, never the cleartext one
         let notes = backend_security_notes(
             "anthropic",
+            "claude-sonnet-4-6",
             Some("https://api.anthropic.com"),
             Some("sk-ant-x"),
             None,
