@@ -43,14 +43,6 @@ const WEIGHT_MEMORY_DEPTH: f32 = 0.10;
 /// Weight for planning keywords in the system prompt.
 const WEIGHT_PLANNING_PROMPT: f32 = 0.10;
 
-/// Default minimum weighted score to classify a task as Orchestrated.
-///
-/// Used as the default threshold value in tests. In production, the threshold
-/// is read from [`apollia_core::ORIAConfig::orchestrated_threshold`] and passed
-/// directly to [`classify`].
-#[cfg(test)]
-const ORCHESTRATED_THRESHOLD: f32 = 0.40;
-
 /// Input text length (in chars) above which `WEIGHT_INPUT_LENGTH` is added.
 const INPUT_LENGTH_THRESHOLD: usize = 500;
 
@@ -152,7 +144,8 @@ pub fn extract_total_text_length(input: &AIPInput) -> usize {
 /// Computes a weighted complexity score for a task, between 0.0 and ~1.4.
 ///
 /// Each factor that exceeds its threshold adds its weight to the total.
-/// The caller compares the result against [`ORCHESTRATED_THRESHOLD`].
+/// The caller compares the result against its configured threshold,
+/// [`apollia_core::ORIAConfig::orchestrated_threshold`].
 ///
 /// This is a **pure function**: deterministic, no side effects.
 pub fn compute_complexity_score(
@@ -256,7 +249,7 @@ pub fn score_turn_text(input: &str) -> f32 {
 /// - `"auto"` (or any unknown value) → falls through to [`compute_complexity_score`].
 ///
 /// If the weighted score is at least `threshold`, the task is Orchestrated.
-/// Pass [`ORCHESTRATED_THRESHOLD`] as the default when no config is available.
+/// `threshold` comes from [`apollia_core::ORIAConfig::orchestrated_threshold`].
 ///
 /// This is a **pure function**: no side effects, deterministic output.
 pub fn classify(
@@ -290,8 +283,8 @@ pub fn classify(
 /// The memory snapshot is built first so it can inform [`classify`]
 /// (the `WEIGHT_MEMORY_DEPTH` factor uses episode count).
 ///
-/// `threshold` is forwarded to [`classify`]; pass [`ORCHESTRATED_THRESHOLD`]
-/// as the default when no config is available.
+/// `threshold` is forwarded to [`classify`] and comes from
+/// [`apollia_core::ORIAConfig::orchestrated_threshold`].
 pub fn observe(
     task: AIPTask,
     manifest: &AgentManifest,
@@ -370,6 +363,16 @@ pub fn observe(
 mod tests {
     use super::*;
     use apollia_core::{AIPInput, AIPPart, StepBudgetConfig, TextPart};
+
+    /// Threshold the tests below classify against.
+    ///
+    /// It mirrors the production default, `ORIAConfig::orchestrated_threshold`,
+    /// which is what `classify` is actually given at run time. It lives inside
+    /// the test module rather than beside the weights on purpose: a `#[cfg(test)]`
+    /// item sitting among production constants reads as production, and the last
+    /// two things that consulted this one, a documentation page and the claims
+    /// replayer, both took it for the shipped value.
+    const ORCHESTRATED_THRESHOLD: f32 = 0.40;
 
     fn simple_manifest() -> AgentManifest {
         AgentManifest {

@@ -234,23 +234,46 @@ where the change gets noticed.
 """
 
 [[claim]]
-id = "memory-injection-only-in-builtin-assistant-top-tier"
+id = "memory-injection-confined-to-builtin-assistant"
 scope = "public"
 symbol = "inject_memory"
 status = "wired"
 proof = "crates/apollia-core/src/config/autonomy.rs"
 evidence = ""
 note = """
-Principle 6 said memory is never injected automatically. One tier of the built-in
-assistant does inject: `long_autonomous` sets `inject_memory: true`, read in the
-react loop and applied by the prompt builder, which appends a persona brief.
+Principle 6 said memory is never injected automatically. Two paths in the
+built-in assistant do inject. `long_autonomous` sets `inject_memory: true`, read
+in the react loop and applied by the prompt builder, which appends a persona
+brief. Separately, and not gated by any tier, the chat manager appends past
+session summaries on the first message of a free session, see
+`cross-session-recall-injects-summaries`.
 
-The invariant survives, because the injection is confined to the built-in
-assistant and chosen by the operator through a tier. What was wrong is the
-wording, which claimed more than the code delivers. This claim guards the
-boundary: if `inject_memory` is ever read outside the built-in assistant, or if a
-lower tier turns it on, one of the eight principles becomes false and the
-sentence has to change with it.
+The invariant survives, because both are confined to the built-in assistant and
+no agent execution path reaches either. What was wrong is the wording, which
+claimed more than the code delivers, and which named only the first of the two.
+This claim guards the boundary: if `inject_memory` is ever read outside the
+built-in assistant, or if a lower tier turns it on, one of the eight principles
+becomes false and the sentence has to change with it.
+"""
+
+[[claim]]
+id = "cross-session-recall-injects-summaries"
+scope = "public"
+symbol = "build_cross_session_context"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/manager/exchange.rs"
+evidence = ""
+note = """
+The second automatic injection under principle 6, and the one that had no
+mention anywhere in the corpus. On the first message of a free chat session the
+manager searches an FTS5 index of past session summaries and appends up to three
+to the system prompt. Bounds that matter and that a refactor could quietly drop:
+the 20-byte minimum on the triggering message, the cap of three, summaries only
+and never message bodies, and the exclusion of Companion sessions.
+
+Guarded on the caller rather than on the builder: the builder existing is not
+the claim, the chat exchange calling it is. Remove that call and the page's
+statement becomes false while everything still compiles.
 """
 
 [[claim]]
@@ -488,4 +511,103 @@ note = """
 On Windows there is no per-process resource cap and no namespace isolation: the
 non-Unix apply_rlimits is an empty function. A user choosing a platform is
 entitled to know that before running an autonomous agent, not after.
+"""
+
+# ── Runtime state machines ───────────────────────────────────────────────────
+
+[[claim]]
+id = "process-state-transitions-enforced"
+scope = "public"
+symbol = "ProcessState::can_transition_to"
+status = "wired"
+proof = "crates/apollia-runtime/src/registry.rs"
+evidence = ""
+note = """
+The documented agent state machine is a gate, not a convention: the registry
+consults the transition table on every change and returns InvalidTransition on a
+disallowed one. Drop that call and the enum keeps compiling, the diagram keeps
+rendering, and nothing enforces the shape any more. That is the exact failure
+this file exists to catch.
+"""
+
+[[claim]]
+id = "tool-circuit-breaker-wired"
+scope = "public"
+symbol = "ResilienceLayer::execute_with_observability"
+status = "wired"
+proof = "crates/apollia-oria/src/actor.rs"
+evidence = ""
+note = """
+The per-tool circuit breaker is only real because the step executor routes tool
+calls through it. pre_check, which performs the Open and HalfOpen decisions, has
+no caller outside resilience.rs itself, so this wrapper is the whole of the
+wiring: if actor.rs stops calling it, the breaker becomes a data structure that
+nothing consults and the documented thresholds become fiction.
+"""
+
+# ── Tool-call governance, the real path ──────────────────────────────────────
+
+[[claim]]
+id = "orchestrated-approval-from-manifest"
+scope = "public"
+symbol = "tools_requiring_approval"
+status = "wired"
+proof = "crates/apollia-oria/src/actor.rs"
+evidence = ""
+note = """
+On the orchestrated path the manifest field is the whole gate. Documenting a
+policy layer here would repeat the drift this pass removed: the corpus described
+a permission engine in front of tool calls that no shipped binary runs. If this
+lookup disappears, every step executes unattended and nothing else in the build
+notices.
+"""
+
+[[claim]]
+id = "chat-tool-governance-path"
+scope = "public"
+symbol = "is_code_executor"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/manager/libre.rs"
+evidence = ""
+note = """
+The documented invariant is that a shell tool can never be blanket-authorized:
+it is filtered out of the pre-authorized set on all three routes that fill it,
+and again at persistence time. That invariant is enforced by call sites, not by
+a type, so removing one of them re-opens the hole silently and keeps every test
+green. Guard the predicate, since it is what the four call sites share.
+"""
+
+# ── Execution mode and plan cache ────────────────────────────────────────────
+
+[[claim]]
+id = "execution-mode-classification-weights"
+scope = "public"
+symbol = "compute_complexity_score"
+status = "wired"
+proof = "crates/apollia-oria/src/observer.rs"
+evidence = ""
+note = """
+The seven weights and the threshold are published as exact numbers, so they are
+worth guarding. Note that the 0.40 constant named ORCHESTRATED_THRESHOLD in the
+same file is #[cfg(test)] and is NOT what production reads: the live threshold
+comes from `[oria] orchestrated_threshold`, whose default happens to be the same
+value. Anyone editing the constant to change behaviour will change nothing, and
+anyone documenting from it will document a test.
+"""
+
+[[claim]]
+id = "plan-cache-has-no-automatic-expiry"
+scope = "public"
+symbol = "evict_expired"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/plan_cache.rs"
+evidence = ""
+note = """
+The page states that cached plans never expire on their own. That is a claim of
+absence dressed as a claim of presence: the only caller of `evict_expired` is
+the CLI command, driven by an operator-supplied age. If a scheduler ever calls
+it, the documented behaviour flips and the page must change. Guarding the CLI
+call site is what makes that visible, since a new background caller would leave
+this entry passing while the sentence quietly became false. Re-read the callers,
+not just this gate, when touching eviction.
 """

@@ -67,19 +67,37 @@ behind this is in [Solution strategy](/architecture/solution-strategy).
 
 ## 6. Memory at agent initiative
 
-<!-- claim:memory-injection-only-in-builtin-assistant-top-tier -->
+<!-- claim:memory-injection-confined-to-builtin-assistant -->
 Apollia never injects memory into an agent's prompt. An agent recalls what it
 decides to recall, when it decides to, through `ctx.memory`. Automatic memory
 injection is convenient and quietly corrosive: it makes a run's inputs opaque and
 its behaviour hard to attribute. Leaving recall to the agent's initiative keeps
 the record of what fed a decision honest.
 
-One exception exists, and it is an operator's decision rather than a silent one.
-The built-in conversational assistant, the one behind the chat window, appends a
-short user-persona brief to its system prompt at the highest autonomy tier only,
-`long_autonomous`. The three lower tiers do not. Nothing in that path applies to
-a Python agent you install: the injection lives in the built-in assistant's
-prompt builder, and no agent execution path reaches it.
+Two exceptions exist, both confined to the built-in conversational assistant, the
+one behind the chat window. Neither is reachable from a Python agent you install:
+they live in the assistant's own prompt builder and chat manager, and no agent
+execution path goes through either.
+
+The first is an operator's decision. At the highest autonomy tier only,
+`long_autonomous`, the assistant appends a short user-persona brief to its system
+prompt. The three lower tiers do not.
+
+<!-- claim:cross-session-recall-injects-summaries -->
+The second is not tier-gated, and is worth stating plainly. On the **first
+message of a free chat session**, the runtime searches an index of past session
+summaries with that message and appends up to three matches to the system prompt,
+under a heading naming them as previous conversations. Messages shorter than 20
+bytes skip it, so a greeting recalls nothing. Only the summaries are injected,
+never past message content. Companion sessions are excluded outright: they must
+not inherit personal history.
+
+Read that second one for what it is. Inside the chat window, a new conversation
+can start already carrying a trace of older ones, and the operator did not ask
+for it per session. It buys continuity in a product surface where a user
+reasonably expects to be remembered. It is also the one place in the runtime
+where the "at agent initiative" rule genuinely does not hold, which is why it is
+written here rather than left implicit.
 
 The memory layer itself is exportable and importable, which is why it belongs to
 sovereignty as much as to agency.

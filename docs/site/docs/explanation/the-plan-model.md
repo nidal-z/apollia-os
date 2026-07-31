@@ -19,12 +19,52 @@ Every request is first classified into one of two execution modes. **Direct** is
 single-step execution for simple work. **Orchestrated** is multi-step execution
 with planning, for work that needs several tool calls driven by reasoning.
 
-The classification is deterministic. It scores manifest features (the declared
-step budget, tags, the number of tools, input length, planning-oriented keywords)
-and compares the score against a threshold. An agent's manifest can also set the
-mode explicitly, which overrides the heuristic. There is no LLM call in this
-decision; classification is a pure function of what the agent and the request
-declare, which keeps it predictable.
+The classification is deterministic, and there is no LLM call in it: it is a pure
+function of what the agent and the request declare, which keeps it predictable.
+
+<!-- claim:execution-mode-classification-weights -->
+
+An agent's manifest can set `execution_mode` to `direct` or `orchestrated`, and
+that decides outright. Only `auto`, or an unrecognised value, reaches the
+heuristic. The heuristic adds seven independent weights and compares the total
+against a threshold:
+
+| Weight | Added when |
+| --- | --- |
+| 0.40 | the manifest carries the `multi-step` tag |
+| 0.30 | the declared step budget exceeds 15 |
+| 0.20 | the request has more than 3 input parts |
+| 0.20 | the agent requires more than 4 tools |
+| 0.10 | the input text exceeds 500 characters |
+| 0.10 | the episodic memory snapshot holds more than 5 episodes |
+| 0.10 | the system prompt contains planning keywords |
+
+The threshold is `[oria] orchestrated_threshold`, and it defaults to 0.40. Two
+consequences follow from the numbers rather than from the prose. The
+`multi-step` tag alone reaches the default threshold, so tagging an agent
+`multi-step` is equivalent to declaring it orchestrated. And no single other
+factor does: below that tag, orchestration needs at least two signals to agree.
+
+## The plan cache
+
+<!-- claim:plan-cache-has-no-automatic-expiry -->
+
+Planning is the expensive part of an orchestrated run, so a plan is cached and
+reused. The key is a SHA-256 digest over the agent's name and version, its sorted
+tool list, and the request text normalized to lowercase with collapsed
+whitespace. A different agent version, a different tool set, or materially
+different wording all miss the cache; a reworded-but-equivalent request may hit
+it.
+
+Cached plans **never expire on their own**. There is no background eviction and
+no time-to-live: an entry stays until an operator removes it. Clearing is a
+manual command, and `apollia-os plan cache evict` takes an age in days that
+defaults to 7. That default is the origin of the belief that the cache expires
+after a week. It does not; nothing runs that command for you.
+
+That matters when an agent's behaviour changes without its version changing. The
+cache will keep serving the plan built before the change until it is cleared. See
+[Deploy in production](/how-to/deploy-in-production) for the commands.
 
 One honest detail worth knowing. The unified execution entry point implements the
 orchestrated branch; its direct branch is a stub, and real direct execution runs
