@@ -384,13 +384,20 @@ def test_validate_type_mismatch() -> None:
     assert exc.value.field == "path"
 
 
-def test_validate_extra_field_dropped() -> None:
-    # An unexpected field under a strict schema is DROPPED (with a warning), not
-    # rejected, so a stray argument from an LLM caller does not fail the call.
+def test_validate_extra_field_rejected() -> None:
+    # GIVEN a strict schema and a payload carrying one unexpected field
     schema = _schema_path_required()
-    result = validate_payload({"path": "x", "extra": "no"}, schema)
-    assert result == {"path": "x"}
-    assert "extra" not in result
+
+    # WHEN the payload is validated
+    with pytest.raises(PayloadError) as excinfo:
+        validate_payload({"path": "x", "extra": "no"}, schema)
+
+    # THEN the call is rejected and names the offending field. Dropping it used
+    # to be tolerated, which turned a caller mistake into a silently truncated
+    # call whose wrong result surfaced far from its cause.
+    details = excinfo.value.details or {}
+    assert details["unexpected"] == "extra"
+    assert details["expected"] == ["path"]
 
 
 def test_validate_payload_not_dict() -> None:
@@ -569,15 +576,20 @@ def test_optional_validation_accepts_none_via_nullable() -> None:
 # ────────────────────── enriched PayloadError ──────────────────────
 
 
-def test_unexpected_top_level_field_dropped() -> None:
-    """An unexpected top-level field is dropped (not rejected) and excluded."""
+def test_unexpected_top_level_field_rejected() -> None:
+    """An unexpected top-level field fails the call rather than vanishing."""
 
+    # GIVEN a schema inferred from a handler signature
     def fn(path: str, count: int = 1) -> None: ...
 
     schema = signature_to_input_schema(fn)
-    result = validate_payload({"path": "x", "totally_unknown": 1}, schema)
-    assert result == {"path": "x"}
-    assert "totally_unknown" not in result
+
+    # WHEN an unknown field is supplied
+    with pytest.raises(PayloadError) as excinfo:
+        validate_payload({"path": "x", "totally_unknown": 1}, schema)
+
+    # THEN it is named in the error
+    assert (excinfo.value.details or {})["unexpected"] == "totally_unknown"
 
 
 def _nested_strict_schema() -> dict[str, object]:

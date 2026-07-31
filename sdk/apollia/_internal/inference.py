@@ -697,9 +697,10 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     - Unexpected fields are DROPPED (with a warning) when
       ``additionalProperties`` is ``False`` (the default), instead of failing
       the whole call. LLM-driven callers routinely add stray fields (a
-      hallucinated ``max_chars``, a leaked ``additionalProperties``); dropping
-      them keeps the invocation working with the declared fields rather than
-      rejecting it outright. Required fields and type checks still apply.
+      hallucinated ``max_chars``, a leaked ``additionalProperties``) raises
+      :class:`PayloadError` when the schema sets ``additionalProperties: false``,
+      with a ``did_you_mean`` hint for a near miss. Required fields and type
+      checks still apply.
     - Type mismatches on known fields raise :class:`PayloadError` - no implicit
       string-to-number coercion.
     - Returns the accepted kwargs (unknown fields removed) suitable for
@@ -720,24 +721,19 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     _check_required_fields(payload, required, "")
 
     coerced: dict[str, Any] = {}
-    dropped: list[str] = []
     for key, value in payload.items():
         if key in properties:
             _validate_value(value, properties[key], key)
             coerced[key] = value
         elif additional is False:
-            # Unknown field under a strict schema: drop it instead of rejecting
-            # the call, so a single stray argument from the model is harmless.
-            dropped.append(key)
+            # Unknown field under a strict schema: reject. Dropping it silently
+            # produced a truncated call whose wrong result surfaced far from its
+            # cause, and the warning landed in a log nobody reads. Rejecting puts
+            # the error where the mistake is, and `did_you_mean` makes a typo
+            # cheap to fix.
+            _raise_unexpected_field(key, expected, key)
         else:
             # `additionalProperties` allowed: keep the extra field as-is.
             coerced[key] = value
-
-    if dropped:
-        logging.getLogger("apollia.agent").warning(
-            "dropped unexpected payload field(s) %s; expected %s",
-            dropped,
-            expected,
-        )
 
     return coerced

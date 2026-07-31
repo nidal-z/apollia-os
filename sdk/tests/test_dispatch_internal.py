@@ -35,7 +35,6 @@ def _build_agent_with_skill(
     handler: Any,
     skill_id: str,
     input_schema: dict[str, Any],
-    requires_approval: bool = False,
     dangerous: bool = False,
 ) -> Any:
     """Build a tiny agent class+instance manually (no @skill decorator yet)."""
@@ -50,7 +49,6 @@ def _build_agent_with_skill(
         description="",
         input_schema=input_schema,
         output_schema={},
-        requires_approval=requires_approval,
         dangerous=dangerous,
     )
     setattr(Agent, SKILLS_REGISTRY_ATTR, {skill_id: entry})
