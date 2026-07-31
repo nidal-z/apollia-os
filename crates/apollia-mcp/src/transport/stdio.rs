@@ -73,8 +73,14 @@ impl StdioTransport {
         envs: HashMap<String, String>,
         max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
-        let mut child = Command::new(command)
-            .args(args)
+        let mut command_builder = Command::new(command);
+        command_builder.args(args);
+        // Before the operator's own environment, so an explicit PYTHONHOME in
+        // the server config still wins. What is stripped here is the ambient
+        // one the desktop exports for its embedded interpreter, which would
+        // otherwise make a Python MCP server load the wrong standard library.
+        apollia_core::subprocess_env::scrub_bundled_python_async(&mut command_builder);
+        let mut child = command_builder
             .envs(envs)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

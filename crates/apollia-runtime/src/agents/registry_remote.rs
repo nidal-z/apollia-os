@@ -426,7 +426,9 @@ fn install_pip_packages(packages: &[String]) -> Result<(), RemoteInstallError> {
             .map_err(|e| RemoteInstallError::PipInstallFailed(e.to_string()))?;
     }
     for pkg in packages {
-        let output = std::process::Command::new("pip")
+        let mut pip = std::process::Command::new("pip");
+        apollia_core::subprocess_env::scrub_bundled_python(&mut pip);
+        let output = pip
             .args(["install", pkg.as_str()])
             .output()
             .map_err(|e| RemoteInstallError::PipInstallFailed(format!("pip not found: {e}")))?;

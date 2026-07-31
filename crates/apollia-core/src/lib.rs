@@ -32,6 +32,7 @@ pub mod pending_approvals;
 pub mod plan;
 pub mod plan_alternatives;
 pub mod process;
+pub mod subprocess_env;
 pub mod result;
 pub mod retry_attempt;
 pub mod review;

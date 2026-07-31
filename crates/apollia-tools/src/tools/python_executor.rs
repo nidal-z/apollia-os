@@ -319,7 +319,12 @@ impl PythonExecutor {
     /// Returns [`PythonExecutorError::PythonUnavailable`] if `python3` is not in PATH.
     pub fn new(agent_id: &str, venv_base_dir: &Path) -> Result<Self, PythonExecutorError> {
         // Fail fast: verify python3 availability at construction time.
-        let python3_check = std::process::Command::new("python3")
+        // Probe the interpreter the operator actually has. Under the desktop's
+        // inherited PYTHONHOME this check would answer for the bundled runtime
+        // instead, and `--version` succeeds even when a real run would not.
+        let mut probe = std::process::Command::new("python3");
+        apollia_core::subprocess_env::scrub_bundled_python(&mut probe);
+        let python3_check = probe
             .arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -390,7 +395,12 @@ impl PythonExecutor {
             let mut cmd_args: Vec<&str> = venv_args.to_vec();
             cmd_args.push(venv_path_str);
 
-            let venv_output = tokio::process::Command::new("python3")
+            // The venv must be built by the interpreter the operator has, with
+            // its own standard library. Inheriting the desktop's PYTHONHOME
+            // would seed it from the bundle instead.
+            let mut venv_cmd = tokio::process::Command::new("python3");
+            apollia_core::subprocess_env::scrub_bundled_python_async(&mut venv_cmd);
+            let venv_output = venv_cmd
                 .args(&cmd_args)
                 .output()
                 .await
@@ -411,7 +421,9 @@ impl PythonExecutor {
                 "python_executor: installing package"
             );
 
-            let pip_output = tokio::process::Command::new(&pip_bin)
+            let mut pip_cmd = tokio::process::Command::new(&pip_bin);
+            apollia_core::subprocess_env::scrub_bundled_python_async(&mut pip_cmd);
+            let pip_output = pip_cmd
                 .args(["install", package.as_str(), "--quiet"])
                 .output()
                 .await
@@ -536,6 +548,9 @@ impl PythonExecutor {
         );
         let mut cmd = std::process::Command::new(&self.python_bin);
         cmd.arg(script_path);
+        // python_bin is the agent's venv interpreter. PYTHONHOME would override
+        // the venv's own prefix and defeat the isolation the venv exists for.
+        apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
         #[cfg(unix)]
         apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
         tokio::process::Command::from(cmd)

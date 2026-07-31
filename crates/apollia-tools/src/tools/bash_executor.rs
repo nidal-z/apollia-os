@@ -387,6 +387,10 @@ impl BashExecutor {
         );
         let mut cmd = std::process::Command::new("/bin/sh");
         cmd.args(["-c", &input.command]);
+        // The agent's shell must not inherit the desktop's embedded-Python
+        // environment: a script that calls python3 would otherwise load the
+        // bundle's standard library instead of the interpreter's own.
+        apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
         crate::tools::rlimits::apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
         tokio::process::Command::from(cmd)
     }
@@ -419,6 +423,7 @@ impl BashExecutor {
         // when nothing was found.
         let mut cmd = std::process::Command::new(shell.as_deref().unwrap_or("sh"));
         cmd.args(["-c", &input.command]);
+        apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
         tokio::process::Command::from(cmd)
     }
 }

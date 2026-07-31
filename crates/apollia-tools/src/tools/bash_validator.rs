@@ -62,7 +62,9 @@ impl BashValidator {
     pub async fn validate_syntax(&self, cmd: &str) -> Result<(), BashExecutorError> {
         let timeout = Duration::from_millis(self.config.syntax_check_timeout_ms);
 
-        let mut child = Command::new("bash")
+        let mut validator = Command::new("bash");
+        apollia_core::subprocess_env::scrub_bundled_python_async(&mut validator);
+        let mut child = validator
             .args(["-n", "-c", cmd])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())

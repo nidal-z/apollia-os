@@ -201,7 +201,9 @@ pub async fn validate_community_agent(
 /// Executes `python3 -m pytest <test_dir> --tb=short -q` and returns an error
 /// if the process exits with a non-zero status or cannot be started.
 async fn run_agent_tests(test_dir: &Path) -> Result<(), AgentValidationError> {
-    let output = tokio::process::Command::new("python3")
+    let mut py = tokio::process::Command::new("python3");
+    apollia_core::subprocess_env::scrub_bundled_python_async(&mut py);
+    let output = py
         .args(["-m", "pytest", "--tb=short", "-q"])
         .arg(test_dir)
         .output()

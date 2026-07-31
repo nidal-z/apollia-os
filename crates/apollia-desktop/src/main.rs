@@ -204,9 +204,23 @@ fn setup_bundled_python() {
         }
     }
 
+    // Name the interpreter explicitly so the few call sites that genuinely want
+    // the bundled environment can target it by absolute path. Reaching it
+    // through `python3` on PATH only ever worked by accident: PATH is prepended
+    // with the bundle on Windows alone, so on macOS and Linux `python3` is the
+    // system interpreter being redirected by PYTHONHOME, which crashes outright
+    // whenever its minor version differs from the bundled one.
+    let interpreter = if cfg!(windows) {
+        python_root.join("python.exe")
+    } else {
+        python_root.join("bin/python3.13")
+    };
+    std::env::set_var("APOLLIA_BUNDLED_PYTHON", &interpreter);
+
     tracing::info!(
         python_root = %python_root.display(),
-        "bundled Python configured - PYTHONHOME/PYTHONPATH exported"
+        interpreter = %interpreter.display(),
+        "bundled Python configured - PYTHONHOME/PYTHONPATH/APOLLIA_BUNDLED_PYTHON exported"
     );
 }
 

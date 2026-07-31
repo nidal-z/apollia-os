@@ -876,7 +876,7 @@ pub async fn create_agent_from_template(
         return Err(format!("Un agent '{}' existe deja", name));
     }
 
-    let output = tokio::process::Command::new("python3")
+    let output = tokio::process::Command::new(sdk_interpreter())
         .args([
             "-m",
             "apollia",
@@ -903,13 +903,30 @@ pub async fn create_agent_from_template(
     })
 }
 
+/// The interpreter to use when the bundled Python environment is the point.
+///
+/// Two call sites here run the `apollia` SDK, which ships inside the bundle's
+/// site-packages, so they want the bundled interpreter and its `PYTHONHOME`.
+/// They used to reach it as `python3`, which resolves to the *system*
+/// interpreter everywhere except Windows: it only worked when that interpreter
+/// happened to share the bundle's minor version, and crashed on startup
+/// otherwise. `APOLLIA_BUNDLED_PYTHON` is exported at boot with the absolute
+/// path, so the intent is now explicit rather than accidental.
+///
+/// Falls back to `python3` when the variable is absent (a source build with no
+/// bundle), which is the pre-existing behaviour and the only case where the
+/// SDK might come from the system environment instead.
+fn sdk_interpreter() -> std::ffi::OsString {
+    std::env::var_os("APOLLIA_BUNDLED_PYTHON").unwrap_or_else(|| "python3".into())
+}
+
 /// Checks whether the apollia Python SDK is installed.
 ///
 /// Attempts to import the `apollia` module via Python and returns `true` if
 /// the import succeeds.
 #[tauri::command]
 pub async fn check_sdk_available() -> Result<bool, String> {
-    let output = tokio::process::Command::new("python3")
+    let output = tokio::process::Command::new(sdk_interpreter())
         .args(["-c", "import apollia; print(apollia.__version__)"])
         .output()
         .await

@@ -34,7 +34,9 @@ pub(in crate::commands::agent) fn run_new(name: &str, agent_type: &str, json: bo
     }
 
     // Delegate to `python3 -m apollia new <name> --type <type> --output-dir <path>`.
-    let output = match std::process::Command::new("python3")
+    let mut probe = std::process::Command::new("python3");
+    apollia_core::subprocess_env::scrub_bundled_python(&mut probe);
+    let output = match probe
         .args([
             "-m",
             "apollia",
@@ -86,7 +88,9 @@ pub(in crate::commands::agent) fn run_new(name: &str, agent_type: &str, json: bo
 
 /// Verify that the Apollia Python SDK is importable.
 fn check_sdk_installed() -> Result<(), String> {
-    let output = std::process::Command::new("python3")
+    let mut scaffold = std::process::Command::new("python3");
+    apollia_core::subprocess_env::scrub_bundled_python(&mut scaffold);
+    let output = scaffold
         .args(["-c", "import apollia"])
         .output()
         .map_err(|e| format!("python3 not found: {e}"))?;

@@ -682,7 +682,9 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     let version = env!("CARGO_PKG_VERSION").to_string();
     let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
 
-    let python_path = match tokio::process::Command::new("python3")
+    let mut which_python = tokio::process::Command::new("python3");
+    apollia_core::subprocess_env::scrub_bundled_python_async(&mut which_python);
+    let python_path = match which_python
         .args(["-c", "import sys; print(sys.executable)"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -722,7 +724,9 @@ pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, Str
 /// Runs `python3 --version` and returns `true` if the command succeeds.
 #[tauri::command]
 pub async fn check_python() -> Result<bool, String> {
-    let result = tokio::process::Command::new("python3")
+    let mut probe = tokio::process::Command::new("python3");
+    apollia_core::subprocess_env::scrub_bundled_python_async(&mut probe);
+    let result = probe
         .arg("--version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
