@@ -427,18 +427,25 @@ impl McpSession {
     /// stores the server's capabilities and identity, then sends the
     /// `notifications/initialized` notification to complete the handshake.
     async fn initialize(&mut self) -> Result<(), McpSessionError> {
-        use crate::protocol::{
-            ElicitationCapability, RootsCapability, SamplingCapability,
-            APOLLIA_MCP_PROTOCOL_VERSION,
-        };
+        use crate::protocol::{RootsCapability, APOLLIA_MCP_PROTOCOL_VERSION};
         let params = InitializeParams {
             protocol_version: APOLLIA_MCP_PROTOCOL_VERSION.to_string(),
             capabilities: ClientCapabilities {
                 roots: Some(RootsCapability {
                     list_changed: Some(true),
                 }),
-                sampling: Some(SamplingCapability::default()),
-                elicitation: Some(ElicitationCapability::default()),
+                // `sampling` and `elicitation` stay absent, and this is the
+                // whole point rather than an oversight. An advertised
+                // capability is a promise the server acts on: a compliant one
+                // will send `sampling/createMessage` or `elicitation/create`
+                // and wait for an answer. Nothing here dispatches either, so
+                // announcing them turns a working server into a stalled one.
+                //
+                // The request and result types are kept in `protocol`, ready
+                // for the implementation. Restore these two fields in the same
+                // change that adds a handler, never before.
+                sampling: None,
+                elicitation: None,
             },
             client_info: ClientInfo {
                 name: "apollia-runtime".to_string(),

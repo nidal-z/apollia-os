@@ -93,9 +93,14 @@ explicitly; the two mechanisms are orthogonal.
 
 This section records the intended design. Today the protocol types
 (`SamplingCreateMessageParams`, `SamplingCreateMessageResult` in
-`crates/apollia-mcp/src/protocol.rs`) and the advertised capability exist, but there is
-no handler for `sampling/createMessage`, no HITL approval flow for sampling, and no
-per-server rate limit. The handler and the HITL gate are future work.
+`crates/apollia-mcp/src/protocol.rs`) exist, but there is no handler for
+`sampling/createMessage`, no HITL approval flow for sampling, and no per-server
+rate limit. The handler and the HITL gate are future work.
+
+Amended 2026-07-31: the client no longer advertises `sampling` or `elicitation`
+during `initialize`. It did, which meant a compliant server was told to send
+requests that nothing would answer. The capability is announced in the same
+change that adds the handler, not before.
 
 When wired, `sampling/createMessage` will route through the existing LLM router and be
 guarded by mandatory HITL pre-approval:

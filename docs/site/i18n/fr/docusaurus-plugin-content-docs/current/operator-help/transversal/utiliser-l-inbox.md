@@ -103,11 +103,15 @@ Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les évén
 
 ## Demandes provenant d'un serveur MCP
 
-À partir de v0.1.0, deux types d'événements émis par des serveurs MCP peuvent atterrir dans votre boîte de réception :
+**Rien n'arrive ici depuis un serveur MCP en v0.1.0.** La spécification définit
+deux façons pour un serveur de rappeler son client, une demande de saisie
+structurée (`elicitation/create`) et une demande d'appel LLM
+(`sampling/createMessage`), et Apollia n'implémente ni l'une ni l'autre. Il
+n'annonce plus le contraire aux serveurs, si bien qu'un serveur qui les supporte
+ne les utilisera simplement pas face à Apollia.
 
-- **Demande d'input structurée** (`elicitation/create` MCP) - le serveur veut une saisie utilisateur (formulaire dynamique généré depuis un JSON Schema). Tombe dans **À traiter** sous la même forme qu'un `ask_user` classique.
-- **Demande de sampling LLM** (`sampling/createMessage` MCP) - le serveur demande un appel LLM. Le prompt complet + l'identifiant du serveur source sont affichés avant approbation. Au-delà de 100 sampling/heure par serveur, les demandes sont automatiquement rejetées sans arriver ici.
-
-Ces deux types réutilisent les composants existants (`AskUserForm` pour elicitation, `HITLCard` pour sampling). Pas de nouvel onglet. Plus de détails : [Comprendre les permissions MCP](../integrations/comprendre-les-permissions-mcp.md).
+Ce qui arrive dans votre boîte de réception vient des agents et du runtime :
+approbations, questions, notifications. Les demandes à l'initiative d'un serveur
+sont prévues, et elles passeront par une approbation le jour où elles arriveront.
 
 > **Concept :** [Explication Apollia](/explanation)

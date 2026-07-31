@@ -31,8 +31,13 @@ pub struct InitializeParams {
 /// Client capability advertisement sent during `initialize`.
 ///
 /// All fields are optional; an absent field means "Apollia does not implement
-/// this capability". Apollia v0.1.0 advertises `roots`, `sampling`, and
-/// `elicitation`.
+/// this capability". Apollia v0.1.0 advertises `roots` and nothing else.
+///
+/// `sampling` and `elicitation` are deliberately absent. Their request and
+/// result types live below, but no handler dispatches an incoming
+/// `sampling/createMessage` or `elicitation/create`, so advertising them would
+/// leave a compliant server waiting on an answer that never comes. Set them
+/// only in the change that adds the handler.
 #[derive(Debug, Default, Serialize)]
 pub struct ClientCapabilities {
     /// Filesystem / resource roots exposed to the server.
@@ -667,22 +672,24 @@ mod tests {
     }
 
     #[test]
-    fn test_client_capabilities_advertises_roots_sampling_elicitation() {
-        // GIVEN apollia's default capability set
+    fn test_client_capabilities_advertise_roots_and_nothing_else() {
+        // GIVEN the capability set apollia sends during initialize
         let caps = ClientCapabilities {
             roots: Some(RootsCapability {
                 list_changed: Some(true),
             }),
-            sampling: Some(SamplingCapability::default()),
-            elicitation: Some(ElicitationCapability::default()),
+            sampling: None,
+            elicitation: None,
         };
         // WHEN serialized
         let value = serde_json::to_value(&caps).unwrap();
-        // THEN all three keys are present in the wire payload
-        assert!(value.get("roots").is_some());
-        assert!(value.get("sampling").is_some());
-        assert!(value.get("elicitation").is_some());
+        // THEN roots is advertised
         assert_eq!(value["roots"]["listChanged"], true);
+        // AND the two capabilities nothing dispatches stay off the wire, so a
+        // compliant server never sends a request that would go unanswered.
+        // Re-enable these assertions' inverse only alongside a real handler.
+        assert!(value.get("sampling").is_none());
+        assert!(value.get("elicitation").is_none());
     }
 
     #[test]

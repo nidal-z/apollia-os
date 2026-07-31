@@ -46,13 +46,19 @@ Quand un agent tente d'utiliser un outil bloqué par le profil, il reçoit l'err
 
 En v0.1.0, le profil se règle côté configuration backend, pas encore via une bascule dans l'interface.
 
-## Cas particulier des serveurs MCP, sampling et elicitation
+## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 
-Les serveurs MCP ont trois capabilities qui passent par votre boîte de réception :
+La spécification permet à un serveur de rappeler son client de trois façons.
+Apollia en implémente une.
 
-- **Sampling** : un serveur peut demander à Apollia de faire un appel LLM via `sampling/createMessage`. Le prompt arrive dans la boîte de réception, vous approuvez ou refusez. Le débit dépend du modèle utilisé par Apollia.
-- **Elicitation** : un serveur peut demander un input utilisateur structuré via `elicitation/create`. Un formulaire arrive dans la boîte de réception.
-- **Roots** : Apollia déclare au serveur les répertoires accessibles (workspace de l'agent, dossier projet). Le serveur ne voit rien d'autre côté filesystem.
+- **Roots**, implémenté : Apollia déclare au serveur les répertoires accessibles (workspace de l'agent, dossier projet). Le serveur ne voit rien d'autre côté filesystem.
+- **Sampling**, non implémenté : un serveur ne peut pas demander à Apollia de faire un appel LLM pour lui.
+- **Elicitation**, non implémenté : un serveur ne peut pas vous demander une saisie structurée.
+
+Les deux capacités non implémentées ne sont pas annoncées pendant la poignée de
+main : un serveur découvre donc leur absence à la connexion, et non en envoyant
+une requête qui reste sans réponse. Les deux sont prévues, et passeront par votre
+approbation le jour où elles arriveront.
 
 ## Vérification
 

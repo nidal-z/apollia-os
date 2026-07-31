@@ -103,11 +103,14 @@ A selector at the top filters by channel. To configure channels or global events
 
 ## Requests coming from an MCP server
 
-From v0.1.0 onwards, two kinds of events emitted by MCP servers can land in your inbox:
+**Nothing arrives here from an MCP server in v0.1.0.** The specification defines
+two ways a server can call back to its client, a structured input request
+(`elicitation/create`) and an LLM call request (`sampling/createMessage`), and
+Apollia implements neither. It no longer tells servers it does, so a server that
+supports them will simply not use them against Apollia.
 
-- **Structured input request** (MCP `elicitation/create`) - the server wants user input (dynamic form generated from a JSON Schema). Lands in **To do** in the same shape as a classic `ask_user`.
-- **LLM sampling request** (MCP `sampling/createMessage`) - the server asks for an LLM call. The full prompt and the identifier of the source server are displayed before approval. Beyond 100 samplings per hour per server, requests are rejected automatically without reaching here.
-
-Both kinds reuse the existing components (`AskUserForm` for elicitation, `HITLCard` for sampling). No new tab. More detail: [Understand MCP permissions](../integrations/comprendre-les-permissions-mcp.md).
+What reaches your inbox comes from agents and from the runtime: approvals,
+questions, and notifications. Server-initiated requests are planned, and they
+will be gated by approval when they land.
 
 > **Concept:** [Apollia explanation](/explanation)

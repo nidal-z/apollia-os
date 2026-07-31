@@ -46,13 +46,19 @@ When an agent tries to use a tool blocked by the profile, it gets the `Sovereign
 
 In v0.1.0, the profile is set on the backend configuration side, not yet through a toggle in the interface.
 
-## The MCP server special case, sampling and elicitation
+## What an MCP server can and cannot ask of you
 
-MCP servers have three capabilities that go through your inbox:
+The specification lets a server call back to its client three ways. Apollia
+implements one of them.
 
-- **Sampling**: a server can ask Apollia to make an LLM call through `sampling/createMessage`. The prompt lands in the inbox, you approve or refuse. The throughput depends on the model Apollia uses.
-- **Elicitation**: a server can ask for structured user input through `elicitation/create`. A form lands in the inbox.
-- **Roots**: Apollia declares the accessible directories to the server (the agent workspace, the project folder). The server sees nothing else on the filesystem side.
+- **Roots**, implemented: Apollia declares the accessible directories to the server (the agent workspace, the project folder). The server sees nothing else on the filesystem side.
+- **Sampling**, not implemented: a server cannot ask Apollia to make an LLM call on its behalf.
+- **Elicitation**, not implemented: a server cannot ask you for structured input.
+
+The two unimplemented capabilities are not advertised during the handshake, so a
+server discovers their absence at connection time rather than by sending a
+request that goes unanswered. Both are planned, and both will be gated by your
+approval when they arrive.
 
 ## Verification
 

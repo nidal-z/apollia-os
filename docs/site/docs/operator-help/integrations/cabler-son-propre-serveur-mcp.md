@@ -69,8 +69,7 @@ Apollia can discover MCP servers on your local network through mDNS (service typ
 - **Trust level**: any manually added server is marked `custom`. No automatic `verified_official` level.
 - **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](comprendre-les-permissions-mcp.md) page.
 - **Roots**: Apollia declares the accessible directories to the server (the agent workspace + the current project). The server sees nothing else.
-- **Sampling**: if the server requests an LLM call through `sampling/createMessage`, the prompt lands in your inbox and you approve before execution.
-- **Elicitation**: if the server wants user input through `elicitation/create`, a form lands in your inbox.
+- **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
 
 ## Deferred loading mode
 
