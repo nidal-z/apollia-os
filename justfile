@@ -339,6 +339,37 @@ desktop-dev-automation-seeded script: runners-dev-macos
     # Preserve the toolchain env (defaults derive from the REAL home) before the swap.
     export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+    # Build PyO3 against the SAME interpreter the app will run with, which is
+    # what release.yml does and what the dev recipes did not. Without it, PyO3
+    # links whatever python3 the developer happens to have (pyenv, homebrew)
+    # while PYTHONHOME points at the staged bundle: two different 3.13 builds,
+    # so the embedded interpreter fails on its own builtins and EVERY agent
+    # fails to load at boot with "ModuleNotFoundError: No module named
+    # '_opcode'". The suite then runs against zero agents and quietly loses the
+    # chat, the agent logs and everything downstream of them.
+    BUNDLE_PY="$PWD/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13"
+    if [ -x "$BUNDLE_PY" ]; then
+      export PYO3_PYTHON="$BUNDLE_PY"
+      # The bundle is relocatable but its sysconfig still names the path it was
+      # built at, so PyO3 emits `-L /install/lib` and the link fails on
+      # "library 'python3.13' not found". release.yml compensates with the same
+      # RUSTFLAGS; the dev recipes did not, which is the other half of why a
+      # local build never used the bundled interpreter.
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $PWD/target/python-bundle/aarch64-apple-darwin/python/lib"
+      # The linked install_name is @executable_path/../Resources/python/lib,
+      # which is the packaged layout. In a dev run @executable_path is
+      # target/debug, so dyld looks in target/Resources and finds nothing, and
+      # the app dies before main(). Setting DYLD_FALLBACK_LIBRARY_PATH would be
+      # too late: setup_bundled_python runs inside the process, after dyld has
+      # already resolved. A symlink makes the dev tree answer the same path the
+      # bundle does, and as a bonus setup_bundled_python then matches on its
+      # macOS candidate instead of falling through to the Windows one.
+      mkdir -p target/Resources
+      ln -sfn "$PWD/target/python-bundle/aarch64-apple-darwin/python" target/Resources/python
+    else
+      echo "warning: staged Python bundle not found at $BUNDLE_PY" >&2
+      echo "         agents will fail to load; run packaging/build-python-bundle.sh" >&2
+    fi
     echo "→ seeded automation: {{script}}  (HOME=$SEED_HOME, out: $OUT)"
     cd crates/apollia-desktop && \
       HOME="$SEED_HOME" APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
@@ -373,6 +404,37 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
     export CARGO_HOME="${CARGO_HOME:-$REAL_HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$REAL_HOME/.rustup}"
+    # Build PyO3 against the SAME interpreter the app will run with, which is
+    # what release.yml does and what the dev recipes did not. Without it, PyO3
+    # links whatever python3 the developer happens to have (pyenv, homebrew)
+    # while PYTHONHOME points at the staged bundle: two different 3.13 builds,
+    # so the embedded interpreter fails on its own builtins and EVERY agent
+    # fails to load at boot with "ModuleNotFoundError: No module named
+    # '_opcode'". The suite then runs against zero agents and quietly loses the
+    # chat, the agent logs and everything downstream of them.
+    BUNDLE_PY="$PWD/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13"
+    if [ -x "$BUNDLE_PY" ]; then
+      export PYO3_PYTHON="$BUNDLE_PY"
+      # The bundle is relocatable but its sysconfig still names the path it was
+      # built at, so PyO3 emits `-L /install/lib` and the link fails on
+      # "library 'python3.13' not found". release.yml compensates with the same
+      # RUSTFLAGS; the dev recipes did not, which is the other half of why a
+      # local build never used the bundled interpreter.
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $PWD/target/python-bundle/aarch64-apple-darwin/python/lib"
+      # The linked install_name is @executable_path/../Resources/python/lib,
+      # which is the packaged layout. In a dev run @executable_path is
+      # target/debug, so dyld looks in target/Resources and finds nothing, and
+      # the app dies before main(). Setting DYLD_FALLBACK_LIBRARY_PATH would be
+      # too late: setup_bundled_python runs inside the process, after dyld has
+      # already resolved. A symlink makes the dev tree answer the same path the
+      # bundle does, and as a bonus setup_bundled_python then matches on its
+      # macOS candidate instead of falling through to the Windows one.
+      mkdir -p target/Resources
+      ln -sfn "$PWD/target/python-bundle/aarch64-apple-darwin/python" target/Resources/python
+    else
+      echo "warning: staged Python bundle not found at $BUNDLE_PY" >&2
+      echo "         agents will fail to load; run packaging/build-python-bundle.sh" >&2
+    fi
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
     SLOG="/tmp/apollia-dev-llama-server.log"
     echo "→ starting llama-server (--jinja) on :{{llama_port}} : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}] ..."

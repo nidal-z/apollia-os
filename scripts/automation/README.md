@@ -14,7 +14,7 @@ Everything runs from the repo root, from `main` (the app must match the scripts'
 testids). Always free the ports first, an editor or a stale run holds them:
 
 ```sh
-lsof -ti :5173 :8899 | xargs kill -9 2>/dev/null   # vite + llama-server
+lsof -ti :5173 -ti :7771 -ti :8899 | xargs kill -9 2>/dev/null   # vite, runtime API, llama-server
 
 # Deterministic (no model), seeded ecosystem:
 just desktop-dev-automation-seeded scripts/automation/master-det.json
@@ -133,10 +133,33 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
 - **Tabs keep their selection across a change of subject.** The connection
   detail and the catalogue sheet reopen on whatever tab was last used, so
   re-select the one you assert on instead of assuming the default.
-- **Free port 5173 for real.** `pkill` on the tauri and app processes can leave
-  the vite `node` holding the port, and the next run dies on `beforeDevCommand`.
-  Check with `lsof -ti :5173` until it returns nothing. Note `lsof -ti :5173 :8899`
-  reads the second port as a file name and prints nothing, so kill one port at a time.
+- **Free three ports for real, and check that they are free.** Two runs out of
+  five failed to start on this alone. `pkill` on the tauri and app processes
+  returns before the sockets are released, so a `pkill` followed by an immediate
+  relaunch dies on `beforeDevCommand` (5173) or on the embedded runtime
+  (`failed to bind TCP on port 7771: Address already in use`). The ports are:
+
+  | Port | Held by | Symptom when still held |
+  |---|---|---|
+  | 5173 | the vite dev server | `Port 5173 is already in use`, the run never starts |
+  | 7771 | the embedded runtime's API server | the app launches, the runtime does not, and every step fails against a dead backend while still writing screenshots |
+  | 8899 | the local llama-server, `-llama` runs only | the model backend is unreachable |
+
+  7771 is the one that costs the most, because the run *looks* like it worked:
+  it produces a full set of `fail-*` captures rather than refusing to start.
+
+  ```sh
+  # Kill, then WAIT and verify. The verification is the part people skip.
+  pkill -9 -f 'tauri|vite|apollia-desktop'
+  lsof -ti :5173 -ti :7771 -ti :8899 | xargs kill -9 2>/dev/null
+  sleep 3
+  lsof -ti :5173 -ti :7771 -ti :8899   # must print nothing before relaunching
+  ```
+
+  Note the repeated `-ti`. `lsof -ti :5173 :7771` reads everything after the
+  first port as a file name, errors on it, and prints nothing at all, so it
+  reports every port as free. That form is worse than useless: it is a check
+  that always passes.
 - **The plan gate has two cards.** `ChatPlanHost` renders `ChatPlanReview` for the
   operator (`chat-plan-review`, request-changes plus an adjust textarea) and
   `ChatPlanReviewBuilder` for the builder (`chat-plan-review-builder`, approve or
