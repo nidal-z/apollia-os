@@ -199,27 +199,6 @@ jobs:
         working-directory: crates/apollia-desktop/ui
         run: npm test
 
-  diagrams:
-    name: PlantUML Diagrams (advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - name: Install Java + PlantUML
-        run: |
-          sudo apt-get install -y default-jre-headless graphviz
-          mkdir -p ~/.local/bin
-          curl -fsSL -o ~/.local/bin/plantuml.jar \
-            https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
-          printf '#!/bin/sh\nexec java -jar ~/.local/bin/plantuml.jar "$@"\n' \
-            > ~/.local/bin/plantuml
-          chmod +x ~/.local/bin/plantuml
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
-        with:
-          tool: just
-      - run: just diagrams
-
   # ── Security / dependencies ──────────────────────────────────────────────
   audit:
     name: Security Audit

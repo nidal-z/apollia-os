@@ -355,9 +355,11 @@ Non-blocking (`continue-on-error`) advisory jobs :
 **A `continue-on-error: true` job must carry `advisory` in its `name:`**, not
 only in a comment above it. The name is what the checks list shows; a comment is
 invisible there. Two jobs broke this rule and they are exactly the two that hid
-a real failure for months: `diagrams` invoked a justfile recipe that does not
-exist, and `python-tests` swallowed three failing SDK tests. A job whose failure
-nobody sees is worse than no job, because it reads as coverage.
+a real failure for months: a `diagrams` job invoked a justfile recipe that does
+not exist, and `python-tests` swallowed three failing SDK tests. Both are gone
+now, the first deleted with the PlantUML corpus and the second made blocking
+once its tests were fixed. A job whose failure nobody sees is worse than no job,
+because it reads as coverage.
 
 Advisory is a temporary posture. Every entry below states what would make it
 blocking.
