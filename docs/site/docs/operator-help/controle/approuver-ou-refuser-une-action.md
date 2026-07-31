@@ -14,10 +14,10 @@
 An approval request can pop up in two places, depending on the context:
 
 - **In the chat** (with Apollia Chat or a conversational agent): an **approval card** is inserted into the message flow, at the chronological position of the request. The card carries a shield icon ⛨ and an orange border.
-  ![inline approval card in the chat, orange shield icon, preview of the command to authorise, three but...](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
+  ![Inline approval card in the chat, with an orange shield icon, a preview of the command to authorise, and the Allow once, Refuse and Always allow buttons](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
 
 - **In the sidebar → Approvals** (which opens the **Inbox** page): for agents running in the background or that paused their task for a human check. Each request appears as a row in a list grouped by date (Today / Yesterday / Earlier). Clicking a row expands the **HITL card** with the details and the action buttons.
-  ![Inbox page - filter chips at the top, hovered row with risk badge, expanded HITL card a...](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
+  ![Inbox page with the filter chips at the top and an expanded approval card showing its risk badge](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
 
 > **Note:** Requests appear **in real time** without refreshing. A counter in the page subtitle shows the total number pending.
 

@@ -29,7 +29,7 @@
 6. Ouvrez un chat depuis la sidebar.
 
 7. Maintenez votre raccourci enfoncé. Un **overlay sombre plein écran** s'affiche avec un visualiseur audio à barres. Parlez naturellement.
-   *Figure : l'overlay d'enregistrement plein écran, avec le visualiseur audio à barres et le texte {hotkey} pour arrêter · Esc pour annuler.*
+   A l'ecran : l'overlay d'enregistrement plein écran, avec le visualiseur audio à barres et le texte {hotkey} pour arrêter · Esc pour annuler.
 
 8. Relâchez le raccourci. La transcription est injectée dans le champ de saisie via le presse-papiers.
 

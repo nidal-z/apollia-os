@@ -25,7 +25,7 @@
 6. Cliquez sur **Créer**. Le projet apparaît immédiatement dans la liste.
 
 7. Cliquez sur la carte du projet pour ouvrir son **panneau de détail** (Sheet latérale). Vous y voyez le chemin, les agents liés, les context providers actifs, les documents attachés et les chats liés - dans des sections scrollables, sans onglets formels.
-   ![panneau de détail projet (Sheet latérale), sections Description, Agents, Context providers, Documents, Chat...](/img/operator-help/projets-creer-un-projet-3.png)
+   ![Panneau de detail du projet ouvert en volet lateral, avec ses sections Description, Agents, Context Providers, Documents et Chat](/img/operator-help/projets-creer-un-projet-3.png)
 
 8. Continuez avec **Activer les context providers** pour charger automatiquement les bonnes informations dans vos futurs chats.
 

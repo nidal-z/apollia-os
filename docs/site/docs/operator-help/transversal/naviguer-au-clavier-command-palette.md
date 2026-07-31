@@ -32,7 +32,7 @@ To see at a glance the shortcuts available in the current context, press **?** (
 
 To browse every shortcut (global, navigation, chat, settings, companion, approvals) grouped by category, go to **Settings → Shortcuts**. The page offers a **search** to find a combination by name (*"sidebar"*, *"new chat"*, *"help"*…).
 
-![Settings → Shortcuts page, search bar at the top, shortcuts grouped by category (Global / Naviga...](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
+![Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
 
 > **Read only.** This page does not allow customising the combinations for now. The shortcuts are fixed and aligned with the native macOS / Windows conventions.
 

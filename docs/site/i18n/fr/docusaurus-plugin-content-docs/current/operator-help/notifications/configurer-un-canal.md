@@ -96,7 +96,7 @@ Une fois créé, chaque canal est rendu sous forme de carte avec :
 - À l'extrême droite de la ligne d'événements, un petit indicateur **⏱ … s** apparaît si un throttling est configuré.
 - En pied de carte, séparé par un trait fin, **trois icônes d'action** côte à côte : avion en papier (Tester), crayon (Modifier), corbeille rouge (Supprimer). Survolez chaque icône pour voir son tooltip.
 
-![carte de canal - barre d'accent bleue en haut, icône Desktop dans une vignette ronde à gauche, nom + ID + b...](/img/operator-help/notifications-configurer-un-canal-2.png)
+![Carte d'un canal de notification, barre d'accent, icone du canal, nom et identifiant, et ses badges](/img/operator-help/notifications-configurer-un-canal-2.png)
 
 ## Tester le canal
 

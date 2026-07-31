@@ -134,7 +134,7 @@
     { "kind": "waitGone", "testid": "custom-mcp-command-input", "timeoutMs": 5000 },
     { "kind": "waitFor", "testid": "custom-mcp-url-input", "timeoutMs": 5000 },
     { "kind": "fill", "testid": "custom-mcp-url-input", "text": "https://mcp.mon-entreprise.fr/api" },
-    { "kind": "fill", "testid": "custom-mcp-env-input", "text": "Authorization=Bearer sk-prod-2f9a\nX-Org-Id=acme-42" },
+    { "kind": "fill", "testid": "custom-mcp-env-input", "text": "Authorization=Bearer EXAMPLE-NOT-A-REAL-TOKEN\nX-Org-Id=example-org" },
     { "kind": "sleep", "ms": 400 },
     { "kind": "screenshot", "label": "integration-cabler-son-propre-serveur-mcp-3" },
     { "kind": "press", "key": "Escape" },

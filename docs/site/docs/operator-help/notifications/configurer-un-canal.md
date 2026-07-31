@@ -96,7 +96,7 @@ Once created, each channel is rendered as a card with:
 - At the far right of the events row, a small **⏱ … s** indicator appears if a throttle is configured.
 - In the card footer, separated by a thin rule, **three action icons** side by side: paper plane (Test), pencil (Edit), red bin (Delete). Hover each icon to see its tooltip.
 
-![channel card - blue accent bar at the top, Desktop icon in a round thumbnail on the left, name + ID + b...](/img/operator-help/notifications-configurer-un-canal-2.png)
+![A notification channel card, with its accent bar, channel icon, name and identifier, and its badges](/img/operator-help/notifications-configurer-un-canal-2.png)
 
 ## Test the channel
 

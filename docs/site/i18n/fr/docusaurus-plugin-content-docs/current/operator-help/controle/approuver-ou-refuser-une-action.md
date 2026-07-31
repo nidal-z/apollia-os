@@ -14,10 +14,10 @@
 Une demande d'approbation peut surgir à deux endroits, selon le contexte :
 
 - **Dans le chat** (avec Apollia Chat ou un agent conversationnel) : une **carte d'approbation** s'insère dans le flux des messages, à la position chronologique de la demande. La carte porte une icône bouclier ⛨ et une bordure orange.
-  ![carte d'approbation inline dans le chat, icône bouclier orange, aperçu de la commande à autoriser, trois bo...](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
+  ![Carte d'approbation en ligne dans le chat, icone bouclier orange, apercu de la commande a autoriser, et les boutons Autoriser une fois, Refuser et Toujours autoriser](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
 
 - **Dans la sidebar → Approbations** (qui ouvre la page **Boîte de réception**) : pour les agents qui tournent en arrière-plan ou qui ont mis leur tâche en pause pour vérification humaine. Chaque demande apparaît sous forme d'une ligne dans une liste groupée par date (Aujourd'hui / Hier / Plus tôt). Cliquer une ligne déplie la **carte HITL** avec les détails et les boutons d'action.
-  ![page Boîte de réception - chips de filtres en haut, ligne au survol avec badge risque, carte HITL dépliée e...](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
+  ![Page Boite de reception, puces de filtre en haut et carte d'approbation depliee affichant son badge de risque](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
 
 > **Note :** Les demandes apparaissent **en temps réel** sans rafraîchissement. Un compteur dans le sous-titre de la page indique le nombre total en attente.
 

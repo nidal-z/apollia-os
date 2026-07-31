@@ -14,7 +14,7 @@ This profile is **local**. No data leaves your machine.
 
 **Settings → Profile**, reachable from the ⚙️ icon in the sidebar.
 
-![Settings → Profile page - 5 stacked sections (Identity, Agent supervision, Tools & business context,...](/img/operator-help/memoire-gerer-mon-profil-1.png)
+![Settings then Profile page, showing its stacked sections from Identity down to the danger zone](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
 The screen is split into sections:
 

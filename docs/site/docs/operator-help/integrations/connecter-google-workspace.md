@@ -27,7 +27,7 @@
 
 5. The window closes, your account appears in the sidebar with a green dot.
 
-   *Figure: the Connections sidebar, with the Google Workspace card expanded showing the connected account, its green dot and the Disconnect button.*
+   On screen: the Connections sidebar, with the Google Workspace card expanded showing the connected account, its green dot and the Disconnect button.
 
 ## What you can do
 

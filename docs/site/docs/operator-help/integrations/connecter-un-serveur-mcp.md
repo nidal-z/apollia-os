@@ -20,7 +20,7 @@
 
 Four checkboxes recall the implications of installing an external MCP (third-party code runs on your machine, data may be transferred, you can revoke at any time, capabilities are visible before install). Tick all four, then click **Next**.
 
-*Figure: step 1 of the wizard, with the 4 checkboxes and their labels, and the Next button greyed out until everything is ticked.*
+On screen: step 1 of the wizard, with the 4 checkboxes and their labels, and the Next button greyed out until everything is ticked.
 
 ### Step 2, Authentication
 
@@ -30,7 +30,7 @@ Apollia automatically detects the authentication type required by the server. Th
 - **API key or static token**: a password field appears. Paste your key.
 - **OAuth**: a *"Sign in to [Provider]"* button appears with the list of requested scopes. Click it, your browser opens the consent page, authorize, the return is automatic.
 
-*Figure: step 2 of the wizard in the OAuth case, with the Sign in to [Provider] button and the list of requested scopes below it.*
+On screen: step 2 of the wizard in the OAuth case, with the Sign in to [Provider] button and the list of requested scopes below it.
 
 ### Step 3, Test
 
@@ -41,13 +41,13 @@ Click **Test connection**. During the test, the icon pulses. At the end, a badge
 
 If the test fails, go back to step 2 to correct it.
 
-*Figure: step 3 of the wizard, with the Test connection button and a green badge showing 12 tools discovered.*
+On screen: step 3 of the wizard, with the Test connection button and a green badge showing 12 tools discovered.
 
 ### Step 4, Coaching
 
 Apollia shows a few example cards with a *"Try"* button that pre-fills the chat box. Click **Finish** to close the wizard.
 
-*Figure: step 4 of the wizard, with 3 example cards each carrying a Try button, and the Finish button.*
+On screen: step 4 of the wizard, with 3 example cards each carrying a Try button, and the Finish button.
 
 ## Verification
 

@@ -25,7 +25,7 @@
 6. Click **Create**. The project appears in the list immediately.
 
 7. Click the project card to open its **detail panel** (side Sheet). It shows the path, the linked agents, the active context providers, the attached documents and the linked chats, in scrollable sections, with no formal tabs.
-   ![project detail panel (side Sheet), Description, Agents, Context Providers, Documents, Chat sections...](/img/operator-help/projets-creer-un-projet-3.png)
+   ![Project detail panel opened as a side sheet, with its Description, Agents, Context Providers, Documents and Chat sections](/img/operator-help/projets-creer-un-projet-3.png)
 
 8. Carry on with **Enable context providers** to load the right information into your future chats automatically.
 

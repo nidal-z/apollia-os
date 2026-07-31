@@ -13,12 +13,12 @@
 1. In the sidebar, click **My Triggers**. The page is titled **Automations**.
 
 2. Click the **Create an automation** button at the top right. A **4-step** wizard opens (Describe → Schedule → Assistant → Preview).
-   ![Automations page, "Create an automation" button highlighted at the top right, 4-step stepper visible...](/img/operator-help/automatisations-programmer-un-trigger-1.png)
+   ![Automations page, with the Create an automation button at the top right and the four-step stepper](/img/operator-help/automatisations-programmer-un-trigger-1.png)
 
 3. **Describe step** - Describe **the when**: at what moment or how often the trigger should fire. Examples: *"Every morning at 8am"*, *"Every Monday at 9am to prep the week"*, *"Every 30 minutes"*. You do not need to name an assistant at this stage: a trigger is independent from the assistant that will run it, and you pick that assistant at the **Assistant** step. Click **Next**; Apollia parses the sentence (the button label switches to *"Parsing…"*).
 
 4. **Schedule step** - Apollia shows how it read your sentence in a box (for example *"Every day at 08:00"*) with the **next scheduled run**. If something looks off, adjust it in plain language in the field at the bottom (*"actually 9am"*) and press Enter - the schedule updates. If Apollia needs a detail about the calendar (missing time, ambiguous day…), an orange banner lists the points to clarify; fill them in through the refine field. A missing assistant in the description does not block this step.
-   ![Schedule step - human-readable schedule box ("Every day at 08:00"), "Next run: …" line, refine fie...](/img/operator-help/automatisations-programmer-un-trigger-2.png)
+   ![Schedule step, with the human-readable schedule box, the next-run line and the refinement fields](/img/operator-help/automatisations-programmer-un-trigger-2.png)
 
 5. **Assistant step** - Select the assistant that will run this trigger. A trigger always launches **one assistant at a time**. If your sentence named an existing agent, it is preselected and a sub-label reads *"Recognized automatically: …"*. Otherwise, an orange box reminds you that no assistant was recognised, and you pick it from the dropdown. Only installed assistants show up.
 
@@ -29,7 +29,7 @@
 ## Run it manually and follow it
 
 8. To check that everything works without waiting for the next due date, hover the automation row and click the **play icon ▶︎** on the right. A run starts immediately and a toast confirms the launch.
-   *Figure: an automation row on hover, with the Play icon visible on the right and its Run now tooltip.*
+   On screen: an automation row on hover, with the Play icon visible on the right and its Run now tooltip.
 
 9. To review the run history, click the **⋯** icon on the row (visible on hover) → **View history**. See the page [Track a trigger's history](suivre-l-historique-d-un-trigger.md).
 

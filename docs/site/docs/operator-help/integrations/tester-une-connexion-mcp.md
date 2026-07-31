@@ -23,7 +23,7 @@
    - **Green**: *"OK · XXX ms"*. The server responds, the latency is shown.
    - **Red**: *"Error: <translated message>"*. The server does not respond, the message states the cause.
 
-   *Figure: the green OK · 247 ms badge shown under the test button.*
+   On screen: the green OK · 247 ms badge shown under the test button.
 
 ## Translated error messages
 

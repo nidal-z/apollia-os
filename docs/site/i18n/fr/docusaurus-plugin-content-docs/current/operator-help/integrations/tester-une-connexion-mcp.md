@@ -23,7 +23,7 @@
    - **Vert** : *"OK · XXX ms"*. Le serveur répond, la latence est indiquée.
    - **Rouge** : *"Erreur : <message traduit>"*. Le serveur ne répond pas, le message précise la cause.
 
-   *Figure : le badge vert OK · 247 ms affiché sous le bouton de test.*
+   A l'ecran : le badge vert OK · 247 ms affiché sous le bouton de test.
 
 ## Messages d'erreur traduits
 

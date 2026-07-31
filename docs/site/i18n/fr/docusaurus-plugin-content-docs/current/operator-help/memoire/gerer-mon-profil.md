@@ -14,7 +14,7 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 **Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
-![page Paramètres → Profil - 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](/img/operator-help/memoire-gerer-mon-profil-1.png)
+![Page Parametres puis Profil, avec ses sections empilees, de l'identite jusqu'a la zone de danger](/img/operator-help/memoire-gerer-mon-profil-1.png)
 
 L'écran est divisé en sections :
 

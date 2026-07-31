@@ -32,7 +32,7 @@ Pour voir d'un coup d'œil les raccourcis disponibles dans le contexte courant, 
 
 Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, companion, approbations) groupés par catégorie, allez sur **Paramètres → Raccourcis**. La page propose une **recherche** pour retrouver une combinaison par nom (*« sidebar »*, *« nouveau chat »*, *« aide »*…).
 
-![page Paramètres → Raccourcis, barre de recherche en haut, raccourcis groupés par catégorie (Global / Naviga...](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
+![Page Parametres puis Raccourcis, barre de recherche en haut et raccourcis groupes par categorie](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
 
 > **Lecture seule.** Cette page n'autorise pas la personnalisation des combinaisons pour le moment. Les raccourcis sont fixés et alignés sur les conventions natives de macOS / Windows.
 

@@ -1,0 +1,626 @@
+{
+  "name": "screenshots-en (operator-help doc captures, English, seeded)",
+  "notes": [
+    "Derive de screenshots-fr.json. Meme parcours, meme jeu de labels : les images publiees sont partagees par les deux locales du site, il n'existe donc qu'un seul jeu et il est anglais.",
+    "Le prelude bascule l'interface en anglais via Parametres > Apparence > language-en. Ce chemin est deja exerce par settings-det.json, il n'introduit aucun testid nouveau.",
+    "Ne pas rejouer avant que les builds Windows et Linux et le test du .dmg sans llama-server sur le PATH aient produit leurs correctifs : toute capture prise avant serait a refaire."
+  ],
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "language-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "language-en"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "click",
+      "testid": "language-fr"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "goto",
+      "route": "memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-page"
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "memoire-consulter-et-nettoyer-la-memoire-1"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-entry-sheet-copy",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "memoire-consulter-et-nettoyer-la-memoire-2"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-timeline"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-kpis",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "observabilite-consulter-l-historique-des-taches-1"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-list-row"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-list-row"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-tabbar",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-tab-content",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-comprendre-la-portee-d-une-integration-1"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-permissions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-comprendre-les-permissions-mcp-2"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-revoke-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-revoke-all-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "controle-configurer-les-permissions-de-fichiers-1"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "profile-reset-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-confirm",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "memoire-gerer-mon-profil-1"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "stt-hotkey-change-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hotkey-capture-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "troubleshooting-la-dictee-vocale-ne-transcrit-rien-1"
+    },
+    {
+      "kind": "click",
+      "testid": "hotkey-capture-cancel"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1"
+    },
+    {
+      "kind": "click",
+      "testid": "add-backend-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "installation-connecter-un-modele-distant-1"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "transversal-activer-la-compagnonne-ia-1"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "transversal-activer-la-compagnonne-ia-2"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-close"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover"
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-connecter-un-serveur-mcp-1"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-cabler-son-propre-serveur-mcp-1"
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-name-input",
+      "text": "Fichiers locaux"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "custom-mcp-transport-select",
+      "value": "stdio"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-command-input",
+      "text": "npx"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-args-input"
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-args-input",
+      "text": "-y @modelcontextprotocol/server-filesystem /Users/moi/Documents"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-cabler-son-propre-serveur-mcp-2"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "custom-mcp-transport-select",
+      "value": "streamable-http"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-url-input",
+      "text": "https://mcp.mon-entreprise.fr/api"
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-env-input",
+      "text": "Authorization=Bearer EXAMPLE-NOT-A-REAL-TOKEN\nX-Org-Id=example-org"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-cabler-son-propre-serveur-mcp-3"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-tester-une-connexion-mcp-1"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-overview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-test-btn",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "integration-tester-une-connexion-mcp-2"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-hub"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-content"
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "installation-telecharger-des-modeles-locaux-1"
+    }
+  ]
+}

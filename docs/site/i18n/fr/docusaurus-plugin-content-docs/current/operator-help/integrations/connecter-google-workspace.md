@@ -27,7 +27,7 @@
 
 5. La fenêtre se ferme, votre compte apparaît dans la sidebar avec une pastille verte.
 
-   *Figure : la sidebar Connexions, avec la carte Google Workspace dépliée affichant le compte connecté, sa pastille verte et le bouton Déconnecter.*
+   A l'ecran : la sidebar Connexions, avec la carte Google Workspace dépliée affichant le compte connecté, sa pastille verte et le bouton Déconnecter.
 
 ## Ce que vous pouvez faire
 

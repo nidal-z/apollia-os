@@ -29,7 +29,7 @@
 6. Open a chat from the sidebar.
 
 7. Hold your shortcut down. A **full-screen dark overlay** appears with a bar audio visualiser. Speak naturally.
-   *Figure: the full-screen recording overlay, with the bar audio visualiser and the text {hotkey} to stop · Esc to cancel.*
+   On screen: the full-screen recording overlay, with the bar audio visualiser and the text {hotkey} to stop · Esc to cancel.
 
 8. Release the shortcut. The transcription is injected into the input field through the clipboard.
 

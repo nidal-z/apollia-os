@@ -23,17 +23,17 @@ See the observable differences in the table further down.
 
 1. In the sidebar, open **Connections**, then select the **Microsoft 365** card.
 
-   *Figure: the Connections page, with the Microsoft 365 card highlighted and the Connect an account button in the right-hand panel.*
+   On screen: the Connections page, with the Microsoft 365 card highlighted and the Connect an account button in the right-hand panel.
 
 2. Click **Connect an account**. A window opens inside Apollia and your browser opens the Microsoft consent page.
 
 3. Authenticate with your Microsoft account, then accept the permissions (Mail, Calendar, Files).
 
-   *Figure: the Microsoft consent page, with the list of requested accesses (Mail, Calendar, Files) and the No and Yes buttons.*
+   On screen: the Microsoft consent page, with the list of requested accesses (Mail, Calendar, Files) and the No and Yes buttons.
 
 4. Back in Apollia, the window detects the return automatically and closes. Your account appears in the sidebar with a green dot.
 
-   *Figure: the Connections sidebar, with the Microsoft 365 card expanded showing the connected account and its green dot.*
+   On screen: the Connections sidebar, with the Microsoft 365 card expanded showing the connected account and its green dot.
 
 ## What you can do
 

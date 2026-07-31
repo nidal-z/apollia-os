@@ -46,7 +46,7 @@ Apollia distinguishes three cases. Choose according to what you want to do:
 5. Fill in the provider-specific fields (see the sections below).
 6. Click **Test** to validate the connection. A green *"OK · XXX ms"* badge confirms that the provider answers.
 
-   *Screenshot: the configuration dialog with the provider selected, the Endpoint and API Key fields filled in, and a green "OK · 312 ms" badge shown under the Test button.*
+   On screen: the configuration dialog with the provider selected, the Endpoint and API Key fields filled in, and a green "OK · 312 ms" badge shown under the Test button.
 
 7. If the test passes, click **Save**. The backend appears in the list.
 8. (Optional) Tick **Default backend** so that it is selected automatically when a new chat opens.

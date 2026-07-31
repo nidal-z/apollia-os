@@ -18,7 +18,7 @@
    - **Avg / day** - total divided by the number of days in the window.
    - **Peak day** - amount + date of the day that consumed the most.
    - **Top backend** - name of the backend that weighs the most, with its cumulative total.
-   ![LLM Costs tab - period selector at the top right, 4 KPIs, centred stacked bar chart, legend in pill...](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
+   ![LLM Costs tab, with the period selector, the four KPIs, the stacked bar chart and the backend legend](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
 
 4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend** (Anthropic, OpenAI, and so on). The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above).
 
