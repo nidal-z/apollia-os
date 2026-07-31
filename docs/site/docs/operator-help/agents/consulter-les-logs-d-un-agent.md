@@ -29,14 +29,13 @@
    - **Completed** - task executed successfully.
    - **Failed** - task in error, to be examined.
    - **Working** - task still running.
-   - **Verification** - transient status visible at the `supervised`, `bounded_autonomous` and `long_autonomous` levels: the post-run verification loop is running, the agent is checking its work before concluding. This status always precedes **Completed** or **Failed** and can last several seconds depending on the complexity of the task.
    - **Approval** - the agent is waiting for a human decision (to be handled from the Inbox).
    - **Submitted** - task recorded, not yet picked up.
    - **Canceled** - task interrupted before the end.
 
 6. **Filter the list** when there are many tasks:
    - Type in the **search bar** to keep only the tasks whose input or result contains that word.
-   - Click a **status chip** (All / Completed / Failed / Working / Verification / Approval / Submitted / Canceled) to see only that status.
+   - Click a **status chip** (All / Completed / Failed / Working / Approval / Submitted / Canceled) to see only that status.
    - Use the **sort menu** at the top right of the filters to order by: Most recent (default), Oldest, Longest, Shortest.
    - The counter at the top shows the number of tasks displayed vs total (e.g. `4 / 27 tasks`).
    - If no task matches, a **Reset filters** button appears.

@@ -29,14 +29,13 @@
    - **Terminée** - tâche exécutée avec succès.
    - **Échouée** - tâche en erreur, à examiner.
    - **En cours** - tâche encore en cours d'exécution.
-   - **Vérification** - statut transitoire visible aux paliers `supervised`, `bounded_autonomous` et `long_autonomous` : la boucle de vérification post-run est en cours : l'agent contrôle son travail avant de conclure. Ce statut précède toujours **Terminée** ou **Échouée** et peut durer plusieurs secondes selon la complexité de la tâche.
    - **Approbation** - l'agent attend une décision humaine (à traiter depuis l'Inbox).
    - **Soumise** - tâche enregistrée, pas encore prise en charge.
    - **Annulée** - tâche interrompue avant la fin.
 
 6. **Filtrer la liste** quand il y a beaucoup de tâches :
    - Tapez dans la **barre de recherche** pour ne garder que les tâches dont l'entrée ou le résultat contient ce mot.
-   - Cliquez sur une **puce de statut** (Toutes / Terminée / Échouée / En cours / Vérification / Approbation / Soumise / Annulée) pour ne voir que ce statut.
+   - Cliquez sur une **puce de statut** (Toutes / Terminée / Échouée / En cours / Approbation / Soumise / Annulée) pour ne voir que ce statut.
    - Utilisez le **menu de tri** en haut à droite des filtres pour ordonner par : Plus récentes (défaut), Plus anciennes, Plus longues, Plus courtes.
    - Le compteur en haut indique le nombre de tâches affichées vs total (ex. `4 / 27 tâches`).
    - Si aucune tâche ne correspond, un bouton **Réinitialiser les filtres** apparaît.

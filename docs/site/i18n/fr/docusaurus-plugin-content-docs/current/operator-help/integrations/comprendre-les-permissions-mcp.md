@@ -33,7 +33,7 @@ Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'un s
 
 ![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
 
-Note : en v0.1.0, on **ne crée pas** de règle depuis cette page, on les consulte et on les révoque. La création se fait dans le flux normal (popup HITL).
+Une règle se crée de deux façons. La plupart du temps elle apparaît toute seule, quand vous répondez « Toujours autoriser » à une demande d'approbation. Vous pouvez aussi en créer une à la main depuis cette page, via le formulaire **Ajouter une règle**, ce qui permet d'autoriser quelque chose avant même qu'un agent le demande.
 
 ## Que fait le mode local-only
 

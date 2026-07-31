@@ -49,7 +49,7 @@ Some agents can get stuck on a step they retry indefinitely. Apollia applies a l
 
 In the `supervised` or `bounded_autonomous` tier, the agent checks its own work after execution and attempts a self-correction if needed. This lengthens the apparent duration before the agent declares itself done. It is normal behaviour, not a blockage.
 
-If the duration looks excessive to you, open the **Logs** panel: verification tasks appear with the **Verification** status (see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md)). If they chain endlessly, the verification is failing to converge: stop the agent and rephrase the instructions or adjust the manifest.
+If the duration looks excessive to you, open the **Logs** panel (see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md)). Verification has no status of its own: the task stays **Working** while the agent checks itself. What tells you the loop is failing to converge is a task that stays working far past the point where its result should have landed. Stop the agent, then rephrase the instructions or adjust the manifest.
 
 ### 5b. A dependency is missing (tool, file, model)
 

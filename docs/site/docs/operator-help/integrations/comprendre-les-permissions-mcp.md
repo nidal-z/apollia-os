@@ -33,7 +33,7 @@ A **Revoke** button on each rule. To revoke every rule of a scope at once, the *
 
 ![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
 
-Note: in v0.1.0, you **do not create** a rule from this page, you consult them and revoke them. Creation happens in the normal flow (HITL popup).
+Rules are created two ways. Most of the time they appear on their own, when you answer an approval popup with "Always allow". You can also create one by hand from this page, through the **Add rule** form, which is the way to authorize something before an agent ever asks for it.
 
 ## What local-only mode does
 

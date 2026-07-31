@@ -14,7 +14,7 @@
 2. En haut à droite de la carte, un **sélecteur de période** vous permet de basculer entre **7 j / 14 j / 30 j / 90 j / 1 an**. Tous les indicateurs, le graphique et la légende se recalculent instantanément sur la nouvelle fenêtre. La densité de l'axe horizontal s'adapte automatiquement (étiquettes thinnées au-delà de 14 jours).
 
 3. En haut, **quatre indicateurs clés** (KPI) résument la fenêtre sélectionnée :
-   - **Total** - somme de toutes les dépenses sur la fenêtre.
+   - **Total 7 jours** - le libellé est figé et annonce sept jours quelle que soit la période choisie. Lisez-le comme la somme sur la fenêtre, pas sur une semaine.
    - **Moyenne / jour** - total divisé par le nombre de jours de la fenêtre.
    - **Jour le plus cher** - montant + date du jour qui a le plus consommé.
    - **Backend principal** - nom du backend qui pèse le plus, avec son total cumulé.

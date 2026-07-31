@@ -49,7 +49,7 @@ Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfin
 
 En palier `supervised` ou `bounded_autonomous`, l'agent contrôle son travail après l'exécution et tente une auto-correction si nécessaire. Cela allonge la durée apparente avant que l'agent se déclare terminé. C'est un comportement normal, pas un blocage.
 
-Si la durée vous semble excessive, ouvrez le panneau **Logs** : les tâches de vérification apparaissent avec le statut **Vérification** (voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)). Si elles s'enchaînent en boucle sans fin, c'est que la vérification n'arrive pas à converger : arrêtez l'agent et reformulez les instructions ou ajustez le manifest.
+Si la durée vous semble excessive, ouvrez le panneau **Logs** (voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)). La vérification n'a pas de statut propre : la tâche reste **En cours** pendant que l'agent contrôle son travail. Ce qui vous signale une boucle qui ne converge pas, c'est une tâche qui reste en cours bien au-delà du moment où son résultat aurait dû tomber. Arrêtez l'agent, puis reformulez les instructions ou ajustez le manifest.
 
 ### 5b. Une dépendance manque (outil, fichier, modèle)
 

@@ -14,7 +14,7 @@
 2. At the top right of the card, a **period selector** lets you switch between **7 d / 14 d / 30 d / 90 d / 1 yr**. Every indicator, the chart and the legend recompute instantly over the new window. The density of the horizontal axis adapts automatically (labels thinned out beyond 14 days).
 
 3. At the top, **four key indicators** (KPI) summarise the selected window:
-   - **Total** - sum of all spending over the window.
+   - **7-day total** - the label is fixed and says seven days whatever period you select, so read it as the sum over the window rather than over a week.
    - **Avg / day** - total divided by the number of days in the window.
    - **Peak day** - amount + date of the day that consumed the most.
    - **Top backend** - name of the backend that weighs the most, with its cumulative total.
