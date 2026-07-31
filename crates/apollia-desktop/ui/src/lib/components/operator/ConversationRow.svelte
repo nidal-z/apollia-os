@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { tick } from "svelte";
   import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen, Settings2 } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
@@ -188,7 +189,7 @@
     {/if}
     <div class="text-[10.5px] text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
       {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
-      <span>· il y a {timestamp}</span>
+      <span>· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
       {#if projectLabel}
         <span
           class="inline-flex items-center gap-0.5 rounded-sm px-1 py-px text-[9.5px] text-primary/80 bg-primary/10 max-w-[9rem]"

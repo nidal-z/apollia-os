@@ -2,6 +2,7 @@
   import { flip } from "svelte/animate";
   import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
+  import { get } from "svelte/store";
   import { Folder, Plus, Search } from "lucide-svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { reportError } from "$lib/errors/reportError";
@@ -433,12 +434,12 @@
     if (Number.isNaN(t0)) return "";
     const diff = Date.now() - t0;
     const m = Math.round(diff / 60000);
-    if (m < 1) return "à l'instant";
-    if (m < 60) return `il y a ${m} min`;
+    if (m < 1) return get(t)("common.relative.just_now");
+    if (m < 60) return get(t)("common.relative.minutes", { values: { n: m } });
     const h = Math.round(m / 60);
-    if (h < 24) return `il y a ${h} h`;
+    if (h < 24) return get(t)("common.relative.hours", { values: { n: h } });
     const d = Math.round(h / 24);
-    return `il y a ${d} j`;
+    return get(t)("common.relative.days", { values: { n: d } });
   }
 
   // Card accent rotation, token-only (was a hardcoded hex array). Hashing an

@@ -102,7 +102,14 @@
     "saving": "Saving…",
     "finalize": "Finalize",
     "finalizing": "Finalizing…",
-    "error_details": "Details"
+    "error_details": "Details",
+    "relative": {
+      "just_now": "just now",
+      "minutes": "{n} min ago",
+      "hours": "{n} h ago",
+      "days": "{n} d ago",
+      "ago": "{time} ago"
+    }
   },
   "companion": {
     "toggle_label": "Apollia Help",
