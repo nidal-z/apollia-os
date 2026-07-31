@@ -352,13 +352,25 @@ Actual structure :
 
 Non-blocking (`continue-on-error`) advisory jobs :
 
+**A `continue-on-error: true` job must carry `advisory` in its `name:`**, not
+only in a comment above it. The name is what the checks list shows; a comment is
+invisible there. Two jobs broke this rule and they are exactly the two that hid
+a real failure for months: `diagrams` invoked a justfile recipe that does not
+exist, and `python-tests` swallowed three failing SDK tests. A job whose failure
+nobody sees is worse than no job, because it reads as coverage.
+
+Advisory is a temporary posture. Every entry below states what would make it
+blocking.
+
 - `clippy-stable` : same clippy gate on `@stable`, surfaces future lints.
 - `semver-checks` : `cargo semver-checks` on `apollia-core` / `apollia-runtime`
   against `origin/main`. Informative while the crates are unpublished / pre-1.0.
-- `diagrams` : PlantUML render.
 - `fuzz` : `cargo +nightly fuzz run` over each seed corpus for ~60s (nightly,
   libFuzzer). A short regression smoke on the untrusted-input parsers; the long
   session is `fuzz-deep` in `nightly.yml`. See `docs/agents/TESTING.md` 8b.
+
+`python-tests` is **blocking**. It was advisory while three SDK tests failed;
+they are fixed, so it gates.
 
 Nightly-only advisory jobs (in `nightly.yml`) :
 

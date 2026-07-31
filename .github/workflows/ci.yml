@@ -200,7 +200,7 @@ jobs:
         run: npm test
 
   diagrams:
-    name: PlantUML Diagrams
+    name: PlantUML Diagrams (advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -303,14 +303,14 @@ jobs:
         run: mypy apollia
 
   # ── Python SDK unit tests + coverage ───────────────────────────────────────
-  # Advisory for now: the SDK pytest suite was never wired into CI, and three
-  # dispatch tests currently fail (they assert strict payload rejection while the
-  # code drops unexpected fields with a warning). Flip continue-on-error off once
-  # that divergence is resolved (tracked in the test-quality backlog).
+  # Blocking. It was advisory while three tests failed: two asserted strict
+  # payload rejection against a dispatcher that dropped unexpected fields with a
+  # warning, and one mock had not followed `ctx.mail` onto the Ctx protocol. Both
+  # are fixed, so the job blocks; an advisory job that hides a real failure is
+  # worse than no job.
   python-tests:
     name: Python Tests (SDK)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -351,6 +351,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Regenerate the SDK reference
         run: python3 docs/site/scripts/gen_sdk_ref.py
+      - name: Regenerate the configuration reference
+        run: python3 docs/site/scripts/gen_config_ref.py
       - name: Regenerate the CLI reference
         run: |
           {
@@ -365,7 +367,7 @@ jobs:
           } > docs/site/docs/reference/cli/index.md
       - name: Fail if the committed pages drifted
         run: |
-          if ! git diff --exit-code -- docs/site/docs/reference/cli docs/site/docs/reference/sdk; then
+          if ! git diff --exit-code -- docs/site/docs/reference/cli docs/site/docs/reference/sdk docs/site/docs/reference/configuration.md; then
             echo "::error::generated docs are stale; run 'bash docs/site/regen.sh' and commit the result"
             exit 1
           fi
@@ -414,7 +416,7 @@ jobs:
   # in nightly.yml. This cargo-fuzz integration is what the OpenSSF Scorecard
   # Fuzzing check detects.
   fuzz:
-    name: Fuzz (smoke)
+    name: Fuzz (smoke, advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
