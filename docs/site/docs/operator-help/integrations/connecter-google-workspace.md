@@ -62,9 +62,39 @@ Vous pouvez connecter plusieurs comptes Google. Chaque compte apparaît dans la 
 
 - **L'écran de consentement Google affiche "Cette app n'est pas vérifiée"** : c'est normal en mode expert avec votre propre app OAuth. Cliquez sur **Avancé** puis **Accéder à Apollia** pour continuer.
 - **Le bouton Connecter est grisé** : votre profil de souveraineté est `local_only`. Les connecteurs cloud sont désactivés dans ce mode.
-- **Vous voulez la lecture complète Gmail ou Drive** : ces scopes sont restricted (audit Google CASA) et hors v0.1.0 multi-tenant. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md).
+- **Vous voulez la lecture complète Gmail ou Drive** : ces scopes sont restricted (audit Google CASA) et hors v0.1.0. Aucun outil Apollia ne les exploite encore, voir « Mode expert » ci-dessus.
 - **L'agent ne voit pas un fichier précis sur Drive** : il n'a accès qu'au dossier `Apollia/<agent>/`. Déposez le fichier dans ce dossier ou passez-lui l'identifiant explicite dans votre prompt.
-- **L'agent reçoit l'erreur `ScopeMissing`** : il appelle un outil restricted (`gmail.search`, `gmail.get`, etc.) qui exige le mode expert. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md).
+- **Un agent demande un outil Gmail de lecture complète** : il n'en existe pas. Le catalogue d'opérations Google ne contient que les scopes non restricted, et un test le verrouille. L'agent recevra une erreur d'outil inconnu, pas une erreur de scope.
+
+## Mode expert : votre propre app OAuth
+
+Cette section s'adresse aux power users familiers de Google Cloud Console. Si vous ne l'êtes pas, le périmètre par défaut couvre déjà l'envoi, la composition, le calendrier complet et le Drive scopé, et vous pouvez la sauter.
+
+**Pourquoi ce mode existe.** Les scopes Google classés *restricted* (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`) exigent un audit CASA Tier 2 par un tiers agréé Google, facturé 5 000 à 15 000 dollars par an. Pour rester gratuite, l'app Apollia par défaut ne les demande pas. Vous pouvez créer votre propre app OAuth, la garder en statut **Testing** (jusqu'à 100 test users), et la brancher à Apollia. Aucun coût.
+
+**Ce que ce mode fait aujourd'hui, et ce qu'il ne fait pas.** Il branche votre client OAuth à la place de l'app partagée, et l'écran de consentement peut alors proposer les scopes restricted. En revanche **aucun outil Apollia n'exploite encore ces scopes** : le catalogue d'opérations Google n'en contient aucun, et un test le verrouille. Obtenir le scope ne débloque donc pas de nouvelle capacité pour l'instant. Utilisez ce mode si vous voulez maîtriser votre propre app OAuth, pas pour gagner des fonctions.
+
+**Procédure.**
+
+1. **Google Cloud Console** : créez un projet, activez les APIs Gmail, Calendar et Drive, configurez l'écran de consentement OAuth en mode External + Testing, ajoutez votre email comme test user, ajoutez les scopes restricted souhaités, créez un OAuth client de type Desktop, notez le **Client ID**.
+2. **Apollia** : exportez la variable d'environnement avant de lancer Apollia :
+
+   ```bash
+   export APOLLIA_GOOGLE_CLIENT_ID="123456789-abcdef.apps.googleusercontent.com"
+   ```
+
+3. **Reconnectez Google** dans Apollia. L'écran de consentement affichera votre app.
+
+**Vérification.** L'écran de consentement Google affiche le nom de votre app et non "Apollia OS", et les `granted_scopes` listés sous le compte connecté incluent le scope accordé.
+
+**Si ça ne marche pas.**
+
+- **L'écran affiche encore "Apollia OS"** : le processus qui a lancé Apollia n'a pas la variable. Relancez Apollia depuis le shell où vous avez fait `export`, ou ajoutez la variable à votre `~/.zshrc` ou `~/.bashrc`.
+- **Google refuse les scopes** : restez en mode **Testing** et ajoutez-vous comme test user.
+
+**Responsabilité.** En mode expert, l'app OAuth est la vôtre et Apollia n'audite pas cette configuration. Si vous distribuez Apollia avec votre Client ID embarqué au-delà de 100 utilisateurs, Google exigera l'audit CASA Tier 2.
+
+**Alternative.** Si Google Cloud Console vous semble lourd, un serveur MCP Gmail communautaire (cherchez `mcp-server-gmail`) tourne localement avec vos credentials et expose les outils Gmail via MCP. Voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 
 ## Déconnecter un compte
 

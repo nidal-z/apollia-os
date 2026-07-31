@@ -10,11 +10,29 @@
 
 | Vous cherchez… | Allez plutôt sur… |
 |---|---|
+| Un **coup d'œil sur l'instant** : ce qui attend votre décision, ce qui vient d'être livré, ce qui tourne | Le **Tableau de bord**, écran d'accueil de l'application (section ci-dessous). |
 | L'historique d'**un agent précis** (statuts, durées, input/output des tâches) | **Mes assistants → Logs** - voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md). |
 | Un **événement précis** (un appel LLM, un outil exécuté, une approbation) sur une fenêtre temporelle | **Observabilité → Chronologie** (cette page). |
 | Une **invocation d'outil** avec ses entrées-sorties | **Observabilité → Piste d'audit** - voir [Consulter l'audit trail](consulter-l-audit-trail.md). |
 
-## Étapes
+## Le tableau de bord, pour l'instant présent
+
+C'est l'écran sur lequel s'ouvre l'application. Là où la chronologie répond à
+« que s'est-il passé », le tableau de bord répond à « où en est-on maintenant ».
+
+Trois cartes côte à côte, et une bande d'activité en dessous :
+
+- **Décisions en attente** *(la plus large, à gauche)* : les actions qui attendent votre approbation. Compteur en en-tête, liste compacte des premiers items, et un lien *« Voir tout → »* vers la **Boîte de réception**.
+- **Livrables prêts** : les tâches récemment complétées. Un clic sur une ligne ouvre l'onglet **Tâches**.
+- **Au travail** : les agents actuellement actifs. Un clic ouvre le détail de l'agent.
+
+![tableau de bord en mode opérateur, trois cartes en grille, Décisions en attente à gauche occupant deux colonnes](../_screenshots/observabilite-lire-le-digest-quotidien-1.png)
+
+Sous les cartes, **Activité récente** liste les dernières tâches tous statuts confondus sous forme de mini-cartes, et mène à la page **Tâches**.
+
+Les compteurs se mettent à jour tout seuls : lancez une tâche et *« Au travail »* s'incrémente sans rafraîchissement manuel. Si tout reste vide alors qu'un agent vient de tourner, la connexion temps réel a probablement sauté ; quittez et rouvrez l'application.
+
+## La chronologie, pour ce qui s'est passé
 
 1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Chronologie**.
 

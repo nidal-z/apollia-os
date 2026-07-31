@@ -28,9 +28,11 @@ point s'applique à lui.
 
 ## Pour quel cas d'usage
 
-- **Modèle distant** = cloud (Anthropic, OpenAI, Mistral) ou serveur Ollama joignable par HTTP.
-- **Modèle local** = fichier `.gguf` servi par le moteur `llama-server` embarqué, géré automatiquement par Apollia. Voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md).
-- **Vue d'ensemble des backends** : voir [Connecter un fournisseur d'IA](connecter-un-fournisseur-d-ia.md).
+Apollia distingue trois cas. Choisissez selon ce que vous voulez faire :
+
+- **Brancher un fournisseur cloud ou un serveur Ollama** : c'est cette page. Une clé API ou une URL suffit, rien à télécharger.
+- **Faire tourner un modèle local** au format `.gguf`, servi par le moteur `llama-server` embarqué et géré automatiquement par Apollia : voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md). C'est le choix qui garde tout sur la machine.
+- **Voir et gérer les backends déjà configurés** : ouvrez **Paramètres**, puis **Backends LLM**.
 
 ## Étapes communes
 

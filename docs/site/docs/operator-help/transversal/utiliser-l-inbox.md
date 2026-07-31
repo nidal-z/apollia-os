@@ -86,7 +86,7 @@ Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou
 - **Événement** - libellé humain (*Tâche échouée*, *Approbation requise*, etc.).
 - **Statut** - badge vert *« envoyé »* ou rouge *« échoué »*.
 
-Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Paramètres → Notifications** (voir [Configurer un canal](../notifications/configurer-un-canal.md) et [Choisir les événements](../notifications/choisir-les-evenements-notifies.md)).
+Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Paramètres → Notifications** (voir [Configurer un canal](../notifications/configurer-un-canal.md)).
 
 ## Vérification
 

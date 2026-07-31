@@ -179,8 +179,8 @@ impl ConnectorProvider {
     /// Environment variable that overrides the compiled-in OAuth client ID.
     ///
     /// **Not part of the user-facing flow.** This override targets Expert
-    /// Mode power users who run their own OAuth app (cf.
-    /// `mode-expert-google-restricted-scopes.md`) and developers running a
+    /// Mode power users who run their own OAuth app (see the Expert Mode
+    /// section of `connecter-google-workspace.md`) and developers running a
     /// dev build against a non-production AS. End users never set this; the
     /// compiled-in [`default_client_id`](Self::default_client_id) is used and
     /// shipped in the binary.

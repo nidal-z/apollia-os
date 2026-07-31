@@ -9,6 +9,38 @@
 
 > **Note :** la page **Notifications** est accessible directement depuis la sidebar en mode **Opérateur** comme en mode **Builder**. Plus besoin de basculer en Builder pour configurer vos canaux.
 
+## Le modèle à deux niveaux
+
+Le contrôle des notifications se joue sur deux étages, et les confondre est la
+cause la plus fréquente d'un canal muet.
+
+1. **Événements globaux**, section en haut de la page **Notifications** : décide quels événements le système suit et route. Un événement décoché ici ne partira **sur aucun canal**, quoi qu'ait été réglé par ailleurs.
+2. **Événements par canal**, dans le dialogue Créer ou Modifier d'un canal : parmi les événements activés globalement, filtre ceux qui vont sur **ce canal**. Liste vide = ce canal reçoit tous les événements globaux.
+
+Dans l'ordre : activez d'abord au global ce qui vous intéresse, affinez ensuite canal par canal.
+
+## Les 7 événements disponibles
+
+| Identifiant | Libellé | Description |
+|---|---|---|
+| `task.completed` | **Tâche terminée avec succès** | Un agent vient d'achever sa mission. |
+| `task.failed` | **Tâche échouée** | Une tâche d'agent s'est interrompue sur un échec. |
+| `task.input_required` | **Approbation requise** | Un agent attend votre décision (HITL). |
+| `agent.degraded` | **Agent en mode dégradé** | L'agent tourne mais quelque chose d'optionnel n'est pas monté : soit un outil optionnel déclaré et non résolu, soit l'installation de son environnement Python qui a échoué. |
+| `trigger.error` | **Erreur de déclencheur** | Une automatisation programmée n'a pas pu se déclencher. |
+| `llm.backend_down` | **Fournisseur LLM indisponible** | Le fournisseur d'IA configuré ne répond plus. |
+| `chat.user_input_required` | **Question d'agent** | Un agent attend votre réponse à une question (`ask_user`). |
+
+## Activer ou désactiver un événement globalement
+
+1. Dans la sidebar, cliquez sur **Notifications**.
+2. Repérez la section **Événements globaux** en haut de la page : une grille de cases à cocher, une par type, avec libellé, description courte et identifiant technique.
+
+   ![section Événements globaux, grille de 7 cases à cocher avec libellé, description et identifiant technique](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
+
+3. Cochez ou décochez selon ce que vous voulez voir remonter.
+4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. **Sans ce clic, rien n'est appliqué** : les coches restent locales à l'écran.
+
 ## Au premier lancement
 
 Apollia crée automatiquement un canal **Bureau** par défaut au tout premier démarrage : il s'appelle *« Bureau de {votre prénom} »* (ou *« Bureau »* si votre profil ne contient pas encore de prénom). Vous le retrouvez dans la liste, activé, sans événements filtrés (il reçoit donc tous les événements globaux). Si vous le supprimez, il n'est pas recréé.
@@ -37,7 +69,7 @@ Apollia crée automatiquement un canal **Bureau** par défaut au tout premier d�
    - Une **description courte** sous le libellé.
    - L'**identifiant technique** en monospace plus petit (utile si vous parsez le payload côté Slack/Discord).
 
-   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Voir la page [Choisir les événements notifiés](choisir-les-evenements-notifies.md) pour le détail des 7 types disponibles et la logique à deux niveaux (global vs par canal).
+   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Le détail des 7 types et la logique à deux niveaux sont en haut de cette page.
 
 8. **Limiter les notifications** *(anti-spam, par canal et par type d'événement)* - un sélecteur déroulant :
    - **Aucune limite** (défaut).
@@ -84,6 +116,28 @@ Le **toggle on/off** est directement en en-tête de la carte. Un clic suffit pou
 
 - **Icône crayon** *(tooltip « Modifier »)* - ouvre le même dialog que la création, pré-rempli. Le nom reste éditable, l'identifiant technique non. Toute modification doit être confirmée par **Enregistrer**.
 - **Icône corbeille** rouge *(tooltip « Supprimer »)* - ouvre une modale de confirmation (*« Supprimer le canal {id} ? Cette action est irréversible »*). Aucun undo n'est proposé.
+
+## Ce que fait exactement une limite
+
+La limite agit **par couple (canal, type d'événement)**. Quand plusieurs
+notifications du même type tombent dans la fenêtre :
+
+- la **première** part normalement ;
+- les **suivantes** sont absorbées silencieusement ;
+- en fin de fenêtre, Apollia envoie un **récapitulatif**, *« 12 événements « task.completed » au cours des 60 dernières secondes »*.
+
+Les autres types continuent de partir sans contrainte : un throttle agressif sur `task.completed` ne retiendra jamais une `task.input_required`. Dès qu'une limite est posée, la carte du canal affiche un indicateur **⏱ … s** à droite de la rangée des événements.
+
+## Vérifier ce qui est réellement parti
+
+La section **Historique**, en bas de la page **Notifications**, liste les 50 derniers événements traités :
+
+- **Horodatage**, en relatif (`5min ago`).
+- **Canal**, par son nom si défini, sinon son identifiant technique.
+- **Événement**, libellé humain si traduisible, sinon l'identifiant brut.
+- **Statut**, badge vert *« envoyé »* ou rouge *« échoué »*.
+
+Un filtre par canal permet de cibler. Le motif d'erreur n'apparaît pas ici : pour l'obtenir, lancez **Tester** depuis la carte du canal.
 
 ## Vérification
 
