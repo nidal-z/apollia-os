@@ -64,12 +64,17 @@ BASELINE: dict[str, str] = {
     "which an operator cannot tell from a clean session. Wiring this is what "
     "makes the capability real; until then no documentation may imply it.",
     "with_journal@apollia-tools:file_edit": "held for v0.2: same chain as file_write.",
-    "with_tool_offload@apollia-oria": "defect, open: no offload store is ever "
-    "installed, so large tool results are never spilled to disk. "
-    "`architecture/05-building-blocks.md` lists disk offload as a capability.",
-    "with_db_path@apollia-oria": "defect, open: nothing sets it, so the engine "
-    "falls back to `:memory:` in production. Not documented either way, which is "
-    "its own problem.",
+    "with_tool_offload@apollia-oria": "closed by documentation: no offload store "
+    "is ever installed, so compaction is in-memory only. "
+    "`architecture/05-building-blocks.md` now says so rather than listing disk "
+    "offload as a capability. Wiring it is a v0.2 question.",
+    "with_db_path@apollia-oria": "closed by documentation, and deliberately not "
+    "wired: nothing sets it, so the engine runs on `:memory:`. Unlike the plan "
+    "cache and the rollback journal, no page ever claimed a plan run survives a "
+    "restart, so this is unstated behaviour rather than a dead capability. "
+    "`the-plan-model.md` now states it. Turning on SQLite persistence here would "
+    "change durability with no functional validation behind it, which is the "
+    "argument that kept the permission engine out.",
     "with_force_plan_gate@apollia-oria": "superseded: production calls "
     "`with_plan_gate_override`, which carries the same decision with a tri-state. "
     "Delete rather than wire.",
@@ -128,6 +133,36 @@ def body_after(text: str, start: int) -> str:
     return text[start : min(end, start + 4000)]
 
 
+def production_callers(name: str, sources: dict[Path, str]) -> list[str]:
+    """Every `repo/relative/path.rs:line` that calls `name` outside test code.
+
+    Exposed rather than inlined so `check_selftest.py` can pin its behaviour on a
+    fixture. The comment rule below is the one that actually bit, twice.
+    """
+    callers: list[str] = []
+    for path, text in sources.items():
+        if is_test_path(path):
+            continue
+        # The defining file is searched too, not skipped. `engine.rs` defines
+        # `with_memory_manager` on one type and calls it on another a thousand
+        # lines apart; skipping the file reported a wired capability as dead.
+        for n, line in enumerate(strip_tests(text).splitlines(), 1):
+            # A doc-comment naming the builder is not a caller. Counting one
+            # reports a dead capability as wired, and this file exists because
+            # that direction of error is the expensive one. The crates are dense
+            # with `/// chain [`X::with_y`] to enable ...`, and that line sits
+            # directly above the definition, where the name is certain to appear.
+            if line.lstrip().startswith("//"):
+                continue
+            if f".{name}(" in line or f"::{name}(" in line:
+                try:
+                    label = str(path.relative_to(REPO_ROOT))
+                except ValueError:
+                    label = str(path)
+                callers.append(f"{label}:{n}")
+    return callers
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strict", action="store_true", help="exit 1 on any uncalled builder")
@@ -159,23 +194,7 @@ def main() -> int:
 
     for name, definition in builders:
         home = crate_of(definition)
-        callers: list[str] = []
-        for path, text in sources.items():
-            if is_test_path(path):
-                continue
-            # The defining file is searched too, not skipped. `engine.rs` defines
-            # `with_memory_manager` on one type and calls it on another a
-            # thousand lines apart; skipping the file reported a wired
-            # capability as dead.
-            for n, line in enumerate(strip_tests(text).splitlines(), 1):
-                # A doc-comment naming the builder is not a caller. Counting one
-                # reports a dead capability as wired, and this file exists
-                # because that direction of error is the expensive one. The
-                # crates are dense with `/// chain [\`X::with_y\`] to enable...`.
-                if line.lstrip().startswith("//"):
-                    continue
-                if f".{name}(" in line or f"::{name}(" in line:
-                    callers.append(f"{path.relative_to(REPO_ROOT)}:{n}")
+        callers = production_callers(name, sources)
         outside = [c for c in callers if not c.startswith(f"crates/{home}/")]
         if not callers:
             uncalled.append((name, definition))

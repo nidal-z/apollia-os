@@ -266,6 +266,12 @@ jobs:
           grep -rnE 'apollia[.]dev' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
           grep -rnE 'github[.]com/(nidal-z|nidalzoumit[a])/' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
           [ "$rc" = 0 ] || { echo "::error::PII / dead domain / stale slug found"; exit 1; }
+      # Runs before the checks it covers. Two of them independently counted a
+      # symbol named in a doc-comment as a live call site, always in the
+      # direction that declares a dead capability alive. This pins that case on a
+      # fixture so the next check written here cannot reintroduce it quietly.
+      - name: The checks themselves, on a fixture
+        run: python3 scripts/check_selftest.py
       # A rule in a document is not a gate. This one exists because the trap it
       # catches was invisible: five crates lost `unwrap_used = "deny"` by
       # declaring a local [lints] table, and clippy kept passing.

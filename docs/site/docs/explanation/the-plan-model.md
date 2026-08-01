@@ -68,6 +68,11 @@ That matters when an agent's behaviour changes without its version changing. The
 cache will keep serving the plan built before the change until it is cleared. See
 [Deploy in production](/how-to/deploy-in-production) for the commands.
 
+The cache is the only part of a plan that outlives the daemon. Execution state
+does not: a plan in progress is held in memory, so restarting the daemon ends the
+run rather than resuming it. Cached plans survive because they sit in
+`plan_cache.db`; the run that was using one does not.
+
 One honest detail worth knowing. The unified execution entry point implements the
 orchestrated branch; its direct branch is a stub, and real direct execution runs
 through a separate entry point. In practice the orchestrated path is the one this
