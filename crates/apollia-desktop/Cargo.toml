@@ -85,6 +85,7 @@ path = "tests/e2e/mod.rs"
 tauri-build = { version = "2", features = [] }
 
 [lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
 # FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
 unsafe_code = "allow"
 

@@ -254,12 +254,23 @@ unsafe_code = "allow"     # FFI / proc-macro generated
 unwrap_used = "deny"      # NOT redundant: restates what the override dropped
 ```
 
-Tests re-allow it at the crate root, which is where the exemption belongs
+A local table declaring `unexpected_cfgs` must also carry every `check-cfg` the
+workspace declares. Adding one is fine, `cfg(loom)` for instance; dropping
+`cfg(fuzzing)` or `cfg(kani)` is how a future harness breaks the build in a
+crate nobody thought to look at.
+
+Tests re-allow `unwrap` at the crate root, which is where the exemption belongs
 because it is scoped to a compilation mode rather than to a crate:
 
 ```rust
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 ```
+
+**None of the above is enforced by you remembering it.** `scripts/check_crate_lints.py`
+runs in the `prose-guard` job and fails the build when a crate declares a local
+table without restating the lint, or loses a `check-cfg`. That check exists
+because the paragraph above already existed as a habit and did not hold: the
+whole point of this rulebook is that a written rule is not a gate.
 
 The rest of the NEVER list (`expect`, `panic!`, `todo!`, `println!`, `dbg!`,
 `anyhow`, ...) is enforced by `docs/agents/FORBIDDEN.md`, review, and the

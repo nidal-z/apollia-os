@@ -53,7 +53,7 @@ tokio    = { workspace = true }
 # FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
 unsafe_code = "allow"
 # `fuzzing` is set by cargo-fuzz to gate the `#[cfg(fuzzing)]` harness shims.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
 
 # Cargo does not merge this table with the workspace one: declaring [lints] at
 # all replaces the inheritance wholesale. Restating the workspace clippy lint is

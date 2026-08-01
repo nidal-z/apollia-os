@@ -266,6 +266,11 @@ jobs:
           grep -rnE 'apollia[.]dev' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
           grep -rnE 'github[.]com/(nidal-z|nidalzoumit[a])/' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
           [ "$rc" = 0 ] || { echo "::error::PII / dead domain / stale slug found"; exit 1; }
+      # A rule in a document is not a gate. This one exists because the trap it
+      # catches was invisible: five crates lost `unwrap_used = "deny"` by
+      # declaring a local [lints] table, and clippy kept passing.
+      - name: Every crate actually gets the workspace lints
+        run: python3 scripts/check_crate_lints.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

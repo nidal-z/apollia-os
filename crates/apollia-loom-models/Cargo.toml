@@ -24,7 +24,7 @@ loom = "0.7"
 # `loom` is a first-class cfg for this crate, set via RUSTFLAGS. Declare it so
 # rustc's check-cfg lint does not flag it as unknown.
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)', 'cfg(loom)'] }
 
 # Cargo does not merge this table with the workspace one: declaring [lints] at
 # all replaces the inheritance wholesale. Restating the workspace clippy lint is
