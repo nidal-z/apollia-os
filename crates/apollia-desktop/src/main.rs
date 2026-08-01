@@ -6,6 +6,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 mod backend;
 mod bundled_agents;
 mod commands;

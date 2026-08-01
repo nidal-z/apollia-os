@@ -1,7 +1,7 @@
 # crates/apollia-mcp/AGENTS.md
 
 > Local rules for the `apollia-mcp` crate (MCP client: config, JSON-RPC,
-> transports, session, manager, executor). Read after `docs/agents/INDEX.md`
+> transports, session, manager, executor). Read after the root `AGENTS.md`
 > and before editing this crate.
 
 This crate connects Apollia to MCP servers over three transports (`stdio`,

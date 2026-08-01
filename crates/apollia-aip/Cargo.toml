@@ -38,3 +38,11 @@ apollia-mcp = { workspace = true }
 [lints.rust]
 # FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
 unsafe_code = "allow"
+
+# Cargo does not merge this table with the workspace one: declaring [lints] at
+# all replaces the inheritance wholesale. Restating the workspace clippy lint is
+# therefore not redundant, it is the only way to keep it. Dropping these three
+# lines silently removes `unwrap()` enforcement from this crate, which is how it
+# was lost here in the first place.
+[lints.clippy]
+unwrap_used = "deny"

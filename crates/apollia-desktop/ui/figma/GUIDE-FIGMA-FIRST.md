@@ -39,7 +39,7 @@ réutilise les mêmes tokens et les mêmes composants, donc il ne peut pas diver
 **Definition of Done (après le code):**
 - le rendu Svelte est cohérent avec le frame (mêmes proportions, mêmes états),
 - le code utilise les tokens (`var(--...)` / classes Tailwind mappées), zéro
-  valeur en dur quand un token existe (voir `docs/agents/FRONTEND-PATTERNS.md`),
+  valeur en dur quand un token existe (voir `crates/apollia-desktop/ui/AGENTS.md`),
 - le composant réutilisé est bien celui de la librairie, pas une recopie.
 
 ## 4. Les pièces du système

@@ -1,250 +1,300 @@
 # crates/apollia-desktop/ui/AGENTS.md
 
-> Local rules for the Tauri + Svelte desktop UI. Read after
-> `docs/agents/INDEX.md` and `docs/agents/FRONTEND-PATTERNS.md` before
-> editing this subtree.
+> Rules for any change under `crates/apollia-desktop/ui/`. This is the only
+> frontend rulebook: `crates/apollia-desktop/ui/AGENTS.md` was merged into it,
+> because seven of its twelve sections said the same thing twice and the two
+> copies had already drifted apart from each other.
 
-Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 +
-lucide-svelte + bits-ui + svelte-i18n v4. ~114 Tauri IPC commands.
+Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
++ bits-ui + svelte-i18n v4.
 
-Authoritative design reference : `crates/apollia-desktop/ui/src/app.css`. The
-front-end never invents tokens or layout primitives; it consumes that
-reference.
+Authoritative design reference : `crates/apollia-desktop/ui/src/app.css`
+(HSL custom properties, component layers, ADR-021). This file does not duplicate
+that catalogue. It encodes the rules to follow when consuming or extending it.
 
----
-
-## 1. Directory layout
-
-```
-src/
-├── App.svelte              # root
-├── app.html                # HTML shell
-├── styles/
-│   ├── app.css             # HSL custom properties (light + dark)
-│   └── tokens.css          # design tokens (ADR-021)
-├── lib/
-│   ├── ipc/                # typed Tauri command wrappers, one file per domain
-│   ├── stores/             # svelte/store-based shared state
-│   ├── components/         # reusable Svelte components
-│   ├── toast/              # toast notification system
-│   └── utils/              # helpers
-├── routes/
-│   ├── +layout.svelte
-│   ├── Connections.svelte  # OAuth + MCP install (canonical v0.1.0)
-│   ├── Integrations.svelte # legacy, NOT used in v0.1.0
-│   ├── Transcriptions.svelte
-│   ├── settings/
-│   │   ├── Llm.svelte
-│   │   ├── Permissions.svelte
-│   │   └── Profile.svelte
-│   └── ...
-├── i18n/
-│   ├── fr/                 # French namespaces
-│   └── en/                 # English namespaces
-└── main.ts
-```
-
-`Integrations.svelte` is **legacy**, not used in v0.1.0. Never document it
-as canonical. The replacement is `Connections.svelte`.
+**No directory tree here, and that is a rule rather than an omission.** The one
+this file used to carry was wrong on almost every line: a `styles/` directory
+that does not exist, a `tokens.css` that never existed, SvelteKit's
+`+layout.svelte`, an `i18n/{fr,en}/` tree that is really two flat files, and a
+route deleted long ago still described as legacy-but-present. A layout drifts
+the moment someone moves a file, and nothing fails when it does. Read the tree
+with `ls`; it is never out of date.
 
 ---
 
-## 2. Component patterns
+## 1. TypeScript
 
-### Props (typed, destructured)
+**`strict: true` is non-negotiable.** Plus `noUnusedLocals`,
+`noFallthroughCasesInSwitch`, `noImplicitOverride`. See
+`crates/apollia-desktop/ui/tsconfig.json`.
+
+- Type every component prop. `let { foo, bar = 0 }: { foo: string; bar?: number }
+  = $props();` is the canonical form.
+- Never `any`. Use `unknown` when the type is genuinely unknown, then narrow.
+- Type IPC return values explicitly. Tauri commands return `Promise<unknown>`;
+  cast through a typed wrapper, not at the call site.
+
+---
+
+## 2. Svelte 5 runes
+
+New code uses runes only. Svelte 4 reactive statements (`$:`) are forbidden
+in new components.
+
+| Rune | Use |
+|---|---|
+| `$state` | reactive component state |
+| `$derived` | computed value |
+| `$derived.by` | computed value with a non-trivial expression |
+| `$effect` | side effect tied to reactivity |
+| `$effect.pre` | side effect before the DOM update |
+| `$props` | typed props destructuring |
+| `$bindable` | two-way binding contract |
 
 ```svelte
 <script lang="ts">
-  type Props = {
-    label: string;
-    onSelect?: (value: string) => void;
-    disabled?: boolean;
-  };
-  let { label, onSelect, disabled = false }: Props = $props();
-</script>
-```
-
-### Reactive state
-
-```svelte
-<script lang="ts">
-  let count = $state(0);
-  let doubled = $derived(count * 2);
+  let { count = 0 }: { count?: number } = $props();
+  let local = $state(count);
+  let doubled = $derived(local * 2);
 
   $effect(() => {
-    document.title = `Count: ${count}`;
+    console.debug("count.changed", local);
   });
 </script>
 ```
 
-### Component file naming
+Rules :
 
-`PascalCase.svelte` for components, `+layout.svelte` / `+page.svelte` for
-routes (SvelteKit convention).
-
-### Component size
-
-Aim for under 250 lines per `.svelte` file. Past that, extract sub-
-components or move logic to a store.
+- `$effect` runs in the browser after mount. Use `$effect.pre` only when DOM
+  measurement before paint matters.
+- Cleanup : return a function from `$effect`.
+- Never put async work directly inside `$effect`. Spawn it, store the
+  abort handle, abort on cleanup.
 
 ---
 
-## 3. Tauri IPC
+## 3. Design tokens
 
-The Rust side defines commands in `crates/apollia-desktop/src/commands/`.
-The TS side wraps each command in `src/lib/ipc/<domain>.ts`.
+**Never hardcoded colors, spacings, radii, or shadows.** Always use the HSL
+custom properties defined in `crates/apollia-desktop/ui/src/app.css`. Tailwind
+reads them via the `tailwind.config.ts` mapping, and
+`crates/apollia-desktop/ui/src/lib/design/tokens.ts` exposes them as typed
+references so a rename surfaces at type-check time.
+
+```svelte
+<!-- WRONG -->
+<div style="background: #faf6ec; border: 1px solid #d1cbc0;">
+
+<!-- RIGHT -->
+<div class="bg-card border border-border">
+
+<!-- RIGHT (when Tailwind class is not available) -->
+<div style="background: hsl(var(--surface-1)); border-color: hsl(var(--border));">
+```
+
+Why HSL custom properties : light and dark themes resolve from the same
+class name. Hardcoding RGB or hex breaks dark mode silently.
+
+Silently is the point : nothing fails, the component just looks wrong in one
+theme, and only in that theme. Find the offenders by pattern rather than by
+eye, then check the survivors by toggling `.dark` on `<html>` in DevTools :
+
+```sh
+grep -rnE '(bg|text|border)-(neutral|white|black)|#[0-9a-fA-F]{3,8}' \
+  crates/apollia-desktop/ui/src --include='*.svelte'
+```
+
+A hit is not automatically a defect (an opaque overlay may legitimately be
+black), but every hit needs a reason.
+
+Categories of tokens (see `crates/apollia-desktop/ui/src/app.css` for the full table) :
+
+- **Color** : `--primary`, `--surface-1`, `--surface-2`, `--surface-3`,
+  `--card`, `--muted`, `--border`, `--destructive`, `--success`, `--warning`,
+  `--info`.
+- **Text** : `--foreground`, `--text-muted`, `--text-success`, `--text-warning`,
+  `--text-danger` (A11y-verified contrasts).
+- **Elevation** : ADR-021 elevation tokens with rim lights for dark warmth.
+- **Gradients** : `--gradient-primary`, `--gradient-surface`,
+  `--gradient-accent`.
+- **Glass** : `--glass-border-light`, `--glass-border-dark`, with hover
+  variants.
+
+Adding a new token requires : an entry in `crates/apollia-desktop/ui/src/app.css`
+(both the light and the dark value), an entry in `tailwind.config.ts` if a class
+is needed, and a typed export in
+`crates/apollia-desktop/ui/src/lib/design/tokens.ts`.
+
+---
+
+## 4. Tailwind usage
+
+- Utility-first by default. Compose classes inline.
+- Extract to a component when the class string passes ~6 utilities AND is
+  reused in 2+ places.
+- Order : layout > box model > typography > color > effects. (Prettier
+  plugin enforces this.)
+- Never `@apply` to bundle utilities into a custom class; use a Svelte
+  component instead.
+- Variants : `dark:`, `hover:`, `focus-visible:`, `disabled:`. Use
+  `focus-visible:` not `focus:` for keyboard accessibility.
+
+---
+
+## 5. Components from `bits-ui`
+
+`bits-ui` provides accessible primitives (Dialog, Popover, Select,
+DropdownMenu, ...). Use them as the foundation, then style with Tailwind
+and tokens.
+
+- Never build a custom modal/popover from scratch. Use the `bits-ui`
+  primitive.
+- Icons : `lucide-svelte` exclusively. No emoji icons. No custom SVG unless
+  the icon is not in lucide.
+
+---
+
+## 6. Tauri IPC
+
+The desktop UI calls into the Rust backend through Tauri commands, 285 of them
+at last count. Do not memorise a number: read
+`grep -rc '#\[tauri::command\]' crates/apollia-desktop/src`. Patterns here :
 
 ```ts
-// src/lib/ipc/agents.ts
 import { invoke } from "@tauri-apps/api/core";
-import type { AgentSummary } from "./types";
 
+// Typed wrapper, defined once per domain in src/lib/ipc/<domain>.ts
 export async function listAgents(): Promise<AgentSummary[]> {
   return invoke<AgentSummary[]>("list_agents");
-}
-
-export async function startAgent(id: string): Promise<void> {
-  return invoke<void>("start_agent", { id });
 }
 ```
 
 Rules :
-- Never `invoke()` directly from a `.svelte` file. Always go through a
-  typed wrapper in `lib/ipc/`.
-- Wrapper exports are `camelCase` ; Rust command names are `snake_case`.
-- Error handling at the call site : `try/catch` and surface via the
-  toast system.
-- Events from the runtime : `listen("event-name", handler)`.
-  Unsubscribe in `$effect` cleanup.
 
-Catalogue of ~114 commands : grouped by domain. The full list lives in
-`docs/site/docs/reference/` (post-L2b). Until then, the
-authoritative source is the `#[tauri::command]` attributes in
-`crates/apollia-desktop/src/commands/`.
+- Never call `invoke()` directly from a `.svelte` file. Always go through a
+  typed wrapper in `src/lib/ipc/`.
+- Wrapper functions match the Rust command name in `snake_case`. They are
+  exported in `camelCase` for JS consumers.
+- Error handling : Tauri commands return `Promise<T>` and reject with the
+  serialized Rust error. Wrap in `try/catch` at the call site and surface
+  via the toast system (`$lib/toast`).
+- Events : `import { listen } from "@tauri-apps/api/event";`. Unsubscribe on
+  `$effect` cleanup.
 
 ---
 
-## 4. Design tokens
+## 7. Routing
 
-All colors, spacings, radii, shadows come from CSS custom properties in
-`src/app.css` (light) and `.dark` overrides. Tailwind reads them via
-`tailwind.config.ts`.
+**This is not SvelteKit.** There is no filesystem router, no `+page.svelte`, no
+`+layout.svelte`, and no `$app/navigation`. Writing any of those produces a file
+nothing ever mounts.
 
-```svelte
-<!-- WRONG -->
-<div style="background: #faf6ec; color: #1f2029;">
+Routing is a store. `src/lib/stores/navigation.ts` holds a `Route` union type and
+a `currentRoute` writable; `lib/components/app/Main.svelte` switches on it to
+mount the matching component from `src/routes/`.
 
-<!-- RIGHT -->
-<div class="bg-card text-card-foreground">
-```
-
-ADR-021 defines the v2 token set : elevation, warmth dark, rim lights.
-Read it before touching `styles/`.
-
-Adding a new token :
-1. Add to `app.css` in **both** light and dark blocks.
-2. Add to `tailwind.config.ts` if a class shortcut is needed.
-3. Document in `crates/apollia-desktop/ui/src/app.css`.
+- Adding a screen means : a component in `src/routes/`, a member in the `Route`
+  union, and an arm in the switch. Three edits, no convention magic.
+- Navigate with the helpers exported by the navigation store, which also
+  maintain back and forward history. Never `window.location`.
 
 ---
 
-## 5. i18n
+## 8. Internationalization
 
-`svelte-i18n` v4 with FR + EN parallel namespaces in
-`src/i18n/{fr,en}/<namespace>.json`.
+`svelte-i18n` v4 with two flat catalogues, `src/lib/i18n/fr.json` and
+`src/lib/i18n/en.json`. There is no per-namespace file: the namespace is a key
+prefix inside those two files.
 
 ```svelte
 <script lang="ts">
   import { t } from "svelte-i18n";
 </script>
 
-<h1>{$t("connections.title")}</h1>
+<h1>{$t("transcriptions.title")}</h1>
+<p>{$t("transcriptions.intro", { values: { count: items.length } })}</p>
 ```
 
 Rules :
-- Never hardcode user-facing strings. Always `$t(...)`.
-- Every key has both FR and EN entries. A parity break fails CI.
-- Namespace per feature : `connections`, `agents`, `transcriptions`,
-  `settings`, `permissions`, ...
-- Plural and interpolation via ICU MessageFormat or composed at the
-  call site.
-- The `lang` attribute on `<html>` is set from the user preference store
-  in `+layout.svelte`.
+
+- Never hardcode user-facing strings. Always go through `$t(...)`.
+- Every key has both FR and EN entries. CI fails on parity break.
+- Namespace by key prefix : `transcriptions.*`, `agents.*`, `settings.*`.
+- Pluralization via ICU MessageFormat where Svelte-i18n supports it,
+  otherwise compose at the call site.
 
 ---
 
-## 6. Operator vs Builder modes
+## 9. State management
 
-Apollia exposes two distinct UX modes :
-- **Operator** : autonomy, ease of use, guided flows.
-- **Builder** : exhaustive observability, every event, every field
-  exposed.
-
-The mode selector is a top-level toggle, not per-screen.
-
-When fusing duplicated screens, preserve the wording and structure of
-each mode. Do not collapse Operator into Builder or vice versa.
+- **Local UI state** : `$state` in the component.
+- **Cross-component state** : a store in `src/lib/stores/<name>.ts` exposing
+  `subscribe` + typed setters. Prefer `writable` from `svelte/store` over
+  custom abstractions.
+- **Server state** : do not cache Tauri call results in a global store
+  unless the data is genuinely shared. Most calls happen on mount of a
+  specific screen and stay scoped there.
 
 ---
 
-## 7. Sidebars, sheets, drawers, popovers, overlays
+## 10. Operator vs Builder modes
 
-"Panels" in Apollia means the full family : sidebars, sheets, drawers,
-floating panels, popovers, overlays. Treat them as one category for
-consistency rules :
+Apollia has two distinct UX modes : **Operator** (autonomy, ease of use,
+guided flows) and **Builder** (exhaustive observability, every event, every
+field exposed). When fusing duplicated screens or features :
 
-- Animations match the design-system motion tokens.
-- Z-index from the tokens (`--z-overlay`, `--z-modal`, ...).
-- Focus trap inside modal panels via `bits-ui` primitives.
-
-Never build a custom modal from scratch. Use `bits-ui`.
+- Preserve the wording and structure of each mode. Do not collapse Operator
+  flows into Builder views or vice versa.
+- The mode selector is a top-level switch, never per-screen.
 
 ---
 
-## 8. State management
+## 11. Testing
 
-| Scope | Tool |
-|---|---|
-| Component-local | `$state` |
-| Cross-component, app-wide | store in `lib/stores/<name>.ts` |
-| Persisted (across runs) | store + Tauri IPC to `~/.apollia/ui-state.json` |
-
-Stores expose `subscribe` plus typed setters. Avoid custom abstractions
-over `svelte/store`.
-
----
-
-## 9. Forbidden in this subtree
-
-- Svelte 4 reactive declarations (`$:`) in new code.
-- Direct `invoke()` from a `.svelte` file.
-- Hardcoded colors, spacings, radii. Always tokens.
-- Hardcoded user-facing strings (always `$t`).
-- `any` in TypeScript. Use `unknown` and narrow.
-- Custom modals or popovers (use `bits-ui`).
-- Documenting `Integrations.svelte` as canonical (it is legacy).
-- CSS values appearing in designer briefs (designer knows the charter).
+- Unit : Vitest. Component tests via `@testing-library/svelte`.
+- **Browser tests : Playwright**, in `crates/apollia-desktop/ui/tests/`, run
+  against the production bundle served by `vite preview` with the Tauri bridge
+  stubbed through `window.__TAURI_INTERNALS__.invoke`. They cover UI machinery
+  that needs a real browser (dirty state, nav guards, hotkey capture,
+  responsive layout, perf). They do **not** exercise the packaged application.
+  Run with `npm run test:perf` and the sibling scripts; the package manager is
+  `npm`, not pnpm.
+- **End-to-end on the real application : the gestural automaton** in
+  `scripts/automation/`. macOS has no WebDriver for WKWebView, so the driver
+  injects gestures by `data-testid` into the running Tauri app against a seeded
+  throwaway `HOME`. 37 scripts today. Read `scripts/automation/README.md` before
+  touching one, and regenerate `master-det` with `tools/regen_master.py` after
+  editing a per-page script. Adding a UI surface means adding its `data-testid`s
+  and a step in the matching `<page>-det.json`.
+- There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
+  write a test that assumes either.
 
 ---
 
-## 10. Testing
+## 12. When the rules block you
 
-- Unit / component : Vitest + `@testing-library/svelte`, co-located as
-  `*.test.ts`.
-- E2E : Playwright against a built Tauri app.
-- Visual regression : Playwright screenshots, baselines committed.
-
-A component test must not call Tauri IPC. Mock the wrapper.
+- New token : add to `app.css` (both modes), to `tailwind.config.ts`, to
+  `crates/apollia-desktop/ui/src/app.css`. Do not reach for a hex value as a shortcut.
+- New Tauri command : add the Rust side first
+  (`crates/apollia-desktop/src/commands/<domain>.rs`), then the typed
+  wrapper, then the consumer. Three commits, one PR, ordered.
+- Cross-cutting visual change : open a designer brief
+  (structure and wording only, no CSS values) and align before coding.
 
 ---
 
-## 11. When the rules block you
+## 13. Panels are one family
 
-- New design token : `app.css` (both modes), `tailwind.config.ts`,
-  `crates/apollia-desktop/ui/src/app.css`. Never reach for a hex value as a shortcut.
-- New Tauri command : Rust side first, then TS wrapper, then consumer.
-  Three commits, one PR, ordered.
-- Cross-cutting visual change : open a designer brief (structure and
-  wording only, no CSS values) and align before coding.
-- Mode-specific exception (Operator does X, Builder does Y) : document
-  in the component header comment, never silently diverge.
+"Panel" here means sidebars, sheets, drawers, floating panels, popovers and
+overlays together. They get one set of consistency rules rather than one per
+shape, because a user does not experience them as different things:
+
+- Motion comes from the design-system tokens, not from ad-hoc durations.
+- Stacking comes from the z-index tokens. The set is `--z-backdrop`,
+  `--z-overlay`, `--z-toast`, `--z-tooltip`. There is no `--z-modal`, whatever
+  older notes claimed; a modal sits on `--z-overlay` above `--z-backdrop`.
+- Focus is trapped inside a modal panel, via the `bits-ui` primitive.
+
+Never build a modal or a popover from scratch. `bits-ui` has the accessible
+primitive, and hand-rolled ones lose focus handling first and keyboard dismissal
+second.

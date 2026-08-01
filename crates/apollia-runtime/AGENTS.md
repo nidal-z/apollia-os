@@ -1,6 +1,6 @@
 # crates/apollia-runtime/AGENTS.md
 
-> Local rules for the runtime crate. Read after `docs/agents/INDEX.md` and
+> Local rules for the runtime crate. Read after the root `AGENTS.md` and
 > before editing this crate. Pair with `docs/agents/ARCHITECTURE.md` §C and
 > `docs/agents/RUST-PATTERNS.md` §2.
 

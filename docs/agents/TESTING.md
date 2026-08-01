@@ -15,10 +15,10 @@ apply.
 |  | Rust crates | Python SDK | Tauri desktop | CLI | HTTP API | Actor mesh | LLM / MCP backends |
 |---|---|---|---|---|---|---|---|
 | **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest + @testing-library/svelte | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
-| **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on built app, `tauri-driver` for native shell | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
-| **E2E** | delegated to CLI tests | n/a | full Playwright user journeys + screenshots | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
+| **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on the bundle with the Tauri bridge stubbed | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
+| **E2E** | delegated to CLI tests | n/a | the gestural automaton, `scripts/automation/` | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
 | **Property** | `proptest` | `hypothesis` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
-| **Snapshot** | `insta` | `syrupy` | Playwright screenshots, baseline-tracked | snapshot CLI human + `--json` output | `insta` on serialized response | event-stream traces | tool outputs |
+| **Snapshot** | `insta` | `syrupy` | none; no visual baseline suite exists | snapshot CLI human + `--json` output | `insta` on serialized response | event-stream traces | tool outputs |
 | **Benchmark** | `criterion` | `pytest-benchmark` | Lighthouse | `hyperfine` | `wrk` or criterion | criterion ops/sec | n/a |
 | **Fuzzing** | `cargo-fuzz` (libFuzzer) | `atheris` if needed | n/a | `cargo-fuzz` on argv | `cargo-fuzz` on HTTP payloads | n/a | n/a |
 
@@ -213,10 +213,17 @@ Rules :
 
 - **Component tests** : Vitest + `@testing-library/svelte`. Co-located in
   `*.test.ts` next to the component.
-- **E2E** : Playwright against a built Tauri app, or `tauri-driver` for
-  native shell integration tests.
-- **Visual regression** : Playwright screenshots in `tests/visual/`.
-  Baselines committed. Update with `pnpm test:visual:update`.
+- **Browser tests** : Playwright, in `crates/apollia-desktop/ui/tests/`, run
+  against the production bundle served by `vite preview` with the Tauri bridge
+  stubbed. They cover machinery that needs a real browser: dirty state, nav
+  guards, hotkey capture, responsive layout, perf. They do **not** exercise the
+  packaged application.
+- **E2E on the real application** : the gestural automaton in
+  `scripts/automation/`. macOS has no WebDriver for WKWebView, so the driver
+  injects gestures by `data-testid` into the running Tauri app against a seeded
+  throwaway `HOME`. Read `scripts/automation/README.md` before touching it.
+- There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
+  write a test that assumes either, and note the package manager is `npm`.
 
 Rules :
 - A component test must not call Tauri IPC. Mock the IPC wrapper instead.

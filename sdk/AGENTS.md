@@ -1,6 +1,6 @@
 # sdk/AGENTS.md
 
-> Local rules for the Apollia AgentKit SDK. Read after `docs/agents/INDEX.md`
+> Local rules for the Apollia AgentKit SDK. Read after the root `AGENTS.md`
 > and `docs/agents/PYTHON-PATTERNS.md` before editing this subtree.
 
 The SDK is the contract every Apollia agent depends on. A change here

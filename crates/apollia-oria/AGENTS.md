@@ -1,7 +1,7 @@
 # crates/apollia-oria/AGENTS.md
 
 > Local rules for the ORIA engine (Observer-Reasoner-Actor). Read after
-> `docs/agents/INDEX.md` and before editing this crate. Pair with
+> the root `AGENTS.md` and before editing this crate. Pair with
 > `docs/agents/ARCHITECTURE.md` §C (StepBudget) and ADR-025.
 
 ORIA is the reasoning loop. It owns the StepBudget guard, the

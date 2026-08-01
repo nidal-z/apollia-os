@@ -15,8 +15,8 @@ others). It briefs you in ~120 lines and points you to the long-form rulebook.
 Apollia is a large, fast-moving codebase revised by many hands. The
 invariants below exist to preserve coherence across a high volume of
 changes. Follow them. When they conflict with your task, surface the
-conflict instead of silently bending the rule. See `docs/agents/INDEX.md`
-for the escalation process.
+conflict instead of silently bending the rule. The escalation process is at the
+bottom of this file.
 
 ---
 
@@ -107,7 +107,7 @@ examples in `docs/agents/ARCHITECTURE.md`.
 |---|---|
 | Any Rust change | `docs/agents/RUST-PATTERNS.md` + nearest crate `AGENTS.md` |
 | Any Python change | `docs/agents/PYTHON-PATTERNS.md` + `sdk/AGENTS.md` |
-| Desktop UI change | `docs/agents/FRONTEND-PATTERNS.md` + `crates/apollia-desktop/ui/AGENTS.md` |
+| Desktop UI change | `crates/apollia-desktop/ui/AGENTS.md` |
 | CLI change | `docs/agents/RUST-PATTERNS.md` + `crates/apollia-cli/AGENTS.md` |
 | Writing tests | `docs/agents/TESTING.md` |
 | Writing a commit | `docs/agents/COMMITS.md` |
@@ -163,6 +163,38 @@ Full list with reasons : `docs/agents/FORBIDDEN.md`.
 
 ---
 
+## Sub-`AGENTS.md` in the repo
+
+A sub-`AGENTS.md` applies to its subtree and overrides this file where they
+conflict. The nearest one wins.
+
+| Path | Scope |
+|---|---|
+| `crates/apollia-cli/AGENTS.md` | CLI binary, ADR-004 noun-verb, exit codes 0-5 |
+| `crates/apollia-aip/AGENTS.md` | PyO3 bridge, `Bound<'py, T>`, `pyo3-async-runtimes` |
+| `crates/apollia-mcp/AGENTS.md` | MCP client transports, untrusted-response byte cap |
+| `crates/apollia-oria/AGENTS.md` | ORIA engine, StepBudget, ResilienceLayer, plan cache |
+| `crates/apollia-runtime/AGENTS.md` | EventBus, actor supervisor, axum API |
+| `crates/apollia-desktop/ui/AGENTS.md` | Tauri v2 + Svelte 5, design system, i18n |
+| `sdk/AGENTS.md` | Apollia AgentKit decorators, schemas, minimal contract |
+
+Create a new one when a subtree passes ~500 lines of code AND introduces
+patterns the global rules do not cover. Document the trigger in its header.
+
+---
+
+## When a rule blocks you
+
+Rules are negotiable. Silent violations are not. Three options, in order:
+
+1. Document an exemption inline (`// SAFETY:`, `# REASON:`, an ADR reference).
+2. Surface the conflict and propose a rule update.
+3. Open an ADR if the conflict reflects a real architectural shift.
+
+Never circumvent a rule by restating it in vaguer terms.
+
+---
+
 ## Overrides
 
 - `AGENTS.local.md` (gitignored) : per-machine, per-user preferences.
@@ -174,6 +206,5 @@ Precedence (highest first) : chat prompt > `AGENTS.override.md` > nearest
 
 ---
 
-Before writing code, read `docs/agents/INDEX.md` and the sub-`AGENTS.md` for the
-area you touch. The cost of reading is 2 minutes. The cost of an unaligned
-commit is one PR cycle.
+Before writing code, read the sub-`AGENTS.md` for the area you touch. The cost
+of reading is 2 minutes. The cost of an unaligned commit is one PR cycle.

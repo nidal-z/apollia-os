@@ -49,7 +49,7 @@ un ADR accepté, on en écrit un nouveau qui le supersede. Anglais.
 
 Le rulebook pour tout LLM qui code Apollia (Claude Code, Codex, Cursor, Aider,
 etc.). Anglais. Format AGENTS.md standard. Ton impératif. Point d'entrée
-[`AGENTS.md`](../AGENTS.md) à la racine + [`docs/agents/INDEX.md`](./agents/INDEX.md)
+[`AGENTS.md`](../AGENTS.md) à la racine
 pour la navigation.
 
 **Audience** : agents IA + développeurs qui veulent connaître les conventions

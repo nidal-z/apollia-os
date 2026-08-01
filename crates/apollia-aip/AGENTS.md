@@ -1,6 +1,6 @@
 # crates/apollia-aip/AGENTS.md
 
-> Local rules for the PyO3 bridge. Read after `docs/agents/INDEX.md` and
+> Local rules for the PyO3 bridge. Read after the root `AGENTS.md` and
 > before editing this crate. Pair with `docs/agents/RUST-PATTERNS.md` §5.
 
 `apollia-aip` is the only crate that crosses the Rust/Python boundary. Every

@@ -5,3 +5,4 @@
 //! are race-free (or expose a hazard) under exhaustive interleaving. See that
 //! file's module docs and the crate `README.md` for the rationale and the run
 //! command.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]

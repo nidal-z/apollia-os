@@ -1,6 +1,6 @@
 # crates/apollia-cli/AGENTS.md
 
-> Local rules for the `apollia-cli` binary. Read after `docs/agents/INDEX.md`
+> Local rules for the `apollia-cli` binary. Read after the root `AGENTS.md`
 > and before editing this crate.
 
 The CLI is the human-facing entry point and the machine-facing scripting

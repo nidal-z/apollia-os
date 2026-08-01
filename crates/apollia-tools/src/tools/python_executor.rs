@@ -179,7 +179,9 @@ static PACKAGE_SPEC_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock:
         r"(?:\s*(?:===|==|!=|~=|>=|<=|>|<)\s*[A-Za-z0-9][A-Za-z0-9._*+!-]*",
         r"(?:\s*,\s*(?:===|==|!=|~=|>=|<=|>|<)\s*[A-Za-z0-9][A-Za-z0-9._*+!-]*)*)?$",
     ))
-    .unwrap()
+    // SAFETY: the pattern is a compile-time literal, so a failure here would be
+    // a build-time authoring error rather than a runtime condition.
+    .expect("PEP 508 requirement regex is a valid literal")
 });
 
 /// The closed set of environment-marker variables defined by PEP 508.

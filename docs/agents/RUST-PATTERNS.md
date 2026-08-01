@@ -236,6 +236,31 @@ unwrap_used = "deny"
 `unexpected_cfgs` whitelists the `fuzzing` and `kani` cfgs so `-D warnings`
 stays green on normal builds where neither is set.
 
+**A crate inherits those lints only through `[lints] workspace = true`, and
+declaring any `[lints]` table of its own replaces the inheritance instead of
+adding to it.** Cargo does not merge the two. Five crates needed
+`unsafe_code = "allow"` for FFI, wrote it into their own `[lints.rust]`, and
+silently lost `unwrap_used = "deny"` with it. Nothing failed: clippy went on
+passing, and an `unwrap()` sat in production code in `apollia-tools` without
+anyone being told.
+
+So a crate that overrides anything must restate what it still wants:
+
+```toml
+[lints.rust]
+unsafe_code = "allow"     # FFI / proc-macro generated
+
+[lints.clippy]
+unwrap_used = "deny"      # NOT redundant: restates what the override dropped
+```
+
+Tests re-allow it at the crate root, which is where the exemption belongs
+because it is scoped to a compilation mode rather than to a crate:
+
+```rust
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+```
+
 The rest of the NEVER list (`expect`, `panic!`, `todo!`, `println!`, `dbg!`,
 `anyhow`, ...) is enforced by `docs/agents/FORBIDDEN.md`, review, and the
 pre-commit hooks, not by a clippy lint line. CI runs
