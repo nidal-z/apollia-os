@@ -78,7 +78,7 @@ makes concrete.
 
 | Crate | Role |
 |---|---|
-| **apollia-runtime** | The daemon. Hosts the Tokio actor supervisor, the EventBus, the axum HTTP API, chat and plan management, and the signed audit journal with verify and rollback. |
+| **apollia-runtime** | The daemon. Hosts the Tokio actor supervisor, the EventBus, the axum HTTP API, chat and plan management, and the signed audit journal with verification. |
 | **apollia-runner** | The speech-to-text sidecar: `whisper` (via `whisper-rs`) out of process, one GPU backend per build. Local LLM inference no longer runs here; it goes through the embedded `llama-server` (upstream llama.cpp) that the daemon supervises, over an OpenAI-compatible HTTP API with `--jinja` native tool calling and continuous batching. |
 | **apollia-llm** | The multi-backend LLM router: local plus cloud (Anthropic, OpenAI, Vertex), daily cost tracking, a Hugging Face GGUF registry, and hardware detection. |
 | **apollia-core** | Shared types: the unified plan model, configuration, lifecycle hooks, and the hybrid routing configuration that lets a run escalate to a frontier model on a user key. |
@@ -95,7 +95,7 @@ service in the [SDK reference](/reference/sdk). The fifteen services are `llm`,
 
 | Crate | Role |
 |---|---|
-| **apollia-oria** | The autonomous engine. It runs a ReAct loop in two modes, direct and orchestrated, with an observer that classifies and a reasoner that plans and re-plans. It carries the non-bypassable step budget, tool resilience, the verification and critic pass, three-tier context compaction with disk offload, and read-only tool parallelism over a dependency graph. |
+| **apollia-oria** | The autonomous engine. It runs a ReAct loop in two modes, direct and orchestrated, with an observer that classifies and a reasoner that plans and re-plans. It carries the non-bypassable step budget, tool resilience, the verification and critic pass, three-tier context compaction, and read-only tool parallelism over a dependency graph. Spilling large tool results to disk is implemented but not installed on any execution path, so compaction is in-memory only. |
 | **apollia-memory** | Three memory layers (episodic, semantic, procedural) over SQLite FTS5 with BM25 ranking, an injection tracker, TTL purge, a plan-choice store, and sovereign export and import. Recall happens at the agent's initiative, never auto-injected. |
 
 ## Tools and integrations
@@ -118,11 +118,11 @@ For the full native tool list see the [native tool catalog](/reference/native-to
 | **apollia-permissions** | Permission types and decisions, scoped to install, project, or session, with four autonomy tiers and an approvals register. Every decision is audited. What ships enabled is the prefix-rule engine; the `PermissionEngine` aggregate, its safe-list and its shell-injection detector are present but not wired into the application (see [crosscutting concepts](./07-crosscutting-concepts.md)). |
 | **apollia-notifications** | Operator notifications across desktop, terminal, and webhook, with severity, HITL, and an inactivity watcher. |
 | **apollia-triggers** | Scheduled and reactive agent starts: cron, interval, one-shot, and file-watch are wired; the webhook source is a stub. |
-| **apollia-eval** | Sovereign evaluation: declarative TOML suites, an LLM-as-judge, and success, length, wall-clock, and cost metrics. |
+| **apollia-eval** | Sovereign evaluation: declarative TOML suites and success, length, wall-clock, and cost metrics. An `llm_judge` assertion exists in the suite schema but no judge is installed by the CLI, so such an assertion fails rather than being scored. |
 
-The audit journal, verification, and rollback that back accountability live in
+The audit journal and verification that back accountability live in
 `apollia-runtime`. See [the accountability model](/explanation/accountability-model)
-for how they fit together, and [Audit, verify and roll back a run](/how-to/audit-verify-rollback)
+for how they fit together, and [Audit and verify a run](/how-to/audit-and-verify)
 for the commands.
 
 ## Surfaces

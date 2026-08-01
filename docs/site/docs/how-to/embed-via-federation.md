@@ -101,7 +101,7 @@ agents.
 
 - [Integrate Apollia via the driving contract](/how-to/integrate-via-driving-contract)
   for driving the runtime from your product.
-- [Audit, verify and roll back a run](/how-to/audit-verify-rollback) for the
+- [Audit and verify a run](/how-to/audit-and-verify) for the
   trail every federated action leaves.
 - [The accountability model](/explanation/accountability-model) for the
   governance that backs this pattern.

@@ -83,7 +83,6 @@ pub mod plan_cache;
 pub mod project;
 pub mod resilience;
 pub mod review;
-pub mod rollback;
 pub mod run;
 pub mod start;
 pub mod status;

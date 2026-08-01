@@ -23,9 +23,9 @@ Key terms used across this section and the rest of the documentation.
 | **MCP** | Model Context Protocol. Apollia is an MCP client that discovers and calls external tools, and can expose a limited inbound MCP server. |
 | **Autonomy tier** | The operator-set dial for how much an agent may do without asking. Lower tiers keep a human in the loop on more actions. |
 | **HITL** | Human-in-the-loop: an approval a person resolves before a consequential action runs. The decision is recorded. |
-| **Audit journal** | The append-only, hash-chained, signed record of governed actions, used for verification and rollback. |
+| **Audit journal** | The append-only, hash-chained, signed record of governed actions, used for verification. |
 | **Verify** | Checking a run's audit hash chain and signatures to confirm the record was not altered. |
-| **Rollback** | Undoing filesystem changes made in a chat session by replaying the inverse of each mutation in reverse order. |
+| **Rollback** | Undoing filesystem changes made in a chat session. The journal format and the replay logic exist in the codebase, but nothing writes to the journal, so this is not a capability of this release. |
 | **Replay** | Re-executing and comparing a run. Abandoned by decision; not a capability. |
 | **Runner** | The out-of-process sidecar (`apollia-runner`) that runs local speech-to-text (whisper). Local LLM inference is served by the embedded `llama-server` (upstream llama.cpp), which the daemon supervises. |
 | **GGUF** | The single-file local model format the runner loads. |

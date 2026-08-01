@@ -13,8 +13,8 @@ pages link to it rather than restate it.
 
 - [The 8 principles](/explanation/the-8-principles): the eight non-negotiable
   principles and why each one matters to an adopter.
-- [The accountability model](/explanation/accountability-model): audit, verify,
-  and rollback, permissions and human oversight, and the EU AI Act mapping.
+- [The accountability model](/explanation/accountability-model): audit and
+  verification, permissions and human oversight, and the EU AI Act mapping.
 - [Sovereignty and local-first](/explanation/sovereignty-and-local-first): what
   sovereign and local-first mean in practice, and why they are the core of the
   value proposition.

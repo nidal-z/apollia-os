@@ -138,6 +138,13 @@ def check_wired(claim: dict, sources: list[Path]) -> None:
         except OSError:
             continue
         for line in body.splitlines():
+            # A comment naming the symbol is not a use. Without this, a claim
+            # stays green on the strength of the doc-comment that sits directly
+            # above the definition, which is the one place the name is certain
+            # to appear. `with_journal` passed that way while no production site
+            # called it, and the corpus promised an undo that could never run.
+            if line.lstrip().startswith("//"):
+                continue
             if needle in line and not definition.search(line):
                 return
     raise Failure(

@@ -62,4 +62,4 @@ one is accepted and has no effect.
 Two runs of the same prompt on the same model can therefore differ. What is
 reproducible is the record of what happened, not the generation itself: the audit
 trail and the event log capture each call, its inputs and its result. See
-[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
+[Audit and verify a run](/how-to/audit-and-verify).

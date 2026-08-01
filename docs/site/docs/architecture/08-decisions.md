@@ -40,8 +40,7 @@ identifier. The full records live in the project's decision log.
 
 - **Replay was abandoned (2026-07-08).** Re-executing and comparing a run was
   judged to carry no functional or regulatory value for its cost.
-  Accountability rests on the signed journal, verification, and rollback, not on
-  replay. It is recorded here so its absence reads as a choice, not a gap. The
+  Accountability rests on the signed journal and verification, not on replay. It is recorded here so its absence reads as a choice, not a gap. The
   related plan-construction audit is ADR-033.
 
 ## Supporting decisions

@@ -24,6 +24,7 @@ use apollia_memory::manager::MemoryManager;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
+use apollia_oria::plan_cache::PlanCacheRepository;
 use apollia_oria::PendingPlanGates;
 use apollia_runtime::a2a::{A2AInvoker, A2AToolsProvider};
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
@@ -208,6 +209,10 @@ struct AIPProductionBackend {
     /// Shared plan-gate registry. Wired so the desktop UI can resolve a pending
     /// gate via `submit_plan_decision`. `None` when the runtime exposed none.
     plan_gates: Option<Arc<PendingPlanGates>>,
+    /// Shared plan cache, the same repository the supervisor opened at boot and
+    /// exposes over REST. `None` when it failed to open, in which case the
+    /// engine re-plans every run.
+    plan_cache: Option<Arc<std::sync::Mutex<PlanCacheRepository>>>,
     /// Agent manifest: drives execution-mode routing, the orchestrated step
     /// budget, and the `AIPAgent` contract for the ORIA planner path.
     manifest: AgentManifest,
@@ -237,6 +242,7 @@ impl Clone for AIPProductionBackend {
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
             plan_gates: self.plan_gates.clone(),
+            plan_cache: self.plan_cache.clone(),
             manifest: self.manifest.clone(),
         }
     }
@@ -605,6 +611,9 @@ impl ExecutionBackend for AIPProductionBackend {
         if let Some(gates) = self.plan_gates.clone() {
             engine = engine.with_pending_plan_gates(gates);
         }
+        if let Some(cache) = self.plan_cache.clone() {
+            engine = engine.with_shared_plan_cache(cache);
+        }
         if let Some(tier) = task.run_options.autonomy_level {
             engine = engine.with_oria_config(ORIAConfig {
                 autonomy_level: Some(tier),
@@ -667,6 +676,9 @@ pub struct ProductionBackendFactory {
     /// Shared plan-gate registry, forwarded to each per-agent engine so the
     /// desktop UI can resolve a pending plan gate.
     pub plan_gates: Arc<std::sync::OnceLock<Arc<PendingPlanGates>>>,
+    /// Shared plan cache, forwarded to each per-agent engine. Without it the
+    /// engine's cache lookup and store both return on their first line.
+    pub plan_cache: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<PlanCacheRepository>>>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -700,6 +712,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             .cloned()
             .unwrap_or_else(ToolsConfig::default);
         let plan_gates = self.plan_gates.get().cloned();
+        let plan_cache = self.plan_cache.get().cloned();
         let backend_manifest = manifest.clone();
 
         // Build the A2A invoker when registry+router are available.
@@ -766,6 +779,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 agent_dir,
                 secrets_declared,
                 plan_gates,
+                plan_cache,
                 manifest: backend_manifest,
             })
         })();

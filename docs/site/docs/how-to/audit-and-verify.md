@@ -1,14 +1,13 @@
 ---
 sidebar_position: 3
-title: Audit, verify and roll back a run
+title: Audit and verify a run
 ---
 
-# Audit, verify and roll back a run
+# Audit and verify a run
 
 This guide covers the accountability workflow around an agent run: read the
-signed audit trail, verify a run's integrity, and roll back the filesystem
-changes a chat session made. It assumes you have run at least one task or chat
-session against a daemon.
+signed audit trail and verify its integrity. It assumes you have run at least
+one task or chat session against a daemon.
 
 For the reasoning behind this model and how it maps to regulatory requirements,
 see [The accountability model](/explanation/accountability-model).
@@ -57,47 +56,20 @@ A successful verification tells you the recorded sequence has not been altered
 since it was written. This is the check you run when you need to trust that the
 trail of what an agent did is authentic.
 
-## Roll back filesystem changes
-
-When an agent modifies files during a chat session, those mutations are written
-to a reversible journal under `~/.apollia/journal/<session-id>/`. You can undo
-them by replaying the inverse of each mutation in reverse order.
-
-First see what is available, and preview before applying:
-
-```sh
-apollia-os rollback --list
-apollia-os rollback --dry-run <session-id>
-```
-
-The dry run prints exactly what would be reverted without touching anything.
-When you are satisfied, apply it:
-
-```sh
-apollia-os rollback <session-id>
-```
-
-To undo the most recent sessions instead of naming one, use `--last-n`:
-
-```sh
-apollia-os rollback --last-n 1
-```
-
-Add `--json` to `audit list`, `audit show`, `audit stats`, `audit verify` and
-`rollback` for machine-readable output. `audit export` always writes JSON and
-takes no `--json`.
+Add `--json` to `audit list`, `audit show`, `audit stats` and `audit verify` for
+machine-readable output. `audit export` always writes JSON and takes no
+`--json`.
 
 ## Putting it together
 
-A typical accountability pass is: `audit show` to read what a run did,
-`audit verify` to confirm the record is authentic, and `rollback` to reverse the
-filesystem effects of a session that went the wrong way. Read is always safe;
-always `--dry-run` a rollback before applying it.
+A typical accountability pass is: `audit show` to read what a run did, then
+`audit verify` to confirm the record is authentic. Both are read-only, so
+neither changes anything on disk.
 
 ## Related
 
 - [The accountability model](/explanation/accountability-model) for how these
   primitives fit together and what they support.
-- The [CLI reference](/reference/cli) for every flag on `audit` and `rollback`.
+- The [CLI reference](/reference/cli) for every flag on `audit`.
 - The [HTTP API reference](/reference/api/apollia-os-runtime-api) for the audit
   endpoints a host integration uses.

@@ -171,7 +171,7 @@ the [HTTP API reference](/reference/api/apollia-os-runtime-api).
   ```
 
 - **Audit.** Every governed action is recorded in a signed, hash-chained journal.
-  Read and verify it with the [audit workflow](/how-to/audit-verify-rollback).
+  Read and verify it with the [audit workflow](/how-to/audit-and-verify).
 
 ## Upgrade
 
@@ -197,5 +197,5 @@ single local backend already serves concurrent requests; see
 
 - [Install and run the runtime](/how-to/install-and-run) for the build details.
 - The [CLI reference](/reference/cli) for every operational command.
-- [Audit, verify and roll back a run](/how-to/audit-verify-rollback) for the
+- [Audit and verify a run](/how-to/audit-and-verify) for the
   accountability workflow.

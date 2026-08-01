@@ -313,13 +313,6 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
-    /// Revert filesystem mutations recorded by the agent during a chat session.
-    ///
-    /// Reads the reversible journal at `~/.apollia/journal/<session-id>/` and
-    /// replays the inverse of every native mutation in reverse order.
-    /// Use `--dry-run` to preview, `--list` to enumerate available sessions.
-    Rollback(commands::rollback::RollbackArgs),
-
     /// Circuit breaker inspection and reset (list, show, reset).
     Resilience {
         /// Resilience subcommand.
@@ -701,7 +694,6 @@ fn main() {
             Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
-            Commands::Rollback(args) => commands::rollback::run(&args, json).await,
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }

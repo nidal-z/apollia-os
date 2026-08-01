@@ -5,10 +5,10 @@ title: The accountability model
 
 # The accountability model
 
-Autonomous agents are only usable in serious settings if you can answer three
-questions after the fact: what did the agent do, can you trust that record, and
-can you undo it. Apollia's accountability model exists to answer all three, and
-to keep a human in control while the agent runs. This page explains how the
+Autonomous agents are only usable in serious settings if you can answer two
+questions after the fact: what did the agent do, and can you trust that record.
+Apollia's accountability model exists to answer both, and to keep a human in
+control while the agent runs. This page explains how the
 pieces fit together and what they are, and are not, meant to provide.
 
 ## The problem
@@ -17,8 +17,7 @@ An agent that reasons and acts on its own is powerful and, without controls,
 opaque and irreversible. In regulated settings that is disqualifying. The answer
 is not to make the agent less autonomous but to wrap its autonomy in governance:
 bound what it can do, record everything it does in a way that cannot be quietly
-altered, keep a person in the loop on consequential actions, and be able to walk
-changes back. Those controls are built into the runtime rather than left to each
+altered, and keep a person in the loop on consequential actions. Those controls are built into the runtime rather than left to each
 agent to implement, so an agent author cannot forget them and an operator cannot
 be surprised by their absence.
 
@@ -54,20 +53,16 @@ the chain as an anchor you can export and store off-machine. Comparing a run
 against an externally held anchor is what defends against truncation of the most
 recent activity even when the key itself is at risk.
 
-### Reversibility
+For the commands behind these two, see
+[Audit and verify a run](/how-to/audit-and-verify).
 
-<!-- claim:rollback-covers-file-write-and-file-edit-only -->
-Filesystem changes made through the `file_write` and `file_edit` tools are
-written to a reversible journal, so they can be undone by replaying the inverse
-of each mutation in reverse order. An action that can be reviewed and reversed is
-far safer to delegate than one that is final the moment it happens.
-
-The boundary matters: a mutation caused by a shell command, an `rm` or a
-redirect inside `bash_executor`, goes through no journal and cannot be rolled
-back.
-
-For the commands behind these three, see
-[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
+Undoing what an agent wrote is deliberately absent. A reversible journal exists
+in the codebase, but nothing installs it on the tools that write files, so no
+`v0.1.0-preview` install records anything to undo. Shipping the command anyway
+would have been worse than shipping nothing: an empty result is indistinguishable
+from a clean session, so an operator would read "nothing to revert" as a working
+safety net and delegate accordingly. Treat every filesystem change an agent makes
+as final, and give it a sandbox root you are willing to lose.
 
 ### Permissions and human oversight
 
@@ -143,7 +138,7 @@ With that framing, the mapping is direct:
 |---|---|
 | Article 10, data provenance and quality | the signed, hash-chained audit trail plus verification, which records and lets you confirm what data and actions a run touched |
 | Article 14, human oversight | persisted permission rules, the code-executor guard, human-in-the-loop approvals **on the chat path**, and autonomy tiers, which keep a person in control of consequential actions. An installed agent's own tool calls are outside this loop, see above |
-| Article 16, documentation and traceability | the audit journal and run trace, plus reversibility, which document what happened and let you act on it |
+| Article 16, documentation and traceability | the audit journal and run trace, which document what happened |
 
 The value is that these are wired into the runtime and demonstrable today, not
 promised. What remains a human responsibility is deciding whether your use of
@@ -155,14 +150,14 @@ the compliance judgment stays with you.
 Autonomy without accountability is a liability, and accountability bolted on
 after the fact is not credible. Apollia's position is that the governance is part
 of the runtime: bounded by budgets, recorded in a signed trail you can verify,
-reversible, and supervised by permissions and tiers. That is what makes
+and supervised by permissions and tiers. That is what makes
 delegating real work to an autonomous agent defensible.
 
 ## Related
 
-- [Audit, verify and roll back a run](/how-to/audit-verify-rollback) for the
+- [Audit and verify a run](/how-to/audit-and-verify) for the
   hands-on workflow.
 - [Embed Apollia via federation (MCP + REST)](/how-to/embed-via-federation) for
   how these controls travel into a host integration.
-- The [CLI reference](/reference/cli) for the audit, rollback, and permissions
+- The [CLI reference](/reference/cli) for the audit and permissions
   commands.

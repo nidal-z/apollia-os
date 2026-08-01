@@ -69,7 +69,7 @@ not an advanced precaution.
 and warns on the error output when it reaches that ceiling.
 
 Details of these commands in
-[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
+[Audit and verify a run](/how-to/audit-and-verify).
 
 ## Verification
 

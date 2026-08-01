@@ -47,7 +47,7 @@ factor does: below that tag, orchestration needs at least two signals to agree.
 
 ## The plan cache
 
-<!-- claim:plan-cache-has-no-automatic-expiry -->
+<!-- claim:plan-cache-is-consulted-by-the-engine -->
 
 Planning is the expensive part of an orchestrated run, so a plan is cached and
 reused. The key is a SHA-256 digest over the agent's name and version, its sorted
@@ -55,6 +55,8 @@ tool list, and the request text normalized to lowercase with collapsed
 whitespace. A different agent version, a different tool set, or materially
 different wording all miss the cache; a reworded-but-equivalent request may hit
 it.
+
+<!-- claim:plan-cache-has-no-automatic-expiry -->
 
 Cached plans **never expire on their own**. There is no background eviction and
 no time-to-live: an entry stays until an operator removes it. Clearing is a

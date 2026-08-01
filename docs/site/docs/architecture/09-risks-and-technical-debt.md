@@ -53,7 +53,7 @@ reader trusts the stale version:
 ## What this means for an adopter
 
 The moat is real and demonstrable: bounded autonomy with an enforced step
-budget, a signed and verifiable audit trail with rollback, permissions with
+budget, a signed and verifiable audit trail, permissions with
 human oversight and autonomy tiers, a guard that refuses chained or redirected
 shell commands, and a governed tool path that native and MCP tools both pass
 through. Structural injection detection is **not** part of that list: the

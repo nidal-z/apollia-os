@@ -250,8 +250,10 @@ Rules :
   apply.
 - Path validation : file-tool paths are resolved against the sandbox root and
   rejected if they escape (`..`, symlinks pointing outside).
-- The journal is the rollback path. A failed agent step that wrote files
-  through the file tools triggers `journal.rollback(step_id)`.
+- The journal is the intended rollback path, and it is not wired: the file
+  tools accept a journal handle through `with_journal`, and no production site
+  passes one, so nothing is recorded and nothing can be reverted. Do not write a
+  rule, a doc page, or an error message that implies otherwise.
 
 ---
 

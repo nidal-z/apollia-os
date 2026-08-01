@@ -37,7 +37,7 @@ Task-oriented recipes. Each one solves a single, concrete problem.
   MCP tools and let an agent write back through your REST API.
 - [Keep a human in the loop](/how-to/human-in-the-loop): require approval before
   a consequential action runs.
-- [Audit, verify, and roll back a run](/how-to/audit-verify-rollback): read the
+- [Audit and verify a run](/how-to/audit-and-verify): read the
   trail, verify the journal, and reverse filesystem changes.
 - [Deploy in production](/how-to/deploy-in-production): run Apollia as a managed
   service with TCP, authentication, and TLS.

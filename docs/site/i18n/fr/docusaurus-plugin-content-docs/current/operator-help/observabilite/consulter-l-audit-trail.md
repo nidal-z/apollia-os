@@ -69,7 +69,7 @@ protection réelle, pas une précaution avancée.
 et prévient sur la sortie d'erreur quand il atteint ce plafond.
 
 Détail de ces commandes dans
-[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
+[Audit and verify a run](/how-to/audit-and-verify).
 
 ## Vérification
 

@@ -5,7 +5,6 @@
 //! remains active so the CLI can be used alongside the desktop app.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 mod backend;
 mod bundled_agents;
@@ -532,6 +531,13 @@ fn main() {
     // resolve a pending plan gate via submit_plan_decision.
     let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
         Arc::new(std::sync::OnceLock::new());
+    // Plan cache, forwarded to per-agent engines so an orchestrated run can
+    // reuse a plan instead of re-planning. The supervisor owns the repository;
+    // this shares it rather than opening a second database.
+    #[allow(clippy::type_complexity)]
+    let plan_cache_lock: Arc<
+        std::sync::OnceLock<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
+    > = Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -546,6 +552,7 @@ fn main() {
         mailbox_handle: mailbox_handle_lock.clone(),
         tools_config: tools_config_lock.clone(),
         plan_gates: plan_gates_lock.clone(),
+        plan_cache: plan_cache_lock.clone(),
     });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
@@ -661,6 +668,9 @@ fn main() {
     );
     if let Some(gates) = runtime_handle.plan_gates.clone() {
         let _ = plan_gates_lock.set(gates);
+    }
+    if let Some(cache) = runtime_handle.plan_cache.clone() {
+        let _ = plan_cache_lock.set(cache);
     }
 
     // Auto-load installed agents now that the OnceLocks are populated so the

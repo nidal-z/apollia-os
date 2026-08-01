@@ -77,6 +77,38 @@
 #
 # Adding a capability sentence to the corpus means adding an entry here. A marker
 # with no entry, or an entry with no marker, fails the build.
+#
+# Where the marker goes: on the load-bearing sentence
+#
+# A marker must sit on the sentence that carries the capability, not on a
+# neighbouring detail about it. A claim that is true about the wrong sentence is
+# a failure mode of the guard-rail itself, and it is worse than no claim at all,
+# because the paragraph then reads as verified.
+#
+# This is written from two of its own escapes, both found after the fact:
+#
+#   - `the-plan-model.md` opens with "a plan is cached and reused", and carried
+#     `plan-cache-has-no-automatic-expiry`. The expiry semantics were verified
+#     and correct. The reuse was not: the engine was never given a cache, so
+#     `lookup_cached_plan` returned on its first line and no plan was ever
+#     reused. The claim was true and the sentence above it was false.
+#   - `accountability-model.md` carried a claim scoping the rollback journal to
+#     `file_write` and `file_edit`, which was accurate, while nothing ever wrote
+#     to that journal at all.
+#
+# The test before adding an entry: if this claim were the only thing verified on
+# this page, which sentence would still be unguarded? If that sentence is the
+# reason the section exists, the marker is in the wrong place.
+#
+# What this file cannot guard: everything that lives only in the frontend
+#
+# `check_claims.py` resolves symbols in `crates/` and `sdk/` alone. A capability
+# implemented in Svelte or TypeScript is outside its reach, and no equivalent
+# replay exists for it. This is not a small residue. The guided tour, the whole
+# of the settings surface, and the inbox are frontend-only, which puts a
+# significant part of what a user actually sees beyond any mechanical check.
+# Claims about those pages rest on review, exactly like the corpus did before
+# this file existed, and they carry the same risk of drifting silently.
 
 # ── Permissions: the drift this file was built for ───────────────────────────
 
@@ -145,17 +177,20 @@ more.
 """
 
 [[claim]]
-id = "rollback-covers-file-write-and-file-edit-only"
+id = "plan-cache-is-consulted-by-the-engine"
 scope = "public"
-symbol = "with_journal"
+symbol = "with_shared_plan_cache"
 status = "wired"
-proof = "crates/apollia-tools/src/tools/file_write.rs"
+proof = "crates/apollia-cli/src/commands/start.rs"
 evidence = ""
 note = """
-The reversible journal is fed by two tools, `file_write` and `file_edit`. A
-mutation caused by a shell command inside `bash_executor`, an `rm` or a redirect,
-never reaches it and cannot be rolled back. The accountability page said
-"filesystem changes an agent makes", which reads as all of them.
+The load-bearing sentence of that section is "a plan is cached and reused", and
+it was the one sentence nothing guarded. The section already carried a claim, on
+the expiry semantics, which was true; meanwhile the engine was never handed a
+cache, so `lookup_cached_plan` returned on its first line and no plan was ever
+reused. This claim stands on the builder both production factories now call, the
+CLI daemon and the desktop backend. If either stops calling it the cache goes
+silent again with nothing else failing, which is exactly what happened before.
 """
 
 # ── Observability: switches that promised what they did not do ───────────────

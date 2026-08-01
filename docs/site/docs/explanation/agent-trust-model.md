@@ -122,7 +122,7 @@ page and the decision record will be updated to match, never ahead of the code.
 
 - ADR-003 records the sandbox and agent-trust decision and its rejected
   alternatives.
-- [The accountability model](/explanation/accountability-model) covers audit,
-  approval, and rollback in depth.
+- [The accountability model](/explanation/accountability-model) covers audit
+  and approval in depth.
 - [Sovereignty and local-first](/explanation/sovereignty-and-local-first) covers
   the data-residency posture.

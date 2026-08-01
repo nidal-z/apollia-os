@@ -219,7 +219,11 @@ pub struct ORIAEngine {
     /// Accesses are short (lookup/store) and not concurrent in practice.
     /// A cache hit avoids the LLM call and emits [`RuntimeEvent::PlanCacheHit`].
     /// Cache errors are logged at `warn` level and never block execution.
-    plan_cache: Option<Mutex<PlanCacheRepository>>,
+    /// Shared with the supervisor, which opens `plan_cache.db` at boot and
+    /// exposes the same repository over REST for stats and clearing. An owned
+    /// repository here would cache into a second database that no operator
+    /// command can see.
+    plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
     /// Workspace context assembler with a TTL cache.
     ///
     /// Collects the git branch, file status, and `APOLLIA.md` content at the
@@ -415,16 +419,23 @@ impl ORIAEngine {
         self
     }
 
-    /// Add a plan cache to the engine.
+    /// Add the plan cache to the engine, shared with the rest of the runtime.
     ///
-    /// When configured, [`execute_orchestrated_plan`] checks the cache before calling
-    /// the Reasoner. A cache hit avoids the LLM call, clones the plan with a new
-    /// `plan_id`, and emits [`RuntimeEvent::PlanCacheHit`] on the EventBus.
-    /// Cache errors are logged at `warn` level without blocking execution.
+    /// [`execute_orchestrated_plan`] then checks it before calling the Reasoner:
+    /// a hit avoids the LLM call, clones the plan with a new `plan_id`, and emits
+    /// [`RuntimeEvent::PlanCacheHit`]. Cache errors are logged at `warn` without
+    /// blocking execution.
+    ///
+    /// The repository is borrowed, not owned, because the supervisor opens it at
+    /// boot and hands the same handle to the REST stats and clear routes. The
+    /// builder this replaces took ownership, which no caller could satisfy, and
+    /// for want of that signature the engine ran with no cache at all: every
+    /// orchestrated run re-planned from scratch while `plan cache stats` reported
+    /// an empty cache, which was true and read as "nothing cached yet".
     ///
     /// [`execute_orchestrated_plan`]: ORIAEngine::execute_orchestrated_plan
-    pub fn with_plan_cache(mut self, repo: PlanCacheRepository) -> Self {
-        self.plan_cache = Some(Mutex::new(repo));
+    pub fn with_shared_plan_cache(mut self, repo: Arc<Mutex<PlanCacheRepository>>) -> Self {
+        self.plan_cache = Some(repo);
         self
     }
 
@@ -3323,5 +3334,52 @@ mod orchestrated_tests {
             })
             .expect("a VerificationCompleted event must be emitted");
         assert_eq!(verdict, (true, true, 0));
+    }
+
+    /// GIVEN a plan cache repository shared with the runtime, as the supervisor
+    ///       holds it
+    /// WHEN  the engine stores a plan and then looks it up
+    /// THEN  the entry is found, and it is visible through the shared handle the
+    ///       operator commands read
+    ///
+    /// The cache path had no test at all, which is the other half of why it went
+    /// unnoticed: the only builder took an owned repository that no caller could
+    /// hand it, so `lookup_cached_plan` returned on its first line in production
+    /// and nothing exercised the branch below it.
+    #[test]
+    fn test_shared_plan_cache_is_reachable_and_visible_to_the_operator() {
+        // GIVEN
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = crate::plan_cache::PlanCacheRepository::open(&dir.path().join("plan_cache.db"))
+            .expect("open repository");
+        let shared = Arc::new(Mutex::new(repo));
+        let engine = ORIAEngine::new().with_shared_plan_cache(Arc::clone(&shared));
+        let manifest = orchestrated_manifest_with_prompt();
+        let plan = crate::plan::ExecutionPlan {
+            plan_id: "plan-shared-1".to_string(),
+            task_id: "task-shared-1".to_string(),
+            steps: vec![crate::plan::PlanStep::new("s1", "Read file")],
+        };
+
+        // WHEN
+        engine.store_plan_in_cache("key-shared-1", &plan, &manifest);
+        let found = engine.lookup_cached_plan("key-shared-1", "task-shared-1");
+
+        // THEN
+        assert!(
+            found.is_some(),
+            "a plan stored through the engine must be found again; before this \
+             was wired the engine held no cache and both calls were no-ops"
+        );
+        let stats = shared
+            .lock()
+            .expect("cache mutex")
+            .stats()
+            .expect("read stats");
+        assert_eq!(
+            stats.total_entries, 1,
+            "the operator reads this same repository through `plan cache stats`; \
+             an owned copy inside the engine would leave it reporting zero"
+        );
     }
 }

@@ -58,16 +58,12 @@ BASELINE: dict[str, str] = {
     "`new`, so no judge is ever installed. The assertion now fails explicitly "
     "instead of counting as passed, so the capability is absent but no longer "
     "silently green.",
-    "with_journal@apollia-tools:file_write": "defect, open: `apollia-os rollback` "
-    "reads a journal that nothing writes. All three production sites build the "
-    "tool with `new`, and every `JournalWriter::spawn` in the workspace is in a "
-    "test. The published how-to `audit-verify-rollback` documents the undo.",
-    "with_journal@apollia-tools:file_edit": "defect, open: same chain as "
-    "file_write, same rollback page.",
-    "with_plan_cache@apollia-oria": "defect, open: the repository is opened at "
-    "boot and exposed for REST stats and clear, but never handed to the engine, "
-    "so `lookup_cached_plan` returns on its first line and no plan is ever "
-    "reused. `explanation/the-plan-model.md` says plans are cached and reused.",
+    "with_journal@apollia-tools:file_write": "held for v0.2: nothing writes the journal, so "
+    "there is nothing to revert. The `rollback` command and every page that "
+    "promised an undo were removed rather than left to report an empty result, "
+    "which an operator cannot tell from a clean session. Wiring this is what "
+    "makes the capability real; until then no documentation may imply it.",
+    "with_journal@apollia-tools:file_edit": "held for v0.2: same chain as file_write.",
     "with_tool_offload@apollia-oria": "defect, open: no offload store is ever "
     "installed, so large tool results are never spilled to disk. "
     "`architecture/05-building-blocks.md` lists disk offload as a capability.",
@@ -144,7 +140,12 @@ def main() -> int:
             cwd=REPO_ROOT, capture_output=True, text=True, check=True,
         ).stdout.split()
     ]
-    sources = {path: path.read_text(encoding="utf-8", errors="ignore") for path in files}
+    # A file deleted in the worktree can still be listed by `git ls-files`.
+    sources = {
+        path: path.read_text(encoding="utf-8", errors="ignore")
+        for path in files
+        if path.is_file()
+    }
 
     builders: list[tuple[str, Path]] = []
     for path, text in sources.items():

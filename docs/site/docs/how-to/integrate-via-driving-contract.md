@@ -142,7 +142,7 @@ them.
 
 - [Embed Apollia via federation (MCP + REST)](/how-to/embed-via-federation)
   for the sidecar integration pattern.
-- [Audit, verify and roll back a run](/how-to/audit-verify-rollback) for the
+- [Audit and verify a run](/how-to/audit-and-verify) for the
   accountability workflow around what your integration runs.
 - The [HTTP API reference](/reference/api/apollia-os-runtime-api),
   [CLI reference](/reference/cli), and [SDK reference](/reference/sdk).

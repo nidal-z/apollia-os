@@ -185,7 +185,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
 * [`apollia-os review`↴](#apollia-os-review)
-* [`apollia-os rollback`↴](#apollia-os-rollback)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -288,7 +287,6 @@ Apollia OS CLI binary (apollia-os)
 * `update` - Check for and install updates from GitHub Releases
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
-* `rollback` - Revert filesystem mutations recorded by the agent during a chat session
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `doctor` - Diagnose the local Apollia environment (no runtime required)
@@ -2955,30 +2953,6 @@ Automated code or plan review via the apollia-review agent
 * `--task <ID>` - Apollia task ID whose execution plan should be reviewed
 * `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
 * `--diff <FILE>` - Local diff / patch file to analyse
-
-
-
-## `apollia-os rollback`
-
-Revert filesystem mutations recorded by the agent during a chat session.
-
-Reads the reversible journal at `~/.apollia/journal/<session-id>/` and replays the inverse of every native mutation in reverse order. Use `--dry-run` to preview, `--list` to enumerate available sessions.
-
-**Usage:** `apollia-os rollback [OPTIONS] [SESSION_ID]`
-
-###### **Arguments:**
-
-* `<SESSION_ID>` - Session ID to roll back (from `apollia-os rollback --list`).
-
-   Either `session_id` or `--last-n` must be provided.
-
-###### **Options:**
-
-* `--last-n <N>` - Roll back the N most recent sessions instead of a specific one
-* `--list` - List recorded sessions without rolling anything back
-* `--dry-run` - Simulate the rollback: print what would be reverted without applying it
-* `--json` - Output machine-readable JSON instead of human text
-* `--journal-root <DIR>` - Override the journal root directory (default: `~/.apollia/journal`)
 
 
 

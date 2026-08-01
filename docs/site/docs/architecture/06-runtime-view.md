@@ -113,8 +113,7 @@ and [Integrate via the driving contract](/how-to/integrate-via-driving-contract)
 ## Scenario D: an audited run
 
 Every governed action lands in a signed, hash-chained journal. After the fact,
-the run can be verified for integrity and, for filesystem changes made in a chat
-session, rolled back.
+the run can be verified for integrity.
 
 ```mermaid
 sequenceDiagram
@@ -126,13 +125,11 @@ sequenceDiagram
     Bus->>Journal: append (hash chain, signed)
     Auditor->>Journal: verify (hash + signature)
     Journal-->>Auditor: intact or tampered
-    Auditor->>Journal: roll back a change
-    Journal-->>Auditor: inverse mutations applied
 ```
 
-The signed journal, verification, and reversible rollback are wired. Replay
-(re-execution and comparison) was abandoned by decision; accountability rests on
-journal, verify, and rollback. Decision ADR-033; the narrative is
+The signed journal and verification are wired. Replay (re-execution and
+comparison) was abandoned by decision; accountability rests on the journal and
+verification. Decision ADR-033; the narrative is
 [the accountability model](/explanation/accountability-model).
 
 ## Scenario E: how a tool call is governed in chat
