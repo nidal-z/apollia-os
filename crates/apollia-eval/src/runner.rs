@@ -52,14 +52,18 @@ pub struct RunOutcome {
 /// Runs an [`EvalSuite`] against an injected [`RuntimeClient`].
 ///
 /// An optional [`LlmRouter`](apollia_llm::LlmRouter) backs `llm_judge`
-/// assertions; without it they are skipped.
+/// assertions. Without it they cannot be evaluated, and an assertion that
+/// cannot be evaluated fails.
 pub struct EvalRunner<C: RuntimeClient> {
     client: C,
     judge: Option<apollia_llm::LlmRouter>,
 }
 
 impl<C: RuntimeClient> EvalRunner<C> {
-    /// Creates a runner over the given client. `llm_judge` assertions are skipped.
+    /// Creates a runner over the given client.
+    ///
+    /// Without a judge router, an `llm_judge` assertion **fails** rather than
+    /// being skipped. Use [`with_judge`](Self::with_judge) to evaluate them.
     pub fn new(client: C) -> Self {
         Self {
             client,
@@ -165,14 +169,36 @@ impl<C: RuntimeClient> EvalRunner<C> {
 
     /// Evaluates an `llm_judge` assertion against the run result.
     ///
-    /// Returns a failure reason on a judge `Fail`, or `None` when the judge
-    /// passes, when it is skipped (no backend), or when no judge router is
-    /// configured. Skipping never degrades the run status.
+    /// Returns a failure reason, or `None` when the judge passes.
+    ///
+    /// An assertion that could not be evaluated **fails**. It used to return
+    /// `None`, which the caller reads as "no failure", so a suite whose only
+    /// checks were `llm_judge` reported green without a single one having run.
+    /// An operator validating an agent before production read a result that
+    /// meant nothing. A harness that cannot run a check must say so, never
+    /// count it as passed.
+    ///
+    /// The two ways it cannot run are kept distinct, because they are fixed
+    /// differently: no router was configured at all, or the router had no
+    /// backend available for this call.
     async fn judge_assertion(&self, rubric: &str, outcome: &RunOutcome) -> Option<String> {
-        let router = self.judge.as_ref()?;
+        let Some(router) = self.judge.as_ref() else {
+            return Some(
+                "llm judge not evaluated: this runner has no judge router. \
+                 The assertion was not checked, so the task cannot be reported \
+                 as passing."
+                    .to_string(),
+            );
+        };
         match crate::judge::judge(router, rubric, &outcome.result).await {
-            JudgeVerdict::Pass | JudgeVerdict::Skipped => None,
+            JudgeVerdict::Pass => None,
             JudgeVerdict::Fail(reason) => Some(format!("llm judge failed: {reason}")),
+            JudgeVerdict::Skipped => Some(
+                "llm judge not evaluated: no backend was available. The \
+                 assertion was not checked, so the task cannot be reported as \
+                 passing."
+                    .to_string(),
+            ),
         }
     }
 }
@@ -424,8 +450,12 @@ mod tests {
 
     // llm_judge is non-blocking when no judge router is configured
     #[tokio::test]
-    async fn test_llm_judge_skipped_without_router() {
+    async fn test_llm_judge_without_router_fails_instead_of_passing() {
         // GIVEN a runner with no judge and an llm_judge assertion
+        //
+        // This test used to assert the opposite, that the run still passes, and
+        // that is precisely why the defect survived: the harness reported green
+        // on a check it had never run, and a test said that was correct.
         let suite = EvalSuite {
             name: "judged".to_string(),
             tasks: vec![task(
@@ -444,7 +474,21 @@ mod tests {
             .await
             .expect("run_suite is infallible");
 
-        // THEN the assertion is skipped and the run still passes
-        assert!((report.tasks[0].success_rate - 1.0).abs() < f64::EPSILON);
+        // THEN the task fails, because an unevaluated assertion is not a passed
+        // one, and the reason says which of the two causes applies
+        assert!(
+            report.tasks[0].success_rate.abs() < f64::EPSILON,
+            "an assertion that was never evaluated must not count as passing"
+        );
+        let reasons: String = report.tasks[0]
+            .runs_detail
+            .iter()
+            .filter_map(|r| r.failure_reason.as_deref())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            reasons.contains("no judge router"),
+            "the failure must name the cause, got: {reasons}"
+        );
     }
 }

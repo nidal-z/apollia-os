@@ -276,6 +276,12 @@ jobs:
       # guards, and reports which of its rules had no coverage.
       - name: Claim markers are placed and matched
         run: python3 scripts/check_claim_anchors.py
+      # Three times the repo shipped a `with_*` builder installing a capability
+      # production never asks for, each time with documentation describing it as
+      # active. The shape compiles, its own tests pass, and only the call path
+      # tells the truth. New instances now fail here instead of in a doc audit.
+      - name: Optional-capability builders have a production caller
+        run: python3 scripts/check_optional_builders.py --strict
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:
