@@ -119,18 +119,36 @@ def main() -> int:
                 )
 
     print(f"{len(ids)} claims, {sum(len(v) for v in everywhere.values())} markers")
-    print(f"  english corpus : {len(en)}")
-    print(f"  french mirror  : {len(fr)}")
-    print(f"  decision record: {len(adr)}")
-    print(f"  rulebook       : {len(rule)}")
+
+    # Coverage per zone, counted rather than asserted. A guard that reports
+    # "pass" without saying what it looked at is the failure this whole pass
+    # exists to remove, and a hardcoded list of zones goes stale the first time
+    # someone adds a marker somewhere new.
+    zones: dict[str, list[int]] = {}
+    for root, prefix in ((EN, ""), (FR, "i18n/fr "), (ADR, None)):
+        for path in sorted(root.rglob("*.md")) if root.is_dir() else []:
+            rel = path.relative_to(root)
+            if prefix is None:
+                zone = "docs/adr"
+            else:
+                zone = prefix + (rel.parts[0] if len(rel.parts) > 1 else "(root pages)")
+            counts = zones.setdefault(zone, [0, 0])
+            counts[0] += 1
+            counts[1] += len(MARKER.findall(path.read_text(encoding="utf-8")))
+
+    print("\n  zone                       pages  markers")
+    for zone in sorted(zones):
+        pages, marks = zones[zone]
+        flag = "   <- no coverage" if marks == 0 else ""
+        print(f"  {zone:<26} {pages:>5}  {marks:>7}{flag}")
+    print("\n  A zone at zero is not necessarily wrong: it may hold no capability")
+    print("  claim under the criterion. It is wrong when nobody has looked, which")
+    print("  is why the number is printed rather than the verdict.")
+
     if mirror_checked:
-        print(f"  mirror rule    : {mirror_checked} anchored page(s) compared with their translation")
+        print(f"\n  mirror rule: {mirror_checked} anchored page(s) compared with their translation")
     else:
-        print("  mirror rule    : NO COVERAGE. Every marker sits on an English-only")
-        print("                   page (explanation, architecture, how-to, reference);")
-        print("                   the mirror carries operator-help alone. This rule")
-        print("                   verified nothing, and will start to matter the day")
-        print("                   a marked page is translated.")
+        print("\n  mirror rule: NO COVERAGE. No marked page has a translation yet.")
 
     if problems:
         print(f"\n{len(problems)} problem(s):\n", file=sys.stderr)

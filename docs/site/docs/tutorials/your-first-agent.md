@@ -106,6 +106,8 @@ Three things make this an agent:
   are required. `agent_type` is an optional label.
 - **`@on_message`** marks the single conversational entry point. Its signature is
   fixed: `(self, message, history, ctx)` returning the reply as a string.
+<!-- claim:module-level-agent-attribute-is-the-entry-point -->
+
 - **`agent = Coach()`** at the bottom of the module is what the runtime loads.
   Every Apollia agent module ends with this line. Use absolute imports
   (`from apollia import ...`), never relative ones.

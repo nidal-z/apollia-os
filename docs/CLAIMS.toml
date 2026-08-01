@@ -615,3 +615,51 @@ call site is what makes that visible, since a new background caller would leave
 this entry passing while the sentence quietly became false. Re-read the callers,
 not just this gate, when touching eviction.
 """
+
+# ── Tutorials: a false line here makes a reader run an impossible procedure ───
+
+[[claim]]
+id = "module-level-agent-attribute-is-the-entry-point"
+scope = "public"
+symbol = "getattr"
+status = "wired"
+proof = "crates/apollia-aip/src/loader.rs"
+evidence = ""
+note = """
+Every tutorial, every scaffold and every bundled agent ends on `agent = X()`,
+and the loader finds it by name at `loader.rs:170`. Rename what it looks for and
+nothing fails to compile: agents simply stop loading, with an error that points
+at the agent rather than at the loader. This is the first line a reader writes
+and the last one anybody would suspect.
+"""
+
+[[claim]]
+id = "secrets-gated-by-manifest-declaration"
+scope = "public"
+symbol = "SecretsInterface"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/start.rs"
+evidence = ""
+note = """
+`ctx.secrets.get` returns `None` for a key the manifest does not declare, even
+when the value sits in the store: the declaration is the only authority. That is
+a security property, not an ergonomic one, and the tutorial states it as a
+guarantee. Guarded on the constructor rather than on the getter, because what
+would break the guarantee is the interface being built without its declared
+list, and that happens at the three call sites, not inside the getter.
+"""
+
+[[claim]]
+id = "skill-schema-built-from-typeddict-required-keys"
+scope = "public"
+symbol = "__required_keys__"
+status = "wired"
+proof = "sdk/apollia/_internal/inference.py"
+evidence = ""
+note = """
+The ban on `from __future__ import annotations` in a module defining a TypedDict
+is not style: PEP 563 stringifies annotations, and the skill schema is derived
+from `__required_keys__` at registration. The agent registers, and every payload
+it receives is wrong. If the schema ever stops reading the TypedDict, the rule
+loses its reason and should be revisited rather than kept as folklore.
+"""

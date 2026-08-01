@@ -99,6 +99,11 @@ every TypedDict and helper an agent needs must live in that one file. Do not add
 turns annotations into strings and breaks the schema the runtime reads at
 registration.
 
+<!-- claim:skill-schema-built-from-typeddict-required-keys -->
+
+That schema is derived from the `TypedDict` at registration time, which is why a
+stringified annotation silently produces a malformed skill rather than an error.
+
 ## Worker 1: web-research
 
 Three read-only skills over Apollia's native `web_search` and `web_read` tools.
@@ -242,6 +247,8 @@ runtime), and raises `DomainError` for expected failures. The tool calls use
 input shapes.
 
 ## Worker 2: crm-lookup
+
+<!-- claim:secrets-gated-by-manifest-declaration -->
 
 This worker reads a credential with [`ctx.secrets`](/reference/sdk/secrets). The
 secret is declared in `@agent(secrets=(...))` and read, never written, at run
