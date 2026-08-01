@@ -13,9 +13,9 @@ Quand un agent tente d'utiliser un outil, Apollia applique trois filtres dans l'
 
 1. **Le manifest de l'agent** déclare la liste d'outils requis et optionnels. Un outil absent du manifest n'est pas accessible à cet agent.
 2. **Les règles de permission** (voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md)) décident si l'outil peut s'exécuter automatiquement ou demande une approbation.
-3. **Le profil de souveraineté** bloque les outils cloud quand il est sur `local_only`.
+3. **Le profil de souveraineté**, qui n'est pas un troisième filtre sur l'appel d'outil. Sur `local_only`, il refuse d'ouvrir une nouvelle connexion cloud : le flux OAuth ne démarre pas. Il n'inspecte pas les appels passant par une connexion déjà établie, donc traitez-le comme un verrou sur la connexion, pas sur l'usage.
 
-Si l'un des trois filtres refuse, l'outil ne s'exécute pas.
+Si l'un des deux premiers refuse, l'outil ne s'exécute pas.
 
 ## Côté agent
 

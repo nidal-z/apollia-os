@@ -21,7 +21,7 @@ Convention de nommage :
 
 - Service : `apollia-connector-<provider>` (par exemple `apollia-connector-google`, `apollia-connector-microsoft`).
 - User : l'identifiant du compte, typiquement l'adresse email.
-- Pour les serveurs MCP OAuth, service `apollia.mcp.<server-id>`.
+- Pour les serveurs MCP OAuth, un service unique `apollia-mcp-oauth`, avec le nom du serveur dans l'emplacement du compte.
 
 Un index `~/.apollia/connectors-index.json` énumère les comptes connectés par provider (la plupart des trousseaux ne supportent pas l'énumération native).
 
@@ -57,7 +57,7 @@ Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. 
 
 Apollia rafraîchit les tokens proactivement :
 
-- Le refresh est déclenché 5 minutes avant l'expiration de l'access token.
+- Le refresh est déclenché 60 secondes avant l'expiration de l'access token.
 - Une protection **singleflight** : si plusieurs appels concurrents déclenchent un refresh sur le même compte, une seule requête HTTP est envoyée vers le provider. Sans cette protection, un burst d'appels d'agent ferait N requêtes parallèles et déclencherait un rate-limit cascade.
 
 ## Changer les scopes d'un compte
@@ -86,9 +86,9 @@ Les options sur une machine headless sont de faire tourner une implémentation S
 
 ### Audit des actions
 
-Toutes les exécutions d'outils sont loggées dans `governance.db` (table `tool_executions`) avec horodatage, agent, outil, hash du compte, statut d'approbation, latence. Consultable via **Paramètres, Historique des actions**.
+Toutes les exécutions d'outils sont loggées dans `~/.apollia/audit.db`, table `tool_invocations` : agent, tâche, exécution, nom de l'outil, empreinte de l'entrée, profil de bac à sable, durée et code de sortie. Elle enregistre ce qui a tourné, pas qui l'a approuvé. Consultable depuis la page **Observabilité** de la barre latérale, onglet **Piste d'audit**.
 
-Les approbations MCP (acceptations HITL durables) sont stockées séparément dans `~/.apollia/mcp-approvals.db`.
+Les approbations MCP (acceptations HITL durables) sont stockées séparément dans `~/.apollia/mcp_approvals.db`.
 
 ### Erreurs courantes mode fichier
 

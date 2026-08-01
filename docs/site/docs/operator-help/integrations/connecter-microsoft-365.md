@@ -77,9 +77,8 @@ The tools are the same on both sides, only the backend answering changes.
 
 ## If it does not work
 
-- **AADSTS90094, "admin consent required"**: your Entra ID tenant requires an organization-level approval. Contact your administrator so they pre-approve Apollia, or use a personal Microsoft account.
-- **AADSTS500011, "application not found in the tenant"**: your administrator has restricted external apps. Ask them to pre-approve Apollia, or use a personal account.
-- **`outlook.send` fails with `ErrorRecipientNotResolved`**: Microsoft Graph validates recipients more strictly than Google. Check the target address and make sure there is no dead alias.
+- **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve Apollia, or use a personal Microsoft account.
+- **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
 - **The Connect button is greyed out**: your sovereignty profile is `local_only`.
 

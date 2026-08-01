@@ -9,7 +9,7 @@
 
 ## Comment les autorisations sont-elles créées ?
 
-Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous ne créez pas de règle manuellement depuis cet écran : cet onglet sert uniquement à les consulter et à les révoquer.
+Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous pouvez aussi en créer une à la main, avec le bouton **Ajouter une règle** en haut de la section Règles, ce qui est le moyen d'autoriser quelque chose avant même qu'un agent le demande.
 
 ## Visualiser les autorisations actives
 
@@ -19,7 +19,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    ![page Settings > Autorisations, liste de cartes d'autorisation (PermissionRuleCard) avec badges de portée](/img/operator-help/fr/controle-configurer-les-permissions-de-fichiers-1.png)
 
 3. Le panneau central affiche toutes les règles actives sous forme de **liste de cartes**. Chaque carte indique :
-   - le **nom de l'outil** autorisé (ex. : `bash`, `file_write`, `mcp_call`)
+   - le **nom de l'outil** autorisé (ex. : `bash_executor`, `file_write`, `http_fetch`)
    - un **badge de portée** : *Ce projet* ou *Partout*
    - le **préfixe d'argument** (si la règle est limitée à certaines invocations)
    - la **date d'expiration** ou la mention *Permanente*

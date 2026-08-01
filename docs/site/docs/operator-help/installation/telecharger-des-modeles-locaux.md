@@ -41,6 +41,6 @@ For a GGUF model, open a new chat, select your local model in the backend picker
 - **Not enough disk space:** delete an existing model or free up space before starting again.
 - **Model missing from the picker after download:** restart Apollia so it detects the new model.
 
-> **Reliable local models:** local GGUF models call your tools reliably, with no tuning on your part.
+> **Tool calling with a local model:** it works without tuning on your part, but not because raw schemas happen to suit the engine. Apollia rewrites each tool schema before sending it, because constructs a schema may legitimately contain break the engine's tool grammar. Expect a smaller model to call tools less accurately than a frontier one; that part is the model, not the plumbing.
 
 > **Technical reference:** [Apollia reference](/reference) - supported GGUF formats, quantization parameters, hardware recommendations.

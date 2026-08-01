@@ -13,13 +13,13 @@
 
 ## Étapes
 
-1. Dans la sidebar, repérez le bouton **Aide Apollia** (logo Apollia, dans le bas de la sidebar).
+1. Appuyez sur **Cmd+/** (macOS) ou **Ctrl+/** (Windows et Linux) depuis n'importe où dans l'application. Il n'y a pas de bouton : le raccourci et la palette de commandes sont les deux entrées. Dans la palette, ouverte par **Cmd+K**, l'action s'appelle **Basculer l'Aide Apollia**.
 
-   Le bouton est **grisé et non cliquable** tant qu'aucun fournisseur d'IA n'est prêt - au survol, un tooltip explicite : *« Configurez un modèle LLM pour activer l'aide contextuelle »*.
+   Rien ne s'ouvre tant qu'aucun fournisseur d'IA n'est prêt.
 
-   ![Le tableau de bord, avec la barre latérale et l'accès à l'Aide Apollia](/img/operator-help/fr/transversal-activer-la-compagnonne-ia-1.png)
+   ![Le tableau de bord, au moment où le panneau Aide Apollia va s'ouvrir](/img/operator-help/fr/transversal-activer-la-compagnonne-ia-1.png)
 
-2. Cliquez sur le bouton. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
+2. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
 
 3. Posez une question rapide. L'Aide Apollia répond sans interrompre votre travail sur la page principale.
 
@@ -27,7 +27,7 @@
 
 4. **Déplacer le panneau** : saisissez la **poignée en haut du panneau** (icône grip-handle) et glissez-le où vous voulez. Il s'aligne automatiquement aux bords de l'écran pour rester accessible.
 
-5. **Redimensionner** : tirez le **coin inférieur gauche** pour ajuster la largeur et la hauteur.
+5. **Redimensionner** : tirez le **coin inférieur droit** pour ajuster la largeur et la hauteur. Ce coin ayant le focus, les flèches redimensionnent par pas de 20 pixels.
 
    Votre position et votre taille préférées sont **mémorisées** d'une session à l'autre.
 
@@ -35,13 +35,13 @@
 
 7. **Réduire en bulle** : cliquez sur l'icône Moins (−) en haut du panneau. Il se condense en une mini-bulle cliquable que vous pouvez redéployer plus tard. L'historique de la conversation est conservé.
 
-8. **Fermer** : cliquez sur l'icône X en haut du panneau (ou utilisez le raccourci **Cmd+/** / **Ctrl+/** depuis n'importe où dans l'app). Le panneau disparaît mais l'Aide reste *activée* - un nouveau Cmd+/ le rouvre instantanément sur la même session.
-
-9. **Désactiver complètement** : cliquez à nouveau sur le bouton **Aide Apollia** dans la sidebar. Cette fois, c'est la désactivation : le panneau se ferme et l'historique est fermé. La préférence est persistée - la prochaine ouverture redémarrera une session vierge.
+8. **Fermer** : cliquez sur l'icône X en haut du panneau, ou appuyez de nouveau sur **Cmd+/** depuis n'importe où dans l'app. Le panneau disparaît mais la session reste ouverte : le Cmd+/ suivant revient sur la même conversation.
 
 ## Raccourci clavier
 
-- **Cmd+/** (macOS) / **Ctrl+/** (Windows et Linux) - bascule l'affichage du panneau **sans toucher à l'activation**. Pratique pour cacher rapidement l'Aide pendant une démo et la rappeler ensuite.
+- **Cmd+/** (macOS) / **Ctrl+/** (Windows et Linux) - ouvre et ferme le panneau. Pratique pour cacher rapidement l'Aide pendant une démo et la rappeler ensuite.
+- **Cmd+Shift+C** - ouvre le panneau *et* place le curseur dans son champ de saisie, depuis n'importe où. À utiliser quand vous comptez taper tout de suite.
+- **Cmd+Alt** plus une flèche - déplace le panneau vers un autre bord. Ne fonctionne que si le panneau lui-même a le focus, ce qui explique qu'il ne se passe rien depuis la page principale.
 
 ## Vérification
 
@@ -53,9 +53,8 @@
 ## Si ça ne marche pas
 
 - **L'Aide ne répond pas / aucune réponse n'arrive** : vérifiez le **point d'état Apollia** dans le bandeau. S'il est ambre, configurez un fournisseur LLM dans **Paramètres → Modèles LLM**.
-- **Le bouton dans la sidebar est grisé** : aucun LLM n'est prêt. Tooltip explicite au survol. Voir point précédent.
-- **Le panneau s'ouvre puis affiche une erreur** : la session n'a pas pu démarrer. Cliquez sur **Réessayer** dans le panneau, ou fermez et rouvrez via la sidebar.
+- **Le panneau s'ouvre puis affiche une erreur** : la session n'a pas pu démarrer. Cliquez sur **Réessayer** dans le panneau, ou fermez-le et refaites Cmd+/.
 - **Le panneau est invisible alors que je l'ai déjà ouvert** : il est peut-être minimisé en bulle dans un coin de l'écran. Cherchez la bulle Aide Apollia ; sinon **Cmd+/** force la réouverture.
-- **Le panneau s'ouvre dans un coin inaccessible** : maintenez le bouton **Aide Apollia** de la sidebar enfoncé (ou désactivez puis réactivez) pour réinitialiser la position par défaut (côté droit).
+- **Le panneau s'ouvre dans un coin inaccessible** : donnez-lui le focus puis utilisez **Cmd+Alt** avec une flèche pour le ramener sur un bord visible.
 
 > **Concept :** [Explication Apollia](/explanation)

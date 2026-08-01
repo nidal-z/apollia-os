@@ -12,12 +12,28 @@
 
 | Level | When to use it | Step budget | Automatic verification | Memory injection |
 |---|---|---|---|---|
-| `assisted` | Exploratory work, unknown task, first run. The agent proposes each action before executing it. | Very short - suitable for validating a prototype. | HITL approval at every step. | No. |
-| `supervised` | Standard daily use. The agent moves forward on its own for simple steps and pauses on risky actions. | Moderate - covers most everyday tasks. | Automatic pause before any write or external call. | No. |
-| `bounded_autonomous` | Configured automations, recurring pipelines whose behavior you already know. The agent runs to the end unless the budget is exceeded. | Generous - suited to long but bounded workflows. | Verification only when the budget is exceeded. | No. |
-| `long_autonomous` | Long-running background tasks, overnight work on large volumes of data. Reserved for proven agents. | Maximum available. | No automatic interruption during the task. | No. |
+| `assisted` | Exploratory work, unknown task, first run. | Very short - suitable for validating a prototype. | None. The plan gate is armed, so you approve the plan before it runs. | No. |
+| `supervised` | Standard daily use. | Moderate - covers most everyday tasks. | One verification pass after the run finishes. | No. |
+| `bounded_autonomous` | Configured automations, recurring pipelines whose behavior you already know. | Generous - suited to long but bounded workflows. | One verification pass after the run finishes. | No. |
+| `long_autonomous` | Long-running background tasks, overnight work on large volumes of data. Reserved for proven agents. | Maximum available. | One verification pass after the run finishes. | No, for an agent. |
 
-> The "Memory injection" column is `No` for every level: Apollia never injects memory context automatically, whichever level you choose.
+Two things the table would let you assume, and should not.
+
+**Approval is not per step.** No level pauses before each action. What `assisted`
+and `supervised` arm is the **plan gate**: you see the plan and approve it once,
+before execution. `bounded_autonomous` and `long_autonomous` bypass that gate
+entirely, so the plan runs without you seeing it, unless you pass `--plan` to
+re-arm it for that run. Separately, and at every level, a filesystem write the
+runtime judges risky raises its own approval prompt.
+
+**Verification runs once, at the end.** It is a single post-run pass, not a
+check between steps, and `assisted` does not run it at all.
+
+> The "Memory injection" column is `No` for every level **on an agent run**, and
+> that is the guarantee that matters: nothing injects memory into an agent's
+> prompt. The built-in conversational assistant is a different path, and at the
+> `long_autonomous` level it does receive a user-persona brief. An agent cannot
+> reach that code.
 
 ## Steps - Apply a level to one run
 

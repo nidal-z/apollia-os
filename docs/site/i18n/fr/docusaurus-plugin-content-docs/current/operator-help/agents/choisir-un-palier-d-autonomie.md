@@ -12,12 +12,29 @@
 
 | Palier | Quand l'utiliser | Budget d'étapes | Vérification auto | Injection mémoire |
 |---|---|---|---|---|
-| `assisted` | Travail exploratoire, tâche inconnue, premier lancement. L'agent propose chaque action avant de l'exécuter. | Très court - convient pour valider un prototype. | Approbation HITL à chaque étape. | Non. |
-| `supervised` | Usage quotidien standard. L'agent avance seul sur les étapes simples et pause sur les actions à risque. | Modéré - couvre la majorité des tâches courantes. | Pause automatique avant toute écriture ou appel externe. | Non. |
-| `bounded_autonomous` | Automatisations configurées, pipelines récurrents dont vous connaissez le comportement. L'agent court jusqu'au bout sauf dépassement de budget. | Généreux - adapté aux workflows longs mais bornés. | Vérification uniquement au dépassement de budget. | Non. |
-| `long_autonomous` | Tâches de fond longues durée, travail de nuit sur données volumineuses. Réservé aux agents éprouvés. | Maximum disponible. | Aucune interruption automatique en cours de tâche. | Non. |
+| `assisted` | Travail exploratoire, tâche inconnue, premier lancement. | Très court - convient pour valider un prototype. | Aucune. Le gate de plan est armé : vous approuvez le plan avant son exécution. | Non. |
+| `supervised` | Usage quotidien standard. | Modéré - couvre la majorité des tâches courantes. | Une passe de vérification après la fin de l'exécution. | Non. |
+| `bounded_autonomous` | Automatisations configurées, pipelines récurrents dont vous connaissez le comportement. | Généreux - adapté aux workflows longs mais bornés. | Une passe de vérification après la fin de l'exécution. | Non. |
+| `long_autonomous` | Tâches de fond longue durée, travail de nuit sur données volumineuses. Réservé aux agents éprouvés. | Maximum disponible. | Une passe de vérification après la fin de l'exécution. | Non, pour un agent. |
 
-> La colonne "Injection mémoire" est `Non` pour tous les paliers : Apollia n'injecte jamais de contexte mémoire automatiquement, quel que soit le palier choisi.
+Deux choses que la table laisserait supposer, et qu'il ne faut pas.
+
+**L'approbation n'est pas par étape.** Aucun palier ne met en pause avant chaque
+action. Ce que `assisted` et `supervised` arment, c'est le **gate de plan** :
+vous voyez le plan et l'approuvez une fois, avant exécution. `bounded_autonomous`
+et `long_autonomous` contournent entièrement ce gate, donc le plan s'exécute sans
+que vous l'ayez vu, sauf si vous passez `--plan` pour le réarmer sur cette
+exécution. Indépendamment, et à tous les paliers, une écriture fichier que le
+runtime juge risquée déclenche sa propre demande d'approbation.
+
+**La vérification tourne une fois, à la fin.** C'est une passe unique après
+l'exécution, pas un contrôle entre les étapes, et `assisted` ne la lance pas.
+
+> La colonne "Injection mémoire" vaut `Non` à tous les paliers **pour une
+> exécution d'agent**, et c'est la garantie qui compte : rien n'injecte de
+> mémoire dans le prompt d'un agent. L'assistant conversationnel intégré est un
+> autre chemin, et au palier `long_autonomous` il reçoit bien un brief de persona
+> utilisateur. Un agent ne peut pas atteindre ce code.
 
 ## Étapes - Appliquer un palier pour une exécution
 

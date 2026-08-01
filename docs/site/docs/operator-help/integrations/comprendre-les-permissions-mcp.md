@@ -23,13 +23,16 @@ When you see the popup, you can tick *"Always allow for this project"*. That cre
 
 ## Viewing and changing the rules
 
-Open **Settings, Permissions**. Three sections:
+Open **Settings, Permissions**. Four sections:
 
-- **Permissions**: per installed MCP, you can set the global approval level (`auto` / `ask` / `readonly`).
-- **Permission rules**: persistent rules created through the HITL popups or by the onboarding agents. Filterable by origin (Onboarding, You (HITL), You (Settings), Config import).
+- **Rules**: the persistent rules, created through the approval prompts, by the onboarding agent, or by hand. Filterable by scope (All, This project, Chat agent, Everywhere) and by tool. The rule's author is shown on each row but is not a filter.
 - **Active sessions**: permissions valid only for the current chat session.
+- **Apollia Chat**: the rules that apply to the free chat specifically.
+- **Recent audit**: the last twenty tool decisions, most recent first.
 
-A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to type your name as confirmation.
+A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to pick the scope and shows how many rules it would remove, then Cancel or Revoke. It asks for no typed confirmation.
+
+The per-server approval level (`auto` / `ask` / `readonly`) is not on this page: it lives in **Connections**, on the server's own **Settings** tab.
 
 ![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/en/integration-comprendre-les-permissions-mcp-2.png)
 

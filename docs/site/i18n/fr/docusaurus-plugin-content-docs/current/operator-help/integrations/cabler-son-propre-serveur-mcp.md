@@ -10,7 +10,7 @@
 
 ## Étapes
 
-1. Dans la sidebar **Connexions**, cliquez sur **+ Ajouter personnalisé** en haut. Le panneau s'ouvre sur l'onglet **Personnalisé**.
+1. Dans la barre latérale **Connexions**, cliquez sur **Ajouter un connecteur** en bas. Une feuille s'ouvre sur l'onglet **Catalogue MCP** ; passez sur l'onglet **MCP personnalisé**.
 
    ![Onglet Personnalisé du catalogue : le formulaire vierge](/img/operator-help/fr/integration-cabler-son-propre-serveur-mcp-1.png)
 

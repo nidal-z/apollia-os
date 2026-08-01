@@ -10,7 +10,7 @@
 
 ## Steps
 
-1. In the **Connections** sidebar, click **+ Add custom** at the top. The panel opens on the **Custom** tab.
+1. In the **Connections** sidebar, click **Add a connector** at the bottom. A sheet opens on the **MCP catalogue** tab; switch to the **Custom MCP** tab.
 
    ![Custom tab of the catalogue: the blank form](/img/operator-help/en/integration-cabler-son-propre-serveur-mcp-1.png)
 

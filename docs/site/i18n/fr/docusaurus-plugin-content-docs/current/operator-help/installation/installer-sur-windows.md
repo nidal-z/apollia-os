@@ -27,8 +27,14 @@ Depuis PowerShell :
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" --version
-& "C:\Program Files\Apollia OS\apollia-os.exe" doctor --json | ConvertFrom-Json | Select-Object -ExpandProperty gpu
+& "C:\Program Files\Apollia OS\apollia-os.exe" doctor
 ```
+
+`doctor` passe huit vérifications : le répertoire de données, le fichier de
+configuration, les deux bases, le répertoire des modèles, Python, la posture de
+bac à sable et la socket du runtime. Il ne détecte **pas** votre GPU, et aucune
+commande ne le rapporte : le périphérique d'inférence se configure au lieu de se
+sonder. Voir la section ci-dessous.
 
 ## Accélération GPU
 

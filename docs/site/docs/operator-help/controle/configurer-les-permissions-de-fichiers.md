@@ -9,7 +9,7 @@
 
 ## How are permissions created?
 
-Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *This project* or *Everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You do not create a rule by hand from this screen: this tab only exists to review and revoke them.
+Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *This project* or *Everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You can also create one by hand, with the **Add rule** button at the top of the Rules section, which is how you authorise something before an agent ever asks for it.
 
 ## Review the active permissions
 
@@ -19,7 +19,7 @@ Rules appear automatically when an agent requests access to a tool and you choos
    ![Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges](/img/operator-help/en/controle-configurer-les-permissions-de-fichiers-1.png)
 
 3. The central panel shows every active rule as a **list of cards**. Each card states:
-   - the **tool name** that is authorised (e.g.: `bash`, `file_write`, `mcp_call`)
+   - the **tool name** that is authorised (e.g.: `bash_executor`, `file_write`, `http_fetch`)
    - a **scope badge**: *This project* or *Everywhere*
    - the **argument prefix** (if the rule is limited to certain invocations)
    - the **expiry date** or the mention *Permanent*

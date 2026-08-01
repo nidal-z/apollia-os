@@ -21,7 +21,7 @@ Naming convention:
 
 - Service: `apollia-connector-<provider>` (for example `apollia-connector-google`, `apollia-connector-microsoft`).
 - User: the account identifier, typically the email address.
-- For OAuth MCP servers, service `apollia.mcp.<server-id>`.
+- For OAuth MCP servers, a single service `apollia-mcp-oauth`, with the server name in the account slot.
 
 An index at `~/.apollia/connectors-index.json` lists the connected accounts per provider (most keyrings do not support native enumeration).
 
@@ -57,7 +57,7 @@ Each account lives in its own keyring entry with the email as user. When an agen
 
 Apollia refreshes tokens proactively:
 
-- The refresh is triggered 5 minutes before the access token expires.
+- The refresh is triggered 60 seconds before the access token expires.
 - A **singleflight** protection: if several concurrent calls trigger a refresh on the same account, a single HTTP request is sent to the provider. Without this protection, a burst of agent calls would fire N parallel requests and trigger a rate-limit cascade.
 
 ## Change the scopes of an account
@@ -86,9 +86,9 @@ The options on a headless machine are to run a Secret Service implementation (`g
 
 ### Action audit
 
-Every tool execution is logged in `governance.db` (table `tool_executions`) with timestamp, agent, tool, account hash, approval status, latency. Viewable through **Settings, Action history**.
+Every tool execution is logged in `~/.apollia/audit.db`, table `tool_invocations`: agent, task, run, tool name, a hash of the input, the sandbox profile, duration and exit code. It records what ran, not who approved it. Read it from the **Observability** page in the sidebar, **Audit Trail** tab.
 
-MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mcp-approvals.db`.
+MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mcp_approvals.db`.
 
 ### Common errors in file mode
 

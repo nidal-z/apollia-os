@@ -95,7 +95,7 @@ Configurez-le dans votre fichier de configuration Apollia :
 ```toml
 [llm.routing.hybrid]
 frontier = "claude-anthropic"   # nom du backend distant à utiliser en escalade
-cost_ceiling_usd = 0.50         # plafond en dollars par exécution
+cost_ceiling_usd = 2.00         # plafond en dollars par session de routing
 ```
 
 Avec ce réglage, le runtime évalue chaque étape : si elle nécessite le modèle frontier et que le plafond n'est pas encore atteint, l'escalade se fait automatiquement. Au-delà du plafond, le runtime repasse en local.
@@ -115,6 +115,6 @@ Le backend désigné dans `frontier` doit être configuré et actif dans **Param
 - **Timeout sur cloud** : vérifiez votre connexion internet ou le statut du fournisseur.
 - **Ollama injoignable** : vérifiez que `ollama serve` tourne sur l'hôte cible et que le port 11434 est ouvert. Pour Ollama distant, testez avec `curl http://<host>:11434/api/tags` depuis votre machine.
 - **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
-- **Plafond atteint et l'agent ne termine pas** : quand `cost_ceiling_usd` est atteint, le runtime dégrade automatiquement en local pour la suite de l'exécution. Si la tâche nécessite absolument le modèle frontier jusqu'au bout, augmentez le plafond ou désactivez le routage hybride en retirant la section `[llm.routing.hybrid]`.
+- **Plafond atteint et l'agent ne termine pas** : le plafond compte le coût cumulé d'une session de routing, pas d'une seule exécution. Quand il est atteint, le runtime dégrade automatiquement en local pour la suite de la session, sauf si `ceiling_action = "hard_stop"` est posé, auquel cas l'exécution se termine sur une erreur. Si la tâche nécessite absolument le modèle frontier jusqu'au bout, augmentez le plafond ou désactivez le routage hybride en retirant la section `[llm.routing.hybrid]`.
 
 > **Référence technique :** [Référence Apollia](/reference) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.

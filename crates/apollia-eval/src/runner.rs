@@ -140,8 +140,9 @@ impl<C: RuntimeClient> EvalRunner<C> {
     /// Evaluates the assertions against a run outcome.
     ///
     /// Returns the reason of the first failing assertion, or `None` when all
-    /// hold. An `llm_judge` assertion is skipped (non-blocking) when no judge
-    /// router is configured.
+    /// hold. An `llm_judge` assertion that could not be evaluated, for want of a
+    /// judge router or of a backend, **fails**: an unchecked assertion is not a
+    /// passing one.
     async fn evaluate_assertions(
         &self,
         assertions: &[Assertion],

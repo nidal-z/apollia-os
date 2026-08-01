@@ -59,17 +59,25 @@ The system agent **Apollia Chat**, pinned at the top of the list, is **always ac
 By default, an agent starts at the `assisted` level: it asks for your approval on every sensitive action. You can choose a different level for a specific run with the `--autonomy` flag:
 
 ```
-apollia-os run --autonomy <tier>
+apollia-os run <agent-id> "<your request>" --autonomy <tier>
 ```
+
+The agent identifier is required. The request text is optional and defaults to
+empty, which is rarely what you want.
+
+
 
 The four available levels:
 
 | Level | Behavior |
 |---|---|
-| `assisted` | Default. Human approval on every sensitive action. |
-| `supervised` | Automatic verification loop after each step. Detected anomalies are corrected without involving you; only the stubborn situations are escalated. |
-| `bounded_autonomous` | Extended autonomy within a defined perimeter. Fewer interruptions, wider StepBudget. |
-| `long_autonomous` | Long-running execution. Final verification on exit. Reserved for tasks that tolerate a cycle without intermediate approval. |
+| `assisted` | Default. The plan gate is armed: you approve the plan once before it runs. No verification pass. |
+| `supervised` | Plan gate armed, plus one verification pass after the run finishes. |
+| `bounded_autonomous` | **The plan gate is bypassed**: the plan runs without your approval. Wider StepBudget, one verification pass at the end. Pass `--plan` to re-arm the gate for a run. |
+| `long_autonomous` | Same bypass as above, maximum budget. Reserved for tasks that tolerate running unattended end to end. |
+
+At every level, a filesystem write the runtime judges risky raises its own
+approval prompt, independently of the plan gate.
 
 If you omit the flag, the level configured in your preferences applies (`assisted` by default).
 

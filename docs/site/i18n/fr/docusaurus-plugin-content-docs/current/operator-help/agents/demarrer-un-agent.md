@@ -59,17 +59,25 @@ L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours
 Par défaut, un agent démarre en palier `assisted` : il demande votre approbation à chaque action sensible. Vous pouvez choisir un palier différent pour une exécution précise avec le flag `--autonomy` :
 
 ```
-apollia-os run --autonomy <palier>
+apollia-os run <id-de-l-agent> "<votre demande>" --autonomy <palier>
 ```
+
+L'identifiant de l'agent est obligatoire. Le texte de la demande est optionnel et
+vaut la chaîne vide par défaut, ce qui est rarement ce que vous voulez.
+
+
 
 Les quatre paliers disponibles :
 
 | Palier | Comportement |
 |---|---|
-| `assisted` | Défaut. Approbation humaine à chaque action sensible. |
-| `supervised` | Boucle de vérification automatique après chaque étape. Les anomalies détectées sont corrigées sans vous solliciter ; seules les situations résistantes remontent. |
-| `bounded_autonomous` | Autonomie étendue dans un périmètre défini. Moins d'interruptions, StepBudget plus large. |
-| `long_autonomous` | Exécution longue durée. Vérification finale en sortie. Réservé aux tâches qui tolèrent un cycle sans approbation intermédiaire. |
+| `assisted` | Défaut. Le gate de plan est armé : vous approuvez le plan une fois avant son exécution. Pas de passe de vérification. |
+| `supervised` | Gate de plan armé, plus une passe de vérification après la fin de l'exécution. |
+| `bounded_autonomous` | **Le gate de plan est contourné** : le plan s'exécute sans votre approbation. StepBudget plus large, une passe de vérification à la fin. Passez `--plan` pour réarmer le gate sur une exécution. |
+| `long_autonomous` | Même contournement, budget maximum. Réservé aux tâches qui tolèrent de tourner sans surveillance de bout en bout. |
+
+À tous les paliers, une écriture fichier que le runtime juge risquée déclenche sa
+propre demande d'approbation, indépendamment du gate de plan.
 
 Si vous omettez le flag, le palier configuré dans vos préférences s'applique (par défaut `assisted`).
 

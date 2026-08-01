@@ -20,7 +20,7 @@ La page est organisée en **trois onglets**, accessibles via la barre d'onglets 
 | **Activité** | Événements récents qui demandent votre attention sans bloquer un agent : échecs de tâche, erreurs de déclencheur, agents en mode dégradé, fournisseur LLM indisponible. Fenêtre glissante de 14 jours. |
 | **Notifications envoyées** | Historique des notifications poussées vers vos canaux Desktop / Webhook (50 dernières). |
 
-L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve votre dernière vue). Vous pouvez aussi y arriver directement via un lien (la page **Paramètres → Notifications** redirige par exemple sur l'onglet *Notifications envoyées*).
+L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve votre dernière vue). Vous pouvez aussi y arriver directement via un lien (la page **Notifications** (une entrée de premier niveau de la barre latérale) redirige par exemple sur l'onglet *Notifications envoyées*).
 
 ## Onglet "À traiter"
 
@@ -55,7 +55,7 @@ Deux actions en bas :
 - **Répondre** *(bouton primaire)* - envoie vos réponses à l'agent, qui reprend son exécution. Les champs laissés vides sont marqués *« non répondu »* dans la réponse transmise - pas de blocage.
 - **Refuser de répondre** *(ghost rouge)* - ouvre le dialog de raison (5 à 500 caractères). L'agent reçoit votre refus motivé et adapte sa suite.
 
-> **Note :** une notification (toast desktop ou webhook si configuré) part automatiquement quand un agent appelle `ask_user`. Vous pouvez désactiver cette notification dans **Paramètres → Notifications** en décochant *Question d'agent*.
+> **Note :** une notification (toast desktop ou webhook si configuré) part automatiquement quand un agent appelle `ask_user`. Vous pouvez désactiver cette notification dans **Notifications** (une entrée de premier niveau de la barre latérale) en décochant *Question d'agent*.
 
 ### Historique récent
 
@@ -86,7 +86,7 @@ Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou
 - **Événement** - libellé humain (*Tâche échouée*, *Approbation requise*, etc.).
 - **Statut** - badge vert *« envoyé »* ou rouge *« échoué »*.
 
-Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Paramètres → Notifications** (voir [Configurer un canal](../notifications/configurer-un-canal.md)).
+Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Notifications** (une entrée de premier niveau de la barre latérale) (voir [Configurer un canal](../notifications/configurer-un-canal.md)).
 
 ## Vérification
 

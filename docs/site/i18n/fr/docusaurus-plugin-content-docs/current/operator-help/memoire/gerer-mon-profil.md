@@ -73,6 +73,8 @@ C'est l'option à choisir si vous voulez juste « repasser le questionnaire de c
 
 Dans **Paramètres → Zone de danger** (entrée distincte de la sidebar Paramètres), le bouton **Réinitialiser l'onboarding** relance le parcours guidé sans effacer ce qui est déjà renseigné. Utile si vous voulez juste re-télécharger un modèle, recalibrer une intégration ou voir les écrans de bienvenue à nouveau.
 
+Il a un effet de bord que la fenêtre ne mentionne pas : il remet aussi les visites guidées à zéro. Les six parcours repartent de leur première étape et la bande **Prise en main** réapparaît sur le tableau de bord, alors que la fenêtre annonce qu'aucune donnée n'est supprimée.
+
 ### C - Effacer toutes les mémoires (profil + agents + projets)
 
 Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires Apollia, sur tous les namespaces : profil utilisateur, mémoire des agents, mémoire de projet. C'est plus large que la réinitialisation du profil - à utiliser si vous voulez repartir d'une page complètement blanche côté mémoire (les conversations, agents installés et permissions restent en place).
@@ -88,7 +90,7 @@ Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** sup
 ## Si ça ne marche pas
 
 - **Les champs restent vides après saisie** : un agent était peut-être en train d'écrire. Réessayez après quelques secondes.
-- **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : ouvrez la sidebar et cliquez sur **Onboarding** pour relancer manuellement.
+- **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : utilisez **Réinitialiser l'onboarding** dans Paramètres → Zone de danger. Il n'y a pas d'entrée Onboarding dans la barre latérale.
 - **Un agent ignore votre profil** : tous les agents Python ont accès au profil par défaut. Si l'agent en question est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
 
 > **Référence technique :** [Référence Apollia](/reference) - schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.

@@ -73,6 +73,8 @@ This is the option to pick if you only want to "take the configuration questionn
 
 In **Settings → Danger Zone** (a separate entry in the Settings sidebar), the **Reset Onboarding** button restarts the guided flow without erasing what is already filled in. Useful if you only want to re-download a model, recalibrate an integration, or see the welcome screens again.
 
+It has one side effect the dialog does not mention: it also clears the guided tours. All six tour progressions go back to zero and the **Getting started** band comes back on the dashboard, even though the dialog says no data is deleted.
+
 ### C - Erase all memories (profile + agents + projects)
 
 In **Settings → Danger Zone**, the **Clear Memories** button deletes **all** Apollia memories, across every namespace: user profile, agent memory, project memory. This is broader than resetting the profile, use it if you want to start from a completely blank slate on the memory side (conversations, installed agents and permissions stay in place).
@@ -88,7 +90,7 @@ In **Settings → Danger Zone**, the **Clear Memories** button deletes **all** A
 ## If it does not work
 
 - **Fields stay empty after entry**: an agent may have been writing. Try again after a few seconds.
-- **The "Reset profile" button does not restart the onboarding**: open the sidebar and click **Onboarding** to restart it manually.
+- **The "Reset profile" button does not restart the onboarding**: use **Reset Onboarding** in Settings → Danger Zone instead. There is no Onboarding entry in the sidebar.
 - **An agent ignores your profile**: all Python agents have access to the profile by default. If the agent in question is third-party, open its code (or contact its author) to check that it reads `ctx.profile`.
 
 > **Technical reference:** [Apollia reference](/reference) - canonical field schema, single source of truth for the global profile, Python SDK contract `ctx.profile.*`.

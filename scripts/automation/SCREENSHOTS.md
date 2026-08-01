@@ -76,7 +76,7 @@ together.
 
 | # | File | What must be on screen | Where you are | Status |
 |---|---|---|---|---|
-| 12 | `transversal-activer-la-compagnonne-ia-1.png` | The dashboard, with the sidebar and the entry point to Apollia Help | In the sidebar, find the Apollia Help button (Apollia logo, at the bottom of the sidebar). | seeded |
+| 12 | `transversal-activer-la-compagnonne-ia-1.png` | The dashboard, just before the Companion opens. There is no sidebar button: Cmd+/ and the command palette are the only entry points | Press Cmd+/ from the dashboard | seeded |
 | 13 | `transversal-activer-la-compagnonne-ia-2.png` | Apollia Help panel open, with its welcome message and the input area | Ask a quick question. Apollia Help answers without interrupting your work on the main page. | seeded |
 | 14 | `transversal-naviguer-au-clavier-command-palette-1.png` | command palette open in the middle of the screen, search field at the top, grouped suggestions below | From any screen, press Cmd+K (macOS) or Ctrl+K (Windows and Linux). The palette opens in the mi | seeded |
 | 15 | `transversal-naviguer-au-clavier-command-palette-2.png` | Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category | Full list of shortcuts | seeded |

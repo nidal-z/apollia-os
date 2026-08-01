@@ -55,10 +55,7 @@ Apollia distinguishes three cases. Choose according to what you want to do:
 
 - **Default endpoint**: `https://api.anthropic.com` (leave as is unless you use a custom gateway).
 - **Where to get the key**: https://console.anthropic.com, **API Keys** section.
-- **Recommended models for v0.1.0** (dated identifiers, exact format expected by the API):
-  - `claude-opus-4-20250514` for maximum quality.
-  - `claude-sonnet-4-20250514` for a good quality/speed ratio.
-  - `claude-3-5-haiku-20241022` for speed and low cost.
+- **Model**: a free-text field. Apollia ships no model list for any provider and does not validate the value, so it is passed to the API as you type it. Take the exact identifier from the provider's own documentation, which is the only current source. Anthropic identifiers are dated and change with each release, so an identifier copied from an older page will be rejected by the API rather than silently downgraded.
 
   Model identifiers change over time: always take the exact identifier of the current model from the [Anthropic model list](https://docs.anthropic.com/en/docs/about-claude/models).
 
@@ -69,13 +66,13 @@ Apollia applies prompt caching on the Anthropic side automatically.
 - **Default endpoint**: `https://api.openai.com/v1`.
 - **Custom endpoint**: use the matching `/v1` URL for LM Studio, vLLM, OpenRouter, Azure OpenAI or any other compatible service.
 - **Where to get the key**: https://platform.openai.com, **API keys** section.
-- **Recommended models**: `gpt-4o-mini`, `gpt-4o`, `o1-mini`.
+- **Model**: free text, as above. Take the identifier from the provider's documentation.
 
 ## Mistral
 
 - **Default endpoint**: `https://api.mistral.ai/v1`.
 - **Where to get the key**: https://console.mistral.ai, **API keys** section.
-- **Recommended models**: `mistral-large-2`, `mistral-small`.
+- **Model**: free text, as above. Take the identifier from the provider's documentation.
 
 ## Remote Ollama
 
@@ -95,7 +92,7 @@ Configure it in your Apollia configuration file:
 ```toml
 [llm.routing.hybrid]
 frontier = "claude-anthropic"   # name of the remote backend to use on escalation
-cost_ceiling_usd = 0.50         # ceiling in dollars per run
+cost_ceiling_usd = 2.00         # ceiling in dollars per routing session
 ```
 
 With this setting, the runtime evaluates each step: if it needs the frontier model and the ceiling has not been reached yet, escalation happens automatically. Past the ceiling, the runtime falls back to local.
@@ -115,6 +112,6 @@ The backend named in `frontier` must be configured and active in **Settings - LL
 - **Timeout on cloud**: check your internet connection or the provider status.
 - **Ollama unreachable**: check that `ollama serve` is running on the target host and that port 11434 is open. For remote Ollama, test with `curl http://<host>:11434/api/tags` from your machine.
 - **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
-- **Ceiling reached and the agent does not finish**: when `cost_ceiling_usd` is reached, the runtime degrades to local automatically for the rest of the run. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
+- **Ceiling reached and the agent does not finish**: the ceiling counts the cumulative cost of a routing session, not of a single run. When it is reached, the runtime degrades to local automatically for the rest of the session, unless `ceiling_action = "hard_stop"` is set, in which case the run ends with an error instead. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
 
 > **Technical reference:** [Apollia reference](/reference) , every supported provider, advanced parameters (temperature, top_k, context_size, fallback policy), multi-backend routing.

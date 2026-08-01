@@ -15,7 +15,7 @@ Before continuing, ask yourself:
 
 ## Step 1 - Back up what matters (recommended)
 
-1. **Memory:** use the CLI `apollia-os memory export --namespace <namespace> --output <file>` to export each agent's memory. Import it back later with `apollia-os memory import --input <file>`.
+1. **Memory:** use the CLI `apollia-os memory export --namespace <namespace> --output <file>` to export each agent's memory. Import it back later with `apollia-os memory import <namespace> --input <file>`.
 2. **Transcriptions:** open **Transcriptions** *(Builder mode)* and note the transcriptions that matter.
 3. **List of your agents and connections:** take a screenshot or write down the names: you will have to reinstall them manually after the reset.
 
@@ -41,7 +41,7 @@ A confirmation window opens with a **3-second safety pause** during which the co
 2. On restart, the **four-step setup flow** opens automatically: **Welcome → Profile → Models → Calibration**. It is the same flow as on the very first launch.
 3. At the **Models** step, you must configure the LLM again (download a local model or add a cloud backend) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
 4. Once the flow is finished, reinstall your agents, your MCP integrations and your projects as needed.
-5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import --input <file>`.
+5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import <namespace> --input <file>`.
 
 ## If something goes wrong
 

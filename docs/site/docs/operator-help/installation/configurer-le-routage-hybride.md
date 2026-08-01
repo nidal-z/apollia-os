@@ -26,10 +26,12 @@ Edit `apollia.toml` and add the following section:
 [llm.routing.hybrid]
 frontier          = "claude-anthropic"
 cost_ceiling_usd  = 2.00
+ceiling_action    = "stay_local"
 ```
 
 - `frontier`: exact name of the cloud backend declared in `[llm.backends]`. The value cannot be empty.
 - `cost_ceiling_usd`: ceiling in US dollars per routing session (must be strictly positive). Any zero or negative value is rejected at startup.
+- `ceiling_action`: what happens when the ceiling is crossed. `stay_local`, the default, keeps the run going on the local backend, silently degraded. `hard_stop` ends the run cleanly with a structured error instead. Choose `hard_stop` when a silently local answer would be worse than no answer.
 
 Restart the daemon after the change.
 

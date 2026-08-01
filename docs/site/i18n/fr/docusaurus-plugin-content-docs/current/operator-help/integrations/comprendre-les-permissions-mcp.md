@@ -23,13 +23,16 @@ Quand vous voyez la popup, vous pouvez cocher *"Toujours autoriser pour ce proje
 
 ## Voir et changer les règles
 
-Ouvrez **Paramètres, Permissions**. Trois sections :
+Ouvrez **Paramètres, Permissions**. Quatre sections :
 
-- **Autorisations** : par MCP installé, vous pouvez régler le niveau d'approbation global (`auto` / `ask` / `readonly`).
-- **Règles de permission** : règles persistantes créées via les popups HITL ou par les agents d'onboarding. Filtrables par origine (Onboarding, HITL utilisateur, Settings, Config import).
+- **Règles** : les règles persistantes, créées via les demandes d'approbation, par l'agent d'onboarding, ou à la main. Filtrables par portée (Toutes, Ce projet, Agent de chat, Partout) et par outil. L'auteur de la règle est affiché sur chaque ligne mais n'est pas un filtre.
 - **Sessions actives** : autorisations valables uniquement pour la session de chat en cours.
+- **Apollia Chat** : les règles qui s'appliquent spécifiquement au chat libre.
+- **Audit récent** : les vingt dernières décisions d'outil, la plus récente en tête.
 
-Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'un scope d'un coup, le bouton **Révoquer tout** demande de taper votre nom en confirmation.
+Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'une portée d'un coup, le bouton **Révoquer tout** vous fait choisir la portée et affiche combien de règles seraient retirées, puis Annuler ou Révoquer. Il ne demande aucune confirmation à taper.
+
+Le niveau d'approbation par serveur (`auto` / `ask` / `readonly`) n'est pas sur cette page : il se trouve dans **Connexions**, sur l'onglet **Réglages** du serveur.
 
 ![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/fr/integration-comprendre-les-permissions-mcp-2.png)
 

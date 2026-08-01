@@ -31,7 +31,7 @@
 
 ## What you can do
 
-**Reads (without approval)**: list your Gmail drafts, list your Calendar events, browse the `Apollia/` folder on Drive, read Sheets cells, read Docs text, list your tasks, search YouTube videos.
+**Reads (without approval)**: list your Calendar events, browse the `Apollia/` folder on Drive, read Sheets cells, read Docs text, list your tasks, search YouTube videos.
 
 **Writes (with HITL approval)**: send a mail, create a draft, create or change a Calendar event, write a Drive Workspace file, add or change values in Sheets, append text to a Doc, create a Slide, create a form, create or complete a task.
 

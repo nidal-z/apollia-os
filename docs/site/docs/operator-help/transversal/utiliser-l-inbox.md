@@ -20,7 +20,7 @@ The page is organised into **three tabs**, reachable from the tab bar at the top
 | **Activity** | Recent events that deserve your attention without blocking an agent: task failures, trigger errors, agents running degraded, LLM provider unavailable. Rolling 14-day window. |
 | **Notifications sent** | History of the notifications pushed to your Desktop / Webhook channels (last 50). |
 
-The active tab is remembered between sessions (refreshing the page keeps your last view). You can also land there directly through a link (the **Settings → Notifications** page redirects to the *Notifications sent* tab, for instance).
+The active tab is remembered between sessions (refreshing the page keeps your last view). You can also land there directly through a link (the **Notifications** (a top-level entry in the sidebar) page redirects to the *Notifications sent* tab, for instance).
 
 ## The "To do" tab
 
@@ -55,7 +55,7 @@ Two actions at the bottom:
 - **Reply** *(primary button)* - sends your answers to the agent, which resumes its execution. Fields left empty are marked *"not answered"* in the payload passed along, nothing blocks.
 - **Decline to answer** *(red ghost)* - opens the reason dialog (5 to 500 characters). The agent receives your reasoned refusal and adapts what it does next.
 
-> **Note:** a notification (desktop toast, or webhook if configured) goes out automatically when an agent calls `ask_user`. You can turn this notification off in **Settings → Notifications** by unchecking *Agent question*.
+> **Note:** a notification (desktop toast, or webhook if configured) goes out automatically when an agent calls `ask_user`. You can turn this notification off in **Notifications** (a top-level entry in the sidebar) by unchecking *Agent question*.
 
 ### Recent history
 
@@ -86,7 +86,7 @@ Table of the **last 50 notifications** pushed to your Desktop or Webhook channel
 - **Event** - human label (*Task failed*, *Approval required*, and so on).
 - **Status** - green *"sent"* badge or red *"failed"* badge.
 
-A selector at the top filters by channel. To configure channels or global events, go to **Settings → Notifications** (see [Configure a channel](../notifications/configurer-un-canal.md)).
+A selector at the top filters by channel. To configure channels or global events, go to **Notifications** (a top-level entry in the sidebar) (see [Configure a channel](../notifications/configurer-un-canal.md)).
 
 ## Verification
 

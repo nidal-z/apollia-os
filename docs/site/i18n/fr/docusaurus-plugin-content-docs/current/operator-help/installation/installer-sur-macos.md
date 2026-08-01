@@ -9,13 +9,13 @@ Apollia est distribué pour macOS en deux formats :
 
 - macOS 13 (Ventura) ou plus récent.
 - Apple Silicon (M1, M2, M3, M4). Le support Intel via Rosetta n'est pas officiel pour v0.1.0.
-- 4 Go de RAM libres minimum (8 Go recommandé pour Mistral-7B).
+- 4 Go de RAM libres minimum. La liste curée proposée à l'accueil est Qwen3 en quatre tailles, 4B, 8B, 14B et 30B-A3B ; 8 Go est un plancher confortable pour le 8B.
 - 10 Go d'espace disque pour le bundle + un modèle quantifié.
 
 ## Installation (DMG)
 
 1. Téléchargez `Apollia-OS_<version>.dmg` depuis la page Releases.
-2. Double-cliquez sur le fichier, glissez `Apollia OS.app` dans le dossier `Applications`.
+2. Double-cliquez sur le fichier, glissez `Apollia OS.app` dans votre dossier `Applications` **personnel**, celui qui est sous votre répertoire d'accueil. Les commandes de vérification ci-dessous utilisent ce chemin ; l'installation dans le `/Applications` système fonctionne aussi, il faut alors les adapter.
 3. Premier lancement : `Cmd+clic` sur l'icône puis `Ouvrir` (Gatekeeper bloque les apps non-signées).
 4. L'app démarre le daemon `apollia-os` automatiquement. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT).
 

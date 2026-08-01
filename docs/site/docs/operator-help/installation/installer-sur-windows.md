@@ -27,8 +27,14 @@ From PowerShell:
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" --version
-& "C:\Program Files\Apollia OS\apollia-os.exe" doctor --json | ConvertFrom-Json | Select-Object -ExpandProperty gpu
+& "C:\Program Files\Apollia OS\apollia-os.exe" doctor
 ```
+
+`doctor` runs eight checks: the data directory, the configuration file, the two
+databases, the models directory, Python, the sandbox posture and the runtime
+socket. It does **not** detect your GPU, and there is no command that reports
+one: the inference device is chosen by configuration rather than probed. See the
+section below.
 
 ## GPU acceleration
 

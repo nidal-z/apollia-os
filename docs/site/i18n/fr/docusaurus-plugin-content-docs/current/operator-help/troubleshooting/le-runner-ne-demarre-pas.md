@@ -20,7 +20,7 @@ Le bundle d'installation doit contenir au minimum `apollia-runner-cpu` à côté
 Vérifiez via :
 
 ```sh
-apollia-os doctor --json | jq .runner
+apollia-os doctor
 ```
 
 Si `apollia-runner-cpu` est absent : ré-installez Apollia (le bundle a été altéré).
