@@ -67,3 +67,17 @@ INSERT INTO project_documents (id, project_id, name, file_path, size_bytes, uplo
    '__APOLLIA_SEED_WORKSPACE__/README.md',
    2048,
    '2026-07-01T00:00:00Z');
+
+-- project_agents: the Agents section of a project's detail panel.
+--
+-- Left empty, the section renders its empty state and the documentation
+-- screenshot of the project detail shows a project nobody works on. Two agents
+-- on the first project, one on the second, so the panel differs between them
+-- and a reader can see the association is per project rather than global.
+--
+-- Names must match installed_agents in agents.db, otherwise list_project_agents
+-- returns rows the interface cannot resolve.
+INSERT INTO project_agents (project_id, agent_name, added_at) VALUES
+  ('seed-project-alpha', 'seed-classifier', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days')),
+  ('seed-project-alpha', 'apollia-guide',   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days')),
+  ('seed-project-beta',  'apollia-guide',   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days'));

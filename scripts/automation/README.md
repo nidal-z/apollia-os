@@ -36,6 +36,15 @@ Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`. For a dense model a
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
+## Taking the documentation screenshots by hand
+
+The operator-help images are shot manually, not by the automaton: the runner
+frames the whole window, cannot reach a native dialog, and cannot populate the
+inbox, which lives in the runtime's memory. `SCREENSHOTS.md` next to this file
+is the shooting script, one row per image with its exact filename, and
+`seed/load.sh` and `seed/unload.sh` put the seed into the real profile and take
+it back out again.
+
 ## The canonical suite
 
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
