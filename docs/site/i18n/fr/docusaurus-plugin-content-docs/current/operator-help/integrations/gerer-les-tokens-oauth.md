@@ -21,6 +21,7 @@ Convention de nommage :
 
 - Service : `apollia-connector-<provider>` (par exemple `apollia-connector-google`, `apollia-connector-microsoft`).
 - User : l'identifiant du compte, typiquement l'adresse email.
+<!-- claim:mcp-oauth-uses-one-keyring-service -->
 - Pour les serveurs MCP OAuth, un service unique `apollia-mcp-oauth`, avec le nom du serveur dans l'emplacement du compte.
 
 Un index `~/.apollia/connectors-index.json` énumère les comptes connectés par provider (la plupart des trousseaux ne supportent pas l'énumération native).
@@ -86,6 +87,7 @@ Les options sur une machine headless sont de faire tourner une implémentation S
 
 ### Audit des actions
 
+<!-- claim:tool-invocations-is-the-execution-record -->
 Toutes les exécutions d'outils sont loggées dans `~/.apollia/audit.db`, table `tool_invocations` : agent, tâche, exécution, nom de l'outil, empreinte de l'entrée, profil de bac à sable, durée et code de sortie. Elle enregistre ce qui a tourné, pas qui l'a approuvé. Consultable depuis la page **Observabilité** de la barre latérale, onglet **Piste d'audit**.
 
 Les approbations MCP (acceptations HITL durables) sont stockées séparément dans `~/.apollia/mcp_approvals.db`.

@@ -32,7 +32,7 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
 
    The reason is **passed on to the agent**: it is injected into the tool message the LLM sees at the next iteration, in the form *"Tool refused by the user. Reason: ..."*. This lets the agent correct its trajectory instead of retrying blindly. The reason is also **persisted** in the recent history (see below) so you can find the context later.
 
-3. **Always allow** - opens a menu with **4 scopes** to choose from:
+3. **Always allow** - opens a menu with **4 scopes** to choose from, in the chat card:
 
    | Scope | Effect |
    |---|---|
@@ -41,8 +41,11 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
    | **Always for this project** | Persisted rule for every assistant used in the current project. *Disabled if the session is not attached to any project.* |
    | **Always, everywhere** | Persisted rule, globally - every assistant, every project. Shown in orange as a signal of the widest scope. |
 
+   The approval prompt raised by a risky filesystem write is a different surface, and it offers **five**: the four above plus **Only this tool**, which authorises that one tool and nothing else.
+
    Persisted rules can be reviewed and revoked in **Settings → Permissions** (see [Manage tool permissions](configurer-les-permissions-de-fichiers.md)).
 
+<!-- claim:chat-tool-governance-path -->
 > **Special case of code executors** (`bash_executor`, `python_executor`): *Always allow* is never honoured for them, whatever scope you pick. Their argument is a shell command or arbitrary code; a blanket authorisation would be a blank cheque on the whole interpreter. The current call does run once, but the next invocation asks for confirmation again. To auto-approve a specific command, set up a targeted prefix rule in **Settings → Permissions**: it only applies to a single simple command (no chaining with `;`, `&&`, no pipe, redirection or substitution).
 
 > **Special case of paused tasks** ("task approval"): an agent that suspends itself through a HITL checkpoint only exposes **Allow** / **Refuse** (no *Always allow*) since this is not a memorisable tool. The reason dialog is still mandatory on rejection.

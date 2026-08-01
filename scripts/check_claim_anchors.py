@@ -87,19 +87,22 @@ def main() -> int:
     # Mirror coverage: a claim anchored on a translated page should be anchored
     # on its translation too.
     #
-    # Count what this rule actually looked at, and say so. The mirror carries
-    # operator-help alone, while every marker today sits in explanation,
-    # architecture, how-to or reference, none of which is translated. So the
-    # rule has nothing to check, and a bare "green" would report that as
-    # verified. A check with no coverage must announce its own emptiness,
-    # otherwise it is the thing this whole pass exists to remove.
+    # Count what this rule actually looked at, and say so. A check with no
+    # coverage must announce its own emptiness, otherwise a green line reports
+    # "verified" over something nobody examined, which is the shape this whole
+    # pass exists to remove.
     mirror_checked = 0
     for cid in sorted(set(en) & ids):
-        if cid in fr:
-            continue
         pages = [p for p, _ in en[cid]]
         mirrored = [p for p in pages if (FR / p.relative_to(EN)).is_file()]
+        # Count every anchored page that HAS a mirror, whether or not the mirror
+        # carries the marker. Counting only the failures made the rule announce
+        # "no coverage" exactly when it was working: six claims correctly
+        # mirrored, and a message saying nothing had been checked. A counter that
+        # only increments on failure measures failures, not coverage.
         mirror_checked += len(mirrored)
+        if cid in fr:
+            continue
         if mirrored:
             names = ", ".join(str(p.relative_to(EN)) for p in mirrored)
             problems.append(

@@ -10,6 +10,7 @@
 
 ## Les quatre paliers
 
+<!-- claim:tier-sets-budget-runtime-ceiling-caps-it -->
 | Palier | Quand l'utiliser | Budget d'étapes | Vérification auto | Injection mémoire |
 |---|---|---|---|---|
 | `assisted` | Travail exploratoire, tâche inconnue, premier lancement. | Très court - convient pour valider un prototype. | Aucune. Le gate de plan est armé : vous approuvez le plan avant son exécution. | Non. |
@@ -19,6 +20,7 @@
 
 Deux choses que la table laisserait supposer, et qu'il ne faut pas.
 
+<!-- claim:plan-gate-bypassed-above-supervised -->
 **L'approbation n'est pas par étape.** Aucun palier ne met en pause avant chaque
 action. Ce que `assisted` et `supervised` arment, c'est le **gate de plan** :
 vous voyez le plan et l'approuvez une fois, avant exécution. `bounded_autonomous`
@@ -27,6 +29,7 @@ que vous l'ayez vu, sauf si vous passez `--plan` pour le réarmer sur cette
 exécution. Indépendamment, et à tous les paliers, une écriture fichier que le
 runtime juge risquée déclenche sa propre demande d'approbation.
 
+<!-- claim:verification-is-one-post-run-pass -->
 **La vérification tourne une fois, à la fin.** C'est une passe unique après
 l'exécution, pas un contrôle entre les étapes, et `assisted` ne la lance pas.
 

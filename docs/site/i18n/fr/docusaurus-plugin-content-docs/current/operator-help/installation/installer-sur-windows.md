@@ -36,6 +36,23 @@ bac à sable et la socket du runtime. Il ne détecte **pas** votre GPU, et aucun
 commande ne le rapporte : le périphérique d'inférence se configure au lieu de se
 sonder. Voir la section ci-dessous.
 
+## Ce que Windows ne confine pas
+
+<!-- claim:windows-has-no-tool-sandbox -->
+Sous Linux, un appel d'outil s'exécute dans des espaces de noms avec des limites
+de ressources. Sous Windows il n'y a **aucun confinement** : ni espaces de noms,
+ni limites de ressources, le mécanisme Unix n'ayant pas d'équivalent Windows et
+la fonction qui l'applique ne faisant rien sur cette plateforme. Un outil lancé
+par un agent a les mêmes droits sur votre machine que l'application elle-même.
+
+Cela ne rend pas Windows inutilisable, et cela change ce que vous devriez
+déléguer. Les règles de permission et les demandes d'approbation s'appliquent
+toujours, et elles sont ici la seule barrière : traitez un « toujours autoriser »
+sous Windows comme une autorisation plus large que le même choix sous Linux.
+
+Une conséquence pratique : `bash_executor` exige un shell POSIX dans le `PATH`,
+via Git Bash, WSL ou MSYS2, et échoue sans lui.
+
 ## Accélération GPU
 
 L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'installeur MSI embarque la variante CPU. Pour accélérer la dictée sur GPU CUDA / Vulkan :

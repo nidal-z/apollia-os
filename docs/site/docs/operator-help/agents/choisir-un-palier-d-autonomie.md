@@ -10,6 +10,7 @@
 
 ## The four levels
 
+<!-- claim:tier-sets-budget-runtime-ceiling-caps-it -->
 | Level | When to use it | Step budget | Automatic verification | Memory injection |
 |---|---|---|---|---|
 | `assisted` | Exploratory work, unknown task, first run. | Very short - suitable for validating a prototype. | None. The plan gate is armed, so you approve the plan before it runs. | No. |
@@ -19,6 +20,7 @@
 
 Two things the table would let you assume, and should not.
 
+<!-- claim:plan-gate-bypassed-above-supervised -->
 **Approval is not per step.** No level pauses before each action. What `assisted`
 and `supervised` arm is the **plan gate**: you see the plan and approve it once,
 before execution. `bounded_autonomous` and `long_autonomous` bypass that gate
@@ -26,6 +28,7 @@ entirely, so the plan runs without you seeing it, unless you pass `--plan` to
 re-arm it for that run. Separately, and at every level, a filesystem write the
 runtime judges risky raises its own approval prompt.
 
+<!-- claim:verification-is-one-post-run-pass -->
 **Verification runs once, at the end.** It is a single post-run pass, not a
 check between steps, and `assisted` does not run it at all.
 

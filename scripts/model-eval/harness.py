@@ -26,8 +26,10 @@ Stdlib only.
 import json
 import math
 import os
+import platform
 import re
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -497,7 +499,7 @@ def provenance(
             version = raw.strip().splitlines()[0]
     git_sha = run_capture(["git", "-C", REPO_ROOT, "rev-parse", "HEAD"])
     git_status = run_capture(["git", "-C", REPO_ROOT, "status", "--porcelain"])
-    memory = run_capture(["sysctl", "-n", "hw.memsize"])
+    machine = _machine_identity()
     return {
         "git_sha": git_sha.strip() if git_sha else "unknown",
         "git_dirty": bool(git_status and git_status.strip()),
@@ -507,12 +509,68 @@ def provenance(
         "model_sha256": sha,
         "model_sha256_scope": scope,
         "launch_args": list(launch_args or []),
-        "machine_id": (run_capture(["sysctl", "-n", "hw.model"]) or "unknown").strip(),
-        "machine_chip": (
-            run_capture(["sysctl", "-n", "machdep.cpu.brand_string"]) or "unknown"
-        ).strip(),
-        "machine_memory_bytes": int(memory.strip()) if memory else 0,
-        "os_version": (run_capture(["sw_vers", "-productVersion"]) or "unknown").strip(),
+        "machine_id": machine["machine_id"],
+        "machine_chip": machine["machine_chip"],
+        "machine_memory_bytes": machine["machine_memory_bytes"],
+        "os_version": machine["os_version"],
+    }
+
+
+def _machine_identity():
+    """The four machine fields of 1.4.9, per platform.
+
+    macOS keeps the original sysctl sources unchanged. Windows uses CIM through
+    powershell; the baseboard product is the identifier because
+    Win32_ComputerSystem.Model on a self-built PC is a vendor placeholder
+    ("System Product Name"). Linux reads DMI and /proc. Anything undeterminable
+    stays "unknown" or 0, never invented.
+    """
+    if sys.platform == "darwin":
+        memory = run_capture(["sysctl", "-n", "hw.memsize"])
+        return {
+            "machine_id": (run_capture(["sysctl", "-n", "hw.model"]) or "unknown").strip(),
+            "machine_chip": (
+                run_capture(["sysctl", "-n", "machdep.cpu.brand_string"]) or "unknown"
+            ).strip(),
+            "machine_memory_bytes": int(memory.strip()) if memory else 0,
+            "os_version": (run_capture(["sw_vers", "-productVersion"]) or "unknown").strip(),
+        }
+    if sys.platform == "win32":
+        def cim(query):
+            out = run_capture(["powershell", "-NoProfile", "-Command", query])
+            return out.strip() if out else ""
+        memory = cim("(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory")
+        return {
+            "machine_id": cim("(Get-CimInstance Win32_BaseBoard).Product") or "unknown",
+            "machine_chip": cim("(Get-CimInstance Win32_Processor).Name") or "unknown",
+            "machine_memory_bytes": int(memory) if memory.isdigit() else 0,
+            "os_version": cim("(Get-CimInstance Win32_OperatingSystem).Version") or "unknown",
+        }
+    # Linux and anything else: DMI board name, /proc/cpuinfo, sysconf.
+    def read_first(path):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                return handle.readline().strip()
+        except OSError:
+            return ""
+    chip = ""
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if line.startswith("model name"):
+                    chip = line.split(":", 1)[1].strip()
+                    break
+    except OSError:
+        pass
+    try:
+        memory_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError):
+        memory_bytes = 0
+    return {
+        "machine_id": read_first("/sys/devices/virtual/dmi/id/board_name") or "unknown",
+        "machine_chip": chip or "unknown",
+        "machine_memory_bytes": memory_bytes,
+        "os_version": platform.platform(terse=True) if platform else "unknown",
     }
 
 

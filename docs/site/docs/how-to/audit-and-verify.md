@@ -35,6 +35,7 @@ To take the trail out for archival or external review:
 apollia-os audit export --output audit.json --limit 500
 ```
 
+<!-- claim:audit-export-caps-at-the-server-ceiling -->
 **One export returns at most 500 events.** The endpoint clamps every request to
 that ceiling, so the `--limit` default of 10000 is misleading and a larger value
 returns nothing more. The command warns on stderr when the export comes back full

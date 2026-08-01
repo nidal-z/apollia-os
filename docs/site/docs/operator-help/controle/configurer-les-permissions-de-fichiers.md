@@ -25,6 +25,7 @@ Rules appear automatically when an agent requests access to a tool and you choos
    - the **expiry date** or the mention *Permanent*
    - the **author** of the decision (agent or user)
 
+<!-- claim:executor-guard-blocks-command-chaining -->
 > **Prefix and code executors:** for an ordinary tool, a prefix rule auto-approves any argument starting with the prefix. For a code executor (`bash_executor`, `python_executor`), it is stricter: it only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
 
 4. Use the filters in the left panel to narrow the list:

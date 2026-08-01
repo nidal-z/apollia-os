@@ -21,6 +21,7 @@ Naming convention:
 
 - Service: `apollia-connector-<provider>` (for example `apollia-connector-google`, `apollia-connector-microsoft`).
 - User: the account identifier, typically the email address.
+<!-- claim:mcp-oauth-uses-one-keyring-service -->
 - For OAuth MCP servers, a single service `apollia-mcp-oauth`, with the server name in the account slot.
 
 An index at `~/.apollia/connectors-index.json` lists the connected accounts per provider (most keyrings do not support native enumeration).
@@ -86,6 +87,7 @@ The options on a headless machine are to run a Secret Service implementation (`g
 
 ### Action audit
 
+<!-- claim:tool-invocations-is-the-execution-record -->
 Every tool execution is logged in `~/.apollia/audit.db`, table `tool_invocations`: agent, task, run, tool name, a hash of the input, the sandbox profile, duration and exit code. It records what ran, not who approved it. Read it from the **Observability** page in the sidebar, **Audit Trail** tab.
 
 MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mcp_approvals.db`.

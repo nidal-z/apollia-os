@@ -36,6 +36,23 @@ socket. It does **not** detect your GPU, and there is no command that reports
 one: the inference device is chosen by configuration rather than probed. See the
 section below.
 
+## What Windows does not confine
+
+<!-- claim:windows-has-no-tool-sandbox -->
+On Linux, a tool call runs inside namespaces with resource limits. On Windows
+there is **no confinement at all**: no namespaces, and no resource limits either,
+because the Unix mechanism has no Windows equivalent and the function that
+applies it does nothing on this platform. A tool an agent runs has the same
+rights over your machine as the application itself.
+
+That does not make Windows unusable, and it does change what you should delegate.
+The permission rules and the approval prompts still apply, and they are the only
+barrier here, so treat an "always allow" on Windows as a wider grant than the
+same choice on Linux.
+
+One practical consequence: `bash_executor` needs a POSIX shell on `PATH`, from
+Git Bash, WSL or MSYS2, and fails without one.
+
 ## GPU acceleration
 
 Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the MSI installer embeds its CPU variant. To accelerate dictation on a CUDA / Vulkan GPU:

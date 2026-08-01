@@ -93,6 +93,9 @@ that is right cold and badly wrong warm.
 | `reasoning_chars` | characters | Characters inside `<think>` blocks, tags excluded. | **Observed.** Client-side parse of the content stream. | Not tokens. Exact, unlike the token split derived from it. |
 | `content_chars` | characters | Characters outside `<think>` blocks. | **Observed.** Same parse. | Same. |
 | `reasoning_split_method` | enum | Which of the three above applies: `"tokenized"`, `"chars_apportioned"`, `"none"`. | **Observed.** Set by the producer. | Not optional. A consumer that needs an exact split checks this before trusting `decode_tok_reasoning`. |
+| `draft_tok` | tokens | Tokens proposed by a speculative path (draft model, MTP head, or n-gram lookup) during this request. | **Observed.** `timings.draft_n` verbatim. `null` when no speculative path was enabled, in which case the engine omits the key. Confirmed present and identically named on b9870 and b10092. | Not generated tokens. A drafted token that was rejected cost compute and produced nothing. Never `0` when speculation was off (Rule C). |
+| `draft_tok_accepted` | tokens | Of `draft_tok`, those the target model accepted. Accepted tokens are emitted and therefore also counted in `decode_tok`. | **Observed.** `timings.draft_n_accepted` verbatim. `null` under the same condition as `draft_tok`. | Not a subset disjoint from `decode_tok`. Not an acceptance rate; that is the derived ratio below. |
+| `draft_acceptance_ratio` | ratio | Share of drafted tokens accepted. The quantity D1 exists to measure. | **Derived.** `draft_tok_accepted / draft_tok`. `null` when `draft_tok` is `null` or `0`. | Not a speedup. The end-to-end gain additionally depends on draft cost and batch effects, which on a mixture of experts model act against sparsity. |
 
 ### 1.4.3 Durations
 
@@ -231,7 +234,8 @@ afterwards.
 | `params_total` | count | Total parameters. | **Observed.** GGUF header. | Not what governs decode speed on a mixture of experts model. |
 | `params_active_per_token` | count | Parameters read per generated token: experts used per token times expert size, plus shared parameters. Equals `params_total` for a dense model. | **Derived** from GGUF header fields. | Not `params_total`. For the models in this shortlist the two differ by an order of magnitude, and using the wrong one makes the ceiling meaningless. |
 | `bits_per_weight` | bits | Effective bits per weight of the quantisation. | **Derived exactly.** Sum of every tensor's storage size, from the ggml block layout of that tensor's own type, divided by the parameter count. Not inferred from `general.file_type`, which names only the dominant quantisation. | Not the nominal bit width of the quantisation name: a `Q5_K_M` file is 5.70 bits per weight, not 5. |
-| `bytes_per_token_read` | bytes | Bytes moved per generated token: active parameter bytes, plus KV traffic at the stated context length, plus `recurrent_state_bytes`. | **Derived.** Formula stated in the record's `assumptions`. | Not the model file size. Not the active parameter bytes alone, which understates the ceiling at long context. |
+| `bytes_per_token_read` | bytes | Bytes moved per generated token: active parameter bytes, plus KV traffic at the stated context length, plus `recurrent_state_bytes`. The decode-ceiling denominator. | **Derived.** Formula stated in the record's `assumptions`. | Not the model file size. Not the active parameter bytes alone, which is `weight_bytes_per_token_read` below; an effective bandwidth computed against one is not comparable to one computed against the other, and every effective-bandwidth claim names its denominator. |
+| `weight_bytes_per_token_read` | bytes | Active parameter bytes read per generated token, weights only: dense and embedding read in full, expert bytes at `expert_used / expert_count`. The denominator of the offload predictor's path constants. | **Derived** from the GGUF header per tensor. | Not `bytes_per_token_read`, which adds KV and recurrent traffic and is the ceiling denominator. Two effective bandwidths under one name is the drift 1.6 exists to prevent, and it produced one wrong constant before these two names were split. |
 | `recurrent_state_bytes` | bytes | Recurrent state of a hybrid model, for one sequence. `0` on a pure attention model. | **Derived.** `n_layer_recurrent * ((d_inner + 2 * n_group * d_state) * (d_conv - 1) + d_inner * d_state) * 4`, from the `ssm.*` GGUF keys, f32 throughout. Validated in 1.11. | Not part of `kv_cache_bytes`, whose definition is context-dependent while this is constant. Not excluded from decode traffic: it is read on every token. |
 | `bandwidth_bytes_per_s` | bytes/s | Memory bandwidth of the machine. | **Observed** from a cited source, recorded in `sources`. | Not measured by this harness. A vendor figure, and the ceiling inherits its optimism. |
 | `peak_flops` | FLOP/s | Peak throughput of the machine. | **Observed** from a cited source. | Same. |
@@ -432,6 +436,9 @@ in 1.4; this fixes the structure.
           "content_chars":          { "type": ["integer", "null"] },
           "sse_chunks":             { "type": ["integer", "null"] },
           "token_count_discrepancy_ratio": { "type": ["number", "null"] },
+          "draft_tok":              { "type": ["integer", "null"] },
+          "draft_tok_accepted":     { "type": ["integer", "null"] },
+          "draft_acceptance_ratio": { "type": ["number", "null"] },
           "ttft_ms":                { "type": ["number", "null"] },
           "ttft_cold_ms":           { "type": ["number", "null"] },
           "ttft_warm_ms":           { "type": ["number", "null"] },
@@ -528,6 +535,7 @@ in 1.4; this fixes the structure.
         "params_active_per_token": { "type": "integer" },
         "bits_per_weight":         { "type": "number" },
         "bytes_per_token_read":    { "type": "integer" },
+        "weight_bytes_per_token_read": { "type": ["integer", "null"] },
         "kv_cache_bytes":          { "type": "integer" },
         "recurrent_state_bytes":   { "type": "integer" },
         "bandwidth_bytes_per_s":   { "type": "number" },
@@ -1679,14 +1687,20 @@ is concerned; nothing in `results/` produced under that vector is comparable to
 anything produced under this one, and `launch_args` is recorded verbatim in
 every record rather than annotated for exactly that reason.
 
-**The binary does diverge, and it is not fixed here.** Every campaign in
-`results/` ran on the Homebrew `llama-server`, reported as `version: 9870
-(2d973636e)` in each record's provenance. `packaging/fetch-llama-server.sh` pins
-`LLAMA_CPP_TAG=b10092`, and `packaging/llama-server-checksums.txt` still holds
-placeholder hashes, so the pinned build has never been fetched on this machine.
-Measurements transfer to what the product ships only insofar as b9870 and b10092
-agree, which nothing here has tested. `llama_server_version` is in the record so
-the question is answerable later rather than forgotten; 1.4.9 anticipated this
+**The binary does diverge, and the divergence is now bounded.** Every campaign
+in `results/` up to 2026-08-01 ran on the Homebrew `llama-server`, reported as
+`version: 9870 (2d973636e)` in each record's provenance.
+`packaging/fetch-llama-server.sh` pins `LLAMA_CPP_TAG=b10092`, and
+`packaging/llama-server-checksums.txt` holds real, locally computed and
+cross-checked hashes; its own header documents that provenance. The pinned
+build was fetched and checksum-verified on this machine on 2026-08-01,
+reporting `version: 10092 (3ce7da2c8)`. The two builds expose an identical
+speculative and MoE-placement flag surface (`--spec-type` families,
+`--cpu-moe`, `--n-cpu-moe`, `--override-tensor`, `--fit`), and both report
+`draft_n` / `draft_n_accepted` in `timings`, verified live on each. Throughput
+equality between the builds remains untested, so speed figures still transfer
+only insofar as b9870 and b10092 agree. `llama_server_version` is in the record
+so the question stays answerable rather than forgotten; 1.4.9 anticipated this
 in the "what it is not" column of that field.
 
 **Two swept flags have no field in `LlamaServerConfig`.** `-ctxcp`

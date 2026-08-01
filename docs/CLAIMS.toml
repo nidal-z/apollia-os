@@ -698,3 +698,109 @@ from `__required_keys__` at registration. The agent registers, and every payload
 it receives is wrong. If the schema ever stops reading the TypedDict, the rule
 loses its reason and should be revisited rather than kept as folklore.
 """
+
+# ── Operator help: what the second audit pass corrected ──────────────────────
+#
+# These guard the sentences an operator acts on. Every one of them was false in
+# the shipped corpus, and each rests on a Rust symbol, which is the only kind of
+# statement this file can hold. What those pages assert about the interface
+# itself, and there is a lot of it, is outside any mechanical reach; see the
+# frontend note in the header.
+
+[[claim]]
+id = "plan-gate-bypassed-above-supervised"
+scope = "public"
+symbol = "AutonomyLevel::gate_policy"
+status = "wired"
+proof = "crates/apollia-core/src/config/autonomy.rs"
+evidence = ""
+note = """
+Two operator pages described a per-step approval that does not exist, and both
+omitted that the top two tiers bypass the plan gate outright. An operator picking
+`bounded_autonomous` for "fewer interruptions" was in fact giving up the one
+approval there is. If this function stops deciding the policy, those pages are
+wrong again in the direction that costs the most.
+"""
+
+[[claim]]
+id = "verification-is-one-post-run-pass"
+scope = "public"
+symbol = "run_post_run_verification"
+status = "wired"
+proof = "crates/apollia-oria/src/verification.rs"
+evidence = ""
+note = """
+The tier table sold verification as a loop between steps, which reads as a safety
+net that catches a mistake before it lands. It runs once, after the run is over,
+and `assisted` does not run it at all.
+"""
+
+[[claim]]
+id = "mcp-oauth-uses-one-keyring-service"
+scope = "public"
+symbol = "MCP_OAUTH_SERVICE"
+status = "wired"
+proof = "crates/apollia-auth/src/mcp_token_store.rs"
+evidence = ""
+note = """
+The page told operators to look for a keyring entry under a per-server service
+name that never existed. There is one service, and the server name sits in the
+account slot. Someone auditing their own keychain would have concluded Apollia
+stored nothing.
+"""
+
+[[claim]]
+id = "tool-invocations-is-the-execution-record"
+scope = "public"
+symbol = "tool_invocations"
+status = "wired"
+proof = "crates/apollia-tools/src/audit.rs"
+evidence = ""
+note = """
+The documented table and database both did not exist, and the page sent the
+reader to a settings screen that does not exist either. This is the record that
+does: it says what ran, not who approved it, and that distinction is the reason
+the page was misleading rather than merely stale.
+"""
+
+[[claim]]
+id = "hybrid-ceiling-action-decides-the-outcome"
+scope = "public"
+symbol = "CeilingAction"
+status = "wired"
+proof = "crates/apollia-core/src/config/llm.rs"
+evidence = ""
+note = """
+The hybrid routing page documented two keys of three, and the missing one decides
+whether crossing the cost ceiling silently degrades the run to local or stops it.
+An operator who cared about the answer's provenance could not know the default
+was to keep going locally without saying so.
+"""
+
+[[claim]]
+id = "sovereignty-profile-gates-connecting-not-calling"
+scope = "public"
+symbol = "ensure_cloud_allowed"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/integrations.rs"
+evidence = ""
+note = """
+`local_only` was presented as a third filter on every tool call, alongside the
+manifest and the permission rules. It is checked when a cloud connection is
+opened, and not on calls through a connection that already exists. Read as a
+per-call filter it promises a containment the code does not provide.
+"""
+
+[[claim]]
+id = "audit-export-caps-at-the-server-ceiling"
+scope = "public"
+symbol = "SERVER_LIMIT_CAP"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/audit.rs"
+evidence = ""
+note = """
+The endpoint clamps to 500 whatever the caller asks for, so an archival export
+came back short and the truncation warning compared against the requested limit,
+which meant it could never fire. The constant exists so the CLI names the real
+ceiling; if it disappears, the silent-truncation defect is back.
+"""

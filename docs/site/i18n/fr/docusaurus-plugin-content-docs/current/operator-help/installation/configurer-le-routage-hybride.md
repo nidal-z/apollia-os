@@ -31,6 +31,7 @@ ceiling_action    = "stay_local"
 
 - `frontier` : nom exact du backend cloud déclaré dans `[llm.backends]`. La valeur ne peut pas être vide.
 - `cost_ceiling_usd` : plafond en dollars US par session de routing (doit être strictement positif). Toute valeur nulle ou négative est rejetée au démarrage.
+<!-- claim:hybrid-ceiling-action-decides-the-outcome -->
 - `ceiling_action` : ce qui se passe au franchissement du plafond. `stay_local`, la valeur par défaut, poursuit l'exécution sur le backend local, silencieusement dégradée. `hard_stop` termine proprement l'exécution avec une erreur structurée. Choisissez `hard_stop` quand une réponse locale non signalée serait pire que pas de réponse.
 
 Redémarrez le daemon après modification.

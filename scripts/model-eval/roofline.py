@@ -153,6 +153,53 @@ MACHINES = {
             ),
         },
     },
+    "PRIME B550M-A (WI-FI)": {
+        # Windows PC bench: Ryzen 9 5950X, 64 GB DDR4-2666 dual channel,
+        # AMD Radeon RX 6900 XT 16 GB. Keyed by the baseboard product string
+        # (Win32_BaseBoard.Product), which is what harness provenance reports
+        # on Windows; Win32_ComputerSystem.Model is a vendor placeholder there.
+        "chip": "AMD Ryzen 9 5950X + Radeon RX 6900 XT",
+        "gpu_cores": None,
+        # The device the ceilings assume when the model is fully VRAM-resident.
+        "bandwidth_bytes_per_s": 512.0e9,
+        "peak_flops": 46.08e12,
+        # Second tier and storage, for the offload predictor. Kept beside the
+        # GPU figure because on this topology they are the measurement's
+        # subject, not background.
+        "ram_bandwidth_bytes_per_s": 42.7e9,
+        "storage_bytes_per_s": {
+            "nvme": 2.2e9,
+            "sata_ssd": 0.52e9,
+            "sata_hdd": 0.21e9,
+        },
+        "sources": {
+            "bandwidth_bytes_per_s": (
+                "AMD Radeon RX 6900 XT product specification: 256-bit GDDR6 at "
+                "16 Gbps = 512 GB/s. Theoretical peak of the VRAM interface; the "
+                "128 MiB Infinity Cache can raise effective bandwidth above it "
+                "for cache-resident working sets, so this figure is neither a "
+                "floor nor a hard ceiling."
+            ),
+            "peak_flops": (
+                "AMD product specification: 5120 stream processors * 2 FLOP per "
+                "FMA * 2.25 GHz boost = 23.04 TFLOP/s FP32, doubled for FP16 = "
+                "46.08 TFLOP/s. Boost clock, upper bound."
+            ),
+            "ram_bandwidth_bytes_per_s": (
+                "JEDEC arithmetic for DDR4-2666 dual channel: 2 channels * 8 "
+                "bytes * 2666 MT/s = 42.7 GB/s theoretical. Measured sustained "
+                "copy on this class of platform is 35 to 38 GB/s."
+            ),
+            "storage_bytes_per_s": (
+                "nvme: Kingston A2000 1TB (SA2000M8/1000G) vendor spec, up to "
+                "2.2 GB/s sequential read (PCIe 3.0 x4). sata_ssd: Intenso SATA "
+                "III SSD, ~520 MB/s vendor class, interface-capped at 600 MB/s. "
+                "sata_hdd: Seagate ST1000DM010 spec, 210 MB/s sustained. All "
+                "sequential vendor figures; random-read at expert granularity "
+                "is measured by the campaign, not assumed."
+            ),
+        },
+    },
     "generic-cuda": {
         "chip": "unspecified CUDA device",
         "gpu_cores": None,
@@ -462,6 +509,10 @@ def describe_model(path):
         "params_active_per_token": int(round(params_active)),
         "bytes_total": bytes_total,
         "bytes_active_per_token": int(round(bytes_active)),
+        "expert_bytes": expert_bytes,
+        "dense_bytes": dense_bytes,
+        "embedding_bytes": embedding_bytes,
+        "expert_fraction": expert_fraction,
         "bits_per_weight": (bytes_total * 8.0 / params_total) if params_total else None,
         "expert_count": expert_count,
         "expert_used_count": expert_used,
@@ -487,6 +538,255 @@ def describe_model(path):
         "header_bytes": header_bytes_total,
         "tensor_count": len(tensors),
     }
+
+
+# ---------------------------------------------------------------------------
+# The offload predictor
+# ---------------------------------------------------------------------------
+#
+# Per-machine effective path rates, measured by the two-topology residency
+# campaign (results/d3-two-topology-residency.md and the post-reboot replay).
+# These are calibration constants of the three-path cost model
+#
+#   t/token = gpu_read/gpu_eff + cpu_dense_read/cpu_dense_eff
+#           + cpu_expert_read/cpu_expert_eff
+#
+# whose reads are WEIGHTS-ONLY per-token bytes (`weight_bytes_per_token_read`
+# in the contract; KV and recurrent traffic are absorbed into the constants,
+# and these effective rates are not comparable to efficiency figures computed
+# against `bytes_per_token_read`), whose FORM was verified on both topologies
+# wherever the placement fits physical memory, and whose primary product
+# output is a REFUSAL: any
+# placement whose device allocation would exceed physical VRAM minus the
+# margin is refused, never scored, because the model's form breaks in the
+# paging regime (non-monotone, driver-state dependent).
+#
+# Declared uncertainties, carried into every rendering:
+# - cpu_expert_eff on the discrete bench rests on three unpaged points.
+# - inter-session baseline drift observed on the Mac bench spans ~8 percent;
+#   prediction error is therefore only meaningful against a same-session
+#   baseline, and the drift is a separate declared term.
+# - the engine's --fit placement (dense-first, partial experts) measured 33
+#   percent below this model's prediction for the same byte split; mixed
+#   within-layer placements are out of model. Explicit uniform placements
+#   (-ngl ladder, --n-cpu-moe ladder) are what the model covers.
+
+PREDICTOR_PATHS = {
+    "Mac15,14": {
+        "kind": "unified",
+        "gpu_eff_bytes_per_s": 200.0e9,
+        "cpu_expert_eff_bytes_per_s": 27.1e9,
+        "sources": {
+            "gpu_eff_bytes_per_s": (
+                "D4 fit on header-exact byte splits at -c 8192, MoE-hybrid "
+                "class: ~200 GB/s effective, 24 percent of the 819 GB/s peak. "
+                "Consistent with contract finding 2/4 (not bus-bound)."
+            ),
+            "cpu_expert_eff_bytes_per_s": (
+                "D4 Mac --n-cpu-moe ladder fit, +/-7 percent per point."
+            ),
+        },
+    },
+    "PRIME B550M-A (WI-FI)": {
+        "kind": "discrete",
+        "vram_bytes": 16368 * 1024 * 1024,
+        "gpu_eff_bytes_per_s": 248.0e9,
+        "cpu_dense_eff_bytes_per_s": 32.5e9,
+        "cpu_expert_eff_bytes_per_s": 14.0e9,
+        "sources": {
+            "vram_bytes": "llama-server --list-devices on the bench: 16368 MiB.",
+            "gpu_eff_bytes_per_s": (
+                "D4 three-path fit on header-exact byte splits, greyzone "
+                "points excluded: ~248 GB/s effective, 48 percent of the 512 "
+                "GB/s peak. Supersedes the D3 provisional 145 GB/s, which "
+                "rested on a wrong expert-read assumption."
+            ),
+            "cpu_dense_eff_bytes_per_s": (
+                "Same D4 fit: ~32.5 GB/s of 42.7 theoretical DDR4-2666 dual "
+                "channel."
+            ),
+            "cpu_expert_eff_bytes_per_s": (
+                "Same D4 fit, three unpaged --n-cpu-moe points only, declared "
+                "uncertainty. Per active-expert byte the path is ~2.3x SLOWER "
+                "than the dense path: 8-of-256 gathers are latency and "
+                "compute bound, not bandwidth bound."
+            ),
+        },
+    },
+}
+
+# Non-model device allocations at -c 8192 observed on the discrete bench:
+# compute buffer 77 MiB, output+state ~64 MiB. The margin absorbs desktop and
+# driver reserves; refusing early is the point, so it errs generous.
+PREDICT_DEFAULT_MARGIN_MIB = 1024
+
+
+def predict_placements(model, machine_id, n_ctx, margin_mib, vram_override_mib=None):
+    """Score every uniform placement of `model` on `machine_id`.
+
+    Returns (placements, refusals). A placement is a dict carrying the byte
+    split, the predicted tok/s, and its knob (`-ngl N` or `--n-cpu-moe N`).
+    A refusal carries the knob and the allocation that disqualified it.
+    """
+    paths = PREDICTOR_PATHS.get(machine_id)
+    if paths is None:
+        raise RooflineError(
+            "no predictor constants for machine %r; add its entry to "
+            "PREDICTOR_PATHS with sources, as for the measured benches"
+            % machine_id
+        )
+    n_layer = model["n_layer"] + 1  # trailing output layer, as -ngl counts it
+    placeable = model["bytes_total"] - model["embedding_bytes"]
+    expert_total = model["expert_bytes"]
+    dense_total = placeable - expert_total
+    read_total = float(model["bytes_active_per_token"])
+    expert_read = model["expert_bytes"] * model["expert_fraction"]
+    dense_read = read_total - expert_read
+    kv = kv_cache_bytes(model, n_ctx) + recurrent_state_bytes(model)
+    overhead = (77 + 64) * 1024 * 1024 * (n_ctx / 8192.0)
+    margin = margin_mib * 1024 * 1024
+
+    placements = []
+    refusals = []
+
+    def admit(label, gpu_model_bytes, gpu_read, cpu_dense_read, cpu_expert_read):
+        if paths["kind"] == "discrete":
+            vram = (vram_override_mib * 1024 * 1024
+                    if vram_override_mib else paths["vram_bytes"])
+            alloc = gpu_model_bytes + kv + overhead + margin
+            if alloc > vram:
+                refusals.append({
+                    "placement": label,
+                    "alloc_bytes": int(alloc),
+                    "vram_bytes": int(vram),
+                    "reason": "would page: allocation exceeds VRAM minus margin",
+                })
+                return
+        t = gpu_read / paths["gpu_eff_bytes_per_s"]
+        if cpu_dense_read:
+            t += cpu_dense_read / paths["cpu_dense_eff_bytes_per_s"]
+        if cpu_expert_read:
+            t += cpu_expert_read / paths["cpu_expert_eff_bytes_per_s"]
+        placements.append({
+            "placement": label,
+            "gpu_model_bytes": int(gpu_model_bytes),
+            "predicted_tps": 1.0 / t if t > 0 else None,
+        })
+
+    if paths["kind"] == "unified":
+        # Rule one: on unified memory, never offload experts. It only costs.
+        admit("all-GPU (-ngl 999)", placeable, read_total, 0.0, 0.0)
+        return placements, refusals
+
+    for ngl in range(0, n_layer + 1):
+        frac = ngl / float(n_layer)
+        admit("-ngl %d" % ngl, placeable * frac,
+              read_total * frac, dense_read * (1 - frac),
+              expert_read * (1 - frac))
+    for ncmoe in range(1, model["n_layer"] + 1):
+        efrac = ncmoe / float(model["n_layer"])
+        admit("-ngl 999 --n-cpu-moe %d" % ncmoe,
+              placeable - expert_total * efrac,
+              read_total - expert_read * efrac,
+              0.0, expert_read * efrac)
+    return placements, refusals
+
+
+def mode_predict(args, out):
+    model = describe_model(args.gguf)
+    machine_id = args.machine or detect_machine_id()
+    n_ctx = args.ctx[0]
+    placements, refusals = predict_placements(
+        model, machine_id, n_ctx, args.margin_mib, args.vram_mib
+    )
+    out.append("PREDICT  %s on %s at n_ctx %d"
+               % (label_for(args.gguf), machine_id, n_ctx))
+    paths = PREDICTOR_PATHS[machine_id]
+    if not placements:
+        out.append("  NO ADMISSIBLE PLACEMENT: the model cannot run without")
+        out.append("  paging on this machine at this context. Recommend a")
+        out.append("  smaller model; a tok/s figure would be unsupportable.")
+    else:
+        best = max(placements, key=lambda p: p["predicted_tps"] or 0)
+        out.append("  recommended : %s" % best["placement"])
+        out.append("  predicted   : %.1f tok/s decode" % best["predicted_tps"])
+        top = sorted(placements, key=lambda p: -(p["predicted_tps"] or 0))[:6]
+        out.append("  next best   : " + ", ".join(
+            "%s %.1f" % (p["placement"], p["predicted_tps"]) for p in top[1:4]))
+    out.append("  refused     : %d placement(s) that would page (form breaks "
+               "in the paging regime; refusal is the primary output)"
+               % len(refusals))
+    out.append("  uncertainty : same-session prediction only; inter-session")
+    out.append("                drift ~8 percent is a separate term. The")
+    out.append("                cpu-expert constant on the discrete bench")
+    out.append("                rests on three unpaged points."
+               if paths["kind"] == "discrete" else
+               "                unified: never offload experts, it only costs.")
+    return placements, refusals
+
+
+# Measured anchors for --predict-validate: (machine, placement, dataset,
+# session, measured cold decode median). Datasets under results/.
+PREDICT_VALIDATION_ANCHORS = [
+    ("PRIME B550M-A (WI-FI)", "-ngl 0", "pc-residency-ngl0.json", "pc-s1", 8.84),
+    ("PRIME B550M-A (WI-FI)", "-ngl 8", "pc-residency-ngl8.json", "pc-s1", 11.73),
+    ("PRIME B550M-A (WI-FI)", "-ngl 16", "pc-residency-ngl16.json", "pc-s1", 14.70),
+    ("PRIME B550M-A (WI-FI)", "-ngl 24", "pc-residency-ngl24.json", "pc-s1", 19.63),
+    ("PRIME B550M-A (WI-FI)", "-ngl 32", "pc-residency-ngl32.json", "pc-s1", 21.02),
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 10",
+     "pc-residency-ngl999-ncmoe10.json", "pc-s1", 23.09),
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 20",
+     "pc-residency-ngl999-ncmoe20.json", "pc-s1", 29.00),
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 30",
+     "pc-residency-ngl999-ncmoe30.json", "pc-s1", 23.81),
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 40",
+     "pc-residency-ngl999-ncmoe40.json", "pc-s1", 20.50),
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 20",
+     "pc-replay-ngl999-ncmoe20.json", "pc-s2-postreboot", 29.01),
+    ("PRIME B550M-A (WI-FI)", "-ngl 24",
+     "pc-replay-ngl24.json", "pc-s2-postreboot", 20.11),
+    # Out-of-grid prediction test: recommended by the predictor before being
+    # measured, then measured. Predicted 43.4, measured 41.70 (+4.1 percent).
+    ("PRIME B550M-A (WI-FI)", "-ngl 999 --n-cpu-moe 12",
+     "pc-predtest-ngl999-ncmoe12.json", "pc-s3-predtest", 41.70),
+]
+
+
+def mode_predict_validate(args, out):
+    model = describe_model(args.gguf)
+    n_ctx = args.ctx[0]
+    failures = 0
+    out.append("PREDICT-VALIDATE against measured anchors, per session")
+    out.append("  criterion: |error| <= 20 percent against a SAME-SESSION")
+    out.append("  measurement; inter-session drift is a separate term and is")
+    out.append("  visible below as the s1 vs s2 spread of the same placement.")
+    out.append("")
+    out.append("  %-28s %-18s %8s %8s %7s" % (
+        "placement", "session", "meas", "pred", "err"))
+    for machine_id, placement, dataset, session, measured in PREDICT_VALIDATION_ANCHORS:
+        placements, _ = predict_placements(
+            model, machine_id, n_ctx, args.margin_mib, args.vram_mib
+        )
+        match = [p for p in placements if p["placement"] == placement]
+        if not match:
+            out.append("  %-28s %-18s refused or absent, no prediction"
+                       % (placement, session))
+            continue
+        pred = match[0]["predicted_tps"]
+        err = 100.0 * (pred - measured) / measured
+        flag = "" if abs(err) <= 20.0 else "  FAIL"
+        if flag:
+            failures += 1
+        out.append("  %-28s %-18s %8.2f %8.2f %+6.1f%%%s"
+                   % (placement, session, measured, pred, err, flag))
+    out.append("")
+    out.append("  Mac anchors (unified, -c 8192): the single admissible")
+    out.append("  placement (all-GPU) predicts %.1f tok/s against 78.05"
+               % (1.0 / (float(model["bytes_active_per_token"])
+                         / PREDICTOR_PATHS["Mac15,14"]["gpu_eff_bytes_per_s"])))
+    out.append("  measured (residency-c8192-ncmoe-0.json); offloaded Mac")
+    out.append("  placements are advised against by rule, not scored.")
+    return failures
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +913,10 @@ def compute_roofline(model, machine, n_ctx, cache_type_k, cache_type_v, n_parall
         "params_active_per_token": model["params_active_per_token"],
         "bits_per_weight": model["bits_per_weight"],
         "bytes_per_token_read": bytes_per_token,
+        # Weights-only per-token read, the offload predictor's denominator.
+        # Distinct from bytes_per_token_read (which adds KV and recurrent
+        # traffic); an effective bandwidth names which of the two it divides.
+        "weight_bytes_per_token_read": model["bytes_active_per_token"],
         "kv_cache_bytes": kv_bytes,
         "recurrent_state_bytes": recurrent_bytes,
         "bandwidth_bytes_per_s": bandwidth,
@@ -1352,6 +1656,23 @@ def parse_args(argv):
         action="store_true",
         help="check the KV formula against llama-server's reported allocation",
     )
+    parser.add_argument(
+        "--predict",
+        action="store_true",
+        help="recommend a placement and predict decode tok/s; refuses paging placements",
+    )
+    parser.add_argument(
+        "--predict-validate",
+        action="store_true",
+        help="compare predictions against the measured anchors, per session",
+    )
+    parser.add_argument(
+        "--vram-mib", type=int, help="override physical VRAM for --predict, MiB"
+    )
+    parser.add_argument(
+        "--margin-mib", type=int, default=PREDICT_DEFAULT_MARGIN_MIB,
+        help="VRAM safety margin for the refusal rule, MiB",
+    )
     parser.add_argument("--llama-server", help="llama-server binary for validation")
     parser.add_argument("--port", type=int, default=8099, help="port for validation runs")
     parser.add_argument(
@@ -1381,6 +1702,19 @@ def main(argv):
             if not args.validate_gguf:
                 raise RooflineError("no GGUF to validate")
             failures = mode_validate_kv(args, out)
+            sys.stdout.write("\n".join(out) + "\n")
+            return 1 if failures else 0
+
+        if args.predict or args.predict_validate:
+            if not args.gguf:
+                raise RooflineError("--predict needs --gguf")
+            if args.predict:
+                mode_predict(args, out)
+            failures = 0
+            if args.predict_validate:
+                if args.predict:
+                    out.append("")
+                failures = mode_predict_validate(args, out)
             sys.stdout.write("\n".join(out) + "\n")
             return 1 if failures else 0
 

@@ -25,6 +25,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - la **date d'expiration** ou la mention *Permanente*
    - l'**auteur** de la décision (agent ou utilisateur)
 
+<!-- claim:executor-guard-blocks-command-chaining -->
 > **Préfixe et exécuteurs de code :** pour un outil ordinaire, une règle de préfixe auto-approuve tout argument commençant par le préfixe. Pour un exécuteur de code (`bash_executor`, `python_executor`), elle est plus stricte : elle ne s'applique qu'à une **commande simple unique** partageant ce préfixe, sans enchaînement (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) ni substitution (`` ` ``, `$(...)`). Une règle sans préfixe n'auto-approuve jamais un exécuteur de code : chaque invocation redemande une confirmation.
 
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
