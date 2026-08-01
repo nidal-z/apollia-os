@@ -76,21 +76,13 @@ v0.1.0 does not support automatic step-up auth (requesting only the new scopes).
 <details>
 <summary>Advanced configuration</summary>
 
-### Encrypted file mode, headless Linux
+### Headless Linux: connector tokens need a keyring
 
-On a Linux box without a graphical environment (Docker container, minimal VM, server distribution), the Secret Service keyring is not available. Apollia offers a fallback storage on an encrypted file.
+On a Linux box without a graphical environment (Docker container, minimal VM, server distribution), the Secret Service keyring is not available, and **connector accounts cannot be stored in `v0.1.0-preview`**. Connecting Google or Microsoft on such a machine fails at the point where the token is saved.
 
-Environment variables:
+An encrypted-file backend exists in the codebase, selected by `APOLLIA_TOKEN_STORAGE=file`, and it does not apply here: the connector token path calls the OS keyring directly instead of going through the selectable store, so setting the variable changes nothing for Google or Microsoft accounts. Do not rely on it as a workaround.
 
-```bash
-APOLLIA_TOKEN_STORAGE=file \
-APOLLIA_TOKEN_PASSPHRASE="your-secret-passphrase" \
-apollia-os start
-```
-
-Tokens are stored in `~/.apollia/secrets/` encrypted with age (scrypt + ChaCha20-Poly1305). The passphrase is kept in memory for the session.
-
-**Warning**: a lost passphrase means permanently lost tokens, and every account has to be reconnected.
+The options on a headless machine are to run a Secret Service implementation (`gnome-keyring-daemon --components=secrets`, unlocked at session start), or to connect the accounts on a desktop machine instead.
 
 ### Action audit
 
@@ -100,7 +92,7 @@ MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mc
 
 ### Common errors in file mode
 
-- **`keyring: no entry`**: the Secret Service daemon is not available. Switch to the file mode above.
+- **`keyring: no entry`**: the Secret Service daemon is not available. See the headless Linux section above: there is no workaround in `v0.1.0-preview`.
 - **`NoRefreshToken`** on refresh: the account was connected without `offline_access` (Microsoft) or without `access_type=offline` (Google). Reconnect it.
 - **Refresh looping on 401**: the refresh token was revoked on the provider side. Disconnect then reconnect.
 
@@ -108,7 +100,7 @@ MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mc
 
 ## If it does not work
 
-- **Linux, "keyring: no entry"**: see the Advanced configuration section for the encrypted file mode.
+- **Linux, "keyring: no entry"**: see the headless Linux section.
 - **`NoRefreshToken`**: reconnect the account, the `offline_access` scope was forgotten.
 - **Refresh looping on 401**: disconnect then reconnect the account, the refresh token was revoked on the provider side.
 

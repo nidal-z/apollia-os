@@ -101,6 +101,6 @@ tool_search_limit = 20
 
 ## Getting your server to show up in the UI catalogue
 
-To make your internal server appear alongside the official entries (with a logo, a description and a trust level badge), see [Customize the MCP catalogue](personnaliser-le-catalogue-mcp.md).
+Your internal server appears in the list once connected, but without the logo, description and trust-level badge that the official entries carry. Customizing the catalogue is not possible in `v0.1.0-preview`: the override file is read by nothing.
 
 > **Technical reference:** [Apollia reference](/reference) , full protocol schema, capabilities, transports, security.

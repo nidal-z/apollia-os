@@ -76,21 +76,13 @@ La v0.1.0 ne supporte pas le step-up auth automatique (demander seulement les no
 <details>
 <summary>Configuration avancée</summary>
 
-### Mode fichier chiffré, Linux headless
+### Linux headless : les tokens de connecteur exigent un trousseau
 
-Sur un Linux sans environnement graphique (container Docker, VM minimale, distribution serveur), le trousseau Secret Service n'est pas disponible. Apollia propose un stockage de secours sur fichier chiffré.
+Sur un Linux sans environnement graphique (container Docker, VM minimale, distribution serveur), le trousseau Secret Service n'est pas disponible, et **les comptes de connecteur ne peuvent pas être stockés en `v0.1.0-preview`**. Connecter Google ou Microsoft sur une telle machine échoue au moment d'enregistrer le token.
 
-Variables d'environnement :
+Un backend fichier chiffré existe dans le code, sélectionné par `APOLLIA_TOKEN_STORAGE=file`, et il ne s'applique pas ici : le chemin de stockage des tokens de connecteur appelle le trousseau système en direct au lieu de passer par le store sélectionnable, donc poser la variable ne change rien pour les comptes Google ou Microsoft. Ne comptez pas dessus comme contournement.
 
-```bash
-APOLLIA_TOKEN_STORAGE=file \
-APOLLIA_TOKEN_PASSPHRASE="votre-phrase-secrète" \
-apollia-os start
-```
-
-Les tokens sont stockés dans `~/.apollia/secrets/` chiffrés avec age (scrypt + ChaCha20-Poly1305). La passphrase est gardée en mémoire pour la session.
-
-**Attention** : passphrase perdue = tokens perdus définitivement, il faut reconnecter chaque compte.
+Les options sur une machine headless sont de faire tourner une implémentation Secret Service (`gnome-keyring-daemon --components=secrets`, déverrouillée à l'ouverture de session), ou de connecter les comptes depuis une machine de bureau.
 
 ### Audit des actions
 
@@ -100,7 +92,7 @@ Les approbations MCP (acceptations HITL durables) sont stockées séparément da
 
 ### Erreurs courantes mode fichier
 
-- **`keyring: no entry`** : le daemon Secret Service n'est pas disponible. Bascule sur le mode fichier ci-dessus.
+- **`keyring: no entry`** : le daemon Secret Service n'est pas disponible. Voir la section Linux headless ci-dessus : il n'y a pas de contournement en `v0.1.0-preview`.
 - **`NoRefreshToken`** au refresh : le compte a été connecté sans `offline_access` (Microsoft) ou sans `access_type=offline` (Google). Reconnectez.
 - **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
 
@@ -108,7 +100,7 @@ Les approbations MCP (acceptations HITL durables) sont stockées séparément da
 
 ## Si ça ne marche pas
 
-- **Linux, "keyring: no entry"** : voir la section Configuration avancée pour le mode fichier chiffré.
+- **Linux, "keyring: no entry"** : voir la section Linux headless.
 - **`NoRefreshToken`** : reconnectez le compte, le scope `offline_access` a été oublié.
 - **Refresh boucle 401** : déconnectez puis reconnectez le compte, le refresh token a été révoqué côté provider.
 

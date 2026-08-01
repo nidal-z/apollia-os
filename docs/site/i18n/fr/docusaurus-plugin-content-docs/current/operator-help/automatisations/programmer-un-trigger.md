@@ -83,8 +83,17 @@ qui évite que n'importe qui puisse déclencher votre agent en connaissant l'URL
 POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation>
 ```
 
-Notez qu'elle n'est **pas** sous `/api/v1`, et qu'elle n'utilise pas le jeton
-d'API : la signature tient lieu d'authentification.
+Notez qu'elle n'est **pas** sous `/api/v1`. Elle est en revanche derrière le même
+jeton d'API que toutes les autres routes joignables en TCP : la couche de jeton
+est posée sur le routeur entier et n'inspecte aucun chemin, donc la signature
+s'ajoute au jeton au lieu de le remplacer. Un appel qui ne porte que la signature
+reçoit un `401`.
+
+L'adresse est donc joignable depuis un service que vous maîtrisez et configurez,
+pas depuis un service qui sait seulement signer, comme un webhook GitHub. Deux
+options : envoyer aussi le jeton, ou désactiver la couche avec
+`require_token = false` sous `[api]`, ce qui retire l'authentification de toutes
+les routes TCP et pas seulement de celle-ci.
 
 **La signature** va dans l'en-tête `X-Apollia-Signature`, au format
 `sha256=<hexadécimal>`. C'est le HMAC-SHA256 du **corps brut** de la requête,
@@ -99,6 +108,7 @@ BODY='{"source":"github","action":"push"}'
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)
 
 curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
+  -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
   -H "X-Apollia-Signature: sha256=$SIG" \
   -H "Content-Type: application/json" \
   -d "$BODY"
@@ -109,12 +119,12 @@ curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
 | Code | Ce que ça veut dire |
 |---|---|
 | `200` | L'événement est accepté, l'automatisation part |
-| `401` | En-tête `X-Apollia-Signature` absent, ou signature qui ne correspond pas |
+| `401` | Jeton d'API absent ou faux, ou en-tête `X-Apollia-Signature` absent, ou signature qui ne correspond pas |
 | `404` | Aucune automatisation de type webhook avec cet identifiant |
 | `503` | Le moteur d'automatisations n'est pas démarré |
 
-Un `401` ne dit pas laquelle des deux causes s'applique, c'est volontaire. Si
-vous en recevez un, vérifiez d'abord que vous signez le corps brut et non une
-version réindentée.
+Un `401` ne dit pas quelle cause s'applique, c'est volontaire. Vérifiez d'abord
+le jeton, qui est rejeté avant même que la signature soit lue, puis vérifiez que
+vous signez le corps brut et non une version réindentée.
 
 > **Référence technique :** [Référence Apollia](/reference).

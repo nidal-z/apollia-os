@@ -32,14 +32,15 @@ apollia-os start
 
 ```sh
 apollia-os --version
-apollia-os doctor --json | jq .gpu
+apollia-os doctor
 ```
 
-Sortie attendue :
-
-- NVIDIA RTX → `vendor: Nvidia, recommended_backend: Cuda`
-- AMD Radeon → `vendor: Amd, recommended_backend: Rocm`
-- Intel/autre → `vendor: ..., recommended_backend: Vulkan`
+`doctor` vérifie le répertoire de données, le fichier de configuration, les deux
+bases, le répertoire des modèles, Python, la posture de bac à sable et la socket
+du runtime. Il ne détecte **pas** votre GPU, et aucune commande ne le rapporte :
+le périphérique d'inférence se configure au lieu de se sonder. Sous Linux il vaut
+CPU par défaut, donc l'accélération GPU est quelque chose que vous posez, pas que
+vous vérifiez ici. Voir la section ci-dessous.
 
 ## Accélération GPU
 

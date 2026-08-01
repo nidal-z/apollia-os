@@ -48,7 +48,7 @@ prove it has not been modified.
 ```sh
 apollia-os audit list --limit 200        # browse
 apollia-os audit stats                   # count
-apollia-os audit export --output audit.json --limit 100000
+apollia-os audit export --output audit.json --limit 500
 apollia-os audit verify                  # verify the whole chain
 apollia-os audit verify <RUN_ID>         # verify one run
 apollia-os audit anchor                  # print the head anchor

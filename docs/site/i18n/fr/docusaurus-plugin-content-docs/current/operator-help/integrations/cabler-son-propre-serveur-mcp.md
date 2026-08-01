@@ -101,6 +101,6 @@ tool_search_limit = 20
 
 ## Faire apparaître votre serveur dans le catalogue UI
 
-Pour que votre serveur interne apparaisse aux côtés des entrées officielles (avec logo, description, badge trust level), voir [Personnaliser le catalogue MCP](personnaliser-le-catalogue-mcp.md).
+Votre serveur interne apparaît dans la liste une fois connecté, mais sans le logo, la description et le badge de niveau de confiance que portent les entrées officielles. Personnaliser le catalogue n'est pas possible en `v0.1.0-preview` : le fichier de surcharge n'est lu par rien.
 
 > **Référence technique :** [Référence Apollia](/reference) , schéma complet du protocole, capabilities, transports, sécurité.

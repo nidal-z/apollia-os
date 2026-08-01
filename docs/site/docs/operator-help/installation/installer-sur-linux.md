@@ -32,14 +32,15 @@ apollia-os start
 
 ```sh
 apollia-os --version
-apollia-os doctor --json | jq .gpu
+apollia-os doctor
 ```
 
-Expected output:
-
-- NVIDIA RTX → `vendor: Nvidia, recommended_backend: Cuda`
-- AMD Radeon → `vendor: Amd, recommended_backend: Rocm`
-- Intel/other → `vendor: ..., recommended_backend: Vulkan`
+`doctor` checks the data directory, the configuration file, the two databases,
+the models directory, Python, the sandbox posture and the runtime socket. It
+does **not** detect your GPU, and there is no command that reports one: the
+inference device is chosen by configuration rather than probed. On Linux it
+defaults to CPU, so GPU acceleration is something you set, not something you
+verify here. See the section below.
 
 ## GPU acceleration
 

@@ -25,10 +25,13 @@ From a terminal:
 
 ```sh
 ~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os --version
-~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os doctor --json | jq .gpu
+~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os doctor
 ```
 
-You should see `vendor: Apple`, `recommended_backend: Metal`.
+`doctor` checks the data directory, the configuration file, the two databases,
+the models directory, Python, the sandbox posture and the runtime socket. It does
+**not** detect your GPU, and there is no command that reports one. On macOS the
+inference device defaults to Metal without being probed.
 
 ## Embedded components
 

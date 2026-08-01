@@ -35,7 +35,7 @@ You can also add your own servers or modify the catalogue.
 - Mail, calendar, personal or work drive: see [Connect Google Workspace](connecter-google-workspace.md) or [Connect Microsoft 365](connecter-microsoft-365.md).
 - Notion, GitHub, Linear, Atlassian, Stripe, etc.: see [Connect an MCP server](connecter-un-serveur-mcp.md).
 - Your internal MCP servers: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
-- Tailoring the catalogue to your team: see [Customize the MCP catalogue](personnaliser-le-catalogue-mcp.md).
+- Tailoring the catalogue to your team is not possible in `v0.1.0-preview`.
 
 ## How to choose
 

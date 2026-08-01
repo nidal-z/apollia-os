@@ -602,25 +602,51 @@ fn print_replay_error(report: &serde_json::Value, run: &str) {
     }
 }
 
-/// Counts the exported events and warns when the count equals `limit`.
+/// The server-side ceiling on `/api/v1/audit?limit=`, which clamps the query to
+/// keep it bounded. Asking for more than this returns this many.
+const SERVER_LIMIT_CAP: u32 = 500;
+
+/// Counts the exported events and warns when the export came back full.
 ///
 /// Equality is the only signal available: the endpoint returns a page, not a
-/// total. It can raise a false alarm when the trail holds exactly `limit`
+/// total. It can raise a false alarm when the trail holds exactly that many
 /// events, which is the right way round for an archival command.
-fn warn_if_truncated(body: &str, limit: u32) {
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(body) else {
-        return;
-    };
+///
+/// The comparison is against the effective limit, not the requested one. The
+/// endpoint clamps to [`SERVER_LIMIT_CAP`], so comparing against the request
+/// meant the warning could never fire for the archival case it exists to serve:
+/// `--limit 100000` returned 500 events, 500 never equalled 100000, and the
+/// operator got a silently truncated archive with a documented safety net that
+/// was structurally unable to trigger.
+fn truncation_warning(body: &str, limit: u32) -> Option<String> {
+    let parsed = serde_json::from_str::<serde_json::Value>(body).ok()?;
     let count = parsed
         .get("events")
         .and_then(|v| v.as_array())
         .map(Vec::len)
-        .or_else(|| parsed.as_array().map(Vec::len));
-    if count == Some(limit as usize) {
-        eprintln!(
+        .or_else(|| parsed.as_array().map(Vec::len))?;
+    let effective = limit.min(SERVER_LIMIT_CAP);
+    if count != effective as usize {
+        return None;
+    }
+    if effective < limit {
+        Some(format!(
+            "! export stopped at {effective} events, the server ceiling, not at the \
+             --limit of {limit} you asked for; older entries are missing. The \
+             endpoint caps every request at {SERVER_LIMIT_CAP}, so a larger --limit \
+             will not return more."
+        ))
+    } else {
+        Some(format!(
             "! export stopped at the --limit of {limit} events; older entries are \
              missing. Re-run with a higher --limit for a complete archive."
-        );
+        ))
+    }
+}
+
+fn warn_if_truncated(body: &str, limit: u32) {
+    if let Some(message) = truncation_warning(body, limit) {
+        eprintln!("{message}");
     }
 }
 
@@ -897,6 +923,52 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
 
 #[cfg(test)]
 mod tests {
+
+    /// GIVEN an export that asked for more events than the endpoint will serve
+    /// WHEN  the response comes back full at the server ceiling
+    /// THEN  the operator is told the ceiling stopped it, not the flag
+    ///
+    /// This is the case the warning existed for and could never reach: the
+    /// comparison was against the requested limit, so `--limit 100000` returning
+    /// 500 events produced no warning at all, and the archive was silently short.
+    #[test]
+    fn test_truncation_warning_fires_at_the_server_ceiling_not_the_requested_limit() {
+        // GIVEN
+        let body = format!(
+            r#"{{"events":[{}]}}"#,
+            vec!["{}"; SERVER_LIMIT_CAP as usize].join(",")
+        );
+
+        // WHEN
+        let warning = truncation_warning(&body, 100_000);
+
+        // THEN
+        let warning = warning.expect("a full page at the ceiling must warn");
+        assert!(
+            warning.contains("server ceiling"),
+            "the operator must learn a larger --limit will not help: {warning}"
+        );
+    }
+
+    /// GIVEN an export well under both the flag and the server ceiling
+    /// WHEN  the warning is computed
+    /// THEN  nothing is reported
+    ///
+    /// Without this, a warning that always fired would satisfy the case above.
+    #[test]
+    fn test_truncation_warning_silent_on_a_short_export() {
+        // GIVEN
+        let body = r#"{"events":[{},{}]}"#;
+
+        // WHEN
+        let warning = truncation_warning(body, 100_000);
+
+        // THEN
+        assert!(
+            warning.is_none(),
+            "a short export must not warn: {warning:?}"
+        );
+    }
     use super::*;
     use clap::Parser;
 

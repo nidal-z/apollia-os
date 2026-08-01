@@ -83,8 +83,15 @@ URL from launching your agent.
 POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation>
 ```
 
-Note that it is **not** under `/api/v1`, and that it does not use the API token:
-the signature acts as the authentication.
+Note that it is **not** under `/api/v1`. It does, however, sit behind the same
+API token as every other route reachable over TCP: the token layer is applied to
+the whole router and inspects no path, so the signature comes **in addition to**
+the token, not instead of it. A call carrying only a signature gets a `401`.
+
+That makes the endpoint reachable from a service you control and configure, and
+not from one that only knows how to sign, such as a GitHub webhook. Either send
+the token as well, or turn the layer off with `require_token = false` under
+`[api]`, which removes authentication from every TCP route, not just this one.
 
 **The signature** goes into the `X-Apollia-Signature` header, in the
 `sha256=<hexadecimal>` format. It is the HMAC-SHA256 of the **raw body** of the
@@ -99,6 +106,7 @@ BODY='{"source":"github","action":"push"}'
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)
 
 curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
+  -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
   -H "X-Apollia-Signature: sha256=$SIG" \
   -H "Content-Type: application/json" \
   -d "$BODY"
@@ -109,12 +117,12 @@ curl -X POST http://127.0.0.1:7771/webhooks/<id-de-l-automatisation> \
 | Code | What it means |
 |---|---|
 | `200` | The event is accepted, the automation starts |
-| `401` | `X-Apollia-Signature` header missing, or signature that does not match |
+| `401` | API token missing or wrong, or `X-Apollia-Signature` header missing, or signature that does not match |
 | `404` | No webhook automation with that identifier |
 | `503` | The automation engine is not started |
 
-A `401` does not say which of the two causes applies, and that is on purpose. If
-you get one, first check that you are signing the raw body and not a reindented
-version.
+A `401` does not say which cause applies, and that is on purpose. Check the token
+first, since it is rejected before the signature is ever read, then check that you
+are signing the raw body and not a reindented version.
 
 > **Technical reference:** [Apollia reference](/reference).
