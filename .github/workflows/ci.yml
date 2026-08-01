@@ -271,6 +271,11 @@ jobs:
       # declaring a local [lints] table, and clippy kept passing.
       - name: Every crate actually gets the workspace lints
         run: python3 scripts/check_crate_lints.py
+      # Placement, not just existence. The replay asks whether some file carries
+      # an id; this asks whether the marker still sits on the paragraph it
+      # guards, and reports which of its rules had no coverage.
+      - name: Claim markers are placed and matched
+        run: python3 scripts/check_claim_anchors.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

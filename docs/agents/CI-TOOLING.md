@@ -24,306 +24,77 @@ source of truth at runtime.
 
 ---
 
-## 2. `.editorconfig`
+## 2. The config files, and why they say what they say
 
-```ini
-root = true
+The files themselves are the source. `cat` them; they are short and they are
+what the tools actually read. What follows is the part a file cannot tell you.
 
-[*]
-end_of_line = lf
-insert_final_newline = true
-trim_trailing_whitespace = true
-charset = utf-8
-indent_style = space
+| File | Run it with |
+|---|---|
+| `.editorconfig` | your editor, automatically |
+| `rustfmt.toml` | `cargo fmt --check` in CI, `cargo fmt` to apply |
+| `clippy.toml` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `rust-toolchain.toml` | `rustup` picks it up inside the repo |
+| `sdk/pyproject.toml` | `ruff format --check`, `ruff check`, `pyright sdk/apollia` |
 
-[*.{rs,toml}]
-indent_size = 4
+**`imports_granularity` and `group_imports` are deliberately absent from
+`rustfmt.toml`.** Both are nightly-only. Keeping them forced the whole tree to
+be formatted by a nightly rustfmt that stable CI could never reproduce, so the
+fmt gate failed on every file. Edition stays at 2021; moving to 2024 is a
+separate ADR and its own PR.
 
-[*.{py,pyi}]
-indent_size = 4
+**Two version numbers, and confusing them wastes an afternoon.** The build and
+gate toolchain is pinned in `rust-toolchain.toml`, and every blocking Rust job
+installs that exact version rather than `@stable`, so CI and local output match
+byte for byte. The MSRV floor is a different number, declared in `Cargo.toml`
+`rust-version` and `clippy.toml` `msrv`: it is the minimum the dependency tree
+supports, not the version anything runs on. A `clippy-stable` job runs on
+`@stable` as a non-blocking advisory, to surface lints arriving in a future
+toolchain.
 
-[*.{ts,tsx,js,svelte,json,jsonc,html,css}]
-indent_size = 2
+Without `rustup`, a Homebrew-only Rust will not honour the pin. Keep it at the
+pinned version by hand or accept fmt and clippy drift against CI.
 
-[*.md]
-trim_trailing_whitespace = false  # markdown line breaks need trailing spaces
-indent_size = 2
-
-[Makefile]
-indent_style = tab
-```
-
----
-
-## 3. `rustfmt.toml`
-
-```toml
-edition = "2021"
-max_width = 100
-use_small_heuristics = "Default"
-reorder_imports = true
-use_field_init_shorthand = true
-use_try_shorthand = true
-newline_style = "Unix"
-```
-
-Run : `cargo fmt --check` in CI, `cargo fmt` to apply.
-
-`imports_granularity` and `group_imports` are deliberately absent : both are
-nightly-only rustfmt options. Keeping them forced the whole tree to be
-formatted with a nightly rustfmt, which stable CI could never reproduce (the
-fmt gate then failed on every file). The gate now runs on the pinned stable
-toolchain and the tree is formatted to match it.
-
-Edition 2021 reflects the current workspace state. Migration to edition
-2024 is a planned follow-up (separate ADR + dedicated PR).
+**Ruff runs a curated subset rather than `select = ["ALL"]`**, so its warnings
+stay actionable. Expand it when the codebase is clean for the current set.
+`pyright` is the gate; `mypy` is acceptable as a secondary checker and is not
+one.
 
 ---
 
-## 4. `clippy.toml`
+## 3. Workspace lints
 
-```toml
-msrv = "1.89"
-cognitive-complexity-threshold = 30
-type-complexity-threshold = 250
-too-many-arguments-threshold = 5
-```
+`[workspace.lints]` is applied, not planned. `unsafe_code = "deny"` and
+`unwrap_used = "deny"` are set at the root and inherited by every crate that
+writes `[lints] workspace = true`.
 
-Run : `cargo clippy --workspace --all-targets -- -D warnings`.
-
----
-
-## 5. `rust-toolchain.toml`
-
-```toml
-[toolchain]
-channel = "1.95.0"
-components = ["rustfmt", "clippy", "rust-src", "rust-analyzer"]
-profile = "minimal"
-```
-
-Committed for reproducibility. This is the exact-pinned **build / gate
-toolchain**, a recent stable. Every blocking Rust job in `ci.yml` installs the
-same version via `dtolnay/rust-toolchain@1.95.0` (never `@stable`), so CI fmt
-and clippy output match local dev byte for byte and cannot drift against
-rolling stable. A separate `clippy-stable` job runs on `@stable` as a
-non-blocking advisory to surface lints coming in a future toolchain.
-
-Toolchain policy, two distinct numbers :
-
-- **Build / gate toolchain** = `1.95.0` (this file). What CI and local dev
-  actually compile with.
-- **MSRV floor** = `1.89` (`Cargo.toml` `rust-version`, `clippy.toml` `msrv`).
-  The real minimum the dependency tree supports (notify-rust 4.18 requires
-  1.89; time / serde_with / image require 1.88). It is a declared floor, not
-  the version the gate runs on.
-
-Local dev : with `rustup` installed, `cargo` inside the repo auto-selects the
-pinned `1.95.0` from this file. Without `rustup` (e.g. a Homebrew-only Rust),
-keep the local toolchain at the pinned version to avoid fmt / clippy drift.
+The trap is that Cargo **replaces** rather than merges: a crate declaring any
+local `[lints]` table loses the inheritance entirely. Five crates needed an FFI
+`unsafe_code = "allow"`, wrote their own table, and silently lost
+`unwrap_used`. `scripts/check_crate_lints.py` runs in `prose-guard` and now
+fails the build on that shape. The full explanation is in
+`docs/agents/RUST-PATTERNS.md`.
 
 ---
 
-## 6. `[workspace.lints]` in root `Cargo.toml` (target state)
+## 4. Pre-commit hooks
 
-Not yet applied to the workspace. Promotion path :
+`.pre-commit-config.yaml` is the source; read it there. What it runs, in one
+line: the usual hygiene hooks plus `detect-private-key` and a 500 KB file cap,
+`ruff` and `ruff-format` on Python, `rustfmt`, `clippy -D warnings` and
+`cargo check` on the workspace, and `conventional-pre-commit` on the message.
 
-1. Add the block in a dedicated PR.
-2. Start with everything at `warn`.
-3. Run `cargo clippy --workspace --all-targets` and inventory current
-   warnings.
-4. Per warning category, either fix the sites or downgrade the lint to
-   `warn` permanently with a documented reason.
-5. Promote to `deny` once the workspace is clean for that category.
-
-Target block once the audit is done :
-
-```toml
-[workspace.lints.rust]
-unsafe_code = "forbid"
-missing_docs = "warn"
-unreachable_pub = "warn"
-unused_must_use = "deny"
-
-[workspace.lints.clippy]
-all = "deny"
-correctness = "deny"
-suspicious = "deny"
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-todo = "deny"
-unimplemented = "deny"
-dbg_macro = "deny"
-missing_errors_doc = "warn"
-missing_panics_doc = "warn"
-pedantic = "warn"
+```sh
+pre-commit install && pre-commit install --hook-type commit-msg
+pre-commit run --all-files    # on demand
 ```
 
-Each crate inherits via `[lints] workspace = true` in its own
-`Cargo.toml`. Pedantic allow-list is per-crate, justified inline.
-
-`unsafe_code = "forbid"` is workspace-wide. A crate that genuinely needs
-unsafe overrides with `[lints.rust] unsafe_code = "deny"` plus a
-top-of-crate explanation.
-
-Until promotion : the rules in `docs/agents/FORBIDDEN.md` and
-`docs/agents/RUST-PATTERNS.md` are the policy. Reviewers enforce them.
+Never `--no-verify`. A failing hook is the cheapest place a problem is ever
+going to be found.
 
 ---
 
-## 7. Ruff config (in `sdk/pyproject.toml`)
-
-```toml
-[tool.ruff]
-target-version = "py312"
-line-length = 100
-src = ["apollia", "tests"]
-
-[tool.ruff.lint]
-select = [
-    "E", "F", "W",       # pycodestyle + pyflakes
-    "I",                  # isort
-    "B",                  # bugbear
-    "UP",                 # pyupgrade
-    "RUF",                # ruff-specific
-    "S",                  # bandit (security)
-    "SIM",                # simplify
-    "ANN",                # annotations
-    "ASYNC",              # async-specific
-    "TCH",                # type-checking
-    "PT",                 # pytest
-    "D",                  # pydocstyle (google)
-]
-ignore = [
-    "D100", "D104",       # missing module/package docstring
-    "ANN101", "ANN102",   # self/cls annotation
-    "COM812",             # trailing comma (conflicts with formatter)
-    "ISC001",             # implicit string concat (conflicts with formatter)
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "D", "ANN"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-line-ending = "lf"
-```
-
-Run : `ruff format --check` + `ruff check` in CI. `ruff format` + `ruff
-check --fix` to apply.
-
-This is a curated subset rather than `select = ["ALL"]` to keep
-warnings actionable. Expand when the codebase is clean for the current
-set.
-
----
-
-## 8. Pyright config (in `sdk/pyproject.toml`)
-
-```toml
-[tool.pyright]
-include = ["apollia"]
-pythonVersion = "3.12"
-strict = ["apollia/**"]
-reportMissingImports = "error"
-reportUnusedImport = "warning"
-reportMissingTypeStubs = "warning"
-```
-
-Run : `pyright sdk/apollia`.
-
-`mypy` is acceptable as a secondary checker but `pyright` is the gate.
-
----
-
-## 9. pytest config (in `pyproject.toml`)
-
-```toml
-[tool.pytest.ini_options]
-asyncio_mode = "strict"
-testpaths = ["sdk/tests", "agents"]
-addopts = [
-  "--strict-markers",
-  "--strict-config",
-  "-ra",
-]
-markers = [
-  "unit: fast unit test",
-  "integration: integration test, may touch the filesystem",
-  "slow: skipped unless --run-slow is passed",
-]
-```
-
----
-
-## 10. Pre-commit hooks (`.pre-commit-config.yaml`)
-
-```yaml
-repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-merge-conflict
-      - id: check-yaml
-      - id: check-toml
-      - id: check-added-large-files
-        args: ["--maxkb=500"]
-      - id: detect-private-key
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
-    hooks:
-      - id: ruff
-        args: ["--fix"]
-      - id: ruff-format
-
-  - repo: local
-    hooks:
-      - id: rustfmt
-        name: rustfmt
-        entry: cargo fmt --
-        language: system
-        types: [rust]
-
-      - id: clippy
-        name: clippy
-        entry: cargo clippy --workspace --all-targets -- -D warnings
-        language: system
-        types: [rust]
-        pass_filenames: false
-
-      - id: cargo-check
-        name: cargo check
-        entry: cargo check --workspace
-        language: system
-        types: [rust]
-        pass_filenames: false
-
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.4.0
-    hooks:
-      - id: conventional-pre-commit
-        stages: [commit-msg]
-        args: []
-```
-
-Install : `pre-commit install && pre-commit install --hook-type
-commit-msg`.
-
-Run on demand : `pre-commit run --all-files`.
-
-Never `--no-verify`. If a hook fails, fix the underlying issue.
-
----
-
-## 11. CI pipeline (GitHub Actions)
+## 5. CI pipeline (GitHub Actions)
 
 Actual structure :
 
@@ -438,7 +209,7 @@ consumers live in `SECURITY.md`.
 
 ---
 
-## 12. Coverage
+## 6. Coverage
 
 The `coverage` job in `ci.yml` enforces a line-coverage floor :
 
@@ -456,7 +227,7 @@ workspace-wide.
 
 ---
 
-## 13. Local setup quickstart
+## 7. Local setup quickstart
 
 ```sh
 # Clone
@@ -482,7 +253,7 @@ cargo test --workspace
 
 ---
 
-## 14. When the rules block you
+## 8. When the rules block you
 
 - A lint flags legitimate code : add `#[allow(clippy::<lint>)]` with an
   inline justification. Never `--allow` blanket on the command line.

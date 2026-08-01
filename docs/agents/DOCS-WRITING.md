@@ -16,7 +16,6 @@ rule is that the corpora do not duplicate each other.
 | Site | `docs/site/` | Diataxis (tutorials / how-to / reference / explanation) | Developer, operator | en + fr |
 | ADR | `docs/adr/` | Explanation, decision | Maintainer | English |
 | Agents | `docs/agents/` | LLM rulebook | LLM coding assistants + dev | English |
-| Notion `PORTAIL TECH` | Apollia's Space (Notion) | Digest concept atlas | Maintainer (R&D), future dev | French |
 
 Each corpus does its job and only its job.
 
@@ -31,14 +30,10 @@ Each corpus does its job and only its job.
   tutorial content, no reference content.
 - The Agents corpus encodes rules an LLM must follow. No tutorial, no
   reference table (cite the Wiki instead).
-- The Notion `PORTAIL TECH` atlas is a parallel digest layer for R&D and
-  onboarding. One page per concept, with analogies, schemas, and "R&D
-  surfaces ouvertes" sections. Mirrors the technical corpora without being
-  a source of truth. See §13 for the writing rules.
 
 When in doubt about where new content belongs, the question is : "what
 mode is this in?" Tutorial -> Book. Reference -> Wiki. How-to -> Help.
-Decision -> ADR. Rule -> Agents. R&D digest -> Notion atlas.
+Decision -> ADR. Rule -> Agents.
 
 ---
 
@@ -224,140 +219,3 @@ Skill `apollia-doc-sync` automates parts of this for sprint closure. Skill
   a Wiki page, then link to it.
 
 ---
-
-## 13. Notion atlas `PORTAIL TECH`
-
-Parallel Notion space that mirrors the technical content in a digest
-format. One Notion page per concept, designed for R&D consultation and
-junior-dev onboarding. Not a source of truth ; the code, the ADRs, and
-the LLM corpora remain authoritative.
-
-### 13.1 Where it lives
-
-- **Workspace** : Apollia's Space (the user's primary Notion).
-- **Root page** : `PORTAIL TECH` (page ID `36de4a87-ed71-812f-98ff-c078ae0d5f4a`,
-  URL [PORTAIL TECH](https://www.notion.so/36de4a87ed71812f98ffc078ae0d5f4a)).
-- **Sections** : 12 thematic groups, structured by question (Comment ça
-  vit / communique / persiste / sécurise / observe) and by named brick
-  (ORIA, LLM, SDK, Desktop, Pipelines, Fondations, R&D ouvertes).
-
-### 13.2 Tool to use
-
-Always create and update via the Notion MCP server :
-
-- `mcp__claude_ai_Notion__notion-create-pages` for new pages.
-- `mcp__claude_ai_Notion__notion-update-page` for edits
-  (`update_content` for targeted edits, `replace_content` for full
-  rewrites).
-- `mcp__claude_ai_Notion__notion-fetch` to read current state before
-  edit.
-
-Never edit Notion pages out-of-band (copy-paste from a markdown file)
-unless the MCP is unavailable. The MCP keeps the page IDs and
-cross-references stable.
-
-### 13.3 Page template (canonical 7-section structure)
-
-Every concept page follows the same skeleton, in this order :
-
-- **A. Mental model** : the central idea + useful vocabulary (acronym
-  glossary inline).
-- **B. Place dans l'archi** : Mermaid diagram or structural table.
-- **C. Comment c'est implémenté** : technical facts, parameters table.
-- **D. Les décisions structurantes** : the why of non-obvious choices.
-- **E. Ce qu'on n'altère pas sans ADR** : protected invariants table.
-- **F. Surfaces de R&D ouvertes** : open questions, exploration paths.
-  Includes a "Notes personnelles" subsection for the user's R&D notes.
-- **G. Pour creuser** : code source path, ADRs, external doc links.
-
-This template is documented at the bottom of the `PORTAIL TECH` page.
-Do not deviate without consultation.
-
-### 13.4 Writing style
-
-- **Language** : French.
-- **Tone** : impersonal. No `tu`, no `imagine que`, no naive analogies
-  ("la radio interne du runtime" type). Use the named pattern instead
-  (`pub/sub broadcast`, `actor model`, `RPC oneshot`).
-- **Density** : aerated, around 1 screen of Notion per page when
-  possible. Section headers H2, sub-sections H3.
-- **Vocabulary** : inline glossary in section A, in a bulleted list
-  prefixed by `📖 Vocabulaire utile`. Each acronym explained on first
-  use (`pub/sub`, `fanout`, `backpressure`, `ADR`, etc.).
-- **Blockquotes** in italic for explanatory side-notes :
-  `> 💡 *Tokio est la bibliothèque async de référence en Rust...*`.
-- **No em-dash** (`—`). Use comma, period, parenthesis, colon, or
-  hyphen `-`.
-- **Emoji** : 1 per H2 section header (matches existing space
-  convention), 1 per H3 sub-section optionally, sparingly inline for
-  signal terms (🚫 anti-pattern, 💡 reminder, 🦀 Rust note).
-
-### 13.5 Diagrams
-
-- Use **Mermaid** code blocks (`` ```mermaid ``). Notion renders them
-  natively.
-- ASCII diagrams break Notion's monospace rendering. Avoid.
-- Keep the diagram under 8 nodes when possible. Multiple smaller
-  diagrams beat one wide one.
-
-### 13.6 Cross-page links
-
-- **Embedded child page** (when a sub-page should appear as a card
-  inline) : `<page url="https://www.notion.so/PAGE_ID">Title</page>`.
-- **Inline link** (mentioning another page without embedding) :
-  standard markdown `[Title](https://www.notion.so/PAGE_ID)`.
-- Embedding a child page in the parent's navigation section avoids the
-  default Notion behavior of appending the child as a block at the
-  bottom of the parent. Use the embed in the relevant navigation section
-  to keep the parent clean.
-
-### 13.7 References from Notion to the repo
-
-Mention paths as inline code without a link, since the repo is private
-until launch :
-
-- `crates/apollia-runtime/src/eventbus.rs` (code source)
-- `docs/agents/ARCHITECTURE.md` §C (LLM rules)
-- `docs/adr/ADR-012` (decision)
-
-Once the repo is public, these mentions can be promoted to links in a
-post-launch pass.
-
-**Never reference the retired corpora** in Notion atlas pages. Use
-`docs/site/`, `docs/agents/`, `docs/adr/`, or direct code paths instead.
-
-### 13.8 R&D surfaces (section F)
-
-This is the section that turns the atlas from a static mirror into an
-R&D tool. Every concept page must have it, even if half-empty at
-creation. Structure :
-
-- 3-5 named open questions, one paragraph each.
-- A final `📝 Notes personnelles` sub-section, intentionally empty,
-  reserved for the user's free-form notes during R&D sessions.
-
-When a question gets answered or transitions into an ADR, remove it
-from this section and reference the ADR in section G.
-
-### 13.9 Factual accuracy
-
-The atlas is consulted by the user during R&D and may seed strategic
-decisions. **No hallucination tolerance.** Before writing a page :
-
-1. Read the corresponding LLM corpus page (`docs/agents/*.md`).
-2. Cross-reference the actual code in `crates/...`.
-3. Check the ADR map (`docs/agents/ARCHITECTURE.md` §F).
-4. If a fact is uncertain, omit it. Better incomplete than wrong.
-
-### 13.10 Update cadence
-
-The atlas decays slower than the reference docs because it sits at the
-concept level. Update triggers :
-
-- A concept changes shape (e.g. the EventBus moves to a different
-  primitive).
-- A new concept is introduced (new brick, new pattern).
-- An R&D surface gets resolved (close it, reference the resolution).
-
-Day-to-day code changes do not require atlas updates. Reserve atlas
-work for sprint endings or R&D sessions.
