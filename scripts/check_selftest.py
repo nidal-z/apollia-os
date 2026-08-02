@@ -1,33 +1,41 @@
 #!/usr/bin/env python3
-"""Pin the one bias that got past two independent checks.
+"""Pin the biases the verifiers themselves keep producing.
 
-Twice in this repository a check answered "this capability is wired" because the
-symbol's name appeared in a doc-comment. `check_optional_builders.py` counted
-`/// chain [`X::with_y`] to enable ...` as a call site, which hid
-`with_permission_engine`, the original instance of the whole class.
-`check_claims.py` did the same through its `status = "wired"` rule, which
-excluded the definition line but not the comment above it, and passed a claim
-asserting a rollback journal that nothing ever wrote.
+Three checks were written for this corpus, and all three shipped with a bias on
+the same side: the side that reports success.
 
-Both filters are in place now. That is not what this file is for. Two scripts
-written two days apart carried the same bias, always in the direction that
-declares a dead capability alive, so the property worth pinning is not "the fix
-was applied" but "a symbol that appears only in a comment is reported as not
-wired". A fixture states that as a permanent expectation. A mutation run states
-it once, on the day someone remembers to run it.
+  - `check_optional_builders.py` counted `/// chain [`X::with_y`] ...` as a call
+    site, which hid `with_permission_engine`, the original instance of the very
+    class it exists to catch.
+  - `check_claims.py` did the same through its `status = "wired"` rule, and
+    passed a claim asserting a rollback journal that nothing ever wrote.
+  - `check_claim_anchors.py` counted only its failures, so its mirror rule
+    announced "NO COVERAGE" while passing, and went on announcing it once six
+    claims really were mirrored.
 
-Each case below asserts both directions. A check that always says "not wired"
-would satisfy the negative half while being useless, so every negative case is
-paired with a positive control that must pass.
+Three verifiers, three biases, one direction. Correcting each instance does
+nothing for the fourth verifier someone writes next, so this file pins the
+properties rather than the fixes:
+
+  1. A symbol that appears only in a comment is reported as NOT wired.
+  2. A rule that examined nothing reports zero coverage, never a pass, and the
+     per-zone breakdown accounts for every marker.
+
+Each case asserts both directions. A check that always answered "not wired", or
+that printed a coverage table of zeros, would satisfy the negative half while
+being worthless, so every negative case is paired with a positive control.
 
 Usage:
     python3 scripts/check_selftest.py
 """
 
+import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_claims  # noqa: E402
@@ -152,15 +160,87 @@ def check_claims_wired() -> None:
         )
 
 
+# ── The general property, not the instance ───────────────────────────────────
+
+
+def check_zero_coverage_is_reported() -> None:
+    """A rule that examined nothing must say so, never report success.
+
+    Three verifiers, three biases, every one of them on the side that reports
+    success. The comment bias made a dead capability look wired, twice. The third
+    was subtler and belongs to the same family: the mirror rule of
+    `check_claim_anchors.py` counted only its failures, so it printed "NO
+    COVERAGE" while quietly passing, and later, once six claims really were
+    mirrored, it still printed "NO COVERAGE" because a correctly mirrored claim
+    incremented nothing. Both readings were wrong in the same direction, and a
+    green line stood over work nobody had checked.
+
+    Fixing each instance does not protect the fourth verifier. What generalises
+    is the property: **coverage is reported, and zero coverage is reported as
+    zero, never as a pass**. A rule with nothing to examine is not a rule that
+    holds; it is a rule that has not run.
+
+    This checks the property where it can be checked mechanically: every zone
+    line printed by the anchors check states a count, and a zone with no markers
+    is flagged rather than passed over in silence.
+    """
+    print("coverage reporting: a rule that examined nothing says so")
+
+    out = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "check_claim_anchors.py")],
+        capture_output=True, text=True,
+    )
+    report = out.stdout
+
+    # The header alone is not the report. Assert the rows, and assert they
+    # account for every marker: a breakdown that silently omits a zone is the
+    # same failure as a rule that examines nothing, one level up.
+    total = re.search(r"(\d+) claims, (\d+) markers", report)
+    rows = re.findall(r"^\s{2}(\S[^\n]*?)\s+(\d+)\s+(\d+)(?:\s|$)", report, re.M)
+    case(
+        "the per-zone table has rows, not just a header",
+        len(rows) >= 3,
+        f"only {len(rows)} data row(s) parsed. A header with no rows reads as a "
+        f"coverage report and states nothing",
+    )
+    case(
+        "the per-zone counts account for every marker",
+        bool(total) and sum(int(m) for _, _, m in rows) == int(total.group(2)),
+        f"rows sum to {sum(int(m) for _, _, m in rows)}, total claims "
+        f"{total.group(2) if total else '?'}. A breakdown that drops a zone hides "
+        f"exactly the zone nobody looked at",
+    )
+
+    zero_zones = [
+        line for line in report.splitlines()
+        if re.match(r"^\s+\S.*\s\d+\s+0(\s|$)", line)
+    ]
+    case(
+        "a zone with zero markers is flagged, not passed over",
+        all("no coverage" in line for line in zero_zones),
+        f"a zone at zero markers printed no flag: {zero_zones!r}. Silence over an "
+        f"unexamined zone is what a green build then certifies",
+    )
+
+    case(
+        "the mirror rule states its coverage either way",
+        ("mirror rule:" in report)
+        and ("NO COVERAGE" in report or re.search(r"mirror rule:\s*\d+", report)),
+        "the mirror rule reported neither a count nor its own emptiness, which is "
+        "how it spent the whole chantier passing without examining anything",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
+    check_zero_coverage_is_reported()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
-    print("\nthe comment-only bias is closed in both checks")
+    print("\nboth properties hold: comment-only is not a use, and zero coverage says so")
     return 0
 
 

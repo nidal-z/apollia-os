@@ -792,15 +792,17 @@ per-call filter it promises a containment the code does not provide.
 """
 
 [[claim]]
-id = "audit-export-caps-at-the-server-ceiling"
+id = "audit-export-pages-past-the-server-ceiling"
 scope = "public"
 symbol = "SERVER_LIMIT_CAP"
 status = "wired"
 proof = "crates/apollia-cli/src/commands/audit.rs"
 evidence = ""
 note = """
-The endpoint clamps to 500 whatever the caller asks for, so an archival export
-came back short and the truncation warning compared against the requested limit,
-which meant it could never fire. The constant exists so the CLI names the real
-ceiling; if it disappears, the silent-truncation defect is back.
+The endpoint clamps one query to 500 and, until an `offset` parameter existed,
+had no way to reach anything older: the trail was structurally unexportable past
+its newest page, on a product that maps Article 14. The CLI now pages until a
+short page comes back, and this constant is the page size it respects. If the
+loop goes, the export silently becomes the newest 500 events under a filename
+that claims to be an archive.
 """

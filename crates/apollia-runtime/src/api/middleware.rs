@@ -123,6 +123,21 @@ fn write_token_file(path: &Path, token: &str) -> Result<(), TokenFileError> {
     Ok(())
 }
 
+/// Whether `path` is the webhook reception route, the single exemption to
+/// bearer authentication on the TCP listener.
+///
+/// Deliberately narrow. It matches `/webhooks/<id>` and nothing else: not a
+/// prefix test that `/webhooksomething` would satisfy, not a bare `/webhooks`,
+/// and not a deeper path. Every other route, including every `/api/v1/*`, stays
+/// behind the token.
+fn is_webhook_path(path: &str) -> bool {
+    match path.strip_prefix("/webhooks/") {
+        // A single non-empty segment, so `/webhooks/a/b` does not match.
+        Some(rest) => !rest.is_empty() && !rest.contains('/'),
+        None => false,
+    }
+}
+
 // ─────────────────────────────────────────────
 // Tower Layer + Service
 // ─────────────────────────────────────────────
@@ -180,6 +195,22 @@ where
     }
 
     fn call(&mut self, req: Request<B>) -> Self::Future {
+        // One path is exempt, and only one. `POST /webhooks/:id` carries its own
+        // authentication, stronger than a shared bearer: an HMAC-SHA256 of the
+        // raw body under a per-trigger secret, compared in constant time, with
+        // 401 on an absent or wrong signature. That check sat behind this layer
+        // and was therefore never reached: an outside sender, which is the only
+        // kind of caller a webhook has, was rejected before the handler saw it.
+        //
+        // The exemption is safe only because a webhook trigger cannot be created
+        // without a secret; see the validation in the trigger routes. An empty
+        // secret would make the HMAC forgeable by anyone and turn this into an
+        // unauthenticated route.
+        if is_webhook_path(req.uri().path()) {
+            let mut inner = self.inner.clone();
+            return Box::pin(async move { inner.call(req).await });
+        }
+
         let expected = self.expected_token.clone();
         // Extract the token from the header *before* moving `req` into the future.
         let auth_result = extract_bearer_token(req.headers());
@@ -238,6 +269,140 @@ mod tests {
         Router::new()
             .route("/ping", get(|| async { "pong" }))
             .layer(TokenAuthLayer::new(TOKEN))
+    }
+
+    /// Router mirroring the exemption: a webhook route that authenticates itself
+    /// by returning 401 on a bad signature, plus an ordinary API route.
+    fn build_router_with_webhook() -> Router {
+        Router::new()
+            .route("/ping", get(|| async { "pong" }))
+            .route("/api/v1/webhooks/x", get(|| async { "pong" }))
+            .route("/webhooksomething", get(|| async { "pong" }))
+            .route("/webhooks", get(|| async { "pong" }))
+            .route("/webhooks/a/b", get(|| async { "pong" }))
+            .route(
+                "/webhooks/:id",
+                axum::routing::post(|headers: axum::http::HeaderMap| async move {
+                    // Stands in for the real HMAC check: the point under test is
+                    // that the handler is reached and its own verdict is what the
+                    // caller gets.
+                    match headers
+                        .get("X-Apollia-Signature")
+                        .and_then(|v| v.to_str().ok())
+                    {
+                        Some("sha256=good") => StatusCode::OK,
+                        _ => StatusCode::UNAUTHORIZED,
+                    }
+                }),
+            )
+            .layer(TokenAuthLayer::new(TOKEN))
+    }
+
+    /// GIVEN the webhook route, exempt from bearer authentication
+    /// WHEN  a request arrives with no token and a signature the handler rejects
+    /// THEN  the answer is 401, from the handler rather than from the layer
+    ///
+    /// The exemption must hand the request to a stricter check, not to no check.
+    /// If this ever returns 200, the route has become open.
+    #[tokio::test]
+    async fn test_exempt_webhook_still_401s_on_a_bad_signature() {
+        // GIVEN
+        let app = build_router_with_webhook();
+
+        // WHEN
+        let req = Request::builder()
+            .method("POST")
+            .uri("/webhooks/trigger-1")
+            .header("X-Apollia-Signature", "sha256=forged")
+            .body(Body::empty())
+            .expect("request");
+        let res = app.oneshot(req).await.expect("response");
+
+        // THEN
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "a forged signature must be refused; the exemption removes the token, \
+             not the HMAC"
+        );
+    }
+
+    /// GIVEN the same route with a signature the handler accepts
+    /// WHEN  the request carries no bearer token at all
+    /// THEN  it succeeds
+    ///
+    /// The control for the test above: without this, a layer that rejected
+    /// everything would satisfy it while leaving the defect in place.
+    #[tokio::test]
+    async fn test_exempt_webhook_succeeds_without_a_token() {
+        // GIVEN / WHEN
+        let req = Request::builder()
+            .method("POST")
+            .uri("/webhooks/trigger-1")
+            .header("X-Apollia-Signature", "sha256=good")
+            .body(Body::empty())
+            .expect("request");
+        let res = build_router_with_webhook()
+            .oneshot(req)
+            .await
+            .expect("response");
+
+        // THEN
+        assert_eq!(
+            res.status(),
+            StatusCode::OK,
+            "an outside sender has no bearer token; if this 401s the webhook is \
+             unreachable again, which is the defect being fixed"
+        );
+    }
+
+    /// GIVEN paths that resemble the exempt one
+    /// WHEN  each is requested without a token
+    /// THEN  every one of them is still refused
+    ///
+    /// The exemption is a hole by construction, so its edges are the test. A
+    /// prefix match would let `/webhooksomething` through; a loose match would
+    /// let `/api/v1/webhooks/x` through, and that one sits under the API.
+    #[tokio::test]
+    async fn test_no_other_route_is_exempt() {
+        for path in [
+            "/ping",
+            "/api/v1/webhooks/x",
+            "/webhooksomething",
+            "/webhooks",
+            "/webhooks/a/b",
+        ] {
+            // GIVEN / WHEN
+            let req = Request::builder()
+                .uri(path)
+                .body(Body::empty())
+                .expect("request");
+            let res = build_router_with_webhook()
+                .oneshot(req)
+                .await
+                .expect("response");
+
+            // THEN
+            assert_eq!(
+                res.status(),
+                StatusCode::UNAUTHORIZED,
+                "{path} must stay behind the token; only `/webhooks/<id>` is exempt"
+            );
+        }
+    }
+
+    /// GIVEN the path predicate alone
+    /// WHEN  it is asked about the exempt shape and its neighbours
+    /// THEN  it accepts exactly one segment under `/webhooks/`
+    #[test]
+    fn test_is_webhook_path_matches_one_segment_only() {
+        // GIVEN / WHEN / THEN
+        assert!(is_webhook_path("/webhooks/abc"));
+        assert!(!is_webhook_path("/webhooks/"));
+        assert!(!is_webhook_path("/webhooks"));
+        assert!(!is_webhook_path("/webhooks/a/b"));
+        assert!(!is_webhook_path("/webhooksomething"));
+        assert!(!is_webhook_path("/api/v1/webhooks/abc"));
     }
 
     fn build_open_router() -> Router {

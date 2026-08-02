@@ -606,50 +606,6 @@ fn print_replay_error(report: &serde_json::Value, run: &str) {
 /// keep it bounded. Asking for more than this returns this many.
 const SERVER_LIMIT_CAP: u32 = 500;
 
-/// Counts the exported events and warns when the export came back full.
-///
-/// Equality is the only signal available: the endpoint returns a page, not a
-/// total. It can raise a false alarm when the trail holds exactly that many
-/// events, which is the right way round for an archival command.
-///
-/// The comparison is against the effective limit, not the requested one. The
-/// endpoint clamps to [`SERVER_LIMIT_CAP`], so comparing against the request
-/// meant the warning could never fire for the archival case it exists to serve:
-/// `--limit 100000` returned 500 events, 500 never equalled 100000, and the
-/// operator got a silently truncated archive with a documented safety net that
-/// was structurally unable to trigger.
-fn truncation_warning(body: &str, limit: u32) -> Option<String> {
-    let parsed = serde_json::from_str::<serde_json::Value>(body).ok()?;
-    let count = parsed
-        .get("events")
-        .and_then(|v| v.as_array())
-        .map(Vec::len)
-        .or_else(|| parsed.as_array().map(Vec::len))?;
-    let effective = limit.min(SERVER_LIMIT_CAP);
-    if count != effective as usize {
-        return None;
-    }
-    if effective < limit {
-        Some(format!(
-            "! export stopped at {effective} events, the server ceiling, not at the \
-             --limit of {limit} you asked for; older entries are missing. The \
-             endpoint caps every request at {SERVER_LIMIT_CAP}, so a larger --limit \
-             will not return more."
-        ))
-    } else {
-        Some(format!(
-            "! export stopped at the --limit of {limit} events; older entries are \
-             missing. Re-run with a higher --limit for a complete archive."
-        ))
-    }
-}
-
-fn warn_if_truncated(body: &str, limit: u32) {
-    if let Some(message) = truncation_warning(body, limit) {
-        eprintln!("{message}");
-    }
-}
-
 /// `apollia-os audit export`: dump the audit trail as JSON, bounded by `limit`.
 ///
 /// Warns when the export comes back exactly at the limit. A caller archiving a
@@ -657,39 +613,104 @@ fn warn_if_truncated(body: &str, limit: u32) {
 /// at the file, and an archive silently missing its oldest entries is worse than
 /// one that is visibly partial.
 async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, limit: u32) -> i32 {
-    let uri = format!("/api/v1/audit?limit={limit}");
-    match client.get(&uri).await {
-        Ok(resp) if resp.status < 400 => match output {
-            Some(path) => match std::fs::write(path, &resp.body) {
-                Ok(()) => {
-                    eprintln!("* wrote {} bytes to {}", resp.body.len(), path.display());
-                    warn_if_truncated(&resp.body, limit);
-                    exit_codes::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("Error writing {}: {e}", path.display());
-                    exit_codes::GENERAL_ERROR
-                }
-            },
+    let mut events: Vec<serde_json::Value> = Vec::new();
+    let mut offset: u32 = 0;
+
+    // Page until a short page comes back. The endpoint caps one query at
+    // SERVER_LIMIT_CAP whatever is asked, so a single request can never be an
+    // export: before `offset` existed, everything older than one page was
+    // unreachable through the API at all, and the file written here was silently
+    // the newest 500 events under whatever name the operator chose.
+    loop {
+        let page = limit
+            .saturating_sub(events.len() as u32)
+            .min(SERVER_LIMIT_CAP);
+        if page == 0 {
+            break;
+        }
+        let uri = format!("/api/v1/audit?limit={page}&offset={offset}");
+        let resp = match client.get(&uri).await {
+            Ok(r) if r.status < 400 => r,
+            Ok(r) => {
+                eprintln!("Error: HTTP {}: {}", r.status, r.body);
+                return exit_codes::GENERAL_ERROR;
+            }
+            Err(ClientError::ConnectionRefused) => {
+                eprintln!("Error: runtime not started");
+                return exit_codes::RUNTIME_ERROR;
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                return exit_codes::GENERAL_ERROR;
+            }
+        };
+
+        let batch = match parse_events(&resp.body) {
+            Some(b) => b,
             None => {
-                println!("{}", resp.body);
-                warn_if_truncated(&resp.body, limit);
+                eprintln!("Error: unexpected response shape from /api/v1/audit");
+                return exit_codes::GENERAL_ERROR;
+            }
+        };
+        let got = batch.len() as u32;
+        events.extend(batch);
+        // A page shorter than requested is the end of the trail. Equality is not
+        // a stop condition: a trail that happens to be an exact multiple of the
+        // page size would end one page early.
+        if got < page {
+            break;
+        }
+        offset += got;
+    }
+
+    let count = events.len();
+    let body = match serde_json::to_string_pretty(
+        &serde_json::json!({ "events": events, "count": count }),
+    ) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Error serializing the export: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if count as u32 == limit {
+        eprintln!(
+            "! export stopped at the --limit of {limit} events; older entries are \
+             missing. Re-run with a higher --limit for a complete archive."
+        );
+    }
+
+    match output {
+        Some(path) => match std::fs::write(path, &body) {
+            Ok(()) => {
+                eprintln!(
+                    "* wrote {count} events ({} bytes) to {}",
+                    body.len(),
+                    path.display()
+                );
                 exit_codes::SUCCESS
             }
+            Err(e) => {
+                eprintln!("Error writing {}: {e}", path.display());
+                exit_codes::GENERAL_ERROR
+            }
         },
-        Ok(resp) => {
-            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            exit_codes::GENERAL_ERROR
-        }
-        Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started");
-            exit_codes::RUNTIME_ERROR
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
+        None => {
+            println!("{body}");
+            exit_codes::SUCCESS
         }
     }
+}
+
+/// Pulls the `events` array out of a list response, in either accepted shape.
+fn parse_events(body: &str) -> Option<Vec<serde_json::Value>> {
+    let parsed = serde_json::from_str::<serde_json::Value>(body).ok()?;
+    parsed
+        .get("events")
+        .and_then(|v| v.as_array())
+        .or_else(|| parsed.as_array())
+        .cloned()
 }
 
 /// `apollia-os audit list`: display recent audit events.
@@ -924,51 +945,73 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
 #[cfg(test)]
 mod tests {
 
-    /// GIVEN an export that asked for more events than the endpoint will serve
-    /// WHEN  the response comes back full at the server ceiling
-    /// THEN  the operator is told the ceiling stopped it, not the flag
+    /// GIVEN a list response in the documented shape
+    /// WHEN  its events are extracted
+    /// THEN  the array comes back whole
     ///
-    /// This is the case the warning existed for and could never reach: the
-    /// comparison was against the requested limit, so `--limit 100000` returning
-    /// 500 events produced no warning at all, and the archive was silently short.
+    /// The export loop stops when a page comes back short, so mis-parsing a page
+    /// as empty would end the export at the first request and write a file that
+    /// looks complete.
     #[test]
-    fn test_truncation_warning_fires_at_the_server_ceiling_not_the_requested_limit() {
-        // GIVEN
-        let body = format!(
-            r#"{{"events":[{}]}}"#,
-            vec!["{}"; SERVER_LIMIT_CAP as usize].join(",")
-        );
-
-        // WHEN
-        let warning = truncation_warning(&body, 100_000);
+    fn test_parse_events_reads_the_documented_shape() {
+        // GIVEN / WHEN
+        let got = parse_events(r#"{"events":[{"a":1},{"a":2}],"count":2}"#);
 
         // THEN
-        let warning = warning.expect("a full page at the ceiling must warn");
+        assert_eq!(got.map(|v| v.len()), Some(2));
+    }
+
+    /// GIVEN a bare array, the other shape the endpoint has used
+    /// WHEN  its events are extracted
+    /// THEN  it is accepted too
+    #[test]
+    fn test_parse_events_accepts_a_bare_array() {
+        // GIVEN / WHEN / THEN
+        assert_eq!(parse_events(r#"[{"a":1}]"#).map(|v| v.len()), Some(1));
+    }
+
+    /// GIVEN a body that is not a list response
+    /// WHEN  its events are extracted
+    /// THEN  the failure is reported rather than read as an empty page
+    ///
+    /// This is the control that matters: returning `Some(vec![])` here would make
+    /// the export loop exit cleanly on a malformed answer and report success.
+    #[test]
+    fn test_parse_events_rejects_an_unexpected_shape() {
+        // GIVEN / WHEN / THEN
+        assert!(parse_events(r#"{"error":"nope"}"#).is_none());
+        assert!(parse_events("not json").is_none());
+    }
+
+    /// GIVEN the page-size arithmetic the export loop performs
+    /// WHEN  the requested limit exceeds the server ceiling
+    /// THEN  each page asks for at most the ceiling, and the last page asks only
+    ///       for the remainder
+    ///
+    /// Asking for more than the ceiling is what made the old export silently
+    /// short: the server clamped, the client believed it had everything.
+    #[test]
+    fn test_export_page_size_never_exceeds_the_server_ceiling() {
+        // GIVEN
+        let limit: u32 = 1200;
+        let mut sizes = Vec::new();
+        let mut collected: u32 = 0;
+
+        // WHEN
+        while collected < limit {
+            let page = limit.saturating_sub(collected).min(SERVER_LIMIT_CAP);
+            sizes.push(page);
+            collected += page;
+        }
+
+        // THEN
+        assert_eq!(sizes, vec![SERVER_LIMIT_CAP, SERVER_LIMIT_CAP, 200]);
         assert!(
-            warning.contains("server ceiling"),
-            "the operator must learn a larger --limit will not help: {warning}"
+            sizes.iter().all(|p| *p <= SERVER_LIMIT_CAP),
+            "no page may exceed what the endpoint will actually serve"
         );
     }
 
-    /// GIVEN an export well under both the flag and the server ceiling
-    /// WHEN  the warning is computed
-    /// THEN  nothing is reported
-    ///
-    /// Without this, a warning that always fired would satisfy the case above.
-    #[test]
-    fn test_truncation_warning_silent_on_a_short_export() {
-        // GIVEN
-        let body = r#"{"events":[{},{}]}"#;
-
-        // WHEN
-        let warning = truncation_warning(body, 100_000);
-
-        // THEN
-        assert!(
-            warning.is_none(),
-            "a short export must not warn: {warning:?}"
-        );
-    }
     use super::*;
     use clap::Parser;
 

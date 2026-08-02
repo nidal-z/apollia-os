@@ -303,4 +303,5 @@ mod tests {
         );
         assert!(json.contains("Apollia OS Runtime API"));
     }
+
 }

@@ -192,6 +192,18 @@ fn parse_source_config(
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
+            // An empty secret is refused here, as it already is on the TOML path.
+            // The reception route is exempt from bearer authentication precisely
+            // because it authenticates itself, by HMAC under this secret. With an
+            // empty one the HMAC is computable by anyone who knows the trigger id,
+            // so accepting it would turn `POST /webhooks/:id` into an open route
+            // that starts agents. `unwrap_or_default` used to make an absent
+            // secret indistinguishable from an empty one, and both passed.
+            if secret.is_empty() {
+                return Err(TriggerDefinitionError::ValidationError(
+                    crate::types::TriggerDefinitionError::EmptyWebhookSecret.to_string(),
+                ));
+            }
             Ok(TriggerSourceConfig::Webhook { secret })
         }
         other => Err(TriggerDefinitionError::ValidationError(format!(

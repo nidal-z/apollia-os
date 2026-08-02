@@ -32,6 +32,13 @@ pub struct AuditListQuery {
     /// Maximum number of events to return (default 20, capped at 500).
     #[serde(default = "default_limit")]
     pub limit: u32,
+    /// How many events to skip, most recent first. Defaults to 0.
+    ///
+    /// The cap on `limit` bounds one query; this is what lets a caller walk past
+    /// it. Without it the endpoint could only ever return the newest 500 rows,
+    /// so a trail longer than that was not exportable at all.
+    #[serde(default)]
+    pub offset: u32,
 }
 
 fn default_limit() -> u32 {
@@ -118,12 +125,15 @@ pub struct ErrorResponse {
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+/// `GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
 #[utoipa::path(
     get,
     path = "/api/v1/audit",
     tag = "audit",
-    params(("limit" = Option<u32>, Query, description = "Maximum number of events to return (default 20, capped at 500)")),
+    params(
+        ("limit" = Option<u32>, Query, description = "Maximum number of events to return (default 20, capped at 500)"),
+        ("offset" = Option<u32>, Query, description = "Number of events to skip, most recent first (default 0). Page through the trail by advancing it."),
+    ),
     responses(
         (status = 200, description = "Recent tool invocations", body = AuditListResponse),
         (status = 503, description = "Audit trail not configured", body = crate::api::openapi::ApiErrorBody),
@@ -142,9 +152,10 @@ pub async fn list_audit<B: ExecutionBackend + Clone>(
         )
     })?;
 
-    // Cap limit to prevent unbounded queries.
+    // Cap limit to prevent unbounded queries. The cap bounds one page, not the
+    // reachable history: `offset` walks past it.
     let limit = params.limit.min(500) as usize;
-    let records = handle.query_last(limit).await;
+    let records = handle.query_page(limit, params.offset as usize).await;
 
     let events: Vec<AuditEventResponse> = records.into_iter().map(Into::into).collect();
     let count = events.len();

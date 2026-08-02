@@ -131,9 +131,11 @@ const MIGRATION_OBSERVABILITY_COLUMNS: &[&str] = &[
 enum AuditMessage {
     /// Inserts a record (fire-and-forget).
     Record(Box<ToolInvocationRecord>),
-    /// Returns the last N invocations, sorted by descending date.
+    /// Returns N invocations sorted by descending date, skipping `offset` of
+    /// them. `offset` is what makes the trail exportable past one page.
     QueryLast {
         n: usize,
+        offset: usize,
         reply: tokio::sync::oneshot::Sender<Vec<ToolInvocationRecord>>,
     },
     /// Returns the aggregated audit trail statistics.
@@ -172,8 +174,8 @@ impl AuditTrail {
                         );
                     }
                 }
-                AuditMessage::QueryLast { n, reply } => {
-                    let results = Self::query_last_n(&self.conn, n).unwrap_or_default();
+                AuditMessage::QueryLast { n, offset, reply } => {
+                    let results = Self::query_last_n(&self.conn, n, offset).unwrap_or_default();
                     let _ = reply.send(results);
                 }
                 AuditMessage::QueryStats { reply } => {
@@ -240,16 +242,23 @@ impl AuditTrail {
     fn query_last_n(
         conn: &rusqlite::Connection,
         n: usize,
+        offset: usize,
     ) -> rusqlite::Result<Vec<ToolInvocationRecord>> {
+        // `id DESC` breaks ties on `started_at`. Without it the order between two
+        // invocations recorded in the same millisecond is whatever SQLite
+        // happens to produce, which is stable within one query and not across
+        // two. Paging over an unstable order silently repeats some rows and
+        // drops others, and an audit export that quietly loses a row is worse
+        // than one that refuses to run.
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
              started_at, duration_ms, exit_code, success, error_code, resources_used, \
              args_json, stdout, stderr, run_id \
              FROM tool_invocations \
-             ORDER BY started_at DESC \
-             LIMIT ?1",
+             ORDER BY started_at DESC, id DESC \
+             LIMIT ?1 OFFSET ?2",
         )?;
-        let rows = stmt.query_map(rusqlite::params![n as i64], |row| {
+        let rows = stmt.query_map(rusqlite::params![n as i64, offset as i64], |row| {
             let resources_str: Option<String> = row.get(11)?;
             let resources_used = resources_str.and_then(|s| serde_json::from_str(&s).ok());
             Ok(ToolInvocationRecord {
@@ -371,10 +380,23 @@ impl AuditTrailHandle {
 
     /// Returns the last N invocations, sorted by descending date.
     pub async fn query_last(&self, n: usize) -> Vec<ToolInvocationRecord> {
+        self.query_page(n, 0).await
+    }
+
+    /// Returns N invocations sorted by descending date, skipping `offset`.
+    ///
+    /// This is what an export needs. Without an offset the trail could only ever
+    /// be read from its head, so anything older than one page was unreachable
+    /// through the API at all, whatever the caller did.
+    pub async fn query_page(&self, n: usize, offset: usize) -> Vec<ToolInvocationRecord> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
             .sender
-            .send(AuditMessage::QueryLast { n, reply: reply_tx })
+            .send(AuditMessage::QueryLast {
+                n,
+                offset,
+                reply: reply_tx,
+            })
             .await
             .is_err()
         {

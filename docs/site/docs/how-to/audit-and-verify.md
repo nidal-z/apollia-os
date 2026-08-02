@@ -32,17 +32,14 @@ apollia-os audit show <run-or-task-id>
 To take the trail out for archival or external review:
 
 ```sh
-apollia-os audit export --output audit.json --limit 500
+apollia-os audit export --output audit.json --limit 100000
 ```
 
-<!-- claim:audit-export-caps-at-the-server-ceiling -->
-**One export returns at most 500 events.** The endpoint clamps every request to
-that ceiling, so the `--limit` default of 10000 is misleading and a larger value
-returns nothing more. The command warns on stderr when the export comes back full
-at the ceiling, which is the signal that older entries were left behind. There is
-no pagination on this endpoint in `v0.1.0-preview`, so a busy install cannot be
-archived in full from the CLI; read the journal directly under `~/.apollia` if you
-need everything.
+<!-- claim:audit-export-pages-past-the-server-ceiling -->
+**The endpoint serves at most 500 events per request**, and the command pages
+through it until a short page comes back, so `--limit` bounds the export rather
+than the reachable history. It warns on stderr when the export stopped on your
+`--limit` instead of on the end of the trail, which is the signal to raise it.
 
 The same records are available over the HTTP API for a host integration; see the
 audit operations in the
