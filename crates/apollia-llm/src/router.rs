@@ -1433,15 +1433,19 @@ async fn instantiate_from_config(
     cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &cfg.provider {
-        // `LlamaCpp` backends (local .gguf models) are served by the
-        // `apollia-runner` sidecar via a `RunnerLlmBackend` injected by the
-        // caller's override factory. Reaching here means no runner was
-        // available when the router was built.
+        // Local `.gguf` backends are served by the embedded `llama-server`,
+        // injected by the caller's override factory. Reaching here means the
+        // supervisor could not be built, and the only reason it fails to build
+        // is a missing binary. The message names that, because the previous
+        // wording blamed the `apollia-runner` sidecar, which stopped carrying
+        // local LLM inference and sends the reader looking in the wrong place.
         LlmProvider::LlamaCpp => Err(LlmError::BackendUnavailable {
             backend: cfg.name.clone(),
-            reason: "local llama-cpp backend requires the apollia-runner sidecar, \
-                     which is currently unavailable (the runner failed to start, \
-                     or no runner is bundled for this platform)"
+            reason: "local model backend needs the embedded llama-server, which was not \
+                     found. Place the `llama-server` binary next to the apollia-os \
+                     executable or in a `runners/` directory beside it, or point \
+                     APOLLIA_LLAMA_SERVER_BIN at it. A `cargo build -p apollia-cli` \
+                     does not stage it: only the packaged build does"
                 .to_string(),
         }),
         provider => instantiate_cloud_backend(cfg, provider, cancel).await,

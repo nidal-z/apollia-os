@@ -3,6 +3,11 @@
 # Install just: cargo install just
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
+# Windows has no bash on PATH by default, so `just` fails before running any
+# recipe. Git for Windows ships one; point at it explicitly rather than asking
+# every contributor to alter their PATH. Override with
+# `just --shell <path>` if bash lives elsewhere.
+set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-euo", "pipefail", "-c"]
 
 # Defaults (override per command: `just <recipe> var=value`)
 desktop_runners := "cpu metal"
