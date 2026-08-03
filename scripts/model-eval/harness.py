@@ -665,6 +665,50 @@ def now_rfc3339():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def require_cell_reps(cells, min_n=5):
+    """Refuse a comparison whose any cell is under-sampled.
+
+    `cells` maps a cell label to its repetition count. Record-level invariants
+    cannot see this: a one-repetition cell violates nothing per record, and I8
+    fires on aggregates nobody is forced to compute. A comparison that
+    proceeds anyway measures which cell got lucky, so the failure mode is
+    refusal, never annotation. Raises ProbeError naming every offending cell.
+    """
+    thin = {label: n for label, n in cells.items() if n < min_n}
+    if thin:
+        raise ProbeError(
+            "comparison refused: cell(s) under %d repetitions: %s"
+            % (min_n, ", ".join("%s (n=%d)" % kv for kv in sorted(thin.items())))
+        )
+
+
+def effective_n(samples):
+    """Repetitions that carry information: identical samples collapse to one.
+
+    At temperature zero a deterministic count (draft totals, token counts)
+    repeats byte-identically, and five replays of it satisfy I8's `n >= 5`
+    while carrying one repetition of evidence. I8 was satisfied by
+    construction exactly once that way, and the gate it feeds validated an
+    instrument on a single disguised rep. Dispersion-bearing quantities
+    (timings) are unaffected: any variation keeps the full count.
+    """
+    return len(samples) if len(set(samples)) > 1 else min(len(samples), 1)
+
+
+def require_informative_samples(cells_samples, min_n=5):
+    """`require_cell_reps` on effective repetitions, not nominal ones.
+
+    `cells_samples` maps a cell label to the list of samples backing the
+    metric under comparison. A cell whose samples are all identical is
+    n_effective = 1 whatever its length, and the comparison is refused, not
+    annotated.
+    """
+    require_cell_reps(
+        {label: effective_n(s) for label, s in cells_samples.items()},
+        min_n=min_n,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Invariants, 1.5
 # ---------------------------------------------------------------------------

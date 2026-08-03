@@ -150,11 +150,25 @@ that engine has to be on your `PATH`, covered in the last section.
 ## Step 2: install the SDK
 
 Agents are Python. Install the `apollia` package in editable mode into the same
-interpreter the runtime uses:
+interpreter the runtime uses.
+
+Create a virtual environment first. Homebrew, Debian and Fedora ship Python as an
+externally managed environment (PEP 668): installing into it directly stops with
+`error: externally-managed-environment`, and the runtime loads agents from the
+interpreter it finds on `PATH`, so the environment you activate here is the one it
+will use.
 
 ```sh
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ./sdk
 ```
+
+On Windows, activate with `.venv\Scripts\activate` instead.
+
+Keep this environment activated in every terminal where you run `apollia-os`. If
+you prefer a system-wide install and accept the consequences, `pip install
+--break-system-packages -e ./sdk` is the escape hatch, not the recommended path.
 
 ## Step 3: configure a model backend
 

@@ -5,6 +5,7 @@
   import { PageTransition } from "$lib/components/motion";
   import Topbar from "./Topbar.svelte";
   import { RuntimeStatusBanner } from "$lib/components/feedback";
+  import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import Dashboard from "../../../routes/Dashboard.svelte";
   import Agents from "../../../routes/Agents.svelte";
   import Tasks from "../../../routes/Tasks.svelte";
@@ -37,7 +38,15 @@
       }
     }
     window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
+    // The banner is mounted here, so the poller that feeds it is armed here too.
+    // It used to start in Chat.svelte's onMount, which meant a dead runtime went
+    // unsignalled on the thirteen other routes, and leaving /chat mid-reconnect
+    // froze the banner on its last state.
+    const stopHealthMonitor = startRuntimeHealthMonitor();
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      stopHealthMonitor();
+    };
   });
 </script>
 
@@ -91,6 +100,13 @@
           <DesignEmptyStates />
         {:else if isDev && $currentRoute === "design-dark-mode"}
           <DesignDarkMode />
+        {:else}
+          <!-- No branch matched. Without this fallback the window renders empty,
+               which is what an unknown route produced: the companion maps
+               `/onboarding` (onboarding is a modal, not a route), so its button
+               opened a blank screen. Any route the switch does not know now
+               lands on the dashboard instead of nothing. -->
+          <Dashboard />
         {/if}
       </PageTransition>
     {/key}

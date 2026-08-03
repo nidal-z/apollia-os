@@ -249,15 +249,44 @@ echo "  cross     : $is_cross"
 echo "  extra     : ${extra[*]:-(none)}"
 echo
 
+# A preset feature list describes the whole artifact, not one crate. `apollia-cli`
+# only declares `cloud` and `gen-docs`; the `local-*` and `stt-*` names belong to
+# `apollia-runner`. Passing the raw list to `-p apollia-cli` makes cargo fail
+# immediately on every preset, this one included. Split it the same way
+# .github/workflows/release.yml does, so the committed build path and the CI path
+# agree on what each crate gets.
+cli_features=""
+case ",$features," in
+    *,cloud,*) cli_features="cloud" ;;
+esac
+runner_feature=$(echo "$features" | tr ',' '\n' \
+    | grep -E '^local-(cpu|cuda|rocm|vulkan|metal)$' | head -1 || true)
+
+echo "  cli feats : ${cli_features:-(none)}"
+echo "  run feats : ${runner_feature:-(no runner for this preset)}"
+echo
+
 set -x
 $runner "$verb" \
     -p apollia-cli \
     --target "$triple" \
     --no-default-features \
-    --features "$features" \
+    --features "$cli_features" \
     ${profile_flag} \
     "${extra[@]}"
 set +x
+
+if [ -n "$runner_feature" ]; then
+    set -x
+    $runner "$verb" \
+        -p apollia-runner \
+        --target "$triple" \
+        --no-default-features \
+        --features "$runner_feature" \
+        ${profile_flag} \
+        "${extra[@]}"
+    set +x
+fi
 
 # ─── Locate output ─────────────────────────────────────────────────────────────
 profile_dir="debug"

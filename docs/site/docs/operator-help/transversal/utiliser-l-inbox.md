@@ -34,7 +34,9 @@ The active tab is remembered between sessions (refreshing the page keeps your la
 
 ### Handle an approval
 
-Click an approval row to expand it into a decision card. See the dedicated page [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md) for the detail of the 4 scopes of *Always allow* and of the refusal reason dialog (5 to 500 characters).
+Click an approval row to expand it into a decision card. See the dedicated page [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md) for the detail of the scopes of *Always allow* and of the refusal reason dialog (5 to 500 characters).
+
+One difference from the chat window: the inbox lists items coming from several sessions at once and does not carry the project each one belongs to, so *Always for this project* stays greyed out here. Use the same approval from the conversation it belongs to when you want that scope.
 
 ### Answer an agent question (`ask_user`)
 

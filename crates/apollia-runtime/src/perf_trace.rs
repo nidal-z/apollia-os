@@ -510,6 +510,12 @@ fn iteration_record(index: usize, it: &IterationSample) -> Value {
     let decode_tok = int(t, "predicted_n");
     let prefill_ms = t.map(|_| num(t, "prompt_ms"));
     let decode_ms = t.map(|_| num(t, "predicted_ms"));
+    // Speculative decoding accounting. The engine only emits these keys when a
+    // speculative path is enabled, so absence stays null rather than zero: a
+    // request served without speculation drafted nothing, it did not draft
+    // zero-and-fail.
+    let draft_tok = int(t, "draft_n");
+    let draft_tok_accepted = int(t, "draft_n_accepted");
 
     // Cold and warm are observed from the response, never asserted by the
     // caller: a fresh server still serves a warm request on a shared prefix.
@@ -542,6 +548,12 @@ fn iteration_record(index: usize, it: &IterationSample) -> Value {
         "decode_tok": decode_tok,
         "decode_tok_reasoning": reasoning_tok,
         "decode_tok_content": content_tok,
+        "draft_tok": draft_tok,
+        "draft_tok_accepted": draft_tok_accepted,
+        "draft_acceptance_ratio": match (draft_tok_accepted, draft_tok) {
+            (Some(a), Some(d)) if d > 0 => Some(a as f64 / d as f64),
+            _ => None,
+        },
         "reasoning_split_method": split_method,
         "reasoning_chars": it.reasoning_chars,
         "content_chars": it.content_chars,
@@ -633,16 +645,30 @@ async fn provenance() -> Value {
         .and_then(|g| g.clone())
         .and_then(|c| c.get("args").cloned())
         .unwrap_or(Value::Null);
+    let server_path = launch_config_slot()
+        .lock()
+        .ok()
+        .and_then(|g| g.clone())
+        .and_then(|c| {
+            c.get("llama_server_path")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        });
 
-    let built = tokio::task::spawn_blocking(move || build_provenance(model_path, launch_args))
-        .await
-        .unwrap_or(Value::Null);
+    let built =
+        tokio::task::spawn_blocking(move || build_provenance(model_path, launch_args, server_path))
+            .await
+            .unwrap_or(Value::Null);
     let _ = PROVENANCE.set(built.clone());
     built
 }
 
 /// Blocking half of provenance gathering: subprocesses and a file hash.
-fn build_provenance(model_path: Option<String>, launch_args: Value) -> Value {
+fn build_provenance(
+    model_path: Option<String>,
+    launch_args: Value,
+    server_path: Option<String>,
+) -> Value {
     let sh = |cmd: &str, args: &[&str]| -> Option<String> {
         let out = std::process::Command::new(cmd).args(args).output().ok()?;
         out.status
@@ -650,19 +676,48 @@ fn build_provenance(model_path: Option<String>, launch_args: Value) -> Value {
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_owned())
     };
 
-    let (model_sha256, scope) = match model_path.as_deref() {
-        Some(p) => match sha256_file(p) {
+    // A campaign that restarts the daemon per condition reloads the same GGUF
+    // each time, and a debug-build hash of a 20 GiB file costs minutes. The
+    // orchestrator may therefore inject the hash it computed once; the value
+    // still lands in the record verbatim, so provenance stays complete.
+    let injected = std::env::var("APOLLIA_PERF_MODEL_SHA256")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let (model_sha256, scope) = match (injected, model_path.as_deref()) {
+        (Some(h), Some(_)) => (Value::String(h), "whole_file"),
+        (None, Some(p)) => match sha256_file(p) {
             Some(h) => (Value::String(h), "whole_file"),
             None => (Value::Null, "none"),
         },
-        None => (Value::Null, "none"),
+        _ => (Value::Null, "none"),
     };
+
+    // The engine prints its version banner on stderr, so both streams are
+    // read; the first line is the `version: NNNN (sha)` banner either way.
+    let server_version = server_path.as_deref().and_then(|p| {
+        let out = std::process::Command::new(p)
+            .arg("--version")
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let merged = if out.stdout.is_empty() {
+            out.stderr
+        } else {
+            out.stdout
+        };
+        String::from_utf8_lossy(&merged)
+            .lines()
+            .next()
+            .map(str::to_owned)
+    });
 
     json!({
         "git_sha": sh("git", &["rev-parse", "HEAD"]).map_or(Value::Null, Value::String),
         "git_dirty": sh("git", &["status", "--porcelain"]).is_some_and(|s| !s.is_empty()),
-        "llama_server_version": Value::Null,
-        "llama_server_path": Value::Null,
+        "llama_server_version": server_version.map_or(Value::Null, Value::String),
+        "llama_server_path": server_path.map_or(Value::Null, Value::String),
         "model_path": model_path.map_or(Value::Null, Value::String),
         "model_sha256": model_sha256,
         "model_sha256_scope": scope,
@@ -846,6 +901,44 @@ mod tests {
         assert_eq!(r["reasoning_split_method"], "none");
         assert_eq!(r["decode_tok_reasoning"], Value::Null);
         assert_eq!(r["decode_tok_content"], 40);
+    }
+
+    #[test]
+    fn test_iteration_record_carries_draft_fields_when_engine_reports_them() {
+        // GIVEN timings from a speculative-decoding request, draft keys present
+        let mut t = timings(100, 0, 50.0, 40, 500.0);
+        t["draft_n"] = json!(239);
+        t["draft_n_accepted"] = json!(35);
+        let it = IterationSample {
+            engine_timings: Some(t),
+            ..IterationSample::default()
+        };
+
+        // WHEN it is rendered
+        let r = iteration_record(0, &it);
+
+        // THEN the contract's draft fields are present with the derived ratio
+        assert_eq!(r["draft_tok"], 239);
+        assert_eq!(r["draft_tok_accepted"], 35);
+        let ratio = r["draft_acceptance_ratio"].as_f64().unwrap();
+        assert!((ratio - 35.0 / 239.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_iteration_record_draft_fields_null_without_speculation() {
+        // GIVEN timings from a plain request, no draft keys emitted
+        let it = IterationSample {
+            engine_timings: Some(timings(100, 0, 50.0, 40, 500.0)),
+            ..IterationSample::default()
+        };
+
+        // WHEN it is rendered
+        let r = iteration_record(0, &it);
+
+        // THEN absence stays null, never zero
+        assert_eq!(r["draft_tok"], Value::Null);
+        assert_eq!(r["draft_tok_accepted"], Value::Null);
+        assert_eq!(r["draft_acceptance_ratio"], Value::Null);
     }
 
     #[test]

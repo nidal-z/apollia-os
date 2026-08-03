@@ -67,12 +67,11 @@
     "/settings": { route: "settings" },
   };
 
-  const COMMAND_ALLOWLIST = new Set([
-    "memory_insert",
-    "create_trigger",
-    "install_agent",
-    "export_session",
-  ]);
+  // Only commands the Rust side actually registers. `memory_insert` and
+  // `export_session` were listed here and exist nowhere in the IPC handler, so
+  // clicking their suggestion failed silently. An entry added here must have a
+  // matching `generate_handler!` registration.
+  const COMMAND_ALLOWLIST = new Set(["create_trigger", "install_agent"]);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
 

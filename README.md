@@ -68,6 +68,11 @@ cargo build -p apollia-cli --release
 export PATH="$PWD/target/release:$PATH"
 
 # 3. Install the Python SDK into the same interpreter the runtime embeds.
+#    Use a virtual environment. Homebrew, Debian and Fedora ship Python as an
+#    externally managed environment (PEP 668), where a bare `pip install` stops
+#    with `error: externally-managed-environment`.
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ./sdk
 
 # 4. Start the runtime. It runs in the FOREGROUND, so leave this terminal

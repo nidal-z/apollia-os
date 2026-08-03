@@ -421,6 +421,9 @@ impl LlamaServerSupervisor {
             "flash_attn": config.flash_attn.map(|m| m.to_string()),
             "cache_reuse": config.cache_reuse,
             "args": args,
+            // The binary that will actually run, so a record's provenance can
+            // name it and its version instead of leaving both null.
+            "llama_server_path": self.bin_path.display().to_string(),
         }));
 
         let mut child = Command::new(&self.bin_path)

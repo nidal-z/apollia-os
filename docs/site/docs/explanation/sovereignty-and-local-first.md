@@ -52,11 +52,20 @@ also have to run."
 
 ## The cloud is a choice, never a default
 
-Cloud inference exists, and it is opt-in on your own key. Even when enabled, the
-local model stays the default and escalation to a cloud provider is something you
-choose and control, not something that happens because a request looked hard. The
-design treats the cloud as a capability you can reach for, not a dependency you
-inherit.
+Cloud inference exists, and it is opt-in on your own key. Nothing reaches a cloud
+provider until you configure one, and the local model stays the default.
+
+What the opt-in buys is worth stating precisely, because it is the one place where
+the runtime decides on its own. If you enable hybrid routing
+(`[llm.routing.hybrid]`), the runtime may escalate a turn to the frontier backend
+without asking again at the moment it does so: today the trigger is three
+consecutive tool failures in the same run. That is the shape of the opt-in. It is
+not "the cloud stays untouched unless you press something each time", it is "you
+decide once, per configuration, which conditions are allowed to reach out." Leave
+hybrid routing off and no request ever leaves on its own.
+
+The design treats the cloud as a capability you can reach for, not a dependency
+you inherit.
 
 ## Your memory stays yours
 

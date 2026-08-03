@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- NOSONAR Web:S5725 - Google Fonts CSS payload is dynamic (charset / unicode-range fan-out), SRI hashes cannot be pinned. -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- No remote font link here, ever. Inter Tight, Inter and JetBrains Mono are
+       bundled through @fontsource and imported from src/main.ts, so a fresh
+       launch contacts nobody. A <link> to a font CDN would leak the IP,
+       User-Agent, Accept-Language and launch cadence of every user on startup,
+       which contradicts the sovereignty guarantee the product is sold on. -->
   <title>Apollia OS</title>
   <script>
     (function() {

@@ -17,7 +17,6 @@
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
   import ChatConfigPanelBody from "../components/chat/ChatConfigPanelBody.svelte";
-  import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import {
     decoratedSessions,
     markSessionRead,
@@ -198,12 +197,10 @@
     });
     const uninstall = installChatShortcuts(SHORTCUT_BINDINGS);
     const unregisterHelp = registerShortcuts(SHORTCUT_BINDINGS.map(describeBinding));
-    const stopHealthMonitor = startRuntimeHealthMonitor();
     return () => {
       unsub();
       uninstall();
       unregisterHelp();
-      stopHealthMonitor();
     };
   });
 
