@@ -187,7 +187,7 @@ open = "5"
 regex = "1"
 
 # --- Auth / OAuth2 PKCE ---
-base64      = "0.22"
+base64      = "0.23"
 # `apple-native` + `linux-native` + `windows-native` route writes through
 # the real OS keychain. Without these the crate's default backend is a no-op
 # that returns Ok from `set_password` while persisting nothing - silent data
