@@ -178,7 +178,7 @@ sysinfo = "0.31"
 
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
 arboard = "3"
-enigo = "0.5"
+enigo = "0.6"
 
 # --- File opener (cross-platform) ---
 open = "5"
