@@ -29,7 +29,7 @@ url          = "2"
 # Optional - feature-gated to keep the default build lean
 reqwest        = { workspace = true, optional = true }
 apollia-memory = { workspace = true, optional = true }
-scraper        = { version = "0.26", optional = true }
+scraper        = { version = "0.27", optional = true }
 dom_smoothie   = { version = "0.17", optional = true }
 
 # POSIX setrlimit for per-process resource limits on tool child processes.
