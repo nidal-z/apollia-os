@@ -113,6 +113,17 @@ against the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/).
   from Microsoft's WebView2 Runtime download page. Needed only for the desktop
   app.
 - **CMake**, only if you build the speech-to-text runner from source.
+- **LLVM** (provides `libclang.dll` for bindgen), only if you build the
+  speech-to-text runner from source. Install with
+  `winget install LLVM.LLVM`, then point bindgen at it before building:
+
+  ```powershell
+  $env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
+  $env:CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
+  ```
+
+  Without `LIBCLANG_PATH`, the `whisper-rs-sys` build fails with
+  `Unable to find libclang`.
 - Run the commands below from a shell where `cargo`, `python`, `git`, and (for the
   desktop app) `npm` are on `PATH`. The runtime primitives are tested on macOS and
   Linux; on Windows, verify the daemon commands on your machine and prefer a
@@ -275,6 +286,83 @@ prerequisites are installed.
 For local inference inside the dev app, make sure `llama-server` is on your `PATH`
 (next section); the daemon the app embeds serves local GGUF models through it. See
 [Get the most from local inference](/how-to/accelerate-local-inference).
+
+## Build a release desktop bundle
+
+The `just` recipes below produce a distributable desktop installer (`.dmg` on
+macOS, `.deb`/`.AppImage` on Linux, `.msi`/`.exe` on Windows). They run
+`bundle-cli.sh`, which stages the Python runtime, the `apollia-os` CLI, the
+speech-to-text runners, and a pinned `llama-server` binary.
+
+Each recipe accepts two optional arguments:
+
+| Argument | Role | Default (macOS / Linux / Windows) |
+|---|---|---|
+| `target` | Rust triple passed to `cargo tauri build` | `aarch64-apple-darwin` / `x86_64-unknown-linux-gnu` / `x86_64-pc-windows-msvc` |
+| `runners` | Space-separated list of runner backends to build and bundle | `cpu metal` / `cpu` / `cpu` |
+
+The `runners` value controls two things:
+
+1. Which `apollia-runner-{backend}` sidecars are compiled and copied into the
+   bundle.
+2. Which prebuilt `llama-server` asset is downloaded. The script picks the
+   first GPU backend in the list (`metal`, `cuda`, `rocm`, or `vulkan`); if
+   none is present it falls back to CPU.
+
+`cpu` is always included as a universal fallback. Add one GPU backend that
+matches your hardware:
+
+| Hardware | Typical `runners` value | Notes |
+|---|---|---|
+| Apple Silicon | `cpu metal` | Default macOS preset |
+| NVIDIA (CUDA 12+) | `cpu cuda` | LLM and STT can both use the GPU |
+| AMD Radeon / Intel Arc | `cpu vulkan` | LLM on GPU; STT stays CPU (`whisper-rs` has no Vulkan backend) |
+| AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM and STT on ROCm where supported |
+
+Platform presets:
+
+```sh
+# macOS Apple Silicon, Metal + CPU fallback (defaults)
+just release-macos
+
+# Linux x86_64, CPU only (default)
+just release-linux
+
+# Windows x86_64, CPU only (default)
+just release-windows
+```
+
+Override the target and/or runners on any preset:
+
+```sh
+# Windows with Vulkan LLM (AMD / Intel / fallback NVIDIA)
+just release-windows runners="cpu vulkan"
+
+# Windows with CUDA (NVIDIA)
+just release-windows runners="cpu cuda"
+
+# Linux with Vulkan
+just release-linux runners="cpu vulkan"
+
+# macOS with a custom runner set
+just release-macos runners="cpu metal"
+```
+
+For a triple and runner set not covered by a preset, use the generic recipe:
+
+```sh
+just release-desktop x86_64-pc-windows-msvc "cpu vulkan"
+just release-desktop x86_64-unknown-linux-gnu "cpu cuda"
+just release-desktop aarch64-apple-darwin "cpu metal"
+```
+
+On Windows, export `LIBCLANG_PATH` and `CMAKE_MSVC_RUNTIME_LIBRARY` in the
+same shell before running any of these recipes (see the Windows prerequisites
+above). On Linux, the speech-to-text runner additionally needs `clang` and
+`cmake` in your package manager.
+
+The bundle lands under `target/<triple>/release/bundle/` (for example
+`target/x86_64-pc-windows-msvc/release/bundle/msi/` on Windows).
 
 ## Local GGUF inference
 

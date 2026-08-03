@@ -12,6 +12,10 @@ set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-euo", "pipefail", "
 # Defaults (override per command: `just <recipe> var=value`)
 desktop_runners := "cpu metal"
 macos_target := "aarch64-apple-darwin"
+linux_target := "x86_64-unknown-linux-gnu"
+linux_runners := "cpu"
+windows_target := "x86_64-pc-windows-msvc"
+windows_runners := "cpu"
 # Local llama-server used as the external OpenAI-compat backend in dev.
 # Override the model per command or export APOLLIA_LLAMA_MODEL.
 llama_model := env_var_or_default("APOLLIA_LLAMA_MODEL", "")
@@ -203,13 +207,18 @@ desktop-dev-qwen: runners-dev-macos
     echo "✅ llama-server ready on :$PORT (log: $SLOG)"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
-# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS)
+# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS).
+# `runners` selects which apollia-runner-{backend} sidecars are staged and
+# which llama-server GPU build is bundled (first gpu backend in the list wins).
+# Examples:
+#   just desktop-build x86_64-pc-windows-msvc "cpu vulkan"
+#   just desktop-build aarch64-apple-darwin "cpu metal"
 desktop-build target="{{macos_target}}" runners="{{desktop_runners}}":
-    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" cargo tauri build --target "{{target}}"
+    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build --target "{{target}}"
 
 # Build desktop bundle for current host target
 desktop-build-host runners="{{desktop_runners}}":
-    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" cargo tauri build
+    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build
 
 # -----------------------------------------------------------------------------
 # CLI / release helpers
@@ -221,18 +230,21 @@ cli-build:
 cli-release target="":
     if [ -n "{{target}}" ]; then cargo build -p apollia-cli --release --target "{{target}}"; else cargo build -p apollia-cli --release; fi
 
-# Common release presets
-release-macos:
-    just cli-release {{macos_target}}
-    just desktop-build {{macos_target}} "cpu metal"
+# Build CLI + desktop bundle for any rust triple and runner set.
+# Example: just release-desktop x86_64-pc-windows-msvc "cpu cuda"
+release-desktop target runners="{{desktop_runners}}":
+    just cli-release {{target}}
+    just desktop-build {{target}} "{{runners}}"
 
-release-linux:
-    just cli-release x86_64-unknown-linux-gnu
-    just desktop-build x86_64-unknown-linux-gnu "cpu"
+# Common release presets (override target and/or runners per command)
+release-macos target="{{macos_target}}" runners="cpu metal":
+    just release-desktop {{target}} "{{runners}}"
 
-release-windows:
-    just cli-release x86_64-pc-windows-msvc
-    just desktop-build x86_64-pc-windows-msvc "cpu"
+release-linux target="{{linux_target}}" runners="{{linux_runners}}":
+    just release-desktop {{target}} "{{runners}}"
+
+release-windows target="{{windows_target}}" runners="{{windows_runners}}":
+    just release-desktop {{target}} "{{runners}}"
 
 # -----------------------------------------------------------------------------
 # Combined tasks
