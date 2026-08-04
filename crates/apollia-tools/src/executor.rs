@@ -213,9 +213,10 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// **No production caller wires it.** `with_permission_engine` has no callers in
 /// this workspace, so `permission_engine` is always `None` in the shipped
 /// runtime and the block below never runs. Tool calls are gated instead by the
-/// prefix rules, the code-executor guard and the HITL flow, all applied by
-/// `apollia-runtime` in the chat dispatch path. Do not read the presence of this
-/// field as a protection that is active today.
+/// chat path's name-only authorization set and the HITL flow, applied by
+/// `apollia-runtime` in the chat dispatch path; code executors always require
+/// per-invocation approval there. Do not read the presence of this field as a
+/// protection that is active today.
 ///
 /// [`with_session_filter`]: ToolDispatcher::with_session_filter
 /// [`with_permission_engine`]: ToolDispatcher::with_permission_engine
@@ -1045,6 +1046,7 @@ impl ToolExecutor for BashExecutor {
                     BashExecutorError::SyntaxError { .. } => "syntax_error",
                     BashExecutorError::RiskyCommand { .. } => "risky_command",
                     BashExecutorError::SyntaxValidationTimeout => "syntax_validation_timeout",
+                    BashExecutorError::ShellUnavailable(_) => "shell_unavailable",
                 };
                 ToolExecutionError::ExecutionFailed {
                     code: code.to_string(),
@@ -1091,7 +1093,7 @@ impl ToolExecutor for PythonExecutor {
             let output = self.run(python_input).await.map_err(|e| {
                 let code_str = match &e {
                     PythonExecutorError::EmptyCode => "empty_code",
-                    PythonExecutorError::PythonUnavailable => "python_unavailable",
+                    PythonExecutorError::PythonUnavailable { .. } => "python_unavailable",
                     PythonExecutorError::VenvCreationFailed(_) => "venv_creation_failed",
                     PythonExecutorError::PackageInstallFailed { .. } => "package_install_failed",
                     PythonExecutorError::InvalidPackageSpec { .. } => "invalid_package_spec",

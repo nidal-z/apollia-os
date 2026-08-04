@@ -144,13 +144,39 @@ ships no prompt-injection defence, and the documentation must not imply one.
 id = "executor-guard-blocks-command-chaining"
 scope = "public"
 symbol = "is_single_simple_command"
-status = "wired"
-proof = "crates/apollia-permissions/src/executor_guard.rs"
-evidence = ""
+status = "not-wired"
+proof = "crates/apollia-permissions/src/lib.rs"
+evidence = "reachable only through `PermissionEngine::decide`"
 note = """
-The protection people attribute to the injection detector is really delivered
-here, and this one does run. It is the honest replacement claim on the pages
-where the engine was removed, so it needs a guard of its own.
+The symbol exists and is unit-tested, but its only call chain in the workspace
+is `code_executor_prefix_matches` -> `PrefixRuleEngine::check*` ->
+`PermissionEngine::decide` -> `ToolDispatcher::with_permission_engine`, and
+that last constructor has no production caller. The chat path decides on the
+tool name alone and never reads the command for permission purposes, so the
+guard never runs in a shipped binary. The pages that used to present it as the
+live anti-chaining protection now say so; what actually prevents an approval
+from covering a second command is that every code executor invocation asks
+again. Wiring the per-invocation prefix check flips this claim back to wired.
+"""
+
+[[claim]]
+id = "prefix-rules-not-evaluated-in-chat"
+scope = "public"
+symbol = "PrefixRuleEngine::check_with_scope"
+status = "not-wired"
+proof = "crates/apollia-runtime/src/chat/manager/libre.rs"
+evidence = "arg-prefix rules are skipped because the name-only"
+note = """
+The onboarding round found this the hard way: a rule allowing `ls` was
+recorded and free chat still asked for approval. The chat authorization is a
+name-only HashSet; the loader drops every rule carrying an arg_prefix, for
+every tool, and the matching functions of `PrefixRuleEngine` have no
+production caller. The operator pages promised that a targeted prefix rule
+auto-approves a single simple command; they now state that prefix rules are
+stored but not evaluated per invocation. The evidence anchors on the loader
+comment that states the drop: wiring the per-invocation check deletes that
+comment, which fails this claim by design and forces the docs and claims to
+be revisited together with the wiring.
 """
 
 [[claim]]

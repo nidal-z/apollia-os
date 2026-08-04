@@ -72,8 +72,12 @@ pub enum PermissionsCommand {
         /// Tool name (e.g. `file_write`, `bash_executor`).
         #[arg(long, value_name = "NAME")]
         tool: String,
-        /// Optional argument prefix the rule applies to (e.g. a path). When
-        /// omitted, the rule matches any invocation of `--tool`.
+        /// Optional argument prefix recorded with the rule (e.g. a path).
+        /// The chat approval decision is made on the tool name alone: a rule
+        /// without a prefix pre-authorizes an ordinary tool, while a rule
+        /// carrying a prefix is stored but not evaluated per invocation
+        /// today. A code executor (`bash_executor`, `python_executor`) is
+        /// never auto-approved, with or without a prefix.
         #[arg(long, value_name = "PREFIX")]
         prefix: Option<String>,
         /// Rule action: `allow` or `deny`.

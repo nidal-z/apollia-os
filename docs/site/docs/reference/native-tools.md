@@ -6,9 +6,14 @@ title: Native tool catalog
 # Native tool catalog
 
 The native tools the runtime exposes to agents out of the box. They are wired in
-a single place (`crates/apollia-tools/src/native_dispatcher.rs`) and every one of
-them runs through the same governed path: subject to the permission engine, the
-autonomy tier, and the audit trail.
+a single place (`crates/apollia-tools/src/native_dispatcher.rs`).
+
+<!-- claim:chat-tool-governance-path -->
+On the chat path, every call runs through the same governed route: the human
+approval gate with persisted name-only allow rules (code executors are never
+blanket-authorized, and a rule carrying an argument prefix is stored but not
+evaluated by the chat approval decision today), the autonomy tier's step
+budget, and the audit trail.
 
 An agent reaches these tools through `ctx.tools`, or has them handed to a ReAct
 loop via `ctx.tools.describe(<name>)`. Each call is dispatched by the canonical
@@ -123,7 +128,7 @@ of these is subject to human-in-the-loop approval before it takes effect.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `permission_rule_add` | Persist a new permission rule, tagged with the calling agent's identity. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
+| `permission_rule_add` | Persist a new permission rule, tagged with the calling agent's identity. `arg_prefix` records an argument-prefix intent, surfaced in Settings; the chat approval decision is made on the tool name alone and does not evaluate it today. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
 | `permission_rule_remove` | Remove a rule by id. | `rule_id` |
 | `permission_rule_list` | List rules, optionally filtered. Read-only. | `tool_name`, `created_by`, `scope` |
 

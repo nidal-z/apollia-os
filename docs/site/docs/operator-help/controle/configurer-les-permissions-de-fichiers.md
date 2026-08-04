@@ -25,8 +25,10 @@ Rules appear automatically when an agent requests access to a tool and you choos
    - the **expiry date** or the mention *Permanent*
    - the **author** of the decision (agent or user)
 
+<!-- claim:prefix-rules-not-evaluated-in-chat -->
+> **What a rule actually does today:** the chat approval decision is made on the **tool name alone**. A rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** records your intent and is displayed here, but the chat path does not evaluate argument prefixes: it does not auto-approve anything yet, for any tool.
 <!-- claim:executor-guard-blocks-command-chaining -->
-> **Prefix and code executors:** for an ordinary tool, a prefix rule auto-approves any argument starting with the prefix. For a code executor (`bash_executor`, `python_executor`), it is stricter: it only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
+> **Code executors** (`bash_executor`, `python_executor`) are never auto-approved, with or without a prefix: every invocation asks for confirmation, because their argument is a shell command or arbitrary code. The rule engine ships with a stricter prefix matcher for them (a prefix rule would only ever cover a **single simple command**, with no chaining `;`, `&&`, `||`, pipe, redirection or substitution), but that matcher is not active on the chat path today.
 
 4. Use the filters in the left panel to narrow the list:
    - **Scope**: *All*, *This project*, *Chat / agent*, *Everywhere*

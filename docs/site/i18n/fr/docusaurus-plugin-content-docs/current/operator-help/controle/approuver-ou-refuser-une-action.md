@@ -46,7 +46,9 @@ Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'o
    Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md)).
 
 <!-- claim:chat-tool-governance-path -->
-> **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation. Pour auto-approuver une commande précise, configurez une règle de préfixe ciblée dans **Paramètres → Autorisations** : elle ne s'applique qu'à une commande simple unique (sans enchaînement `;`, `&&`, pipe, redirection ni substitution).
+> **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation.
+<!-- claim:prefix-rules-not-evaluated-in-chat -->
+> Une règle de préfixe ciblant une commande précise peut être enregistrée dans **Paramètres → Autorisations**, mais la décision d'approbation du chat se prend sur le seul nom de l'outil et n'évalue pas les préfixes d'argument aujourd'hui : chaque invocation d'un exécuteur de code redemande une confirmation, règle ou pas.
 
 <!-- claim:bash-executor-requires-posix-shell -->
 > **Sous Windows**, ces deux outils exigent aussi des prérequis sur la machine : un shell POSIX dans le `PATH` pour `bash_executor` (Git Bash, MSYS2 ou WSL) et un Python 3 installé pour `python_executor`. S'il en manque un, l'appel échoue avec un message nommant le prérequis au lieu de s'exécuter.

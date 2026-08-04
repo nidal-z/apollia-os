@@ -805,11 +805,13 @@ impl FsHitlDecision {
 /// Ordered from least to most permissive. The persistence layer is free to
 /// interpret each scope differently:
 ///
-/// - `ThisTool` and `ThisAgent` land in `PrefixRuleEngine` with a matching
-///   `tool_name` predicate.
+/// - `ThisTool` and `ThisAgent` are persisted as `PrefixRuleEngine` rows keyed
+///   by `tool_name`; later sessions re-read those rows to seed the name-only
+///   authorization set (no argument-prefix matching happens on the chat path).
 /// - `ThisSession` stays in-memory for the current `ChatManager` session.
-/// - `ThisProject` is persisted in `apollia.toml` (or equivalent).
-/// - `Global` is persisted in the user-wide `governance.db`.
+/// - `ThisProject` and `Global` are persisted in the user-wide
+///   `governance.db`, with the project's canonical path attached for
+///   `ThisProject`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AlwaysAcceptScope {

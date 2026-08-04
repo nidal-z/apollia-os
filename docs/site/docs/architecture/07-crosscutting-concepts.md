@@ -48,13 +48,19 @@ posture and its limits in full.
 
 <!-- claim:permission-engine-not-wired -->
 <!-- claim:executor-guard-blocks-command-chaining -->
-Before any action runs, three mechanisms classify it, and it is worth being
-precise about which ones ship enabled. A **prefix rule** matches the call against
-the operator's standing decisions. A **code-executor guard** refuses a shell
-command that chains, pipes, redirects or substitutes, so an approval granted for
-one command cannot smuggle a second. Anything left raises a **human-in-the-loop
-approval** the operator resolves, and that decision is recorded. All three are
-applied by `apollia-runtime` in the chat dispatch path.
+Before any action runs, the chat dispatch path in `apollia-runtime` classifies
+it, and it is worth being precise about what ships enabled. The live gate is a
+**tool-name authorization set**: persisted name-only allow rules seed it, code
+executors are excluded from it on every route, and anything not in it raises a
+**human-in-the-loop approval** the operator resolves and that decision is
+recorded. Two further mechanisms exist in `apollia-permissions` but are not
+evaluated per invocation on that path today: the **prefix matcher**, which
+would match a call's argument against the operator's standing prefix rules,
+and the **code-executor guard** (`is_single_simple_command`), which would
+refuse a shell command that chains, pipes, redirects or substitutes. Both are
+reachable only through `PermissionEngine::decide`, which no shipped binary
+wires, so a rule carrying an argument prefix is stored and displayed but
+auto-approves nothing.
 
 <!-- claim:injection-detector-is-shell-not-prompt -->
 `apollia-permissions` also contains a `PermissionEngine` aggregating a safe-list

@@ -6,17 +6,28 @@
 //! Read this before assuming a layer protects you. Two of the pieces in this
 //! crate are **not** in the execution path of the shipped runtime.
 //!
-//! Live, consulted on every chat tool invocation:
+//! Live on the chat path:
 //!
-//! - [`PrefixRuleEngine`]: persisted per-scope rules in SQLite (session,
-//!   project, global), the mechanism behind "always allow `git status`".
-//! - [`executor_guard`]: the invariant that `bash_executor` and
-//!   `python_executor` are never blanket-authorised by tool name, and that a
-//!   prefix rule only ever matches a single simple command, so an authorised
-//!   `git status` cannot carry `; rm -rf /`.
+//! - [`PrefixRuleEngine`] as a **rule store**: the chat manager lists its
+//!   persisted rules once per message and seeds a name-only authorization set
+//!   from the allow rules that carry no `arg_prefix`
+//!   (`apply_chat_prefix_allow_rules` in `apollia-runtime`). That set is the
+//!   mechanism behind "always allow" for ordinary tools.
+//! - [`executor_guard::is_code_executor`]: the invariant that `bash_executor`
+//!   and `python_executor` are never blanket-authorised; the runtime filters
+//!   them out of the authorization set on every seeding route.
 //! - [`PermissionAuditLog`]: every decision recorded in SQLite.
 //!
-//! Present but **not wired**:
+//! Present but **not evaluated per invocation** on the shipped chat path:
+//!
+//! - The prefix matching itself: [`PrefixRuleEngine::check`] /
+//!   `check_with_scope`, and [`executor_guard::is_single_simple_command`],
+//!   the guard that would restrict an executor prefix rule to a single simple
+//!   command. Both are reachable only through `PermissionEngine::decide`,
+//!   which no production caller wires. A rule carrying an `arg_prefix` is
+//!   therefore stored and displayed but auto-approves nothing today.
+//!
+//! Present but **not wired** at all:
 //!
 //! - [`PermissionEngine`], the aggregate below, together with [`SafeList`] and
 //!   [`InjectionDetector`]. `ToolDispatcher` holds an `Option<PermissionEngine>`
@@ -27,9 +38,10 @@
 //!   binary. They are kept because they are tested and useful to an embedder
 //!   that opts in, not because they are protecting the desktop app today.
 //!
-//! Practical consequence: the anti-chaining protection people usually attribute
-//! to [`InjectionDetector`] is in fact delivered by
-//! [`executor_guard::is_single_simple_command`], which *is* live. And note that
+//! Practical consequence: what keeps an approval granted for one shell command
+//! from covering the next one is not [`InjectionDetector`], nor
+//! [`executor_guard::is_single_simple_command`], but the per-invocation
+//! approval itself: every code executor call asks again. And note that
 //! [`InjectionDetector`] detects **shell** injection, not prompt injection;
 //! there is no prompt-injection defence in this crate.
 //!

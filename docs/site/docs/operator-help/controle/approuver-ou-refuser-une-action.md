@@ -46,7 +46,9 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
    Persisted rules can be reviewed and revoked in **Settings → Permissions** (see [Manage tool permissions](configurer-les-permissions-de-fichiers.md)).
 
 <!-- claim:chat-tool-governance-path -->
-> **Special case of code executors** (`bash_executor`, `python_executor`): *Always allow* is never honoured for them, whatever scope you pick. Their argument is a shell command or arbitrary code; a blanket authorisation would be a blank cheque on the whole interpreter. The current call does run once, but the next invocation asks for confirmation again. To auto-approve a specific command, set up a targeted prefix rule in **Settings → Permissions**: it only applies to a single simple command (no chaining with `;`, `&&`, no pipe, redirection or substitution).
+> **Special case of code executors** (`bash_executor`, `python_executor`): *Always allow* is never honoured for them, whatever scope you pick. Their argument is a shell command or arbitrary code; a blanket authorisation would be a blank cheque on the whole interpreter. The current call does run once, but the next invocation asks for confirmation again.
+<!-- claim:prefix-rules-not-evaluated-in-chat -->
+> A prefix rule targeting a specific command can be recorded in **Settings → Permissions**, but the chat approval decision is made on the tool name alone and does not evaluate argument prefixes today: every code executor invocation still asks for confirmation, rule or not.
 
 <!-- claim:bash-executor-requires-posix-shell -->
 > **On Windows**, these two tools also need host prerequisites: a POSIX shell on `PATH` for `bash_executor` (Git Bash, MSYS2 or WSL) and an installed Python 3 for `python_executor`. When one is missing, the call fails with a message naming the prerequisite instead of executing.
