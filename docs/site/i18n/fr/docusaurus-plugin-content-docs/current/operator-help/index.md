@@ -26,7 +26,7 @@ garder la main sur les actions sensibles et suivre ce qui se passe.
 - **Garder la main** : [approuver ou refuser une action](./controle/approuver-ou-refuser-une-action.md), [configurer les permissions de fichiers](./controle/configurer-les-permissions-de-fichiers.md), [choisir le palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), [mesurer un agent avec eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connecter** : brancher vos outils via le [catalogue MCP](./integrations/connecter-un-serveur-mcp.md).
 - **Suivre** : [tableau de bord et chronologie](./observabilite/consulter-l-historique-des-taches.md), [couts LLM](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
-- **Maintenir** : [mettre a jour Apollia](./installation/mettre-a-jour-apollia.md).
+- **Maintenir** : [mettre a jour Apollia](./installation/mettre-a-jour-apollia.md), [retrouver sa version et ses donnees](./transversal/trouver-sa-version-et-ses-donnees.md).
 - **Si ca coince** : [diagnostic des cas frequents](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), IA muette, agent bloque, action refusee, dictee KO.
 
 ## Comment lire ce centre d'aide

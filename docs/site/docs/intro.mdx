@@ -18,12 +18,11 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
   <img src={useBaseUrl('/img/logo.svg')} alt="" />
   <div className="home-hero-body">
     <h1>Apollia OS documentation</h1>
-    <p>
-      A sovereign Rust runtime for autonomous AI agents. It runs any Python
-      agent in isolation, locally, with tools, and without a cloud dependency.
-      This site is the adopters' manual: what Apollia does, how to drive it, and
-      why it is built the way it is.
-    </p>
+    {/* Kept on one line inside the tag on purpose: a blank-line-separated body
+        inside a JSX element is re-parsed as Markdown, which wraps it in a
+        second <p>. The nested <p> is invalid HTML, the browser reparents it,
+        and React fails to hydrate the whole page. */}
+    <p>A sovereign Rust runtime for autonomous AI agents. It runs any Python agent in isolation, locally, with tools, and without a cloud dependency. This site is the adopters' manual: what Apollia does, how to drive it, and why it is built the way it is.</p>
   </div>
 </div>
 

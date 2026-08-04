@@ -19,6 +19,9 @@
     BookOpen,
     Github,
     Mail,
+    Bug,
+    FolderOpen,
+    ShieldCheck,
     ExternalLink,
     Copy,
     Check,
@@ -38,7 +41,11 @@
   import CopyValue from "../../components/settings/about/CopyValue.svelte";
 
   const GITHUB_URL = "https://github.com/Apollia-OS/apollia-os";
-  const DOCS_URL = "https://github.com/Apollia-OS/apollia-os/wiki";
+  // The documentation site, built and published from docs/site by CI. The
+  // previous target was the repository wiki, which the corpus consolidation
+  // retired: the link shipped dead in the binary.
+  const DOCS_URL = "https://docs.apollia.fr";
+  const ISSUES_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
   const CONTACT_EMAIL = "contact@apollia.fr";
   const LICENSE_SPDX = "MIT OR Apache-2.0";
   const ENGINE = "llama-server (llama.cpp)";
@@ -47,6 +54,9 @@
   const version = $derived($systemInfoStore.data?.version ?? null);
   const os = $derived($systemInfoStore.data?.os ?? null);
   const pythonPath = $derived($systemInfoStore.data?.python_path ?? null);
+  // Resolved by the runtime from the real home directory, never a literal
+  // "~/.apollia": the two differ as soon as the process runs under another HOME.
+  const dataDir = $derived($systemInfoStore.data?.data_dir ?? null);
   const unavailable = $derived(
     $systemInfoStore.data === null && $systemInfoStore.error !== null,
   );
@@ -64,6 +74,7 @@
   const diagnostic = $derived.by(() => {
     const lines = [`Apollia OS v${version ?? "unknown"}`, `Platform: ${os ?? "unknown"}`];
     if (pythonPath) lines.push(`Python: ${pythonPath}`);
+    if (dataDir) lines.push(`Data directory: ${dataDir}`);
     lines.push(`Engine: ${ENGINE}`, `Transcription: ${STT_ENGINE}`, `License: ${LICENSE_SPDX}`);
     return lines.join("\n");
   });
@@ -209,6 +220,50 @@
     {/snippet}
   </SettingsSection>
 
+  <!-- Where the data lives -->
+  <SettingsSection
+    title={$t("settings.about.data_title")}
+    description={$t("settings.about.data_desc")}
+    bodyLayout="flush"
+    data-testid="about-data"
+  >
+    {#snippet icon()}<FolderOpen size={15} strokeWidth={1.75} />{/snippet}
+    <SettingsFieldRow label={$t("settings.about.kv_data_dir")} border={false}>
+      {#snippet control()}
+        {#if dataDir}
+          <CopyValue
+            value={dataDir}
+            label={$t("settings.about.kv_data_dir")}
+            data-testid="about-copy-data-dir"
+          />
+        {:else}
+          <span class="text-body-sm text-muted-foreground" data-testid="about-data-dir-unknown">
+            {$t("settings.about.data_dir_unknown")}
+          </span>
+        {/if}
+      {/snippet}
+    </SettingsFieldRow>
+  </SettingsSection>
+
+  <!-- What runs on this machine -->
+  <SettingsSection
+    title={$t("settings.about.local_title")}
+    description={$t("settings.about.local_desc")}
+    data-testid="about-local"
+  >
+    {#snippet icon()}<ShieldCheck size={15} strokeWidth={1.75} />{/snippet}
+    <ul class="m-0 list-none space-y-2 p-0">
+      {#each ["inference", "transcription", "memory", "audit"] as item (item)}
+        <li class="flex items-start gap-2.5">
+          <Check size={14} strokeWidth={2.2} class="mt-0.5 shrink-0 text-success" aria-hidden="true" />
+          <span class="text-body-sm leading-relaxed text-muted-foreground">
+            {$t(`settings.about.local_${item}`)}
+          </span>
+        </li>
+      {/each}
+    </ul>
+  </SettingsSection>
+
   <!-- Updates -->
   <SettingsSection
     title={$t("settings.about.updates_title")}
@@ -236,6 +291,13 @@
         $t("settings.about.github_title"),
         $t("settings.about.github_desc"),
         "about-link-github",
+      )}
+      {@render linkCard(
+        ISSUES_URL,
+        Bug,
+        $t("settings.about.report_title"),
+        $t("settings.about.report_desc"),
+        "about-link-report",
       )}
       <button
         type="button"

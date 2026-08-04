@@ -46,7 +46,7 @@ A confirmation window opens with a **3-second safety pause** during which the co
 ## If something goes wrong
 
 - **Apollia does not restart after the reset:** launch the application manually from your applications menu.
-- **The setup flow does not appear:** the reset may have failed partially. Check that `~/.apollia/` is absent or empty, otherwise delete it manually and relaunch. If the problem persists, contact support and state the exact time of the reset.
+- **The setup flow does not appear:** the reset may have failed partially. Check that the data directory is absent or empty, otherwise delete it manually and relaunch. Its exact path is shown on **Settings → About**, under *Where your data lives*: see [Find your version and your data](../transversal/trouver-sa-version-et-ses-donnees.md). If the problem persists, contact support and state the exact time of the reset.
 - **The Continue button stays greyed out at the Models step:** that is expected as long as no LLM is configured. Download a GGUF model from the curated list, or click **Use a cloud provider** to add an Anthropic, OpenAI or Ollama backend. The flow resumes automatically once the backend is added.
 - **You regret the deletion:** restore the backups from step 1. Without a backup, the data is permanently lost.
 

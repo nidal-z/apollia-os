@@ -738,6 +738,8 @@ export interface SystemInfo {
   version: string;
   os: string;
   python_path: string | null;
+  /** Répertoire de données résolu (`<home>/.apollia`), null si le home est introuvable. */
+  data_dir: string | null;
 }
 
 /** Confinement OS appliqué aux processus enfants des outils natifs. */

@@ -47,6 +47,26 @@ pub mod updates;
 pub mod user_memory;
 pub mod workspace;
 
+/// Process-wide lock for tests that read or write the home-directory env vars.
+///
+/// `HOME` and `USERPROFILE` are process globals, and the test harness runs the
+/// whole binary's tests on a shared thread pool. Three modules touch them:
+/// `projects` fakes a home to probe project suggestions, `chat` fakes one to
+/// expand `~`, and `config` reads the resolved data directory back out. Without
+/// a common lock the third sees whichever value the first two happened to leave
+/// behind, and the failure depends on scheduling order, which the repository
+/// rules forbid outright.
+///
+/// Every site that sets or reads those variables takes this guard for the whole
+/// duration of its assertions, and restores the previous value before dropping
+/// it. Poisoning is ignored on purpose: a panicking test has already failed,
+/// and letting the poison cascade would convert one failure into many.
+#[cfg(test)]
+pub(crate) fn home_env_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::client::conn::http1;

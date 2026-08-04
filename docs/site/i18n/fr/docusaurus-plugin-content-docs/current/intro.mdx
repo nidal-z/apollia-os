@@ -19,12 +19,12 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
   <img src={useBaseUrl('/img/logo.svg')} alt="" />
   <div className="home-hero-body">
     <h1>Documentation Apollia OS</h1>
-    <p>
-      Un runtime Rust souverain pour agents IA autonomes. Il execute n'importe
-      quel agent Python isole, en local, avec ses outils, et sans dependance au
-      cloud. Ce site est le manuel des integrateurs : ce que fait Apollia,
-      comment le piloter, et pourquoi il est construit ainsi.
-    </p>
+    {/* Volontairement sur une seule ligne dans la balise : un corps separe par
+        une ligne vide dans un element JSX est re-analyse comme du Markdown, ce
+        qui l'enveloppe dans un second <p>. Le <p> imbrique est du HTML
+        invalide, le navigateur le deplace, et React echoue a hydrater toute la
+        page. */}
+    <p>Un runtime Rust souverain pour agents IA autonomes. Il execute n'importe quel agent Python isole, en local, avec ses outils, et sans dependance au cloud. Ce site est le manuel des integrateurs : ce que fait Apollia, comment le piloter, et pourquoi il est construit ainsi.</p>
   </div>
 </div>
 

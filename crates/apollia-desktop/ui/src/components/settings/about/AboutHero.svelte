@@ -3,13 +3,17 @@
    * AboutHero - the vitrine moment of the settings hub.
    *
    * The one surface where the indigo->violet signature gradient is fully
-   * deployed: a radial wash background, a gradient brand tile, and a gradient
+   * deployed: a radial wash background, the Apollia symbol, and a gradient
    * text wordmark with a slow shimmer. Version / channel / platform pills draw
    * their values from the live systemInfo store. Every value composes an
    * existing HSL token, so both themes and reduced-motion are honored.
+   *
+   * The mark is the real logo, the same `/logo.svg` the sidebar, the onboarding
+   * welcome and the companion header already serve. It carries its own violet
+   * and blue, so it sits on a plain drop shadow rather than on a gradient tile:
+   * two gradients at 64 px fight each other.
    */
   import { t } from "svelte-i18n";
-  import { Sparkles } from "lucide-svelte";
 
   interface Props {
     version: string | null;
@@ -26,12 +30,14 @@
   data-testid="about-hero"
 >
   <div class="flex items-center gap-4">
-    <span
-      class="hero-mark grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-primary-foreground shadow-primary-md"
-      aria-hidden="true"
-    >
-      <Sparkles size={30} strokeWidth={1.75} />
-    </span>
+    <img
+      src="/logo.svg"
+      alt=""
+      width="64"
+      height="64"
+      class="hero-mark h-16 w-16 shrink-0"
+      data-testid="about-logo"
+    />
     <div class="min-w-0">
       <h2 class="hero-wordmark m-0 font-sans text-display-sm">Apollia OS</h2>
       <p class="mt-1 max-w-prose text-body-sm text-muted-foreground">
@@ -84,7 +90,8 @@
   }
 
   .hero-mark {
-    background: linear-gradient(140deg, hsl(var(--grad-a)), hsl(var(--grad-b)));
+    object-fit: contain;
+    filter: drop-shadow(0 8px 20px hsl(var(--grad-a) / 0.32));
   }
 
   .hero-wordmark {

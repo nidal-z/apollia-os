@@ -3,10 +3,11 @@
    * HelpResources - the "resources & support" card grid.
    *
    * Three resource kinds, each rendered with the correct semantics:
-   *   - external (`<a>` via the system opener): community, issue tracker;
+   *   - external (`<a>` via the system opener): the help center, the community,
+   *     the issue tracker;
    *   - in-app (`<button>`): the offline keyboard-shortcuts page;
-   *   - soon (`<div>`): the documentation manual, not published yet, shown as
-   *     "available soon" rather than a dead link (repo doctrine).
+   *   - soon (`<div>`): kept for a surface that is genuinely not published yet,
+   *     shown as "available soon" rather than a dead link (repo doctrine).
    *
    * When offline the external cards are disabled (not hidden) and a banner
    * explains why; the in-app card stays usable.
@@ -22,6 +23,10 @@
 
   let { online }: Props = $props();
 
+  // The operator help center, published from docs/site by CI. Deep-linked to
+  // its own section rather than the site root: this card answers "how do I do
+  // this in the app", not "what is Apollia".
+  const DOCS_URL = "https://docs.apollia.fr/operator-help";
   const COMMUNITY_URL = "https://github.com/Apollia-OS/apollia-os/discussions";
   const REPORT_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
 
@@ -35,10 +40,11 @@
   const resources: Resource[] = [
     {
       id: "docs",
-      kind: "soon",
+      kind: "external",
       icon: BookOpen,
       titleKey: "settings.help.docs_title",
       descKey: "settings.help.docs_desc",
+      href: DOCS_URL,
     },
     {
       id: "shortcuts",

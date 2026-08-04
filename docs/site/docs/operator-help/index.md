@@ -27,7 +27,7 @@ actions, and follow what happens.
 - **Keep control** : [approve or refuse an action](./controle/approuver-ou-refuser-une-action.md), [set file permissions](./controle/configurer-les-permissions-de-fichiers.md), [choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), [measure an agent with eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connect** : wire your tools through the [MCP catalog](./integrations/connecter-un-serveur-mcp.md).
 - **Follow** : [dashboard and timeline](./observabilite/consulter-l-historique-des-taches.md), [LLM costs](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
-- **Maintain** : [update Apollia](./installation/mettre-a-jour-apollia.md).
+- **Maintain** : [update Apollia](./installation/mettre-a-jour-apollia.md), [find your version and your data](./transversal/trouver-sa-version-et-ses-donnees.md).
 - **When something jams** : [diagnosing the common cases](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), a silent AI, a stuck agent, a refused action, dictation that produces nothing.
 
 ## How to read this help center

@@ -671,6 +671,13 @@ pub struct SystemInfo {
     pub os: String,
     /// Absolute path to the Python 3 interpreter, if detected.
     pub python_path: Option<String>,
+    /// Absolute path to the runtime data directory (`<home>/.apollia`), where
+    /// the databases, models, configuration and audit journal live.
+    ///
+    /// `None` only when the home directory cannot be resolved, which is a real
+    /// condition on a stripped environment and is reported rather than papered
+    /// over with a literal `~/.apollia` the operator would then trust.
+    pub data_dir: Option<String>,
 }
 
 /// Returns the system information for the Advanced section of Settings.
@@ -703,10 +710,13 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
         _ => None,
     };
 
+    let data_dir = apollia_core::paths::data_dir().map(|p| p.display().to_string());
+
     Ok(SystemInfo {
         version,
         os,
         python_path,
+        data_dir,
     })
 }
 
@@ -990,6 +1000,51 @@ mod tests {
         // THEN it ends with apollia.toml inside .apollia directory
         assert!(path.ends_with("apollia.toml"));
         assert!(path.to_string_lossy().contains(".apollia"));
+    }
+
+    #[tokio::test]
+    async fn test_system_info_reports_the_resolved_data_directory() {
+        // GIVEN the home directory the runtime itself resolves.
+        // The guard keeps the tests that fake a home from swapping it out from
+        // under this one: the variable is a process global and the harness runs
+        // them concurrently.
+        let _guard = crate::commands::home_env_lock();
+        let home = apollia_core::paths::home_dir();
+
+        // WHEN the About page asks the desktop for its system information
+        let info = get_system_info().await.expect("system info is available");
+
+        // THEN the data directory is reported, absolute, rooted in that home,
+        // and never a literal "~/.apollia" the operator would read as fact
+        match home {
+            Some(home) => {
+                let data_dir = info
+                    .data_dir
+                    .expect("data_dir is present whenever the home directory resolves");
+                assert!(
+                    std::path::Path::new(&data_dir).is_absolute(),
+                    "reported data dir is not absolute: {data_dir}"
+                );
+                assert!(
+                    data_dir.starts_with(&home.display().to_string()),
+                    "reported data dir {data_dir} is not rooted in the resolved home {}",
+                    home.display()
+                );
+                assert!(
+                    data_dir.ends_with(apollia_core::paths::DATA_DIR_NAME),
+                    "reported data dir {data_dir} does not end with {}",
+                    apollia_core::paths::DATA_DIR_NAME
+                );
+                assert!(
+                    !data_dir.contains('~'),
+                    "reported data dir {data_dir} is unexpanded and cannot be opened as-is"
+                );
+            }
+            None => assert!(
+                info.data_dir.is_none(),
+                "a data dir was reported while no home directory resolves"
+            ),
+        }
     }
 
     #[test]

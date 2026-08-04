@@ -12,12 +12,12 @@
   import { navigateTo } from "$lib/stores/navigation";
 
   interface Props {
-    /** Deep-link target for the documentation link (defaults to wiki). */
+    /** Deep-link target for the documentation link (defaults to the help center). */
     docsHref?: string;
   }
 
   let {
-    docsHref = "https://github.com/Apollia-OS/apollia-os/wiki/Agents",
+    docsHref = "https://docs.apollia.fr/operator-help/agents/installer-un-agent",
   }: Props = $props();
 </script>
 
