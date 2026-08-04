@@ -20,6 +20,10 @@ properties rather than the fixes:
   1. A symbol that appears only in a comment is reported as NOT wired.
   2. A rule that examined nothing reports zero coverage, never a pass, and the
      per-zone breakdown accounts for every marker.
+  3. A detector that only ever runs against a clean tree fires on a dirty one.
+     `check_no_font_cdn.py` guards a promise no CSP covers on the documentation
+     site, and its whole tree is compliant today, so a green line proves the
+     scan ran, not that the detector works. Both directions are asserted here.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -39,6 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_claims  # noqa: E402
+import check_no_font_cdn as fontcdn  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
 
 FAILURES: list[str] = []
@@ -258,18 +263,71 @@ def check_zero_coverage_is_reported() -> None:
     )
 
 
+def check_font_cdn_detector_fires() -> None:
+    """A guard whose tree is already clean has never been shown to work.
+
+    `check_no_font_cdn.py` exists because the remote-font regression happened
+    once and was reverted. It passes today for a reason that says nothing about
+    the detector: there is nothing to find. So drive it on the shapes the
+    regression actually takes, and pair each with a control that must stay
+    silent, because a detector that flags everything is worth as little as one
+    that flags nothing.
+    """
+    print("font CDN guard: the detector fires on the shapes it exists to catch")
+
+    dirty = [
+        (
+            "a Google Fonts stylesheet link",
+            '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter" />',
+        ),
+        ("a gstatic woff2", "@font-face { src: url(https://fonts.gstatic.com/s/inter/v13/x.woff2); }"),
+        ("a bare remote font file", "src: url('https://example.com/assets/Inter.woff2?v=3');"),
+        ("a Typekit embed", 'href="https://use.typekit.net/abc1234.css"'),
+    ]
+    for name, sample in dirty:
+        case(
+            f"flags {name}",
+            bool(fontcdn.offending_urls(sample)),
+            f"the detector stayed silent on {sample!r}, which is the exact line "
+            f"the guard was written to stop",
+        )
+
+    clean = [
+        ("a bundled @fontsource import", '@import "@fontsource/inter-tight/400.css";'),
+        ("a relative font file", "src: url('/fonts/inter.woff2');"),
+        ("a plain documentation link", "See https://diataxis.fr for the framework."),
+        ("the repository URL", 'href="https://github.com/Apollia-OS/apollia-os"'),
+    ]
+    for name, sample in clean:
+        case(
+            f"stays silent on {name}",
+            not fontcdn.offending_urls(sample),
+            f"the detector flagged {sample!r}. A guard that fails on compliant "
+            f"input gets switched off, and then guards nothing",
+        )
+
+    scanned = fontcdn.iter_files()
+    case(
+        "the scan has coverage",
+        len(scanned) >= 20,
+        f"only {len(scanned)} file(s) matched. A guard pointed at an empty tree "
+        f"reports success for the same reason a compliant tree does",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
     check_zero_coverage_is_reported()
+    check_font_cdn_detector_fires()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nthree properties hold: neither a comment nor a re-export is a use, "
-        "and zero coverage says so"
+        "\nfour properties hold: neither a comment nor a re-export is a use, "
+        "zero coverage says so, and the font guard fires on a dirty tree"
     )
     return 0
 
