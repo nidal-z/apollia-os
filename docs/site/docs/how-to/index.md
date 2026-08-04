@@ -35,6 +35,9 @@ Task-oriented recipes. Each one solves a single, concrete problem.
   control the runtime from a host application over the HTTP API.
 - [Embed via federation](/how-to/embed-via-federation): expose your product as
   MCP tools and let an agent write back through your REST API.
+- [Set up a Google OAuth client](/how-to/set-up-a-google-oauth-client): register
+  your own client in the Google Cloud console, click by click, so the Gmail,
+  Calendar and Drive connector works. Microsoft 365 needs no equivalent.
 - [Keep a human in the loop](/how-to/human-in-the-loop): require approval before
   a consequential action runs.
 - [Audit and verify a run](/how-to/audit-and-verify): read the

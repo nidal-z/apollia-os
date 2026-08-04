@@ -6,10 +6,20 @@
 
 - Apollia running.
 - A Microsoft account, personal or professional.
-- **Your own application registration**, set up once, see the section right below.
 - Your sovereignty profile is not set to `local_only`.
 - If your Entra ID tenant requires administrative approval, the administrator has to pre-approve the application.
 - An active internet connection.
+
+There is nothing to register and nothing to paste. If you have just read the Google page, that difference is deliberate and explained in [the integrations overview](/operator-help/integrations/vue-d-ensemble-integrations).
+
+## Nothing to configure
+
+<!-- claim:oauth-microsoft-client-embedded -->
+Microsoft 365 works as soon as Apollia is installed. Apollia registers one application with Microsoft and ships its identifier inside the build, so you go straight to connecting your account.
+
+That identifier is not a secret being leaked. In Microsoft's model a desktop application is a *public client*: it holds no password at all, proves each request with PKCE, and its application identifier is a public GUID. Anyone can read it out of any copy of the application, which is precisely why the design does not depend on hiding it.
+
+You can still [use your own registration](#use-your-own-application-registration) if you prefer, and skipping straight to the steps below is the normal path.
 
 ## Which account type I can use
 
@@ -19,28 +29,6 @@ Both work through the same registration. The endpoint used (`/common/`) accepts 
 - professional or education accounts (Entra ID, M365 Business, M365 Developer tenant).
 
 See the observable differences in the table further down.
-
-## Register your application, once
-
-<!-- claim:oauth-client-resolution-order -->
-Apollia ships without a Microsoft OAuth client, and no published build embeds one. You register your own application in the Microsoft portal and paste its identifier into Apollia. This is a one-off and takes a couple of minutes.
-
-**Unlike Google, there is no secret to handle.** A desktop application is a *public client* in Microsoft's model: it authenticates with PKCE alone, and the application identifier is a public GUID, not a credential.
-
-**In the Microsoft Entra admin center** (or the Azure portal, "App registrations"):
-
-1. Choose **New registration**.
-2. For supported account types, pick **Accounts in any organizational directory and personal Microsoft accounts**, which is what makes both an `outlook.com` address and a work account usable.
-3. Under **Redirect URI**, add a platform of type **Mobile and desktop applications** and enter `http://127.0.0.1`. Apollia listens on a loopback port picked at connection time, and Microsoft accepts any port on that host.
-4. Register, then copy the **Application (client) ID** from the overview page. It looks like `00000000-1111-2222-3333-444444444444`.
-
-**In Apollia.**
-
-1. Open **Settings → OAuth integrations**.
-2. Paste the identifier into the client ID field on the Microsoft card and save. It is stored in `~/.apollia/oauth-clients.toml`, readable by your user only. Leave the secret field empty.
-3. Click **Test configuration**.
-
-**Alternative for a shell or a headless host.** `APOLLIA_MICROSOFT_CLIENT_ID` takes priority over the file, and only applies to processes launched from the shell where you exported it. See [Environment variables](/reference/environment-variables).
 
 ## Steps
 
@@ -91,6 +79,27 @@ As with Google, you can connect several Microsoft accounts. Each account keeps i
 
 The tools are the same on both sides, only the backend answering changes.
 
+## Use your own application registration
+
+Optional. Apollia's own registration covers both account types, so most operators never need this. Two situations justify it: your organization wants the connection to appear under an application it controls and can audit, or your Entra ID tenant blocks applications it has not registered itself.
+
+**In the Microsoft Entra admin center** (or the Azure portal, "App registrations"):
+
+1. Choose **New registration**.
+2. For supported account types, pick **Accounts in any organizational directory and personal Microsoft accounts**, which is what makes both an `outlook.com` address and a work account usable. Picking a single-tenant option instead limits sign-in to your own directory.
+3. Under **Redirect URI**, add a platform of type **Mobile and desktop applications** and enter `http://127.0.0.1`. Apollia listens on a loopback port picked at connection time, and Microsoft accepts any port on that host.
+4. Register, then copy the **Application (client) ID** from the overview page. It looks like `00000000-1111-2222-3333-444444444444`.
+
+**In Apollia.**
+
+1. Open **Settings → OAuth integrations**.
+2. Paste the identifier into the client ID field on the Microsoft card and save. It is stored in `~/.apollia/oauth-clients.toml`, readable by your user only. Leave the secret field empty, a public client has none.
+3. Click **Test configuration**.
+
+Clearing the field again restores the identifier shipped with Apollia. Existing connected accounts were issued against the previous registration, so disconnect and reconnect them after a change.
+
+**Alternative for a shell or a headless host.** `APOLLIA_MICROSOFT_CLIENT_ID` takes priority over the file, and only applies to processes launched from the shell where you exported it. See [Environment variables](/reference/environment-variables).
+
 ## Verification
 
 - The dot next to the account is green.
@@ -100,8 +109,9 @@ The tools are the same on both sides, only the backend answering changes.
 
 ## If it does not work
 
-- **The Microsoft 365 card reads "Setup required"**: no application identifier is configured yet. Click **Set up credentials** and follow the registration section above.
-- **Microsoft rejects the redirect URI**: the registration is missing its **Mobile and desktop applications** platform, or that platform does not list `http://127.0.0.1`. A registration created as "Web" will not work.
+- **The Microsoft 365 card reads "Setup required"**: it should not, since the identifier ships with Apollia. Check whether `APOLLIA_MICROSOFT_CLIENT_ID` is exported to an empty value in the shell that launched Apollia, or whether `~/.apollia/oauth-clients.toml` holds a `[microsoft]` entry that was cleared by hand. Both take priority over the shipped identifier.
+- **Microsoft rejects the redirect URI**: only reachable with your own registration. It is missing its **Mobile and desktop applications** platform, or that platform does not list `http://127.0.0.1`. A registration created as "Web" will not work. Clear the client ID field to fall back on Apollia's own registration.
+- **Microsoft answers that the account does not exist in the directory**: also specific to your own registration, and it means the supported account types were set to a single tenant. Recreate it with **Accounts in any organizational directory and personal Microsoft accounts**, or clear the field to use Apollia's.
 - **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.

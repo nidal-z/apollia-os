@@ -20,6 +20,15 @@ Maintained directly by Apollia for services that do not (yet) expose an official
 - Automatic HITL approval on every write.
 - Multi-account supported.
 
+**The two do not cost the same to start.** Worth knowing before you click, because the difference shows up only once you are on the connector page:
+
+| | What it takes to connect |
+|---|---|
+| **Microsoft 365** | Nothing. Apollia ships the identifier of its own registered application, so you sign in and you are done. |
+| **Google Workspace** | About ten minutes in the Google Cloud console first. You register your own OAuth client and hand its credentials to Apollia. |
+
+This is not an oversight on the Google side. Google requires a verified consent screen before an application may serve accounts outside its own project, and its desktop clients also carry a secret that no distributed binary can hold. Microsoft's public desktop clients require neither. [Connect Google Workspace](connecter-google-workspace.md) explains what the Testing status costs, notably a reconnection about once a week, and [Set up a Google OAuth client](/how-to/set-up-a-google-oauth-client) names every console screen.
+
 ### MCP servers
 
 The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. Apollia ships a curated catalogue of **18 entries**:

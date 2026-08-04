@@ -1011,16 +1011,82 @@ status = "wired"
 proof = "crates/apollia-auth/src/connector_providers.rs"
 evidence = "APOLLIA_BUILD_GOOGLE_CLIENT_ID"
 note = """
-Three pages tell an operator where a connector's OAuth client comes from, and
-until 2026-08-04 all three were wrong in the same direction: the reference page
-stated that the release pipeline baked client ids in at compile time, and the
-Microsoft page promised both account types worked "with no extra configuration".
-No workflow and no justfile recipe has ever set APOLLIA_BUILD_*, so the third
-resolution layer returns an empty string in every artifact the project has
-shipped, and the connectors were unusable out of the box on the .dmg and the
-.msi. The evidence substring guards the layer that has no producer: if a build
-recipe ever starts feeding it, the pages saying "Apollia ships without an OAuth
-client" become false and have to change with it.
+Three pages tell an operator where a connector's OAuth client comes from: an
+env var, then `~/.apollia/oauth-clients.toml`, then a build-time constant, first
+non-empty wins. This entry guards the chain itself, that `resolve_client_id` is
+reached rather than merely defined.
+
+Until 2026-08-04 all three pages were wrong in the same direction: the reference
+page stated that the release pipeline baked client ids in at compile time, and
+the Microsoft page promised both account types worked "with no extra
+configuration". No workflow and no justfile recipe has ever set APOLLIA_BUILD_*,
+so the third layer returned an empty string in every artifact the project had
+shipped, and both connectors were unusable out of the box on the .dmg and the
+.msi.
+
+What that layer now returns differs per provider, and one entry can no longer
+cover both. The two claims below split it, because a single entry would have
+stayed green while half of what it guarded turned false.
+"""
+
+[[claim]]
+id = "oauth-microsoft-client-embedded"
+scope = "public"
+symbol = "MICROSOFT_DEFAULT_CLIENT_ID"
+status = "wired"
+proof = "crates/apollia-auth/src/connector_providers.rs"
+evidence = "c4f95bc5-8895-4550-8119-ed0e548fd941"
+note = """
+Every operator page for Microsoft 365 now opens by saying the connector works
+with nothing to configure. That sentence rests entirely on this constant being
+returned by `default_client_id`, which is what flips the desktop surface from
+"setup required" to a live Connect button through `detect_source` and
+`oauthReadiness`.
+
+Declared `wired` rather than `not-wired` on purpose: the guard has to fail if
+the constant is ever defined but no longer read, which is the shape the corpus
+keeps producing. A doc-comment naming it does not count, `check_wired` skips
+comment lines.
+
+The client id is public by construction. RFC 8252 section 8.5 states that a
+native application cannot hold a credential confidentially, so the registration
+is a public client with no secret and PKCE carries the security. Embedding it is
+therefore a convenience decision, not a secrets decision. See ADR-053.
+
+What this cannot guard: that the registration behind the id stays multi-tenant
+and keeps accepting personal Microsoft accounts. That lives in the Entra portal,
+not in the build, and no gate here can see it. If it were narrowed to a single
+tenant, the code and this entry would both stay green while every user outside
+the owning directory got AADSTS50020 after consenting.
+"""
+
+[[claim]]
+id = "oauth-google-client-not-embedded"
+scope = "public"
+symbol = "GOOGLE_DEFAULT_CLIENT_ID"
+status = "absent"
+proof = "crates/apollia-auth/src/connector_providers.rs"
+evidence = "GOOGLE_DEFAULT_CLIENT_ID"
+note = """
+The mirror image of the entry above, and the reason the old single claim had to
+be split. Google's operator pages, its how-to and the reference page all tell
+the reader to register their own OAuth client, and they are only honest while no
+build embeds one. Google requires a verified consent screen before an
+application may serve accounts outside its own project, and its Installed App
+type also requires a client secret at the token endpoint, which a distributed
+binary cannot hold.
+
+Guarded as `absent` so that introducing a Google counterpart to
+`MICROSOFT_DEFAULT_CLIENT_ID` fails this check. That is the likely name for it,
+by symmetry with the constant that now exists a few lines away.
+
+Stated plainly, because a guard-rail that oversells itself is worse than none:
+this catches the symmetric constant, not every possible way to embed a Google
+client. Someone determined to bake one in under another name, or through
+`APOLLIA_BUILD_GOOGLE_CLIENT_ID` in a build recipe, would pass. The
+`oauth-client-resolution-order` entry above keeps the build-time hook itself in
+view. If a recipe ever starts feeding it, every page saying Apollia ships
+without a Google client becomes false and has to change with it.
 """
 
 [[claim]]
