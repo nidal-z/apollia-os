@@ -684,6 +684,7 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
 
     let mut which_python = tokio::process::Command::new("python3");
     apollia_core::subprocess_env::scrub_bundled_python_async(&mut which_python);
+    apollia_core::subprocess_window::hide_console_async(&mut which_python);
     let python_path = match which_python
         .args(["-c", "import sys; print(sys.executable)"])
         .stdout(std::process::Stdio::piped())
@@ -726,6 +727,7 @@ pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, Str
 pub async fn check_python() -> Result<bool, String> {
     let mut probe = tokio::process::Command::new("python3");
     apollia_core::subprocess_env::scrub_bundled_python_async(&mut probe);
+    apollia_core::subprocess_window::hide_console_async(&mut probe);
     let result = probe
         .arg("--version")
         .stdout(std::process::Stdio::null())

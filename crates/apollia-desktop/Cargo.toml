@@ -3,7 +3,14 @@ name = "apollia-desktop"
 version = "0.1.0"
 edition = "2021"
 description = "Apollia OS - Desktop application (Tauri v2 + embedded runtime)"
-license = "MIT OR Apache-2.0"
+# Inherited rather than restated: the Windows installer reads the publisher and
+# the support links from here when tauri.conf.json leaves them unset, and this
+# crate opted into none of the workspace fields, so it had nothing to give.
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [features]
 # Multi-runner : les backends d'inférence locale vivent dans le crate

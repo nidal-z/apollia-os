@@ -17,6 +17,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { chatInputAppend } from "$lib/stores/artifacts";
+  import {
+    DICTATION_FAILED_EVENT,
+    failureMessageKey,
+    readFailureReason,
+  } from "$lib/stt/dictationFailure";
   import { ChatRateLimiter } from "$lib/chat/rateLimit";
   import {
     type PendingAttachment,
@@ -109,7 +114,9 @@
   // Whisper) - on l'insère dans le textarea à ce moment-là.
   let recording = $state(false);
   let sttBusy = $state(false);
-  let sttUnlisten: UnlistenFn | null = null;
+  // Last dictation failure, shown next to the composer so a dictation that
+  // produced nothing says why instead of ending in silence.
+  let sttError = $state<string | null>(null);
   let focused = $state(false);
   let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
   let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
@@ -236,14 +243,26 @@
     };
   });
 
-  // STT event listener: the Rust pipeline broadcasts `stt-transcribed` for
+  // STT event listeners: the Rust pipeline broadcasts `stt-transcribed` for
   // every transcription. Only the in-app mic button feeds the composer here,
   // gated on `recording` (set solely by `toggleMic`). The global hotkey
   // delivers its text through the OS-level clipboard paste
   // (see `SttFlow::dispatch_result`); appending it again would double-insert
   // the text when the Apollia window is focused.
+  //
+  // That guard is only as good as the flag it reads. `recording` used to be
+  // cleared by `stt-transcribed` alone, so any dictation that ended without
+  // text (silence, too short, engine error) left it stuck true, and every
+  // later hotkey dictation was then inserted twice inside the window. The
+  // `stt-dictation-failed` listener below is what closes that hole.
   onMount(() => {
     let cancelled = false;
+    const unlisteners: UnlistenFn[] = [];
+    const keep = (unlisten: UnlistenFn) => {
+      if (cancelled) unlisten();
+      else unlisteners.push(unlisten);
+    };
+
     void listen<{ text?: string } | string>("stt-transcribed", (event) => {
       if (!recording) return;
       const text =
@@ -255,41 +274,46 @@
       value = `${value}${suffix}${text}`;
       recording = false;
       sttBusy = false;
+      sttError = null;
       autoResize();
       textareaEl?.focus();
-    }).then((unlisten) => {
-      if (cancelled) {
-        unlisten();
-      } else {
-        sttUnlisten = unlisten;
-      }
-    });
+    }).then(keep);
+
+    void listen(DICTATION_FAILED_EVENT, (event) => {
+      if (!recording && !sttBusy) return;
+      recording = false;
+      sttBusy = false;
+      sttError = $t(failureMessageKey(readFailureReason(event.payload)));
+    }).then(keep);
+
     return () => {
       cancelled = true;
-      sttUnlisten?.();
-      sttUnlisten = null;
+      for (const unlisten of unlisteners) unlisten();
+      unlisteners.length = 0;
     };
   });
 
   async function toggleMic(): Promise<void> {
     if (sttBusy) return;
     sttBusy = true;
+    sttError = null;
     try {
       if (recording) {
         await invoke("stop_tour_recording");
-        // The transcription event will flip recording=false once it arrives.
-        // We keep sttBusy=true until the event listener clears it, so the
-        // user can't double-click during the inference.
+        // The transcription event flips recording=false once it arrives, and
+        // `stt-dictation-failed` does the same when there is no text to
+        // deliver. sttBusy stays true until one of them lands, so the user
+        // cannot double-click during the inference.
       } else {
         await invoke("start_tour_recording");
         recording = true;
         sttBusy = false;
       }
-    } catch {
-      // STT engine unavailable, no model configured, etc. - surface nothing
-      // here (the global hotkey listener already toasts) and reset state.
+    } catch (err) {
+      // STT engine unavailable, no model configured, etc.
       recording = false;
       sttBusy = false;
+      sttError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -840,7 +864,10 @@
     </div>
   </div>
 
-  <InputHints status={rateStatus} statusTone={rateTone} />
+  <InputHints
+    status={sttError ?? rateStatus}
+    statusTone={sttError ? "warn" : rateTone}
+  />
 </div>
 
 <style>

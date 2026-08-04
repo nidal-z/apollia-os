@@ -89,3 +89,17 @@ export function isThinking(blocks: readonly StreamBlock[]): boolean {
   const last = blocks.at(-1);
   return last?.type === "thinking" && !last.closed;
 }
+
+/**
+ * The answer text of a turn: everything the model said outside its reasoning.
+ *
+ * Blocks carry their inner content, never their delimiters, so the result is
+ * free of stream markers whatever the input contained. That is what lets the
+ * renderer treat it as plain markdown instead of parsing it a second time.
+ */
+export function answerText(blocks: readonly StreamBlock[]): string {
+  return blocks
+    .filter((b) => b.type !== "thinking")
+    .map((b) => b.content)
+    .join("");
+}

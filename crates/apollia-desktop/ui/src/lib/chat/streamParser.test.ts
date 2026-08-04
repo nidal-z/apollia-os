@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseStream, isThinking } from "./streamParser";
+import { parseStream, isThinking, answerText } from "./streamParser";
 
 describe("parseStream", () => {
   it("returns an empty array for empty input", () => {
@@ -77,5 +77,55 @@ describe("parseStream", () => {
     }
     const blocks = parseStream(src);
     expect(blocks).toHaveLength(1000);
+  });
+});
+
+describe("answerText", () => {
+  it("drops reasoning and keeps the rest in order", () => {
+    // GIVEN a stream mixing answer text with a reasoning fragment
+    const blocks = parseStream("before<think>hidden</think>after");
+
+    // WHEN the answer is extracted
+    const answer = answerText(blocks);
+
+    // THEN only what the model said out loud remains
+    expect(answer).toBe("beforeafter");
+  });
+
+  it("keeps a tool block's content without its delimiters", () => {
+    // GIVEN a tool block inside the stream
+    const blocks = parseStream("a<tool>payload</tool>b");
+
+    // WHEN the answer is extracted
+    const answer = answerText(blocks);
+
+    // THEN the delimiters are gone and the content stays
+    expect(answer).toBe("apayloadb");
+  });
+
+  it("never leaks a stream marker into the answer", () => {
+    // GIVEN every shape the parser can produce, including unclosed tags mid
+    // stream, which is what a live buffer looks like between two tokens
+    const sources = [
+      "plain text",
+      "a<think>r</think>b",
+      "a<think>still thinking",
+      "a<tool>t</tool>b",
+      "a<tool>unclosed",
+      "<think>r</think><tool>t</tool>tail",
+      "",
+    ];
+
+    for (const src of sources) {
+      // WHEN the answer is extracted
+      const answer = answerText(parseStream(src));
+
+      // THEN it carries no marker, which is the invariant that lets the
+      // renderer treat it as plain markdown instead of re-parsing it
+      expect(answer).not.toContain("<think>");
+      expect(answer).not.toContain("</think>");
+      expect(answer).not.toContain("<tool>");
+      expect(answer).not.toContain("</tool>");
+    }
   });
 });
