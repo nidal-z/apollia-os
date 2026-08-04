@@ -395,6 +395,7 @@ async fn test_resolve_tool_approval() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
 
     // Insert a dummy session so the lookup succeeds
@@ -479,6 +480,7 @@ async fn test_always_accept_not_honored_for_code_executor() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
 
     let session = ChatSession {
@@ -637,6 +639,7 @@ async fn test_cross_session_context_substantive_message() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
 
     // WHEN building cross-session context with a substantive first message
@@ -709,6 +712,7 @@ async fn test_cross_session_context_trivial_message() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
 
     // WHEN building cross-session context with a trivial message
@@ -760,6 +764,7 @@ async fn test_cross_session_context_no_relevant_sessions() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
 
     // WHEN building cross-session context with a substantive message but no past sessions
@@ -895,7 +900,7 @@ async fn test_set_plan_mode_survives_reload() {
 /// Build a directly-constructed manager holding one Libre session persisted
 /// in SQLite, forced into the given plan phase both in memory and on disk.
 /// Returns the manager and a fresh event-bus receiver for assertions.
-fn manager_with_session_in_phase(
+pub(super) fn manager_with_session_in_phase(
     dir: &tempfile::TempDir,
     phase: PlanPhase,
 ) -> (
@@ -954,6 +959,7 @@ fn manager_with_session_in_phase(
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        pending_plan_continuations: HashMap::new(),
     };
     let session = ChatSession {
         id: "sess-1".into(),
@@ -1037,7 +1043,7 @@ async fn test_approve_plan_transitions_to_executing_and_emits() {
 }
 
 /// Build a chat-scope [`PlanStep`] with no dependencies for a manager test.
-fn plan_step_for_test(id: &str) -> apollia_core::plan::PlanStep {
+pub(super) fn plan_step_for_test(id: &str) -> apollia_core::plan::PlanStep {
     apollia_core::plan::PlanStep {
         step_id: id.into(),
         title: id.into(),

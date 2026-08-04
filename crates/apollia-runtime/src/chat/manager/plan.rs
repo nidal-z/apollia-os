@@ -72,6 +72,20 @@ impl ChatSessionManager {
             session.plan_phase = PlanPhase::Executing;
         }
 
+        // Move the persisted plan row out of `awaiting_approval` as well. Without
+        // this, the plan status kept saying "awaiting approval" forever, and the
+        // race fallback in `guard_awaiting_approval` could later reconcile the
+        // session back into the gate, re-opening an already approved plan.
+        if let Ok(Some(plan_handle)) = self.resolve_plan_handle(session_id) {
+            if let Err(e) = plan_handle.mark_executing(session_id).await {
+                warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "plan.status.mark_executing_failed"
+                );
+            }
+        }
+
         let _ = self.event_bus.send(RuntimeEvent::ChatPlanApproved {
             session_id: session_id.to_string(),
         });
@@ -186,20 +200,50 @@ impl ChatSessionManager {
     ///
     /// Reuses [`handle_send_message`](Self::handle_send_message) so the resume is
     /// an ordinary exchange through the same actor path: one user turn, one
-    /// response cycle, the existing bounded `ChatCommand` channel. Best-effort:
-    /// a busy or unreachable session is logged, not surfaced, because the gate
-    /// decision it follows has already been recorded.
+    /// response cycle, the existing bounded `ChatCommand` channel.
+    ///
+    /// A [`ChatError::SessionBusy`] is not a failure: the decision was taken
+    /// mid-turn (the approval card raises before this actor processes the turn's
+    /// `ExchangeComplete`). The directive is parked in
+    /// `pending_plan_continuations` and re-dispatched by
+    /// [`dispatch_pending_plan_continuation`](Self::dispatch_pending_plan_continuation)
+    /// when the in-flight turn completes. Other errors stay best-effort logs:
+    /// the gate decision they follow has already been recorded and emitted.
     pub(in crate::chat::manager) fn dispatch_plan_continuation(
         &mut self,
         session_id: &str,
         directive: &str,
     ) {
-        if let Err(e) = self.handle_send_message(session_id, directive) {
-            warn!(
-                session_id = %session_id,
-                error = %e,
-                "plan.continuation.dispatch_failed"
-            );
+        match self.handle_send_message(session_id, directive) {
+            Ok(_) => {}
+            Err(ChatError::SessionBusy(_)) => {
+                self.pending_plan_continuations
+                    .insert(session_id.to_string(), directive.to_string());
+                tracing::info!(session_id = %session_id, "plan.continuation.queued");
+            }
+            Err(e) => {
+                warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "plan.continuation.dispatch_failed"
+                );
+            }
+        }
+    }
+
+    /// Re-dispatch the parked plan continuation of a session, if any.
+    ///
+    /// Called from `handle_exchange_complete` after the session is reset to
+    /// `Active`, so a plan decision taken while the previous turn was still
+    /// running finally produces its execution (or revision) turn instead of
+    /// being silently dropped.
+    pub(in crate::chat::manager) fn dispatch_pending_plan_continuation(
+        &mut self,
+        session_id: &str,
+    ) {
+        if let Some(directive) = self.pending_plan_continuations.remove(session_id) {
+            tracing::info!(session_id = %session_id, "plan.continuation.resumed");
+            self.dispatch_plan_continuation(session_id, &directive);
         }
     }
 }

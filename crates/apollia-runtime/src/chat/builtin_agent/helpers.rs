@@ -291,6 +291,25 @@ pub(in crate::chat::builtin_agent) fn plan_gate_denies(
     gate_blocks && !is_plan_tool(name) && name != "ask_user" && !read_only
 }
 
+/// Whether an in-loop plan call must be refused because the plan is already
+/// approved and executing.
+///
+/// Only the proposal surface (`plan_propose`, `plan_submit`) is refused: the
+/// step-status and amendment tools stay legitimate mid-run. This is the phase
+/// check the in-loop plan dispatch itself does not perform; without it, the only
+/// barrier against a post-approval `plan_propose` is the unadvertised-name
+/// validation, and any session that carries the name in its authorized tools
+/// would silently replace the approved plan.
+pub(in crate::chat::builtin_agent) fn executing_denies_proposal(
+    plan_mode_active: bool,
+    phase: PlanPhase,
+    name: &str,
+) -> bool {
+    plan_mode_active
+        && phase == PlanPhase::Executing
+        && matches!(name, PLAN_PROPOSE_TOOL_NAME | PLAN_SUBMIT_TOOL_NAME)
+}
+
 /// Builds a corrective refusal reason when the model calls a tool name that was
 /// never advertised this turn, or `None` when the name is valid.
 ///

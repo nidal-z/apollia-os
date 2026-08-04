@@ -490,6 +490,24 @@ that reads like containment and is not: for an installed agent the root is the
 user's entire home directory.
 """
 
+[[claim]]
+id = "absolute-paths-resolve-inside-workspace-root"
+scope = "public"
+symbol = "contain_within_root"
+status = "wired"
+proof = "crates/apollia-tools/src/sandbox_path.rs"
+evidence = ""
+note = """
+A macOS test campaign found agents refused their own files: resolve() joined
+absolute inputs onto the canonical root (Path::join replaces the root) and
+compared the uncanonicalized spelling against the canonicalized root, so
+/var/... failed against a /private/var/... root, and on Windows every C:\\...
+input failed against the verbatim \\\\?\\ root. Absolute inputs now go straight
+to the canonicalize-then-compare check. If nothing calls contain_within_root,
+resolve() has lost the only comparison that is valid across path aliases, and
+either in-root absolute paths are refused again or escapes stop being caught.
+"""
+
 # ── Decisions whose content is a removal ────────────────────────────────────
 
 [[claim]]
@@ -550,6 +568,105 @@ note = """
 On Windows there is no per-process resource cap and no namespace isolation: the
 non-Unix apply_rlimits is an empty function. A user choosing a platform is
 entitled to know that before running an autonomous agent, not after.
+"""
+
+[[claim]]
+id = "bash-executor-requires-posix-shell"
+scope = "public"
+symbol = "resolve_posix_shell"
+status = "wired"
+proof = "crates/apollia-tools/src/tools/shell_discovery.rs"
+evidence = ""
+note = """
+A Windows test campaign found bash_executor failing with a bare "failed to
+spawn process: program not found": the syntax validator hardcoded `bash` and
+ran before the shell-discovery code, which therefore had no effective caller.
+One resolved shell now both validates and executes, and a host without one is
+refused pre-spawn with a message naming Git Bash, MSYS2 and WSL. If nothing
+calls resolve_posix_shell, the executor has gone back to guessing shell names
+and the actionable refusal this page promises no longer happens.
+"""
+
+[[claim]]
+id = "python-executor-locates-windows-interpreter"
+scope = "public"
+symbol = "locate_system_python"
+status = "wired"
+proof = "crates/apollia-tools/src/tools/python_discovery.rs"
+evidence = ""
+note = """
+The old probe ran a bare `python3 --version` and trusted the exit status. On
+stock Windows, `python3` is the Microsoft Store stub, so the tool silently
+vanished from the dispatcher on every Windows host. Discovery now probes
+`python`, `py -3`, then `python3`, and classifies the version banner. If
+nothing calls locate_system_python, the constructor is back on a single
+hardcoded name and Windows loses python_executor without a word.
+"""
+
+[[claim]]
+id = "unavailable-tool-surfaces-reason"
+scope = "public"
+symbol = "UnavailableTool"
+status = "wired"
+proof = "crates/apollia-tools/src/native_dispatcher.rs"
+evidence = ""
+note = """
+A code executor whose construction fails used to be silently dropped from the
+dispatcher: the LLM still saw its descriptor, called it, and got UnknownTool,
+indistinguishable from a wiring bug. The stub keeps the name addressable and
+returns the constructor's actionable error (code `tool_unavailable`). If
+nothing constructs UnavailableTool, the silent-drop behaviour is back and this
+page overstates what a failing host reports.
+"""
+
+[[claim]]
+id = "windows-no-console-window"
+scope = "public"
+symbol = "hide_console_async"
+status = "wired"
+proof = "crates/apollia-runtime/src/runner_supervisor/lifecycle.rs"
+evidence = ""
+note = """
+A Windows test session found two terminal windows sitting behind the app, and
+closing one made it reopen a second later: the supervision loop was respawning a
+child whose console the user had just killed. The cause was that no spawn site
+in the workspace passed CREATE_NO_WINDOW, so every console-subsystem child of a
+GUI parent got a window of its own. Drop this call from the runner or the engine
+and the defect returns with nothing failing to compile, because the flag is
+invisible to every gate but a human on Windows.
+"""
+
+[[claim]]
+id = "desktop-close-button-quits-outside-macos"
+scope = "public"
+symbol = "close_button_action"
+status = "wired"
+proof = "crates/apollia-desktop/src/main.rs"
+evidence = ""
+note = """
+The close button hid the window on every platform, which is the macOS
+convention and wrong everywhere else: on Windows the window vanished while the
+runtime and its two child processes kept running, with no window left to point
+at them. The behaviour is now a platform decision the window handler reads
+rather than a constant. If nothing calls this, the handler has gone back to one
+behaviour for all three platforms and the install pages overstate the gesture.
+"""
+
+[[claim]]
+id = "desktop-exit-stops-inference-engine"
+scope = "public"
+symbol = "stop_child_processes"
+status = "wired"
+proof = "crates/apollia-desktop/src/main.rs"
+evidence = ""
+note = """
+This is the failure mode the file exists for, caught in the field rather than by
+review. `LlamaServerSupervisor::shutdown_in_place` existed, compiled, and had a
+passing test, and no exit path in the desktop ever called it: the exit hook
+stopped the runner alone. Quitting left llama-server resident with its video
+memory and its loopback port held. The teardown now covers both supervisors. If
+this loses its caller, the engine is orphaned again and nothing in the build
+notices.
 """
 
 # ── Runtime state machines ───────────────────────────────────────────────────
@@ -805,4 +922,180 @@ its newest page, on a product that maps Article 14. The CLI now pages until a
 short page comes back, and this constant is the page size it respects. If the
 loop goes, the export silently becomes the newest 500 events under a filename
 that claims to be an archive.
+"""
+
+[[claim]]
+id = "oauth-client-resolution-order"
+scope = "public"
+symbol = "resolve_client_id"
+status = "wired"
+proof = "crates/apollia-auth/src/connector_providers.rs"
+evidence = "APOLLIA_BUILD_GOOGLE_CLIENT_ID"
+note = """
+Three pages tell an operator where a connector's OAuth client comes from, and
+until 2026-08-04 all three were wrong in the same direction: the reference page
+stated that the release pipeline baked client ids in at compile time, and the
+Microsoft page promised both account types worked "with no extra configuration".
+No workflow and no justfile recipe has ever set APOLLIA_BUILD_*, so the third
+resolution layer returns an empty string in every artifact the project has
+shipped, and the connectors were unusable out of the box on the .dmg and the
+.msi. The evidence substring guards the layer that has no producer: if a build
+recipe ever starts feeding it, the pages saying "Apollia ships without an OAuth
+client" become false and have to change with it.
+"""
+
+[[claim]]
+id = "oauth-connect-refuses-before-consent"
+scope = "public"
+symbol = "credential_gate"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/integrations.rs"
+evidence = "OauthClientSecretMissing"
+note = """
+Google's Installed App client type requires the client secret at the token
+endpoint even under PKCE. The start-flow command used to check only the client
+id, so an operator with half the credentials got the browser, the account
+picker, and the consent screen, and then an opaque invalid_client from Google
+after granting access. The check itself already existed but was reachable only
+from the "Test configuration" button, which nothing forces anyone to press.
+credential_gate is what puts it on the connect path, and the pages promise the
+refusal happens before the browser opens. Drop the secret arm and the promise
+silently reverts to the post-consent failure it replaced.
+"""
+
+[[claim]]
+id = "oauth-google-client-json-import"
+scope = "public"
+symbol = "parse_google_client_json"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/integrations.rs"
+evidence = "installed"
+note = """
+The Google page tells the operator to download the credentials file from the
+Cloud console and import it, rather than to open it and copy two strings out of
+it by hand. That instruction only holds while something reads the file: the
+parser accepts the console's "installed" object (Desktop client) and, by
+tolerance, "web". If the import command goes, the page is describing a button
+that is not there, and the operator is back to transcribing a client secret.
+"""
+
+[[claim]]
+id = "stt-refuses-silent-audio"
+scope = "public"
+symbol = "trim_silence"
+status = "wired"
+proof = "crates/apollia-desktop/src/stt/flow.rs"
+evidence = "NothingAudible"
+note = """
+Whisper does not answer silence with an empty string, it answers with filler
+learnt from its training data. A tester whose microphone was reading nothing got
+"Sous-titrage FR ?", "Merci." and "Au revoir." presented as transcriptions,
+because trim_silence returned the untouched buffer when no window crossed the
+threshold and the only remaining gate was a minimum duration a three-second
+silence clears easily. The refusal now lives in the Option this function
+returns, and the caller turns it into a NothingAudible outcome. Change the
+signature back to an infallible slice and the invented sentences come back with
+it, with no test failing anywhere else.
+"""
+
+[[claim]]
+id = "stt-settings-apply-without-restart"
+scope = "public"
+symbol = "differs"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/stt.rs"
+evidence = "input_device"
+note = """
+SttFlow owns a snapshot of the dictation configuration and reads input_device,
+silence_threshold_db, max_recording_sec, clipboard_mode, clipboard_restore and
+trigger_mode from it. The reload path used to rebuild the flow only when the
+hotkey string changed, so those six persisted correctly and stayed inert until
+the next launch: picking a different microphone in Settings looked like it did
+nothing at all. This comparison is what makes the documented "takes effect on
+the next dictation" true. It destructures the row exhaustively on purpose, so a
+new setting cannot quietly join the inert set.
+"""
+
+[[claim]]
+id = "stt-language-hint-is-a-closed-list"
+scope = "public"
+symbol = "validate_language"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/stt.rs"
+evidence = "unsupported dictation language"
+note = """
+The hint was a free-text field. Two machines could therefore disagree on how to
+spell the same language, and a typo degraded silently to auto-detection at the
+model with nothing said. The reference page now publishes a closed list of
+thirteen ISO 639-1 codes, which only holds while something refuses everything
+else on the write path. Remove this check and the published list becomes a
+suggestion.
+"""
+
+[[claim]]
+id = "stt-dictation-always-reports-an-outcome"
+scope = "public"
+symbol = "DICTATION_FAILED_EVENT"
+status = "wired"
+proof = "crates/apollia-desktop/src/stt/flow.rs"
+evidence = "stt-dictation-failed"
+note = """
+The microphone button lights up as soon as recording starts and used to be
+cleared by a transcription alone. Seven paths end a dictation without one, and
+capture failures happen on a detached thread with no return value to travel
+back, so on Windows the button stayed lit and the dictation never appeared to
+finish. Worse, the stuck flag re-armed the in-app transcription listener, which
+is what inserted hotkey dictation twice inside the Apollia window. Every one of
+those paths now emits this event. Drop it and both defects return together.
+"""
+
+[[claim]]
+id = "stt-api-language-is-per-request"
+scope = "public"
+symbol = "transcribe_with_language"
+status = "wired"
+proof = "crates/apollia-runtime/src/api/routes_stt.rs"
+evidence = "transcribe_with_language"
+note = """
+POST /stt/transcribe documents a language field. The handler parsed it and then
+discarded it with `let _ = language;`, so the only hint that ever reached the
+model was the stored configuration. The field is now carried through to the
+backend for that request alone. If this call site reverts, the documented
+parameter goes back to having no effect whatsoever.
+"""
+
+[[claim]]
+id = "chat-file-root-is-home-without-project"
+scope = "public"
+symbol = "home_dir_or_temp"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
+note = """
+A chat with no project used to root its file tools at the system temp directory,
+which made the assistant unable to reach anything the user owns while protecting
+nothing: the trust model already states that an installed agent runs with the
+user's rights, and the prompt tells the model in so many words that it may read
+and write elsewhere on the machine. The root is the home directory now, and temp
+is only the fallback when home cannot be resolved. If this call reverts to
+`std::env::temp_dir`, the reference page becomes false again and the assistant
+goes back to seeing an empty machine.
+"""
+
+[[claim]]
+id = "plan-approval-executes"
+scope = "public"
+symbol = "handle_approve_plan"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/manager/plan.rs"
+evidence = "set_plan_phase(session_id, PlanPhase::Executing)"
+note = """
+The operator page promises that an approved plan is executed, not re-proposed.
+A real test campaign observed the opposite twice: first from a tool-list defect
+(fixed in 39c47089), then from a race where approving mid-turn lost the
+execution directive (SessionBusy, logged only) and the turn's stale phase
+snapshot clobbered Executing back to AwaitingApproval, silently re-opening the
+gate. The approval handler now persists the phase, marks the plan row
+Executing, and parks the continuation for redispatch when the in-flight turn
+completes. If this evidence stops matching, the approve path no longer moves
+the session to execution and the page overstates the gate again.
 """

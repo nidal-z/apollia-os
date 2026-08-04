@@ -48,7 +48,17 @@ Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'o
 <!-- claim:chat-tool-governance-path -->
 > **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation. Pour auto-approuver une commande précise, configurez une règle de préfixe ciblée dans **Paramètres → Autorisations** : elle ne s'applique qu'à une commande simple unique (sans enchaînement `;`, `&&`, pipe, redirection ni substitution).
 
+<!-- claim:bash-executor-requires-posix-shell -->
+> **Sous Windows**, ces deux outils exigent aussi des prérequis sur la machine : un shell POSIX dans le `PATH` pour `bash_executor` (Git Bash, MSYS2 ou WSL) et un Python 3 installé pour `python_executor`. S'il en manque un, l'appel échoue avec un message nommant le prérequis au lieu de s'exécuter.
+
 > **Cas particulier des tâches en pause** (« approbation de tâche ») : un agent qui se suspend lui-même via un point de contrôle HITL n'expose qu'**Autoriser** / **Refuser** (pas de *Toujours autoriser*) puisqu'il ne s'agit pas d'un outil mémorisable. Le dialog de raison reste obligatoire au refus.
+
+## Approuver un plan (mode plan)
+
+Quand l'assistant travaille en **mode plan**, une carte distincte apparaît dans le chat dès que le plan est prêt : la carte de relecture du plan, qui liste les étapes proposées avec les actions **Approuver** et **Demander des changements**. Cette validation est séparée des approbations d'outils ci-dessus : elle valide le plan entier avant tout début d'exécution.
+
+<!-- claim:plan-approval-executes -->
+Une fois le plan approuvé, l'assistant **exécute le plan approuvé** et ne le repropose pas ; si vous approuvez pendant que l'assistant termine encore son tour en cours, l'exécution démarre juste après la fin de ce tour. Un refus accompagné d'un commentaire transmet votre retour à l'assistant, qui révise le plan et le soumet à nouveau via la même carte.
 
 ## Étapes - résolution d'une demande
 

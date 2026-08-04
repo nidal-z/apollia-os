@@ -140,6 +140,13 @@ pub(crate) enum PlanMessage {
         /// Reply channel carrying the resulting plan.
         reply: oneshot::Sender<Result<Plan, PlanStoreError>>,
     },
+    /// Record the operator approval (status becomes `Executing`).
+    MarkExecuting {
+        /// Target session.
+        session_id: String,
+        /// Reply channel carrying the resulting plan.
+        reply: oneshot::Sender<Result<Plan, PlanStoreError>>,
+    },
     /// Return the recorded mutation history for a session, oldest first.
     ReadMutations {
         /// Target session.
@@ -415,6 +422,29 @@ impl PlanHandle {
         rx.await.map_err(|_| PlanStoreError::ActorGone)?
     }
 
+    /// Records the operator approval (status becomes `Executing`).
+    ///
+    /// No-op (plan returned unchanged) when the plan is not in
+    /// `AwaitingApproval`, so a raced or repeated approval never corrupts the
+    /// status or the mutation history.
+    ///
+    /// # Errors
+    ///
+    /// - [`PlanStoreError::NoPlan`] when the session has no plan yet.
+    /// - [`PlanStoreError::Sqlite`] / [`PlanStoreError::Serde`] on a write failure.
+    /// - [`PlanStoreError::ActorGone`] when the actor has stopped.
+    pub async fn mark_executing(&self, session_id: &str) -> Result<Plan, PlanStoreError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(PlanMessage::MarkExecuting {
+                session_id: session_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| PlanStoreError::ActorGone)?;
+        rx.await.map_err(|_| PlanStoreError::ActorGone)?
+    }
+
     /// Returns the recorded mutation history for `session_id`, oldest first.
     ///
     /// The history is the source of truth for replay and audit: it includes the
@@ -672,6 +702,64 @@ impl PlanActor {
         Ok(plan)
     }
 
+    /// Record the operator approval: status moves to `Executing`, with an
+    /// `Approve` mutation in the history.
+    ///
+    /// The transition is conditional: only a plan currently in
+    /// `AwaitingApproval` moves. Any other status means the approval raced with
+    /// another transition (or was already recorded); the plan is returned
+    /// unchanged and no mutation is written, so the history never carries a
+    /// duplicate or out-of-order `Approve`.
+    fn mark_executing(&mut self, session_id: &str) -> Result<Plan, PlanStoreError> {
+        if !self.plan_exists(session_id)? {
+            return Err(PlanStoreError::NoPlan {
+                session_id: session_id.to_string(),
+            });
+        }
+
+        let mutation = PlanMutation {
+            kind: PlanMutationKind::Approve,
+            step_id: None,
+            reason: None,
+            before: None,
+            after: None,
+            at: now_unix(),
+        };
+
+        let tx = self.conn.transaction()?;
+        let moved = tx.execute(
+            "UPDATE session_plans SET status = ?2, updated_at = datetime('now')
+             WHERE session_id = ?1 AND status = ?3",
+            params![
+                session_id,
+                status_as_sql(PlanStatus::Executing),
+                status_as_sql(PlanStatus::AwaitingApproval)
+            ],
+        )?;
+        if moved > 0 {
+            write_mutation(&tx, session_id, &mutation)?;
+        }
+        tx.commit()?;
+
+        if moved > 0 {
+            event!(
+                Level::INFO,
+                session_id = %session_id,
+                kind = "approve",
+                "plan.action"
+            );
+        }
+        let plan = self
+            .load_plan(session_id)?
+            .ok_or_else(|| PlanStoreError::NoPlan {
+                session_id: session_id.to_string(),
+            })?;
+        if moved > 0 {
+            self.emit_updated(session_id, &plan, &mutation);
+        }
+        Ok(plan)
+    }
+
     /// Returns `true` when a plan row exists for the session.
     fn plan_exists(&self, session_id: &str) -> Result<bool, PlanStoreError> {
         let count: i64 = self.conn.query_row(
@@ -805,6 +893,9 @@ impl PlanActor {
                 }
                 PlanMessage::Submit { session_id, reply } => {
                     let _ = reply.send(self.submit(&session_id));
+                }
+                PlanMessage::MarkExecuting { session_id, reply } => {
+                    let _ = reply.send(self.mark_executing(&session_id));
                 }
                 PlanMessage::ReadMutations { session_id, reply } => {
                     let _ = reply.send(self.load_mutations(&session_id));

@@ -668,11 +668,21 @@ impl ChatSessionManager {
 
         // Persist the terminal plan phase when the turn ran in the plan flow, so
         // discovery / drafting survives a restart. Conversational turns leave it
-        // untouched (`None`).
+        // untouched (`None`). One transition is refused: a turn that ended in
+        // AwaitingApproval carries a snapshot taken before the operator approved
+        // mid-turn; writing it back would regress Executing to AwaitingApproval
+        // and re-open an already approved gate.
         if let Some(phase) = final_plan_phase {
-            session.plan_phase = phase;
-            if let Err(e) = self.repository.set_plan_phase(session_id, phase) {
-                warn!(error = %e, "Failed to persist plan phase in SQLite");
+            if session.plan_phase == PlanPhase::Executing && phase == PlanPhase::AwaitingApproval {
+                tracing::info!(
+                    session_id = %session_id,
+                    "plan.phase.writeback_skipped_stale"
+                );
+            } else {
+                session.plan_phase = phase;
+                if let Err(e) = self.repository.set_plan_phase(session_id, phase) {
+                    warn!(error = %e, "Failed to persist plan phase in SQLite");
+                }
             }
         }
 
@@ -700,6 +710,10 @@ impl ChatSessionManager {
         // The event bridge forwards it as a generic `runtime-event` with
         // `event_type = "ChatResponseCompleted"`, and the frontend's metrics
         // store throttles subsequent `chat_session_metrics` calls to max 2/s.
+
+        // A plan decision taken while this turn was still running parked its
+        // continuation; the session is Active again, dispatch it now.
+        self.dispatch_pending_plan_continuation(session_id);
     }
 
     /// Handle a failed ReAct exchange.

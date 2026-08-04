@@ -92,11 +92,25 @@ impl BuiltInChatAgent {
             .iter()
             .enumerate()
             .map(|(i, call)| {
-                // Hook deny wins, then an unknown (hallucinated) tool name, then
-                // the plan gate. Refusing an unknown name before the gate avoids
-                // gate-denying a tool that does not exist.
+                // Hook deny wins, then the executing-phase proposal refusal,
+                // then an unknown (hallucinated) tool name, then the plan gate.
+                // The proposal refusal must precede the unknown-name path:
+                // post-approval, `plan_propose` / `plan_submit` are no longer
+                // advertised, and the generic unknown-tool recovery text would
+                // steer the model into rebuilding the approved plan.
                 pre.denied[i]
                     .clone()
+                    .or_else(|| {
+                        if executing_denies_proposal(
+                            self.plan_mode_active(),
+                            self.session_plan_phase,
+                            &call.name,
+                        ) {
+                            Some(PLAN_EXECUTING_PROPOSAL_DENY_REASON.to_string())
+                        } else {
+                            None
+                        }
+                    })
                     .or_else(|| unknown_tool_reason(&call.name, valid_tool_names))
                     .or_else(|| {
                         if plan_gate_denies(gate_blocks, &call.name, read_only[i]) {

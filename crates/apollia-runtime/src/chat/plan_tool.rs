@@ -106,7 +106,9 @@ async fn describe_with_steps(
             let ids: Vec<&str> = plan.steps.iter().map(|s| s.step_id.as_str()).collect();
             if !ids.is_empty() {
                 return format!(
-                    "unknown step '{step_id}'. Use one of the plan's step ids: [{}]",
+                    "unknown step '{step_id}'. Retry the same operation with one of the \
+                     plan's step ids: [{}]. Do not rebuild the plan and do not call \
+                     plan_propose.",
                     ids.join(", ")
                 );
             }
@@ -544,6 +546,81 @@ mod tests {
         assert!(names.contains(&PLAN_SET_STEP_STATUS_TOOL_NAME.to_string()));
         assert!(names.contains(&PLAN_SUBMIT_TOOL_NAME.to_string()));
         assert_eq!(names.len(), 7);
+    }
+
+    #[test]
+    fn test_specs_for_phase_executing_withholds_proposal_tools() {
+        // GIVEN the executing phase (plan approved)
+        let names: Vec<String> =
+            plan_tool_specs_for_phase(crate::chat::types::PlanPhase::Executing)
+                .into_iter()
+                .map(|s| s.name)
+                .collect();
+
+        // WHEN inspecting the advertised names
+        // THEN the five execution / amendment tools stay and the proposal
+        // surface is withheld, so an approved plan cannot be re-proposed
+        assert!(names.contains(&PLAN_SET_STEP_STATUS_TOOL_NAME.to_string()));
+        assert!(names.contains(&PLAN_ADD_STEP_TOOL_NAME.to_string()));
+        assert!(names.contains(&PLAN_MODIFY_STEP_TOOL_NAME.to_string()));
+        assert!(names.contains(&PLAN_REMOVE_STEP_TOOL_NAME.to_string()));
+        assert!(names.contains(&PLAN_REORDER_TOOL_NAME.to_string()));
+        assert!(!names.contains(&PLAN_PROPOSE_TOOL_NAME.to_string()));
+        assert!(!names.contains(&PLAN_SUBMIT_TOOL_NAME.to_string()));
+        assert_eq!(names.len(), 5);
+    }
+
+    #[test]
+    fn test_specs_for_phase_done_offers_nothing_and_prep_offers_all() {
+        use crate::chat::types::PlanPhase;
+
+        // GIVEN the done phase
+        // THEN no plan tool is advertised
+        assert!(plan_tool_specs_for_phase(PlanPhase::Done).is_empty());
+
+        // GIVEN each preparation phase
+        // THEN the full seven-tool surface is advertised
+        for phase in [
+            PlanPhase::Discovery,
+            PlanPhase::Drafting,
+            PlanPhase::AwaitingApproval,
+        ] {
+            assert_eq!(plan_tool_specs_for_phase(phase).len(), 7);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_unknown_step_message_forbids_replanning() {
+        // GIVEN a proposed plan with known step ids
+        let h = handle();
+        h.propose(
+            "s1",
+            vec![
+                serde_json::from_value(step_json("step-a")).expect("step"),
+                serde_json::from_value(step_json("step-b")).expect("step"),
+            ],
+            None,
+        )
+        .await
+        .expect("propose");
+
+        // WHEN describing an unknown-step error for the model
+        let msg = describe_with_steps(
+            &h,
+            "s1",
+            &PlanStoreError::UnknownStep {
+                step_id: "wrong-id".into(),
+            },
+        )
+        .await;
+
+        // THEN the message lists the real ids and forbids rebuilding the plan,
+        // so an id-fixing retry does not spiral into a re-proposal
+        assert!(msg.contains("step-a"));
+        assert!(msg.contains("step-b"));
+        assert!(msg.contains("Retry the same operation"));
+        assert!(msg.contains("Do not rebuild the plan"));
+        assert!(msg.contains("do not call plan_propose"));
     }
 
     #[test]

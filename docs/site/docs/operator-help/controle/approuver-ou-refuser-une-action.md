@@ -48,7 +48,17 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
 <!-- claim:chat-tool-governance-path -->
 > **Special case of code executors** (`bash_executor`, `python_executor`): *Always allow* is never honoured for them, whatever scope you pick. Their argument is a shell command or arbitrary code; a blanket authorisation would be a blank cheque on the whole interpreter. The current call does run once, but the next invocation asks for confirmation again. To auto-approve a specific command, set up a targeted prefix rule in **Settings → Permissions**: it only applies to a single simple command (no chaining with `;`, `&&`, no pipe, redirection or substitution).
 
+<!-- claim:bash-executor-requires-posix-shell -->
+> **On Windows**, these two tools also need host prerequisites: a POSIX shell on `PATH` for `bash_executor` (Git Bash, MSYS2 or WSL) and an installed Python 3 for `python_executor`. When one is missing, the call fails with a message naming the prerequisite instead of executing.
+
 > **Special case of paused tasks** ("task approval"): an agent that suspends itself through a HITL checkpoint only exposes **Allow** / **Refuse** (no *Always allow*) since this is not a memorisable tool. The reason dialog is still mandatory on rejection.
+
+## Approving a plan (plan mode)
+
+When the assistant works in **plan mode**, a distinct card appears in the chat once the plan is ready: the plan review card, listing the proposed steps with **Approve** and **Request changes** actions. This gate is separate from the tool approvals above: it validates the whole plan before any execution starts.
+
+<!-- claim:plan-approval-executes -->
+Once you approve, the assistant **executes the approved plan** and does not re-propose it; if you approve while the assistant is still finishing its current turn, execution starts right after that turn ends. Rejecting with a comment sends your feedback to the assistant, which revises the plan and submits it again through the same card.
 
 ## Steps - resolving a request
 

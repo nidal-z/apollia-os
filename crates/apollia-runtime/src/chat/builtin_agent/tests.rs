@@ -3441,6 +3441,167 @@ async fn test_advance_on_submit_ignores_submit_while_executing() {
     ));
 }
 
+#[test]
+fn test_executing_denies_proposal_tools_only() {
+    // GIVEN an active plan mode in the executing phase
+    // WHEN the proposal surface is checked
+    // THEN plan_propose and plan_submit are refused
+    assert!(executing_denies_proposal(
+        true,
+        PlanPhase::Executing,
+        PLAN_PROPOSE_TOOL_NAME
+    ));
+    assert!(executing_denies_proposal(
+        true,
+        PlanPhase::Executing,
+        PLAN_SUBMIT_TOOL_NAME
+    ));
+    // AND the execution / amendment tools and ordinary tools are not
+    assert!(!executing_denies_proposal(
+        true,
+        PlanPhase::Executing,
+        PLAN_SET_STEP_STATUS_TOOL_NAME
+    ));
+    assert!(!executing_denies_proposal(
+        true,
+        PlanPhase::Executing,
+        PLAN_MODIFY_STEP_TOOL_NAME
+    ));
+    assert!(!executing_denies_proposal(
+        true,
+        PlanPhase::Executing,
+        "file_write"
+    ));
+}
+
+#[test]
+fn test_executing_denies_proposal_requires_phase_and_mode() {
+    // GIVEN plan mode off, or a non-executing phase
+    // WHEN the proposal surface is checked
+    // THEN nothing is refused by this rule
+    assert!(!executing_denies_proposal(
+        false,
+        PlanPhase::Executing,
+        PLAN_PROPOSE_TOOL_NAME
+    ));
+    assert!(!executing_denies_proposal(
+        true,
+        PlanPhase::Drafting,
+        PLAN_PROPOSE_TOOL_NAME
+    ));
+    assert!(!executing_denies_proposal(
+        true,
+        PlanPhase::AwaitingApproval,
+        PLAN_SUBMIT_TOOL_NAME
+    ));
+}
+
+#[tokio::test]
+async fn test_prompt_selects_execute_block_when_executing() {
+    // GIVEN a plan-mode agent whose session phase is Executing
+    let agent =
+        plan_agent(Some(plan_handle_for_test()), true).with_plan_phase_start(PlanPhase::Executing);
+
+    // WHEN the system prompt is assembled
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+
+    // THEN it carries the execute block, not the preparation block
+    assert!(prompt.contains("approved and you are now executing it"));
+    assert!(!prompt.contains("operating in plan mode"));
+}
+
+#[tokio::test]
+async fn test_prompt_selects_plan_mode_block_when_drafting() {
+    // GIVEN a plan-mode agent whose session phase is Drafting
+    let agent =
+        plan_agent(Some(plan_handle_for_test()), true).with_plan_phase_start(PlanPhase::Drafting);
+
+    // WHEN the system prompt is assembled
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+
+    // THEN it carries the preparation block, not the execute block
+    assert!(prompt.contains("operating in plan mode"));
+    assert!(!prompt.contains("approved and you are now executing it"));
+}
+
+#[tokio::test]
+async fn test_executing_phase_refuses_plan_propose_with_phase_message() {
+    // GIVEN an executing-phase plan-mode agent whose model calls plan_propose
+    let model = Arc::new(MockReActModel {
+        calls: vec![LlmToolCall {
+            id: "call-1".into(),
+            name: PLAN_PROPOSE_TOOL_NAME.into(),
+            arguments: serde_json::json!({ "steps": [plan_step_json("a")] }),
+        }],
+        final_tokens: split_tokens("ok"),
+        iteration: AtomicU32::new(0),
+    });
+    let tool_registry = ToolRegistryHandle::start();
+    let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+    let plan = plan_handle_for_test();
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: make_router(model),
+        tool_registry: tool_registry.clone(),
+        tool_invoker: invoker,
+        event_bus: make_event_bus(),
+        user_memory: None,
+        a2a_invoker: None,
+        todo: None,
+        plan: Some(plan.clone()),
+    })
+    .with_plan_mode(true)
+    .with_plan_phase_start(PlanPhase::Executing);
+
+    let budget = make_budget(10);
+    let approvals = PendingChatApprovals::new();
+
+    // WHEN the turn runs
+    let resp = agent
+        .execute(
+            "sess-1",
+            "msg-1",
+            &RunId::new(),
+            "continue",
+            &[],
+            "",
+            &[],
+            &HashSet::new(),
+            &approvals,
+            &budget,
+            None,
+            DEFAULT_CONTEXT_WINDOW_SIZE,
+            None,
+            None,
+            None,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("turn completes");
+
+    // THEN the call was refused with the phase-aware message (not the generic
+    // unknown-tool text that lists the step-editing tools as recovery)
+    let refusal = resp
+        .tool_calls
+        .iter()
+        .find(|c| c.tool_name == PLAN_PROPOSE_TOOL_NAME)
+        .expect("plan_propose recorded");
+    assert_eq!(refusal.status, ToolCallStatus::Refused);
+    let output = refusal.output.as_deref().unwrap_or("");
+    assert!(
+        output.contains("already approved and executing"),
+        "expected the phase-aware refusal, got: {output}"
+    );
+    assert!(
+        !output.contains("unknown tool"),
+        "the generic unknown-tool path must not fire: {output}"
+    );
+    // AND the stored plan was not replaced by the refused proposal
+    assert!(plan.get_plan("sess-1").await.expect("get").is_none());
+
+    tool_registry.shutdown().await;
+}
+
 #[tokio::test]
 async fn test_answered_discovery_question_stays_in_discovery() {
     // GIVEN an agent in the discovery phase

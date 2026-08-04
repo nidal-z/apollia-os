@@ -100,6 +100,14 @@ pub const DEFAULT_TOOL_TURN_TEMPERATURE: f32 = 0.3;
 /// proposing and submitting a plan instead of acting directly.
 const PLAN_GATE_DENY_REASON: &str = "plan mode is active: this is an execution tool and no execution may run before the plan is approved. You MAY use read-only tools (web_search, file_read, etc.) and ask_user to gather context, then propose and submit a plan with the plan_* tools and wait for approval. Once approved, this gate opens and you execute the steps.";
 
+/// Refusal injected when the model tries to re-propose or re-submit a plan that
+/// is already approved and executing.
+///
+/// Surfaced to the model as a tool result. Without it, the refusal came from the
+/// generic unknown-tool path, whose recovery text lists the step-editing tools
+/// and steers a weak model into rebuilding the approved plan step by step.
+const PLAN_EXECUTING_PROPOSAL_DENY_REASON: &str = "the plan is already approved and executing: do not re-propose or re-submit it. Execute the current step now, record progress with plan_set_step_status, and only amend a step with plan_modify_step when execution genuinely requires it.";
+
 /// Prefix of the reminder message re-injected after a context compaction so the
 /// agent keeps its task list in view once the history is truncated.
 const TODO_REMINDER_PREFIX: &str =

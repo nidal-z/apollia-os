@@ -192,6 +192,16 @@ struct ChatSessionManager {
     /// Operator instructions queued for a paused session, consumed on the next
     /// resume turn. At most one is held per session.
     pending_injections: HashMap<SessionId, InjectedInstruction>,
+    /// Plan continuation directives that arrived while the session was still
+    /// `Processing`, re-dispatched when its `ExchangeComplete` lands.
+    ///
+    /// A plan decision (approve / reject) can be taken mid-turn: the approval
+    /// card is raised by the fast `PlanSubmitted` broadcast before this actor
+    /// processes `ExchangeComplete`. Dispatching the continuation at that point
+    /// fails with `SessionBusy`; instead of dropping the directive (which left
+    /// approved plans unexecuted), it is parked here. At most one is held per
+    /// session, latest decision wins.
+    pending_plan_continuations: HashMap<SessionId, String>,
 }
 
 mod actor;
@@ -208,6 +218,8 @@ mod session;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod plan_regression_tests;
 #[cfg(test)]
 mod tests;
 
