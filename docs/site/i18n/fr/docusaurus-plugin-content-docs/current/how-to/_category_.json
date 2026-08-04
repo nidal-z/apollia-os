@@ -1,0 +1,9 @@
+{
+  "label": "Guides pratiques",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "slug": "/how-to",
+    "description": "Recettes orientées tâche pour un objectif précis."
+  }
+}
