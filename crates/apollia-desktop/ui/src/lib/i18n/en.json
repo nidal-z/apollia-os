@@ -489,6 +489,8 @@
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
     "error_sovereignty_blocked": "Sovereignty profile \"local-only\": cloud connectors disabled.",
     "error_oauth_client_missing": "Missing OAuth client ID - open Settings → Integrations to paste it.",
+    "error_oauth_client_secret_missing": "Missing OAuth client secret - open Settings → Integrations to add it.",
+    "error_invalid_client_file": "That file is not a usable OAuth client export.",
     "disconnect_native_confirm": "Disconnect {account} ({provider})?\nThe token will be revoked locally.",
     "sync_just_now": "just now",
     "sync_minutes_ago": "{mins} min ago",
@@ -509,6 +511,7 @@
     "sidebar_native_section": "Apollia native",
     "sidebar_accounts_active": "{count} active account(s)",
     "not_connected": "Not connected",
+    "needs_configuration": "Setup required",
     "sidebar_mcp_section": "MCP servers · {count}",
     "sidebar_no_servers": "No server installed.",
     "sidebar_no_results": "No results.",
@@ -558,7 +561,11 @@
     "oauth_drive_folder_path_label_html": "Folder path (separated by <code>/</code>)",
     "oauth_drive_folder_examples_html": "Examples: <code>Apollia</code> (default), <code>Documents/Apollia</code>, <code>Work/AI</code>. Empty = keep the default <code>Apollia</code>. Editable later in Settings → Integrations.",
     "oauth_missing_client_title": "Missing OAuth client ID",
-    "oauth_missing_client_body_html": "This Apollia build does not embed a <code>client_id</code> for {provider}. Open Settings → Integrations to paste your own (created in the {console} console). No environment variable is required.",
+    "oauth_missing_client_body_html": "Apollia ships without an OAuth client for {provider}, so you supply your own. Create one in the {console} console, then open Settings → Integrations to add it. No environment variable is required.",
+    "oauth_missing_secret_title": "Missing OAuth client secret",
+    "oauth_missing_secret_body_html": "{provider} issues a <code>client_secret</code> alongside the client ID, and requires it when the token is exchanged. Apollia stopped here rather than sending you to a consent screen that could not complete. Add the secret in Settings → Integrations.",
+    "needs_client_title": "Setup required before connecting",
+    "needs_client_body": "Apollia ships without an OAuth client for {provider}. Add your own to connect an account. It takes a few minutes in the provider console and is a one-off.",
     "oauth_preparing": "Preparing the OAuth flow…",
     "oauth_consent_opened": "A browser window opened on the {provider} consent screen. Approve the permissions - Apollia retrieves the code automatically once the browser returns.",
     "oauth_awaiting_callback": "Waiting for the {provider} callback…",
@@ -570,6 +577,7 @@
     "saving": "Saving…",
     "save": "Save",
     "open_settings_integrations": "Open Settings → Integrations",
+    "configure_credentials": "Set up credentials",
     "catalogue_subtitle": "Browse the public MCP catalogue or register a custom server.",
     "catalogue_tab_discover": "MCP catalogue",
     "catalogue_tab_custom": "Custom MCP",
@@ -3689,7 +3697,9 @@
       },
       "test_config": "Test configuration",
       "test_valid": "Configuration looks valid.",
-      "test_invalid": "Configuration issue."
+      "test_invalid": "Configuration issue.",
+      "import_json": "Import JSON",
+      "import_json_help": "Pick the credentials file downloaded from the Google Cloud console. Client ID and secret are read from it and stored locally."
     },
     "language_help": "Interface language and default response language.",
     "language_label": "Interface language",
@@ -4365,6 +4375,8 @@
     "finish": "Finish",
     "no_llm_title": "No LLM engine available",
     "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider - the agent needs one to chat.",
+    "llm_starting_title": "Starting the engine…",
+    "llm_starting_detail": "The AI engine is registering your model. The conversation starts as soon as it is ready.",
     "back_step": "← Previous step",
     "bootstrap": "Starting the agent…",
     "bootstrap_failed": "Couldn't start onboarding.",
@@ -5218,5 +5230,17 @@
     "palette": {
       "replay": "Revisit getting started"
     }
+  },
+  "stt_failure": {
+    "no_microphone": "No microphone was detected. Plug one in, then try again.",
+    "capture_failed": "The microphone could not be opened. Check the device selected in the dictation settings.",
+    "no_audio_captured": "No sound was captured. Recording stopped before it started.",
+    "audio_unusable": "The captured audio could not be prepared for the engine.",
+    "nothing_audible": "Nothing audible was captured. Check that the right microphone is selected and not muted.",
+    "too_short": "The recording was too short. Speak for at least a second.",
+    "no_model": "No dictation model is loaded. Choose one in the settings.",
+    "transcription_failed": "Transcription failed.",
+    "empty_transcript": "The engine recognised nothing in this recording.",
+    "cancelled": "Dictation cancelled."
   }
 }

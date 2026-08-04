@@ -489,6 +489,8 @@
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
     "error_sovereignty_blocked": "Profil souveraineté « local-only » : connecteurs cloud désactivés.",
     "error_oauth_client_missing": "Identifiant OAuth manquant - ouvrez Réglages → Intégrations pour le coller.",
+    "error_oauth_client_secret_missing": "Secret client OAuth manquant - ouvrez Réglages → Intégrations pour l'ajouter.",
+    "error_invalid_client_file": "Ce fichier n'est pas un export de client OAuth exploitable.",
     "disconnect_native_confirm": "Déconnecter {account} ({provider}) ?\nLe token sera révoqué localement.",
     "sync_just_now": "à l'instant",
     "sync_minutes_ago": "il y a {mins} min",
@@ -509,6 +511,7 @@
     "sidebar_native_section": "Apollia natifs",
     "sidebar_accounts_active": "{count} compte(s) actif(s)",
     "not_connected": "Non connecté",
+    "needs_configuration": "Configuration requise",
     "sidebar_mcp_section": "Serveurs MCP · {count}",
     "sidebar_no_servers": "Aucun serveur installé.",
     "sidebar_no_results": "Aucun résultat.",
@@ -558,7 +561,11 @@
     "oauth_drive_folder_path_label_html": "Chemin du dossier (séparé par <code>/</code>)",
     "oauth_drive_folder_examples_html": "Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>, <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>. Modifiable plus tard dans Réglages → Intégrations.",
     "oauth_missing_client_title": "Identifiant OAuth manquant",
-    "oauth_missing_client_body_html": "Ce build d'Apollia n'embarque pas de <code>client_id</code> pour {provider}. Ouvrez Réglages → Intégrations pour coller le vôtre (créé dans la console {console}). Aucune variable d'environnement n'est nécessaire.",
+    "oauth_missing_client_body_html": "Apollia est livré sans client OAuth pour {provider}, vous fournissez donc le vôtre. Créez-le dans la console {console}, puis ouvrez Réglages → Intégrations pour l'ajouter. Aucune variable d'environnement n'est nécessaire.",
+    "oauth_missing_secret_title": "Secret client OAuth manquant",
+    "oauth_missing_secret_body_html": "{provider} délivre un <code>client_secret</code> avec l'identifiant client, et l'exige à l'échange du jeton. Apollia s'est arrêté ici plutôt que de vous envoyer sur un écran de consentement qui n'aurait pas abouti. Ajoutez le secret dans Réglages → Intégrations.",
+    "needs_client_title": "Configuration requise avant de connecter",
+    "needs_client_body": "Apollia est livré sans client OAuth pour {provider}. Ajoutez le vôtre pour connecter un compte. Cela prend quelques minutes dans la console du fournisseur, une seule fois.",
     "oauth_preparing": "Préparation du flow OAuth…",
     "oauth_consent_opened": "Une fenêtre navigateur s'est ouverte sur le consentement {provider}. Validez les permissions - Apollia récupère le code automatiquement dès le retour du navigateur.",
     "oauth_awaiting_callback": "En attente du retour {provider}…",
@@ -570,6 +577,7 @@
     "saving": "Enregistrement…",
     "save": "Enregistrer",
     "open_settings_integrations": "Ouvrir Réglages → Intégrations",
+    "configure_credentials": "Configurer les identifiants",
     "catalogue_subtitle": "Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé.",
     "catalogue_tab_discover": "Catalogue MCP",
     "catalogue_tab_custom": "MCP personnalisé",
@@ -3689,7 +3697,9 @@
       },
       "test_config": "Tester la configuration",
       "test_valid": "La configuration semble valide.",
-      "test_invalid": "Problème de configuration."
+      "test_invalid": "Problème de configuration.",
+      "import_json": "Importer le JSON",
+      "import_json_help": "Choisissez le fichier d'identifiants téléchargé depuis la console Google Cloud. L'identifiant client et le secret en sont lus, puis stockés localement."
     },
     "language_help": "Langue de l'interface et des réponses par défaut.",
     "language_label": "Langue de l'interface",
@@ -4365,6 +4375,8 @@
     "finish": "Terminer",
     "no_llm_title": "Aucun moteur LLM disponible",
     "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud - l'agent en a besoin pour dialoguer.",
+    "llm_starting_title": "Démarrage du moteur…",
+    "llm_starting_detail": "Le moteur IA enregistre ton modèle. La conversation démarre dès qu'il est prêt.",
     "back_step": "← Étape précédente",
     "bootstrap": "Initialisation de l'agent…",
     "bootstrap_failed": "Impossible de démarrer l'onboarding.",
@@ -5218,5 +5230,17 @@
     "palette": {
       "replay": "Revoir la prise en main"
     }
+  },
+  "stt_failure": {
+    "no_microphone": "Aucun microphone n'a été détecté. Branchez-en un, puis réessayez.",
+    "capture_failed": "Le microphone n'a pas pu être ouvert. Vérifiez le périphérique choisi dans les réglages de dictée.",
+    "no_audio_captured": "Aucun son n'a été capté. L'enregistrement s'est arrêté avant d'avoir démarré.",
+    "audio_unusable": "L'audio capté n'a pas pu être préparé pour le moteur.",
+    "nothing_audible": "Rien d'audible n'a été capté. Vérifiez que le bon microphone est sélectionné et qu'il n'est pas coupé.",
+    "too_short": "L'enregistrement était trop court. Parlez au moins une seconde.",
+    "no_model": "Aucun modèle de dictée n'est chargé. Choisissez-en un dans les réglages.",
+    "transcription_failed": "La transcription a échoué.",
+    "empty_transcript": "Le moteur n'a rien reconnu dans cet enregistrement.",
+    "cancelled": "Dictée annulée."
   }
 }

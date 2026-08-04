@@ -29,11 +29,16 @@
     triggerOnboarding,
   } from "$lib/ipc/onboarding";
   import { get } from "svelte/store";
+  import { deriveLlmState } from "$lib/onboarding/llmState";
   import { isChatComplete, runDirectSkip } from "$lib/onboarding/skipFlow";
-  import { llmBackends } from "$lib/stores/sse";
+  import {
+    llmBackends,
+    llmBackendsHydrated,
+    refreshLlmBackends,
+  } from "$lib/stores/sse";
   import { onboardingResumeMode } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
-  import { AlertCircle, CheckCircle2 } from "lucide-svelte";
+  import { AlertCircle, CheckCircle2, Loader2 } from "lucide-svelte";
 
   interface Props {
     onback: () => void;
@@ -97,7 +102,11 @@
       SAFETY_REPLIES,
     ),
   );
-  const llmReady = $derived($llmBackends.length > 0);
+  // Tri-state: "checking" until the backend list has been hydrated once, so
+  // an engine still registering (store-hydration race after AI setup) shows a
+  // neutral starting status instead of a destructive "no engine" card.
+  const llmState = $derived(deriveLlmState($llmBackendsHydrated, $llmBackends.length));
+  const llmReady = $derived(llmState === "ready");
 
   // Phase caption + explicit early-finish. Calibration first, then optional
   // enrichment. The user can end at any time once calibration is under way;
@@ -259,6 +268,10 @@
   }
 
   onMount(() => {
+    // The AI-setup step registers the backend without an SSE push reaching
+    // this store (component-local success flag only); refresh eagerly instead
+    // of waiting for the 10 s watchdog.
+    void refreshLlmBackends();
     return () => {
       if (pollTimer !== undefined) clearInterval(pollTimer);
     };
@@ -326,7 +339,13 @@
     </div>
   {:else}
     <div class="chat-body">
-      {#if !llmReady}
+      {#if llmState === "checking"}
+        <div class="chat-status" data-testid="onboarding-chat-llm-starting">
+          <Loader2 size={20} class="animate-spin" aria-hidden="true" />
+          <p class="chat-status-title">{$t("onboarding_chat.llm_starting_title")}</p>
+          <p class="chat-status-detail">{$t("onboarding_chat.llm_starting_detail")}</p>
+        </div>
+      {:else if llmState === "none"}
         <div class="chat-status" data-testid="onboarding-chat-no-llm">
           <AlertCircle size={20} class="text-destructive" aria-hidden="true" />
           <p class="chat-status-title">{$t("onboarding_chat.no_llm_title")}</p>

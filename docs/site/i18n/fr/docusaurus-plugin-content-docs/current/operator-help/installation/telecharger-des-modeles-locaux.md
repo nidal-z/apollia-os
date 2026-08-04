@@ -26,7 +26,7 @@
 
 6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
 
-7. (Optionnel) Cliquez sur **Définir par défaut** pour utiliser ce modèle automatiquement dans les nouveaux chats (GGUF) ou pour la dictée (Whisper).
+7. (Optionnel) Cliquez sur **Définir par défaut** pour utiliser ce modèle automatiquement dans les nouveaux chats (GGUF) ou pour la dictée (Whisper). Juste après la sélection d'un modèle local pendant l'onboarding, l'étape de conversation affiche brièvement un statut **Démarrage du moteur** le temps que le modèle s'enregistre ; la conversation démarre d'elle-même dès qu'il est prêt.
    ![Hub de modèles : la section Modèles installés, avec le modèle actif marqué d'un badge Utilisé](/img/operator-help/fr/installation-telecharger-des-modeles-locaux-1bis.png)
 
 8. L'espace disque utilisé par tous vos modèles est affiché en bas de la page. Pour libérer de la place, cliquez sur **Supprimer** sur n'importe quel modèle déjà téléchargé.

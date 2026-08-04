@@ -69,6 +69,14 @@ export const pendingApprovals = writable<PendingApproval[]>([]);
 /** List of LLM backends from the runtime. */
 export const llmBackends = writable<LlmBackendConfig[]>([]);
 
+/**
+ * Whether `llmBackends` has been hydrated by at least one successful
+ * `list_llm_backends` round-trip. The initial `[]` is otherwise
+ * indistinguishable from a confirmed empty list, and consumers that treat
+ * "empty" as "no engine available" would announce an absence during startup.
+ */
+export const llmBackendsHydrated = writable<boolean>(false);
+
 /** List of triggers from the runtime. */
 export const triggers = writable<TriggerStatus[]>([]);
 
@@ -132,9 +140,16 @@ async function refreshLlmBackendsViaIpc(): Promise<void> {
   try {
     const result: LlmBackendConfig[] = await invoke("list_llm_backends");
     llmBackends.set(result);
+    llmBackendsHydrated.set(true);
   } catch {
-    // runtime not ready yet - keep current state
+    // runtime not ready yet - keep current state, stay un-hydrated
   }
+}
+
+// Force an immediate backend-list refresh (used by surfaces that must not wait
+// for the next SSE push or the watchdog, e.g. the onboarding chat step).
+export async function refreshLlmBackends(): Promise<void> {
+  await refreshLlmBackendsViaIpc();
 }
 
 async function refreshTriggersViaIpc(): Promise<void> {

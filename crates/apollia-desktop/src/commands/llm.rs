@@ -399,6 +399,24 @@ pub async fn reload_llm_from_db(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
+    // Surface the reload on the EventBus: the boot-time router emits
+    // LlmModelLoading / Ready / Failed itself, but this desktop rebuild runs
+    // without a bus, so nothing reached the UI. Without these events the
+    // `llm-changed` SSE category stays silent after onboarding registers the
+    // local model, and the chat step shows "no engine available" until the
+    // 10 s watchdog refreshes the store.
+    let default_model = all_configs
+        .iter()
+        .find(|c| c.name == default_name)
+        .map(|c| c.model.clone())
+        .unwrap_or_default();
+    let _ = runtime
+        .event_sender
+        .send(apollia_core::RuntimeEvent::LlmModelLoading {
+            backend: default_name.clone(),
+            model_path: default_model.clone(),
+        });
+
     // Re-inject the llama-server override for local LlamaCpp backends, otherwise
     // the reload would rebuild a router without the local backend (local
     // inference would become unreachable). We reuse the same factory as the
@@ -407,10 +425,26 @@ pub async fn reload_llm_from_db(
         runtime.llama_server_supervisor.clone(),
     );
 
-    let new_router = Arc::new(
-        LlmRouter::from_backend_configs_with_override(all_configs, default_name, factory)
-            .await
-            .map_err(|e| format!("failed to build LLM router: {e}"))?,
+    let new_router = match LlmRouter::from_backend_configs_with_override(
+        all_configs,
+        default_name.clone(),
+        factory,
+    )
+    .await
+    {
+        Ok(router) => Arc::new(router),
+        Err(e) => {
+            let reason = format!("failed to build LLM router: {e}");
+            emit_reload_outcome(
+                &runtime.event_sender,
+                Err((default_name.as_str(), reason.as_str())),
+            );
+            return Err(reason);
+        }
+    };
+    emit_reload_outcome(
+        &runtime.event_sender,
+        Ok((default_name.as_str(), default_model.as_str())),
     );
 
     // Drop the old router before writing the new one so the GGUF is freed from RAM
@@ -442,9 +476,68 @@ pub async fn reload_llm_from_db(
     Ok(())
 }
 
+/// Emit the terminal LLM lifecycle event for a desktop router reload.
+///
+/// `Ok((backend, model_id))` becomes [`RuntimeEvent::LlmModelReady`],
+/// `Err((backend, reason))` becomes [`RuntimeEvent::LlmModelFailed`]. Both map
+/// to the `llm-changed` SSE category, which the frontend answers by refreshing
+/// its backend list. Best-effort: an unsubscribed bus is not an error.
+fn emit_reload_outcome(
+    sender: &apollia_runtime::eventbus::EventBusSender,
+    outcome: Result<(&str, &str), (&str, &str)>,
+) {
+    let event = match outcome {
+        Ok((backend, model_id)) => apollia_core::RuntimeEvent::LlmModelReady {
+            backend: backend.to_owned(),
+            model_id: model_id.to_owned(),
+        },
+        Err((backend, reason)) => apollia_core::RuntimeEvent::LlmModelFailed {
+            backend: backend.to_owned(),
+            reason: reason.to_owned(),
+        },
+    };
+    let _ = sender.send(event);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_reload_outcome_emits_llm_model_ready() {
+        // GIVEN a subscribed event bus
+        let (tx, mut rx) = tokio::sync::broadcast::channel(8);
+
+        // WHEN the reload reports success
+        emit_reload_outcome(&tx, Ok(("local-code", "qwen3.gguf")));
+
+        // THEN one LlmModelReady with the backend name is received
+        match rx.try_recv() {
+            Ok(apollia_core::RuntimeEvent::LlmModelReady { backend, model_id }) => {
+                assert_eq!(backend, "local-code");
+                assert_eq!(model_id, "qwen3.gguf");
+            }
+            other => panic!("expected LlmModelReady, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_reload_outcome_emits_llm_model_failed() {
+        // GIVEN a subscribed event bus
+        let (tx, mut rx) = tokio::sync::broadcast::channel(8);
+
+        // WHEN the reload reports a build failure
+        emit_reload_outcome(&tx, Err(("local-code", "boom")));
+
+        // THEN one LlmModelFailed with the reason is received
+        match rx.try_recv() {
+            Ok(apollia_core::RuntimeEvent::LlmModelFailed { backend, reason }) => {
+                assert_eq!(backend, "local-code");
+                assert_eq!(reason, "boom");
+            }
+            other => panic!("expected LlmModelFailed, got {other:?}"),
+        }
+    }
 
     #[test]
     fn test_llm_backend_view_round_trips() {
