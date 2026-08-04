@@ -213,10 +213,11 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// **No production caller wires it.** `with_permission_engine` has no callers in
 /// this workspace, so `permission_engine` is always `None` in the shipped
 /// runtime and the block below never runs. Tool calls are gated instead by the
-/// chat path's name-only authorization set and the HITL flow, applied by
-/// `apollia-runtime` in the chat dispatch path; code executors always require
-/// per-invocation approval there. Do not read the presence of this field as a
-/// protection that is active today.
+/// chat path's name-only authorization set, the per-invocation prefix-rule
+/// check and the HITL flow, applied by `apollia-runtime` in the chat dispatch
+/// path; a code executor is only ever auto-approved through a prefix rule
+/// restricted to a single simple command. Do not read the presence of this
+/// field as a protection that is active today.
 ///
 /// [`with_session_filter`]: ToolDispatcher::with_session_filter
 /// [`with_permission_engine`]: ToolDispatcher::with_permission_engine

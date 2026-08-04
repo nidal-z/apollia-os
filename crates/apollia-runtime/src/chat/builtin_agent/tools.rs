@@ -372,6 +372,56 @@ impl BuiltInChatAgent {
             };
         }
 
+        // Not in the name-only set: consult the persisted prefix rules against
+        // this call's argument before raising a human approval. The grant is
+        // per invocation, so an allow is deliberately NOT inserted into
+        // `acc.authorized`: the next call re-evaluates with its own argument.
+        // A code executor can only match through the strict matcher (prefix
+        // plus single simple command), never a blanket rule.
+        if let Some(checker) = &self.prefix_checker {
+            let first_arg = apollia_permissions::extract_first_arg(&call.arguments);
+            match checker(&call.name, first_arg.as_deref()) {
+                Some((rule_id, apollia_permissions::prefix_rule_engine::RuleAction::Allow)) => {
+                    tracing::info!(
+                        tool = %call.name,
+                        rule_id,
+                        "chat.tool.prefix_rule_allowed"
+                    );
+                    let (record, tool_result, success) = self
+                        .execute_tool_call(session_id, message_id, call, run_id)
+                        .await;
+                    llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                    acc.all_tool_calls.push(record);
+                    return ToolCallOutcome {
+                        failed: !success,
+                        executed: Some((tool_result, success)),
+                    };
+                }
+                Some((rule_id, apollia_permissions::prefix_rule_engine::RuleAction::Deny)) => {
+                    tracing::info!(
+                        tool = %call.name,
+                        rule_id,
+                        "chat.tool.prefix_rule_denied"
+                    );
+                    let refusal = "Outil refusé par une règle de permission".to_string();
+                    llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
+                    acc.all_tool_calls.push(ToolCallRecord {
+                        tool_name: call.name.clone(),
+                        input: call.arguments.clone(),
+                        output: Some(refusal),
+                        status: ToolCallStatus::Refused,
+                        rationale: None,
+                        retry_attempts: Vec::new(),
+                    });
+                    return ToolCallOutcome {
+                        failed: true,
+                        executed: None,
+                    };
+                }
+                None => {}
+            }
+        }
+
         // HITL approval. The key is scoped by the unique tool-call id (not the
         // tool name) so the same tool invoked twice in one turn gets two
         // distinct pending slots: without it, the first call's timeout task

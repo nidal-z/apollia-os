@@ -88,9 +88,9 @@ human-in-the-loop, layered as defense in depth.
   convenience mechanism, not as containment.
 - **Runtime safeguards.** The step budget and the audit trail are enforced by the
   runtime, independently of the OS trust model, and cannot be reconfigured away by
-  the agent. Persisted name-only allow rules apply on the chat path; code
-  executors are excluded from every blanket authorization and require
-  per-invocation approval.
+  the agent. Persisted permission rules apply on the chat path, evaluated per
+  invocation; code executors are excluded from every blanket authorization and
+  only match through a prefix rule restricted to a single simple command.
   <!-- claim:permission-engine-not-wired -->
   The `PermissionEngine` that `apollia-permissions` also ships is **not installed
   by any production caller** and enforces nothing today.

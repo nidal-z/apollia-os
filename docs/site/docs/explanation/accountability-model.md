@@ -103,12 +103,11 @@ without bound. This is the guarantee that autonomy has a hard edge.
 
 <!-- claim:injection-detector-is-shell-not-prompt -->
 Shell commands are screened before execution: a risk classifier reads the
-command and a syntax check rejects what will not parse. A stricter guard that
-would refuse any command that chains, pipes, redirects or substitutes exists in
-the permissions crate, but it is not on the shipped execution path; what
-prevents an approval granted for one command from smuggling a second is that
-every code executor invocation requires its own approval. The screening is
-recorded.
+command and a syntax check rejects what will not parse. When a standing prefix
+rule is consulted for a code executor, a stricter guard refuses any command
+that chains, pipes, redirects or substitutes, so an authorisation granted for
+one command cannot smuggle a second; outside a matching rule, every code
+executor invocation requires its own approval. The screening is recorded.
 
 This screens **shell** injection. Apollia ships no defence against prompt
 injection, and nothing here should be read as one. The crate also contains an

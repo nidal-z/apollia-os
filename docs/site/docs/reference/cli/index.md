@@ -2257,7 +2257,7 @@ Persists into `governance.db` directly (no runtime required). Session scope is n
 ###### **Options:**
 
 * `--tool <NAME>` - Tool name (e.g. `file_write`, `bash_executor`)
-* `--prefix <PREFIX>` - Optional argument prefix recorded with the rule (e.g. a path). The chat approval decision is made on the tool name alone: a rule without a prefix pre-authorizes an ordinary tool, while a rule carrying a prefix is stored but not evaluated per invocation today. A code executor (`bash_executor`, `python_executor`) is never auto-approved, with or without a prefix
+* `--prefix <PREFIX>` - Optional argument prefix the rule applies to (e.g. a path). When omitted, the rule pre-authorizes any invocation of `--tool`, except for code executors (`bash_executor`, `python_executor`), which are never blanket-authorized. With a prefix, the rule is evaluated on every invocation against the call's argument; for a code executor it only ever covers a single simple command (no chaining, pipe, redirection or substitution)
 * `--action <ACTION>` - Rule action: `allow` or `deny`
 
   Default value: `allow`
