@@ -260,7 +260,9 @@ sweep.
 **NEVER reintroduce `op` as a skill dispatch key in A2A workers.** Full `skill_id`
 propagation is the canonical path (resolved 2026-05-19). See ADR-023 onward.
 
-**NEVER commit with a failing `cargo test --workspace`.** Pre-commit hook enforces
+**NEVER commit with a failing `cargo test --workspace --no-fail-fast`.** The flag is
+part of the rule: without it cargo halts at the first failing test binary and the run
+reports a partial pass as a pass. Pre-commit hook enforces
 this; do not bypass.
 
 **NEVER feature-flag dead code** to preserve a half-finished implementation. Either

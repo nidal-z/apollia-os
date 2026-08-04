@@ -46,7 +46,7 @@ cargo test -p apollia-<crate> <test_name>
 cargo clippy -p apollia-<crate> -- -D warnings
 
 # Full sweep (before commit and in CI)
-cargo test --workspace --all-features
+cargo test --workspace --all-features --no-fail-fast
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 
@@ -132,7 +132,9 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 - Use `TypedDict` for agent payload schemas. Never `from __future__ import
   annotations` in those modules.
 - Use absolute Python imports (`from apollia.foo import bar`).
-- Run `cargo test --workspace` before `git commit`.
+- Run `cargo test --workspace --no-fail-fast` before `git commit`. Without the flag
+  cargo stops at the first failing test binary, so a single red test silently hides
+  every test that would have run after it.
 - Write tests in GIVEN / WHEN / THEN structure.
 
 ## ASK FIRST
@@ -157,7 +159,7 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 - Mixing French and English in the same file.
 - AI stock phrases ("as an AI", "it's important to note", "il convient de
   noter", etc.).
-- Committing with a failing `cargo test --workspace`.
+- Committing with a failing `cargo test --workspace --no-fail-fast`.
 
 Full list with reasons : `docs/agents/FORBIDDEN.md`.
 

@@ -110,7 +110,12 @@ demo/
 /sonar-project.properties
 
 # Working documents for in-flight engineering programs, never committed.
-/RD-PERF-PROMPTS.md
+# Working notes kept at the repository root: R&D programmes and pre-release test
+# scratchpads. They are personal, they carry raw machine paths, and a `git add -A`
+# on release day would sweep them into the public history. One rule per family
+# rather than one per file, so the next note is covered before it is written.
+/RD-*.md
+/TMP-*.md
 
 # Figma <-> code provenance for the design system. Internal design bookkeeping:
 # it tracks in-flight design work and cites internal planning documents.

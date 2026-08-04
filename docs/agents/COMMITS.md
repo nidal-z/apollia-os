@@ -244,7 +244,7 @@ One paragraph, what changes and why.
 
 ## Test plan
 
-- [ ] cargo test --workspace
+- [ ] cargo test --workspace --no-fail-fast
 - [ ] cargo clippy --workspace -- -D warnings
 - [ ] pytest
 - [ ] manual : ...

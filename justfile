@@ -54,7 +54,7 @@ build-release:
 
 # Full tests
 test:
-    cargo test --workspace
+    cargo test --workspace --no-fail-fast
 
 # Tests with Python features
 test-python:

@@ -416,7 +416,9 @@ upload to Codecov.
 
 ## 12. CI gate
 
-`cargo test --workspace` and `pytest` both pass before a PR can merge.
+`cargo test --workspace --no-fail-fast` and `pytest` both pass before a PR can merge.
+The flag matters: cargo otherwise stops at the first failing test binary, and a run
+that covered a third of the suite reads exactly like a full green one.
 Pre-commit hook enforces this locally. Do not bypass.
 
 Sequence : `cargo fmt --check` -> `cargo clippy --workspace -- -D warnings`

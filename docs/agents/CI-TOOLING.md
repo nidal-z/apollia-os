@@ -112,7 +112,7 @@ Actual structure :
 
 1. `fmt` : `cargo fmt --all -- --check`
 2. `clippy` : `cargo clippy --workspace --all-targets -- -D warnings`
-3. `test` : `cargo test --workspace` (+ python-tests)
+3. `test` : `cargo test --workspace --no-fail-fast` (+ python-tests)
 4. `test-macos` : `cargo test` on macOS Silicon
 5. `machete` : `cargo machete` (unused deps)
 6. `python-quality` : `ruff format --check` + `ruff check` + `pip-audit` on `sdk/`
@@ -248,7 +248,7 @@ pre-commit install --hook-type commit-msg
 
 # First build
 cargo build --workspace
-cargo test --workspace
+cargo test --workspace --no-fail-fast
 ```
 
 ---
