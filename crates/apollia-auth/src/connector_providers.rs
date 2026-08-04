@@ -9,6 +9,14 @@
 //!   runtime [`ProviderConfig`] with the requested scopes, plus the
 //!   discovery endpoints (`userinfo_url`).
 //!
+//! # Client provisioning is asymmetric
+//!
+//! Microsoft 365 connects out of the box: Apollia ships the client id of its
+//! own public client registration ([`MICROSOFT_DEFAULT_CLIENT_ID`]). Google
+//! Workspace does not, because Google requires a verified consent screen
+//! before an application may serve accounts outside its own project, so each
+//! operator registers their own client. Either provider accepts an override.
+//!
 //! # Scope policy: v0.1.0 power user
 //!
 //! The default tier requests only scopes Google classifies as **sensitive** or
@@ -204,30 +212,46 @@ impl ConnectorProvider {
 
     /// Build-time OAuth client ID compiled into the binary.
     ///
-    /// **Empty in every Apollia build.** No release recipe and no CI workflow
-    /// sets `APOLLIA_BUILD_*`, so this returns `""` for both providers in the
-    /// artifacts the project publishes. The operator supplies their own client
-    /// through Settings → Integrations, and the connect path refuses the
-    /// handshake by name when they have not.
+    /// The two providers deliberately differ.
     ///
-    /// The hook stays because it is the seam for anyone rebuilding Apollia
-    /// from source against their own registered application, a fleet
-    /// deployment being the obvious case. Do not read it as evidence that a
-    /// shipped build carries credentials.
+    /// **Microsoft returns a real client id in every build.** Apollia
+    /// registers one public client application against the Microsoft identity
+    /// platform and ships its identifier as
+    /// [`MICROSOFT_DEFAULT_CLIENT_ID`], so Microsoft 365 connects with no
+    /// console detour. A native application's client id is public by
+    /// construction (RFC 8252 section 8.5: anything in a distributed binary is
+    /// extractable), which is why the registration carries no secret and PKCE
+    /// carries the security instead.
+    ///
+    /// **Google returns an empty string in every build.** Google requires a
+    /// verified OAuth consent screen before an application may serve accounts
+    /// it does not own, so each operator brings their own client. The connect
+    /// path refuses the handshake by name until they do.
+    ///
+    /// Both providers honour `APOLLIA_BUILD_*_CLIENT_ID` at compile time, the
+    /// seam for anyone rebuilding Apollia from source against their own
+    /// registered application. For Microsoft that overrides the shipped
+    /// default; for Google it fills an otherwise empty slot.
     pub const fn default_client_id(self) -> &'static str {
         match self {
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_ID")),
-            Self::Microsoft => env_or_empty(option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID")),
+            Self::Microsoft => env_or(
+                option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID"),
+                MICROSOFT_DEFAULT_CLIENT_ID,
+            ),
         }
     }
 
-    /// Build-time OAuth client secret, same posture as
-    /// [`default_client_id`](Self::default_client_id): empty in every Apollia
-    /// build, present only for a source rebuild that sets `APOLLIA_BUILD_*`.
+    /// Build-time OAuth client secret. Empty in every Apollia build for both
+    /// providers, present only for a source rebuild that sets
+    /// `APOLLIA_BUILD_GOOGLE_CLIENT_SECRET`.
     ///
     /// Hardcoded empty for Microsoft, whose public clients carry no secret at
-    /// all. Google needs one even under PKCE because its Installed App type
-    /// requires it at the token endpoint.
+    /// all, and no build-time hook exists to change that: shipping a secret
+    /// next to a shipped client id would be the one thing that turns a public
+    /// registration into a leaked confidential one. Google needs a secret even
+    /// under PKCE because its Installed App type requires it at the token
+    /// endpoint, which is a further reason its client cannot be embedded.
     pub const fn default_client_secret(self) -> &'static str {
         match self {
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_SECRET")),
@@ -264,13 +288,14 @@ impl ConnectorProvider {
     /// 2. `~/.apollia/oauth-clients.toml`, written by the Settings →
     ///    Integrations panel. **This is the path an operator takes**, and the
     ///    only one that survives a restart of the application.
-    /// 3. Build-time constant (`APOLLIA_BUILD_*_CLIENT_ID`), empty in every
-    ///    published Apollia build, see
-    ///    [`default_client_id`](Self::default_client_id).
+    /// 3. Build-time constant, see
+    ///    [`default_client_id`](Self::default_client_id). Microsoft resolves
+    ///    here on a fresh install; Google does not, and stays empty until the
+    ///    operator supplies a client through one of the first two layers.
     ///
-    /// Returns `None` when all three are absent, which is the state of a fresh
-    /// install, so the UI can name what is missing instead of failing
-    /// mid-handshake.
+    /// Returns `None` when all three are absent, so the UI can name what is
+    /// missing instead of failing mid-handshake. On a fresh install that is
+    /// Google's state, not Microsoft's.
     pub fn resolve_client_id(self) -> Option<String> {
         if let Ok(v) = std::env::var(self.client_id_env_var()) {
             if !v.is_empty() {
@@ -332,10 +357,34 @@ impl ConnectorProvider {
     }
 }
 
+/// Client id of the public client application Apollia registers against the
+/// Microsoft identity platform, shipped in every build.
+///
+/// Not a secret. RFC 8252 section 8.5 states that a native application cannot
+/// keep a credential confidential, so the registration is a public client with
+/// no secret at all and PKCE carries the security. Publishing this constant
+/// costs nothing an attacker could not recover with `strings` on the binary,
+/// and it spares every operator a trip through the Azure portal.
+///
+/// The registration is multi-tenant and accepts personal Microsoft accounts,
+/// which is why [`build_microsoft_provider`] must keep the `common` authority.
+/// A tenant-scoped authority would restrict sign-in to the directory that owns
+/// the registration and lock every other user out.
+pub const MICROSOFT_DEFAULT_CLIENT_ID: &str = "c4f95bc5-8895-4550-8119-ed0e548fd941";
+
 const fn env_or_empty(opt: Option<&'static str>) -> &'static str {
+    env_or(opt, "")
+}
+
+/// Resolve a compile-time `option_env!` to `fallback` when absent or empty.
+///
+/// An empty `APOLLIA_BUILD_*` has to behave like an unset one: a build recipe
+/// that exports the variable without a value would otherwise ship a blank
+/// client id that reads as "configured" to every downstream check.
+const fn env_or(opt: Option<&'static str>, fallback: &'static str) -> &'static str {
     match opt {
-        Some(s) => s,
-        None => "",
+        Some(s) if !s.is_empty() => s,
+        _ => fallback,
     }
 }
 
@@ -499,5 +548,81 @@ mod tests {
     fn test_connector_provider_ids_are_stable() {
         assert_eq!(ConnectorProvider::Google.id(), "google");
         assert_eq!(ConnectorProvider::Microsoft.id(), "microsoft");
+    }
+
+    #[test]
+    fn test_microsoft_ships_a_usable_client_id() {
+        // GIVEN a build with no APOLLIA_BUILD_MICROSOFT_CLIENT_ID
+        // WHEN the compiled default is read
+        let compiled = ConnectorProvider::Microsoft.default_client_id();
+        // THEN it carries the shipped registration, not an empty string, which
+        // is what lets Microsoft 365 connect without a console detour
+        assert_eq!(compiled, MICROSOFT_DEFAULT_CLIENT_ID);
+        assert!(!compiled.is_empty());
+    }
+
+    #[test]
+    fn test_microsoft_default_client_id_is_guid_shaped() {
+        // GIVEN the shipped Microsoft client id
+        // WHEN checked against the shape the identity platform issues
+        let id = MICROSOFT_DEFAULT_CLIENT_ID;
+        // THEN it is a 36-character GUID, the same shape `is_guid_like` in the
+        // desktop credential check accepts, so a shipped build cannot fail the
+        // very validation the Settings panel runs on operator input
+        assert_eq!(id.len(), 36);
+        let groups: Vec<&str> = id.split('-').collect();
+        assert_eq!(
+            groups.iter().map(|g| g.len()).collect::<Vec<_>>(),
+            vec![8, 4, 4, 4, 12]
+        );
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
+    }
+
+    #[test]
+    fn test_google_ships_no_client_id() {
+        // GIVEN a build with no APOLLIA_BUILD_GOOGLE_CLIENT_ID
+        // WHEN the compiled default is read
+        // THEN it stays empty: Google needs a verified consent screen, so each
+        // operator brings their own client and the connect path says so
+        assert!(ConnectorProvider::Google.default_client_id().is_empty());
+    }
+
+    #[test]
+    fn test_microsoft_ships_no_client_secret() {
+        // GIVEN the shipped Microsoft registration
+        // WHEN its compiled secret is read
+        // THEN it is empty. A public client has no secret to keep, and
+        // shipping one next to a shipped client id is the single change that
+        // would turn a public registration into a leaked confidential one
+        assert!(ConnectorProvider::Microsoft
+            .default_client_secret()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_shipped_microsoft_client_is_paired_with_a_multi_tenant_authority() {
+        // GIVEN the provider built from the shipped registration
+        let cfg = build_microsoft_provider(&[MicrosoftScope::MailRead]);
+        // WHEN its authority is inspected
+        // THEN it stays on `common`. The registration accepts personal
+        // Microsoft accounts and any directory; a tenant-scoped authority
+        // would lock sign-in to the directory that owns the registration and
+        // shut every other user out, which is the failure a shipped client id
+        // makes reachable and an empty one did not
+        assert!(cfg.auth_url.contains("/common/"));
+        assert!(cfg.token_url.contains("/common/"));
+        assert!(!cfg.auth_url.contains(MICROSOFT_DEFAULT_CLIENT_ID));
+        assert!(!cfg.client_id.is_empty());
+    }
+
+    #[test]
+    fn test_env_or_treats_an_empty_build_variable_as_absent() {
+        // GIVEN a build recipe that exports APOLLIA_BUILD_* with no value
+        // WHEN the compile-time hook is resolved
+        // THEN the fallback wins. An empty override would otherwise ship a
+        // blank client id that every downstream check reads as configured
+        assert_eq!(env_or(Some(""), "fallback"), "fallback");
+        assert_eq!(env_or(None, "fallback"), "fallback");
+        assert_eq!(env_or(Some("set"), "fallback"), "set");
     }
 }

@@ -66,6 +66,10 @@ ANCHOR_ROOTS = [
     REPO_ROOT / "docs" / "adr",
 ]
 
+# A re-export names a symbol without reading it, so it must not satisfy
+# `wired`. See the note at the call site.
+RE_EXPORT = re.compile(r"(pub\s+)?use\s+")
+
 VALID_STATUS = {"wired", "not-wired", "absent"}
 
 
@@ -137,13 +141,34 @@ def check_wired(claim: dict, sources: list[Path]) -> None:
             body = strip_test_code(path.read_text(encoding="utf-8", errors="ignore"))
         except OSError:
             continue
+        in_use_block = False
         for line in body.splitlines():
             # A comment naming the symbol is not a use. Without this, a claim
             # stays green on the strength of the doc-comment that sits directly
             # above the definition, which is the one place the name is certain
             # to appear. `with_journal` passed that way while no production site
             # called it, and the corpus promised an undo that could never run.
-            if line.lstrip().startswith("//"):
+            stripped = line.lstrip()
+            if stripped.startswith("//"):
+                continue
+            # A re-export is not a read either. `pub use crate::x::SYMBOL;`
+            # names the symbol on a line that is neither a comment nor a
+            # definition, so it satisfied this check on its own: a constant
+            # could be defined, re-exported, and read by nobody, and the claim
+            # stayed green. Found by mutating the one production read of
+            # MICROSOFT_DEFAULT_CLIENT_ID: the guard stayed green on the
+            # strength of `lib.rs` alone.
+            #
+            # The block form costs the state below. `pub use foo::{A, B, C};`
+            # spread over several lines puts the symbol on a continuation line
+            # that starts with neither `use` nor `//`, which is exactly the
+            # shape this crate uses, so the one-line filter missed it.
+            if RE_EXPORT.match(stripped):
+                in_use_block = "{" in line and "}" not in line
+                continue
+            if in_use_block:
+                if "}" in line:
+                    in_use_block = False
                 continue
             if needle in line and not definition.search(line):
                 return

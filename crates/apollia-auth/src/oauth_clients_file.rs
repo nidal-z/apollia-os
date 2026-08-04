@@ -1,15 +1,22 @@
 //! User-editable OAuth client overrides stored in `~/.apollia/oauth-clients.toml`.
 //!
-//! Apollia ships compiled-in OAuth client IDs for the official desktop build,
-//! but power users running their own development build (or a fork) need a way
-//! to plug in their own Google / Microsoft client IDs **without rebuilding**.
-//! This module exposes a minimal file-backed override layer that sits in the
+//! This module is the only layer an operator can write to without rebuilding,
+//! and it serves two different needs depending on the provider.
+//!
+//! For **Google** it is mandatory: no Apollia build embeds a Google client, so
+//! Gmail, Calendar and Drive stay unreachable until this file (or the env var)
+//! carries one. For **Microsoft** it is optional: builds embed Apollia's own
+//! public client registration, and this file exists so an operator can point
+//! the connector at their own Azure app registration instead.
+//!
+//! It sits in the
 //! [`ConnectorProvider::resolve_client_id`](crate::ConnectorProvider::resolve_client_id)
 //! resolution chain, between the runtime env var and the compiled default:
 //!
 //! 1. `APOLLIA_<PROVIDER>_CLIENT_ID` env var
 //! 2. `~/.apollia/oauth-clients.toml`  ← this module
-//! 3. `default_client_id()` baked into the binary at build time
+//! 3. `default_client_id()` baked into the binary: Apollia's registration for
+//!    Microsoft, empty for Google
 //!
 //! # File format
 //!

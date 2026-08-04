@@ -24,9 +24,10 @@
 //!
 //! ## Credentials
 //!
-//! No published Apollia build embeds a Google or Microsoft OAuth client, so
-//! every connect attempt goes through [`credential_gate`] first and is
-//! refused, by name, before a browser window opens.
+//! Builds embed Apollia's own Microsoft client, and no Google client at all
+//! (see `apollia_auth::connector_providers`). Either way every connect attempt
+//! goes through [`credential_gate`] first, so an unresolved or half-resolved
+//! credential is refused, by name, before a browser window opens.
 
 use std::sync::{Arc, OnceLock};
 
@@ -88,9 +89,13 @@ pub enum IntegrationsError {
     SovereigntyBlocked,
     /// The provider has no OAuth client id configured.
     ///
-    /// No published Apollia build embeds one, so this is the normal state
-    /// until the operator supplies their own client through Settings →
-    /// Integrations, `~/.apollia/oauth-clients.toml`, or the runtime env var.
+    /// Google's normal state on a fresh install: no build embeds a Google
+    /// client, so this stands until the operator supplies one through Settings
+    /// → Integrations, `~/.apollia/oauth-clients.toml`, or the runtime env
+    /// var. Microsoft resolves its shipped client instead and cannot reach
+    /// this variant on a build that carries the constant: an override that is
+    /// present but empty is skipped, not honoured, so it falls back to the
+    /// shipped identifier rather than to nothing.
     /// The UI surfaces a clear "OAuth client not configured" message instead
     /// of letting the flow fail mid-handshake with an opaque AS error.
     #[error("OAuth client not configured for {0}")]

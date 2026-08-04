@@ -561,11 +561,11 @@
     "oauth_drive_folder_path_label_html": "Folder path (separated by <code>/</code>)",
     "oauth_drive_folder_examples_html": "Examples: <code>Apollia</code> (default), <code>Documents/Apollia</code>, <code>Work/AI</code>. Empty = keep the default <code>Apollia</code>. Editable later in Settings → Integrations.",
     "oauth_missing_client_title": "Missing OAuth client ID",
-    "oauth_missing_client_body_html": "Apollia ships without an OAuth client for {provider}, so you supply your own. Create one in the {console} console, then open Settings → Integrations to add it. No environment variable is required.",
+    "oauth_missing_client_body_html": "No OAuth client is configured for {provider}, so Apollia stopped rather than opening a consent screen that could not complete. Create one in the {console} console, then open Settings → Integrations to add it. No environment variable is required.",
     "oauth_missing_secret_title": "Missing OAuth client secret",
     "oauth_missing_secret_body_html": "{provider} issues a <code>client_secret</code> alongside the client ID, and requires it when the token is exchanged. Apollia stopped here rather than sending you to a consent screen that could not complete. Add the secret in Settings → Integrations.",
     "needs_client_title": "Setup required before connecting",
-    "needs_client_body": "Apollia ships without an OAuth client for {provider}. Add your own to connect an account. It takes a few minutes in the provider console and is a one-off.",
+    "needs_client_body": "No OAuth client is configured for {provider} yet. Add your own to connect an account. It takes a few minutes in the provider console and is a one-off.",
     "oauth_preparing": "Preparing the OAuth flow…",
     "oauth_consent_opened": "A browser window opened on the {provider} consent screen. Approve the permissions - Apollia retrieves the code automatically once the browser returns.",
     "oauth_awaiting_callback": "Waiting for the {provider} callback…",
@@ -3633,13 +3633,13 @@
       "subtitle": "General system preferences."
     },
     "integrations": {
-      "subtitle": "OAuth credentials for the Google and Microsoft connectors in custom builds.",
+      "subtitle": "OAuth client credentials for the Google and Microsoft connectors. Microsoft is ready to connect; Google needs a client you register yourself.",
       "required": "Required",
       "optional": "Optional",
       "source": {
         "env": "Env var",
         "file": "File",
-        "builtin": "Official build",
+        "builtin": "Shipped with Apollia",
         "none": "Not resolved"
       },
       "status": {
@@ -3669,7 +3669,7 @@
       "help": {
         "client_secret": "Next to the Client ID in Google Cloud Console › Credentials. Google treats this secret as non-confidential for native apps, but its token endpoint still requires it.",
         "api_key": "Google Cloud Console › APIs & Services › Credentials › API key. Restrict it to the Google Picker and Drive APIs.",
-        "ms_builtin": "A public client_id compiled into Apollia is used by default. Enter your own to use your Azure app registration. Microsoft, as a compliant public client, requires no secret."
+        "ms_builtin": "Microsoft 365 connects out of the box: Apollia ships the client ID of its own public client registration. Fill this in only to point the connector at your own Azure app registration. A public client needs no secret either way."
       },
       "redirect_note": "This client must allow Apollia's loopback redirect. Add this URI to the client's \"Authorized redirect URIs\":",
       "copied": "Copied",

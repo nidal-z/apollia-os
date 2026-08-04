@@ -12,17 +12,25 @@ Un compte `@gmail.com` personnel convient. Rien ici n'exige un abonnement Worksp
 - Votre profil de souveraineté n'est pas réglé sur `local_only` (sinon les boutons cloud sont grisés).
 - Connexion internet active.
 
+:::info Google en demande plus que Microsoft
+Microsoft 365 se connecte immédiatement, sans rien inscrire. Google non, et ne le peut pas : une dizaine de minutes dans la console Google Cloud viennent d'abord. La raison appartient à Google, pas à Apollia, et elle est détaillée ci-dessous.
+:::
+
 ## Configurer votre client OAuth, une fois
 
-<!-- claim:oauth-client-resolution-order -->
-Apollia est livré sans client OAuth Google, et aucun build publié n'en embarque. Vous enregistrez votre propre application chez Google et vous en confiez les identifiants à Apollia. C'est une opération unique de quelques minutes, et c'est ce qui évite au connecteur de dépendre d'une identité partagée que vous ne maîtrisez pas.
+<!-- claim:oauth-google-client-not-embedded -->
+Apollia est livré sans client OAuth Google, et aucun build publié n'en embarque. Vous enregistrez votre propre application chez Google et vous en confiez les identifiants à Apollia. Comptez dix minutes la première fois.
 
-**Pourquoi il n'y a pas de client partagé.** Les scopes Google classés *restricted* (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`) exigent un audit CASA Tier 2 par un tiers agréé Google, facturé 5 000 à 15 000 dollars par an. Une application Apollia partagée placerait aussi tous les utilisateurs derrière un seul quota et un seul écran de consentement. Votre propre client vous rend la maîtrise des deux.
+Si vous voulez chaque écran de la console nommé clic par clic, suivez [Créer un client OAuth Google](/how-to/set-up-a-google-oauth-client) et revenez ici à l'étape « Dans Apollia ». La version courte suit.
+
+**Pourquoi il n'y a pas de client partagé.** Google n'autorise pas une application à servir des comptes hors de son propre projet tant que son écran de consentement n'a pas passé la vérification, et les scopes classés *restricted* (`gmail.readonly`, `gmail.modify`, `gmail.compose`, `drive.readonly`, `drive`) exigent en plus un audit CASA Tier 2 par un tiers agréé Google, facturé 5 000 à 15 000 dollars par an. Une application Apollia partagée placerait aussi tous les utilisateurs derrière un seul quota et un seul écran de consentement. Votre propre client vous rend la maîtrise des deux. Microsoft n'a pas d'exigence équivalente pour un client public de bureau, et c'est là toute la différence entre les deux pages.
+
+**Ce que coûte le statut Testing.** Laisser l'écran de consentement en **Testing** est gratuit et immédiat, avec deux limites à connaître avant de commencer : 100 test users au maximum, et **les jetons de rafraîchissement expirent au bout de sept jours**, il faudra donc reconnecter le compte environ une fois par semaine. Passer l'écran en **Production** sans vérification supprime l'expiration à sept jours mais affiche un avertissement « application non vérifiée » qu'il faut franchir. La vérification elle-même est gratuite pour les portées qu'Apollia demande par défaut, et prend plusieurs semaines.
 
 **Dans la console Google Cloud.**
 
 1. Créez un projet, puis activez les APIs Gmail, Calendar et Drive.
-2. Configurez l'écran de consentement OAuth en mode **External**, laissez-le en statut **Testing**, et ajoutez votre propre adresse comme test user. Le statut Testing autorise jusqu'à 100 test users et ne coûte rien.
+2. Configurez l'écran de consentement OAuth en mode **External**, laissez-le en statut **Testing**, et ajoutez votre propre adresse comme test user.
 3. Créez un client OAuth de type **Desktop app**.
 4. **Téléchargez le fichier JSON** que la console propose. Gardez-le, il sert à l'étape suivante.
 
