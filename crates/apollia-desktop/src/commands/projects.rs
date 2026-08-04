@@ -503,18 +503,32 @@ mod tests {
     use tempfile::TempDir;
 
     // Helper: creates a fake HOME via an environment variable.
-    // HOME is read by dirs::home_dir() on Unix.
+    //
+    // The variable is a process global, so the swap is serialised on
+    // `commands::home_env_lock()` and the previous value is restored before the
+    // guard drops. The earlier version left the fake home in place for whatever
+    // ran next, and the first test elsewhere that read the resolved home
+    // directory started failing depending on scheduling order.
+    #[cfg(unix)]
+    const HOME_VAR: &str = "HOME";
+    #[cfg(windows)]
+    const HOME_VAR: &str = "USERPROFILE";
+
     fn with_fake_home<F: FnOnce(&std::path::Path)>(f: F) {
+        let _guard = crate::commands::home_env_lock();
         let tmp = TempDir::new().expect("tempdir");
-        // dirs::home_dir() reads $HOME on Unix, USERPROFILE on Windows.
-        #[cfg(unix)]
-        std::env::set_var("HOME", tmp.path());
-        #[cfg(windows)]
-        std::env::set_var("USERPROFILE", tmp.path());
+        let previous = std::env::var_os(HOME_VAR);
+        // SAFETY: test-only mutation, serialised by the guard above, and undone
+        // before it drops.
+        unsafe { std::env::set_var(HOME_VAR, tmp.path()) };
         f(tmp.path());
-        // Cleanup: reliably restoring a consistent value is not possible in a
-        // parallel test environment, but the slugify tests do not use HOME, so
-        // there is no risk of contamination.
+        // SAFETY: same guard, restoring the value observed on entry.
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var(HOME_VAR, value),
+                None => std::env::remove_var(HOME_VAR),
+            }
+        }
     }
 
     #[tokio::test]

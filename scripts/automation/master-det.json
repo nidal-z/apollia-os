@@ -6935,6 +6935,154 @@
       "label": "50-back-operator"
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-help"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-hero",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "help-hero-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-docs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-community",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-report",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-shortcuts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-faq",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "51-help-resources"
+    },
+    {
+      "kind": "click",
+      "testid": "help-link-shortcuts"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "52-help-shortcuts-in-app"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-about"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-hero",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "about-logo"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-version"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-os"
+    },
+    {
+      "kind": "screenshot",
+      "label": "53-about-hero-logo"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-data",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "captureText",
+      "testid": "about-data",
+      "label": "about-data-dir"
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-data-dir",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "54-about-data-dir-copied"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-local",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "55-about-runs-locally"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-links",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "about-link-report"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-link-github"
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-diagnostics",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "56-about-diagnostic-copied"
+    },
+    {
       "kind": "screenshot",
       "label": "section-15-profile-det"
     },

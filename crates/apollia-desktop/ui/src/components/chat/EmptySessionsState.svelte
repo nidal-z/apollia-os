@@ -18,7 +18,7 @@
 
   function openGettingStarted(): void {
     window.open(
-      "https://github.com/Apollia-OS/apollia-os/wiki/Premiers-pas",
+      "https://docs.apollia.fr/operator-help/chat/discuter-avec-votre-ia",
       "_blank",
       "noreferrer",
     );

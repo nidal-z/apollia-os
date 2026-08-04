@@ -46,7 +46,7 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 ## Si quelque chose se passe mal
 
 - **Apollia ne redémarre pas après la réinitialisation :** lancez l'application manuellement depuis votre menu d'applications.
-- **Le parcours de configuration ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Vérifiez que `~/.apollia/` est absent ou vide - sinon, supprimez-le manuellement et relancez. Si le problème persiste, contactez le support en précisant l'instant exact du reset.
+- **Le parcours de configuration ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Vérifiez que le répertoire de données est absent ou vide - sinon, supprimez-le manuellement et relancez. Son chemin exact est affiché sur **Réglages → À propos**, dans *Où vivent vos données* : voir [Retrouver sa version et ses données](../transversal/trouver-sa-version-et-ses-donnees.md). Si le problème persiste, contactez le support en précisant l'instant exact du reset.
 - **Le bouton Continuer reste grisé à l'étape Modèles :** c'est normal tant qu'aucun LLM n'est configuré. Téléchargez un modèle GGUF depuis la liste curée, ou cliquez sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic, OpenAI ou Ollama. Le parcours reprend automatiquement après l'ajout du backend.
 - **Vous regrettez la suppression :** restaurez vos sauvegardes de l'étape 1. Sans sauvegarde, les données sont définitivement perdues.
 

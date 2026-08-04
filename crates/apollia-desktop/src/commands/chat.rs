@@ -1372,19 +1372,35 @@ mod tests {
     #[test]
     fn test_expand_absolute_path_expands_home() {
         // GIVEN a home directory is set
-        // SAFETY: test-only mutation of a process env var.
+        // The variable is a process global: hold the shared guard so a test
+        // reading the resolved home elsewhere cannot observe this value, and
+        // put the previous one back before releasing it.
+        let _guard = crate::commands::home_env_lock();
+        let previous = std::env::var_os("HOME");
+        // SAFETY: test-only mutation of a process env var, serialised by the
+        // guard above and undone below.
         unsafe {
             std::env::set_var("HOME", "/home/tester");
         }
 
         // WHEN a `~`-prefixed path is expanded
+        let bare = expand_absolute_path("~");
+        let nested = expand_absolute_path("~/projects/apollia");
+
+        // Restore before asserting: a failing assertion must not leave the fake
+        // home behind for the next test that reads it.
+        // SAFETY: same guard, restoring the value observed on entry.
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var("HOME", value),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+
         // THEN the tilde is replaced by the home directory
+        assert_eq!(bare, Some(std::path::PathBuf::from("/home/tester")));
         assert_eq!(
-            expand_absolute_path("~"),
-            Some(std::path::PathBuf::from("/home/tester"))
-        );
-        assert_eq!(
-            expand_absolute_path("~/projects/apollia"),
+            nested,
             Some(std::path::PathBuf::from("/home/tester/projects/apollia"))
         );
     }

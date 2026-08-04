@@ -17,10 +17,11 @@
   import HelpResources from "../../components/settings/help/HelpResources.svelte";
   import HelpFaq from "../../components/settings/help/HelpFaq.svelte";
 
-  // The hero CTA opens the public repository (its README is the getting-started
-  // guide). The documentation site is not published yet, so it ships as an
-  // "available soon" card inside HelpResources rather than a dead link.
-  const REPO_URL = "https://github.com/Apollia-OS/apollia-os";
+  // The hero CTA opens the operator help center, published from docs/site by
+  // CI. This page is a map, not a copy: it points at the published guides
+  // rather than duplicating them, so the two never drift apart. No count here
+  // on purpose, the corpus grows and a number in a comment goes stale silently.
+  const HELP_CENTER_URL = "https://docs.apollia.fr/operator-help";
 
   const faqIds = ["offline", "model", "data", "shortcuts"] as const;
   const faqItems = $derived(
@@ -53,7 +54,7 @@
     title={$t("settings.help.hero_title")}
     body={$t("settings.help.hero_body")}
     cta={$t("settings.help.hero_cta")}
-    href={REPO_URL}
+    href={HELP_CENTER_URL}
     disabled={!online}
   />
 

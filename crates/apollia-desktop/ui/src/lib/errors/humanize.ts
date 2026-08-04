@@ -63,7 +63,14 @@ interface ErrorMatcher {
   };
 }
 
-const DOCS_BASE = "https://github.com/Apollia-OS/apollia-os/wiki";
+/**
+ * Root of the published documentation site, built from `docs/site` by CI.
+ *
+ * Every `learn_more_url` below is a page that exists in that build. The base
+ * used to point at the repository wiki, retired when the three corpora were
+ * consolidated onto this site, so all five deep links shipped dead.
+ */
+const DOCS_BASE = "https://docs.apollia.fr";
 
 /** i18n segment per category (dot-path safe). */
 const CATEGORY_KEY: Record<ErrorCategory, string> = {
@@ -87,7 +94,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "POLICY_DENIED",
     category: "permission",
     regex: /permission denied by policy|policy denied|policy violation/i,
-    learn_more_url: `${DOCS_BASE}/Permissions-Policy`,
+    learn_more_url: `${DOCS_BASE}/operator-help/controle/approuver-ou-refuser-une-action`,
     legacy: {
       title: "Blocked by policy",
       friendly_message:
@@ -100,7 +107,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EACCES",
     category: "permission",
     regex: /\bEACCES\b|permission denied/i,
-    learn_more_url: `${DOCS_BASE}/Permissions-Filesystem`,
+    learn_more_url: `${DOCS_BASE}/operator-help/controle/configurer-les-permissions-de-fichiers`,
     legacy: {
       title: "Permission denied",
       friendly_message:
@@ -113,7 +120,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EPERM",
     category: "permission",
     regex: /\bEPERM\b|operation not permitted/i,
-    learn_more_url: `${DOCS_BASE}/Permissions-Filesystem`,
+    learn_more_url: `${DOCS_BASE}/operator-help/controle/configurer-les-permissions-de-fichiers`,
     legacy: {
       title: "Operation not permitted",
       friendly_message:
@@ -182,7 +189,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "BUDGET_EXCEEDED",
     category: "permission",
     regex: /budget exceeded|stepbudget|step budget/i,
-    learn_more_url: `${DOCS_BASE}/StepBudget`,
+    learn_more_url: `${DOCS_BASE}/reference/sdk/budget`,
     legacy: {
       title: "Agent budget exhausted",
       friendly_message:
@@ -195,7 +202,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "SANDBOX_VIOLATION",
     category: "permission",
     regex: /sandbox (violation|denied|blocked)/i,
-    learn_more_url: `${DOCS_BASE}/Sandbox`,
+    learn_more_url: `${DOCS_BASE}/explanation/agent-trust-model`,
     legacy: {
       title: "Blocked by sandbox",
       friendly_message:

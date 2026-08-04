@@ -31,6 +31,19 @@
     --grad-a: var(--primary-gradient-from);
     --grad-b: var(--primary-gradient-to);
 
+    /* ── Logo paper ──
+       The symbol is a light-background artwork: its inner counter is painted
+       in the cream it was drawn against, and its dominant swoosh runs from
+       #0053da to #001eb4. Measured against the dark surfaces, that swoosh
+       lands at 1.36 (card) and 2.76 (background), under the 3:1 floor WCAG
+       1.4.11 sets for a non-text graphic, so the body of the mark drops out
+       and only the violet crescent survives. There is no dark artwork to
+       switch to, and inventing one means inventing brand colours.
+       This token is the paper the mark expects, held identical in both themes
+       on purpose: `.dark` must not override it. Any surface that renders the
+       symbol above ~24px composes `.logo-plaque` on top of it. */
+    --logo-paper: 40 40% 94%;
+
     /* ── Surfaces - V4 warm gray (greige), vibe Vercel/Arc ── */
     --background: 33 11% 95%;
     --foreground: 33 13% 9%;
@@ -423,6 +436,25 @@
    Anchored on shadow tokens - never hardcode a box-shadow here.
    ═══════════════════════════════════════════════════════════ */
 @layer components {
+  /* ═════════════════════════════════════════════════════════
+     Logo plaque - the backing the Apollia symbol is drawn for.
+
+     Not decoration. The mark is a light-background artwork and
+     its swoosh measures 1.36:1 against `--card` in the dark
+     theme, so on a dark surface the body of the logo is gone
+     and only the crescent reads. Seating it on `--logo-paper`
+     restores every ink to at least 4.2:1 in both themes, with
+     one asset and no invented dark palette.
+
+     Deliberately theme-invariant: `.dark` does not override it.
+     A plaque that followed the theme would reintroduce exactly
+     the failure it exists to remove.
+     ═════════════════════════════════════════════════════════ */
+  .logo-plaque {
+    background: hsl(var(--logo-paper));
+    box-shadow: var(--shadow-elev-1);
+  }
+
   /* ═════════════════════════════════════════════════════════
      Typography - `.section-meta` is the canonical small-caps
      label used as section heading inside tables, KPI tiles,

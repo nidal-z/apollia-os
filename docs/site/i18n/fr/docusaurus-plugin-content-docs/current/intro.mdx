@@ -1,0 +1,84 @@
+---
+slug: /
+sidebar_position: 0
+title: Documentation Apollia OS
+description: Runtime Rust souverain pour agents IA autonomes. Tutoriels, guides pratiques, reference, architecture et centre d'aide du poste de travail.
+hide_title: true
+---
+
+{/* MDX plutot que Markdown pour que le heros et la grille de cartes passent
+    par <Link> et useBaseUrl de Docusaurus : les deux appliquent le baseUrl du
+    site et le prefixe de langue active, ce qu'un <a href="/..."> brut ne fait
+    pas, et qui renverrait silencieusement le lecteur francais vers les pages
+    anglaises. */}
+
+import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+<div className="home-hero">
+  <img src={useBaseUrl('/img/logo.svg')} alt="" />
+  <div className="home-hero-body">
+    <h1>Documentation Apollia OS</h1>
+    {/* Volontairement sur une seule ligne dans la balise : un corps separe par
+        une ligne vide dans un element JSX est re-analyse comme du Markdown, ce
+        qui l'enveloppe dans un second <p>. Le <p> imbrique est du HTML
+        invalide, le navigateur le deplace, et React echoue a hydrater toute la
+        page. */}
+    <p>Un runtime Rust souverain pour agents IA autonomes. Il execute n'importe quel agent Python isole, en local, avec ses outils, et sans dependance au cloud. Ce site est le manuel des integrateurs : ce que fait Apollia, comment le piloter, et pourquoi il est construit ainsi.</p>
+  </div>
+</div>
+
+## Par ou commencer
+
+<div className="home-grid">
+  <Link className="home-card" to="/tutorials">
+    <strong>Tutoriels</strong>
+    <span>Apprendre en faisant. Votre premier agent de bout en bout, puis un assistant multi-agents.</span>
+  </Link>
+  <Link className="home-card" to="/how-to">
+    <strong>Guides pratiques</strong>
+    <span>Accomplir une tache precise : installer, empaqueter un agent, integrer Apollia a votre produit.</span>
+  </Link>
+  <Link className="home-card" to="/reference">
+    <strong>Reference</strong>
+    <span>Les faits generes depuis le code : API HTTP, CLI, SDK, configuration et outils natifs.</span>
+  </Link>
+  <Link className="home-card" to="/explanation">
+    <strong>Explications</strong>
+    <span>Les concepts et le raisonnement : les huit principes, les paliers d'autonomie, le modele de confiance.</span>
+  </Link>
+  <Link className="home-card" to="/architecture">
+    <strong>Architecture</strong>
+    <span>La cartographie publique du systeme, au format arc42, avec les vues C4 contexte et runtime.</span>
+  </Link>
+  <Link className="home-card" to="/operator-help">
+    <strong>Centre d'aide</strong>
+    <span>Les gestes pas a pas de l'application de bureau, ecrits pour la personne qui s'en sert.</span>
+  </Link>
+</div>
+
+Le plan suit le cadre [Diataxis](https://diataxis.fr) : chaque bloc repond a un
+type de question different. Choisissez celui qui correspond a votre besoin du
+moment plutot que de lire dans l'ordre.
+
+## Ce que veut dire « tout en local » ici
+
+Apollia garde l'inference, la transcription, la memoire et l'audit sur la
+machine. L'application de bureau embarque son propre moteur LLM et son propre
+moteur de reconnaissance vocale : un lancement a froid ne contacte personne, et
+rien d'une conversation ne quitte la machine sans une action explicite.
+
+- [Souverainete et local-first](/explanation/sovereignty-and-local-first) enonce la garantie et ses limites.
+- [Les huit principes](/explanation/the-8-principles) est le chemin le plus court vers la conception.
+- [Auditer et verifier](/how-to/audit-and-verify) montre comment controler ce qui s'est vraiment passe.
+
+## Source de verite
+
+Les trois references machine ne sont jamais recopiees a la main. Elles sont
+generees depuis le code :
+
+- la reference de l'API HTTP depuis la specification OpenAPI livree,
+- la reference CLI depuis l'arbre de commandes `apollia-os`,
+- le contrat SDK depuis les services types de `Ctx`.
+
+Lancez `bash regen.sh` pour les rafraichir.

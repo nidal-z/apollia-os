@@ -306,6 +306,12 @@ jobs:
         run: python3 scripts/check_screenshot_script.py --self-test
       - name: Screenshot script and pages name the same images
         run: python3 scripts/check_screenshot_script.py
+      # A pasted Google Fonts snippet makes a cold start phone a third party
+      # before the user clicks anything, which is the one promise the product
+      # is sold on. The desktop webview has a CSP that blocks it; the docs site
+      # has nothing, so the gate lives here.
+      - name: No web font is fetched from a third party
+        run: python3 scripts/check_no_font_cdn.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:
