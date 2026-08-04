@@ -1,0 +1,9 @@
+{
+  "label": "Explication",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "slug": "/explanation",
+    "description": "Discussion axée sur la compréhension des concepts et du raisonnement qui les sous-tend."
+  }
+}
