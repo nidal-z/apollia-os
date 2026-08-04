@@ -119,7 +119,10 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
 
 /// Add to the overrides the tools auto-authorized via `allow` rules scoped to
 /// the `apollia:chat` agent. Silent fallback on error.
-fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
+pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
+    out: &mut ChatLibreOverrides,
+    db_path: &std::path::Path,
+) {
     let Ok(engine) = PrefixRuleEngine::new(db_path) else {
         return;
     };
@@ -127,7 +130,12 @@ fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::pa
         return;
     };
     for r in rules {
-        if matches!(r.action, RuleAction::Allow) {
+        // Same filters as the global pass below: a rule carrying an
+        // arg_prefix must not authorize the whole tool name (it is evaluated
+        // per invocation by the checker instead), and a code executor is
+        // never pre-authorized by name. Seeding a prefixed rule's bare name
+        // here would widen a targeted grant into a tool-wide one.
+        if matches!(r.action, RuleAction::Allow) && r.arg_prefix.is_none() {
             if apollia_permissions::is_code_executor(&r.tool_name) {
                 warn!(
                     tool = %r.tool_name,

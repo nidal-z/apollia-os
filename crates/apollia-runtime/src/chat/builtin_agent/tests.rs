@@ -3914,6 +3914,8 @@ struct PrefixCheckerRun {
     tool: &'static str,
     arguments: serde_json::Value,
     checker: Option<Arc<crate::chat::builtin_agent::PrefixChecker>>,
+    /// Tool names seeded into the name-only authorization set for the turn.
+    authorized: &'static [&'static str],
 }
 
 async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse {
@@ -3946,6 +3948,7 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
     let approvals = PendingChatApprovals::new();
     spawn_refusing_resolver(&approvals);
 
+    let authorized: HashSet<String> = params.authorized.iter().map(|s| s.to_string()).collect();
     let result = agent
         .execute(
             "sess-1",
@@ -3955,7 +3958,7 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
             &[],
             "assistant",
             &[params.tool.to_string()],
-            &HashSet::new(),
+            &authorized,
             &approvals,
             &budget,
             None,
@@ -3990,6 +3993,7 @@ async fn test_prefix_rule_allows_simple_executor_command_without_hitl() {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls -la", "timeout_secs": 5}),
         checker: Some(make_test_prefix_checker(db)),
+        authorized: &[],
     })
     .await;
 
@@ -4021,6 +4025,7 @@ async fn test_prefix_rule_ignores_chained_command_hitl_still_raised() {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls; rm -rf /tmp/x", "timeout_secs": 5}),
         checker: Some(make_test_prefix_checker(db)),
+        authorized: &[],
     })
     .await;
 
@@ -4058,6 +4063,7 @@ async fn test_prefix_rule_deny_wins_longest_prefix_without_hitl() {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls -la /etc", "timeout_secs": 5}),
         checker: Some(make_test_prefix_checker(db)),
+        authorized: &[],
     })
     .await;
 
@@ -4088,6 +4094,7 @@ async fn test_blanket_executor_rule_never_auto_approves() {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls", "timeout_secs": 5}),
         checker: Some(make_test_prefix_checker(db)),
+        authorized: &[],
     })
     .await;
 
@@ -4119,6 +4126,7 @@ async fn test_prefix_rule_scopes_ordinary_tool_argument() {
         tool: "file_read",
         arguments: serde_json::json!({"path": "/tmp/safe/notes.txt"}),
         checker: Some(checker.clone()),
+        authorized: &[],
     })
     .await;
     // THEN the call is auto-approved
@@ -4129,6 +4137,7 @@ async fn test_prefix_rule_scopes_ordinary_tool_argument() {
         tool: "file_read",
         arguments: serde_json::json!({"path": "/etc/passwd"}),
         checker: Some(checker),
+        authorized: &[],
     })
     .await;
     // THEN HITL still decides (refusing resolver fires)
@@ -4158,6 +4167,7 @@ async fn test_no_checker_keeps_hitl_behavior() {
         tool: "file_read",
         arguments: serde_json::json!({"path": "/tmp/notes.txt"}),
         checker: None,
+        authorized: &[],
     })
     .await;
 
@@ -4167,4 +4177,63 @@ async fn test_no_checker_keeps_hitl_behavior() {
         resp.tool_calls[0].output.as_deref(),
         Some("Outil refusé par l'utilisateur")
     );
+}
+
+/// A persisted deny rule wins over a name-authorized tool.
+#[tokio::test]
+async fn test_deny_rule_wins_over_name_authorized_tool() {
+    // GIVEN file_read authorized by name AND a global deny rule on /etc
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("governance.db");
+    seed_prefix_rule(
+        &db,
+        "file_read",
+        Some("/etc"),
+        apollia_permissions::RuleAction::Deny,
+    );
+
+    // WHEN the call's argument matches the deny prefix
+    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+        tool: "file_read",
+        arguments: serde_json::json!({"path": "/etc/passwd"}),
+        checker: Some(make_test_prefix_checker(db)),
+        authorized: &["file_read"],
+    })
+    .await;
+
+    // THEN the standing refusal wins over the blanket authorization, with no
+    // human prompt (rule wording, not the user-refusal wording)
+    assert_eq!(resp.tool_calls.len(), 1);
+    assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
+    assert_eq!(
+        resp.tool_calls[0].output.as_deref(),
+        Some("Outil refusé par une règle de permission")
+    );
+}
+
+/// The name-authorized fast path stays intact outside a deny match.
+#[tokio::test]
+async fn test_name_authorized_tool_still_runs_outside_deny_prefix() {
+    // GIVEN the same deny rule on /etc and file_read authorized by name
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("governance.db");
+    seed_prefix_rule(
+        &db,
+        "file_read",
+        Some("/etc"),
+        apollia_permissions::RuleAction::Deny,
+    );
+
+    // WHEN the call's argument does not match the deny prefix
+    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+        tool: "file_read",
+        arguments: serde_json::json!({"path": "/tmp/notes.txt"}),
+        checker: Some(make_test_prefix_checker(db)),
+        authorized: &["file_read"],
+    })
+    .await;
+
+    // THEN the name authorization executes the call as before
+    assert_eq!(resp.tool_calls.len(), 1);
+    assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
 }

@@ -1606,3 +1606,51 @@ async fn test_approve_plan_emits_executing_phase_changed() {
     // THEN a phase-changed event announces the Executing phase
     assert_eq!(next_phase_event(&mut rx).as_deref(), Some("executing"));
 }
+
+#[test]
+fn test_agent_scoped_prefix_rule_does_not_seed_the_name_set() {
+    use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
+
+    // GIVEN one agent-scoped allow rule carrying an arg_prefix and one
+    // name-only, both for the chat agent
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("governance.db");
+    let mut engine = PrefixRuleEngine::new(&db).expect("open engine");
+    engine
+        .add_rule(&PrefixRule {
+            tool_name: "file_read".to_string(),
+            arg_prefix: Some("/tmp/safe".to_string()),
+            action: RuleAction::Allow,
+            scope: PermissionScope::Agent,
+            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
+            ..PrefixRule::default()
+        })
+        .expect("seed prefixed rule");
+    engine
+        .add_rule(&PrefixRule {
+            tool_name: "web_search".to_string(),
+            arg_prefix: None,
+            action: RuleAction::Allow,
+            scope: PermissionScope::Agent,
+            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
+            ..PrefixRule::default()
+        })
+        .expect("seed name-only rule");
+
+    // WHEN the chat overrides are seeded from the store
+    let mut out = ChatLibreOverrides::default();
+    super::libre::apply_chat_prefix_allow_rules(&mut out, &db);
+
+    // THEN the prefixed rule does not authorize the whole tool name (it is
+    // evaluated per invocation instead), while the name-only rule does
+    assert!(
+        !out.pre_authorized_tools.contains("file_read"),
+        "a prefixed rule must not widen into a tool-wide authorization: {:?}",
+        out.pre_authorized_tools
+    );
+    assert!(
+        out.pre_authorized_tools.contains("web_search"),
+        "{:?}",
+        out.pre_authorized_tools
+    );
+}

@@ -26,7 +26,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - l'**auteur** de la décision (agent ou utilisateur)
 
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-> **Ce qu'une règle fait réellement :** une règle sans préfixe qui autorise un outil ordinaire auto-approuve chaque invocation de cet outil. Une règle portant un **préfixe d'argument** est évaluée à chaque invocation, contre l'argument de l'appel : elle auto-approuve tout argument commençant par le préfixe, et le préfixe correspondant le plus long l'emporte quand plusieurs règles s'appliquent.
+> **Ce qu'une règle fait réellement :** une règle sans préfixe qui autorise un outil ordinaire auto-approuve chaque invocation de cet outil. Une règle portant un **préfixe d'argument** est évaluée à chaque invocation, contre l'argument de l'appel : elle auto-approuve tout argument commençant par le préfixe, et le préfixe correspondant le plus long l'emporte quand plusieurs règles s'appliquent. Une règle **deny** a toujours priorité : elle refuse un appel correspondant même quand l'outil est par ailleurs couvert par un "Toujours autoriser".
 <!-- claim:executor-guard-blocks-command-chaining -->
 > **Les exécuteurs de code** (`bash_executor`, `python_executor`) sont plus stricts : une règle de préfixe ne s'applique qu'à une **commande simple unique** partageant ce préfixe, sans enchaînement (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) ni substitution (`` ` ``, `$(...)`). Une règle sans préfixe n'auto-approuve jamais un exécuteur de code : chaque invocation redemande une confirmation.
 

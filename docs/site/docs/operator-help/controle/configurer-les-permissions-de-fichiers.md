@@ -26,7 +26,7 @@ Rules appear automatically when an agent requests access to a tool and you choos
    - the **author** of the decision (agent or user)
 
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-> **What a rule actually does:** a rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** is evaluated on every invocation, against the call's argument: it auto-approves any argument starting with the prefix, and the longest matching prefix wins when several rules apply.
+> **What a rule actually does:** a rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** is evaluated on every invocation, against the call's argument: it auto-approves any argument starting with the prefix, and the longest matching prefix wins when several rules apply. A **deny** rule always takes precedence: it refuses a matching call even when the tool is otherwise covered by an "Always allow".
 <!-- claim:executor-guard-blocks-command-chaining -->
 > **Code executors** (`bash_executor`, `python_executor`) are stricter: a prefix rule only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
 

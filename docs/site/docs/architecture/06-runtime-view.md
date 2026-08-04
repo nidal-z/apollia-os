@@ -174,14 +174,16 @@ sequenceDiagram
 Four properties follow from that shape, and each one is a deliberate choice
 rather than an accident.
 
-**The first gate is by tool name, the second by argument.** Authorizing
-`file_read` once with "always allow" authorizes it for every path it will ever
-be given at that scope: the pre-authorization set is name-only, and
-argument-level prefix rules are skipped when seeding it because it cannot
-represent them. On a miss of that set, the loop evaluates the stored prefix
-rules against the call's argument, per invocation, before raising an approval;
-a matching allow runs the call without widening the set, and a matching deny
-refuses it without a prompt.
+**Rules are evaluated by argument, the name set by name, and deny wins.** The
+stored prefix rules are evaluated first, against the call's argument, per
+invocation: a matching deny refuses the call without a prompt, even when the
+tool sits in the name-only pre-authorization set, so a standing refusal cannot
+be bypassed by a broader "always allow". A matching allow runs the call
+without widening the set. Otherwise, authorizing `file_read` once with "always
+allow" still authorizes it for every path it will ever be given at that scope:
+the pre-authorization set is name-only, and argument-level prefix rules are
+kept out of it (they cannot be represented there) precisely because they are
+evaluated per invocation. Anything left raises the approval prompt.
 
 **Code executors are exempt from every blanket authorization.** `bash_executor`
 and its siblings are filtered out of the pre-authorized set on all three routes
