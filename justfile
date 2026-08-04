@@ -127,7 +127,19 @@ llama-server model=llama_model port=llama_port:
       echo "set a model: just llama-server /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
       exit 1
     fi
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     echo "→ llama-server (--jinja) on :{{port}} : $(basename "{{model}}") [ctx=${CTX:-32768} np=${NP:-1}]"
     exec "$LLAMA_BIN" -m "{{model}}" -ngl 999 -c "${CTX:-32768}" -np "${NP:-1}" -cb \
       --flash-attn on --jinja --host 127.0.0.1 --port "{{port}}"
@@ -144,7 +156,19 @@ desktop-dev-llama model=llama_model: runners-dev-macos
       echo "set a model: just desktop-dev-llama /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
       exit 1
     fi
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     SLOG="/tmp/apollia-dev-llama-server.log"
     echo "→ starting llama-server (--jinja) on :{{llama_port}} ..."
     "$LLAMA_BIN" -m "{{model}}" -ngl 999 -c "${CTX:-32768}" -np "${NP:-1}" -cb \
@@ -172,7 +196,19 @@ llama-qwen:
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
       exit 1
     fi
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     PORT="${PORT:-8899}"
     echo "→ llama-server (--jinja) on :$PORT : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}]"
     exec "$LLAMA_BIN" -m "$MODEL" -ngl 999 -c "${CTX:-131072}" -np "${NP:-1}" -cb \
@@ -190,7 +226,19 @@ desktop-dev-qwen: runners-dev-macos
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
       exit 1
     fi
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     PORT="${PORT:-{{llama_port}}}"
     SLOG="/tmp/apollia-dev-llama-server.log"
     echo "→ starting llama-server (--jinja) on :$PORT : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}] ..."
@@ -311,7 +359,19 @@ desktop-dev-automation-llama script model=llama_model: runners-dev-macos
     OUT="${APOLLIA_AUTOMATION_OUT:-$PWD/.apollia-automation}"
     mkdir -p "$OUT"
     OUT="$(cd "$OUT" >/dev/null 2>&1 && pwd)"
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     SLOG="/tmp/apollia-dev-llama-server.log"
     echo "→ starting llama-server (--jinja) on :{{llama_port}} : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}] ..."
     "$LLAMA_BIN" -m "$MODEL" -ngl 999 -c "${CTX:-131072}" -np "${NP:-1}" -cb \
@@ -468,7 +528,19 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
       echo "warning: no Python bundle found in target/python-bundle or target/debug" >&2
       echo "         agents will fail to load; run packaging/build-python-bundle.sh" >&2
     fi
-    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server)}"
+    # `command -v` returns non-zero when the binary is absent, and under
+    # `set -e` that kills the recipe before any echo runs: the operator sees a
+    # bare "exit code 1" and has to read the justfile to find out why. Resolve
+    # it explicitly and say what is missing.
+    LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
+    if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
+      echo "llama-server not found on PATH." >&2
+      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If you masked it for a packaging test, restore it:" >&2
+      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
+      echo "       /opt/homebrew/bin/llama-server" >&2
+      exit 1
+    fi
     SLOG="/tmp/apollia-dev-llama-server.log"
     echo "→ starting llama-server (--jinja) on :{{llama_port}} : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}] ..."
     "$LLAMA_BIN" -m "$MODEL" -ngl 999 -c "${CTX:-131072}" -np "${NP:-1}" -cb \
