@@ -152,8 +152,8 @@ Target : 150+ parsing tests workspace-wide (acquired in the CLI sprint).
 ### 5.2 End-to-end (`tests/cli/cli-e2e.sh`)
 
 Orchestrator (bash) over a fixed, deterministically-seeded HOME (the shared
-`scripts/automation/seed` fixture), with a machine + human report
-(`tests/cli/report/report.{json,md}`). Three tracks :
+`scripts/automation/seed` fixture, never its optional narrative overlay), with a
+machine + human report (`tests/cli/report/report.{json,md}`). Three tracks :
 - **Track 1 (OFFLINE)** : every daemon-free command against the seeded HOME.
   Asserts KNOWN seeded content (not empty states) + the exit-code contract.
   Runs on every PR (`cli-e2e` job in `ci.yml`).

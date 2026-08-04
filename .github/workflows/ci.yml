@@ -172,6 +172,8 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Build apollia-cli
         run: cargo build -p apollia-cli
+      - name: Seed builder self-test
+        run: bash scripts/automation/seed/self-test.sh
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report

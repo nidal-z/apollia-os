@@ -15,11 +15,34 @@
 # load cannot leave two profiles claiming to be the same one. If a backup
 # already exists, this refuses rather than overwrite it, because that backup is
 # someone's real data and the second load would be the one that destroys it.
+#
+# This is the human path, so it turns the narrative overlay ON by default: the
+# checked-in seed is a test fixture sized for assertions, the overlay is the
+# story the screenshots tell. The automated path (build-seed.sh called by CI and
+# by the just recipes) leaves it OFF, so the fixture those runs assert against
+# never changes under them.
+#
+# Environment:
+#   APOLLIA_SEED_OVERLAY       overlay directory. Defaults to
+#                              ~/.apollia-seed-overlay when that exists, to
+#                              nothing when it does not. Set it to a path that
+#                              does not exist and build-seed.sh stops rather than
+#                              build a fixture that looks right and is not.
+#   APOLLIA_SEED_PROJECT_ROOT  what the seeded project rows point at. Defaults to
+#                              this checkout. Override it before a public
+#                              screenshot run: that path is displayed on the
+#                              project pages, the permission cards and the audit
+#                              trail, and it is your machine's path.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APOLLIA_DIR="${APOLLIA_HOME:-$HOME/.apollia}"
 BACKUP_DIR="${APOLLIA_DIR}.before-seed"
+DEFAULT_OVERLAY="$HOME/.apollia-seed-overlay"
+
+if [ -z "${APOLLIA_SEED_OVERLAY:-}" ] && [ -d "$DEFAULT_OVERLAY" ]; then
+  export APOLLIA_SEED_OVERLAY="$DEFAULT_OVERLAY"
+fi
 
 if [ -e "$BACKUP_DIR" ]; then
   echo "error: a backup already exists at $BACKUP_DIR" >&2
@@ -46,12 +69,24 @@ fi
 echo "==> building the seed into $APOLLIA_DIR"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-bash "$HERE/build-seed.sh" "$STAGE" >/dev/null
+# The build happens in a staging directory because build-seed.sh starts by
+# wiping its target, and its target here would be your home. The rows must still
+# name the home they will END UP under, not the staging path that this script
+# deletes on the way out, hence the alias.
+APOLLIA_SEED_HOME_ALIAS="$(dirname "$APOLLIA_DIR")" \
+  bash "$HERE/build-seed.sh" "$STAGE" >/dev/null
 mkdir -p "$(dirname "$APOLLIA_DIR")"
 mv "$STAGE/.apollia" "$APOLLIA_DIR"
 
 echo ""
 echo "Seed loaded. Launch the desktop application normally."
+if [ -n "${APOLLIA_SEED_OVERLAY:-}" ]; then
+  echo "Narrative overlay: ${APOLLIA_SEED_OVERLAY}"
+else
+  echo "Narrative overlay: none. Only the checked-in fixture is loaded, so the"
+  echo "pages that the overlay fills (timeline, plans, agentic conversations)"
+  echo "will show their thin or empty state. See seed/README.md, section Overlay."
+fi
 echo ""
 echo "Two things to know before you shoot:"
 echo "  - Timestamps are relative to the moment of this build, so the timeline"
