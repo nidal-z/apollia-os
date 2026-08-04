@@ -58,7 +58,17 @@ impl BuiltInChatAgent {
             // partial; the caller returns a paused response.
             let chunk_result = tokio::select! {
                 biased;
-                () = cancel.cancelled() => break,
+                () = cancel.cancelled() => {
+                    // A Stop can land while the terminal usage chunk is already
+                    // in flight; without a drain, every cancelled turn loses its
+                    // token accounting. Briefly drain the stream for accounting
+                    // chunks only; text and tool calls stay frozen as they were
+                    // at the checkpoint. An aborted generation may legitimately
+                    // produce no usage at all, in which case the caller falls
+                    // back to the previous iteration's prompt size.
+                    Self::drain_accounting_chunks(&mut stream, usage).await;
+                    break;
+                }
                 next = stream.next() => match next {
                     Some(chunk) => chunk,
                     None => break,
@@ -114,6 +124,33 @@ impl BuiltInChatAgent {
         // decodes them through the GGUF's own chat-template parser (common_chat)
         // before returning. No text-level `<tool_call>` scraping is needed.
         Ok(tool_calls)
+    }
+
+    /// Fold any in-flight accounting chunks into `usage` after a cancellation.
+    ///
+    /// Bounded: stops at the first per-item timeout, at end of stream, or on
+    /// error, so a Stop never waits on a model that keeps generating. Content
+    /// chunks are deliberately dropped: the turn is frozen at its checkpoint
+    /// and only the measurement is worth salvaging.
+    async fn drain_accounting_chunks(
+        stream: &mut std::pin::Pin<
+            Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+        >,
+        usage: &mut TokenUsage,
+    ) {
+        const DRAIN_ITEM_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(200);
+        loop {
+            match tokio::time::timeout(DRAIN_ITEM_TIMEOUT, stream.next()).await {
+                Ok(Some(Ok(StreamChunk::Usage(chunk_usage)))) => {
+                    usage.merge(&chunk_usage);
+                }
+                Ok(Some(Ok(StreamChunk::Timings(timings)))) => {
+                    crate::perf_trace::iteration_engine_timings(&timings);
+                }
+                Ok(Some(Ok(_))) => {}
+                Ok(Some(Err(_)) | None) | Err(_) => break,
+            }
+        }
     }
 
     /// Extracts the content of `<think>...</think>` blocks from reasoning models.

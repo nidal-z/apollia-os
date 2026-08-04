@@ -3441,6 +3441,180 @@ async fn test_advance_on_submit_ignores_submit_while_executing() {
     ));
 }
 
+// ── Mock CompletionModel: streams text then a terminal usage chunk ───
+
+struct MockUsageModel {
+    tokens: Vec<String>,
+    prompt_tokens: u32,
+    completion_tokens: u32,
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for MockUsageModel {
+    async fn complete(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+        Ok(CompletionResponse {
+            engine_timings: None,
+            content: self.tokens.join(""),
+            tool_calls: vec![],
+            usage: TokenUsage {
+                prompt_tokens: self.prompt_tokens,
+                completion_tokens: self.completion_tokens,
+                cost_usd: None,
+                ..Default::default()
+            },
+            finish_reason: LlmFinishReason::Stop,
+            latency_ms: 1,
+            ttft_ms: None,
+        })
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<
+        std::pin::Pin<
+            Box<
+                dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                    + Send,
+            >,
+        >,
+        apollia_llm::types::LlmError,
+    > {
+        let mut chunks: Vec<Result<LlmStreamChunk, apollia_llm::types::LlmError>> = self
+            .tokens
+            .iter()
+            .map(|t| Ok(LlmStreamChunk::Text(t.clone())))
+            .collect();
+        // Terminal accounting chunk, as emitted by an OpenAI-compatible server
+        // when the request carries `stream_options.include_usage`.
+        chunks.push(Ok(LlmStreamChunk::Usage(TokenUsage {
+            prompt_tokens: self.prompt_tokens,
+            completion_tokens: self.completion_tokens,
+            cost_usd: None,
+            ..Default::default()
+        })));
+        Ok(Box::pin(futures::stream::iter(chunks)))
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+    fn backend_name(&self) -> &str {
+        "mock-usage"
+    }
+    fn model_id(&self) -> &str {
+        "mock"
+    }
+}
+
+use crate::chat::builtin_agent::stream::StreamConsumeParams;
+
+#[tokio::test]
+async fn test_consume_stream_cancel_folds_late_usage() {
+    // GIVEN a stream whose terminal usage chunk is already in flight and a
+    // stop token that fired before consumption started
+    let agent = plan_agent(None, false);
+    let chunks: Vec<Result<StreamChunk, apollia_llm::LlmError>> = vec![
+        Ok(StreamChunk::Text("late text".into())),
+        Ok(StreamChunk::Usage(TokenUsage {
+            prompt_tokens: 100,
+            completion_tokens: 7,
+            cost_usd: None,
+            ..Default::default()
+        })),
+    ];
+    let stream: std::pin::Pin<
+        Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+    > = Box::pin(futures::stream::iter(chunks));
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let mut accumulated = String::new();
+    let mut usage = TokenUsage::default();
+
+    // WHEN the stream is consumed under cancellation
+    let result = agent
+        .consume_stream(
+            stream,
+            StreamConsumeParams {
+                session_id: "sess-1",
+                message_id: "msg-1",
+                cancel: &cancel,
+                dispatched_at: std::time::Instant::now(),
+            },
+            &mut accumulated,
+            &mut usage,
+        )
+        .await;
+
+    // THEN the in-flight usage chunk is folded in, while the late content is
+    // dropped (the turn stays frozen at its checkpoint)
+    assert!(result.expect("consume ok").is_empty());
+    assert_eq!(usage.prompt_tokens, 100);
+    assert_eq!(usage.completion_tokens, 7);
+    assert!(accumulated.is_empty());
+}
+
+#[tokio::test]
+async fn test_react_loop_merges_stream_usage_into_response() {
+    // GIVEN a model that streams text then the terminal usage chunk
+    let model = Arc::new(MockUsageModel {
+        tokens: split_tokens("Bonjour !"),
+        prompt_tokens: 321,
+        completion_tokens: 21,
+    });
+    let router = make_router(model);
+    let tool_registry = ToolRegistryHandle::start();
+    let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: router,
+        tool_registry: tool_registry.clone(),
+        tool_invoker: invoker,
+        event_bus: make_event_bus(),
+        user_memory: None,
+        a2a_invoker: None,
+        todo: None,
+        plan: None,
+    });
+    let budget = make_budget(10);
+    let approvals = PendingChatApprovals::new();
+
+    // WHEN a chat turn runs
+    let resp = agent
+        .execute(
+            "sess-1",
+            "msg-1",
+            &RunId::new(),
+            "Salut",
+            &[],
+            "",
+            &[],
+            &HashSet::new(),
+            &approvals,
+            &budget,
+            None,
+            DEFAULT_CONTEXT_WINDOW_SIZE,
+            None,
+            None,
+            None,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("turn completes");
+
+    // THEN the streamed usage lands in the exchange accounting: total usage
+    // and the current context occupancy both reflect the terminal chunk
+    assert_eq!(resp.tokens_used.prompt_tokens, 321);
+    assert_eq!(resp.tokens_used.completion_tokens, 21);
+    assert_eq!(resp.context_tokens_used, 321);
+
+    tool_registry.shutdown().await;
+}
+
 #[test]
 fn test_executing_denies_proposal_tools_only() {
     // GIVEN an active plan mode in the executing phase

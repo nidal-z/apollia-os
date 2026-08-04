@@ -686,9 +686,14 @@ impl ChatSessionManager {
             }
         }
 
+        // `usage_reported = false` marks a turn whose backend path carries no
+        // token accounting (Agent mode, or a fully aborted generation); the
+        // zeros are then an absence of measurement, not a measurement.
         info!(
             session_id = %session_id,
-            tokens = tokens_used.prompt_tokens + tokens_used.completion_tokens,
+            prompt_tokens = tokens_used.prompt_tokens,
+            completion_tokens = tokens_used.completion_tokens,
+            usage_reported = tokens_used.prompt_tokens + tokens_used.completion_tokens > 0,
             "Chat exchange complete"
         );
 
