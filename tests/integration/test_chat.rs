@@ -627,28 +627,38 @@ async fn test_chat_libre_tool_call_hitl_accept() {
 /// Chat Libre: a session-scoped "Always Accept" auto-authorizes the tool for the
 /// rest of the session, so a later exchange runs it without asking again.
 ///
-/// Uses a non-code-executor tool on purpose: a code executor (bash/python) is
-/// deliberately never blanket-authorized (its always-accept downgrades to a
-/// one-time approval, see `chat/manager/exchange.rs` `is_code_executor`), so it
-/// would re-ask. Completion (not an approval, which pauses the turn) is the
-/// deterministic terminal signal here.
+/// Uses a tool that is approval-gated but is not a code executor. Both halves
+/// matter. A code executor (bash/python) is deliberately never
+/// blanket-authorized: its always-accept downgrades to a one-time approval (see
+/// `chat/manager/exchange.rs` `is_code_executor`), so it would re-ask and the
+/// test would prove nothing. A read-only tool is the opposite trap: `file_read`
+/// is not in the approval-gated set at all, so no `ChatApprovalRequired` is ever
+/// emitted for it and there is nothing to persist. `file_write` sits in the only
+/// band where this behaviour exists. Completion (not an approval, which pauses
+/// the turn) is the deterministic terminal signal here.
 #[tokio::test]
 async fn test_chat_libre_always_accept_persists_for_session() {
     // GIVEN mock LLM: exchange1 = tool_call → text, exchange2 = tool_call → text
     let model = MockChatModel::new(vec![
-        tool_call_response("file_read", serde_json::json!({"path": "/tmp/a.txt"})),
+        tool_call_response(
+            "file_write",
+            serde_json::json!({"path": "a.txt", "content": "first"}),
+        ),
         text_response("First response"),
-        tool_call_response("file_read", serde_json::json!({"path": "/tmp/b.txt"})),
+        tool_call_response(
+            "file_write",
+            serde_json::json!({"path": "b.txt", "content": "second"}),
+        ),
         text_response("Second response"),
     ]);
     let (handle, port, socket_path, mut event_rx) =
         start_chat_server(model, StepBudgetConfig::default()).await;
 
-    // Create a libre session that offers file_read.
+    // Create a libre session that offers file_write.
     let (_, session) = http_post(
         port,
         "/api/v1/sessions",
-        serde_json::json!({ "mode": "libre", "tools": ["file_read"] }),
+        serde_json::json!({ "mode": "libre", "tools": ["file_write"] }),
     )
     .await;
     let session_id = session["id"].as_str().expect("session id");
@@ -677,7 +687,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
             tool_call_id,
             ..
         }) => (message_id.clone(), tool_call_id.clone()),
-        _ => panic!("expected ChatApprovalRequired for the first file_read"),
+        _ => panic!("expected ChatApprovalRequired for the first file_write"),
     };
 
     let _ = http_post(
@@ -686,7 +696,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
         serde_json::json!({
             "message_id": msg_id,
             "tool_call_id": tool_call_id,
-            "tool_name": "file_read",
+            "tool_name": "file_write",
             "decision": "always_accept"
         }),
     )
@@ -700,7 +710,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
     )
     .await;
 
-    // Exchange 2: file_read is now session-authorized, so the turn runs to
+    // Exchange 2: file_write is now session-authorized, so the turn runs to
     // completion WITHOUT another approval.
     let _ = http_post(
         port,
