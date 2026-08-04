@@ -19,9 +19,19 @@ copied, because an unreferenced image in `static/` is a file that ships to every
 visitor and is served to no one.
 
 Usage:
-    python3 scripts/automation/tools/publish_screenshots.py --locale en
-    python3 scripts/automation/tools/publish_screenshots.py --locale en --apply
+    python3 scripts/automation/tools/publish_screenshots.py --locale both
+    python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
     python3 scripts/automation/tools/publish_screenshots.py --locale fr --from DIR
+
+`--locale both` is the normal case and the one `SCREENSHOTS.md` prescribes: one
+English capture set, copied into both image directories. The French pages
+reference `/img/operator-help/fr/`, so the directory has to exist and be filled,
+but the images in it are the English ones. Shooting the interface twice, once
+per language, doubled a day's work to produce a second set nobody compared
+against the first, and left the two halves of the site drifting apart whenever
+only one pass was redone.
+
+`--locale en` and `--locale fr` remain, for the day a locale genuinely diverges.
 
 The default source is `$APOLLIA_AUTOMATION_OUT`, falling back to the runner's own
 default under the system temp directory.
@@ -77,9 +87,10 @@ def main() -> int:
     parser.add_argument(
         "--locale",
         required=True,
-        choices=("en", "fr"),
-        help="which image set the run produced; the two locales are separate "
-        "directories because the interface language differs between them",
+        choices=("en", "fr", "both"),
+        help="which image directory to fill. 'both' publishes one English "
+        "capture set into en/ and fr/, which is what the site actually needs: "
+        "the French pages reference fr/ and there is only one set of images",
     )
     parser.add_argument("--apply", action="store_true", help="copy, rather than report")
     args = parser.parse_args()
@@ -106,13 +117,15 @@ def main() -> int:
     missing = sorted(wanted - produced.keys())
     extra = sorted(produced.keys() - wanted)
 
-    dest = IMG / args.locale
-    dest.mkdir(parents=True, exist_ok=True)
-    for name in published:
-        if args.apply:
-            shutil.copy2(produced[name], dest / name)
+    locales = ("en", "fr") if args.locale == "both" else (args.locale,)
+    for locale in locales:
+        dest = IMG / locale
+        dest.mkdir(parents=True, exist_ok=True)
+        for name in published:
+            if args.apply:
+                shutil.copy2(produced[name], dest / name)
     verb = "published" if args.apply else "would publish"
-    print(f"{verb} into {args.locale}/: {len(published)}")
+    print(f"{verb} into {'/, '.join(locales)}/: {len(published)}")
 
     if missing:
         print(f"\nmissing from this run ({len(missing)}), still stale on the site:")
