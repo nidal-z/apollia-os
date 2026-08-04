@@ -1,9 +1,13 @@
 <script lang="ts">
   /**
-   * SessionAuthSection - in-memory "For this session" tool authorizations.
+   * SessionAuthSection - the "For this session" tool authorizations.
    *
-   * These live only while the chat session is open and are never persisted;
-   * revoking one here removes it from the running session immediately.
+   * These are scoped to a chat session rather than to a rule, and revoking one
+   * here removes it from the running session immediately. They are not
+   * ephemeral, despite the wording that used to sit here: the runtime persists
+   * them to `chat_tool_authorizations` and `restore_sessions` reads them back
+   * into each active session at boot, so they survive a restart and a seeded
+   * profile shows them on first launch.
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";

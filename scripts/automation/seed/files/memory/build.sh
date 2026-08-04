@@ -18,8 +18,11 @@ seed_root="$(cd "${here}/../.." && pwd)"
 schema="${seed_root}/schemas/user_memory.sql"
 fragment="${seed_root}/fragments/user_memory.sql"
 
-# Namespaces == db file names. Colons are legal in file names on the target OS
-# and are what the UI classifies as "project".
+# Namespaces == db file names. A project namespace carries a colon, which the UI
+# reads as the project marker (classifyNamespace) but which is illegal in a
+# Windows path, so the checked-in file name percent encodes it and build-seed.sh
+# decodes it back into the throwaway HOME. Encode here, so the file that lands in
+# this directory is the one a Windows checkout can hold.
 namespaces=(
   "__user__"
   "apollia-guide"
@@ -28,6 +31,12 @@ namespaces=(
   "legacy-notes"
 )
 
+# Percent-encode the characters no Windows checkout accepts in a path. Only the
+# colon is used today; the function is the single place to extend.
+encode_ns() {
+  printf '%s' "${1//:/%3A}"
+}
+
 # The provided schema is a `.schema` dump that includes an explicit
 # `CREATE TABLE sqlite_sequence(...)`. That table is reserved and auto-created by
 # SQLite for the AUTOINCREMENT column in plan_choices, so executing the line
@@ -35,7 +44,7 @@ namespaces=(
 schema_sql="$(grep -v 'sqlite_sequence' "${schema}")"
 
 for ns in "${namespaces[@]}"; do
-  db="${here}/${ns}.db"
+  db="${here}/$(encode_ns "${ns}").db"
   rm -f "${db}"
   printf '%s\n' "${schema_sql}" | sqlite3 "${db}"
   sqlite3 "${db}" < "${fragment}"

@@ -1217,25 +1217,25 @@ async fn dismiss_onboarding_inner(state: &RuntimeHandle) -> Result<(), Onboardin
 
 /// Per-route contextual help texts displayed in the Companion panel.
 const COMPANION_CONTEXTS: &[(&str, &str)] = &[
-    ("dashboard", "Vous êtes sur le tableau de bord. Ici vous voyez un aperçu de vos agents actifs, les événements récents, et l'état du système. Posez-moi des questions sur la gestion de vos agents."),
-    ("agents", "Vous êtes sur la page Agents. Vous pouvez créer, configurer et surveiller vos agents IA. Chaque agent a un manifest Python avec les fonctions manifest() et run()."),
-    ("chat", "Vous êtes sur la page Chat. Vous pouvez converser avec un LLM local ou interagir avec vos agents via le Chat Libre. Les sessions sont sauvegardées localement."),
-    ("triggers", "Vous êtes sur la page Triggers. Les triggers déclenchent automatiquement des agents selon des conditions : cron, intervalle, surveillance de fichiers, ou webhooks."),
-    ("pipelines", "Vous êtes sur la page Pipelines. Les pipelines orchestrent plusieurs agents en séquence ou en parallèle avec topologie DAG, fan-out/fan-in, et points de validation humaine."),
-    ("memory", "Vous êtes sur la page Mémoire. Apollia offre 3 types de mémoire : épisodique (événements), sémantique (connaissances), et procédurale (savoir-faire). Recherche FTS5 intégrée."),
-    ("integrations", "Vous êtes sur la page Intégrations MCP. Connectez des serveurs MCP externes pour donner de nouveaux outils à vos agents via le protocole standard JSON-RPC 2.0."),
-    ("approvals", "Vous êtes sur la page Approbations. Les actions sensibles de vos agents peuvent nécessiter votre validation avant exécution (Human-in-the-Loop)."),
-    ("observability", "Vous êtes sur la page Observabilité. Suivez les traces d'exécution de vos agents, les métriques de performance, et les logs structurés en temps réel."),
-    ("notifications", "Vous êtes sur la page Notifications. Configurez les alertes desktop et webhooks pour être informé des événements importants de vos agents."),
-    ("transcriptions", "Vous êtes sur la page Transcriptions. Visualisez les transcriptions audio générées par le moteur STT Whisper intégré."),
-    ("llm", "Vous êtes sur la page LLM. Configurez les backends de modèles de langage : llama.cpp local, Ollama, ou API cloud (Anthropic, OpenAI) pour vos agents."),
-    ("settings", "Vous êtes sur la page Paramètres. Configurez les options globales d'Apollia : chemins, logs, limites de ressources, et préférences utilisateur."),
-    ("onboarding", "Vous êtes en cours d'onboarding. Je suis là pour vous guider à travers la découverte d'Apollia. N'hésitez pas à me poser des questions à chaque étape."),
+    ("dashboard", "You are on the dashboard. It gives you an overview of your active agents, the recent events and the state of the system. Ask me anything about running your agents."),
+    ("agents", "You are on the Agents page. You can create, configure and watch your AI agents here. Each agent is a Python module exposing manifest() and run()."),
+    ("chat", "You are on the Chat page. You can talk to a local model or work with your agents through the free chat. Sessions are stored on this machine."),
+    ("triggers", "You are on the Triggers page. Triggers start agents on their own, on a cron schedule, on an interval, when a file changes, or on an incoming webhook."),
+    ("pipelines", "You are on the Pipelines page. Pipelines chain several agents in sequence or in parallel, with a DAG topology, fan-out and fan-in, and human checkpoints."),
+    ("memory", "You are on the Memory page. Apollia keeps three kinds of memory: episodic for events, semantic for knowledge, procedural for know-how. Full-text search is built in."),
+    ("integrations", "You are on the MCP integrations page. Connect external MCP servers to give your agents new tools over the standard JSON-RPC 2.0 protocol."),
+    ("approvals", "You are on the Approvals page. Sensitive agent actions can require your go-ahead before they run, which is the human-in-the-loop safeguard."),
+    ("observability", "You are on the Observability page. Follow your agents' execution traces, their performance metrics and the structured logs as they happen."),
+    ("notifications", "You are on the Notifications page. Set up desktop alerts and webhooks so you hear about the events that matter on your agents."),
+    ("transcriptions", "You are on the Transcriptions page. Read back the audio transcripts produced by the built-in Whisper speech engine."),
+    ("llm", "You are on the LLM page. Configure the language model backends your agents use: local llama.cpp, Ollama, or a cloud API such as Anthropic or OpenAI."),
+    ("settings", "You are on the Settings page. Configure Apollia's global options: paths, logs, resource limits and your own preferences."),
+    ("onboarding", "You are in the middle of onboarding. I am here to walk you through Apollia. Ask me anything at any step."),
 ];
 
 /// Generic fallback when no route-specific context is available.
 const COMPANION_CONTEXT_FALLBACK: &str =
-    "Je suis votre assistant Apollia. Posez-moi n'importe quelle question sur l'application, vos agents, ou les fonctionnalités disponibles.";
+    "I am your Apollia assistant. Ask me anything about the application, your agents, or what it can do.";
 
 /// Returns the contextual help text for the given application route.
 ///
@@ -1473,6 +1473,32 @@ mod companion_tests {
             // THEN each route has a unique context text
             assert!(seen.insert(*ctx), "duplicate context text: {ctx}");
         }
+    }
+
+    #[test]
+    fn test_companion_contexts_are_written_in_one_language() {
+        // GIVEN the per-route Companion blurbs
+        //
+        // WHEN each is read
+        //
+        // THEN it reads in the codebase language. These strings are not
+        // translated anywhere: `get_companion_context` hands them to the
+        // frontend, which pushes them into the Companion session's system
+        // prompt, so a French blurb makes the model answer in French inside an
+        // English window. The assertion is on the opening words rather than on
+        // a non-ASCII scan, because the old fallback ("Je suis votre assistant
+        // Apollia...") was pure ASCII and a scan would have waved it through.
+        for (route, ctx) in COMPANION_CONTEXTS {
+            assert!(
+                ctx.starts_with("You are "),
+                "context for route '{route}' does not open in English: {ctx}"
+            );
+        }
+        assert!(COMPANION_CONTEXT_FALLBACK.starts_with("I am your Apollia assistant"));
+
+        // The negative case the scan would miss, spelled out so this test is
+        // known to be able to fail.
+        assert!(!"Je suis votre assistant Apollia.".starts_with("I am your Apollia assistant"));
     }
 }
 

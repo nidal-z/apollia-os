@@ -117,6 +117,14 @@ demo/
 /RD-*.md
 /TMP-*.md
 
+# Narrative seed overlay. The checked-in seed under scripts/automation/seed is a
+# test fixture: CI and the -det suite assert its exact row counts, so it stays
+# small and stable. The story the documentation screenshots tell is a different
+# artifact, personal to whoever shoots them, and it lives outside the public
+# repository (~/.apollia-seed-overlay by default). This path is the in-tree
+# convenience location for the same thing, ignored for the same reason.
+/scripts/automation/seed/overlay/
+
 # Figma <-> code provenance for the design system. Internal design bookkeeping:
 # it tracks in-flight design work and cites internal planning documents.
 /crates/apollia-desktop/ui/figma/MAPPING.md

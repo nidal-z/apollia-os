@@ -335,7 +335,7 @@ fn push_transition_event(
     events.push(GlobalTimelineEvent {
         event_type: "task".to_string(),
         timestamp: ts.to_string(),
-        summary: format!("[{agent_name}] Tâche → {status}{dur}"),
+        summary: format!("[{agent_name}] Task → {status}{dur}"),
         detail: serde_json::json!({
             "source": "hitl.db/tasks",
             "task_id": task_id,
@@ -384,7 +384,7 @@ fn scan_hitl_approvals(
             events.push(GlobalTimelineEvent {
                 event_type: "hitl".to_string(),
                 timestamp: suspended_at.clone(),
-                summary: format!("HITL en attente: {preview}"),
+                summary: format!("HITL pending: {preview}"),
                 detail: serde_json::json!({
                     "source": "hitl.db/task_approvals",
                     "task_id": task_id,
@@ -394,7 +394,7 @@ fn scan_hitl_approvals(
         }
         if let Some(ts) = resolved_at {
             if ts.as_str() >= cutoff_str {
-                let verdict = decision.as_deref().unwrap_or("résolu");
+                let verdict = decision.as_deref().unwrap_or("resolved");
                 events.push(GlobalTimelineEvent {
                     event_type: "hitl".to_string(),
                     timestamp: ts,
@@ -447,12 +447,12 @@ fn scan_chat_sessions(
         let title_label = title
             .as_deref()
             .map(|t| trim_for_summary(t, 60))
-            .unwrap_or_else(|| "(sans titre)".to_string());
+            .unwrap_or_else(|| "(untitled)".to_string());
         if created_at.as_str() >= cutoff_str {
             events.push(GlobalTimelineEvent {
                 event_type: "task".to_string(),
                 timestamp: created_at.clone(),
-                summary: format!("[{label}] Chat ouvert · {title_label}"),
+                summary: format!("[{label}] Chat opened · {title_label}"),
                 detail: serde_json::json!({
                     "source": "chat.db/chat_sessions",
                     "session_id": id,
@@ -468,7 +468,7 @@ fn scan_chat_sessions(
                 events.push(GlobalTimelineEvent {
                     event_type: "task".to_string(),
                     timestamp: ts,
-                    summary: format!("[{label}] Chat clos · {title_label}"),
+                    summary: format!("[{label}] Chat closed · {title_label}"),
                     detail: serde_json::json!({
                         "source": "chat.db/chat_sessions",
                         "session_id": id,
@@ -562,12 +562,7 @@ fn scan_trigger_history(
     for r in iter.flatten() {
         let (id, trigger_id, agent_name, ts, task_id, status, reason) = r;
         let event_type = if status == "error" { "error" } else { "task" };
-        let suffix = match status.as_str() {
-            "fired" => "déclenché",
-            "skipped" => "ignoré",
-            "error" => "en erreur",
-            other => other,
-        };
+        let suffix = trigger_status_label(&status);
         events.push(GlobalTimelineEvent {
             event_type: event_type.to_string(),
             timestamp: ts,
@@ -582,6 +577,40 @@ fn scan_trigger_history(
                 "reason": reason,
             }),
         });
+    }
+}
+
+/// Human label for a `trigger_history.status` value, as shown in the timeline.
+///
+/// Timeline summaries are built here, not translated in the frontend, so they
+/// follow the codebase language rather than the interface language. An unknown
+/// status is passed through untouched: it is a raw value from the database and
+/// inventing a label for it would hide a schema drift.
+fn trigger_status_label(status: &str) -> &str {
+    match status {
+        "fired" => "fired",
+        "skipped" => "skipped",
+        "error" => "in error",
+        other => other,
+    }
+}
+
+/// Timeline event type and summary for a `runtime_events.kind`.
+///
+/// Split out of the scan so the mapping can be asserted without a database.
+/// An unknown kind falls back to the task lane with the raw kind in the
+/// summary, which surfaces a new event kind instead of swallowing it.
+fn runtime_event_label(kind: &str, agent_label: &str) -> (&'static str, String) {
+    match kind {
+        "thought" => ("task", format!("[{agent_label}] Reasoning")),
+        "agent_log" => ("task", format!("[{agent_label}] Log")),
+        "action_parse_error" => ("error", format!("[{agent_label}] Parse error")),
+        "tool_call_denied" => ("hitl", format!("[{agent_label}] Tool denied")),
+        "memory_write" => ("memory", format!("[{agent_label}] Memory written")),
+        "memory_read" => ("memory", format!("[{agent_label}] Memory read")),
+        "a2a_delegate" => ("a2a", format!("[{agent_label}] A2A delegation")),
+        "a2a_response" => ("a2a", format!("[{agent_label}] A2A response")),
+        other => ("task", format!("[{agent_label}] {other}")),
     }
 }
 
@@ -621,17 +650,7 @@ fn scan_runtime_events(
     for r in iter.flatten() {
         let (event_id, task_id, agent_id, kind, payload_json, ts) = r;
         let agent_label = label_for(&agent_id, labels);
-        let (event_type, summary) = match kind.as_str() {
-            "thought" => ("task", format!("[{agent_label}] Raisonnement")),
-            "agent_log" => ("task", format!("[{agent_label}] Log")),
-            "action_parse_error" => ("error", format!("[{agent_label}] Erreur de parsing")),
-            "tool_call_denied" => ("hitl", format!("[{agent_label}] Outil refusé")),
-            "memory_write" => ("memory", format!("[{agent_label}] Mémoire écrite")),
-            "memory_read" => ("memory", format!("[{agent_label}] Mémoire lue")),
-            "a2a_delegate" => ("a2a", format!("[{agent_label}] Délégation A2A")),
-            "a2a_response" => ("a2a", format!("[{agent_label}] Réponse A2A")),
-            other => ("task", format!("[{agent_label}] {other}")),
-        };
+        let (event_type, summary) = runtime_event_label(&kind, &agent_label);
         let payload: serde_json::Value =
             serde_json::from_str(&payload_json).unwrap_or(serde_json::json!({}));
         events.push(GlobalTimelineEvent {
@@ -1217,6 +1236,57 @@ fn query_mailbox_db(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_timeline_summaries_are_written_in_one_language() {
+        // GIVEN every runtime event kind the timeline surfaces, and every
+        // trigger status it labels
+        //
+        // WHEN their summaries are built
+        //
+        // THEN each reads in the codebase language. These strings are produced
+        // here and rendered verbatim, with no translation layer between, so a
+        // French label lands untouched in the English interface. The assertion
+        // is on the exact wording rather than on a non-ASCII scan, because
+        // "Raisonnement" is pure ASCII and a scan would wave it through.
+        let expected = [
+            ("thought", "task", "[atlas-scribe] Reasoning"),
+            ("agent_log", "task", "[atlas-scribe] Log"),
+            ("action_parse_error", "error", "[atlas-scribe] Parse error"),
+            ("tool_call_denied", "hitl", "[atlas-scribe] Tool denied"),
+            ("memory_write", "memory", "[atlas-scribe] Memory written"),
+            ("memory_read", "memory", "[atlas-scribe] Memory read"),
+            ("a2a_delegate", "a2a", "[atlas-scribe] A2A delegation"),
+            ("a2a_response", "a2a", "[atlas-scribe] A2A response"),
+        ];
+        for (kind, lane, summary) in expected {
+            assert_eq!(
+                runtime_event_label(kind, "atlas-scribe"),
+                (lane, summary.to_string())
+            );
+        }
+
+        assert_eq!(trigger_status_label("fired"), "fired");
+        assert_eq!(trigger_status_label("skipped"), "skipped");
+        assert_eq!(trigger_status_label("error"), "in error");
+    }
+
+    #[test]
+    fn test_runtime_event_label_routes_kinds_to_their_timeline_lane() {
+        // GIVEN the kinds the timeline filter chips split on
+        // WHEN each is labelled
+        // THEN it lands in the lane its chip filters, and an unknown kind falls
+        // back to the task lane carrying its raw name rather than disappearing
+        assert_eq!(runtime_event_label("thought", "a").0, "task");
+        assert_eq!(runtime_event_label("action_parse_error", "a").0, "error");
+        assert_eq!(runtime_event_label("memory_write", "a").0, "memory");
+        assert_eq!(runtime_event_label("a2a_delegate", "a").0, "a2a");
+        assert_eq!(runtime_event_label("tool_call_denied", "a").0, "hitl");
+
+        let (lane, summary) = runtime_event_label("brand_new_kind", "atlas-scribe");
+        assert_eq!(lane, "task");
+        assert!(summary.contains("brand_new_kind"), "got {summary}");
+    }
 
     #[test]
     fn test_hitl_prompt_preview_cuts_on_char_boundary() {

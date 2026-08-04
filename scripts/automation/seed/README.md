@@ -35,12 +35,68 @@ works. The seed dir is rebuilt (`rm -rf`) on every run, so it is always clean.
 - `files/` : on-disk artifacts copied verbatim into `<SEED_HOME>/.apollia/` :
   - `agents/<name>/` (+ `packages/`) : installed-agent dirs (manifest + agent.py).
   - `memory/<namespace>.db` : one memory DB per namespace (file-scoped store).
+    The file stem IS the namespace, and a project namespace carries a colon,
+    which no Windows checkout can hold, so those file names store it percent
+    encoded (`%3A`) and the builder decodes them into the throwaway HOME.
   - `models/*.gguf` : tiny placeholder GGUFs (the scanner stats name+size only).
   - `mcp-stub-server.py` : a stdlib stdio MCP server the seeded rows spawn (the
     connections sidebar only lists servers whose handshake succeeds at boot).
   - `apollia.toml` : pins the chat file-tool workspace to the repo.
-- `build-seed.sh` : assembles the ecosystem (schema then fragment per DB, copy
-  files, rewrite `install_path` / package `root_path` / the MCP stub path).
+- `build-seed.sh` : assembles the ecosystem (schema then fragment per DB, apply
+  the overlay, copy files, rewrite `install_path` / package `root_path` / the
+  MCP stub path).
+- `self-test.sh` : a few seconds, sqlite3 only. Asserts the base row counts CI
+  depends on, that an overlay is applied when asked for and never otherwise,
+  that a missing overlay stops the build, and that every memory file stem
+  resolves to its own rows. Runs in the `cli-e2e` CI job.
+
+## Environment
+
+| Variable | Default | Effect |
+|---|---|---|
+| `APOLLIA_SEED_OVERLAY` | unset | Directory of extra `schemas/`, `fragments/` and `files/` applied on top of the checked-in seed. Set but missing is a hard error. |
+| `APOLLIA_SEED_PROJECT_ROOT` | this checkout | What `__APOLLIA_SEED_WORKSPACE__` expands to: the path the seeded project, provider and permission rows display. |
+| `APOLLIA_SEED_HOME_ALIAS` | `SEED_HOME` | What `__APOLLIA_SEED_HOME__` expands to. `load.sh` sets it, because it builds into a staging directory and moves the result elsewhere. |
+
+## Overlay
+
+The checked-in seed is a **test fixture**. `tests/cli/cli-e2e.sh` runs on every
+pull request and asserts its exact contents (project name, session ids, MCP
+server names), and the desktop `-det` suite asserts its row counts. It therefore
+stays small, stable, and public.
+
+The **narrative** seed is a different artifact: a coherent usage history whose
+job is to make every documentation screenshot show something credible and
+consistent with the neighbouring pages. It belongs to whoever shoots the
+screenshots, it changes with the story they want to tell, and it has no business
+in a public repository. It lives outside the checkout:
+
+```sh
+~/.apollia-seed-overlay/          # the default, picked up by load.sh
+  schemas/<db>.sql                # databases the checked-in seed has none of
+  fragments/<db>.sql              # extra rows, replayed AFTER the base fragment
+  files/{agents,memory,models}/   # extra on-disk artifacts, copied over the base
+  files/apollia.toml              # replaces the base config wholesale, if present
+```
+
+Same placeholders as the checked-in fragments (`__APOLLIA_SEED_WORKSPACE__`,
+`__APOLLIA_SEED_HOME__`), expanded identically.
+
+Who turns it on:
+
+- `load.sh`, the human screenshot path, turns it on by default when
+  `~/.apollia-seed-overlay` exists, and prints which one it used. It prints just
+  as clearly when there is none.
+- `build-seed.sh` called directly, by CI and by the `just` recipes, leaves it
+  off unless `APOLLIA_SEED_OVERLAY` is set. That is deliberate: an operator with
+  an overlay in their home must still be able to run the assertion suite and get
+  the same counts CI gets.
+
+**If you cloned this repository, you do not have an overlay, and there is no way
+to get one.** Nothing here depends on it: `just desktop-dev-automation-seeded`,
+`master-det.json` and the CLI E2E suite all run on the checked-in seed alone,
+which is the only configuration they are ever asserted against. What you lose is
+the screenshot story, which is a documentation concern, not a test one.
 
 ## What is seeded (per subsystem, traced to the real read-path)
 

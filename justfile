@@ -412,7 +412,12 @@ desktop-dev-automation-seeded script: runners-dev-macos
     SEED_HOME="${APOLLIA_SEED_HOME:-$PWD/.apollia-seed-home}"
     # The seed builder lives next to the script (scripts/automation/seed/), which
     # may be in a worktree while the app is run from main. Derive it from the script.
-    bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    #
+    # `env -u APOLLIA_SEED_OVERLAY`: the narrative overlay is for the screenshot
+    # session, not for assertions. A maintainer who exports it in their shell
+    # would otherwise change the row counts this suite asserts on, and the
+    # failures would read as product regressions.
+    env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
     # Preserve the toolchain env (defaults derive from the REAL home) before the swap.
     export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
@@ -486,7 +491,8 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     mkdir -p "$OUT"
     OUT="$(cd "$OUT" >/dev/null 2>&1 && pwd)"
     SEED_HOME="${APOLLIA_SEED_HOME:-$PWD/.apollia-seed-home}"
-    bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    # See the deterministic recipe above for why the overlay is unset here.
+    env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
     export CARGO_HOME="${CARGO_HOME:-$REAL_HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$REAL_HOME/.rustup}"
     # Build PyO3 against the SAME interpreter the app will run with, which is

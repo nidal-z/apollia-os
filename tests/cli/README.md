@@ -47,6 +47,12 @@ phase, so the reference fixtures a later assertion depends on are never mutated,
 and the real `~/.apollia` is never touched. Isolation is a `HOME` swap: the CLI
 resolves everything from `$HOME/.apollia` and `$HOME/.config/apollia`.
 
+The builder also accepts a narrative overlay (`APOLLIA_SEED_OVERLAY`), used to
+give the documentation screenshots a coherent usage history. This suite never
+sets it, and the builder never applies one unless asked, so the content asserted
+below is the committed fixture and nothing else. See
+`scripts/automation/seed/README.md`, section Overlay.
+
 Seeded content asserted by the tracks (fixed ids, fixed `2026-07-01` data):
 2 projects, 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents
 (+ 1 package), 3 LLM backends (`local-qwen` default), 4 triggers, 2 notify

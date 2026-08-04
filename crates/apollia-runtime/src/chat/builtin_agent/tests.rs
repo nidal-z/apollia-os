@@ -990,7 +990,7 @@ async fn test_tool_call_hitl_refuse() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par l'utilisateur")
+        Some("Tool refused by the operator")
     );
 
     tool_registry.shutdown().await;
@@ -4124,7 +4124,7 @@ async fn test_prefix_rule_ignores_chained_command_hitl_still_raised() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par l'utilisateur")
+        Some("Tool refused by the operator")
     );
 }
 
@@ -4161,7 +4161,7 @@ async fn test_prefix_rule_deny_wins_longest_prefix_without_hitl() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par une règle de permission")
+        Some("Tool refused by a permission rule")
     );
 }
 
@@ -4192,7 +4192,7 @@ async fn test_blanket_executor_rule_never_auto_approves() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par l'utilisateur")
+        Some("Tool refused by the operator")
     );
 }
 
@@ -4233,7 +4233,7 @@ async fn test_prefix_rule_scopes_ordinary_tool_argument() {
     assert_eq!(outside.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         outside.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par l'utilisateur")
+        Some("Tool refused by the operator")
     );
 }
 
@@ -4264,7 +4264,7 @@ async fn test_no_checker_keeps_hitl_behavior() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par l'utilisateur")
+        Some("Tool refused by the operator")
     );
 }
 
@@ -4296,7 +4296,7 @@ async fn test_deny_rule_wins_over_name_authorized_tool() {
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
-        Some("Outil refusé par une règle de permission")
+        Some("Tool refused by a permission rule")
     );
 }
 

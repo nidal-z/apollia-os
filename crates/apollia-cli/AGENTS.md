@@ -112,8 +112,9 @@ CLI sweep. Do not regress.
 ## 5. End-to-end tests
 
 `tests/cli/cli-e2e.sh` at the repo root : an orchestrator over a fixed,
-deterministically-seeded HOME (the shared `scripts/automation/seed` fixture),
-producing `tests/cli/report/report.{json,md}`. Three tracks :
+deterministically-seeded HOME (the shared `scripts/automation/seed` fixture,
+never its optional narrative overlay), producing
+`tests/cli/report/report.{json,md}`. Three tracks :
 - Track 1 (OFFLINE) : every daemon-free command against the seeded HOME,
   asserting KNOWN content + the exit-code contract. Runs on every PR.
 - Track 2 (RUNTIME, opt-in `APOLLIA_REQUIRE_RUNTIME=1`) : daemon on the seeded

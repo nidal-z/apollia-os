@@ -764,7 +764,7 @@ impl ChatSessionManager {
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
-            content: format!("[Erreur : {error}]"),
+            content: format!("[Error: {error}]"),
             run_id,
         });
 
