@@ -259,12 +259,11 @@ impl LlmProxy {
         let capture_backend = backend_label.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            // Inject the authoritative current-date / system block at the
-            // top of the system message so the LLM never falls back to its
-            // training cutoff for "today"-type queries. Mirrors what
-            // Chat Libre's `build_system_prompt` does.
-            let system_with_context =
-                apollia_core::temporal_context::prepend_temporal_context(&system);
+            // Inject the authoritative current-date and host-environment
+            // blocks at the top of the system message so the LLM never falls
+            // back to its training cutoff for "today"-type queries nor guesses
+            // the host OS. Mirrors what Chat Libre's `build_system_prompt` does.
+            let system_with_context = prepend_context_blocks(&system);
             let req = CompletionRequest {
                 messages: vec![
                     ChatMessage::system(system_with_context),
@@ -327,9 +326,10 @@ impl LlmProxy {
         let budget = Arc::clone(&self.budget_view);
         let bus = self.event_bus.clone();
         let concurrency = max_concurrency.unwrap_or(DEFAULT_MAP_CONCURRENCY).max(1);
-        // Prepend the temporal context ONCE to the shared prefix so every item's
-        // system message stays byte-identical (see method doc: prefix-cache hits).
-        let system_prefix = apollia_core::temporal_context::prepend_temporal_context(&prefix);
+        // Prepend the temporal and host-environment context ONCE to the shared
+        // prefix so every item's system message stays byte-identical (see
+        // method doc: prefix-cache hits).
+        let system_prefix = prepend_context_blocks(&prefix);
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let sem = Arc::new(tokio::sync::Semaphore::new(concurrency));
@@ -779,12 +779,43 @@ impl PyTokenStream {
 
 // Private conversion functions
 
-/// Inject the authoritative temporal/environment block into a multi-turn
-/// message list. If the first message is a `system` role, prepend the block
-/// to its text. Otherwise insert a brand-new `system` message at index 0.
+/// Render the host-environment block for the bridge layer.
+///
+/// Gathering lives in `apollia-tools`, rendering in `apollia-prompts`; the
+/// workspace root is not known at this layer, so the block reports the
+/// generic session-root wording.
+fn host_environment_block() -> String {
+    let env = apollia_tools::host_env::gather_host_environment(None);
+    let shell = env.posix_shell.as_ref().map(|p| p.display().to_string());
+    apollia_prompts::blocks::environment_block(
+        env.os,
+        env.os_version.as_deref(),
+        env.arch,
+        shell.as_deref(),
+        None,
+    )
+}
+
+/// Prepend the temporal block and the host-environment block to `system`.
+///
+/// Both are authoritative "here and now" facts and sit at the top, in that
+/// order, mirroring Chat Libre's `build_system_prompt`.
+fn prepend_context_blocks(system: &str) -> String {
+    apollia_core::temporal_context::prepend_temporal_context(&format!(
+        "{}\n\n{}",
+        host_environment_block(),
+        system
+    ))
+}
+
+/// Inject the authoritative temporal + host-environment blocks into a
+/// multi-turn message list. If the first message is a `system` role, prepend
+/// the blocks to its text. Otherwise insert a brand-new `system` message at
+/// index 0.
 ///
 /// Keeps Python agents on the real wall clock for "today"/"now"/relative
-/// dates without requiring the agent author to remember anything.
+/// dates, and on the real host OS for shell and path decisions, without
+/// requiring the agent author to remember anything.
 fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<ChatMessage> {
     use apollia_llm::types::{MessageContent, Role};
 
@@ -796,7 +827,7 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
     if is_first_system {
         if let Some(first) = messages.first_mut() {
             if let MessageContent::Text(ref text) = first.content {
-                let merged = apollia_core::temporal_context::prepend_temporal_context(text);
+                let merged = prepend_context_blocks(text);
                 first.content = MessageContent::Text(merged);
             }
             // Non-text system content (rare): leave untouched and prepend
@@ -805,7 +836,11 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
     } else {
         messages.insert(
             0,
-            ChatMessage::system(apollia_core::temporal_context::temporal_context_block()),
+            ChatMessage::system(format!(
+                "{}\n{}",
+                apollia_core::temporal_context::temporal_context_block(),
+                host_environment_block()
+            )),
         );
     }
     messages

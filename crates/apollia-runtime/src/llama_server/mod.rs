@@ -344,6 +344,30 @@ impl LlamaServerSupervisor {
         });
     }
 
+    /// Build a supervisor that holds no instance, for the teardown tests.
+    ///
+    /// `new` locates the `llama-server` binary, which is absent on a CI runner;
+    /// the teardown path only walks the (empty) instance list.
+    #[cfg(test)]
+    pub(crate) fn for_tests() -> Self {
+        Self {
+            bin_path: PathBuf::from("/nonexistent/llama-server"),
+            n_ctx: 32_768,
+            max_loaded: 1,
+            config: Arc::new(Mutex::new(LlamaServerConfig::default())),
+            instances: Arc::new(Mutex::new(Vec::new())),
+            tick: Arc::new(AtomicU64::new(0)),
+            respawn_lock: Arc::new(Mutex::new(())),
+            shutting_down: Arc::new(Mutex::new(false)),
+        }
+    }
+
+    /// Whether a shutdown has been requested. Test-only observation point.
+    #[cfg(test)]
+    pub(crate) async fn is_shutting_down(&self) -> bool {
+        *self.shutting_down.lock().await
+    }
+
     /// Stop every server without consuming the supervisor (for the exit hook).
     pub async fn shutdown_in_place(&self) {
         *self.shutting_down.lock().await = true;
@@ -426,7 +450,12 @@ impl LlamaServerSupervisor {
             "llama_server_path": self.bin_path.display().to_string(),
         }));
 
-        let mut child = Command::new(&self.bin_path)
+        let mut server_cmd = Command::new(&self.bin_path);
+        // Same reason as the runner: a console-subsystem child of a GUI parent
+        // gets its own terminal window on Windows, one per resident model, and
+        // the supervision loop below reopens it on every respawn.
+        apollia_core::subprocess_window::hide_console_async(&mut server_cmd);
+        let mut child = server_cmd
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

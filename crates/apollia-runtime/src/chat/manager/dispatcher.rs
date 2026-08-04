@@ -60,7 +60,17 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     extra_executors.extend(crate::connectors_bridge::build_google_executors());
     extra_executors.extend(crate::connectors_bridge::build_microsoft_executors());
 
-    let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
+    // With no project open, the file tools are rooted at the user's home, not at
+    // the system temp directory. Temp made the assistant unable to reach anything
+    // the user actually owns, while protecting nothing: the trust model already
+    // states that an installed agent runs with the user's rights, and the real
+    // barrier on this path is the human approval on `file_write` / `file_edit`.
+    // It also contradicted the prompt, which tells the model it may read and write
+    // anywhere on the machine. Temp remains the last-resort fallback when the home
+    // directory cannot be resolved.
+    let sandbox_root = workspace_path
+        .clone()
+        .unwrap_or_else(apollia_core::paths::home_dir_or_temp);
 
     // When the supervisor handed us a `ChatToolsConfig`, build the full native
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This

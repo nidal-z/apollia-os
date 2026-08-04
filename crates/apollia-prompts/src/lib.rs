@@ -93,6 +93,61 @@ mod tests {
     }
 
     #[test]
+    fn environment_block_contains_all_supplied_fields() {
+        // GIVEN every fact supplied
+        let block = blocks::environment_block(
+            "macos",
+            Some("15.5"),
+            "aarch64",
+            Some("/bin/sh"),
+            Some("/Users/x/workspace"),
+        );
+
+        // WHEN reading the rendered block
+        // THEN each fact appears under the stable header
+        assert!(block.starts_with("## HOST ENVIRONMENT"));
+        assert!(block.contains("macos 15.5 (aarch64)"));
+        assert!(block.contains("/bin/sh"));
+        assert!(block.contains("/Users/x/workspace"));
+        assert!(block.contains("Do not assume a different OS"));
+    }
+
+    #[test]
+    fn environment_block_names_shell_prerequisite_when_absent() {
+        // GIVEN a host with no POSIX shell (Windows before Git Bash/WSL)
+        let block = blocks::environment_block("windows", None, "x86_64", None, None);
+
+        // WHEN reading the shell line
+        // THEN it names the providers of the missing prerequisite
+        assert!(block.contains("Git Bash"), "missing Git Bash: {block}");
+        assert!(block.contains("WSL"), "missing WSL: {block}");
+        assert!(block.contains("bash_executor will fail"));
+    }
+
+    #[test]
+    fn environment_block_never_says_sandbox() {
+        // GIVEN both shapes of the block
+        let with_all = blocks::environment_block(
+            "linux",
+            Some("Ubuntu 24.04"),
+            "x86_64",
+            Some("/bin/sh"),
+            Some("/home/x"),
+        );
+        let with_none = blocks::environment_block("windows", None, "x86_64", None, None);
+
+        // WHEN scanning for the reserved word
+        // THEN "sandbox" is absent: the docs reserve it for OS confinement,
+        // and the filesystem root is a path check, not confinement
+        for block in [with_all, with_none] {
+            assert!(
+                !block.to_lowercase().contains("sandbox"),
+                "environment block must not use the word sandbox: {block}"
+            );
+        }
+    }
+
+    #[test]
     fn test_blocks_are_english_no_french_accents() {
         // GIVEN every static block that should be English-only
         let corpus = [

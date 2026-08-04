@@ -153,6 +153,43 @@ pub struct RuntimeHandle {
     pub chat_tool_turn_temperature: Option<f32>,
 }
 
+impl RuntimeHandle {
+    /// Kill every child process the runtime owns, before the host exits.
+    ///
+    /// `kill_on_drop(true)` on each child is not enough here: a host that calls
+    /// `AppHandle::exit` terminates the process before the managed handle is
+    /// dropped, so the destructors never run and the children are orphaned.
+    ///
+    /// Both supervisors, deliberately. The exit hook used to stop the runner
+    /// only, which left `llama-server` alive with its VRAM and its loopback
+    /// port held after the application had quit.
+    pub async fn stop_child_processes(&self) {
+        stop_supervisors(
+            self.runner_supervisor.as_deref(),
+            self.llama_server_supervisor.as_deref(),
+        )
+        .await;
+    }
+}
+
+/// The teardown itself, over the two supervisors rather than the whole handle,
+/// so it is reachable from a test that cannot assemble a full [`RuntimeHandle`].
+///
+/// Deliberately not named after the method above: `stop_child_processes` is
+/// guarded by a claim whose whole point is that a caller outside this file
+/// exists, and a same-named inner call would satisfy that check on its own.
+async fn stop_supervisors(
+    runner: Option<&crate::runner_supervisor::RunnerSupervisor>,
+    llama_server: Option<&crate::llama_server::LlamaServerSupervisor>,
+) {
+    if let Some(runner) = runner {
+        runner.shutdown_in_place().await;
+    }
+    if let Some(llama_server) = llama_server {
+        llama_server.shutdown_in_place().await;
+    }
+}
+
 /// Error returned by [`init_embedded()`].
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddedError {
@@ -581,5 +618,36 @@ mod tests {
 
         // THEN it wraps correctly
         assert!(embedded_err.to_string().contains("test"));
+    }
+
+    #[tokio::test]
+    async fn test_teardown_stops_the_inference_engine_too() {
+        // GIVEN a runtime that owns both child processes
+        let runner = crate::runner_supervisor::RunnerSupervisor::for_tests();
+        let llama_server = crate::llama_server::LlamaServerSupervisor::for_tests();
+
+        // WHEN the host tears its children down on exit
+        stop_supervisors(Some(&runner), Some(&llama_server)).await;
+
+        // THEN neither survives. The engine half is the regression this guards:
+        // the exit hook stopped the runner only, and `llama-server` stayed
+        // resident after the application had quit.
+        assert!(
+            runner.is_shutting_down().await,
+            "the runner was left running after exit"
+        );
+        assert!(
+            llama_server.is_shutting_down().await,
+            "llama-server was left running after exit"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_teardown_tolerates_a_runtime_without_children() {
+        // GIVEN a runtime that started neither supervisor (boot failure, or a
+        // build with no local engine)
+        // WHEN the host tears its children down
+        // THEN it is a no-op rather than a panic on exit
+        stop_supervisors(None, None).await;
     }
 }

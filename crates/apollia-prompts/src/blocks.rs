@@ -225,3 +225,40 @@ pub fn persona_block(brief: &str) -> String {
          response. Do not repeat this information back to the user unless asked.\n\n{brief}"
     )
 }
+
+/// Render the host-environment block from caller-gathered facts.
+///
+/// This crate does no I/O, so every fact is a parameter: the caller gathers
+/// them (e.g. `apollia_tools::host_env::gather_host_environment`) and this
+/// function only formats. The block tells the agent which OS it is driving
+/// so it stops wasting turns on commands the host cannot run.
+///
+/// The word "sandbox" is deliberately absent: the filesystem root is a path
+/// check on the file tools, not OS confinement, and the documentation
+/// reserves the word for the latter.
+pub fn environment_block(
+    os: &str,
+    os_version: Option<&str>,
+    arch: &str,
+    posix_shell: Option<&str>,
+    fs_root: Option<&str>,
+) -> String {
+    let os_line = match os_version {
+        Some(version) => format!("- OS: {os} {version} ({arch})"),
+        None => format!("- OS: {os} ({arch})"),
+    };
+    let shell_line = match posix_shell {
+        Some(shell) => format!("- POSIX shell for bash_executor: {shell}"),
+        None => "- POSIX shell for bash_executor: none found; bash_executor will fail \
+                 until Git Bash, MSYS2 or WSL provides bash on PATH"
+            .to_string(),
+    };
+    let root_line = match fs_root {
+        Some(root) => format!("- File tools operate under: {root}"),
+        None => "- File tools operate under: the session workspace root".to_string(),
+    };
+    format!(
+        "## HOST ENVIRONMENT\n{os_line}\n{shell_line}\n{root_line}\n\
+         Match your shell syntax and paths to this host. Do not assume a different OS."
+    )
+}
