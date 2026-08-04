@@ -113,7 +113,7 @@
       {$t("chat.planMode.empty")}
     </p>
   {:else}
-    <ol class="mb-4 max-h-[32vh] space-y-1.5 overflow-y-auto pr-1 text-sm">
+    <ol class="mb-4 max-h-72 space-y-1.5 overflow-y-auto overscroll-contain pr-1 text-sm">
       {#each steps as step, i (step.step_id)}
         <li
           class="flex items-start gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5"
