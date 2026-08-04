@@ -1292,3 +1292,40 @@ messages, and a whole test campaign chased it as a token-accounting bug. If
 this evidence stops matching, streamed turns stop reporting usage and the
 gauge quietly degrades to `--` on every local turn.
 """
+
+[[claim]]
+id = "about-reports-resolved-data-dir"
+scope = "public"
+symbol = "get_system_info"
+status = "wired"
+proof = "crates/apollia-desktop/src/main.rs"
+evidence = "commands::config::get_system_info,"
+note = """
+The page tells an operator that the path on the About screen is the one this
+installation resolved, and to trust it over any path written in a guide. That
+instruction is only safe while the value reaches the screen from the runtime:
+the moment the command stops being registered, the section renders empty and
+the page still says to trust it.
+
+What this entry guards is the reach: `get_system_info` is invoked from the
+webview by name, so an unregistered command is a silently dead panel, and the
+Tauri handler list is the only place that registration exists.
+
+Verified by mutation rather than by reading: deleting the handler line fails
+this claim, and restoring it passes. That result deserves a caveat, because it
+holds for a reason nobody chose. The needle is the last path segment, and
+`onboarding.rs` calls a different function, `get_system_info_sync`, whose name
+contains it as a substring; those calls sit below an inline `#[cfg(test)]` at
+line 1388, so `strip_test_code` cuts the file before reaching them. Move that
+inline test block below the calls and this claim starts passing on the strength
+of a function the About page never invokes. The collision is real, its
+neutralisation is incidental.
+
+What it does not guard at all. Two other things carry the rest:
+`SystemInfo::data_dir` is filled from
+`apollia_core::paths::data_dir()` rather than a literal `~/.apollia`, which the
+test `test_system_info_reports_the_resolved_data_directory` asserts by checking
+the value is absolute, rooted in the resolved home, suffixed with
+`DATA_DIR_NAME` and free of any `~`; and the rendering itself is Svelte, which
+this file states up front it cannot reach.
+"""

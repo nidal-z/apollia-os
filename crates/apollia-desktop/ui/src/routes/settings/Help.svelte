@@ -18,8 +18,9 @@
   import HelpFaq from "../../components/settings/help/HelpFaq.svelte";
 
   // The hero CTA opens the operator help center, published from docs/site by
-  // CI. This page is a map, not a copy: it points at the 48 published guides
-  // rather than duplicating them, so the two never drift apart.
+  // CI. This page is a map, not a copy: it points at the published guides
+  // rather than duplicating them, so the two never drift apart. No count here
+  // on purpose, the corpus grows and a number in a comment goes stale silently.
   const HELP_CENTER_URL = "https://docs.apollia.fr/operator-help";
 
   const faqIds = ["offline", "model", "data", "shortcuts"] as const;

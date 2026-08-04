@@ -314,6 +314,40 @@ def check_font_cdn_detector_fires() -> None:
         f"reports success for the same reason a compliant tree does",
     )
 
+    # Volume is not coverage. The first version of this gate scanned over a
+    # thousand files and still missed `ui/overlay.html`, the webview's second
+    # entry point, which is exactly the kind of file a pasted <link> lands in.
+    # Assert the entry points by name, and pair it with a negative case, or this
+    # is one more verifier that only knows how to pass.
+    case(
+        "every declared entry point is inside the scanned set",
+        not fontcdn.uncovered_required(),
+        f"outside the scan: {fontcdn.uncovered_required()!r}. A gate that walks "
+        f"src/ and skips the HTML entry point guards the half nobody edits",
+    )
+
+    narrowed = fontcdn.SCAN_ROOTS
+    try:
+        fontcdn.SCAN_ROOTS = [Path("docs/site/src")]
+        case(
+            "negative control: narrowing the roots is reported, not tolerated",
+            bool(fontcdn.uncovered_required()),
+            "the coverage assertion stayed silent while the roots were cut back "
+            "to a single subdirectory, so it would never notice the drift it "
+            "exists to catch",
+        )
+    finally:
+        fontcdn.SCAN_ROOTS = narrowed
+
+    covers_app = any("apollia-desktop" in str(p) for p in scanned)
+    covers_site = any("docs/site" in str(p) for p in scanned)
+    case(
+        "the scan reaches both the app and the documentation site",
+        covers_app and covers_site,
+        f"app covered: {covers_app}, site covered: {covers_site}. The promise is "
+        f"broken by whichever of the two nobody scanned",
+    )
+
 
 def main() -> int:
     check_builder_sweep()

@@ -71,6 +71,29 @@ export const gradient = {
 } as const;
 
 /**
+ * The paper the Apollia symbol is drawn against.
+ *
+ * The one token in this file that is deliberately identical in both themes,
+ * and the reason is measurable. `/logo.svg` is a light-background artwork: its
+ * dominant swoosh runs #0053da → #001eb4, which lands at 1.36:1 on `--card` and
+ * 1.57:1 on `--background` in the dark theme, both under the 3:1 floor WCAG
+ * 1.4.11 sets for a non-text graphic. On a dark surface the body of the mark is
+ * not dim, it is absent, and only the violet crescent reads.
+ *
+ * There is no dark vector to swap in, and inventing one means inventing brand
+ * colours. So the mark is seated on its own paper instead, via the
+ * `.logo-plaque` class in `app.css`, and every ink clears 4.2:1 in both themes.
+ * A themed plaque would reintroduce exactly the failure it removes, which is
+ * why `.dark` does not override `--logo-paper`.
+ */
+export const logoPaper = {
+  /** `hsl()` wrapper, ready for a `background` declaration. */
+  background: "hsl(var(--logo-paper))",
+  /** Bare HSL triple, for composing an alpha channel. */
+  raw: "var(--logo-paper)",
+} as const;
+
+/**
  * Chat shell layout bounds.
  *
  * Canonical widths for the 3-column chat shell - Sessions, Conversation,
@@ -93,5 +116,6 @@ export const tokens = {
   backdrop,
   primaryGradient,
   gradient,
+  logoPaper,
   chatLayout,
 } as const;

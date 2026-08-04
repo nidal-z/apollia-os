@@ -2627,7 +2627,6 @@
       "report_desc": "Ouvrir un ticket. Vos diagnostics restent locaux tant que vous ne choisissez pas de les joindre.",
       "opens_external": "Ouvre le navigateur",
       "opens_in_app": "Ouvre le panneau",
-      "available_soon": "Disponible prochainement",
       "offline_badge": "Hors ligne",
       "offline_title": "Vous êtes hors ligne",
       "offline_body": "La documentation et la communauté s'ouvriront dès le retour de la connexion. Le reste de la page d'aide reste accessible.",

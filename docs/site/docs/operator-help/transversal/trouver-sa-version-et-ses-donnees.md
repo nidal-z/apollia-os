@@ -14,6 +14,8 @@
 
 3. The **Version and build** section lists the values that identify this installation: version, platform, Python interpreter, inference engine and transcription engine. Click any value to copy it.
 
+<!-- claim:about-reports-resolved-data-dir -->
+
 4. The **Where your data lives** section shows the **data directory**: the single folder that holds your conversations, agent memory, models, configuration and audit journal. Click it to copy the full path.
 
    > **Note:** the path shown is the one this installation actually resolved, not a generic example. It normally reads `.apollia` inside your home directory, and it follows the home directory Apollia was launched with. Trust the value on screen over any path written in a guide.

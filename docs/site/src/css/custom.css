@@ -38,6 +38,11 @@
   --apollia-grad-a: hsl(237 47% 57%);
   --apollia-grad-b: hsl(261 36% 61%);
 
+  /* The paper the symbol is drawn against, app.css --logo-paper. Declared
+     once and never overridden by [data-theme="dark"]: that is the whole
+     point. See `.apollia-logo-plaque` below. */
+  --apollia-logo-paper: hsl(40 40% 94%);
+
   /* Warm greige surfaces, app.css --background / --surface-1 / --surface-2. */
   --ifm-background-color: hsl(33 11% 95%);
   --ifm-background-surface-color: hsl(40 14% 98%);
@@ -108,6 +113,27 @@
   box-shadow: none;
 }
 
+/* ── Logo plaque ───────────────────────────────────────────────────────
+   The Apollia symbol is a light-background artwork. Measured against the
+   dark theme, its dominant blue swoosh reaches 1.57:1 on the page
+   background and 1.36:1 on a surface, both under the 3:1 floor WCAG 1.4.11
+   sets for a non-text graphic: on a dark page the body of the mark simply
+   is not there, and only the violet crescent reads. No dark vector exists
+   to point `srcDark` at, so the mark is seated on the paper it was drawn
+   against, identically in both themes. Every ink then clears 4.2:1. */
+
+.navbar__logo,
+.footer__logo {
+  background: var(--apollia-logo-paper);
+  border-radius: 0.5rem;
+  padding: 0.1875rem;
+  /* Stated rather than inherited. Infima sizes both of these explicitly
+     (`.navbar__logo` by height, `.footer__logo` by max-width) and scales the
+     inner image to 100%, so a content-box reading would grow the navbar row by
+     the padding instead of insetting the mark. */
+  box-sizing: border-box;
+}
+
 .navbar__logo {
   height: 1.75rem;
   margin-right: 0.5rem;
@@ -150,7 +176,7 @@
 }
 
 /* ── Documentation landing page ──────────────────────────────────────
-   Structure supplied by docs/intro.md and its French mirror. Class names
+   Structure supplied by docs/intro.mdx and its French mirror. Class names
    are prefixed `home-` so they never collide with an Infima class. */
 
 .home-hero {

@@ -14,6 +14,8 @@
 
 3. La section **Version et build** liste les valeurs qui identifient cette installation : version, plateforme, interpréteur Python, moteur d'inférence et moteur de transcription. Un clic sur une valeur la copie.
 
+<!-- claim:about-reports-resolved-data-dir -->
+
 4. La section **Où vivent vos données** affiche le **répertoire de données** : le dossier unique qui contient vos conversations, la mémoire des agents, les modèles, la configuration et le journal d'audit. Cliquez dessus pour copier le chemin complet.
 
    > **Note :** le chemin affiché est celui que cette installation a réellement résolu, pas un exemple générique. Il se lit normalement `.apollia` dans votre répertoire personnel, et il suit le répertoire personnel avec lequel Apollia a été lancé. Fiez-vous à la valeur à l'écran plutôt qu'à un chemin écrit dans un guide.

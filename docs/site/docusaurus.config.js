@@ -11,6 +11,13 @@ const config = {
   // ui/public/logo.svg. Source of truth: crates/apollia-desktop/icons/logo.svg.
   favicon: 'img/favicon.png',
 
+  // This host is not just where the site is published: the desktop binary now
+  // links into it from About and from Help, so it is a runtime dependency of
+  // shipped screens, not only of CI. It still needs the org-side setup the
+  // Pages job records (Pages environment active, custom domain bound). Until
+  // that is confirmed live, those in-app links resolve to nothing, which is the
+  // same dead-link failure the retired repository wiki produced. Nothing
+  // catches it here: lychee runs `--offline` and never resolves the host.
   url: 'https://docs.apollia.fr',
   baseUrl: '/',
 
@@ -94,9 +101,12 @@ const config = {
       },
       navbar: {
         title: 'Apollia OS',
-        // One artwork for both themes: the symbol carries its own violet and
-        // blue, and it is already validated on the app's near-black surface
-        // by the sidebar, which serves the same file.
+        // One artwork, seated on its own paper. The symbol is a
+        // light-background mark: its blue swoosh measures 1.57:1 against the
+        // dark theme's background, under the 3:1 floor WCAG 1.4.11 sets for a
+        // non-text graphic, so on a dark page the body of the mark drops out.
+        // There is no dark vector to switch `srcDark` to, so src/css/custom.css
+        // seats it on `--logo-paper` instead, in both themes.
         logo: {
           alt: 'Apollia OS',
           src: 'img/logo.svg',

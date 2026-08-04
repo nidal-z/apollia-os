@@ -125,6 +125,48 @@ Adding a new token requires : an entry in `crates/apollia-desktop/ui/src/app.css
 is needed, and a typed export in
 `crates/apollia-desktop/ui/src/lib/design/tokens.ts`.
 
+### The one token with no dark value
+
+`--logo-paper` has a single value, and `.dark` must not override it. This is a
+deliberate deviation from the rule above, recorded here rather than left to be
+rediscovered.
+
+`/logo.svg` is a light-background artwork. Its dominant swoosh runs from
+`#0053da` to `#001eb4`, which measures 1.36:1 against `--card` and 1.57:1
+against `--background` in the dark theme, both below the 3:1 floor WCAG 1.4.11
+sets for a non-text graphic. On a dark surface the body of the mark does not
+dim, it disappears, and only the violet crescent survives. No dark variant of
+the vector exists, and producing one means choosing new brand colours, which is
+a designer decision and not a frontend one.
+
+So the mark is seated on the paper it was drawn against, identically in both
+themes, through the `.logo-plaque` class. Every ink then clears 4.2:1. A themed
+plaque would put the mark back on a dark surface in the dark theme, which is the
+exact failure it exists to remove. If a dark artwork ever ships, `.logo-plaque`
+is the single place to retire.
+
+---
+
+## 3b. The symbol is the product, the spark is not
+
+`Sparkles` from `lucide-svelte` is the generic "AI / suggestion / agent"
+affordance and it is used in 33 places. `/logo.svg` is the Apollia mark. They
+are not interchangeable, in either direction :
+
+- A spark that stands for **Apollia the product** is wrong. Use `/logo.svg`.
+- A logo used to mean **an agent**, **a suggestion**, or **anything generated**
+  is equally wrong, and it is the more tempting mistake, because a sweep for
+  "replace the spark with the logo" produces it mechanically. An agent avatar
+  tile is not the product. A "smart suggestion" hint is not the product.
+
+The surfaces that carry the mark today are the sidebar, the onboarding welcome,
+the companion header and the About hero. Everything else that reads as generative
+keeps its spark.
+
+Nothing checks this. The distinction is semantic and no grep decides it, so it
+is a review item, not a gate. Stated plainly so the next sweep does not turn a
+legible 9px glyph into an illegible 9px logo.
+
 ---
 
 ## 4. Tailwind usage

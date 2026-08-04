@@ -27,25 +27,51 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Trees whose sources end up in something a user loads. `node_modules` and the
-# built output are excluded: they are derived, and the derived output is what
-# this rule protects, not what it inspects.
+# The two trees a user actually loads: the desktop webview bundle and the
+# documentation site. Whole trees, not a list of interesting subdirectories.
+#
+# The first version of this file listed five subdirectories plus two named
+# files, and missed four places a remote font fits: `ui/overlay.html` (the
+# second Vite entry point, built and loaded by the webview alongside
+# index.html), `ui/vite.config.ts` and `ui/tailwind.config.ts` (both of which
+# can inject a stylesheet link), and `ui/public/` (served verbatim). A gate
+# whose coverage is a hand-maintained list drifts the moment someone adds an
+# entry point, and it drifts silently, in the direction that reports success.
+# Rooting at the tree removes the class instead of the four instances.
 SCAN_ROOTS = [
-    Path("docs/site/src"),
-    Path("docs/site/docs"),
-    Path("docs/site/i18n"),
-    Path("docs/site/static"),
-    Path("crates/apollia-desktop/ui/src"),
+    Path("docs/site"),
+    Path("crates/apollia-desktop/ui"),
 ]
 
-SCAN_FILES = [
+# Entry points that must be inside the scanned set for the gate to mean
+# anything. Asserted by the self-test, so shrinking SCAN_ROOTS back to a
+# subdirectory list fails the build rather than quietly narrowing coverage.
+REQUIRED_COVERAGE = [
     Path("docs/site/docusaurus.config.js"),
+    Path("docs/site/src/css/custom.css"),
     Path("crates/apollia-desktop/ui/index.html"),
+    Path("crates/apollia-desktop/ui/overlay.html"),
+    Path("crates/apollia-desktop/ui/vite.config.ts"),
+    Path("crates/apollia-desktop/ui/tailwind.config.ts"),
+    Path("crates/apollia-desktop/ui/src/app.css"),
 ]
 
 SCAN_SUFFIXES = {".css", ".scss", ".html", ".js", ".jsx", ".ts", ".tsx", ".svelte", ".md", ".mdx"}
 
-EXCLUDED_DIRS = {"node_modules", "build", ".docusaurus", "dist", ".git"}
+# Derived output only. The build directory is what this rule protects, not what
+# it inspects, and `node_modules` holds the bundled `@fontsource` packages whose
+# own upstream sources legitimately name the CDN they were vendored from.
+EXCLUDED_DIRS = {
+    "node_modules",
+    "build",
+    ".docusaurus",
+    "dist",
+    ".git",
+    ".svelte-kit",
+    "coverage",
+    "playwright-report",
+    "test-results",
+}
 
 FONT_HOSTS = (
     "fonts.googleapis.com",
@@ -98,11 +124,24 @@ def iter_files() -> list[Path]:
             if EXCLUDED_DIRS.intersection(path.relative_to(REPO_ROOT).parts):
                 continue
             files.append(path)
-    for rel in SCAN_FILES:
-        path = REPO_ROOT / rel
-        if path.is_file():
-            files.append(path)
     return sorted(set(files))
+
+
+def uncovered_required() -> list[Path]:
+    """Return the entry points that exist on disk but fall outside the scan.
+
+    Exists so the self-test can assert coverage positively. `iter_files`
+    returning a large number proves the walk found files, not that it found the
+    ones that matter: `index.html` can carry the stylesheet link that
+    `src/` never will.
+    """
+    scanned = set(iter_files())
+    missing = []
+    for rel in REQUIRED_COVERAGE:
+        path = REPO_ROOT / rel
+        if path.is_file() and path not in scanned:
+            missing.append(rel)
+    return missing
 
 
 def main() -> int:
@@ -110,6 +149,17 @@ def main() -> int:
     if not files:
         # A rule that examined nothing is not a rule that holds.
         print("check_no_font_cdn: NO COVERAGE, no source file matched", file=sys.stderr)
+        return 1
+
+    missing = uncovered_required()
+    if missing:
+        print(
+            "check_no_font_cdn: NO COVERAGE, these entry points exist but are "
+            "outside the scanned roots:",
+            file=sys.stderr,
+        )
+        for rel in missing:
+            print(f"  {rel}", file=sys.stderr)
         return 1
 
     violations: list[str] = []

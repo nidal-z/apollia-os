@@ -2,12 +2,15 @@
   /**
    * HelpResources - the "resources & support" card grid.
    *
-   * Three resource kinds, each rendered with the correct semantics:
+   * Two resource kinds, each rendered with the correct semantics:
    *   - external (`<a>` via the system opener): the help center, the community,
    *     the issue tracker;
-   *   - in-app (`<button>`): the offline keyboard-shortcuts page;
-   *   - soon (`<div>`): kept for a surface that is genuinely not published yet,
-   *     shown as "available soon" rather than a dead link (repo doctrine).
+   *   - in-app (`<button>`): the offline keyboard-shortcuts page.
+   *
+   * A third kind, "soon", rendered an inert card for a surface not published
+   * yet. The help center is published, it was the only card using it, and a
+   * variant no data reaches is a branch nobody exercises: it went with the
+   * card.
    *
    * When offline the external cards are disabled (not hidden) and a banner
    * explains why; the in-app card stays usable.
@@ -34,8 +37,7 @@
 
   type Resource =
     | { id: string; kind: "external"; icon: Icon; titleKey: string; descKey: string; href: string; warn?: boolean }
-    | { id: string; kind: "in-app"; icon: Icon; titleKey: string; descKey: string; run: () => void }
-    | { id: string; kind: "soon"; icon: Icon; titleKey: string; descKey: string };
+    | { id: string; kind: "in-app"; icon: Icon; titleKey: string; descKey: string; run: () => void };
 
   const resources: Resource[] = [
     {
@@ -105,10 +107,8 @@
             {$t("settings.help.offline_badge")}
           </span>
         {/if}
-      {:else if res.kind === "in-app"}
-        {$t("settings.help.opens_in_app")}
       {:else}
-        {$t("settings.help.available_soon")}
+        {$t("settings.help.opens_in_app")}
       {/if}
     </span>
   </span>
@@ -153,7 +153,7 @@
         >
           {@render resourceInner(res, true)}
         </a>
-      {:else if res.kind === "in-app"}
+      {:else}
         <button
           type="button"
           onclick={res.run}
@@ -165,13 +165,6 @@
         >
           {@render resourceInner(res, false)}
         </button>
-      {:else}
-        <div
-          class="flex items-start gap-3 rounded-xl border border-border bg-card p-4 opacity-90"
-          data-testid="help-link-{res.id}"
-        >
-          {@render resourceInner(res, false)}
-        </div>
       {/if}
     {/each}
   </div>

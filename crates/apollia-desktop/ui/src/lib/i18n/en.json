@@ -2627,7 +2627,6 @@
       "report_desc": "Open an issue. Your diagnostics stay local unless you choose to attach them.",
       "opens_external": "Opens in your browser",
       "opens_in_app": "Opens in the app",
-      "available_soon": "Available soon",
       "offline_badge": "Offline",
       "offline_title": "You are offline",
       "offline_body": "Documentation and community links will open once the connection is back. The rest of the help page stays available.",

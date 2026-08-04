@@ -1002,8 +1002,15 @@ mod tests {
         assert!(path.to_string_lossy().contains(".apollia"));
     }
 
-    #[tokio::test]
-    async fn test_system_info_reports_the_resolved_data_directory() {
+    // Deliberately not a `#[tokio::test]`. The home guard is a `std` mutex, and
+    // holding one across an await point is denied workspace-wide, for the usual
+    // reason: the task can be parked on another thread while the lock stays
+    // taken. Dropping the guard before the call would defeat its purpose, since
+    // the value being asserted is read inside that call. Driving the future on a
+    // runtime this test owns keeps the whole read under the guard with no await
+    // in sight.
+    #[test]
+    fn test_system_info_reports_the_resolved_data_directory() {
         // GIVEN the home directory the runtime itself resolves.
         // The guard keeps the tests that fake a home from swapping it out from
         // under this one: the variable is a process global and the harness runs
@@ -1012,7 +1019,13 @@ mod tests {
         let home = apollia_core::paths::home_dir();
 
         // WHEN the About page asks the desktop for its system information
-        let info = get_system_info().await.expect("system info is available");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread runtime");
+        let info = runtime
+            .block_on(get_system_info())
+            .expect("system info is available");
 
         // THEN the data directory is reported, absolute, rooted in that home,
         // and never a literal "~/.apollia" the operator would read as fact

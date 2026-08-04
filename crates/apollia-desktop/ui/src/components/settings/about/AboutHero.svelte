@@ -9,9 +9,13 @@
    * existing HSL token, so both themes and reduced-motion are honored.
    *
    * The mark is the real logo, the same `/logo.svg` the sidebar, the onboarding
-   * welcome and the companion header already serve. It carries its own violet
-   * and blue, so it sits on a plain drop shadow rather than on a gradient tile:
-   * two gradients at 64 px fight each other.
+   * welcome and the companion header already serve. It is a light-background
+   * artwork: measured against the dark theme, its dominant blue swoosh lands at
+   * 1.36:1 on `--card`, well under the 3:1 floor WCAG 1.4.11 sets for a
+   * non-text graphic, and the body of the mark disappears. There is no dark
+   * variant of the vector, so at 64 px it is seated on `.logo-plaque`, the
+   * paper it was drawn against, which holds every ink above 4.2:1 in both
+   * themes. Flat paper, not a gradient tile: two gradients at this size fight.
    */
   import { t } from "svelte-i18n";
 
@@ -30,14 +34,9 @@
   data-testid="about-hero"
 >
   <div class="flex items-center gap-4">
-    <img
-      src="/logo.svg"
-      alt=""
-      width="64"
-      height="64"
-      class="hero-mark h-16 w-16 shrink-0"
-      data-testid="about-logo"
-    />
+    <span class="logo-plaque hero-mark grid h-16 w-16 shrink-0 place-items-center rounded-2xl">
+      <img src="/logo.svg" alt="" width="48" height="48" class="h-12 w-12" data-testid="about-logo" />
+    </span>
     <div class="min-w-0">
       <h2 class="hero-wordmark m-0 font-sans text-display-sm">Apollia OS</h2>
       <p class="mt-1 max-w-prose text-body-sm text-muted-foreground">
@@ -90,8 +89,11 @@
   }
 
   .hero-mark {
-    object-fit: contain;
     filter: drop-shadow(0 8px 20px hsl(var(--grad-a) / 0.32));
+  }
+
+  .hero-mark img {
+    object-fit: contain;
   }
 
   .hero-wordmark {
