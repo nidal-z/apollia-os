@@ -96,7 +96,8 @@ providers and its evidence substring was `APOLLIA_BUILD_GOOGLE_CLIENT_ID`, so
 embedding a Microsoft constant would have left it green while half of what it
 guarded turned false. It is now three entries: the resolution chain,
 `oauth-microsoft-client-embedded` (wired, guarding that the constant is read and
-not merely defined), and `oauth-google-client-not-embedded` (absent, firing if a
+not merely defined, which took excluding two disguises the checker had been
+accepting, a doc-comment naming the symbol and a re-export of it), and `oauth-google-client-not-embedded` (absent, firing if a
 symmetric Google constant ever appears).
 
 Apollia now carries an operational dependency it did not have: the registration

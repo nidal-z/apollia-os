@@ -92,8 +92,10 @@ pub enum IntegrationsError {
     /// Google's normal state on a fresh install: no build embeds a Google
     /// client, so this stands until the operator supplies one through Settings
     /// → Integrations, `~/.apollia/oauth-clients.toml`, or the runtime env
-    /// var. Microsoft resolves its shipped client instead and only reaches
-    /// this variant when an override deliberately blanks it out.
+    /// var. Microsoft resolves its shipped client instead and cannot reach
+    /// this variant on a build that carries the constant: an override that is
+    /// present but empty is skipped, not honoured, so it falls back to the
+    /// shipped identifier rather than to nothing.
     /// The UI surfaces a clear "OAuth client not configured" message instead
     /// of letting the flow fail mid-handshake with an opaque AS error.
     #[error("OAuth client not configured for {0}")]

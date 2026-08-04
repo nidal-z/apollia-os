@@ -145,6 +145,33 @@ def check_claims_wired() -> None:
             "exactly how the rollback-journal claim stayed green",
         )
 
+        # Same property, other disguise. A re-export names the symbol on a
+        # line that is neither a comment nor a definition, so it satisfied
+        # `wired` on its own: a constant could be defined, re-exported and read
+        # by nobody. Both forms are covered, because this crate writes the
+        # block one, where the symbol lands on a continuation line starting
+        # with neither `use` nor `//`.
+        for label, body in (
+            ("one-line", "pub use crate::cache::PlanCache;\n"),
+            (
+                "block",
+                "pub use crate::cache::{\n    Other,\n    PlanCache,\n};\n",
+            ),
+        ):
+            reexport = root / f"reexport_{label}.rs"
+            reexport.write_text(body, encoding="utf-8")
+            raised = False
+            try:
+                check_claims.check_wired(claim, [only, reexport])
+            except check_claims.Failure:
+                raised = True
+            case(
+                f"{label} re-export alone fails the `wired` check",
+                raised,
+                "a re-export satisfied `wired`, so a symbol defined and "
+                "exported but read by nobody would keep its claim green",
+            )
+
         used = root / "real_use.rs"
         used.write_text(CLAIM_REAL_USE, encoding="utf-8")
         raised = False
@@ -240,7 +267,10 @@ def main() -> int:
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
-    print("\nboth properties hold: comment-only is not a use, and zero coverage says so")
+    print(
+        "\nthree properties hold: neither a comment nor a re-export is a use, "
+        "and zero coverage says so"
+    )
     return 0
 
 

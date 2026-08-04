@@ -1043,21 +1043,34 @@ returned by `default_client_id`, which is what flips the desktop surface from
 "setup required" to a live Connect button through `detect_source` and
 `oauthReadiness`.
 
-Declared `wired` rather than `not-wired` on purpose: the guard has to fail if
-the constant is ever defined but no longer read, which is the shape the corpus
-keeps producing. A doc-comment naming it does not count, `check_wired` skips
-comment lines.
+Declared `wired` rather than `not-wired` on purpose: the guard fails if the
+constant is ever defined but no longer read, which is the shape the corpus keeps
+producing. Two disguises are excluded, both found by mutating the one production
+read and watching the guard stay green: a doc-comment naming the symbol, and a
+re-export of it. The second cost a state machine, because `apollia-auth` writes
+`pub use` as a multi-line block and the symbol lands on a continuation line that
+starts with neither `use` nor `//`. `check_selftest.py` pins both forms.
 
 The client id is public by construction. RFC 8252 section 8.5 states that a
 native application cannot hold a credential confidentially, so the registration
 is a public client with no secret and PKCE carries the security. Embedding it is
 therefore a convenience decision, not a secrets decision. See ADR-053.
 
-What this cannot guard: that the registration behind the id stays multi-tenant
-and keeps accepting personal Microsoft accounts. That lives in the Entra portal,
-not in the build, and no gate here can see it. If it were narrowed to a single
-tenant, the code and this entry would both stay green while every user outside
-the owning directory got AADSTS50020 after consenting.
+What this cannot guard, and the order matters because the first item is the one
+that will actually bite. The registration's **redirect platform** is invisible
+from outside: an anonymous probe of the authorize endpoint returns the login page
+whatever `redirect_uri` it is handed, so no check here can tell whether the app
+still declares a "Mobile and desktop applications" platform listing
+`http://127.0.0.1`. If that platform is removed or was never added, every user
+reaches consent and then fails on AADSTS50011, after the point where the product
+looked like it worked. Verified once by hand, never again by a machine.
+
+Second, that the registration stays multi-tenant and keeps accepting personal
+Microsoft accounts. That one at least is probeable, and was probed: the id
+answers on `/consumers`, `/organizations` and `/common`, with a fabricated id as
+the negative control returning AADSTS700016. But it lives in the Entra portal,
+so a later narrowing to a single tenant would leave the code and this entry green
+while every user outside the owning directory got AADSTS50020 after consenting.
 """
 
 [[claim]]
