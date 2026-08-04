@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { Gauge } from "lucide-svelte";
+  import { contextGaugeLabel, contextPct } from "$lib/chat/contextGauge";
   import { sessionMetricsStore } from "$lib/stores/chatMetrics";
 
   interface Props {
@@ -19,13 +20,14 @@
 
   const metrics = $derived(sessionMetricsStore(sessionId));
 
-  const contextPct = $derived(
-    $metrics.context_window_tokens > 0
-      ? Math.min(
-          100,
-          ($metrics.context_tokens_used / $metrics.context_window_tokens) * 100,
-        )
-      : 0,
+  // `--` when the backend reports no context window (Agent mode, or an engine
+  // that omits usage): zero is an absent measurement there, not an empty
+  // context, and rendering it as a percentage misreads the session state.
+  const ctxLabel = $derived(
+    contextGaugeLabel($metrics.context_window_tokens, $metrics.context_tokens_used),
+  );
+  const ctxPct = $derived(
+    contextPct($metrics.context_window_tokens, $metrics.context_tokens_used),
   );
   const budgetPct = $derived(
     $metrics.budget_max_steps > 0
@@ -35,7 +37,7 @@
 
   const hasActivity = $derived($metrics.exchanges_count > 0);
   const toneClass = $derived(
-    contextPct >= 90 ? "text-warning" : "text-muted-foreground/60",
+    ctxPct >= 90 ? "text-warning" : "text-muted-foreground/60",
   );
 </script>
 
@@ -51,7 +53,7 @@
       >
         <Gauge size={10} />
         <span class="tabular-nums">
-          Ctx {Math.round(contextPct)}% · Budget {Math.round(budgetPct)}%
+          Ctx {ctxLabel} · Budget {Math.round(budgetPct)}%
         </span>
       </button>
     {:else}
@@ -62,7 +64,7 @@
       >
         <Gauge size={10} />
         <span class="tabular-nums">
-          Ctx {Math.round(contextPct)}% · Budget {Math.round(budgetPct)}%
+          Ctx {ctxLabel} · Budget {Math.round(budgetPct)}%
         </span>
       </div>
     {/if}
@@ -75,7 +77,7 @@
       {onclick}
     >
       <Gauge size={10} />
-      {Math.round(contextPct)}%
+      {ctxLabel}
     </button>
   {:else}
     <span
@@ -83,7 +85,7 @@
       data-testid="context-indicator-pill"
     >
       <Gauge size={10} />
-      {Math.round(contextPct)}%
+      {ctxLabel}
     </span>
   {/if}
 {/if}

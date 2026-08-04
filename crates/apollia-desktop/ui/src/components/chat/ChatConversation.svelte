@@ -34,6 +34,7 @@
   import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
+  import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
   import type { InjectedEntry } from "$lib/types";
@@ -583,6 +584,10 @@
         }
         if (status !== "processing") {
           await finalizeStreaming();
+          // A paused turn emits no ChatResponseCompleted, so the metrics
+          // refresh that normally follows a turn never fires; refresh
+          // explicitly so the context gauge reflects the frozen turn.
+          void refreshSessionMetrics(sessionId, true);
           break;
         }
       }

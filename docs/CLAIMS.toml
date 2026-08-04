@@ -1116,3 +1116,21 @@ without a model turn. The command stamps the exact key the wrap-up gate reads
 from the agent's semantic memory. If this evidence stops matching, the button
 is back to nudging the model and the sentence overstates the flow.
 """
+
+[[claim]]
+id = "context-gauge-engine-usage"
+scope = "public"
+symbol = "StreamChunk::Usage"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/builtin_agent/stream.rs"
+evidence = "usage.merge(&chunk_usage)"
+note = """
+The page states the context gauge reflects engine-reported token usage. That is
+only true because the ReAct stream consumer folds the terminal usage chunk of
+each streamed call into the exchange accounting; the gauge widget divides those
+tokens by the reported window. An earlier build shipped a gauge computed from
+the message count over a window of 20, which pinned at 100% forever past 20
+messages, and a whole test campaign chased it as a token-accounting bug. If
+this evidence stops matching, streamed turns stop reporting usage and the
+gauge quietly degrades to `--` on every local turn.
+"""

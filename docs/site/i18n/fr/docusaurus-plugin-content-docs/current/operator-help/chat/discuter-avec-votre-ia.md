@@ -33,6 +33,9 @@
 
 9. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer** ou **Supprimer**.
 
+<!-- claim:context-gauge-engine-usage -->
+10. Sous le champ de saisie, une petite jauge **Ctx** suit le remplissage de la fenêtre de contexte du modèle. Le pourcentage vient des **comptes de tokens rapportés par le moteur lui-même** à chaque réponse ; quand le backend n'en rapporte aucun (un assistant en mode Agent, par exemple), la jauge affiche `--` plutôt qu'un nombre inventé. Au-delà de 90 %, la jauge passe à l'ambre : envisagez une nouvelle conversation, ou laissez la compaction automatique résumer les tours les plus anciens.
+
 ## Vérification
 
 Votre conversation apparaît dans la liste de gauche avec un titre et la date du dernier message. Vous pouvez la rouvrir à tout moment, l'historique est conservé.

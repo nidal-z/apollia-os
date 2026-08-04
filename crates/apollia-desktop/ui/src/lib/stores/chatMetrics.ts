@@ -91,6 +91,22 @@ export async function refreshSessionMetrics(
 }
 
 /**
+ * Refresh the metrics of the session currently open in the chat view.
+ *
+ * Used by events that carry no session id (e.g. `ContextCompacted`): the only
+ * gauge on screen belongs to the viewed session, so refreshing it is both
+ * sufficient and cheap. Forced: a compaction is rare and the gauge must move
+ * immediately, not after the throttle window.
+ */
+export async function refreshActiveSessionMetrics(): Promise<void> {
+  const { currentSession } = await import("$lib/stores/chat");
+  const sessionId = get(currentSession)?.id;
+  if (sessionId) {
+    await refreshSessionMetrics(sessionId, true);
+  }
+}
+
+/**
  * Clear the cached metrics for a session (e.g. on close/delete).
  */
 export function clearSessionMetrics(sessionId: string): void {

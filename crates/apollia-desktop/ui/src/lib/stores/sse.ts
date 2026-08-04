@@ -593,6 +593,13 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       onboardingStore.setRequired();
       break;
     case "system":
+      // ContextCompacted carries no session_id; refresh the session the user
+      // is looking at so the context gauge tracks the compaction instead of
+      // waiting for the next turn-completion refresh.
+      if (event.event_type === "ContextCompacted") {
+        void import("./chatMetrics").then((m) => m.refreshActiveSessionMetrics());
+        break;
+      }
       // AllReady / ShutdownRequested / FatalError - refresh everything
       void refreshAll();
       break;

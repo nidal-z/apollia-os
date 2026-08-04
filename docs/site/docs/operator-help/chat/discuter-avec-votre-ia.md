@@ -33,6 +33,9 @@
 
 9. To organise your conversations, click the menu at the top of the conversation: **Rename** or **Delete**.
 
+<!-- claim:context-gauge-engine-usage -->
+10. Under the input field, a small **Ctx** gauge tracks how full the model's context window is. The percentage comes from the **token counts the engine itself reports** on each answer; when the backend reports none (an assistant in Agent mode, for instance), the gauge shows `--` rather than a made-up number. Past 90 % the gauge turns amber: consider starting a fresh conversation, or let the automatic compaction summarise the oldest turns.
+
 ## Verification
 
 Your conversation shows up in the list on the left with a title and the date of the last message. You can reopen it at any time, the history is kept.
