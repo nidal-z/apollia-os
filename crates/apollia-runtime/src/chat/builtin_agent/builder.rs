@@ -23,7 +23,16 @@ impl BuiltInChatAgent {
             hook_executor: None,
             pending_injection: None,
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
+            prefix_checker: None,
         }
+    }
+
+    /// Attach the per-invocation prefix-rule checker. `None` keeps the
+    /// previous behavior: a tool call outside the name-only authorization set
+    /// goes straight to human approval.
+    pub fn with_prefix_checker(mut self, checker: Option<Arc<PrefixChecker>>) -> Self {
+        self.prefix_checker = checker;
+        self
     }
 
     /// Sets the temperature applied to turns that advertise tools.

@@ -23,6 +23,49 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
     authorized_tools
 }
 
+/// Build the per-invocation prefix checker handed to the ReAct loop.
+///
+/// The closure owns only the governance database path and opens a fresh
+/// [`PrefixRuleEngine`] per call, the same pattern as the per-message override
+/// load above: a checker call happens exactly where the loop would otherwise
+/// block on a human, so the open cost is irrelevant and the rules are always
+/// current. Returns `None` when the home directory cannot be resolved; the
+/// closure itself answers `None` while the database does not exist yet, so a
+/// database created mid-session is picked up without a restart.
+///
+/// `project_path` scopes the lookup: project rules are consulted first when
+/// the session is attached to a project (see
+/// [`PrefixRuleEngine::check_with_scope`]).
+pub(in crate::chat::manager) fn build_prefix_checker(
+    project_path: Option<std::path::PathBuf>,
+) -> Option<std::sync::Arc<crate::chat::builtin_agent::PrefixChecker>> {
+    use apollia_permissions::prefix_rule_engine::{PermissionScope, ScopeContext};
+
+    let home = apollia_core::paths::home_string()?;
+    let db_path = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join(GOVERNANCE_DB_FILENAME);
+    let scope_ctx = ScopeContext {
+        // Informational field; filtering is driven by the two options below.
+        scope: PermissionScope::Global,
+        project_path,
+        agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
+    };
+    Some(std::sync::Arc::new(
+        move |tool: &str, first_arg: Option<&str>| {
+            if !db_path.exists() {
+                return None;
+            }
+            let engine = PrefixRuleEngine::new(&db_path).ok()?;
+            // Session-tier rules live in the in-memory authorized set, not here.
+            engine
+                .check_with_scope(tool, first_arg, &scope_ctx, &[])
+                .ok()
+                .flatten()
+        },
+    ))
+}
+
 pub(in crate::chat::manager) fn load_chat_libre_overrides() -> ChatLibreOverrides {
     let mut out = ChatLibreOverrides::default();
     let home = match apollia_core::paths::home_string() {
@@ -76,7 +119,10 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
 
 /// Add to the overrides the tools auto-authorized via `allow` rules scoped to
 /// the `apollia:chat` agent. Silent fallback on error.
-fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
+pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
+    out: &mut ChatLibreOverrides,
+    db_path: &std::path::Path,
+) {
     let Ok(engine) = PrefixRuleEngine::new(db_path) else {
         return;
     };
@@ -84,7 +130,12 @@ fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::pa
         return;
     };
     for r in rules {
-        if matches!(r.action, RuleAction::Allow) {
+        // Same filters as the global pass below: a rule carrying an
+        // arg_prefix must not authorize the whole tool name (it is evaluated
+        // per invocation by the checker instead), and a code executor is
+        // never pre-authorized by name. Seeding a prefixed rule's bare name
+        // here would widen a targeted grant into a tool-wide one.
+        if matches!(r.action, RuleAction::Allow) && r.arg_prefix.is_none() {
             if apollia_permissions::is_code_executor(&r.tool_name) {
                 warn!(
                     tool = %r.tool_name,
@@ -101,8 +152,9 @@ fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::pa
     // agent-scoped ones. Without this pass such tools would keep triggering a
     // HITL prompt every turn. Same safety filters as above: only name-only
     // allow-rules, never code executors (they always require per-invocation
-    // approval), and arg-prefix rules are skipped because the name-only
-    // HashSet cannot represent them.
+    // approval). Arg-prefix rules stay out of the name-only HashSet, which
+    // cannot represent them: they are evaluated per invocation instead, by
+    // the checker built in `build_prefix_checker`.
     let Ok(global_rules) =
         engine.list_rules_filtered(Some(apollia_permissions::PermissionScope::Global), None)
     else {
@@ -389,6 +441,20 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         LoadingMode::Deferred => Some(mcp_index),
         LoadingMode::Eager => None,
     };
+    // Per-invocation prefix checker, Libre only: Companion sessions keep the
+    // previous behavior (name-set miss goes straight to HITL), mirroring the
+    // scope of the live overrides merged per message. Project rules are
+    // consulted only when the session is attached to a project.
+    let prefix_checker = if is_companion {
+        None
+    } else {
+        let project_path = if session_project_id.is_some() {
+            session_invoker.workspace.clone()
+        } else {
+            None
+        };
+        build_prefix_checker(project_path)
+    };
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router,
         tool_registry,
@@ -405,7 +471,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     .with_plan_phase_start(session_plan_phase)
     .with_hook_executor(hook_executor)
     .with_pending_injection(pending_injection)
-    .with_tool_turn_temperature(tool_turn_temperature);
+    .with_tool_turn_temperature(tool_turn_temperature)
+    .with_prefix_checker(prefix_checker);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).

@@ -25,10 +25,10 @@ Rules appear automatically when an agent requests access to a tool and you choos
    - the **expiry date** or the mention *Permanent*
    - the **author** of the decision (agent or user)
 
-<!-- claim:prefix-rules-not-evaluated-in-chat -->
-> **What a rule actually does today:** the chat approval decision is made on the **tool name alone**. A rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** records your intent and is displayed here, but the chat path does not evaluate argument prefixes: it does not auto-approve anything yet, for any tool.
+<!-- claim:prefix-rules-evaluated-per-invocation -->
+> **What a rule actually does:** a rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** is evaluated on every invocation, against the call's argument: it auto-approves any argument starting with the prefix, and the longest matching prefix wins when several rules apply. A **deny** rule always takes precedence: it refuses a matching call even when the tool is otherwise covered by an "Always allow".
 <!-- claim:executor-guard-blocks-command-chaining -->
-> **Code executors** (`bash_executor`, `python_executor`) are never auto-approved, with or without a prefix: every invocation asks for confirmation, because their argument is a shell command or arbitrary code. The rule engine ships with a stricter prefix matcher for them (a prefix rule would only ever cover a **single simple command**, with no chaining `;`, `&&`, `||`, pipe, redirection or substitution), but that matcher is not active on the chat path today.
+> **Code executors** (`bash_executor`, `python_executor`) are stricter: a prefix rule only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
 
 4. Use the filters in the left panel to narrow the list:
    - **Scope**: *All*, *This project*, *Chat / agent*, *Everywhere*

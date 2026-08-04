@@ -13,19 +13,17 @@
 //!   from the allow rules that carry no `arg_prefix`
 //!   (`apply_chat_prefix_allow_rules` in `apollia-runtime`). That set is the
 //!   mechanism behind "always allow" for ordinary tools.
+//! - The **per-invocation prefix matching**: on a miss of that set, the chat
+//!   ReAct loop consults [`PrefixRuleEngine::check_with_scope`] with the
+//!   call's first argument (`build_prefix_checker` in `apollia-runtime`).
+//!   For a code executor the match goes through
+//!   [`executor_guard::is_single_simple_command`], so an allowed prefix only
+//!   ever covers a single simple command, and a rule without a prefix never
+//!   matches an executor.
 //! - [`executor_guard::is_code_executor`]: the invariant that `bash_executor`
 //!   and `python_executor` are never blanket-authorised; the runtime filters
 //!   them out of the authorization set on every seeding route.
 //! - [`PermissionAuditLog`]: every decision recorded in SQLite.
-//!
-//! Present but **not evaluated per invocation** on the shipped chat path:
-//!
-//! - The prefix matching itself: [`PrefixRuleEngine::check`] /
-//!   `check_with_scope`, and [`executor_guard::is_single_simple_command`],
-//!   the guard that would restrict an executor prefix rule to a single simple
-//!   command. Both are reachable only through `PermissionEngine::decide`,
-//!   which no production caller wires. A rule carrying an `arg_prefix` is
-//!   therefore stored and displayed but auto-approves nothing today.
 //!
 //! Present but **not wired** at all:
 //!
@@ -38,12 +36,13 @@
 //!   binary. They are kept because they are tested and useful to an embedder
 //!   that opts in, not because they are protecting the desktop app today.
 //!
-//! Practical consequence: what keeps an approval granted for one shell command
-//! from covering the next one is not [`InjectionDetector`], nor
-//! [`executor_guard::is_single_simple_command`], but the per-invocation
-//! approval itself: every code executor call asks again. And note that
-//! [`InjectionDetector`] detects **shell** injection, not prompt injection;
-//! there is no prompt-injection defence in this crate.
+//! Practical consequence: the anti-chaining protection people usually
+//! attribute to [`InjectionDetector`] is in fact delivered by
+//! [`executor_guard::is_single_simple_command`], applied by the chat
+//! checker's per-invocation match; outside a matching prefix rule, every code
+//! executor call still asks a human. And note that [`InjectionDetector`]
+//! detects **shell** injection, not prompt injection; there is no
+//! prompt-injection defence in this crate.
 //!
 //! ## Usage of the opt-in aggregate
 //!
@@ -73,7 +72,7 @@ pub mod prefix_rule_engine;
 pub mod safe_list;
 
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
-pub use engine::{PermissionDecision, PermissionEngine, CONFIG_IMPORT_CREATOR};
+pub use engine::{extract_first_arg, PermissionDecision, PermissionEngine, CONFIG_IMPORT_CREATOR};
 pub use error::PermissionError;
 pub use executor_guard::{is_code_executor, is_single_simple_command, CODE_EXECUTOR_TOOLS};
 pub use injection_detector::{InjectionDetector, StructuralInjectionDetector};

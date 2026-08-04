@@ -25,10 +25,10 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - la **date d'expiration** ou la mention *Permanente*
    - l'**auteur** de la décision (agent ou utilisateur)
 
-<!-- claim:prefix-rules-not-evaluated-in-chat -->
-> **Ce qu'une règle fait réellement aujourd'hui :** la décision d'approbation du chat se prend sur le **seul nom de l'outil**. Une règle sans préfixe qui autorise un outil ordinaire auto-approuve chaque invocation de cet outil. Une règle portant un **préfixe d'argument** enregistre votre intention et s'affiche ici, mais le chemin du chat n'évalue pas les préfixes d'argument : elle n'auto-approuve encore rien, pour aucun outil.
+<!-- claim:prefix-rules-evaluated-per-invocation -->
+> **Ce qu'une règle fait réellement :** une règle sans préfixe qui autorise un outil ordinaire auto-approuve chaque invocation de cet outil. Une règle portant un **préfixe d'argument** est évaluée à chaque invocation, contre l'argument de l'appel : elle auto-approuve tout argument commençant par le préfixe, et le préfixe correspondant le plus long l'emporte quand plusieurs règles s'appliquent. Une règle **deny** a toujours priorité : elle refuse un appel correspondant même quand l'outil est par ailleurs couvert par un "Toujours autoriser".
 <!-- claim:executor-guard-blocks-command-chaining -->
-> **Les exécuteurs de code** (`bash_executor`, `python_executor`) ne sont jamais auto-approuvés, avec ou sans préfixe : chaque invocation demande une confirmation, car leur argument est une commande shell ou du code arbitraire. Le moteur de règles embarque pour eux un matcher de préfixe plus strict (une règle de préfixe ne couvrirait jamais qu'une **commande simple unique**, sans enchaînement `;`, `&&`, `||`, pipe, redirection ni substitution), mais ce matcher n'est pas actif sur le chemin du chat aujourd'hui.
+> **Les exécuteurs de code** (`bash_executor`, `python_executor`) sont plus stricts : une règle de préfixe ne s'applique qu'à une **commande simple unique** partageant ce préfixe, sans enchaînement (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) ni substitution (`` ` ``, `$(...)`). Une règle sans préfixe n'auto-approuve jamais un exécuteur de code : chaque invocation redemande une confirmation.
 
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
    - **Portée** : *Toutes*, *Ce projet*, *Chat / agent*, *Partout*

@@ -10,9 +10,9 @@ a single place (`crates/apollia-tools/src/native_dispatcher.rs`).
 
 <!-- claim:chat-tool-governance-path -->
 On the chat path, every call runs through the same governed route: the human
-approval gate with persisted name-only allow rules (code executors are never
-blanket-authorized, and a rule carrying an argument prefix is stored but not
-evaluated by the chat approval decision today), the autonomy tier's step
+approval gate with persisted permission rules (name-only allow rules
+pre-authorize a tool, argument-prefix rules are evaluated per invocation, and
+code executors are never blanket-authorized), the autonomy tier's step
 budget, and the audit trail.
 
 An agent reaches these tools through `ctx.tools`, or has them handed to a ReAct
@@ -171,7 +171,7 @@ of these is subject to human-in-the-loop approval before it takes effect.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `permission_rule_add` | Persist a new permission rule, tagged with the calling agent's identity. `arg_prefix` records an argument-prefix intent, surfaced in Settings; the chat approval decision is made on the tool name alone and does not evaluate it today. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
+| `permission_rule_add` | Persist a new permission rule, tagged with the calling agent's identity. `arg_prefix` scopes the rule to arguments starting with that prefix, evaluated on every invocation; for a code executor it only ever covers a single simple command. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
 | `permission_rule_remove` | Remove a rule by id. | `rule_id` |
 | `permission_rule_list` | List rules, optionally filtered. Read-only. | `tool_name`, `created_by`, `scope` |
 

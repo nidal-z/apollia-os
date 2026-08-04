@@ -247,16 +247,20 @@ impl PermissionEngine {
 /// Extracts the first string argument from the JSON input.
 ///
 /// Strategy: try the common native-tool keys first
-/// (`cmd`, `command`, `path`, `query`, `input`, `text`, `content`, `prompt`),
-/// then take the first string value found in the object.
+/// (`cmd`, `command`, `path`, `url`, `query`, `input`, `text`, `content`,
+/// `prompt`), then take the first string value found in the object.
 /// If the input is itself a string, return it as is.
-fn extract_first_arg(input: &Value) -> Option<String> {
+///
+/// Public because the chat ReAct loop uses the same extraction when it
+/// consults the prefix rules per invocation: both consumers must agree on
+/// which argument a rule's prefix is matched against.
+pub fn extract_first_arg(input: &Value) -> Option<String> {
     match input {
         Value::String(s) => Some(s.clone()),
         Value::Object(map) => {
             // Try the common native-tool keys first.
             const PRIORITY_KEYS: &[&str] = &[
-                "cmd", "command", "path", "query", "input", "text", "content", "prompt",
+                "cmd", "command", "path", "url", "query", "input", "text", "content", "prompt",
             ];
 
             for key in PRIORITY_KEYS {

@@ -49,18 +49,16 @@ posture and its limits in full.
 <!-- claim:permission-engine-not-wired -->
 <!-- claim:executor-guard-blocks-command-chaining -->
 Before any action runs, the chat dispatch path in `apollia-runtime` classifies
-it, and it is worth being precise about what ships enabled. The live gate is a
-**tool-name authorization set**: persisted name-only allow rules seed it, code
-executors are excluded from it on every route, and anything not in it raises a
-**human-in-the-loop approval** the operator resolves and that decision is
-recorded. Two further mechanisms exist in `apollia-permissions` but are not
-evaluated per invocation on that path today: the **prefix matcher**, which
-would match a call's argument against the operator's standing prefix rules,
-and the **code-executor guard** (`is_single_simple_command`), which would
-refuse a shell command that chains, pipes, redirects or substitutes. Both are
-reachable only through `PermissionEngine::decide`, which no shipped binary
-wires, so a rule carrying an argument prefix is stored and displayed but
-auto-approves nothing.
+it in three steps. The first gate is a **tool-name authorization set**:
+persisted name-only allow rules seed it, and code executors are excluded from
+it on every route. On a miss, the loop consults the **prefix rules** per
+invocation: the call's argument is matched against the operator's standing
+rules, longest prefix first, and for a code executor the match additionally
+goes through the guard (`is_single_simple_command`) that refuses a shell
+command that chains, pipes, redirects or substitutes, so an approval granted
+for one command cannot smuggle a second. Anything left raises a
+**human-in-the-loop approval** the operator resolves, and that decision is
+recorded.
 
 <!-- claim:injection-detector-is-shell-not-prompt -->
 `apollia-permissions` also contains a `PermissionEngine` aggregating a safe-list

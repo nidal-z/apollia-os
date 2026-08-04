@@ -165,6 +165,19 @@ const VERIFICATION_MAX_RETRIES: u32 = 2;
 /// scope for this iteration.
 const ESCALATION_FAILURE_THRESHOLD: u32 = 3;
 
+/// Per-invocation permission checker consulted when a tool call misses the
+/// name-only authorization set, before a human approval is raised.
+///
+/// Arguments: the tool name and the call's first string argument (extracted
+/// with [`apollia_permissions::extract_first_arg`]). Returns the matched rule
+/// id and action, or `None` when no persisted rule decides, in which case the
+/// HITL flow proceeds as before. The decision is per invocation: an allow
+/// never widens the name-only set, the next call re-evaluates with its own
+/// argument.
+pub type PrefixChecker = dyn Fn(&str, Option<&str>) -> Option<(i64, apollia_permissions::prefix_rule_engine::RuleAction)>
+    + Send
+    + Sync;
+
 /// Dependencies required to construct a [`BuiltInChatAgent`].
 pub struct BuiltInChatAgentDeps {
     pub llm_router: Arc<LlmRouter>,
@@ -257,6 +270,9 @@ pub struct BuiltInChatAgent {
     /// `[chat] tool_turn_temperature`, defaulting to
     /// [`DEFAULT_TOOL_TURN_TEMPERATURE`].
     tool_turn_temperature: f32,
+    /// Optional per-invocation prefix-rule checker. `None` keeps the previous
+    /// behavior: a miss on the name-only set goes straight to HITL.
+    prefix_checker: Option<Arc<PrefixChecker>>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.

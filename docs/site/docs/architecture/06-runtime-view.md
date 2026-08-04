@@ -174,15 +174,22 @@ sequenceDiagram
 Four properties follow from that shape, and each one is a deliberate choice
 rather than an accident.
 
-**The decision is by tool name, not by argument.** Authorizing `file_read` once
-with "always allow" authorizes it for every path it will ever be given at that
-scope. Argument-level prefix rules exist in the store, and the chat
-pre-authorization set cannot represent them, so they are skipped when seeding it.
+**Rules are evaluated by argument, the name set by name, and deny wins.** The
+stored prefix rules are evaluated first, against the call's argument, per
+invocation: a matching deny refuses the call without a prompt, even when the
+tool sits in the name-only pre-authorization set, so a standing refusal cannot
+be bypassed by a broader "always allow". A matching allow runs the call
+without widening the set. Otherwise, authorizing `file_read` once with "always
+allow" still authorizes it for every path it will ever be given at that scope:
+the pre-authorization set is name-only, and argument-level prefix rules are
+kept out of it (they cannot be represented there) precisely because they are
+evaluated per invocation. Anything left raises the approval prompt.
 
 **Code executors are exempt from every blanket authorization.** `bash_executor`
 and its siblings are filtered out of the pre-authorized set on all three routes
 that fill it: the chat configuration, agent-scoped allow rules, and global allow
-rules. "Always allow" on one is refused at persistence time as well. Every
+rules. "Always allow" on one is refused at persistence time as well. Outside a
+targeted prefix rule, which only ever covers a single simple command, every
 invocation asks, every time. This is the single invariant that survives all the
 paths above, and it exists because a blanket allow on a shell is a blanket allow
 on everything.

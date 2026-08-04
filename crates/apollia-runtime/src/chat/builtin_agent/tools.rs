@@ -134,7 +134,9 @@ impl BuiltInChatAgent {
 
         // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
         // Denied calls never run, even when read-only. Calls beyond the budget
-        // allowance never run either.
+        // allowance never run either. A persisted deny rule wins over the
+        // name-only authorization: a call it matches is kept out of the fast
+        // path and refused by the sequential path.
         let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
             use futures::stream::{self, StreamExt};
             let parallel = (0..effective_calls.len())
@@ -143,6 +145,7 @@ impl BuiltInChatAgent {
                         && denied[i].is_none()
                         && read_only[i]
                         && acc.authorized.contains(&effective_calls[i].name)
+                        && !self.prefix_rule_denies(&effective_calls[i])
                 })
                 .map(|i| async move {
                     let outcome = self
@@ -360,7 +363,56 @@ impl BuiltInChatAgent {
             pending_approvals,
         } = ctx;
 
-        if acc.authorized.contains(&call.name) {
+        // The persisted prefix rules are evaluated first, against this call's
+        // argument, so a deny rule wins even over a name-authorized tool: an
+        // operator's standing refusal cannot be bypassed by a broader "always
+        // allow". The grant side is per invocation, so an allow is
+        // deliberately NOT inserted into `acc.authorized`: the next call
+        // re-evaluates with its own argument. A code executor can only match
+        // through the strict matcher (prefix plus single simple command),
+        // never a blanket rule.
+        let rule_hit = self.prefix_rule_decision(call);
+
+        if let Some((rule_id, apollia_permissions::prefix_rule_engine::RuleAction::Deny)) = rule_hit
+        {
+            tracing::info!(
+                tool = %call.name,
+                rule_id,
+                "chat.tool.prefix_rule_denied"
+            );
+            let refusal = "Outil refusé par une règle de permission".to_string();
+            llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
+            acc.all_tool_calls.push(ToolCallRecord {
+                tool_name: call.name.clone(),
+                input: call.arguments.clone(),
+                output: Some(refusal),
+                status: ToolCallStatus::Refused,
+                rationale: None,
+                retry_attempts: Vec::new(),
+            });
+            return ToolCallOutcome {
+                failed: true,
+                executed: None,
+            };
+        }
+
+        let rule_allows = matches!(
+            rule_hit,
+            Some((
+                _,
+                apollia_permissions::prefix_rule_engine::RuleAction::Allow
+            ))
+        );
+        if acc.authorized.contains(&call.name) || rule_allows {
+            if rule_allows && !acc.authorized.contains(&call.name) {
+                if let Some((rule_id, _)) = rule_hit {
+                    tracing::info!(
+                        tool = %call.name,
+                        rule_id,
+                        "chat.tool.prefix_rule_allowed"
+                    );
+                }
+            }
             let (record, tool_result, success) = self
                 .execute_tool_call(session_id, message_id, call, run_id)
                 .await;
@@ -492,6 +544,27 @@ impl BuiltInChatAgent {
                 }
             }
         }
+    }
+
+    /// Evaluate the persisted prefix rules for one call, if a checker is
+    /// attached. Returns the matched rule id and action, `None` otherwise.
+    fn prefix_rule_decision(
+        &self,
+        call: &apollia_llm::types::ToolCall,
+    ) -> Option<(i64, apollia_permissions::prefix_rule_engine::RuleAction)> {
+        let checker = self.prefix_checker.as_ref()?;
+        let first_arg = apollia_permissions::extract_first_arg(&call.arguments);
+        checker(&call.name, first_arg.as_deref())
+    }
+
+    /// Whether a persisted deny rule matches this call. Used by the parallel
+    /// read-only fast path to keep rule-denied calls on the sequential path,
+    /// where the refusal is synthesized.
+    fn prefix_rule_denies(&self, call: &apollia_llm::types::ToolCall) -> bool {
+        matches!(
+            self.prefix_rule_decision(call),
+            Some((_, apollia_permissions::prefix_rule_engine::RuleAction::Deny))
+        )
     }
 
     async fn execute_tool_call(
