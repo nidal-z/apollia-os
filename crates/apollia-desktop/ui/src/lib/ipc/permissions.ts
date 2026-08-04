@@ -14,12 +14,14 @@ export interface GovernanceToolStatus {
 }
 
 /**
- * Tools that execute arbitrary code. The runtime never grants them a blanket
- * "allow" rule: an allow rule for one of these MUST carry an argument prefix,
- * otherwise only per-invocation approval (HITL) applies. Mirrors the backend
- * `CODE_EXECUTOR_TOOLS` invariant enforced by `add_permission_prefix_rule`.
+ * Tools that execute arbitrary code. The runtime never honors a blanket
+ * "allow" rule for them: every invocation goes through per-invocation
+ * approval (HITL). Mirrors `CODE_EXECUTOR_TOOLS` in
+ * `crates/apollia-permissions/src/executor_guard.rs`; the write-side block in
+ * AddRuleForm is client-side only, the backend accepts any row and the
+ * runtime filters executor rules at consumption time.
  */
-export const CODE_EXECUTOR_TOOLS = ["bash", "python"] as const;
+export const CODE_EXECUTOR_TOOLS = ["bash_executor", "python_executor"] as const;
 
 /** Whether a tool name is a code executor subject to the no-blanket-allow rule. */
 export function isCodeExecutor(toolName: string): boolean {

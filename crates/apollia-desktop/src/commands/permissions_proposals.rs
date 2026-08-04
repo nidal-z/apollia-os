@@ -251,6 +251,16 @@ fn persist_chosen_rule(base_dir: &Path, proposal: &serde_json::Value) -> Result<
         .and_then(|v| v.as_str())
         .ok_or_else(|| "missing tool_name".to_string())?
         .to_owned();
+    // The rule store accepts any tool name, and a name absent from the
+    // registry can never match an invocation: the rule would be displayed as
+    // effective while being dead. Persist anyway (the registry is not the
+    // only historical source of names) but leave a trace.
+    if !apollia_tools::NATIVE_TOOL_NAMES.contains(&tool_name.as_str()) {
+        tracing::warn!(
+            tool = %tool_name,
+            "permissions.proposal_unknown_tool"
+        );
+    }
     let action_str = obj
         .get("action")
         .and_then(|v| v.as_str())
