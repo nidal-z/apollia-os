@@ -1,26 +1,274 @@
-/* Apollia OS documentation theme overrides.
-   Design tokens are mirrored from the desktop charter in later phases; phase 1
-   keeps the Infima defaults with a neutral brand accent. */
+/* Apollia OS documentation theme.
+ *
+ * The palette and the type stack are mirrored from the desktop charter so the
+ * site and the application read as one product. Source of truth:
+ * `crates/apollia-desktop/ui/src/app.css` (`:root` for light, `.dark` for
+ * dark) and `crates/apollia-desktop/ui/tailwind.config.ts` (`fontFamily`).
+ * Nothing here is generated: when a token moves in app.css, move it here too.
+ *
+ * Fonts are bundled through @fontsource and served from this site's own
+ * origin. No <link> to a font CDN, ever: a documentation page that phones a
+ * third party on load contradicts the guarantee the product is sold on, and
+ * the desktop app already holds that line (see ui/index.html).
+ */
+
+@import "@fontsource/inter-tight/400.css";
+@import "@fontsource/inter-tight/500.css";
+@import "@fontsource/inter-tight/600.css";
+@import "@fontsource/inter-tight/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
 
 :root {
-  --ifm-color-primary: #4338ca;
-  --ifm-color-primary-dark: #3c33b8;
-  --ifm-color-primary-darker: #3930ae;
-  --ifm-color-primary-darkest: #2f288f;
-  --ifm-color-primary-light: #4a3fd6;
-  --ifm-color-primary-lighter: #5449da;
-  --ifm-color-primary-lightest: #6e64e0;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  /* Brand, from app.css --primary: 237 47% 57%. The dark/light ladder below
+     reuses the app's own hover (53%) and active (49%) steps where they exist
+     and extends them by even lightness increments for the rest. */
+  --ifm-color-primary: hsl(237 47% 57%);
+  --ifm-color-primary-dark: hsl(237 47% 53%);
+  --ifm-color-primary-darker: hsl(237 47% 49%);
+  --ifm-color-primary-darkest: hsl(237 47% 41%);
+  --ifm-color-primary-light: hsl(237 47% 62%);
+  --ifm-color-primary-lighter: hsl(237 47% 66%);
+  --ifm-color-primary-lightest: hsl(237 47% 74%);
+
+  /* Signature gradient stops, app.css --primary-gradient-from / -to. */
+  --apollia-grad-a: hsl(237 47% 57%);
+  --apollia-grad-b: hsl(261 36% 61%);
+
+  /* Warm greige surfaces, app.css --background / --surface-1 / --surface-2. */
+  --ifm-background-color: hsl(33 11% 95%);
+  --ifm-background-surface-color: hsl(40 14% 98%);
+  --apollia-surface-2: hsl(33 12% 93%);
+
+  /* Ink, app.css --foreground / --muted-foreground / --border. */
+  --ifm-font-color-base: hsl(33 13% 9%);
+  --ifm-heading-color: hsl(33 13% 9%);
+  --ifm-color-content-secondary: hsl(33 7% 46%);
+  --apollia-border: hsl(33 10% 84%);
+  --ifm-toc-border-color: hsl(33 10% 84%);
+  --ifm-hr-border-color: hsl(33 10% 84%);
+  --ifm-table-border-color: hsl(33 10% 84%);
+  --ifm-code-background: hsl(33 12% 96%);
+  --ifm-blockquote-color: hsl(33 7% 46%);
+  --ifm-blockquote-border-color: hsl(237 47% 57% / 0.35);
+
+  /* Type stack, tailwind.config.ts fontFamily. */
+  --ifm-font-family-base: "Inter Tight", "Inter", system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --ifm-heading-font-family: "Inter Tight", "Inter", system-ui, sans-serif;
+  --ifm-font-family-monospace: "JetBrains Mono", "IBM Plex Mono", ui-monospace,
+    monospace;
+
+  --ifm-code-font-size: 92%;
+  --ifm-heading-font-weight: 600;
+  --ifm-h1-font-size: 2.25rem;
+  /* app.css --radius: 0.625rem. */
+  --ifm-global-radius: 0.625rem;
+  --docusaurus-highlighted-code-line-bg: hsl(237 47% 57% / 0.12);
 }
 
-[data-theme='dark'] {
-  --ifm-color-primary: #8b83f0;
-  --ifm-color-primary-dark: #6f64ec;
-  --ifm-color-primary-darker: #6157ea;
-  --ifm-color-primary-darkest: #3d31e3;
-  --ifm-color-primary-light: #a7a2f4;
-  --ifm-color-primary-lighter: #b5b0f6;
-  --ifm-color-primary-lightest: #dfddfb;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+[data-theme="dark"] {
+  /* app.css .dark --primary: 237 52% 64%, hover 68%, active 60%. */
+  --ifm-color-primary: hsl(237 52% 70%);
+  --ifm-color-primary-dark: hsl(237 52% 64%);
+  --ifm-color-primary-darker: hsl(237 52% 60%);
+  --ifm-color-primary-darkest: hsl(237 52% 50%);
+  --ifm-color-primary-light: hsl(237 52% 76%);
+  --ifm-color-primary-lighter: hsl(237 52% 80%);
+  --ifm-color-primary-lightest: hsl(237 52% 88%);
+
+  --apollia-grad-a: hsl(237 52% 64%);
+  --apollia-grad-b: hsl(261 40% 67%);
+
+  --ifm-background-color: hsl(33 13% 9%);
+  --ifm-background-surface-color: hsl(33 10% 14%);
+  --apollia-surface-2: hsl(33 11% 13%);
+
+  --ifm-font-color-base: hsl(33 12% 92%);
+  --ifm-heading-color: hsl(33 12% 92%);
+  --ifm-color-content-secondary: hsl(33 8% 62%);
+  --apollia-border: hsl(33 8% 22%);
+  --ifm-toc-border-color: hsl(33 8% 22%);
+  --ifm-hr-border-color: hsl(33 8% 22%);
+  --ifm-table-border-color: hsl(33 8% 22%);
+  --ifm-code-background: hsl(33 10% 11%);
+  --ifm-blockquote-color: hsl(33 8% 62%);
+  --ifm-blockquote-border-color: hsl(237 52% 64% / 0.4);
+
+  --docusaurus-highlighted-code-line-bg: hsl(237 52% 64% / 0.18);
+}
+
+/* ── Chrome ─────────────────────────────────────────────────────────── */
+
+.navbar {
+  border-bottom: 1px solid var(--apollia-border);
+  box-shadow: none;
+}
+
+.navbar__logo {
+  height: 1.75rem;
+  margin-right: 0.5rem;
+}
+
+.navbar__title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.footer {
+  background: var(--apollia-surface-2);
+  border-top: 1px solid var(--apollia-border);
+  color: var(--ifm-font-color-base);
+}
+
+.footer .footer__title {
+  color: var(--ifm-heading-color);
+}
+
+.footer .footer__link-item {
+  color: var(--ifm-color-content-secondary);
+}
+
+.footer .footer__link-item:hover {
+  color: var(--ifm-color-primary);
+}
+
+.footer .footer__copyright {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.85rem;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  background: hsl(237 47% 57% / 0.1);
+}
+
+[data-theme="dark"] .menu__link--active:not(.menu__link--sublist) {
+  background: hsl(237 52% 64% / 0.16);
+}
+
+/* ── Documentation landing page ──────────────────────────────────────
+   Structure supplied by docs/intro.md and its French mirror. Class names
+   are prefixed `home-` so they never collide with an Infima class. */
+
+.home-hero {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 2.25rem;
+  padding: 2rem 2rem 2.25rem;
+  border: 1px solid hsl(261 36% 61% / 0.28);
+  border-radius: 1rem;
+  background:
+    radial-gradient(120% 140% at 84% -10%, hsl(261 36% 61% / 0.16), transparent 46%),
+    radial-gradient(120% 130% at 12% 0%, hsl(237 47% 57% / 0.14), transparent 52%),
+    var(--ifm-background-surface-color);
+}
+
+[data-theme="dark"] .home-hero {
+  border-color: hsl(261 40% 67% / 0.28);
+  background:
+    radial-gradient(120% 140% at 84% -10%, hsl(261 40% 67% / 0.18), transparent 46%),
+    radial-gradient(120% 130% at 12% 0%, hsl(237 52% 64% / 0.16), transparent 52%),
+    var(--ifm-background-surface-color);
+}
+
+.home-hero img {
+  width: 76px;
+  height: 76px;
+  flex: none;
+}
+
+.home-hero-body {
+  min-width: 16rem;
+  flex: 1 1 20rem;
+}
+
+.home-hero h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 1.2rem + 2.2vw, 2.75rem);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  background-image: linear-gradient(
+    100deg,
+    var(--apollia-grad-a),
+    var(--apollia-grad-b) 45%,
+    var(--apollia-grad-a)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.home-hero p {
+  margin: 0.6rem 0 0;
+  max-width: 46rem;
+  color: var(--ifm-color-content-secondary);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 2rem;
+}
+
+.home-card {
+  display: block;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--apollia-border);
+  border-radius: 0.75rem;
+  background: var(--ifm-background-surface-color);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.home-card:hover {
+  border-color: hsl(237 47% 57% / 0.45);
+  box-shadow: 0 8px 24px -12px hsl(33 13% 9% / 0.25);
+  color: inherit;
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+[data-theme="dark"] .home-card:hover {
+  border-color: hsl(237 52% 64% / 0.5);
+  box-shadow: 0 8px 24px -12px hsl(0 0% 0% / 0.6);
+}
+
+.home-card:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.home-card strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--ifm-heading-color);
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.home-card span {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-card,
+  .home-card:hover {
+    transform: none;
+    transition: none;
+  }
 }

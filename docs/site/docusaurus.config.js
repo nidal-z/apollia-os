@@ -7,9 +7,10 @@
 const config = {
   title: 'Apollia OS',
   tagline: 'Sovereign runtime for autonomous AI agents',
-  favicon: undefined,
+  // The Apollia symbol, the same vector the desktop app serves from
+  // ui/public/logo.svg. Source of truth: crates/apollia-desktop/icons/logo.svg.
+  favicon: 'img/favicon.png',
 
-  // Placeholders. Set the real domain when the deploy pipeline lands.
   url: 'https://docs.apollia.fr',
   baseUrl: '/',
 
@@ -88,8 +89,18 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      colorMode: {
+        respectPrefersColorScheme: true,
+      },
       navbar: {
         title: 'Apollia OS',
+        // One artwork for both themes: the symbol carries its own violet and
+        // blue, and it is already validated on the app's near-black surface
+        // by the sidebar, which serves the same file.
+        logo: {
+          alt: 'Apollia OS',
+          src: 'img/logo.svg',
+        },
         items: [
           { to: '/', label: 'Docs', position: 'left' },
           { to: '/reference', label: 'Reference', position: 'left' },
@@ -105,7 +116,16 @@ const config = {
         ],
       },
       footer: {
-        style: 'dark',
+        // `light` lets the footer inherit the charter surfaces from
+        // src/css/custom.css instead of forcing Infima's near-black block,
+        // which would fight the warm greige in the light theme.
+        style: 'light',
+        logo: {
+          alt: 'Apollia OS',
+          src: 'img/logo.svg',
+          width: 36,
+          height: 36,
+        },
         links: [
           {
             title: 'Docs',
@@ -116,8 +136,30 @@ const config = {
               { label: 'Explanation', to: '/explanation' },
             ],
           },
+          {
+            title: 'Using Apollia',
+            items: [
+              { label: 'Help center', to: '/operator-help' },
+              { label: 'Install the desktop app', to: '/how-to/install-the-desktop-app' },
+              { label: 'Architecture', to: '/architecture' },
+            ],
+          },
+          {
+            title: 'Project',
+            items: [
+              { label: 'GitHub', href: 'https://github.com/Apollia-OS/apollia-os' },
+              {
+                label: 'Discussions',
+                href: 'https://github.com/Apollia-OS/apollia-os/discussions',
+              },
+              {
+                label: 'Report a problem',
+                href: 'https://github.com/Apollia-OS/apollia-os/issues/new',
+              },
+            ],
+          },
         ],
-        copyright: 'Apollia OS.',
+        copyright: 'Apollia OS. Licensed under MIT OR Apache-2.0.',
       },
       prism: {
         additionalLanguages: ['bash', 'toml', 'python', 'rust', 'json'],

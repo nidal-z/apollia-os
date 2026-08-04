@@ -1,0 +1,83 @@
+---
+slug: /
+sidebar_position: 0
+title: Apollia OS documentation
+description: Sovereign Rust runtime for autonomous AI agents. Tutorials, how-to guides, reference, architecture and the desktop help center.
+hide_title: true
+---
+
+{/* MDX rather than Markdown so the hero and the card grid can use the
+    Docusaurus <Link> and useBaseUrl: both apply the site baseUrl and the
+    active locale prefix, which a raw <a href="/..."> would not, and which
+    would silently send French readers to the English pages. */}
+
+import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+<div className="home-hero">
+  <img src={useBaseUrl('/img/logo.svg')} alt="" />
+  <div className="home-hero-body">
+    <h1>Apollia OS documentation</h1>
+    <p>
+      A sovereign Rust runtime for autonomous AI agents. It runs any Python
+      agent in isolation, locally, with tools, and without a cloud dependency.
+      This site is the adopters' manual: what Apollia does, how to drive it, and
+      why it is built the way it is.
+    </p>
+  </div>
+</div>
+
+## Start where you are
+
+<div className="home-grid">
+  <Link className="home-card" to="/tutorials">
+    <strong>Tutorials</strong>
+    <span>Learn by doing. Build your first agent end to end, then a multi-agent assistant.</span>
+  </Link>
+  <Link className="home-card" to="/how-to">
+    <strong>How-to guides</strong>
+    <span>Achieve one task: install, package an agent, embed Apollia in your own product.</span>
+  </Link>
+  <Link className="home-card" to="/reference">
+    <strong>Reference</strong>
+    <span>Generated facts about the HTTP API, the CLI, the SDK, configuration and tools.</span>
+  </Link>
+  <Link className="home-card" to="/explanation">
+    <strong>Explanation</strong>
+    <span>The concepts and the reasoning: eight principles, autonomy tiers, trust model.</span>
+  </Link>
+  <Link className="home-card" to="/architecture">
+    <strong>Architecture</strong>
+    <span>The public system cartography, arc42 form with C4 context and runtime views.</span>
+  </Link>
+  <Link className="home-card" to="/operator-help">
+    <strong>Help center</strong>
+    <span>Step-by-step gestures for the desktop app, written for the person using it.</span>
+  </Link>
+</div>
+
+The layout follows the [Diataxis](https://diataxis.fr) framework: each bucket
+answers a different kind of question, so pick the one that matches what you need
+right now rather than reading front to back.
+
+## What running locally means here
+
+Apollia keeps inference, transcription, memory and audit on the machine. The
+desktop app embeds its own LLM engine and its own speech-to-text engine, so a
+fresh launch contacts nobody, and nothing about a conversation leaves the
+machine unless an explicit action sends it.
+
+- [Sovereignty and local-first](/explanation/sovereignty-and-local-first) states the guarantee and its boundaries.
+- [The eight principles](/explanation/the-8-principles) is the shortest path to the design.
+- [Audit and verify](/how-to/audit-and-verify) shows how to check what actually happened.
+
+## Source of truth
+
+The three machine references are never hand-copied. They are generated from the
+code:
+
+- the HTTP API reference from the delivered OpenAPI spec,
+- the CLI reference from the `apollia-os` command tree,
+- the SDK contract from the typed `Ctx` services.
+
+Run `bash regen.sh` to refresh them.
