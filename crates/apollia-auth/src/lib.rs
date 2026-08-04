@@ -37,7 +37,7 @@ pub mod token;
 pub use auth_manager::AuthManager;
 pub use connector_providers::{
     build_google_provider, build_microsoft_provider, build_microsoft_provider_for_tenant,
-    ConnectorProvider, GoogleScope, MicrosoftScope,
+    ConnectorProvider, GoogleScope, MicrosoftScope, MICROSOFT_DEFAULT_CLIENT_ID,
 };
 pub use error::AuthError;
 pub use mcp_oauth::{
