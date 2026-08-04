@@ -408,6 +408,7 @@ impl PythonExecutor {
             let mut venv_cmd = tokio::process::Command::new(&self.system_python.program);
             venv_cmd.args(&self.system_python.args);
             apollia_core::subprocess_env::scrub_bundled_python_async(&mut venv_cmd);
+            apollia_core::subprocess_window::hide_console_async(&mut venv_cmd);
             let venv_output = venv_cmd
                 .args(&cmd_args)
                 .output()
@@ -431,6 +432,7 @@ impl PythonExecutor {
 
             let mut pip_cmd = tokio::process::Command::new(&pip_bin);
             apollia_core::subprocess_env::scrub_bundled_python_async(&mut pip_cmd);
+            apollia_core::subprocess_window::hide_console_async(&mut pip_cmd);
             let pip_output = pip_cmd
                 .args(["install", package.as_str(), "--quiet"])
                 .output()
@@ -559,6 +561,7 @@ impl PythonExecutor {
         // python_bin is the agent's venv interpreter. PYTHONHOME would override
         // the venv's own prefix and defeat the isolation the venv exists for.
         apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
+        apollia_core::subprocess_window::hide_console(&mut cmd);
         #[cfg(unix)]
         apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
         tokio::process::Command::from(cmd)

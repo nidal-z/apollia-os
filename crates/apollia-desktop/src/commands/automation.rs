@@ -182,6 +182,7 @@ mod capture {
         // window sitting on top of the app region does not get captured instead.
         // Falls back to a screen-region capture (`-R`) if the id is unavailable.
         let mut command = tokio::process::Command::new("screencapture");
+        apollia_core::subprocess_window::hide_console_async(&mut command);
         match window_number(&window) {
             Some(id) => {
                 command.args(["-l", &id.to_string(), "-o", "-x", &out_str]);

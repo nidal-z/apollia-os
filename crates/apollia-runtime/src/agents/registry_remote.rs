@@ -103,7 +103,9 @@ pub fn parse_install_source(s: &str) -> AgentInstallSource {
 
 /// Verify that `git` is reachable from the system PATH.
 pub fn check_git_available() -> Result<(), RemoteInstallError> {
-    match std::process::Command::new("git").arg("--version").output() {
+    let mut probe = std::process::Command::new("git");
+    apollia_core::subprocess_window::hide_console(&mut probe);
+    match probe.arg("--version").output() {
         Ok(o) if o.status.success() => Ok(()),
         Ok(_) => Err(RemoteInstallError::GitNotFound),
         Err(_) => Err(RemoteInstallError::GitNotFound),
@@ -124,6 +126,7 @@ pub async fn git_clone(
     }
 
     let mut cmd = tokio::process::Command::new("git");
+    apollia_core::subprocess_window::hide_console_async(&mut cmd);
     cmd.arg("clone").arg("--depth").arg("1");
 
     if let Some(t) = tag {
@@ -428,6 +431,7 @@ fn install_pip_packages(packages: &[String]) -> Result<(), RemoteInstallError> {
     for pkg in packages {
         let mut pip = std::process::Command::new("pip");
         apollia_core::subprocess_env::scrub_bundled_python(&mut pip);
+        apollia_core::subprocess_window::hide_console(&mut pip);
         let output = pip
             .args(["install", pkg.as_str()])
             .output()

@@ -68,10 +68,9 @@ fn os_version() -> Option<String> {
 #[cfg(target_os = "windows")]
 fn os_version() -> Option<String> {
     // `cmd /c ver` prints e.g. `Microsoft Windows [Version 10.0.22631.3593]`.
-    let output = std::process::Command::new("cmd")
-        .args(["/c", "ver"])
-        .output()
-        .ok()?;
+    let mut probe = std::process::Command::new("cmd");
+    apollia_core::subprocess_window::hide_console(&mut probe);
+    let output = probe.args(["/c", "ver"]).output().ok()?;
     if !output.status.success() {
         return None;
     }

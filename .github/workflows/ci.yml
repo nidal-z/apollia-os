@@ -141,7 +141,7 @@ jobs:
             cmake clang pkg-config
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: cargo test (workspace)
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
       - name: cargo test (python-tests)
         run: cargo test -p apollia-e2e-tests --features python-tests
 
@@ -288,6 +288,13 @@ jobs:
       # tells the truth. New instances now fail here instead of in a doc audit.
       - name: Optional-capability builders have a production caller
         run: python3 scripts/check_optional_builders.py --strict
+      # The desktop owns no console on Windows, so every console-subsystem child
+      # it starts is given a visible window. A first sweep hid ten spawn sites
+      # and left four crates listed as remaining; nobody took them, and a later
+      # change added three more in files that did not exist yet. The count went
+      # up while the rule sat in a document. It is a check now.
+      - name: Spawned children ask for no console window
+        run: python3 scripts/check_subprocess_window.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

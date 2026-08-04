@@ -95,6 +95,9 @@ pub fn locate_system_python() -> Result<PythonCommand, PythonExecutorError> {
         // real run would not.
         let mut probe = std::process::Command::new(&candidate.program);
         apollia_core::subprocess_env::scrub_bundled_python(&mut probe);
+        // Discovery runs at startup and probes several candidates in a row, so
+        // an unhidden probe is not one window but a burst of them.
+        apollia_core::subprocess_window::hide_console(&mut probe);
         let output = probe.args(&candidate.args).arg("--version").output();
         if let Ok(output) = output {
             let stdout = String::from_utf8_lossy(&output.stdout);

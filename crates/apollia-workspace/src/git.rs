@@ -72,12 +72,9 @@ impl GitContextCollector {
     /// Returns `Some(stdout)` when the command succeeds (exit code 0 and valid
     /// UTF-8), `None` in every other case.
     async fn run_git(cwd: &Path, args: &[&str]) -> Option<String> {
-        let output = tokio::process::Command::new("git")
-            .args(args)
-            .current_dir(cwd)
-            .output()
-            .await
-            .ok()?;
+        let mut git = tokio::process::Command::new("git");
+        apollia_core::subprocess_window::hide_console_async(&mut git);
+        let output = git.args(args).current_dir(cwd).output().await.ok()?;
 
         if output.status.success() {
             String::from_utf8(output.stdout).ok()

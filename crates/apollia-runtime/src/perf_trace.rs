@@ -670,7 +670,9 @@ fn build_provenance(
     server_path: Option<String>,
 ) -> Value {
     let sh = |cmd: &str, args: &[&str]| -> Option<String> {
-        let out = std::process::Command::new(cmd).args(args).output().ok()?;
+        let mut probe = std::process::Command::new(cmd);
+        apollia_core::subprocess_window::hide_console(&mut probe);
+        let out = probe.args(args).output().ok()?;
         out.status
             .success()
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_owned())
@@ -695,10 +697,9 @@ fn build_provenance(
     // The engine prints its version banner on stderr, so both streams are
     // read; the first line is the `version: NNNN (sha)` banner either way.
     let server_version = server_path.as_deref().and_then(|p| {
-        let out = std::process::Command::new(p)
-            .arg("--version")
-            .output()
-            .ok()?;
+        let mut banner = std::process::Command::new(p);
+        apollia_core::subprocess_window::hide_console(&mut banner);
+        let out = banner.arg("--version").output().ok()?;
         if !out.status.success() {
             return None;
         }

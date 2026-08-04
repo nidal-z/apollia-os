@@ -437,6 +437,10 @@ impl BashExecutor {
         let mut cmd = std::process::Command::new(shell);
         cmd.args(["-c", &input.command]);
         apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
+        // The desktop owns no console, so every console-subsystem child it
+        // starts is given a brand new window. Without this, each tool call
+        // flashes a terminal in the operator's face.
+        apollia_core::subprocess_window::hide_console(&mut cmd);
         tokio::process::Command::from(cmd)
     }
 }

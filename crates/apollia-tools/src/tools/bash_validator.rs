@@ -70,6 +70,7 @@ impl BashValidator {
 
         let mut validator = Command::new(shell);
         apollia_core::subprocess_env::scrub_bundled_python_async(&mut validator);
+        apollia_core::subprocess_window::hide_console_async(&mut validator);
         let mut child = validator
             .args(["-n", "-c", cmd])
             .stdout(std::process::Stdio::null())
