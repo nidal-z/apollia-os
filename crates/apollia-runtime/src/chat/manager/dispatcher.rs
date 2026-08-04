@@ -257,6 +257,14 @@ fn build_full_chat_dispatcher(
     apollia_tools::build_dispatcher_with(&native_cfg, extra_executors)
 }
 
+/// Virtualenv shared by every chat session's `python_executor`.
+///
+/// Deliberately not the session identifier: that one names a memory namespace
+/// and would leave one ~15 MB interpreter tree behind per conversation. Chat
+/// sessions declare no pip packages, so they have nothing to isolate from each
+/// other, and the interpreter is created once on the first execution.
+const CHAT_VENV_ID: &str = "apollia-chat";
+
 /// Wrap and append the HITL-sensitive native executors (file write/edit,
 /// notebook edit, bash, python) behind the filesystem approval guard.
 fn push_hitl_natives(
@@ -312,15 +320,23 @@ fn push_hitl_natives(
         Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
         apollia_tools::FilesystemOp::Write,
     );
-    if let Ok(t) = apollia_tools::tools::python_executor::PythonExecutor::new(
-        &native_cfg.agent_id,
+    match apollia_tools::tools::python_executor::PythonExecutor::new(
+        CHAT_VENV_ID,
         &native_cfg.venv_base_dir,
     ) {
-        push_hitl(
+        Ok(t) => push_hitl(
             extra_executors,
             Box::new(t),
             apollia_tools::FilesystemOp::Write,
-        );
+        ),
+        // A host with no Python 3 must hear why. Dropping the executor here
+        // left the descriptor advertised to the model and the call answered
+        // with UnknownTool, which reads as a wiring bug rather than a missing
+        // interpreter. Same stub the dispatcher itself installs.
+        Err(e) => extra_executors.push(Box::new(apollia_tools::UnavailableTool::new(
+            "python_executor",
+            e.to_string(),
+        ))),
     }
 }
 
@@ -366,4 +382,92 @@ pub(in crate::chat::manager) fn session_to_info(session: &ChatSession) -> Sessio
 /// Return the current time as an RFC-3339/ISO-8601 string.
 pub(in crate::chat::manager) fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// HITL parameters that approve every filesystem risk level up front, so a
+    /// test never waits on an approval nobody will answer.
+    fn preapproved_hitl(session_id: &str) -> HitlInvokerParams {
+        let (event_bus, _rx) = crate::eventbus::EventBus::new();
+        let fs_allow_rules = std::sync::Arc::new(std::sync::Mutex::new(
+            ["write:medium", "write:high", "write:critical"]
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect::<std::collections::HashSet<String>>(),
+        ));
+        HitlInvokerParams {
+            session_id: session_id.to_string(),
+            event_bus,
+            pending_fs: crate::chat::types::PendingFilesystemApprovals::new(),
+            fs_allow_rules,
+            risk_config: apollia_core::FilesystemRiskConfig::default(),
+        }
+    }
+
+    fn chat_tools_config(data_dir: &std::path::Path) -> std::sync::Arc<ChatToolsConfig> {
+        std::sync::Arc::new(ChatToolsConfig {
+            data_dir: data_dir.to_path_buf(),
+            brave_api_key: None,
+            tools_config: apollia_core::ToolsConfig::default(),
+            default_workspace: None,
+            tool_turn_temperature: None,
+        })
+    }
+
+    // GIVEN the dispatcher a chat session really gets, over a data directory
+    //       where no virtualenv was ever provisioned
+    // WHEN python_executor is dispatched
+    // THEN the code runs, and the interpreter was created under the shared chat
+    //      virtualenv rather than a per-session one
+    #[tokio::test]
+    async fn test_chat_dispatcher_runs_python_without_prior_provisioning() {
+        // GIVEN
+        let data_dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = tempfile::tempdir().expect("tempdir");
+        let cfg = chat_tools_config(data_dir.path());
+        let hitl = preapproved_hitl("session-under-test");
+        let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
+            cfg: &cfg,
+            session_id: "session-under-test",
+            sandbox_root: sandbox.path(),
+            workspace_path: &None,
+            pending_user_inputs: &None,
+            hitl: Some(&hitl),
+            extra_executors: Vec::new(),
+        });
+
+        // WHEN
+        let result = dispatcher
+            .dispatch(
+                "python_executor",
+                serde_json::json!({ "code": "print('wired')", "timeout_secs": 120 }),
+            )
+            .await;
+
+        // THEN
+        let output = match result {
+            Ok(v) => v,
+            // A host with no Python 3 answers with the actionable stub instead.
+            Err(apollia_tools::executor::ToolExecutionError::ExecutionFailed {
+                ref code, ..
+            }) if code == "tool_unavailable" || code == "python_unavailable" => return,
+            Err(e) => panic!("python_executor failed: {e:?}"),
+        };
+        assert_eq!(
+            output.get("stdout").and_then(|v| v.as_str()).map(str::trim),
+            Some("wired")
+        );
+        assert!(
+            data_dir
+                .path()
+                .join("venvs")
+                .join(CHAT_VENV_ID)
+                .join("venv")
+                .is_dir(),
+            "the chat virtualenv should have been created on first use"
+        );
+    }
 }

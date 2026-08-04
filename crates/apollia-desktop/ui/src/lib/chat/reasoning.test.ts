@@ -9,12 +9,14 @@
 import { describe, expect, test } from "vitest";
 import type { ToolCallView } from "../types";
 import {
+  buildLiveSequence,
   buildReasoningSequence,
   extractSources,
   parseWebReadOutput,
   parseWebSearchOutput,
   sumToolDurationMs,
   toReasoningItem,
+  type LiveToolStep,
   type ReasoningItem,
 } from "./reasoning";
 
@@ -308,5 +310,95 @@ describe("ReasoningItem - all kinds are constructible", () => {
       "retry",
       "citation",
     ]);
+  });
+});
+
+describe("buildLiveSequence - the streaming turn keeps its order", () => {
+  function step(
+    name: string,
+    reasoningCursor: number,
+    overrides: Partial<LiveToolStep> = {},
+  ): LiveToolStep {
+    return {
+      name,
+      status: overrides.status ?? "done",
+      startedAt: overrides.startedAt ?? 0,
+      durationMs: overrides.durationMs,
+      reasoningCursor,
+    };
+  }
+
+  test("GIVEN think, act, think, act WHEN built THEN the order is preserved", () => {
+    // GIVEN a turn that thought, called a tool, thought again, called another
+    const thoughts = ["I should search.", "Now I read the page."];
+    const tools = [step("web_search", 1), step("web_read", 2)];
+
+    // WHEN the live timeline is built
+    const rows = buildLiveSequence(thoughts, tools);
+
+    // THEN thoughts and actions alternate as they happened
+    expect(rows.map((r) => r.kind).join(",")).toBe("thought,tool,thought,tool");
+    expect(rows[1].kind === "tool" && rows[1].name).toBe("web_search");
+    expect(rows[3].kind === "tool" && rows[3].name).toBe("web_read");
+  });
+
+  test("GIVEN a tool called before any thought WHEN built THEN it leads", () => {
+    // GIVEN
+    const rows = buildLiveSequence(["after the fact"], [step("file_read", 0)]);
+
+    // WHEN / THEN
+    expect(rows.map((r) => r.kind).join(",")).toBe("tool,thought");
+  });
+
+  test("GIVEN several tools in one step WHEN built THEN they stay grouped in order", () => {
+    // GIVEN two calls issued after the first thought
+    const rows = buildLiveSequence(
+      ["plan", "wrap up"],
+      [step("file_read", 1), step("file_write", 1)],
+    );
+
+    // WHEN / THEN
+    expect(rows.map((r) => r.kind).join(",")).toBe(
+      "thought,tool,tool,thought",
+    );
+    expect(rows[1].kind === "tool" && rows[1].name).toBe("file_read");
+    expect(rows[2].kind === "tool" && rows[2].name).toBe("file_write");
+  });
+
+  test("GIVEN tools but no closed thought WHEN built THEN every tool still shows", () => {
+    // GIVEN
+    const rows = buildLiveSequence([], [step("bash_executor", 0)]);
+
+    // WHEN / THEN
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("tool");
+  });
+
+  test("GIVEN nothing WHEN built THEN the timeline is empty", () => {
+    expect(buildLiveSequence([], [])).toEqual([]);
+  });
+});
+
+describe("toReasoningItem - a failed call is not a success", () => {
+  test("GIVEN a failed tool call WHEN normalized THEN its status is error", () => {
+    // GIVEN a call that ran and failed
+    const call = makeCall({ tool_name: "python_executor", status: "failed" });
+
+    // WHEN
+    const item = toReasoningItem(call, "m", 0);
+
+    // THEN
+    expect(item.status).toBe("error");
+  });
+
+  test("GIVEN a refused call WHEN normalized THEN it stays distinct from a failure", () => {
+    // GIVEN a call a human stopped
+    const call = makeCall({ tool_name: "bash_executor", status: "refused" });
+
+    // WHEN
+    const item = toReasoningItem(call, "m", 0);
+
+    // THEN
+    expect(item.status).toBe("rejected");
   });
 });

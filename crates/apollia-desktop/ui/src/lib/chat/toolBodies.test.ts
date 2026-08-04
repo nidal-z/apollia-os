@@ -193,8 +193,13 @@ describe("parseFileGlob", () => {
     expect(parseFileGlob(bare)).toEqual(["only.rs"]);
   });
 
-  it("returns null on empty or malformed output", () => {
-    expect(parseFileGlob(JSON.stringify({ matches: [] }))).toBeNull();
+  it("keeps an empty match list as a result, and refuses only what it cannot read", () => {
+    // GIVEN a search that ran and matched nothing
+    // WHEN parsed
+    // THEN it is an empty result, so the body can say so instead of falling
+    //      back to showing the operator the raw JSON
+    expect(parseFileGlob(JSON.stringify({ matches: [] }))).toEqual([]);
+    // AND an output that is not a glob result at all is still refused
     expect(parseFileGlob("not json")).toBeNull();
     expect(parseFileGlob(null)).toBeNull();
   });
@@ -230,8 +235,19 @@ describe("parseGrep", () => {
     expect(parsed?.truncated).toBe(false);
   });
 
-  it("returns null when there are no usable matches", () => {
-    expect(parseGrep(JSON.stringify({ matches: [] }))).toBeNull();
+  it("keeps a search that matched nothing as a result", () => {
+    // GIVEN a grep that ran over files and matched nothing
+    const parsed = parseGrep(
+      JSON.stringify({ matches: [], files_searched: 12 }),
+    );
+
+    // WHEN read by the body
+    // THEN it can report "0 matches in 12 files" rather than raw JSON
+    expect(parsed?.groups).toEqual([]);
+    expect(parsed?.totalMatches).toBe(0);
+    expect(parsed?.filesSearched).toBe(12);
+
+    // AND an output that is not a grep result is still refused
     expect(parseGrep("garbage")).toBeNull();
   });
 });
@@ -294,9 +310,17 @@ describe("parseMemory", () => {
     expect(parsed?.totalFound).toBe(2);
   });
 
-  it("skips entries with no content and returns null when none remain", () => {
+  it("skips entries with no content, and keeps an empty recall as a result", () => {
+    // GIVEN a payload whose only entry carries no content
     const raw = JSON.stringify({ results: [{ score: 1, source: "s" }] });
-    expect(parseMemory(raw)).toBeNull();
+
+    // WHEN parsed
+    // THEN the entry is dropped but the result stands, so the body says the
+    //      search recalled nothing instead of printing the raw payload
+    expect(parseMemory(raw)?.entries).toEqual([]);
+    expect(parseMemory(JSON.stringify({ results: [], total_found: 0 }))?.totalFound).toBe(0);
+
+    // AND an output that is not a memory result is still refused
     expect(parseMemory("nope")).toBeNull();
   });
 });

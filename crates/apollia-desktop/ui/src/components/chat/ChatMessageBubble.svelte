@@ -176,9 +176,11 @@
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
-  <!-- Zone 1: quiet reasoning strip - thoughts only, as flat narrated captions,
-       collapsed by default in both modes. -->
-  {#if hasThinking}
+  <!-- Zone 1: one activity block, collapsed by default. Its summary says how
+       much the turn thought and how many actions it took; opening it reveals
+       the timeline in the order it happened, each row expandable to its own
+       detail. A turn with eighteen tool calls is one line until asked. -->
+  {#if hasThinking || nonPendingCalls.length > 0}
     <div class="{widthClass}">
       <ActivityStrip durationMs={activityDurationMs} {reasoningCount} {toolCount}>
         <ReasoningSequence
@@ -186,23 +188,9 @@
           {sessionId}
           {isOperator}
           content={message.content ?? undefined}
-          section="reasoning"
+          section="timeline"
         />
       </ActivityStrip>
-    </div>
-  {/if}
-
-  <!-- Zone 2: the tool calls, visible in the thread flow. Each row expands to
-       its bespoke per-tool body (operator abstraction / builder raw). -->
-  {#if nonPendingCalls.length > 0}
-    <div class="{widthClass}">
-      <ReasoningSequence
-        {message}
-        {sessionId}
-        {isOperator}
-        content={message.content ?? undefined}
-        section="tools"
-      />
     </div>
   {/if}
 

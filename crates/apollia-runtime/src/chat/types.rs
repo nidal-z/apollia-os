@@ -379,6 +379,32 @@ pub enum ToolCallStatus {
     /// Refused by the user.
     #[serde(alias = "Refused")]
     Refused,
+    /// Ran and failed: the executor errored, or the tool reported a non-zero
+    /// exit code. Distinct from [`Refused`][Self::Refused], which is a human
+    /// decision taken before anything ran.
+    ///
+    /// Without this variant the failure was only carried by the transient
+    /// `ChatToolCallCompleted` event and the persisted record claimed success,
+    /// so a failed call was re-rendered with a success marker as soon as the
+    /// turn finalized.
+    #[serde(alias = "Failed")]
+    Failed,
+}
+
+impl ToolCallStatus {
+    /// Status for a call that ran, from whether it succeeded.
+    ///
+    /// The single place the verdict becomes a persisted value. Each site used
+    /// to write `Executed` unconditionally while holding a correct boolean two
+    /// lines above, so a failure survived only on the event bus and the
+    /// re-rendered history claimed success.
+    pub fn from_success(success: bool) -> Self {
+        if success {
+            Self::Executed
+        } else {
+            Self::Failed
+        }
+    }
 }
 
 /// User decision on a tool approval request.

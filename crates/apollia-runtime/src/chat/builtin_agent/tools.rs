@@ -335,7 +335,7 @@ impl BuiltInChatAgent {
             tool_name: call.name.clone(),
             input: call.arguments.clone(),
             output: Some(tool_result),
-            status: ToolCallStatus::Executed,
+            status: ToolCallStatus::from_success(result.ok),
             rationale: None,
             retry_attempts: Vec::new(),
         });
@@ -665,7 +665,10 @@ impl BuiltInChatAgent {
             tool_name: call.name.clone(),
             input: call.arguments.clone(),
             output: Some(output.clone()),
-            status: ToolCallStatus::Executed,
+            // The same verdict the event above carries. Persisting `Executed`
+            // unconditionally is what made a failed call render as a success
+            // once the turn finalized.
+            status: ToolCallStatus::from_success(success),
             rationale,
             retry_attempts: Vec::new(),
         };

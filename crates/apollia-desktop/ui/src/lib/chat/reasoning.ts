@@ -86,6 +86,7 @@ const TOOL_STATUS_MAP: Record<ToolCallView["status"], ReasoningStatus> = {
   authorized: "running",
   executed: "success",
   refused: "rejected",
+  failed: "error",
 };
 
 /**
@@ -300,6 +301,63 @@ export function buildReasoningSequence(
     items.push(toolItem(i));
   }
   return items;
+}
+
+/** One live tool invocation, as the streaming turn accumulates it. */
+export interface LiveToolStep {
+  name: string;
+  status: "running" | "done" | "refused";
+  startedAt: number;
+  durationMs?: number;
+  /** Thoughts already closed when this call started. Its place in the order. */
+  reasoningCursor: number;
+}
+
+/** One row of the live timeline: a closed thought, or a tool invocation. */
+export type LiveRow =
+  | { kind: "thought"; id: string; content: string }
+  | {
+      kind: "tool";
+      id: string;
+      name: string;
+      status: LiveToolStep["status"];
+      durationMs?: number;
+    };
+
+/**
+ * Interleave the streaming turn's closed thoughts and tool calls into the order
+ * they happened, the live counterpart of [`buildReasoningSequence`].
+ *
+ * A tool whose `reasoningCursor` is `k` started after `k` thoughts had closed,
+ * so it belongs before thought `k`. Rendering the two lists one after the other
+ * instead, as an earlier revision did, is what turned a live ReAct loop into
+ * all of the thinking followed by all of the actions.
+ */
+export function buildLiveSequence(
+  closedThinking: string[],
+  toolChain: LiveToolStep[],
+): LiveRow[] {
+  const rows: LiveRow[] = [];
+  let next = 0;
+  const pushToolsUpTo = (cursor: number): void => {
+    while (next < toolChain.length && toolChain[next].reasoningCursor <= cursor) {
+      const tool = toolChain[next];
+      rows.push({
+        kind: "tool",
+        id: `live-tool-${next}-${tool.startedAt}`,
+        name: tool.name,
+        status: tool.status,
+        durationMs: tool.durationMs,
+      });
+      next += 1;
+    }
+  };
+  closedThinking.forEach((content, i) => {
+    pushToolsUpTo(i);
+    rows.push({ kind: "thought", id: `live-think-${i}`, content });
+  });
+  pushToolsUpTo(Number.POSITIVE_INFINITY);
+  return rows;
 }
 
 /**

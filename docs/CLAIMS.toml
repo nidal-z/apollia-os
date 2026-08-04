@@ -640,6 +640,62 @@ indistinguishable from a wiring bug. The stub keeps the name addressable and
 returns the constructor's actionable error (code `tool_unavailable`). If
 nothing constructs UnavailableTool, the silent-drop behaviour is back and this
 page overstates what a failing host reports.
+
+The chat dispatcher builds its own copies of the HITL-wrapped natives and kept
+dropping python_executor on a construction error long after the shared
+dispatcher stopped doing so, which is why the guarantee is stated for both.
+"""
+
+[[claim]]
+id = "python-venv-created-on-first-use"
+scope = "public"
+symbol = "PythonExecutor::ensure_venv"
+status = "wired"
+proof = "crates/apollia-tools/src/tools/python_executor.rs"
+evidence = ""
+note = """
+`PythonExecutor::new` points `python_bin` at an interpreter inside a virtualenv
+it does not create. An installed agent gets that virtualenv from `setup_venv`
+at INITIALIZING, but only when its manifest declares packages; a chat session
+declares none and is wired straight into the dispatcher, so nothing created it
+and every call failed to spawn with "No such file or directory". The lazily
+created copy that used to cover the chat case had lost its only caller. If
+nothing calls ensure_venv, python_executor is unusable from a chat again, and
+this page describes a tool that cannot run.
+"""
+
+[[claim]]
+id = "failed-tool-call-is-marked-failed"
+scope = "public"
+symbol = "ToolCallStatus::from_success"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/builtin_agent/tools.rs"
+evidence = ""
+note = """
+The runtime computed a correct success boolean, emitted it on the event bus,
+and then wrote `Executed` into the persisted record regardless. The status is
+the only failure signal the interface has once a turn finalizes, so a failed
+call was re-rendered with a green check and "finished without errors" under
+text that read `tool error: ...`. If nothing calls from_success, a status is
+being hardcoded again somewhere and the interface is back to reporting a
+failure as a success.
+"""
+
+[[claim]]
+id = "chat-timeline-follows-execution-order"
+scope = "public"
+symbol = "build_thinking_trace"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/builtin_agent/react_loop.rs"
+evidence = ""
+note = """
+The interleaving the chat renders rests on the per-fragment tool-call
+boundaries this function returns beside the thinking trace. Without them the
+frontend cannot know which thought preceded which action and falls back to
+every thought, then every tool, which is the flattened reading this claim
+exists to prevent. The rendering itself is Svelte and therefore beyond this
+file's reach (see the header): what is guarded here is the ordering data it
+needs, which is the half that can be replayed.
 """
 
 [[claim]]

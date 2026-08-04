@@ -26,15 +26,19 @@
 
 6. Posez vos questions de suivi dans le même fil. L'IA conserve tout l'historique de la conversation.
 
-7. Si vous discutez avec un Assistant, les étapes de raisonnement s'affichent **inline** dans les bulles de message sous forme de cartes de raisonnement dépliables (pas dans un volet droit séparé).
-   ![bulle de réponse avec carte de raisonnement dépliée montrant les étapes de l'agent](/img/operator-help/fr/chat-discuter-avec-votre-ia-3.png)
+<!-- claim:chat-timeline-follows-execution-order -->
+7. Au-dessus de la réponse, une ligne de résumé indique combien le tour a réfléchi et combien d'outils il a utilisés. En dessous, le tour se lit **dans l'ordre où il s'est produit** : une réflexion, puis l'action qu'elle a déclenchée, puis la réflexion suivante, et ainsi de suite. Chaque ligne est repliée et se déplie sur son détail, le raisonnement tel qu'il a été écrit, un appel d'outil sous forme de compte rendu en langage clair en mode Opérateur ou d'entrée et sortie brutes en mode Builder.
+   ![bulle de réponse avec la ligne de résumé et la chronologie ordonnée des réflexions et des appels d'outils](/img/operator-help/fr/chat-discuter-avec-votre-ia-3.png)
 
-8. Si l'IA veut effectuer une action sensible (écrire un fichier, lancer une commande), une carte d'approbation apparaît : voir [Approuver ou refuser une action](../controle/approuver-ou-refuser-une-action.md).
+<!-- claim:failed-tool-call-is-marked-failed -->
+8. Un appel d'outil qui échoue est signalé comme tel, par une croix rouge et non par une coche verte, et le reste quand vous rouvrez la conversation plus tard. Un appel que vous avez refusé s'affiche comme refusé, ce qui n'est pas la même chose qu'un appel qui a tourné et échoué.
 
-9. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer** ou **Supprimer**.
+9. Si l'IA veut effectuer une action sensible (écrire un fichier, lancer une commande), une carte d'approbation apparaît : voir [Approuver ou refuser une action](../controle/approuver-ou-refuser-une-action.md).
+
+10. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer** ou **Supprimer**.
 
 <!-- claim:context-gauge-engine-usage -->
-10. Sous le champ de saisie, une petite jauge **Ctx** suit le remplissage de la fenêtre de contexte du modèle. Le pourcentage vient des **comptes de tokens rapportés par le moteur lui-même** à chaque réponse ; quand le backend n'en rapporte aucun (un assistant en mode Agent, par exemple), la jauge affiche `--` plutôt qu'un nombre inventé. Au-delà de 90 %, la jauge passe à l'ambre : envisagez une nouvelle conversation, ou laissez la compaction automatique résumer les tours les plus anciens.
+11. Sous le champ de saisie, une petite jauge **Ctx** suit le remplissage de la fenêtre de contexte du modèle. Le pourcentage vient des **comptes de tokens rapportés par le moteur lui-même** à chaque réponse ; quand le backend n'en rapporte aucun (un assistant en mode Agent, par exemple), la jauge affiche `--` plutôt qu'un nombre inventé. Au-delà de 90 %, la jauge passe à l'ambre : envisagez une nouvelle conversation, ou laissez la compaction automatique résumer les tours les plus anciens.
 
 ## Vérification
 

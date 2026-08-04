@@ -1,14 +1,15 @@
 <script lang="ts">
   /**
-   * Quiet reasoning strip - zone 1 of the assistant turn.
+   * Quiet activity summary - zone 1 of the assistant turn.
    *
-   * A single subtle summary line (spark glyph + "Reasoned" + duration +
-   * chevron) that collapses the agent's reasoning (thoughts only) by default.
-   * During a live turn it is expanded so the user can watch it think; once the
-   * turn finalizes it stays collapsed. The trace body (flat reasoning captions)
-   * is supplied by the caller as the default snippet. Tool calls and sources
-   * are no longer part of the strip: they render as their own visible rows and
-   * cards in the thread flow.
+   * A single subtle line (spark glyph + "Reasoned" + counts + duration) over
+   * the turn's timeline. It summarises how much thinking and how many actions
+   * the turn took; the timeline itself renders below it, in the order things
+   * happened, and each of its rows carries its own disclosure.
+   *
+   * With `children`, the line becomes a disclosure holding them. Without, it is
+   * a static header: nothing would be hidden behind the chevron, and a control
+   * that toggles nothing is worse than no control.
    */
 
   import type { Snippet } from "svelte";
@@ -19,8 +20,8 @@
   import { formatDurationSeconds } from "$lib/chat/duration";
 
   interface Props {
-    /** Trace body: flat reasoning captions. */
-    children: Snippet;
+    /** Optional disclosed body. Omitted, the strip is a static summary line. */
+    children?: Snippet;
     /** Expanded on mount. Live turns pass `true`; finalized turns stay closed. */
     open?: boolean;
     /** Live streaming turn: shows a working label, hides the duration. */
@@ -34,7 +35,7 @@
   }
 
   let {
-    children,
+    children = undefined,
     open = false,
     live = false,
     durationMs = 0,
@@ -56,12 +57,14 @@
     expanded = !expanded;
   }
 
-  // Reasoning-only summary: a single lead verb ("Reasoned" / "Working"). The
-  // per-tool and per-source counts moved out of the strip with the rows and
-  // cards themselves.
-  const summaryLead = $derived(
-    live ? $t("chat.activity.live_lead") : $t("chat.activity.lead_reflected"),
-  );
+  // A single lead verb, matched to what the turn actually did: a turn that
+  // only ran tools did not think, and saying so would be a small lie in the
+  // one line meant to summarise the turn honestly.
+  const summaryLead = $derived.by<string>(() => {
+    if (live) return $t("chat.activity.live_lead");
+    if (reasoningCount > 0) return $t("chat.activity.lead_reflected");
+    return $t("chat.activity.lead_used");
+  });
 
   // Locale-aware seconds, one decimal (e.g. "3,2" in fr, "3.2" in en).
   const durationLabel = $derived.by<string>(() => {
@@ -86,49 +89,61 @@
   </defs>
 </svg>
 
+{#snippet summary()}
+  <span class="tb-spark" aria-hidden="true">
+    <Sparkles size={14} />
+  </span>
+  <span class="min-w-0">
+    <span class="font-semibold text-foreground">{summaryLead}</span>
+  </span>
+  {#if !live && reasoningCount > 0}
+    <span class="flex-none text-muted-foreground/70" data-testid="activity-reasoning-count"
+      >· {$t("chat.activity.reasoning_count", { values: { n: reasoningCount } })}</span
+    >
+  {/if}
+  {#if !live && toolCount > 0}
+    <span class="flex-none text-muted-foreground/70" data-testid="activity-tool-count"
+      >· {$t("chat.activity.tool_count", { values: { n: toolCount } })}</span
+    >
+  {/if}
+  {#if durationLabel}
+    <span
+      class="flex-none tabular-nums text-muted-foreground/60"
+      data-testid="activity-duration">· {durationLabel} s</span
+    >
+  {/if}
+{/snippet}
+
 <div
-  class="activity-strip mb-4 w-full overflow-hidden rounded-lg border border-[hsl(var(--border-soft))] bg-surface-1/60"
+  class="activity-strip mb-2 w-full overflow-hidden rounded-lg border border-[hsl(var(--border-soft))] bg-surface-1/60"
   data-testid="activity-strip"
 >
-  <button
-    type="button"
-    class="flex w-full cursor-pointer select-none items-center gap-2.5 px-3 py-2
-      text-left text-[12.5px] text-muted-foreground outline-none transition-colors
-      hover:bg-surface-2/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-    aria-expanded={expanded}
-    aria-label={$t("chat.activity.toggle")}
-    onclick={toggle}
-  >
-    <span class="tb-spark" aria-hidden="true">
-      <Sparkles size={14} />
-    </span>
-    <span class="min-w-0">
-      <span class="font-semibold text-foreground">{summaryLead}</span>
-    </span>
-    {#if !live && reasoningCount > 0}
-      <span class="flex-none text-muted-foreground/70" data-testid="activity-reasoning-count"
-        >· {$t("chat.activity.reasoning_count", { values: { n: reasoningCount } })}</span
-      >
-    {/if}
-    {#if !live && toolCount > 0}
-      <span class="flex-none text-muted-foreground/70" data-testid="activity-tool-count"
-        >· {$t("chat.activity.tool_count", { values: { n: toolCount } })}</span
-      >
-    {/if}
-    {#if durationLabel}
-      <span
-        class="flex-none tabular-nums text-muted-foreground/60"
-        data-testid="activity-duration">· {durationLabel} s</span
-      >
-    {/if}
-    <ChevronRight
-      size={14}
-      class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-200"
-      style={expanded ? "transform: rotate(90deg);" : ""}
-      aria-hidden="true"
-    />
-  </button>
-  {#if expanded}
+  {#if children}
+    <button
+      type="button"
+      class="flex w-full cursor-pointer select-none items-center gap-2.5 px-3 py-2
+        text-left text-[12.5px] text-muted-foreground outline-none transition-colors
+        hover:bg-surface-2/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+      aria-expanded={expanded}
+      aria-label={$t("chat.activity.toggle")}
+      onclick={toggle}
+    >
+      {@render summary()}
+      <ChevronRight
+        size={14}
+        class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-200"
+        style={expanded ? "transform: rotate(90deg);" : ""}
+        aria-hidden="true"
+      />
+    </button>
+  {:else}
+    <div
+      class="flex w-full select-none items-center gap-2.5 px-3 py-2 text-[12.5px] text-muted-foreground"
+    >
+      {@render summary()}
+    </div>
+  {/if}
+  {#if children && expanded}
     <div
       class="tb-strip-rule px-3 pb-3 pt-2"
       data-testid="activity-trace"

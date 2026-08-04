@@ -427,52 +427,10 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    /// Execute `python_executor` with the given JSON arguments.
-    ///
-    /// Runs Python code in a dedicated `chat-libre` virtualenv at
-    /// `~/.apollia/venvs/chat-libre/venv/`. The venv is lazily created on first
-    /// invocation, no packages are pre-installed (the LLM can only use stdlib).
-    #[allow(
-        dead_code,
-        reason = "replaced by HitlFilesystemGuard(PythonExecutor) via fallback_dispatcher"
-    )]
-    async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
-
-        let venv_base = apollia_core::paths::home_dir_or_temp()
-            .join(".apollia")
-            .join("venvs");
-        let executor = PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
-
-        // Lazily set up the venv on first call (idempotent, skips if already exists).
-        executor
-            .setup_venv(&[])
-            .await
-            .map_err(|e| format!("python_executor: venv setup failed: {e}"))?;
-
-        let code = arguments
-            .get("code")
-            .and_then(|v| v.as_str())
-            .ok_or("python_executor: missing 'code' field")?
-            .to_string();
-        let timeout_secs = arguments
-            .get("timeout_secs")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(30);
-
-        let output = executor
-            .run(PythonInput { code, timeout_secs })
-            .await
-            .map_err(|e| e.to_string())?;
-
-        Ok(serde_json::json!({
-            "stdout": output.stdout,
-            "stderr": output.stderr,
-            "exit_code": output.exit_code,
-            "duration_ms": output.duration_ms,
-        })
-        .to_string())
-    }
+    // `python_executor` migrated to the shared dispatcher, where the executor
+    // is wrapped in `HitlFilesystemGuard` and creates its virtualenv on the
+    // first execution. The dead copy that used to live here was the only place
+    // still calling `setup_venv` for a chat session.
 
     /// Execute `memory_search` with the given JSON arguments.
     ///

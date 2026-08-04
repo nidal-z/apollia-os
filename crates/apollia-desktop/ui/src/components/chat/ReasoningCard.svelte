@@ -23,7 +23,9 @@
     RotateCcw,
     Quote,
     Wrench,
+    Sparkles,
   } from "lucide-svelte";
+  import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import {
     resolveToolDisplay,
@@ -31,7 +33,9 @@
     buildHttpInputDisplay,
     buildOutputSummary,
     formatRationale,
+    humanizeToolError,
     humanizeToolName,
+    summariseJsonOutput,
   } from "$lib/tools/tool-display";
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
@@ -165,11 +169,13 @@
       status:
         item.status === "success"
           ? "executed"
-          : item.status === "rejected" || item.status === "error"
-            ? "refused"
-            : item.status === "running" || item.status === "approved"
-              ? "authorized"
-              : "pending",
+          : item.status === "error"
+            ? "failed"
+            : item.status === "rejected"
+              ? "refused"
+              : item.status === "running" || item.status === "approved"
+                ? "authorized"
+                : "pending",
       duration_ms: item.duration_ms,
       exit_code: item.exit_code,
     };
@@ -324,6 +330,15 @@
     const technical = buildOutputSummary(item.tool, toolDisplay.outputParams);
     if (technical) return technical;
     if (typeof item.output === "string" && item.output.length > 0) {
+      // Tools with no bespoke body land here: the connectors, MCP, the
+      // governance tools. An operator was shown their raw JSON, which says
+      // nothing to them. Read the shape instead, and only fall back to the
+      // raw line when there is no shape to read.
+      const shape = summariseJsonOutput(item.output);
+      if (shape === "empty") return $t("chat.tool_empty_results");
+      if (shape !== null) {
+        return $t("tools.body.results_count", { values: { n: Number(shape) } });
+      }
       const firstLine = item.output.split("\n")[0] ?? "";
       return firstLine.slice(0, 200);
     }
@@ -615,7 +630,7 @@
                 <span class="h-px flex-1 bg-destructive/30"></span>
               </div>
               <p class="text-destructive">
-                {item.output.split("\n")[0]?.slice(0, 240) ?? ""}
+                {humanizeToolError(item.output).split("\n")[0]?.slice(0, 240) ?? ""}
               </p>
             </div>
           {/if}
@@ -635,6 +650,42 @@
             <RetryTimeline attempts={retryAttempts} skin={skin} />
           </div>
         {/if}
+      </div>
+    {/if}
+  </div>
+{:else if item.kind === "thinking" || item.kind === "rationale"}
+  <!-- A thought, in the same row shape as a tool call so the turn reads as one
+       ordered timeline. Collapsed by default in both skins: the label says a
+       thought happened here, expanding shows what it said. -->
+  <div class="chat-flow-tool" class:chat-ft-open={expanded} data-testid={testid}>
+    <button
+      type="button"
+      class="chat-ft-head"
+      aria-expanded={expanded}
+      aria-label={$t("chat.reasoning.toggle_thought", {
+        default: "Toggle reasoning details",
+      })}
+      onclick={toggle}
+    >
+      <span class="chat-ft-chev" aria-hidden="true">›</span>
+      <span class="chat-ft-ico tb-spark" aria-hidden="true">
+        <Sparkles class="h-3.5 w-3.5" />
+      </span>
+      <span class="chat-ft-name chat-ft-thought">
+        {item.kind === "thinking"
+          ? $t("chat.reasoning.thinking_label", { default: "Reasoning" })
+          : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
+      </span>
+    </button>
+
+    {#if expanded}
+      <div class="chat-ft-body">
+        <div
+          class="reasoning-caption min-w-0 text-[12.5px] italic leading-relaxed text-muted-foreground"
+          data-testid="reasoning-thought"
+        >
+          <MarkdownContent content={item.content} />
+        </div>
       </div>
     {/if}
   </div>

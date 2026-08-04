@@ -1619,6 +1619,13 @@
   font-weight: 550;
 }
 .chat-ft-name.chat-ft-error { color: hsl(var(--destructive)); }
+/* A thought row sits in the same timeline as the actions but stays quieter:
+   the actions are the events, the thoughts are the connective voice. */
+.chat-ft-name.chat-ft-thought {
+  color: hsl(var(--muted-foreground));
+  font-weight: 450;
+  font-style: italic;
+}
 .chat-ft-meta {
   margin-left: auto;
   flex: none;

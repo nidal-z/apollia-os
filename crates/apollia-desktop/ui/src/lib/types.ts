@@ -824,7 +824,11 @@ export interface ToolCallView {
   tool_name: string;
   input: Record<string, unknown>;
   output: string | null;
-  status: "pending" | "authorized" | "executed" | "refused";
+  /**
+   * `failed` means the call ran and errored, `refused` that a human stopped it
+   * before it ran. Mirrors `ToolCallStatus` in the runtime.
+   */
+  status: "pending" | "authorized" | "executed" | "refused" | "failed";
   /** Execution duration in milliseconds, available after the call completes. */
   duration_ms?: number | null;
   /** Process exit code, available when the tool produces one (e.g. bash_executor). */

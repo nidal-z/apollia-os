@@ -104,9 +104,20 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
 /// Placeholder registered when a native tool cannot be constructed on this
 /// host, so an agent invoking it receives the constructor's actionable error
 /// (what is missing and how to obtain it) instead of `UnknownTool`.
-struct UnavailableTool {
+pub struct UnavailableTool {
     name: &'static str,
     reason: String,
+}
+
+impl UnavailableTool {
+    /// Registers `name` as unavailable, answering every call with `reason`.
+    ///
+    /// Public because the chat dispatcher builds its own copies of the
+    /// HITL-wrapped natives and needs the same stub when one of them cannot be
+    /// constructed on this host.
+    pub fn new(name: &'static str, reason: String) -> Self {
+        Self { name, reason }
+    }
 }
 
 impl ToolExecutor for UnavailableTool {

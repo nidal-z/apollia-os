@@ -4,7 +4,8 @@
    *
    * Operator layer: the glob pattern as a chip, then the matched paths as a
    * clean listing (basename in the foreground, parent directory muted). Builder
-   * layer: the raw output JSON. A parse failure degrades to the raw string.
+   * layer: the raw input and output JSON. A parse failure degrades to the raw
+   * string.
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
@@ -30,6 +31,7 @@
   );
   const matches = $derived(parseFileGlob(item.output));
   const rawJson = $derived(prettyJson(item.output));
+  const inputJson = $derived(JSON.stringify(item.args, null, 2));
 </script>
 
 <div class="text-[12px]" in:fly={{ y: 8, duration: 200 }}>
@@ -63,11 +65,19 @@
           {/if}
         </div>
       {:else}
-        <div class="flex flex-col gap-1">
-          <div class="tb-iolabel">
-            {$t("chat.reasoning.output_label", { default: "Output" })}
+        <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-1">
+            <div class="tb-iolabel">
+              {$t("chat.reasoning.input_label", { default: "Input" })}
+            </div>
+            <pre class="tb-code font-mono"><code>{inputJson}</code></pre>
           </div>
-          <pre class="tb-code font-mono"><code>{rawJson || item.output}</code></pre>
+          <div class="flex flex-col gap-1">
+            <div class="tb-iolabel">
+              {$t("chat.reasoning.output_label", { default: "Output" })}
+            </div>
+            <pre class="tb-code font-mono"><code>{rawJson || item.output}</code></pre>
+          </div>
         </div>
       {/if}
     </div>

@@ -26,15 +26,19 @@
 
 6. Ask your follow-up questions in the same thread. The AI keeps the whole conversation history.
 
-7. If you are talking to an Assistant, the reasoning steps show up **inline** in the message bubbles as expandable reasoning cards (not in a separate right-hand pane).
-   ![answer bubble with an expanded reasoning card showing the agent's steps](/img/operator-help/en/chat-discuter-avec-votre-ia-3.png)
+<!-- claim:chat-timeline-follows-execution-order -->
+7. Above the answer, a summary line says how much the turn thought and how many tools it used. Under it, the turn is laid out **in the order it happened**: a thought, then the action it led to, then the next thought, and so on. Every row is collapsed and expands to its own detail, the reasoning as written, a tool call as a plain-language account in Operator mode or its raw input and output in Builder mode.
+   ![answer bubble with the summary line and the ordered timeline of thoughts and tool calls](/img/operator-help/en/chat-discuter-avec-votre-ia-3.png)
 
-8. If the AI wants to perform a sensitive action (write a file, run a command), an approval card appears: see [Approve or reject an action](../controle/approuver-ou-refuser-une-action.md).
+<!-- claim:failed-tool-call-is-marked-failed -->
+8. A tool call that fails is marked as such, with a red cross rather than a green check, and stays marked when you reopen the conversation later. A call you refused is shown as refused, which is a different thing from one that ran and failed.
 
-9. To organise your conversations, click the menu at the top of the conversation: **Rename** or **Delete**.
+9. If the AI wants to perform a sensitive action (write a file, run a command), an approval card appears: see [Approve or reject an action](../controle/approuver-ou-refuser-une-action.md).
+
+10. To organise your conversations, click the menu at the top of the conversation: **Rename** or **Delete**.
 
 <!-- claim:context-gauge-engine-usage -->
-10. Under the input field, a small **Ctx** gauge tracks how full the model's context window is. The percentage comes from the **token counts the engine itself reports** on each answer; when the backend reports none (an assistant in Agent mode, for instance), the gauge shows `--` rather than a made-up number. Past 90 % the gauge turns amber: consider starting a fresh conversation, or let the automatic compaction summarise the oldest turns.
+11. Under the input field, a small **Ctx** gauge tracks how full the model's context window is. The percentage comes from the **token counts the engine itself reports** on each answer; when the backend reports none (an assistant in Agent mode, for instance), the gauge shows `--` rather than a made-up number. Past 90 % the gauge turns amber: consider starting a fresh conversation, or let the automatic compaction summarise the oldest turns.
 
 ## Verification
 

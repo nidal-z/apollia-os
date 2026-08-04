@@ -330,8 +330,10 @@ export function parseFileGlob(output: string | null): string[] | null {
     if (Array.isArray(m)) raw = m;
   }
   if (!raw) return null;
-  const paths = raw.filter((p): p is string => typeof p === "string" && p.length > 0);
-  return paths.length > 0 ? paths : null;
+  // An empty match list is a result, not a parse failure. Returning null here
+  // sent the body to its raw-output fallback, so a search that found nothing
+  // was shown to an operator as `{"matches":[]}`.
+  return raw.filter((p): p is string => typeof p === "string" && p.length > 0);
 }
 
 /** One matched line inside a `file_grep` file group. */
@@ -390,7 +392,8 @@ export function parseGrep(output: string | null): GrepParsed | null {
     }
     byFile.get(file)?.push({ line, text });
   }
-  if (order.length === 0) return null;
+  // No match is a result an operator can read ("0 matches in 12 files"). Only
+  // an output that is not a grep result at all returns null, above.
   const groups = order.map((file) => ({ file, rows: byFile.get(file) ?? [] }));
   const totalMatches = groups.reduce((n, g) => n + g.rows.length, 0);
   const filesSearched =
@@ -508,7 +511,8 @@ export function parseMemory(output: string | null): MemoryParsed | null {
       createdAt: typeof r.created_at === "string" ? r.created_at : null,
     });
   }
-  if (entries.length === 0) return null;
+  // A search that recalled nothing is a readable outcome; the raw
+  // `{"results":[],"total_found":0}` an operator used to be shown is not.
   const totalFound =
     typeof obj.total_found === "number" ? obj.total_found : entries.length;
   return { entries, totalFound };

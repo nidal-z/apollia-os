@@ -4,8 +4,8 @@
    *
    * Operator layer: the target directory as a chip, then a clean tabular
    * listing (folder/file icon + name + size-or-entry-count) parsed from the raw
-   * output. Builder layer: the raw JSON array. A parse failure degrades to the
-   * raw output string so nothing is ever lost.
+   * output. Builder layer: the raw input and output JSON. A parse failure
+   * degrades to the raw output string so nothing is ever lost.
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
@@ -44,6 +44,7 @@
 
   const entries = $derived(parseFileList(item.output));
   const rawJson = $derived(prettyJson(item.output));
+  const inputJson = $derived(JSON.stringify(item.args, null, 2));
 
   function formatSize(size: HumanSize): string {
     const loc = $locale ?? "en";
@@ -112,11 +113,19 @@
           {/if}
         </div>
       {:else}
-        <div class="flex flex-col gap-1">
-          <div class="tb-iolabel">
-            {$t("chat.reasoning.output_label", { default: "Output" })}
+        <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-1">
+            <div class="tb-iolabel">
+              {$t("chat.reasoning.input_label", { default: "Input" })}
+            </div>
+            <pre class="tb-code font-mono"><code>{inputJson}</code></pre>
           </div>
-          <pre class="tb-code font-mono"><code>{rawJson || item.output}</code></pre>
+          <div class="flex flex-col gap-1">
+            <div class="tb-iolabel">
+              {$t("chat.reasoning.output_label", { default: "Output" })}
+            </div>
+            <pre class="tb-code font-mono"><code>{rawJson || item.output}</code></pre>
+          </div>
         </div>
       {/if}
     </div>

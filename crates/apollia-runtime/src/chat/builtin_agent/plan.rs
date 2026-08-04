@@ -278,7 +278,7 @@ impl BuiltInChatAgent {
             tool_name: call.name.clone(),
             input: call.arguments.clone(),
             output: Some(tool_result),
-            status: ToolCallStatus::Executed,
+            status: ToolCallStatus::from_success(result.ok),
             rationale: None,
             retry_attempts: Vec::new(),
         });

@@ -2533,6 +2533,95 @@ async fn test_readonly_failure_does_not_poison_other_calls() {
     registry.shutdown().await;
 }
 
+/// Tool invoker that succeeds at the transport level while reporting a non-zero
+/// exit code, the way `bash_executor` and `python_executor` report a script
+/// that ran and failed.
+struct NonZeroExitInvoker;
+
+#[async_trait::async_trait]
+impl ToolInvoker for NonZeroExitInvoker {
+    async fn invoke(&self, _tool_name: &str, _: &serde_json::Value) -> Result<String, String> {
+        Ok(r#"{"stdout":"","stderr":"Traceback","exit_code":1}"#.to_string())
+    }
+}
+
+// GIVEN a turn whose tool call fails inside the executor
+// WHEN the turn is recorded
+// THEN the persisted record says so, instead of claiming the call executed
+#[tokio::test]
+async fn test_executor_failure_is_persisted_as_failed() {
+    // GIVEN
+    let registry = ToolRegistryHandle::start();
+    for n in ["ro_ok", "ro_boom"] {
+        registry.register(ro_descriptor(n)).await.unwrap();
+    }
+    let invoker: Arc<dyn ToolInvoker> = Arc::new(FailingInvoker {
+        failing: "ro_boom".to_string(),
+    });
+    let agent = agent_with(registry.clone(), invoker);
+    let budget = make_budget(100);
+    let calls = vec![tool_call(0, "ro_ok"), tool_call(1, "ro_boom")];
+
+    // WHEN
+    let (records, _failures) = run_turn_full(&agent, &budget, &calls).await;
+
+    // THEN
+    assert_eq!(records[0].status, ToolCallStatus::Executed);
+    assert_eq!(
+        records[1].status,
+        ToolCallStatus::Failed,
+        "a failed call must not be persisted as executed"
+    );
+    assert_ne!(
+        records[1].status,
+        ToolCallStatus::Refused,
+        "an execution failure is not a human refusal"
+    );
+    registry.shutdown().await;
+}
+
+// GIVEN a tool that runs and reports a non-zero exit code
+// WHEN the turn is recorded
+// THEN the record carries the failure, like an executor-level error
+#[tokio::test]
+async fn test_non_zero_exit_code_is_persisted_as_failed() {
+    // GIVEN
+    let registry = ToolRegistryHandle::start();
+    registry.register(ro_descriptor("ro_script")).await.unwrap();
+    let invoker: Arc<dyn ToolInvoker> = Arc::new(NonZeroExitInvoker);
+    let agent = agent_with(registry.clone(), invoker);
+    let budget = make_budget(100);
+    let calls = vec![tool_call(0, "ro_script")];
+
+    // WHEN
+    let (records, _failures) = run_turn_full(&agent, &budget, &calls).await;
+
+    // THEN
+    assert_eq!(records[0].status, ToolCallStatus::Failed);
+    registry.shutdown().await;
+}
+
+// GIVEN a session persisted before the failure status existed
+// WHEN its tool calls are read back
+// THEN they still deserialize, and the new status survives a round trip
+#[test]
+fn test_tool_call_status_serialization_is_backward_compatible() {
+    // GIVEN / WHEN
+    let legacy: ToolCallStatus = serde_json::from_str(r#""executed""#).expect("legacy lowercase");
+    let legacy_titled: ToolCallStatus =
+        serde_json::from_str(r#""Executed""#).expect("legacy alias");
+    let failed = serde_json::to_string(&ToolCallStatus::Failed).expect("serialize");
+
+    // THEN
+    assert_eq!(legacy, ToolCallStatus::Executed);
+    assert_eq!(legacy_titled, ToolCallStatus::Executed);
+    assert_eq!(failed, r#""failed""#);
+    assert_eq!(
+        serde_json::from_str::<ToolCallStatus>(&failed).expect("round trip"),
+        ToolCallStatus::Failed
+    );
+}
+
 /// The step budget is charged exactly once per tool call, whichever path
 /// (parallel read-only or sequential write) the call takes.
 #[tokio::test]

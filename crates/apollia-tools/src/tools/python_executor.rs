@@ -5,6 +5,12 @@
 //! (fail fast, local-first). The virtualenv is dependency isolation between agents,
 //! not an OS sandbox.
 //!
+//! An installed agent declares its packages up front, so its virtualenv is
+//! provisioned before the first run. A chat session declares none and is wired
+//! straight into the dispatcher, so its interpreter is created on the first
+//! execution instead (see [`PythonExecutor::run`]). Without that, `python_bin`
+//! points at a path that was never created and every call fails to spawn.
+//!
 //! Code is written to a temporary file (never passed via `-c`) to avoid quoting issues
 //! and support multi-line scripts. The temp file is always cleaned up after execution.
 //!
@@ -48,6 +54,11 @@ pub struct PythonExecutor {
     /// The system interpreter discovered at construction time, used to build
     /// the virtualenv (`<system_python> -m venv`).
     system_python: crate::tools::python_discovery::PythonCommand,
+    /// Set once the virtualenv is known to exist. Guards the on-demand
+    /// creation in [`PythonExecutor::run`] so concurrent invocations run
+    /// `python -m venv` once rather than racing each other on the same
+    /// directory.
+    venv_ready: tokio::sync::OnceCell<()>,
 }
 
 /// Input parameters for a Python invocation.
@@ -139,7 +150,9 @@ pub enum PythonExecutorError {
 /// the agent's venv into PyO3's `sys.path` before importing the Python
 /// module (agent runtime backends, validation flows, CLI commands).
 pub fn agent_venv_site_packages(venv_base_dir: &Path, agent_name: &str) -> Vec<PathBuf> {
-    let venv_path = venv_base_dir.join(agent_name).join("venv");
+    let venv_path = venv_base_dir
+        .join(venv_dir_component(agent_name))
+        .join("venv");
     if !venv_path.is_dir() {
         return Vec::new();
     }
@@ -160,6 +173,31 @@ pub fn agent_venv_site_packages(venv_base_dir: &Path, agent_name: &str) -> Vec<P
         candidates.push(win_lib);
     }
     candidates
+}
+
+/// Directory name holding an agent's virtualenv, safe on every platform.
+///
+/// An agent identifier is not constrained to be a filename: the chat sessions
+/// use `apollia:chat:<uuid>`, and `:` is illegal in a Windows path component,
+/// so the raw identifier made the whole tool unusable there. Everything outside
+/// the portable set collapses to `_`; ordinary agent names are unchanged.
+pub fn venv_dir_component(agent_id: &str) -> String {
+    let sanitized: String = agent_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    // An empty component collapses onto the base directory, and a component of
+    // dots alone resolves to the parent one.
+    if sanitized.is_empty() || sanitized.chars().all(|c| c == '.') {
+        return "_".to_string();
+    }
+    sanitized
 }
 
 /// Path to an executable inside a virtualenv, per platform layout.
@@ -329,8 +367,9 @@ impl PythonExecutor {
     /// Locates a working system Python 3 via
     /// [`crate::tools::python_discovery::locate_system_python`] (per-platform
     /// candidate order, Microsoft Store stub rejected). Does **not** create
-    /// the virtualenv (call [`setup_venv`][Self::setup_venv] at agent
-    /// `INITIALIZING` for that).
+    /// the virtualenv: an agent declaring packages gets it from
+    /// [`setup_venv`][Self::setup_venv] at `INITIALIZING`, and any other caller
+    /// gets it from the first [`run`][Self::run].
     ///
     /// # Errors
     ///
@@ -341,7 +380,9 @@ impl PythonExecutor {
         // Fail fast: locate the system interpreter at construction time.
         let system_python = crate::tools::python_discovery::locate_system_python()?;
 
-        let venv_path = venv_base_dir.join(agent_id).join("venv");
+        let venv_path = venv_base_dir
+            .join(venv_dir_component(agent_id))
+            .join("venv");
         let python_bin = venv_script(&venv_path, "python");
 
         Ok(Self {
@@ -349,6 +390,7 @@ impl PythonExecutor {
             venv_path,
             python_bin,
             system_python,
+            venv_ready: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -358,8 +400,11 @@ impl PythonExecutor {
     /// creation is skipped and package installation proceeds normally. This allows agents
     /// to go through INITIALIZING multiple times without recreating the venv.
     ///
-    /// Must be called at agent `INITIALIZING`. May take time if packages are numerous.
-    /// Installing packages at execution time is forbidden by design.
+    /// Called at agent `INITIALIZING` when the manifest declares packages, and
+    /// from [`run`][Self::run] with an empty list when the virtualenv is still
+    /// missing at execution time. May take time if packages are numerous.
+    /// Installing packages at execution time remains forbidden by design: the
+    /// execution-time call never carries any.
     ///
     /// # Errors
     ///
@@ -456,12 +501,22 @@ impl PythonExecutor {
 
     /// Executes Python code in the agent's virtualenv.
     ///
+    /// The virtualenv is created here when it does not exist yet, once per
+    /// executor. Callers that provision it up front (an installed agent going
+    /// through `INITIALIZING`) pay nothing but a `Path::exists()`; callers wired
+    /// straight into a dispatcher, such as a chat session, get their
+    /// interpreter on the call that needs it rather than a failed spawn. The
+    /// cost is borne by the first execution instead of by every session start,
+    /// most of which never run Python at all.
+    ///
     /// Code is written to a temporary file and always cleaned up after execution,
     /// even on timeout or error.
     ///
     /// # Errors
     ///
     /// - [`PythonExecutorError::EmptyCode`]: `code` is empty (checked before any I/O)
+    /// - [`PythonExecutorError::VenvCreationFailed`]: the virtualenv did not exist
+    ///   and `python -m venv` failed to create it
     /// - [`PythonExecutorError::Timeout`]: process exceeded `timeout_secs`; killed, no zombie
     /// - [`PythonExecutorError::SpawnFailed`]: OS refused to spawn the process
     /// - [`PythonExecutorError::OutputCaptureFailed`]: I/O error reading stdout/stderr
@@ -471,6 +526,8 @@ impl PythonExecutor {
         if input.code.trim().is_empty() {
             return Err(PythonExecutorError::EmptyCode);
         }
+
+        self.ensure_venv().await?;
 
         // Write code to a temp file to avoid shell-quoting issues with -c.
         let script_path = std::env::temp_dir().join(format!("apollia_{}.py", uuid::Uuid::new_v4()));
@@ -485,6 +542,23 @@ impl PythonExecutor {
         let _ = tokio::fs::remove_file(&script_path).await;
 
         result
+    }
+
+    /// Creates the virtualenv if it is missing, at most once per executor.
+    ///
+    /// A failed attempt leaves the guard unset, so the next execution retries
+    /// instead of inheriting a permanent failure from a transient one (a full
+    /// disk, a directory not yet writable).
+    async fn ensure_venv(&self) -> Result<(), PythonExecutorError> {
+        self.venv_ready
+            .get_or_try_init(|| async {
+                // No packages: an agent that declares some has already been
+                // provisioned by `setup_venv` at INITIALIZING, and installing
+                // at execution time is forbidden by design.
+                self.setup_venv(&[]).await
+            })
+            .await
+            .map(|_| ())
     }
 
     /// Returns the [`ToolDescriptor`] for registration in [`crate::registry::ToolRegistry`].
@@ -992,5 +1066,61 @@ mod tests {
             !tmp.path().join("victim-agent").join("venv").exists(),
             "no virtualenv should have been created"
         );
+    }
+
+    // GIVEN an executor wired the way the chat dispatcher wires it, over a base
+    //       directory where no virtualenv was ever provisioned
+    // WHEN code runs without any prior setup_venv call
+    // THEN the interpreter is created on the way and the code executes
+    #[tokio::test]
+    async fn test_run_creates_the_virtualenv_on_first_execution() {
+        // GIVEN
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let executor = match PythonExecutor::new("apollia:chat:first-run", tmp.path()) {
+            Ok(e) => e,
+            Err(PythonExecutorError::PythonUnavailable { .. }) => return,
+            Err(e) => panic!("unexpected error creating executor: {e:?}"),
+        };
+        assert!(
+            !executor.venv_path.exists(),
+            "precondition: no virtualenv yet"
+        );
+
+        // WHEN
+        let output = executor
+            .run(PythonInput {
+                code: "print('created')".to_string(),
+                timeout_secs: 60,
+            })
+            .await
+            .expect("execution failed");
+
+        // THEN
+        assert_eq!(output.stdout.trim(), "created");
+        assert_eq!(output.exit_code, 0);
+        assert!(
+            executor.python_bin.exists(),
+            "the virtualenv interpreter should exist after the first run"
+        );
+    }
+
+    // GIVEN an agent identifier carrying characters that are illegal in a
+    //       Windows path component
+    // WHEN the executor is constructed
+    // THEN the virtualenv directory name holds none of them
+    #[test]
+    fn test_venv_directory_name_is_portable() {
+        // GIVEN / WHEN
+        let component = venv_dir_component("apollia:chat:8f0c1d2e-0000-4a1b-9f3d-aabbccddeeff");
+
+        // THEN
+        assert_eq!(
+            component,
+            "apollia_chat_8f0c1d2e-0000-4a1b-9f3d-aabbccddeeff"
+        );
+        assert!(!component.contains(':'));
+        assert_eq!(venv_dir_component("my-agent.v2"), "my-agent.v2");
+        assert_eq!(venv_dir_component(".."), "_");
+        assert_eq!(venv_dir_component(""), "_");
     }
 }

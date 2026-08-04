@@ -567,6 +567,60 @@ export function buildOutputSummary(
 }
 
 /**
+ * The readable part of a failed tool's output.
+ *
+ * The runtime prefixes a failure with `tool error: ` and the dispatcher adds
+ * its error code before the message, so an operator was shown
+ * `tool error: google: no Google account connected` where the sentence they
+ * need starts at the third word. Both prefixes are machine framing; the
+ * builder layer still shows the raw output verbatim.
+ */
+export function humanizeToolError(output: string): string {
+  let text = output.trim();
+  const prefix = "tool error:";
+  if (text.toLowerCase().startsWith(prefix)) {
+    text = text.slice(prefix.length).trim();
+  }
+  // `<code>: <message>`, where the code is a machine token (`no_account`,
+  // `spawn_failed`, `google`). A colon inside a sentence is left alone.
+  const colon = text.indexOf(":");
+  if (colon > 0 && /^[a-z][a-z0-9_.]*$/.test(text.slice(0, colon))) {
+    text = text.slice(colon + 1).trim();
+  }
+  return text;
+}
+
+/**
+ * A one-line reading of an arbitrary tool output, for tools with no bespoke
+ * body: the connectors, the MCP servers, the governance tools.
+ *
+ * Returns `null` when the output carries no readable shape, so the caller can
+ * decide what to show rather than being handed a JSON dump. An operator faced
+ * with `{"resources":[]}` learns nothing; "no result" is the same fact, said.
+ */
+export function summariseJsonOutput(output: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return null;
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.length === 0 ? "empty" : `${parsed.length}`;
+  }
+  if (parsed === null || typeof parsed !== "object") return null;
+  const record = parsed as Record<string, unknown>;
+  // The first array-valued field is the payload in every connector and MCP
+  // response shape we ship: `results`, `resources`, `rules`, `files`, `items`.
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value)) {
+      return value.length === 0 ? "empty" : `${value.length}`;
+    }
+  }
+  return Object.keys(record).length === 0 ? "empty" : null;
+}
+
+/**
  * Builds the `$ command` display string for a `bash_executor` input.
  * Returns `null` when the `command` field is absent or not a string.
  */

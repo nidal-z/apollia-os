@@ -5,6 +5,8 @@ import {
   truncatePath,
   truncateString,
   formatRationale,
+  humanizeToolError,
+  summariseJsonOutput,
 } from "./tool-display";
 import type { ToolCallView } from "$lib/types";
 import {
@@ -376,5 +378,52 @@ describe("formatRationale", () => {
         performance_hint: "  200ms  ",
       })!.performance_hint,
     ).toBe("200ms");
+  });
+});
+
+// ─── Operator readability of an arbitrary tool result ────────────────────────
+
+describe("humanizeToolError - what an operator is shown when a call fails", () => {
+  test("GIVEN a runtime-prefixed connector error WHEN humanized THEN only the sentence remains", () => {
+    // GIVEN the exact shape the runtime persists
+    const raw =
+      "tool error: google: no Google account connected - open Reglages to sign in";
+
+    // WHEN
+    const text = humanizeToolError(raw);
+
+    // THEN
+    expect(text).toBe("no Google account connected - open Reglages to sign in");
+  });
+
+  test("GIVEN an executor error code WHEN humanized THEN the code is dropped", () => {
+    expect(humanizeToolError("tool error: spawn_failed: No such file or directory")).toBe(
+      "No such file or directory",
+    );
+  });
+
+  test("GIVEN a plain sentence with a colon WHEN humanized THEN it is left alone", () => {
+    // The colon belongs to the sentence, not to a machine token.
+    expect(humanizeToolError("Could not reach the server: try again later")).toBe(
+      "Could not reach the server: try again later",
+    );
+  });
+});
+
+describe("summariseJsonOutput - a readable shape for tools with no bespoke body", () => {
+  test("GIVEN an empty payload WHEN summarised THEN it reads as empty", () => {
+    expect(summariseJsonOutput('{"resources":[]}')).toBe("empty");
+    expect(summariseJsonOutput("{}")).toBe("empty");
+    expect(summariseJsonOutput("[]")).toBe("empty");
+  });
+
+  test("GIVEN a populated payload WHEN summarised THEN it reads as a count", () => {
+    expect(summariseJsonOutput('{"rules":[{"id":1},{"id":2}]}')).toBe("2");
+    expect(summariseJsonOutput('[{"a":1}]')).toBe("1");
+  });
+
+  test("GIVEN output with no readable shape WHEN summarised THEN nothing is claimed", () => {
+    expect(summariseJsonOutput("not json at all")).toBeNull();
+    expect(summariseJsonOutput('{"title":"a page"}')).toBeNull();
   });
 });

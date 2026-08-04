@@ -88,7 +88,18 @@ the Microsoft Store stub that answers to `python3` on stock installs.
 <!-- claim:unavailable-tool-surfaces-reason -->
 A code-execution tool that cannot start on this host stays callable and
 returns the reason for its unavailability (what is missing, how to install
-it) instead of a bare `UnknownTool` error.
+it) instead of a bare `UnknownTool` error. This holds in a chat session as
+well as for an installed agent.
+
+<!-- claim:python-venv-created-on-first-use -->
+`python_executor` runs inside a virtualenv, never against the system
+interpreter directly. An installed agent gets its own, provisioned from the
+packages its manifest declares. A chat session declares none and shares a
+single virtualenv, created the first time a chat actually runs Python; the
+first such call therefore pays a few seconds, and later ones do not. Two
+failures stay distinct: no Python 3 on the host is reported at construction
+time and names how to install one, while a virtualenv that could not be
+created reports what `python -m venv` refused.
 
 ## Filesystem
 
