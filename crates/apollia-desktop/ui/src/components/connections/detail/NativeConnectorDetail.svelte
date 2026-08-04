@@ -7,7 +7,7 @@
    * action can deep-link to a tab. The OAuth flow itself lives in the parent.
    */
   import { t } from "svelte-i18n";
-  import { Plus, Link as LinkIcon } from "lucide-svelte";
+  import { Plus, Settings2, Link as LinkIcon } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -26,14 +26,27 @@
     accounts: OauthAccountInfo[];
     loading: boolean;
     error: string | null;
+    /** The provider has no usable OAuth client yet, so connecting cannot work. */
+    needsSetup?: boolean;
     tab: NativeTab;
     onconnect: () => void;
+    onconfigure?: () => void;
     ondisconnect: (account: OauthAccountInfo) => void;
     ontabchange: (tab: NativeTab) => void;
   }
 
-  let { connector, accounts, loading, error, tab, onconnect, ondisconnect, ontabchange }: Props =
-    $props();
+  let {
+    connector,
+    accounts,
+    loading,
+    error,
+    needsSetup = false,
+    tab,
+    onconnect,
+    onconfigure,
+    ondisconnect,
+    ontabchange,
+  }: Props = $props();
 </script>
 
 <DetailHeader title={connector.name} meta={connector.description}>
@@ -43,7 +56,13 @@
     </ConnectorTile>
   {/snippet}
   {#snippet badges()}
-    {#if accounts.length > 0}
+    {#if needsSetup}
+      <StatusBadge
+        status="attention"
+        label={$t("connections.needs_configuration")}
+        data-testid="native-needs-config-{connector.id}"
+      />
+    {:else if accounts.length > 0}
       <StatusBadge
         status="active"
         label={$t("connections.badge_active_count", { values: { count: accounts.length } })}
@@ -54,16 +73,29 @@
     <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
   {/snippet}
   {#snippet actions()}
-    <Button
-      variant="primary-solid"
-      size="sm"
-      onclick={onconnect}
-      disabled={loading}
-      data-testid="oauth-add-account-{connector.id}"
-    >
-      {#snippet icon()}<Plus size={12} />{/snippet}
-      {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
-    </Button>
+    {#if needsSetup}
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={() => onconfigure?.()}
+        disabled={loading}
+        data-testid="oauth-configure-{connector.id}"
+      >
+        {#snippet icon()}<Settings2 size={12} />{/snippet}
+        {$t("connections.configure_credentials")}
+      </Button>
+    {:else}
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={onconnect}
+        disabled={loading}
+        data-testid="oauth-add-account-{connector.id}"
+      >
+        {#snippet icon()}<Plus size={12} />{/snippet}
+        {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
+      </Button>
+    {/if}
   {/snippet}
 </DetailHeader>
 
@@ -83,7 +115,16 @@
 
 <div class="flex-1 overflow-auto px-8 py-5">
   {#if tab === "accounts"}
-    <NativeAccountsTab {connector} {accounts} {loading} {error} {onconnect} {ondisconnect} />
+    <NativeAccountsTab
+      {connector}
+      {accounts}
+      {loading}
+      {error}
+      {needsSetup}
+      {onconnect}
+      {onconfigure}
+      {ondisconnect}
+    />
   {:else if tab === "capabilities"}
     <CapabilityMatrix providerId={connector.id} />
   {:else}

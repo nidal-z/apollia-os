@@ -3,8 +3,9 @@
    * NativeAccountsTab - connected accounts list for a native connector.
    */
   import { t } from "svelte-i18n";
-  import { Plus } from "lucide-svelte";
+  import { Plus, Settings2 } from "lucide-svelte";
   import { ErrorBanner } from "$lib/components/operator";
+  import { Banner } from "$lib/components/ui/banner";
   import { Card } from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
   import type { NativeConnectorCard } from "../shared/types";
@@ -15,18 +16,53 @@
     accounts: OauthAccountInfo[];
     loading: boolean;
     error: string | null;
+    /** The provider has no usable OAuth client yet, so connecting cannot work. */
+    needsSetup?: boolean;
     onconnect: () => void;
+    onconfigure?: () => void;
     ondisconnect: (account: OauthAccountInfo) => void;
   }
 
-  let { connector, accounts, loading, error, onconnect, ondisconnect }: Props = $props();
+  let {
+    connector,
+    accounts,
+    loading,
+    error,
+    needsSetup = false,
+    onconnect,
+    onconfigure,
+    ondisconnect,
+  }: Props = $props();
 </script>
 
 {#if error}
   <ErrorBanner message={error} class="mb-3" />
 {/if}
 
-{#if accounts.length === 0}
+{#if needsSetup}
+  <!-- Shown instead of the connect prompt: no Apollia build ships a client, so
+       offering Connect here would send the operator to a consent screen that
+       cannot complete. -->
+  <Banner
+    variant="warning"
+    title={$t("connections.needs_client_title")}
+    class="mb-3 max-w-2xl"
+    data-testid="native-needs-config-banner-{connector.id}"
+  >
+    {$t("connections.needs_client_body", { values: { provider: connector.name } })}
+    <div class="mt-3">
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={() => onconfigure?.()}
+        data-testid="oauth-configure-banner-{connector.id}"
+      >
+        {#snippet icon()}<Settings2 size={12} />{/snippet}
+        {$t("connections.configure_credentials")}
+      </Button>
+    </div>
+  </Banner>
+{:else if accounts.length === 0}
   <Card class="max-w-2xl p-6 text-center">
     <p class="mb-3 text-body-sm text-muted-foreground">
       {$t("connections.no_account_for", { values: { name: connector.name } })}

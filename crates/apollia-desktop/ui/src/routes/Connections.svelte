@@ -35,7 +35,9 @@
     type ProviderId,
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
-  import { sortServers } from "$lib/connections/status";
+  import { sortServers, needsOauthSetup } from "$lib/connections/status";
+  import { listOauthClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
+  import { navigateToSettings } from "$lib/router";
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
@@ -75,6 +77,7 @@
   let nativeError = $state<string | null>(null);
   let oauthOpen = $state(false);
   let oauthProvider = $state<ProviderId | null>(null);
+  let oauthClients = $state<OauthClientIdStatus[]>([]);
 
   const NATIVE_CONNECTORS: NativeConnectorCard[] = $derived([
     { id: "google", name: "Google Workspace", description: $t("connections.native_google_description") },
@@ -83,6 +86,22 @@
 
   function accountsForProvider(provider: ProviderId): OauthAccountInfo[] {
     return nativeAccounts.filter((a) => a.provider === provider);
+  }
+
+  /**
+   * Whether a native connector still lacks usable OAuth credentials.
+   *
+   * No published Apollia build embeds a Google or Microsoft client, so this is
+   * true on a fresh install. Reading it here, rather than letting the connect
+   * dialog discover it, is what lets the sidebar and the detail header say so
+   * before the operator commits to a browser round-trip.
+   */
+  function needsSetup(provider: ProviderId): boolean {
+    return needsOauthSetup(oauthClients.find((c) => c.provider === provider));
+  }
+
+  function openCredentialSettings(): void {
+    navigateToSettings("integrations");
   }
 
   // ── Catalogue + wizard + error modal ─────────────────────────────────────────
@@ -165,7 +184,14 @@
     nativeLoading = true;
     nativeError = null;
     try {
-      nativeAccounts = await oauthGetStatus();
+      // Credential status is fetched alongside the accounts: an unconfigured
+      // provider has no accounts and would otherwise look merely idle.
+      const [accounts, clients] = await Promise.all([
+        oauthGetStatus(),
+        listOauthClientIds().catch(() => [] as OauthClientIdStatus[]),
+      ]);
+      nativeAccounts = accounts;
+      oauthClients = clients;
     } catch (e) {
       nativeError = formatTauriError(e, $t);
     } finally {
@@ -299,6 +325,7 @@
       <ConnectorSidebar
         nativeConnectors={NATIVE_CONNECTORS}
         accountCountFor={(id) => accountsForProvider(id).length}
+        needsSetupFor={needsSetup}
         {servers}
         {enrichmentMap}
         {selection}
@@ -316,8 +343,10 @@
         accounts={accountsForProvider(selectedNativeConnector.id)}
         loading={nativeLoading}
         error={nativeError}
+        needsSetup={needsSetup(selectedNativeConnector.id)}
         tab={nativeTab}
         onconnect={() => startNativeConnect(selectedNativeConnector.id)}
+        onconfigure={openCredentialSettings}
         ondisconnect={disconnectNative}
         ontabchange={(tab) => (nativeTab = tab)}
       />

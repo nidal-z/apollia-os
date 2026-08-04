@@ -6,6 +6,7 @@
  * the live `svelte-i18n` formatter, keeping this module unit-testable.
  */
 import type { ConnectionStatus } from "$lib/components/operator";
+import type { OauthClientIdStatus } from "$lib/ipc/oauthClients";
 import type { McpHealth, McpServerStatusView } from "$lib/types";
 
 /** Badge variant matching a connection status (mirrors the `Badge` variants). */
@@ -75,6 +76,36 @@ export function statusLabelKey(status: ConnectionStatus): string {
     default:
       return "connections.badge_status_idle";
   }
+}
+
+/**
+ * How complete a provider's OAuth credentials are.
+ *
+ * `partial` covers the case that used to fail after consent: Google issues a
+ * client id and a paired secret, and its token endpoint rejects the exchange
+ * when only the first is present.
+ */
+export type OauthReadiness = "ready" | "partial" | "none";
+
+/**
+ * Readiness of a provider's OAuth client credentials.
+ *
+ * Keys off `source` rather than the client id string, because an empty id with
+ * a `builtin` source and an absent id are different states. The Picker API key
+ * is deliberately excluded: it gates Drive picking, not connecting.
+ *
+ * Shared by Settings → Integrations and the Connections route so the two
+ * cannot disagree about whether a connector is usable.
+ */
+export function oauthReadiness(status: OauthClientIdStatus): OauthReadiness {
+  if (status.source === "none") return "none";
+  if (status.requires_client_secret && !status.has_client_secret) return "partial";
+  return "ready";
+}
+
+/** Whether a provider needs operator attention before a connect can succeed. */
+export function needsOauthSetup(status: OauthClientIdStatus | undefined): boolean {
+  return status === undefined || oauthReadiness(status) !== "ready";
 }
 
 /** Live-test verdict derived from health (excludes the transient idle/testing). */

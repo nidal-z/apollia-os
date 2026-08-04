@@ -11,14 +11,31 @@
   interface Props {
     connector: NativeConnectorCard;
     accountCount: number;
+    /** The provider has no usable OAuth client yet, so connecting cannot work. */
+    needsSetup?: boolean;
     selected: boolean;
     onselect: () => void;
   }
 
-  let { connector, accountCount, selected, onselect }: Props = $props();
+  let { connector, accountCount, needsSetup = false, selected, onselect }: Props = $props();
 
+  // Missing credentials outrank the account count: a connector with zero
+  // accounts because it is unconfigured is a different state from one the
+  // operator simply has not connected yet.
   const railColor = $derived(
-    accountCount > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))",
+    needsSetup
+      ? "hsl(var(--warning))"
+      : accountCount > 0
+        ? "hsl(var(--success))"
+        : "hsl(var(--muted-foreground))",
+  );
+
+  const subtitle = $derived(
+    needsSetup
+      ? $t("connections.needs_configuration")
+      : accountCount > 0
+        ? $t("connections.sidebar_accounts_active", { values: { count: accountCount } })
+        : $t("connections.not_connected"),
   );
 </script>
 
@@ -38,10 +55,12 @@
     <div class="truncate text-label-md text-foreground" style:font-weight={selected ? 600 : 500}>
       {connector.name}
     </div>
-    <div class="mt-0.5 truncate text-caption text-muted-foreground">
-      {accountCount > 0
-        ? $t("connections.sidebar_accounts_active", { values: { count: accountCount } })
-        : $t("connections.not_connected")}
+    <div
+      class="mt-0.5 truncate text-caption"
+      class:text-warning-a11y={needsSetup}
+      class:text-muted-foreground={!needsSetup}
+    >
+      {subtitle}
     </div>
   </div>
 </ListRow>

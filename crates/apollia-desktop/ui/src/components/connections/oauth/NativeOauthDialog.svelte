@@ -15,7 +15,11 @@
   import OauthAuthStep from "./OauthAuthStep.svelte";
   import OauthDriveFolderStep from "./OauthDriveFolderStep.svelte";
   import { navigateToSettings } from "$lib/router";
-  import { formatTauriError, isMissingClientError } from "$lib/connections/errors";
+  import {
+    formatTauriError,
+    isMissingClientError,
+    isMissingSecretError,
+  } from "$lib/connections/errors";
   import {
     oauthStartFlow,
     oauthCompleteFlow,
@@ -38,6 +42,7 @@
   let pastedCode = $state("");
   let error = $state<string | null>(null);
   let errorIsMissingClient = $state(false);
+  let errorIsMissingSecret = $state(false);
   let busy = $state(false);
   let awaitingCallback = $state(false);
   let step = $state<"auth" | "drive_folder">("auth");
@@ -78,6 +83,7 @@
     pastedCode = "";
     error = null;
     errorIsMissingClient = false;
+    errorIsMissingSecret = false;
     busy = true;
     awaitingCallback = false;
     step = "auth";
@@ -116,6 +122,7 @@
     } catch (e) {
       error = formatTauriError(e, $t);
       errorIsMissingClient = isMissingClientError(e);
+      errorIsMissingSecret = isMissingSecretError(e);
     } finally {
       busy = false;
     }
@@ -196,6 +203,27 @@
         data-testid="oauth-drive-folder-save"
       >
         {driveFolderSaving ? $t("connections.saving") : $t("connections.save")}
+      </Button>
+    </div>
+  {:else if errorIsMissingSecret}
+    <!-- The operator already pasted a client id, so the copy names the half
+         that is missing instead of sending them back to square one. -->
+    <Banner variant="warning" title={$t("connections.oauth_missing_secret_title")}>
+      {@html $t("connections.oauth_missing_secret_body_html", {
+        values: { provider: providerShort },
+      })}
+    </Banner>
+    <div class="mt-4 flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={close} data-testid="oauth-cancel-btn">
+        {$t("common.cancel")}
+      </Button>
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={openSettingsIntegrations}
+        data-testid="oauth-open-settings-btn"
+      >
+        {$t("connections.open_settings_integrations")}
       </Button>
     </div>
   {:else if errorIsMissingClient}
