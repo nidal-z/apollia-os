@@ -114,7 +114,7 @@ The number and nature of the cards offered depend on your earlier choices:
 | Sovereignty `Strictly local` | `deny http_fetch https://` and `http://` (global) - blocks all network egress |
 | Sovereignty `Local preferred` | `deny http_fetch` on `api.openai.com` and `api.anthropic.com` (global) - blocks cloud LLMs by default |
 | Sovereignty `Cloud allowed` | no network rule |
-| Supervision `Critical only` or `Never` | `allow file_read` (global) + `allow shell_exec` on `ls`/`cat`/`grep`/`pwd`/`head`/`tail` - reduces friction on read actions |
+| Supervision `Critical only` or `Never` | `allow file_read` (global) - reduces friction on read actions |
 | Supervision `Always confirm` | no allow rule - every sensitive action will raise an approval card |
 | Integrations ticked (GitHub, Slack, Notion, Gmail) | `allow http_fetch` on the matching API (global) |
 

@@ -73,6 +73,21 @@ class _FakeMemory:
         self.writes[key] = value
 
 
+class _FakeProfile:
+    """Read-only profile view over the memory store.
+
+    The agent reads profile keys via ``ctx.profile.get`` and persists
+    proposals via ``ctx.memory.remember``; this double mirrors that split
+    while keeping a single seeded store per test.
+    """
+
+    def __init__(self, memory: _FakeMemory) -> None:
+        self._memory = memory
+
+    async def get(self, key: str) -> str | None:
+        return await self._memory.recall(key)
+
+
 class _FakeTools:
     """Records every call(); returns canned responses by tool name."""
 
@@ -105,6 +120,7 @@ class _FakeCtx:
         tools: _FakeTools | None,
     ) -> None:
         self.memory = memory
+        self.profile = _FakeProfile(memory)
         self.tools = tools
 
 
@@ -219,25 +235,51 @@ async def test_cloud_ok_no_network_rule() -> None:
 
 @pytest.mark.asyncio
 async def test_hitl_critical_only_allows_read_safe_tools() -> None:
+    # GIVEN a profile with hitl=critical-only
     memory = _FakeMemory({
         "user.constraints.sovereignty": "cloud-ok",
         "user.agents.hitl": "critical-only",
     })
     ctx = _FakeCtx(memory, tools=_FakeTools())
 
+    # WHEN proposals are derived and persisted
     await _persist_proposed_permission_rules(ctx)
 
+    # THEN a name-only file_read allow is proposed, and no shell rule is:
+    # `shell_exec` is not a registered tool, and the chat path never honors
+    # allow rules for code executors, so such proposals would be inert.
     proposals = _proposals_from(memory)
     assert any(
         p["tool_name"] == "file_read" and p["action"] == "allow"
         for p in proposals
     ), proposals
-    shell_allows = {
-        p.get("arg_prefix")
-        for p in proposals
-        if p["tool_name"] == "shell_exec" and p["action"] == "allow"
-    }
-    assert {"ls", "cat", "grep"}.issubset(shell_allows), shell_allows
+    assert not any(p["tool_name"] == "shell_exec" for p in proposals), proposals
+
+
+@pytest.mark.asyncio
+async def test_proposals_reference_only_real_non_executor_tools() -> None:
+    # GIVEN the profile combination that produces the largest proposal set
+    memory = _FakeMemory({
+        "user.constraints.sovereignty": "local-preferred",
+        "user.agents.hitl": "critical-only",
+        "user.tech.integrations": "GitHub, Slack, Notion, Gmail",
+    })
+    ctx = _FakeCtx(memory, tools=_FakeTools())
+
+    # WHEN proposals are derived and persisted
+    await _persist_proposed_permission_rules(ctx)
+
+    # THEN every proposal targets a registered, non-executor tool. The chat
+    # path strips code executors from every blanket authorization and the
+    # rule store accepts any name without validation, so an unknown or
+    # executor tool name here would silently produce a dead rule.
+    proposals = _proposals_from(memory)
+    assert proposals, "expected a non-empty proposal set for this profile"
+    known_proposable_tools = {"file_read", "http_fetch"}
+    code_executors = {"bash_executor", "python_executor"}
+    for p in proposals:
+        assert p["tool_name"] in known_proposable_tools, p
+        assert p["tool_name"] not in code_executors, p
 
 
 @pytest.mark.asyncio
@@ -275,7 +317,7 @@ async def test_hitl_always_emits_no_allow_rule() -> None:
 async def test_github_integration_allows_api_endpoint() -> None:
     memory = _FakeMemory({
         "user.constraints.sovereignty": "local-preferred",
-        "user.tools.integrations": "GitHub, Notion",
+        "user.tech.integrations": "GitHub, Notion",
     })
     ctx = _FakeCtx(memory, tools=_FakeTools())
 

@@ -114,7 +114,7 @@ Le nombre et la nature des cartes proposées dépendent de vos choix précédent
 | Souveraineté `Local strict` | `deny http_fetch https://` et `http://` (global) - bloque toute sortie réseau |
 | Souveraineté `Local préféré` | `deny http_fetch` sur `api.openai.com` et `api.anthropic.com` (global) - bloque les LLM cloud par défaut |
 | Souveraineté `Cloud autorisé` | aucune règle réseau |
-| Supervision `Critique seulement` ou `Jamais` | `allow file_read` (global) + `allow shell_exec` sur `ls`/`cat`/`grep`/`pwd`/`head`/`tail` - réduit la friction sur les actions en lecture |
+| Supervision `Critique seulement` ou `Jamais` | `allow file_read` (global) - réduit la friction sur les actions en lecture |
 | Supervision `Toujours valider` | aucune règle d'allow - chaque action sensible déclenchera une carte d'approbation |
 | Intégrations cochées (GitHub, Slack, Notion, Gmail) | `allow http_fetch` sur l'API correspondante (global) |
 

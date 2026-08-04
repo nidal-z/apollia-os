@@ -768,7 +768,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
 
     HITL level
       always           -> no allow rule (status quo, maximum friction)
-      critical-only    -> allow file_read + read-only shell_exec (global scope)
+      critical-only    -> allow file_read (global scope)
       never            -> same as critical-only (never a wildcard allow)
 
     Detected integrations
@@ -833,19 +833,18 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     # cloud-ok -> no network rule (status quo).
 
     # ── HITL level: reduces friction on read-only tools. ───────────────────
+    # Only tools the chat path can actually pre-authorize are proposed here:
+    # name-only allow rules on ordinary tools. Code executors (bash_executor,
+    # python_executor) are excluded from every blanket authorization by the
+    # runtime, and argument-prefix rules are not evaluated per invocation on
+    # the chat path, so proposing shell allow rules would record rules that
+    # never take effect.
     if hitl in {"critical-only", "never"}:
         proposals.append({
             "tool_name": "file_read",
             "action": "allow",
             "scope": "global",
         })
-        for safe_cmd in ("ls", "cat", "grep", "pwd", "head", "tail"):
-            proposals.append({
-                "tool_name": "shell_exec",
-                "action": "allow",
-                "arg_prefix": safe_cmd,
-                "scope": "global",
-            })
     # always -> no allow; every sensitive action goes through HITL.
 
     # ── Explicitly enabled integrations: open the matching API endpoints. ──
