@@ -335,7 +335,7 @@ fn push_transition_event(
     events.push(GlobalTimelineEvent {
         event_type: "task".to_string(),
         timestamp: ts.to_string(),
-        summary: format!("[{agent_name}] Tâche → {status}{dur}"),
+        summary: format!("[{agent_name}] Task → {status}{dur}"),
         detail: serde_json::json!({
             "source": "hitl.db/tasks",
             "task_id": task_id,
@@ -447,12 +447,12 @@ fn scan_chat_sessions(
         let title_label = title
             .as_deref()
             .map(|t| trim_for_summary(t, 60))
-            .unwrap_or_else(|| "(sans titre)".to_string());
+            .unwrap_or_else(|| "(untitled)".to_string());
         if created_at.as_str() >= cutoff_str {
             events.push(GlobalTimelineEvent {
                 event_type: "task".to_string(),
                 timestamp: created_at.clone(),
-                summary: format!("[{label}] Chat ouvert · {title_label}"),
+                summary: format!("[{label}] Chat opened · {title_label}"),
                 detail: serde_json::json!({
                     "source": "chat.db/chat_sessions",
                     "session_id": id,
@@ -468,7 +468,7 @@ fn scan_chat_sessions(
                 events.push(GlobalTimelineEvent {
                     event_type: "task".to_string(),
                     timestamp: ts,
-                    summary: format!("[{label}] Chat clos · {title_label}"),
+                    summary: format!("[{label}] Chat closed · {title_label}"),
                     detail: serde_json::json!({
                         "source": "chat.db/chat_sessions",
                         "session_id": id,

@@ -33,20 +33,15 @@ pub fn format_tooltip(active_agents: usize, pending_approvals: usize) -> String 
     let mut parts = Vec::new();
 
     if active_agents > 0 {
-        let suffix = if active_agents == 1 {
-            "actif"
-        } else {
-            "actifs"
-        };
         parts.push(format!(
-            "{active_agents} agent{} {suffix}",
+            "{active_agents} agent{} active",
             plural_s(active_agents)
         ));
     }
 
     if pending_approvals > 0 {
         parts.push(format!(
-            "{pending_approvals} approbation{} en attente",
+            "{pending_approvals} approval{} pending",
             plural_s(pending_approvals)
         ));
     }
@@ -60,13 +55,13 @@ pub fn format_tooltip(active_agents: usize, pending_approvals: usize) -> String 
 
 /// Formats the menu item label for pending approvals.
 ///
-/// Returns a human-readable string like "2 approbations en attente" or
-/// "Aucune approbation en attente" when count is 0.
+/// Returns a human-readable string like "2 approvals pending" or
+/// "No pending approvals" when count is 0.
 pub fn format_approvals_label(count: usize) -> String {
     if count == 0 {
-        "Aucune approbation en attente".to_string()
+        "No pending approvals".to_string()
     } else {
-        format!("{count} approbation{} en attente", plural_s(count))
+        format!("{count} approval{} pending", plural_s(count))
     }
 }
 
@@ -323,7 +318,7 @@ mod tests {
         // GIVEN 1 active agent and no approvals
         let tooltip = format_tooltip(1, 0);
         // THEN it uses singular form
-        assert_eq!(tooltip, "Apollia OS - 1 agent actif");
+        assert_eq!(tooltip, "Apollia OS - 1 agent active");
     }
 
     #[test]
@@ -331,7 +326,7 @@ mod tests {
         // GIVEN 3 active agents and no approvals
         let tooltip = format_tooltip(3, 0);
         // THEN it uses plural form
-        assert_eq!(tooltip, "Apollia OS - 3 agents actifs");
+        assert_eq!(tooltip, "Apollia OS - 3 agents active");
     }
 
     #[test]
@@ -339,10 +334,7 @@ mod tests {
         // GIVEN 3 active agents and 2 pending approvals
         let tooltip = format_tooltip(3, 2);
         // THEN both are shown
-        assert_eq!(
-            tooltip,
-            "Apollia OS - 3 agents actifs, 2 approbations en attente"
-        );
+        assert_eq!(tooltip, "Apollia OS - 3 agents active, 2 approvals pending");
     }
 
     #[test]
@@ -350,10 +342,7 @@ mod tests {
         // GIVEN 1 agent and 1 approval
         let tooltip = format_tooltip(1, 1);
         // THEN singular forms are used
-        assert_eq!(
-            tooltip,
-            "Apollia OS - 1 agent actif, 1 approbation en attente"
-        );
+        assert_eq!(tooltip, "Apollia OS - 1 agent active, 1 approval pending");
     }
 
     #[test]
@@ -361,15 +350,15 @@ mod tests {
         // GIVEN no agents but 3 pending approvals
         let tooltip = format_tooltip(0, 3);
         // THEN only approvals are shown
-        assert_eq!(tooltip, "Apollia OS - 3 approbations en attente");
+        assert_eq!(tooltip, "Apollia OS - 3 approvals pending");
     }
 
     #[test]
     fn test_approvals_label_zero() {
         // GIVEN 0 pending approvals
         let label = format_approvals_label(0);
-        // THEN it shows "Aucune"
-        assert_eq!(label, "Aucune approbation en attente");
+        // THEN it shows the empty-state wording
+        assert_eq!(label, "No pending approvals");
     }
 
     #[test]
@@ -377,7 +366,7 @@ mod tests {
         // GIVEN 1 pending approval
         let label = format_approvals_label(1);
         // THEN singular form
-        assert_eq!(label, "1 approbation en attente");
+        assert_eq!(label, "1 approval pending");
     }
 
     #[test]
@@ -385,7 +374,7 @@ mod tests {
         // GIVEN 5 pending approvals
         let label = format_approvals_label(5);
         // THEN plural form
-        assert_eq!(label, "5 approbations en attente");
+        assert_eq!(label, "5 approvals pending");
     }
 
     #[test]

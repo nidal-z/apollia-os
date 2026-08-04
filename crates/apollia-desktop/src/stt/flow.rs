@@ -378,8 +378,8 @@ impl SttFlow {
                 .app
                 .notification()
                 .builder()
-                .title("Aucun mod\u{00e8}le STT charg\u{00e9}")
-                .body("Activez la dict\u{00e9}e et chargez un mod\u{00e8}le dans les R\u{00e9}glages.")
+                .title("No speech model loaded")
+                .body("Turn dictation on and load a model in Settings.")
                 .show();
             if let Err(e) = result {
                 tracing::warn!(error = %e, "failed to send STT unavailable notification");
@@ -547,8 +547,8 @@ fn notify_no_microphone(app: &tauri::AppHandle) {
     let result = app
         .notification()
         .builder()
-        .title("Aucun microphone d\u{00e9}tect\u{00e9}")
-        .body("Branchez un microphone pour utiliser la dict\u{00e9}e vocale.")
+        .title("No microphone detected")
+        .body("Plug in a microphone to use voice dictation.")
         .show();
     if let Err(e) = result {
         tracing::warn!(error = %e, "failed to send no-microphone notification");

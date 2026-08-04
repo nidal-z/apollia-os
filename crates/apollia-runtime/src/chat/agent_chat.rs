@@ -283,8 +283,8 @@ impl AgentChatExecutor {
         match &decision {
             ToolDecision::Refuse { reason } => {
                 let content = match reason {
-                    Some(r) => format!("Opération refusée par l'utilisateur : {r}"),
-                    None => "Opération refusée par l'utilisateur".to_string(),
+                    Some(r) => format!("Operation refused by the operator: {r}"),
+                    None => "Operation refused by the operator".to_string(),
                 };
                 self.emit_completed(
                     &session.id,
@@ -947,7 +947,7 @@ mod tests {
             .expect("should succeed with refusal message");
 
         // THEN content is the refusal message
-        assert_eq!(response.content, "Opération refusée par l'utilisateur");
+        assert_eq!(response.content, "Operation refused by the operator");
     }
 
     #[tokio::test]

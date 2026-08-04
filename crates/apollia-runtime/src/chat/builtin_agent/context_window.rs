@@ -29,7 +29,7 @@ impl BuiltInChatAgent {
 
         // Return partial content so the caller can save what was received
         let content = if accumulated_text.is_empty() {
-            format!("[erreur streaming : {err}]")
+            format!("[streaming error: {err}]")
         } else {
             accumulated_text
         };

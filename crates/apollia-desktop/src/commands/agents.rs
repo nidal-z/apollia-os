@@ -891,7 +891,7 @@ pub async fn create_agent_from_template(
         .arg(&target_dir)
         .output()
         .await
-        .map_err(|e| format!("Erreur execution Python : {e}"))?;
+        .map_err(|e| format!("Python execution error: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

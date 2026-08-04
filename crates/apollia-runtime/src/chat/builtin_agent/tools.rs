@@ -380,7 +380,7 @@ impl BuiltInChatAgent {
                 rule_id,
                 "chat.tool.prefix_rule_denied"
             );
-            let refusal = "Outil refusé par une règle de permission".to_string();
+            let refusal = "Tool refused by a permission rule".to_string();
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
             acc.all_tool_calls.push(ToolCallRecord {
                 tool_name: call.name.clone(),
@@ -526,8 +526,8 @@ impl BuiltInChatAgent {
                 // directory"), surface it to the LLM so it can correct course
                 // on the next iteration instead of retrying blind.
                 let refusal = match &reason {
-                    Some(r) => format!("Outil refusé par l'utilisateur. Raison : {r}"),
-                    None => "Outil refusé par l'utilisateur".to_string(),
+                    Some(r) => format!("Tool refused by the operator. Reason: {r}"),
+                    None => "Tool refused by the operator".to_string(),
                 };
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
                 acc.all_tool_calls.push(ToolCallRecord {
