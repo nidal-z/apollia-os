@@ -84,6 +84,10 @@ enum SttCommand {
         audio: Vec<f32>,
         sample_rate: u32,
         source: TranscriptSource,
+        /// Per-request language override; `None` falls back to the configured
+        /// hint. Distinguishing "not supplied" from "auto-detect" is why this is
+        /// a nested option rather than a plain one.
+        language: Option<Option<String>>,
         reply: oneshot::Sender<Result<TranscriptResult, SttError>>,
     },
     /// Query the current engine status.
@@ -152,12 +156,41 @@ impl SttEngineHandle {
         sample_rate: u32,
         source: TranscriptSource,
     ) -> Result<TranscriptResult, SttEngineError> {
+        self.transcribe_inner(audio, sample_rate, source, None)
+            .await
+    }
+
+    /// Request a transcription with a per-request language hint.
+    ///
+    /// `language` is `Some(Some(code))` to force a language, `Some(None)` to
+    /// force auto-detection, and `None` to use the configured hint. The HTTP
+    /// route uses this so the `language` field it accepts actually reaches the
+    /// model; before it existed the field was parsed and then discarded.
+    pub async fn transcribe_with_language(
+        &self,
+        audio: Vec<f32>,
+        sample_rate: u32,
+        source: TranscriptSource,
+        language: Option<String>,
+    ) -> Result<TranscriptResult, SttEngineError> {
+        self.transcribe_inner(audio, sample_rate, source, Some(language))
+            .await
+    }
+
+    async fn transcribe_inner(
+        &self,
+        audio: Vec<f32>,
+        sample_rate: u32,
+        source: TranscriptSource,
+        language: Option<Option<String>>,
+    ) -> Result<TranscriptResult, SttEngineError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(SttCommand::Transcribe {
                 audio,
                 sample_rate,
                 source,
+                language,
                 reply: reply_tx,
             })
             .await
@@ -216,9 +249,12 @@ impl SttEngine {
                     audio,
                     sample_rate,
                     source,
+                    language,
                     reply,
                 } => {
-                    let result = self.handle_transcribe(audio, sample_rate, &source).await;
+                    let result = self
+                        .handle_transcribe(audio, sample_rate, &source, language)
+                        .await;
                     let _ = reply.send(result);
                 }
                 SttCommand::GetStatus { reply } => {
@@ -250,9 +286,12 @@ impl SttEngine {
         audio: Vec<f32>,
         sample_rate: u32,
         source: &TranscriptSource,
+        language: Option<Option<String>>,
     ) -> Result<TranscriptResult, SttError> {
         let backend = Arc::clone(&self.backend);
-        let language_hint = self.config.language.clone();
+        // A per-request hint wins over the configured one; absent a request
+        // hint, the persisted configuration decides.
+        let language_hint = language.unwrap_or_else(|| self.config.language.clone());
 
         let result = tokio::task::spawn_blocking(move || {
             backend.transcribe(&audio, sample_rate, language_hint.as_deref())
@@ -302,8 +341,12 @@ mod tests {
     use tokio::sync::broadcast;
 
     /// Fake backend for unit tests, returns a fixed transcript.
+    ///
+    /// Records the language hint it was handed so tests can assert what
+    /// actually reached the model rather than what the caller passed in.
     struct FakeBackend {
         should_fail: bool,
+        seen_language: Arc<std::sync::Mutex<Option<Option<String>>>>,
     }
 
     impl SttBackend for FakeBackend {
@@ -317,6 +360,9 @@ mod tests {
             _sample_rate: u32,
             _language_hint: Option<&str>,
         ) -> Result<TranscriptResult, SttError> {
+            if let Ok(mut guard) = self.seen_language.lock() {
+                *guard = Some(_language_hint.map(str::to_owned));
+            }
             if self.should_fail {
                 return Err(SttError::TranscriptionFailed {
                     reason: "forced failure".to_owned(),
@@ -349,14 +395,30 @@ mod tests {
     fn start_test_engine(
         should_fail: bool,
     ) -> (SttEngineHandle, broadcast::Receiver<RuntimeEvent>) {
+        let (handle, rx, _) = start_test_engine_observing_language(should_fail);
+        (handle, rx)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn start_test_engine_observing_language(
+        should_fail: bool,
+    ) -> (
+        SttEngineHandle,
+        broadcast::Receiver<RuntimeEvent>,
+        Arc<std::sync::Mutex<Option<Option<String>>>>,
+    ) {
         let (event_tx, event_rx) = broadcast::channel(64);
         let repo_dir = tempfile::tempdir().expect("tempdir");
         let repo = SttRepository::open(&repo_dir.path().join("stt.db")).expect("open repo");
-        let backend = Box::new(FakeBackend { should_fail });
+        let seen_language = Arc::new(std::sync::Mutex::new(None));
+        let backend = Box::new(FakeBackend {
+            should_fail,
+            seen_language: Arc::clone(&seen_language),
+        });
         let handle = SttEngineHandle::start(backend, repo, test_config(), event_tx);
         // Leak tempdir to keep it alive (tests are short-lived)
         std::mem::forget(repo_dir);
-        (handle, event_rx)
+        (handle, event_rx, seen_language)
     }
 
     #[tokio::test]
@@ -386,6 +448,59 @@ mod tests {
             }
             other => unreachable!("unexpected event in test mock: {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn per_request_language_reaches_the_backend() {
+        // GIVEN an engine configured with French
+        let (handle, _rx, seen) = start_test_engine_observing_language(false);
+
+        // WHEN a caller asks for English on this request only
+        handle
+            .transcribe_with_language(
+                vec![0.0; 16000],
+                16000,
+                TranscriptSource::Api,
+                Some("en".to_owned()),
+            )
+            .await
+            .expect("transcribe should succeed");
+
+        // THEN the backend is driven with English, not the configured French
+        let observed = seen.lock().expect("lock").clone();
+        assert_eq!(observed, Some(Some("en".to_owned())));
+    }
+
+    #[tokio::test]
+    async fn per_request_auto_detect_overrides_the_configured_language() {
+        // GIVEN an engine configured with French
+        let (handle, _rx, seen) = start_test_engine_observing_language(false);
+
+        // WHEN a caller explicitly asks for auto-detection
+        handle
+            .transcribe_with_language(vec![0.0; 16000], 16000, TranscriptSource::Api, None)
+            .await
+            .expect("transcribe should succeed");
+
+        // THEN no hint is forced on the backend
+        let observed = seen.lock().expect("lock").clone();
+        assert_eq!(observed, Some(None));
+    }
+
+    #[tokio::test]
+    async fn without_a_request_language_the_configured_hint_applies() {
+        // GIVEN an engine configured with French
+        let (handle, _rx, seen) = start_test_engine_observing_language(false);
+
+        // WHEN a caller does not mention a language at all
+        handle
+            .transcribe(vec![0.0; 16000], 16000, TranscriptSource::Hotkey)
+            .await
+            .expect("transcribe should succeed");
+
+        // THEN the persisted configuration decides
+        let observed = seen.lock().expect("lock").clone();
+        assert_eq!(observed, Some(Some("fr".to_owned())));
     }
 
     #[tokio::test]

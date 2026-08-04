@@ -122,6 +122,33 @@ impl AudioCapture {
         })
     }
 
+    /// Name of the device that was actually opened.
+    ///
+    /// Reported by the caller so a log says which microphone served a
+    /// recording. [`AudioCapture::open`] falls back to the system default when
+    /// the configured name is absent, so the opened device is not always the
+    /// requested one. Returns `"<unnamed>"` when the host cannot name it.
+    pub fn device_name(&self) -> String {
+        self.device
+            .name()
+            .unwrap_or_else(|_| "<unnamed>".to_owned())
+    }
+
+    /// Sample rate the device imposed, in Hz.
+    pub fn sample_rate(&self) -> u32 {
+        self.config.sample_rate.0
+    }
+
+    /// Number of interleaved channels the device imposed.
+    pub fn channels(&self) -> u16 {
+        self.config.channels
+    }
+
+    /// Sample format the device imposed.
+    pub fn sample_format(&self) -> SampleFormat {
+        self.sample_format
+    }
+
     /// Start capturing audio from the device.
     ///
     /// Returns the live [`Stream`] (must be kept alive for recording to

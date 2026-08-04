@@ -27,12 +27,15 @@ Apollia transcribes locally with a Whisper model. With no model loaded, pressing
 
 ### 3. Your system microphone is muted or wrongly selected
 
-If the microphone is disabled at the operating system level, Apollia hears nothing, with no error message.
+If the microphone is disabled at the operating system level, Apollia hears nothing. It says so rather than staying silent: dictation ends with **"Nothing audible was captured"**.
+
+A virtual input device is a common cause. Tools such as BlackHole, Soundflower or an aggregate device appear as microphones and can end up being the system default, in which case Apollia records a stream nobody is speaking into.
 
 **Solution:**
-1. Open your system sound settings and check that the right microphone is selected as the default input.
-2. Speak normally: the input level must move.
-3. If nothing moves, unplug and plug the microphone back in (or raise the input volume).
+1. Open **Settings → Speech-to-Text** and use the **Input device** picker to name the microphone explicitly, rather than relying on the system default.
+2. Save. The choice applies to the next dictation, with no restart.
+3. Press **Test** on the same page and speak: the bars must follow your voice. Flat bars mean the selected device is delivering nothing.
+4. If nothing moves, unplug and plug the microphone back in (or raise the input volume).
 
 ### 4. Apollia is not allowed to use the microphone
 
@@ -48,14 +51,25 @@ On first use, the system asks for microphone access. If it was denied, Apollia s
 The Whisper model transcribes according to the configured language. A wrong language produces incoherent text, or nothing useful.
 
 **Solution:**
-1. In **Settings → Speech-to-Text**, check the **Language** field.
-2. Select **Français** (or the language you actually dictate in).
+1. In **Settings → Speech-to-Text**, open the **Language** picker.
+2. Select **Français** (or the language you actually dictate in). Leaving it on **Auto-detect** lets the model decide, which is unreliable on short or noisy recordings.
 3. Try again with a short test of a few seconds.
+
+### 6. The microphone stays lit and the dictation never finishes
+
+<!-- claim:stt-dictation-always-reports-an-outcome -->
+
+A dictation always ends, whether or not it produced text. If the microphone button stays red without a result, the run reports why instead of leaving you waiting: no microphone detected, nothing audible captured, recording too short, no model loaded, or a transcription error.
+
+**Solution:**
+1. Read the message shown next to the composer, or under the **Test** card in **Settings → Speech-to-Text**.
+2. Act on what it names: it points at the capture device, the model, or the recording itself.
+3. If the button ever stays red with no message at all, that is a defect worth reporting: the outcome should always be stated.
 
 ## If nothing works
 
 1. Go to **Transcriptions** *(visible in the sidebar in Builder mode)* to see whether recent attempts produced empty or incoherent content: this helps narrow the problem down.
 2. Download a more accurate Whisper model (**Medium** or **Large**) from **Settings → Model Hub** if your dictations are consistently blurry.
-3. Restart Apollia after each model or hotkey change so the engine reloads its configuration.
+3. Dictation settings apply on the next dictation, with no restart. Restarting is only needed if the application itself becomes unresponsive.
 
 > **Technical reference:** [Apollia reference](/reference) - understand how Apollia captures, processes and stores your dictations locally.

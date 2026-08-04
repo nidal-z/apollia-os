@@ -96,6 +96,22 @@
     if (savedBaseline) sttConfig = { ...savedBaseline };
   }
 
+  /**
+   * Re-reads the persisted STT row into the form.
+   *
+   * `sttConfig` is copied out of the store exactly once (the `!sttConfig` guard
+   * above), so without this the page keeps showing the values it opened with
+   * even after the engine was rebuilt from different ones.
+   */
+  async function reloadPersistedConfig(): Promise<void> {
+    await settingsLoaders.sttConfig(true);
+    const loaded = $sttConfigStore.data;
+    if (!loaded) return;
+    sttConfig = { ...loaded };
+    savedBaseline = { ...loaded };
+    form?.sync({ ...loaded });
+  }
+
   // ─── Status section ───────────────────────────────────────────────────
   let lastStatusRefresh = $state<number | null>(null);
   let liveUpdates = $state(false);
@@ -113,6 +129,10 @@
     try {
       await reloadStt();
       await refreshStatus();
+      // The form keeps a copy taken once, on first load. Re-read the persisted
+      // row so a reload shows what the engine was actually rebuilt from rather
+      // than the snapshot the page opened with.
+      await reloadPersistedConfig();
       addToast($t("settings.stt.reload_toast"), "success");
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");

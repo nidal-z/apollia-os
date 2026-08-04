@@ -5,6 +5,7 @@
 //! non-focusable, and borderless so it acts as a pure visual indicator without
 //! interfering with the user's workflow.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use apollia_core::{EventBusSender, RuntimeEvent};
@@ -75,7 +76,17 @@ impl RecordingOverlay {
     }
 
     /// Builds the overlay window (hidden by default).
+    ///
+    /// A window with the same label already existing is success, not failure:
+    /// the STT flow is rebuilt whenever the dictation settings change, and
+    /// Tauri refuses a duplicate label. Reusing the live window keeps that
+    /// re-arm silent instead of losing the indicator on the second save.
     fn build_window(&self) -> Result<(), OverlayError> {
+        if self.app.get_webview_window(WINDOW_LABEL).is_some() {
+            tracing::debug!("recording overlay already exists - reusing it");
+            return Ok(());
+        }
+
         let (x, y) = self.bottom_center_position()?;
 
         let builder = WebviewWindowBuilder::new(
@@ -177,35 +188,50 @@ impl RecordingOverlay {
     }
 }
 
+/// Generation of the live overlay listener.
+///
+/// The STT flow, and with it the overlay, is rebuilt whenever the dictation
+/// settings change. Each rebuild spawns a listener, and without this counter the
+/// previous ones would keep running: every save would add a task holding a stale
+/// hotkey label and a cancel closure bound to a flow nobody uses any more, so
+/// one Escape press would fire every past closure.
+static OVERLAY_GENERATION: AtomicUsize = AtomicUsize::new(0);
+
 /// Spawns a background task that shows/hides the overlay in response to STT events.
 ///
 /// Listens to the EventBus for [`RuntimeEvent::SttRecordingStarted`] and
 /// [`RuntimeEvent::SttRecordingStopped`] and toggles the overlay window
-/// visibility accordingly. Runs for the lifetime of the application.
+/// visibility accordingly. Runs until a later call supersedes it.
 pub fn spawn_overlay_listener(overlay: RecordingOverlay, event_bus: &EventBusSender) {
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let mut rx = event_bus.subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(event) => match &event {
-                    RuntimeEvent::SttRecordingStarted => {
-                        if let Err(e) = overlay.show() {
-                            tracing::warn!(error = %e, "failed to show recording overlay");
-                        }
+                Ok(event) => {
+                    if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
+                        break;
                     }
-                    RuntimeEvent::SttRecordingStopped { .. } => {
-                        if let Err(e) = overlay.hide() {
-                            tracing::warn!(error = %e, "failed to hide recording overlay");
+                    match &event {
+                        RuntimeEvent::SttRecordingStarted => {
+                            if let Err(e) = overlay.show() {
+                                tracing::warn!(error = %e, "failed to show recording overlay");
+                            }
                         }
+                        RuntimeEvent::SttRecordingStopped { .. } => {
+                            if let Err(e) = overlay.hide() {
+                                tracing::warn!(error = %e, "failed to hide recording overlay");
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::debug!(skipped = n, "overlay listener lagged");
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
             }
         }
-        tracing::debug!("overlay event listener stopped");
+        tracing::debug!(generation, "overlay event listener stopped");
     });
 }

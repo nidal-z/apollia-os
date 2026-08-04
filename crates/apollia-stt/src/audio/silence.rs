@@ -8,19 +8,23 @@
 /// Silence is detected per 160-sample window (10 ms at 16 kHz) by comparing
 /// the window's RMS energy to a linear threshold derived from `threshold_db`.
 ///
-/// Returns the trimmed sub-slice. If the entire buffer is below the threshold,
-/// the original slice is returned unchanged (no panic, no empty result).
-pub fn trim_silence(audio: &[f32], threshold_db: f32) -> &[f32] {
-    if audio.is_empty() {
-        return audio;
-    }
-
+/// Returns `Some(slice)` spanning the first to the last audible window, or
+/// `None` when no window reaches the threshold. `None` is the "nothing was
+/// heard" answer and callers must not send that audio to a speech model:
+/// Whisper does not return an empty string on silence, it returns its training
+/// filler ("Merci.", "Au revoir.", subtitle credits). Returning the untouched
+/// buffer here, as this function once did, is what let those hallucinations
+/// reach the user as if they were transcriptions.
+///
+/// A buffer shorter than one window carries no measurable energy either way and
+/// is also reported as `None`.
+pub fn trim_silence(audio: &[f32], threshold_db: f32) -> Option<&[f32]> {
     let threshold_linear = f32::powf(10.0, threshold_db / 20.0);
     let window_size: usize = 160;
 
     let window_count = audio.len() / window_size;
     if window_count == 0 {
-        return audio;
+        return None;
     }
 
     let is_voice = |window_idx: usize| -> bool {
@@ -30,10 +34,7 @@ pub fn trim_silence(audio: &[f32], threshold_db: f32) -> &[f32] {
         rms >= threshold_linear
     };
 
-    let first_voice = match (0..window_count).find(|&i| is_voice(i)) {
-        Some(i) => i,
-        None => return audio,
-    };
+    let first_voice = (0..window_count).find(|&i| is_voice(i))?;
 
     let last_voice = (0..window_count)
         .rfind(|&i| is_voice(i))
@@ -42,7 +43,16 @@ pub fn trim_silence(audio: &[f32], threshold_db: f32) -> &[f32] {
     let start_sample = first_voice * window_size;
     let end_sample = ((last_voice + 1) * window_size).min(audio.len());
 
-    &audio[start_sample..end_sample]
+    Some(&audio[start_sample..end_sample])
+}
+
+/// Peak absolute amplitude of a buffer, in the `0.0..=1.0` range.
+///
+/// Reported alongside a `None` from [`trim_silence`] so an operator log says
+/// how loud the capture actually was, which is the difference between "the
+/// microphone is muted" and "the threshold is set too high".
+pub fn peak_amplitude(audio: &[f32]) -> f32 {
+    audio.iter().fold(0.0_f32, |peak, &s| peak.max(s.abs()))
 }
 
 /// Compute the RMS (root mean square) energy of a sample window.
@@ -81,40 +91,58 @@ mod tests {
         let mut audio = vec![0.0f32; window * 10];
         // Windows 3..7 contain voice
         audio[(3 * window)..(7 * window)].fill(0.5);
-        let trimmed = trim_silence(&audio, -40.0);
+        let trimmed = trim_silence(&audio, -40.0).expect("voice present");
         assert_eq!(trimmed.len(), 4 * window);
         assert!(trimmed.iter().all(|&s| s == 0.5));
     }
 
-    // GIVEN entirely silent audio
+    // GIVEN entirely silent audio long enough to pass the caller's duration gate
     // WHEN trim_silence is called
-    // THEN the original slice is returned
+    // THEN nothing audible is reported, so the caller never reaches the model
     #[test]
-    fn all_silent_returns_original() {
-        let audio = vec![0.0f32; 1600];
-        let trimmed = trim_silence(&audio, -40.0);
-        assert_eq!(trimmed.len(), audio.len());
-        assert!(std::ptr::eq(trimmed.as_ptr(), audio.as_ptr()));
+    fn all_silent_reports_nothing_audible() {
+        let audio = vec![0.0f32; 48_000];
+        assert!(trim_silence(&audio, -40.0).is_none());
+    }
+
+    // GIVEN three seconds of room tone sitting just under the threshold
+    // WHEN trim_silence is called
+    // THEN it is reported as nothing audible rather than handed to the model
+    #[test]
+    fn sub_threshold_room_tone_reports_nothing_audible() {
+        let threshold_db = -40.0_f32;
+        let below = f32::powf(10.0, threshold_db / 20.0) * 0.5;
+        let audio: Vec<f32> = (0..48_000)
+            .map(|i| if i % 2 == 0 { below } else { -below })
+            .collect();
+        assert!(trim_silence(&audio, threshold_db).is_none());
     }
 
     // GIVEN an empty buffer
     // WHEN trim_silence is called
-    // THEN it returns an empty slice without panic
+    // THEN nothing audible is reported without panic
     #[test]
-    fn empty_audio_returns_empty() {
+    fn empty_audio_reports_nothing_audible() {
         let audio: &[f32] = &[];
-        let trimmed = trim_silence(audio, -40.0);
-        assert!(trimmed.is_empty());
+        assert!(trim_silence(audio, -40.0).is_none());
     }
 
-    // GIVEN audio shorter than one window
+    // GIVEN audio shorter than one 10 ms window
     // WHEN trim_silence is called
-    // THEN the original slice is returned unchanged
+    // THEN nothing audible is reported: there is no window to measure
     #[test]
-    fn short_audio_returns_original() {
+    fn short_audio_reports_nothing_audible() {
         let audio = vec![0.3f32; 100];
-        let trimmed = trim_silence(&audio, -40.0);
-        assert_eq!(trimmed.len(), 100);
+        assert!(trim_silence(&audio, -40.0).is_none());
+    }
+
+    // GIVEN a buffer whose loudest sample is known
+    // WHEN peak_amplitude is called
+    // THEN it returns that magnitude, sign-independent
+    #[test]
+    fn peak_amplitude_is_sign_independent() {
+        assert_eq!(peak_amplitude(&[0.0, -0.7, 0.3]), 0.7);
+        assert_eq!(peak_amplitude(&[]), 0.0);
     }
 
     // GIVEN audio where every window is above the threshold
@@ -126,7 +154,7 @@ mod tests {
         let audio: Vec<f32> = (0..(window * 5))
             .map(|i| (i as f32 * 0.1).sin().abs() + 0.1)
             .collect();
-        let trimmed = trim_silence(&audio, -40.0);
+        let trimmed = trim_silence(&audio, -40.0).expect("voice present");
         assert_eq!(trimmed.len(), window * 5);
     }
 
@@ -141,7 +169,7 @@ mod tests {
         let audio: Vec<f32> = silence.into_iter().chain(voice).collect();
 
         // WHEN
-        let trimmed = trim_silence(&audio, -40.0);
+        let trimmed = trim_silence(&audio, -40.0).expect("voice present");
 
         // THEN voice region (5 windows) is returned
         assert_eq!(trimmed.len(), 5 * window);
@@ -159,7 +187,7 @@ mod tests {
         let audio: Vec<f32> = voice.into_iter().chain(silence).collect();
 
         // WHEN
-        let trimmed = trim_silence(&audio, -40.0);
+        let trimmed = trim_silence(&audio, -40.0).expect("voice present");
 
         // THEN voice region (5 windows) is returned
         assert_eq!(trimmed.len(), 5 * window);
@@ -188,7 +216,7 @@ mod tests {
             *sample = just_above;
         }
         // WHEN
-        let trimmed_above = trim_silence(&audio_above, threshold_db);
+        let trimmed_above = trim_silence(&audio_above, threshold_db).expect("voice present");
         // THEN the 2 voice windows are kept
         assert_eq!(
             trimmed_above.len(),
@@ -196,15 +224,14 @@ mod tests {
             "just-above-threshold signal should be classified as voice"
         );
 
-        // --- below-threshold case: buffer is returned as-is (no voice found) ---
+        // --- below-threshold case: nothing audible ---
         // GIVEN 6 windows all just below threshold
         let audio_below = generate_voice(6 * window, just_below);
         // WHEN
         let trimmed_below = trim_silence(&audio_below, threshold_db);
-        // THEN no voice is found → original slice returned unchanged
-        assert_eq!(
-            trimmed_below.len(),
-            audio_below.len(),
+        // THEN no voice is found → nothing audible is reported
+        assert!(
+            trimmed_below.is_none(),
             "just-below-threshold signal should not be detected as voice"
         );
     }
@@ -225,7 +252,7 @@ mod tests {
         }
 
         // WHEN
-        let trimmed = trim_silence(&audio, -40.0);
+        let trimmed = trim_silence(&audio, -40.0).expect("voice present");
 
         // THEN windows 2..10 are kept (first_voice=2, last_voice=9)
         assert_eq!(trimmed.len(), 8 * window);

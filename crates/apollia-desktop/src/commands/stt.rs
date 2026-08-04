@@ -8,7 +8,7 @@
 //! - `list_transcriptions`    : list transcription history
 //! - `delete_transcription`   : delete a transcription by ID
 //! - `transcribe_file`        : transcribe a WAV file
-//! - `list_stt_models`        : list available .bin model files
+//! - `list_stt_models`        : list available whisper model files
 //! - `start_tour_recording`   : begin push-to-talk recording for the guided tour
 //! - `stop_tour_recording`    : stop recording and trigger transcription
 
@@ -35,10 +35,12 @@ pub struct SttModelInfo {
     pub language: Option<String>,
 }
 
-/// STT configuration read from (and written to) the `[stt]` section of `apollia.toml`.
+/// STT configuration read from (and written to) the singleton row of
+/// `~/.apollia/system.db`.
 ///
-/// Mirror of [`apollia_core::SttConfig`] with all paths as plain `String`
-/// so the Tauri JSON bridge can serialise/deserialise without PathBuf.
+/// There is no `[stt]` section in `apollia.toml`: nothing reads one. Mirror of
+/// [`apollia_core::SttConfigRow`] with all paths as plain `String` so the Tauri
+/// JSON bridge can serialise and deserialise without `PathBuf`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttConfigView {
     /// Whether the STT engine is enabled at startup.
@@ -138,6 +140,8 @@ pub async fn update_stt_config(
     app: tauri::AppHandle,
     stt_flow_state: State<'_, SttFlowState>,
 ) -> Result<(), String> {
+    validate_language(config.language.as_deref())?;
+
     let db_path = resolve_home("~/.apollia/system.db");
 
     // Ensure the data directory exists.
@@ -181,6 +185,68 @@ pub async fn update_stt_config(
     }
 
     Ok(())
+}
+
+/// ISO 639-1 codes accepted as the dictation language hint.
+///
+/// A closed list rather than free text: the field used to accept anything an
+/// operator typed, so the same language could be spelled several ways across
+/// machines and a typo silently became auto-detection at the model. Documented
+/// in `reference/configuration.md`, and offered verbatim by the settings picker.
+pub(crate) const STT_LANGUAGES: [&str; 13] = [
+    "fr", "en", "es", "de", "it", "pt", "nl", "pl", "ru", "zh", "ja", "ko", "ar",
+];
+
+/// Validates the language hint against [`STT_LANGUAGES`].
+///
+/// `None` and the empty string both mean auto-detection and are accepted.
+fn validate_language(language: Option<&str>) -> Result<(), String> {
+    let Some(code) = language.map(str::trim).filter(|c| !c.is_empty()) else {
+        return Ok(());
+    };
+    if STT_LANGUAGES.contains(&code) {
+        return Ok(());
+    }
+    Err(format!(
+        "unsupported dictation language '{code}': expected one of {}, or none for auto-detection",
+        STT_LANGUAGES.join(", ")
+    ))
+}
+
+/// Whether the armed dictation configuration differs from the persisted one.
+///
+/// `SttConfigRow` carries no `PartialEq` (it lives in `apollia-core`, whose
+/// public surface this crate does not widen), so the comparison is spelled out
+/// here. Both sides are destructured exhaustively on purpose: adding a field to
+/// the row then fails to compile until it is classified, rather than silently
+/// joining the set of settings that persist without ever taking effect.
+fn differs(armed: &apollia_core::SttConfigRow, next: &apollia_core::SttConfigRow) -> bool {
+    let apollia_core::SttConfigRow {
+        enabled,
+        model_path,
+        hotkey,
+        clipboard_mode,
+        clipboard_restore,
+        silence_threshold_db,
+        max_recording_sec,
+        language,
+        trigger_mode,
+        input_device,
+    } = armed;
+
+    // `model_path` and `language` are consumed by the engine, which
+    // `reload_stt_inner` rebuilds unconditionally just above; they are compared
+    // all the same so the armed snapshot never drifts from what is persisted.
+    *enabled != next.enabled
+        || *model_path != next.model_path
+        || *hotkey != next.hotkey
+        || *clipboard_mode != next.clipboard_mode
+        || *clipboard_restore != next.clipboard_restore
+        || (*silence_threshold_db - next.silence_threshold_db).abs() > f32::EPSILON
+        || *max_recording_sec != next.max_recording_sec
+        || *language != next.language
+        || *trigger_mode != next.trigger_mode
+        || *input_device != next.input_device
 }
 
 /// Rebuilds the STT engine from the persisted config and swaps it into the
@@ -231,19 +297,31 @@ pub(crate) async fn reload_stt_inner(
         old.shutdown().await;
     }
 
-    // Arm the hotkey whenever STT is enabled and the binding is not yet
-    // registered or has changed; tear it down on an explicit disable. Arming
-    // does not require a loaded model: the flow reads the shared engine cell on
-    // each trigger and surfaces an honest "no model loaded" notification when it
-    // is empty, so the hotkey and tour-recording commands stay wired the moment
-    // the user enables dictation. Window + global-shortcut registration must run
-    // on the main thread.
-    let armed_hotkey = stt_flow_state
+    // Arm the flow whenever STT is enabled and the armed configuration differs
+    // from the persisted one; tear it down on an explicit disable. Arming does
+    // not require a loaded model: the flow reads the shared engine cell on each
+    // trigger and surfaces an honest "no model loaded" notification when it is
+    // empty, so the hotkey and tour-recording commands stay wired the moment the
+    // user enables dictation. Window + global-shortcut registration must run on
+    // the main thread.
+    //
+    // The comparison covers the whole row, not just the hotkey. `SttFlow` owns a
+    // snapshot of the configuration, and it reads `input_device`,
+    // `silence_threshold_db`, `max_recording_sec`, `clipboard_mode`,
+    // `clipboard_restore` and `trigger_mode` from that snapshot. Rebuilding only
+    // on a changed hotkey left all six persisted but inert until the next
+    // restart, which is why picking a different microphone in Settings appeared
+    // to do nothing at all.
+    let armed_config = stt_flow_state
         .lock()
         .ok()
-        .and_then(|g| g.as_ref().map(|f| f.hotkey().to_owned()));
+        .and_then(|g| g.as_ref().map(|f| f.config().clone()));
     let want_armed = cfg.enabled;
-    if want_armed && armed_hotkey.as_deref() != Some(cfg.hotkey.as_str()) {
+    if want_armed
+        && armed_config
+            .as_ref()
+            .is_none_or(|armed| differs(armed, &cfg))
+    {
         let app_for_main = app.clone();
         let runtime_handle = runtime.clone();
         let flow_state = Arc::clone(stt_flow_state);
@@ -252,7 +330,7 @@ pub(crate) async fn reload_stt_inner(
             crate::setup_stt_hotkey(&app_for_main, &cfg_for_hotkey, &runtime_handle, &flow_state);
         })
         .map_err(|e| format!("failed to arm STT hotkey: {e}"))?;
-    } else if !cfg.enabled && armed_hotkey.is_some() {
+    } else if !cfg.enabled && armed_config.is_some() {
         let app_for_main = app.clone();
         let flow_state = Arc::clone(stt_flow_state);
         app.run_on_main_thread(move || {
@@ -400,10 +478,31 @@ pub async fn transcribe_file(
     Ok(row)
 }
 
+/// File extensions the whisper model scan accepts.
+///
+/// Must stay in step with the import picker in `SttEssentialSection.svelte`,
+/// which offers `bin` and `gguf`. Scanning for `.bin` alone meant an imported
+/// `.gguf` was written into the configuration, loaded by the engine, and yet
+/// absent from this list: the settings dropdown then had no option matching the
+/// configured model and rendered blank, while the status row beside it, fed by
+/// the engine rather than by this scan, showed the model correctly.
+const MODEL_EXTENSIONS: [&str; 2] = ["bin", "gguf"];
+
+/// Whether a path carries one of the accepted whisper model extensions.
+fn is_stt_model_file(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|ext| {
+            let ext = ext.to_ascii_lowercase();
+            MODEL_EXTENSIONS.contains(&ext.as_str())
+        })
+        .unwrap_or(false)
+}
+
 /// Lists available STT model files in `~/.apollia/models/`.
 ///
-/// Scans for `.bin` files and returns their metadata. Returns an empty
-/// list if the models directory does not exist.
+/// Scans for the extensions in [`MODEL_EXTENSIONS`] and returns their metadata.
+/// Returns an empty list if the models directory does not exist.
 #[tauri::command]
 pub async fn list_stt_models(
     _runtime: State<'_, RuntimeHandle>,
@@ -424,7 +523,7 @@ pub async fn list_stt_models(
             Err(_) => continue,
         };
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("bin") {
+        if !is_stt_model_file(&path) {
             continue;
         }
 
@@ -682,6 +781,77 @@ mod tests {
     }
 
     #[test]
+    fn changing_only_the_input_device_rearms_the_flow() {
+        // GIVEN a flow armed on the system default microphone
+        let armed = apollia_core::SttConfigRow {
+            enabled: true,
+            ..apollia_core::SttConfigRow::default()
+        };
+        // WHEN the operator picks a named microphone and saves
+        let next = apollia_core::SttConfigRow {
+            input_device: Some("Razer Seiren V3 Chroma".to_owned()),
+            ..armed.clone()
+        };
+        // THEN the flow is rebuilt, so the choice applies without a restart
+        assert!(differs(&armed, &next));
+    }
+
+    #[test]
+    fn every_field_the_flow_reads_rearms_it() {
+        // GIVEN a flow armed on a baseline configuration
+        let armed = apollia_core::SttConfigRow {
+            enabled: true,
+            ..apollia_core::SttConfigRow::default()
+        };
+
+        // WHEN any single setting the flow snapshots changes
+        let mutations: Vec<apollia_core::SttConfigRow> = vec![
+            apollia_core::SttConfigRow {
+                silence_threshold_db: -20.0,
+                ..armed.clone()
+            },
+            apollia_core::SttConfigRow {
+                max_recording_sec: 30,
+                ..armed.clone()
+            },
+            apollia_core::SttConfigRow {
+                clipboard_mode: "clipboard".to_owned(),
+                ..armed.clone()
+            },
+            apollia_core::SttConfigRow {
+                clipboard_restore: !armed.clipboard_restore,
+                ..armed.clone()
+            },
+            apollia_core::SttConfigRow {
+                trigger_mode: "push-to-talk".to_owned(),
+                ..armed.clone()
+            },
+            apollia_core::SttConfigRow {
+                hotkey: "ctrl+alt+d".to_owned(),
+                ..armed.clone()
+            },
+        ];
+
+        // THEN each one re-arms; none stays persisted but inert
+        for next in mutations {
+            assert!(differs(&armed, &next), "should re-arm for {next:?}");
+        }
+    }
+
+    #[test]
+    fn an_unchanged_configuration_does_not_rearm() {
+        // GIVEN a saved configuration identical to the armed one
+        let armed = apollia_core::SttConfigRow {
+            enabled: true,
+            input_device: Some("Razer Seiren V3 Chroma".to_owned()),
+            ..apollia_core::SttConfigRow::default()
+        };
+        // WHEN it is saved again unchanged
+        // THEN the hotkey and overlay are left alone
+        assert!(!differs(&armed, &armed.clone()));
+    }
+
+    #[test]
     fn detect_language_from_model_name() {
         // GIVEN a model filename containing a language code
         // WHEN detect_language_from_name is called
@@ -694,6 +864,59 @@ mod tests {
             detect_language_from_name("whisper-base-en-q4.bin"),
             Some("en".to_owned())
         );
+    }
+
+    #[test]
+    fn language_hint_accepts_only_the_documented_codes() {
+        // GIVEN the closed list documented in reference/configuration.md
+        // WHEN each code is validated
+        // THEN it is accepted
+        for code in STT_LANGUAGES {
+            assert!(validate_language(Some(code)).is_ok(), "{code} should pass");
+        }
+    }
+
+    #[test]
+    fn language_hint_rejects_free_text() {
+        // GIVEN the kind of value the old free-text field allowed
+        // WHEN it is validated
+        let err = validate_language(Some("francais")).expect_err("should reject");
+        // THEN it is refused, and the message names the accepted codes
+        assert!(err.contains("francais"));
+        assert!(err.contains("fr, en"));
+    }
+
+    #[test]
+    fn absent_language_means_auto_detection() {
+        // GIVEN no language, or an empty one left by a cleared field
+        // WHEN validated
+        // THEN both are accepted as auto-detection
+        assert!(validate_language(None).is_ok());
+        assert!(validate_language(Some("")).is_ok());
+        assert!(validate_language(Some("   ")).is_ok());
+    }
+
+    #[test]
+    fn model_scan_accepts_every_extension_the_import_picker_offers() {
+        // GIVEN the extensions the settings import dialog lets an operator pick
+        // WHEN the scan classifies a file of each
+        // THEN it is listed, so the model select can show the configured value
+        for ext in MODEL_EXTENSIONS {
+            let path = std::path::PathBuf::from(format!("/tmp/models/whisper.{ext}"));
+            assert!(is_stt_model_file(&path), "{ext} should be scanned");
+        }
+        assert!(is_stt_model_file(std::path::Path::new("/tmp/W.GGUF")));
+    }
+
+    #[test]
+    fn model_scan_ignores_unrelated_files() {
+        // GIVEN files that are not whisper models
+        // WHEN the scan classifies them
+        // THEN they are skipped
+        assert!(!is_stt_model_file(std::path::Path::new("/tmp/notes.txt")));
+        assert!(!is_stt_model_file(std::path::Path::new(
+            "/tmp/no-extension"
+        )));
     }
 
     #[test]
@@ -753,7 +976,9 @@ pub async fn start_tour_recording(
 
     match guard.as_ref() {
         Some(flow) => {
-            flow.start_recording();
+            // In-app surface: the webview consumes `stt-transcribed`, so the
+            // result must never also be pasted through the OS.
+            flow.start_recording(crate::stt::flow::RecordingOrigin::InApp);
             Ok(())
         }
         None => Err("STT engine not available".to_owned()),
@@ -775,10 +1000,10 @@ pub async fn stop_tour_recording(flow_state: tauri::State<'_, SttFlowState>) -> 
 
     match maybe_flow {
         Some(flow) => {
-            // In-app recording (mic button, onboarding test): the webview
-            // consumes the `stt-transcribed` event, so skip the OS paste to
-            // avoid a double insertion when the Apollia window is focused.
-            flow.stop_and_transcribe(false).await;
+            // Delivery follows the origin recorded at start, so stopping an
+            // in-app recording from here never triggers an OS paste even if
+            // the global hotkey is what actually stopped it.
+            flow.stop_and_transcribe().await;
             Ok(())
         }
         None => Err("STT engine not available".to_owned()),
