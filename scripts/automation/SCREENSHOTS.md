@@ -1,45 +1,130 @@
 # Screenshot shooting script
 
-One row per image the documentation needs: eighty-five, and the same eighty-five
-twice, because each locale now has its own set. The English pages point at
-`/img/operator-help/en/`, the French mirror at `/img/operator-help/fr/`.
+Eighty-five images, one set, shot in English, published into both locales.
+
+Every row below is self-contained: the route, the gesture, the framing, the
+state the seed puts on screen, and the exact values to type where a value is
+needed. Read one row, shoot one image, move on. Nothing here should require a
+decision.
+
+If a row does need a decision, that is a defect in this file, not in your
+judgement. Say so and it gets a value.
+
+---
 
 ## Before you start
 
+### 1. Load the seed
+
 ```sh
-bash scripts/automation/seed/load.sh     # moves ~/.apollia aside, installs the seed
-# ... shoot ...
-bash scripts/automation/seed/unload.sh   # puts your profile back
+bash scripts/automation/seed/unload.sh 2>/dev/null   # only if one is loaded
+APOLLIA_SEED_PROJECT_ROOT="$HOME/Projects/atlas-migration" \
+  bash scripts/automation/seed/load.sh
 ```
 
-`load.sh` moves rather than copies, so nothing is duplicated, and it refuses to
-run if a backup already exists rather than overwrite what may be the only copy
-of a real profile. `unload.sh` refuses while the application is running, because
-SQLite in WAL mode keeps files open next to each database.
+`load.sh` moves `~/.apollia` aside rather than copying it, refuses to run if a
+backup already exists, and picks up the narrative overlay from
+`~/.apollia-seed-overlay` when there is one. It prints which overlay it used.
+Read that line: without the overlay you get the test fixture, and half the
+screens below show a thinner state than what they describe.
 
-The seed's timestamps are relative to the moment it is built, so the timeline and
-the audit trail have entries inside their default windows. Coming back days
-later, reload it.
+`APOLLIA_SEED_PROJECT_ROOT` is what the project pages, the permission cards and
+the audit trail display. Left unset it is this repository checkout, which means
+your own machine's path ends up on a published image. Point it at a directory
+that exists (create an empty one if you have none) unless you have decided you
+do not mind.
 
-## The two passes
+### 2. Check the seed before you shoot, not after
 
-Switch the language in **Settings > Appearance**, then do a whole pass before
-switching. English into `en/`, French into `fr/`.
+```sh
+python3 ~/.apollia-seed-overlay/verify.py "$HOME"
+```
+
+It replays the SQL each screen issues, with the same time windows, and prints
+what each one would show. The failure it exists to catch: a row that is present,
+valid, and just outside the window the page filters on, so the page renders
+empty and nothing anywhere reports an error. That is a whole shooting day.
+
+The seed's timestamps are computed at build time. Coming back the next day,
+reload it.
+
+### 3. Set the application up
+
+| Setting | Value | Why |
+|---|---|---|
+| Language | **English** | One image set, shared by both locales. See "One set, two locales" below. |
+| Mode | **Operator**, unless a row says Builder | Operator is the default reading of every page. |
+| Window | Maximised, then **do not resize** during the session | A crop that changes between two neighbouring images reads as two different products. |
+| Appearance | **Light** | Whichever you pick, keep it for all 85. |
+
+### 4. Dismiss the onboarding modal
+
+The seed does not write `onboarding.completed_at`, so the first-launch modal
+opens on every launch. It is the first thing you will see and it is not a bug.
+
+- For rows 1 to 7, that modal **is** the subject: shoot those first, in order,
+  then let the flow finish.
+- For every other row, skip it (`Escape`, or the skip control at the bottom).
+
+---
+
+## One set, two locales
+
+The English pages reference `/img/operator-help/en/`, the French pages
+`/img/operator-help/fr/`. Both directories are filled from **one English
+capture set**:
+
+```sh
+python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
+```
+
+The alternative, shooting the interface twice, produced a second set nobody ever
+compared against the first and left the two halves of the site drifting apart
+whenever only one pass was redone. If a French screen genuinely diverges one
+day, `--locale fr` still exists for exactly that image.
+
+---
+
+## Two ways to shoot
+
+**66 of the 85 have an automaton label.** `scripts/automation/screenshots-en.json`
+(61 labels) and `screenshots-en-llm.json` (5) drive the real application by
+testid and capture under the right label:
+
+```sh
+lsof -ti :5173 :8899 | xargs kill -9 2>/dev/null
+just desktop-dev-automation-seeded scripts/automation/screenshots-en.json
+```
+
+Those runs frame the whole window, which is looser than the crops described
+below. Use them as the baseline set, then re-shoot by hand any image whose
+framing matters. The **How** column of each row says `auto` or `hand`.
+
+The label count and the **How** column are not the same question, so they do not
+match, and that is deliberate. A label says the runner can reach the screen; the
+**How** column says whether the runner can reach it *in the state this row
+wants*. Three rows (17, 82, 84) have a label and are still marked `hand`, because
+the runner arrives at the right page and finds it empty: the state has to be
+provoked first. One row (51) is marked `auto` and has no label, because the
+runner captures it only as a side effect of a turn that produced a pending item.
+
+**21 cannot be shot from the seed alone.** Twenty have a named reason in "The
+twenty-one, and why" at the end; the twenty-first, row 25, is deterministic and
+by hand only because its framing is tighter than the whole window. None of them
+is a mystery to discover at the thirtieth image.
+
+---
 
 ## Naming
 
-Save each file under exactly the name in the **File** column, no prefix, no
-suffix:
+Save each file under exactly the name in the **File** column. No prefix, no
+suffix, no locale in the name.
 
-```
-docs/site/static/img/operator-help/en/<file>
-docs/site/static/img/operator-help/fr/<file>
-```
+A correctly named file replaces the old image with no edit anywhere. A misnamed
+one is invisible: nothing breaks, the stale image simply stays. That silence is
+why the names get checked at the end rather than trusted.
 
-That name is what the pages already reference, so a correctly named file replaces
-the old image with no edit anywhere. A misnamed one is invisible: nothing breaks,
-the stale image simply stays. That silence is the reason to check the names at
-the end rather than trust them.
+---
 
 ## Framing
 
@@ -47,176 +132,327 @@ Frame the useful region, not the whole window. What dates a screenshot is the
 chrome around it. Keep one crop for a page's whole series so its images sit
 together.
 
-## Reading the Status column
+Three crops cover everything below, and each row names the one it wants:
 
-- **seeded**: the seed already puts it on screen, shoot as is.
-- **live**: the screen only exists while something runs, so provoke it. Send a
-  message, let the agent ask for an approval, then shoot. No seed can produce
-  these: the pending list lives in the runtime's memory, not in a database.
-- **blocked**: needs something this machine does not have, named in the cell.
+- **panel**: the content area only, no sidebar, no title bar.
+- **page**: the content area plus the left navigation, when the row is about
+  where a thing lives.
+- **dialog**: the modal or sheet plus a thin margin of the dimmed page behind.
 
+---
+
+## The predetermined values
+
+Everything that has to be typed, chosen or asked, in one place. Do not
+improvise: two neighbouring images built on two different answers tell two
+different stories, and the reader notices.
+
+| Where | Value |
+|---|---|
+| Onboarding, first name | `Maya` |
+| Onboarding, role | `Head of operations` |
+| Onboarding, sector | `Consulting` |
+| Onboarding, main goal (free text) | `Migrate a client's documentation without rewriting every page by hand.` |
+| Onboarding, profile card | **Operator** |
+| Onboarding, LLM model | **Qwen3 14B** (8.4 GB) |
+| Onboarding, speech model | **base** (142 MB) |
+| Model Hub, model to download | **Qwen3 14B** (8.4 GB) |
+| Model Hub, model to set as default | **Qwen3 14B** |
+| Chat question, row 23 and 24 | `Summarise the three conversion failures from batch 3 and tell me which one blocks batch 4.` |
+| Chat question, row 25 (reasoning) | `Read reports/atlas-audit.md and tell me how many pages need a manual pass.` |
+| Chat question, row 60 (MCP approval) | `List the files under legacy/ using the filesystem connector.` |
+| Approval rejection reason, row 50 | `That would remove batches 1 to 3 as well. Clear batch 4 by name instead.` |
+| New project name, row 39 | `Client Digest 2027` |
+| New project template, row 39 | **Developer project** |
+| New automation sentence, rows 44 and 45 | `Every weekday at 8am, summarise what moved on Atlas Migration.` |
+| New channel name, row 74 | `Ops desk` |
+| Custom MCP name, rows 56 to 58 | `Notes server` |
+| Custom MCP command (stdio), row 57 | `/usr/bin/python3` with argument `~/.apollia/mcp-stub-server.py` |
+| Custom MCP URL (http), row 58 | `https://mcp.example.internal/v1` with header `Authorization: Bearer ****` |
+| Global hotkey, rows 21 and 81 | `Cmd + Shift + D` |
+
+**Anything not in this table is already on screen from the seed.** If a field is
+empty and this table has no value for it, leave it empty: an empty field is part
+of what the page documents.
+
+---
+
+## What the seed puts on screen
+
+The whole set tells one week of one story, so that neighbouring pages agree.
+This is what you should see; if you see something else, the seed did not load.
+
+**Atlas Migration.** A two-person consultancy moving 340 pages of a client's
+legacy documentation onto a new site. Week three: the inventory is done, batch 4
+is converting, one batch failed on a malformed table and had to be redone.
+
+| Where | What is there |
+|---|---|
+| Projects | `Atlas Migration` (active minutes ago) and `Client Digest` |
+| Chat | 5 conversations, the top one `Auditing the legacy documentation set`, which carries 5 tool cards: 3 executed, 1 failed, 1 refused |
+| Plan | 6 steps: 3 done (one of them replanned), 1 running, 1 pending, 1 failed |
+| Automations | 2 active, 2 paused; 8 history rows across fired / skipped / error |
+| Timeline (1 h) | ~42 events, every filter chip populated |
+| Audit trail | 10 invocations, 2 failures, each expandable |
+| LLM costs (7 d) | 20 calls, 3 backends, 7 populated days |
+| Memory | 5 namespaces, project one included, all three types present in each |
+| Agents | 4 agents + 1 package, 7 tasks covering every status |
+
+---
 
 ## Installation and setup
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 1 | `installation-configurer-votre-profil-1.png` | Welcome window with the Apollia logo, subtitle "The sovereign runtime to run your AI agents locally", thr | Step 1 - Welcome | seeded |
-| 2 | `installation-configurer-votre-profil-2.png` | Profile step with two cards Operator (sparkles icon) and Builder (code icon), each with 3 bullets and a s | Step 2 - Choose your profile | seeded |
-| 3 | `installation-configurer-votre-profil-3.png` | Models step, RAM · macOS · GPU banner, LLM section with a curated list of Qwen3 models and a "Recommended | Step 3 - Configure the AI engine | seeded |
-| 4 | `installation-configurer-votre-profil-4.png` | Qwen3 download in progress with a progress bar and throughput, plus a Whisper model downloaded in paralle | Cloud provider. The Use a cloud provider button closes the window and takes you to the LLM Back | **blocked**: a real model download in progress |
-| 5 | `installation-configurer-votre-profil-5.png` | Calibration step with 4 progress pips at the top, the onboarding agent asking the first question and the  | Step 4 - Conversational calibration | **live** |
-| 6 | `installation-configurer-votre-profil-6.png` | Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com | Step 4 - Conversational calibration | **live** |
-| 7 | `installation-configurer-votre-profil-7.png` | Settings → Profile page after onboarding, Identity (first name, role, sector), Goals, and Agent supervisi | Verification | seeded |
-| 8 | `installation-connecter-un-modele-distant-1.png` | Add LLM backend dialog, empty, with the Name and Provider fields | Click + Add LLM backend at the top. A configuration window opens. | seeded |
-| 9 | `installation-telecharger-des-modeles-locaux-1.png` | Model Hub page, list of available models with Name, Size, Type, Status columns | In the sidebar, click Settings, then the Model Hub section. | seeded |
-| 10 | `installation-telecharger-des-modeles-locaux-1bis.png` | Model Hub: the Installed models section, with the active model marked by an In use badge | (Optional) Click Set as default to use this model automatically in new chats (GGUF) or for dict | seeded |
-| 11 | `installation-telecharger-des-modeles-locaux-2.png` | model row "Llama 3.1 8B" with a progress bar at 42 % and a Cancel button | Click Download. A progress bar appears next to the model. | **blocked**: a real model download in progress |
+Shoot this section first, in order: rows 1 to 7 walk the onboarding flow and it
+only opens once per profile reload.
+
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 1 | `installation-configurer-votre-profil-1.png` | Launch the app. The welcome modal opens on step 1. | Apollia logo, the subtitle "The sovereign runtime to run your AI agents locally", three reassurance points | none | dialog | auto |
+| 2 | `installation-configurer-votre-profil-2.png` | Step 1 → Continue. | Two profile cards, Operator (sparkles) and Builder (code), 3 bullets each | Hover **Operator**, do not click yet | dialog | auto |
+| 3 | `installation-configurer-votre-profil-3.png` | Pick Operator → Continue. | RAM / macOS / GPU banner, the four curated Qwen3 models with a Recommended badge, the Whisper list below | none, nothing selected yet | dialog | auto |
+| 4 | `installation-configurer-votre-profil-4.png` | Select the model, click Download, wait ~10 s. | One progress bar between 20 % and 60 % with a throughput figure, Whisper downloading beside it | **Qwen3 14B** and **base**; capture when the bar is around 40 % | dialog | hand, see N1 |
+| 5 | `installation-configurer-votre-profil-5.png` | Downloads finish → Continue. The calibration step opens. | 4 progress pips, the agent's first question, the answer field | Type `Maya` but do not send | dialog | hand, see N2 |
+| 6 | `installation-configurer-votre-profil-6.png` | Answer all four questions, reach the end of calibration. | The permission rule cards the agent proposes | Answer with the four onboarding values above | dialog | hand, see N2 |
+| 7 | `installation-configurer-votre-profil-7.png` | Finish onboarding. Settings → Profile. | Identity (Maya, Head of operations, Consulting), Goals, Agent supervision | none, the values are the ones just entered | panel | auto |
+| 8 | `installation-connecter-un-modele-distant-1.png` | Settings → LLM backends → **+ Add LLM backend**. | The dialog, empty, Name and Provider visible | leave every field empty | dialog | auto |
+| 9 | `installation-telecharger-des-modeles-locaux-1.png` | Settings → Model Hub. | The available-models list: Name, Size, Type, Status | none | panel | auto |
+| 10 | `installation-telecharger-des-modeles-locaux-1bis.png` | Same page, scroll to Installed models. | The installed list with the **In use** badge on the active model | none, the seed installs two | panel | auto |
+| 11 | `installation-telecharger-des-modeles-locaux-2.png` | Click Download on a model row. | The row with a progress bar and a Cancel button | **Qwen3 14B**; capture around 40 % | panel | hand, see N1 |
 
 ## Cross-cutting
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 12 | `transversal-activer-la-compagnonne-ia-1.png` | The dashboard, just before the Companion opens. There is no sidebar button: Cmd+/ and the command palette are the only entry points | Press Cmd+/ from the dashboard | seeded |
-| 13 | `transversal-activer-la-compagnonne-ia-2.png` | Apollia Help panel open, with its welcome message and the input area | Ask a quick question. Apollia Help answers without interrupting your work on the main page. | seeded |
-| 14 | `transversal-naviguer-au-clavier-command-palette-1.png` | command palette open in the middle of the screen, search field at the top, grouped suggestions below | From any screen, press Cmd+K (macOS) or Ctrl+K (Windows and Linux). The palette opens in the mi | seeded |
-| 15 | `transversal-naviguer-au-clavier-command-palette-2.png` | Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category | Full list of shortcuts | seeded |
-| 16 | `transversal-utiliser-l-inbox-1.png` | Inbox on the To do tab, with the counter chips in the tab bar and the filter chips below | The "To do" tab | seeded |
-| 17 | `transversal-utiliser-l-inbox-2.png` | An expanded ask_user form, with its context callout at the top followed by the questions to answer | Answer an agent question (ask_user) | **live** |
-| 18 | `transversal-utiliser-l-inbox-3.png` | Inbox on the Activity tab, with its four filter chips and the list of event cards | The "Activity" tab | seeded |
-| 19 | `transversal-utiliser-l-inbox-4.png` | Inbox on the Notifications sent tab, with the channel filter and the four-column delivery table | The "Notifications sent" tab | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 12 | `transversal-activer-la-compagnonne-ia-1.png` | Dashboard. Do not press anything yet. | The dashboard as it is, before the Companion opens. There is no sidebar button for it: `Cmd+/` and the palette are the only ways in | none | page | auto |
+| 13 | `transversal-activer-la-compagnonne-ia-2.png` | Press `Cmd+/`. | The Apollia Help panel, its welcome message, the input area | do not type | panel | auto |
+| 14 | `transversal-naviguer-au-clavier-command-palette-1.png` | From any screen, `Cmd+K`. | The palette, search field at the top, grouped suggestions below | leave the field empty | dialog | auto |
+| 15 | `transversal-naviguer-au-clavier-command-palette-2.png` | Settings → Shortcuts. | Search bar, shortcuts grouped by category | leave the search empty | panel | auto |
+| 16 | `transversal-utiliser-l-inbox-1.png` | Inbox → **To do** tab. | The counter chips in the tab bar, the filter chips below | none | panel | auto |
+| 17 | `transversal-utiliser-l-inbox-2.png` | Provoke an `ask_user`, then expand it. | The expanded form: context callout, then the questions | see N4 | panel | hand, see N4 |
+| 18 | `transversal-utiliser-l-inbox-3.png` | Inbox → **Activity** tab. | Four filter chips and the event cards | none | panel | auto |
+| 19 | `transversal-utiliser-l-inbox-4.png` | Inbox → **Notifications sent** tab. | Channel filter and the four-column delivery table, 8 rows | none | panel | auto |
 
 ## Chat
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 20 | `chat-activer-la-dictee-vocale-1.png` | Settings page, Speech-to-Text section, Whisper model status shown at the top | In the sidebar, click Settings, then the Speech-to-Text section. | seeded |
-| 21 | `chat-activer-la-dictee-vocale-2.png` | HotkeyCapture window with the message "Press your hotkey combination" and the captured combination | Click the Global hotkey field. A window prompts you to press the key combination you want (for  | seeded |
-| 22 | `chat-discuter-avec-votre-ia-1.png` | Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom | In the sidebar, click Chat. The list of your conversations shows on the left, the input area in | seeded |
-| 23 | `chat-discuter-avec-votre-ia-2.png` | conversation with a user message and an AI answer streaming in, markdown formatting rendered | Press Enter or click Send. The answer streams in, word by word. | **live** |
-| 24 | `chat-discuter-avec-votre-ia-2bis.png` | conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued) | Press Enter or click Send. The answer streams in, word by word. | **live** |
-| 25 | `chat-discuter-avec-votre-ia-3.png` | answer bubble with an expanded reasoning card showing the agent's steps | If you are talking to an Assistant, the reasoning steps show up inline in the message bubbles a | **live** |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 20 | `chat-activer-la-dictee-vocale-1.png` | Settings → Speech-to-Text. | The Whisper model status at the top of the section | none | panel | auto |
+| 21 | `chat-activer-la-dictee-vocale-2.png` | Same page, click the Global hotkey field. | The capture window, "Press your hotkey combination", then the captured combination | press `Cmd + Shift + D` | dialog | auto |
+| 22 | `chat-discuter-avec-votre-ia-1.png` | Chat, **New conversation**. | Conversation list on the left showing the 5 seeded threads, empty centre, input at the bottom | do not type | page | auto |
+| 23 | `chat-discuter-avec-votre-ia-2.png` | Send the question, capture mid-stream. | A user message and an answer streaming in, markdown rendered | the row-23 question above | panel | hand, see N3 |
+| 24 | `chat-discuter-avec-votre-ia-2bis.png` | Same turn, a few seconds later. | The same answer further along | same question, do not resend | panel | hand, see N3 |
+| 25 | `chat-discuter-avec-votre-ia-3.png` | Open `Auditing the legacy documentation set`, expand the reasoning card on the second message. | The reasoning strip expanded: 4 thinking captions interleaved with 4 tool cards, the second in error (the table extractor died on a mismatched tag) | none, this one is **seeded** and needs no model | panel | hand |
+
+Row 25 no longer needs a live turn: the seeded conversation carries the
+reasoning trace and its tool calls, so it renders from the database. It is
+marked `hand` only because the automaton frames the whole window.
 
 ## Agents
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 26 | `agents-consulter-les-logs-d-un-agent-1.png` | Logs panel open with counter, search bar, status filters and sorting | Click Logs on its card. A panel opens on the right, titled Agent Logs, with a task counter at t | seeded |
-| 27 | `agents-demarrer-un-agent-1.png` | My Assistants page - left column with the two sections "My assistants" and "My packages" visible | In the sidebar, open My Assistants. The left column lists your assistants under My assistants · | seeded |
-| 28 | `agents-demarrer-un-agent-2.png` | package detail panel - Information, Agents (with director/worker roles) and Triggers sections | Click the row to open the package detail: there you see the list of the agents it contains, the | seeded |
-| 29 | `agents-demarrer-un-agent-2bis.png` | package detail panel - Information, Agents (with director/worker roles) and Triggers sections (continued) | Click the row to open the package detail: there you see the list of the agents it contains, the | seeded |
-| 30 | `agents-installer-un-agent-1.png` | My Assistants page: list on the left, detail of the selected agent on the right, "New assistant" button a | In the sidebar, open My Assistants. The page lists your existing assistants, and the New assist | seeded |
-| 31 | `agents-installer-un-agent-2.png` | Installation dialog, preview step: Agents and Triggers sections, green Valid badge | Package preview. Apollia shows a summary: name, version, author, the list of the agents in the  | **blocked**: the native folder picker |
-| 32 | `agents-installer-un-agent-2bis.png` | Preview with a webhook trigger requiring configuration, Configure → button | Package preview. Apollia shows a summary: name, version, author, the list of the agents in the  | **blocked**: the native folder picker |
-| 33 | `agents-installer-un-agent-3.png` | Installation dialog, configure step: webhook trigger card with endpoint URL and HMAC-SHA256 secret field | (Optional) Webhook configuration. If you are asked for it, each webhook requires a secret (at l | **blocked**: the native folder picker |
-| 34 | `agents-installer-un-agent-4.png` | Package installed! confirmation screen with agents and triggers counters, Close button | Click Install. Apollia copies the package, registers the agents and activates their triggers. A | **blocked**: a real package install |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 26 | `agents-consulter-les-logs-d-un-agent-1.png` | My Assistants → select `apollia-guide` → **Logs**. | The Agent Logs panel: task counter, search, status filters, sorting. 7 tasks, every status | none | panel | auto |
+| 27 | `agents-demarrer-un-agent-1.png` | My Assistants. | The left column with both sections, My assistants and My packages | none | page | auto |
+| 28 | `agents-demarrer-un-agent-2.png` | Click the `seed-office-pack` row. | Package detail: Information, Agents with director/worker roles, Triggers | none | panel | auto |
+| 29 | `agents-demarrer-un-agent-2bis.png` | Same panel, scrolled down. | The rest of the same panel | none | panel | auto |
+| 30 | `agents-installer-un-agent-1.png` | My Assistants, one agent selected. | List left, detail right, **New assistant** top right | select `apollia-guide` | page | auto |
+| 31 | `agents-installer-un-agent-2.png` | New assistant → pick a package folder. | Preview step: Agents and Triggers sections, green Valid badge | see N5 | dialog | hand, see N5 |
+| 32 | `agents-installer-un-agent-2bis.png` | Same preview, a package with a webhook trigger. | The webhook trigger card with its Configure button | see N5 | dialog | hand, see N5 |
+| 33 | `agents-installer-un-agent-3.png` | Preview → Configure. | Configure step: webhook card, endpoint URL, HMAC-SHA256 secret field | see N5 | dialog | hand, see N5 |
+| 34 | `agents-installer-un-agent-4.png` | Configure → Install. | "Package installed!" with the agent and trigger counters, Close | see N5 | dialog | hand, see N5 |
 
 ## Projects
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 35 | `projets-activer-les-context-providers-1.png` | Context Providers section in the project panel, provider list with ON/OFF toggle | Scroll down to the Context Providers section. Three provider types are available. | seeded |
-| 36 | `projets-activer-les-context-providers-2.png` | Git Status provider enabled (green toggle), Directory Tree provider disabled (grey toggle) | Switch each provider to ON or OFF depending on your needs. | seeded |
-| 37 | `projets-activer-les-context-providers-3.png` | detailed preview of a context provider with git diff / file tree content | To see exactly what will be handed to the AI, click Preview context (Workspace Snapshot). A col | seeded |
-| 38 | `projets-creer-un-projet-1.png` | Projects page, + New Project button highlighted at the top right | Click + New Project at the top right. | seeded |
-| 39 | `projets-creer-un-projet-2.png` | New Project modal with Name, Root folder and Template fields | (Optional) Pick a project template in the drop-down list. The template pre-enables the matching | seeded |
-| 40 | `projets-creer-un-projet-3.png` | Project detail panel opened as a side sheet, with its Description, Agents, Context Providers, Documents a | Click the project card to open its detail panel (side Sheet). It shows the path, the linked age | seeded |
-| 41 | `projets-lier-un-projet-a-un-chat-1.png` | project detail page, + New Chat button highlighted | From the Projects page: click Projects in the sidebar, open the project, then click + New Chat  | seeded |
-| 42 | `projets-lier-un-projet-a-un-chat-2.png` | chat header, drop-down menu with the Link to a project option | From an existing chat: open the chat, click the menu at the top (three dots), then click Link t | seeded |
-| 43 | `projets-lier-un-projet-a-un-chat-3.png` | project page with the list of linked chats, each with its title and date | You can create several chats linked to the same project. Each keeps its own history but shares  | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 35 | `projets-activer-les-context-providers-1.png` | Projects → `Atlas Migration` → Context. | The provider list with its ON/OFF toggles. Three providers | none | panel | auto |
+| 36 | `projets-activer-les-context-providers-2.png` | Same section, no click needed. | Git status ON (green), Directory tree OFF (grey) | none, the seed sets them that way | panel | auto |
+| 37 | `projets-activer-les-context-providers-3.png` | Click **Preview context** (Workspace Snapshot). | The provider preview with real git diff and file tree content | none; needs `APOLLIA_SEED_PROJECT_ROOT` to be a real git checkout | panel | auto |
+| 38 | `projets-creer-un-projet-1.png` | Projects. | The list, **+ New Project** highlighted top right | none | page | auto |
+| 39 | `projets-creer-un-projet-2.png` | Click + New Project. | The modal: Name, Root folder, Template | name `Client Digest 2027`, template **Developer project**, leave the folder as offered | dialog | auto |
+| 40 | `projets-creer-un-projet-3.png` | Cancel, then click the `Atlas Migration` card. | The detail sheet: Description, Agents (2), Context Providers (3), Documents (2), path | none | dialog | auto |
+| 41 | `projets-lier-un-projet-a-un-chat-1.png` | Same sheet. | **+ New Chat** highlighted | none | dialog | auto |
+| 42 | `projets-lier-un-projet-a-un-chat-2.png` | Chat → open any conversation → header menu (three dots). | The menu open on **Link to a project** | open `Weekly check-in` | panel | auto |
+| 43 | `projets-lier-un-projet-a-un-chat-3.png` | Back to the project sheet, Chats section. | The linked chats with their titles and dates | none, the seed links two, `Weekly check-in` and `Auditing the legacy documentation set` | dialog | auto |
 
 ## Automations
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 44 | `automatisations-programmer-un-trigger-1.png` | Automations page, with the Create an automation button at the top right and the four-step stepper | Click the Create an automation button at the top right. A 4-step wizard opens (Describe → Sched | seeded |
-| 45 | `automatisations-programmer-un-trigger-2.png` | Schedule step, with the human-readable schedule box, the next-run line and the refinement fields | Schedule step - Apollia shows how it read your sentence in a box (for example "Every day at 08: | seeded |
-| 46 | `automatisations-suivre-l-historique-d-un-trigger-1.png` | Automation row on hover, with its three-dot menu open on View history | Click the ⋯ icon (three dots) on the right of the row → View history. A sliding panel opens fro | seeded |
-| 47 | `automatisations-suivre-l-historique-d-un-trigger-2.png` | Trigger run history panel, with the status filter chips at the top and the stacked run cards below | Each row of the list already carries the essentials - no need to click to open a detail view: | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 44 | `automatisations-programmer-un-trigger-1.png` | Automations → **Create an automation**. | The 4-step stepper on step 1 (Describe) | type the row-44 sentence, do not continue yet | dialog | auto |
+| 45 | `automatisations-programmer-un-trigger-2.png` | Continue to the Schedule step. | The human-readable schedule box, the next-run line, the refinement fields | same sentence; the box should read "Every weekday at 08:00" | dialog | auto |
+| 46 | `automatisations-suivre-l-historique-d-un-trigger-1.png` | Automations, hover the `seed-trigger-daily-digest` row, open ⋯. | The three-dot menu open on **View history** | none | panel | auto |
+| 47 | `automatisations-suivre-l-historique-d-un-trigger-2.png` | Click View history. | The sliding panel: status filter chips, then the run cards. 4 runs, 2 fired and 2 skipped | none | panel | auto |
 
 ## Control
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 48 | `controle-approuver-ou-refuser-une-action-1.png` | Inline approval card in the chat, with an orange shield icon, a preview of the command to authorise, and  | Where the approval request appears | **live** |
-| 49 | `controle-approuver-ou-refuser-une-action-2.png` | Inbox page with the filter chips at the top and an expanded approval card showing its risk badge | Where the approval request appears | **live** |
-| 50 | `controle-approuver-ou-refuser-une-action-3.png` | Reject action dialog with textarea, "12 / 500" counter, Cancel / Confirm rejection buttons at the bottom | Refuse - a Reject action dialog opens. Enter an explanation of 5 to 500 characters (counter at  | **live** |
-| 51 | `controle-approuver-ou-refuser-une-action-4.png` | Recent history section - four rows with different icons, one rejection with its reason shown in red | Review the decision history | **live** |
-| 52 | `controle-configurer-les-permissions-de-fichiers-1.png` | Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges | In the left menu, select Permissions. | seeded |
-| 53 | `controle-configurer-les-permissions-de-fichiers-1bis.png` | Revoke all dialog: the scope selector and the revoke button | Check the number of affected rules shown in the dialog, then click Revoke. | seeded |
-| 54 | `controle-configurer-les-permissions-de-fichiers-2.png` | permission card with the Revoke button visible, confirmation toast "Rule bash revoked" | A confirmation message appears briefly. The card disappears immediately. | seeded |
-| 55 | `controle-configurer-les-permissions-de-fichiers-3.png` | Active sessions section, list of entries with an orange Session badge and a Revoke button | Active sessions | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 48 | `controle-approuver-ou-refuser-une-action-1.png` | Provoke a tool approval in chat (see N4). | The inline approval card: orange shield, the command preview, the buttons | see N4 | panel | hand, see N4 |
+| 49 | `controle-approuver-ou-refuser-une-action-2.png` | Inbox → To do, expand the pending approval. | The expanded approval card with its risk badge | see N4 | panel | hand, see N4 |
+| 50 | `controle-approuver-ou-refuser-une-action-3.png` | Click Refuse. | The Reject action dialog: textarea, character counter, Cancel / Confirm | type the row-50 reason (98 characters, so the counter reads `98 / 500`) | dialog | hand, see N4 |
+| 51 | `controle-approuver-ou-refuser-une-action-4.png` | Inbox → To do, Recent history block. | 4 rows with different icons, the rejection showing its reason in red | none, the seed writes the history | panel | auto once a pending item exists, see N4 |
+| 52 | `controle-configurer-les-permissions-de-fichiers-1.png` | Settings → Permissions. | The permission rule cards with their scope badges. 4 rules covering all three badges: Everywhere (2), This project, Chat / agent | none | panel | auto |
+| 53 | `controle-configurer-les-permissions-de-fichiers-1bis.png` | Click **Revoke all**. | The dialog: scope selector, affected-rule count, Revoke | pick scope **project**; do **not** confirm | dialog | auto |
+| 54 | `controle-configurer-les-permissions-de-fichiers-2.png` | Cancel, then hover a rule card and click Revoke. | The card mid-revoke and the confirmation toast | revoke the `bash_executor` rule, so the toast names `bash_executor` | panel | auto |
+| 55 | `controle-configurer-les-permissions-de-fichiers-3.png` | Same page, Active sessions section. | The session entries with their orange Session badge and Revoke button. 5 authorizations across 3 sessions | none | panel | auto |
+
+Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 
 ## Integrations
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 56 | `integration-cabler-son-propre-serveur-mcp-1.png` | Custom tab of the catalogue: the blank form | In the Connections sidebar, click + Add custom at the top. The panel opens on the Custom tab. | seeded |
-| 57 | `integration-cabler-son-propre-serveur-mcp-2.png` | Custom form on stdio transport, with the command and the arguments filled in | stdio case (local command) | seeded |
-| 58 | `integration-cabler-son-propre-serveur-mcp-3.png` | Custom form on streamable-http transport, with the URL and the authentication headers | streamable-http case (remote server) | seeded |
-| 59 | `integration-comprendre-la-portee-d-une-integration-1.png` | Agent detail page, Tools tab: the list of required and optional tools with their approval badges | On the agent side | seeded |
-| 60 | `integration-comprendre-les-permissions-mcp-1.png` | Approval popup in the chat: the tool title, the exposed parameters, the Allow once and Deny buttons, and  | Why this tool asks for an approval | **live** |
-| 61 | `integration-comprendre-les-permissions-mcp-2.png` | Settings, Permissions page: the permission rules stacked with a Revoke button on each row | Viewing and changing the rules | seeded |
-| 62 | `integration-google-workspace-1.png` | Connections page, Google Workspace card selected in the sidebar (Not connected state), right-hand panel w | In the sidebar, open Connections, then select the Google Workspace card in the list of native c | **blocked**: a real Google account, OAuth consent |
-| 63 | `integration-google-workspace-2.png` | Google consent screen, Apollia asks for access to the account, list of permissions (app Drive files, Cale | Pick the Google account to use, then accept the permissions offered (Mail, Calendar, Drive Work | **blocked**: the Google consent screen, outside the app |
-| 64 | `integration-google-workspace-3.png` | Google Drive folder dialog in Apollia, explanation of the drive.file scope, Folder path field with the va | Back in Apollia, the window detects the return automatically. A second step offers you the agen | **blocked**: a real Google account, post-consent dialog |
-| 65 | `integration-connecter-un-serveur-mcp-1.png` | Connections page: the catalogue open on the Discover tab, with its grid of entries | In the sidebar, open Connections, then click + Discover at the top. The catalogue opens in a de | seeded |
-| 66 | `integration-tester-une-connexion-mcp-1.png` | Connections page: an MCP server selected in the sidebar, its detail page on the right | In the Connections sidebar, select the MCP server to test. | seeded |
-| 67 | `integration-tester-une-connexion-mcp-2.png` | Page of an installed MCP server, with the Test button in the actions area | In the detail panel, click the plug icon next to the server name, or Test connection in the act | seeded |
-| 68 | `integration-overview-1.png` | Connections page, left sidebar listing the native connectors (Google Workspace, Microsoft 365) and the MC | MCP servers | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 56 | `integration-cabler-son-propre-serveur-mcp-1.png` | Connections → **+ Add custom** → Custom tab. | The blank form | leave it empty | dialog | auto |
+| 57 | `integration-cabler-son-propre-serveur-mcp-2.png` | Same form, transport **stdio**. | Command and arguments filled in | name `Notes server`, command and argument from the values table | dialog | auto |
+| 58 | `integration-cabler-son-propre-serveur-mcp-3.png` | Same form, transport **streamable-http**. | URL and authentication headers | URL and header from the values table | dialog | auto |
+| 59 | `integration-comprendre-la-portee-d-une-integration-1.png` | My Assistants → `apollia-guide` → Tools tab. | Required and optional tools with their approval badges | none | panel | auto |
+| 60 | `integration-comprendre-les-permissions-mcp-1.png` | Ask the row-60 question in a chat with the MCP server connected. | The approval popup: tool title, exposed parameters, Allow once / Deny, the scope note | the row-60 question | panel | hand, see N3 |
+| 61 | `integration-comprendre-les-permissions-mcp-2.png` | Settings → Permissions. | The rules stacked, a Revoke on each row | none | panel | auto |
+| 62 | `integration-google-workspace-1.png` | Connections → Google Workspace card. | The card selected (Not connected), the right panel with the connect action | see N6 | page | hand, see N6 |
+| 63 | `integration-google-workspace-2.png` | Click Connect, follow to the Google consent screen. | Google's consent screen listing the requested permissions | see N6 | dialog | hand, see N6 |
+| 64 | `integration-google-workspace-3.png` | Return to Apollia after consent. | The Drive folder dialog, the drive.file scope explanation, the Folder path field | see N6 | dialog | hand, see N6 |
+| 65 | `integration-connecter-un-serveur-mcp-1.png` | Connections → **+ Discover**. | The catalogue on its Discover tab, grid of entries | none; needs network, the grid is a live fetch | dialog | auto |
+| 66 | `integration-tester-une-connexion-mcp-1.png` | Connections, select `filesystem` in the sidebar. | The server selected, its detail page on the right | none | page | auto |
+| 67 | `integration-tester-une-connexion-mcp-2.png` | Same page, actions area. | The Test button next to the server name | do not click | panel | auto |
+| 68 | `integration-overview-1.png` | Connections. | The sidebar: native connectors (Google Workspace, Microsoft 365) then the MCP servers | none | page | auto |
 
 ## Memory
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 69 | `memoire-consulter-et-nettoyer-la-memoire-1.png` | Memory page: the namespace list on the left, the type filters and the search in the middle, and the entri | In the sidebar, click Memory. The page shows a two-column layout: the namespace sidebar on the  | seeded |
-| 70 | `memoire-consulter-et-nettoyer-la-memoire-2.png` | Detail panel of a memory entry, with its value, its metadata and the Copy and Delete actions | Click an entry to open the detail panel on the right. It shows the full value (with automatic J | seeded |
-| 71 | `memoire-gerer-mon-profil-1.png` | Settings then Profile page, showing its stacked sections from Identity down to the danger zone | Where to edit it | seeded |
-| 72 | `memoire-gerer-mon-profil-1bis.png` | The profile danger zone with the Reset profile confirmation modal in the foreground | A - Erase only the profile and ask the questions again | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 69 | `memoire-consulter-et-nettoyer-la-memoire-1.png` | Memory. | Namespace sidebar left, type filters and search centre, entries right. 5 namespaces, the **project** chip populated | select `default · seed-project-alpha` | page | auto |
+| 70 | `memoire-consulter-et-nettoyer-la-memoire-2.png` | Click the `atlas.pattern.nested_tables` entry. | The detail panel: full value, metadata, Copy and Delete | that entry, it is the longest and shows the JSON formatting | panel | auto |
+| 71 | `memoire-gerer-mon-profil-1.png` | Settings → Profile. | The stacked sections from Identity down to the danger zone | none | panel | auto |
+| 72 | `memoire-gerer-mon-profil-1bis.png` | Danger zone → **Reset profile**. | The confirmation modal in front of the danger zone | do **not** confirm | dialog | auto |
 
 ## Notifications
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 73 | `notifications-choisir-les-evenements-notifies-1.png` | Global events section, grid of 7 checkboxes with label, description and technical identifier | Spot the Global events section at the top of the page: a grid of checkboxes, one per type, with | seeded |
-| 74 | `notifications-configurer-un-canal-1.png` | Notifications page - Global events section, channel list, "New channel" button at the top right | Click + New channel at the top right. The Create channel dialog opens. | seeded |
-| 75 | `notifications-configurer-un-canal-2.png` | A notification channel card, with its accent bar, channel icon, name and identifier, and its badges | Anatomy of a channel card | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 73 | `notifications-choisir-les-evenements-notifies-1.png` | Notifications, Global events section. | The grid of 7 checkboxes with label, description, technical identifier | none, the seed ticks 3 | panel | auto |
+| 74 | `notifications-configurer-un-canal-1.png` | Same page, top. | Global events, the channel list, **+ New channel** top right | none | panel | auto |
+| 75 | `notifications-configurer-un-canal-2.png` | Hover the `Desktop notifications` card. | One channel card: accent bar, icon, name and identifier, badges | none | panel | auto |
 
 ## Observability
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 76 | `observabilite-consulter-l-audit-trail-1.png` | Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table | Just below, four key indicators (KPI) update according to the filters: Entries shown, Distinct  | seeded |
-| 77 | `observabilite-consulter-l-audit-trail-2.png` | expanded row showing the Arguments / stdout / stderr sections | Click a row to expand its detail. Depending on what was captured, three sections can appear: | seeded |
-| 78 | `observabilite-consulter-l-historique-des-taches-1.png` | Timeline tab: the KPI strip, the filter bar, then the events grouped by day | Choose the time window: 30 min / 1 h / 6 h / 24 h / 7 d. Default: 1 h. Events reload automatica | seeded |
-| 79 | `observabilite-lire-le-digest-quotidien-1.png` | dashboard in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns | The dashboard, for the present moment | seeded |
-| 80 | `observabilite-surveiller-les-couts-llm-1.png` | LLM Costs tab, with the period selector, the four KPIs, the stacked bar chart and the backend legend | At the top, four key indicators (KPI) summarise the selected window: | seeded |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 76 | `observabilite-consulter-l-audit-trail-1.png` | Observability → **Audit Trail**. | Purpose banner, 4 KPIs, filters, then the table. 10 rows, 2 agents, 2 failures | none | panel | auto |
+| 77 | `observabilite-consulter-l-audit-trail-2.png` | Expand the failed `bash_executor` row. | Arguments, stdout and stderr sections, all three populated | expand the row whose stderr mentions page 187 | panel | auto |
+| 78 | `observabilite-consulter-l-historique-des-taches-1.png` | Observability → **Timeline**. | KPI strip, filter bar, events grouped by day. ~42 events in the default 1 h window, every chip populated | keep the default **1 h** window | panel | auto |
+| 79 | `observabilite-lire-le-digest-quotidien-1.png` | Dashboard, operator mode. | Three cards in a grid, Decisions waiting spanning two columns on the left. Both projects active | none | page | auto |
+| 80 | `observabilite-surveiller-les-couts-llm-1.png` | Observability → **LLM Costs**. | Period selector, 4 KPIs, the stacked bars, the backend legend. 3 backends, 7 populated days | keep the default **7 d** period | panel | auto |
 
 ## Troubleshooting
 
-| # | File | What must be on screen | Where you are | Status |
-|---|---|---|---|---|
-| 81 | `troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png` | Keyboard shortcut capture dialog, waiting for a key combination | Click the combination: a full-screen capture dialog opens. Press the new combination you want,  | seeded |
-| 82 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | LLM backends page: a backend card in error, with its red icon and the Error label | Find the backend marked ✗ error in the list. Hover the status label: a native tooltip shows the | seeded |
-| 83 | `troubleshooting-reinitialiser-apollia-factory-reset-1.png` | Settings Danger Zone page, red "Factory Reset" box with a clearly isolated button | In the sidebar, click Settings, then the Danger Zone section. | seeded |
-| 84 | `troubleshooting-un-agent-est-bloque-1.png` | Inbox on the To do tab, with one approval card expanded to show what the agent is waiting for | The To do tab is selected by default. Filter on the Approvals chip to see only pending approval | **live** |
-| 85 | `troubleshooting-une-action-est-refusee-1.png` | Inbox on the To do tab, with the recent history at the bottom showing a rejected line and its reason | Find the line with the ❌ Rejected icon matching the action. The reason entered at the time of t | **live** |
+| # | File | Route and gesture | What must be on screen | Values | Crop | How |
+|---|---|---|---|---|---|---|
+| 81 | `troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png` | Settings → Speech-to-Text → click the shortcut. | The full-screen capture dialog waiting for a combination | do not press anything, shoot the waiting state | dialog | auto |
+| 82 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | Settings → LLM backends. | A backend card in error, red icon, Error label; hover it for the native tooltip | the seed marks one backend disabled; see N7 | panel | hand, see N7 |
+| 83 | `troubleshooting-reinitialiser-apollia-factory-reset-1.png` | Settings → Danger Zone. | The red Factory Reset box with its isolated button | do **not** click | panel | auto |
+| 84 | `troubleshooting-un-agent-est-bloque-1.png` | Inbox → To do, filter on **Approvals**, expand one. | The approval card expanded showing what the agent waits for | see N4 | panel | hand, see N4 |
+| 85 | `troubleshooting-une-action-est-refusee-1.png` | Inbox → To do, Recent history at the bottom. | The ❌ Rejected line with its reason | none, the seed writes it | panel | auto once a pending item exists, see N4 |
+
+---
+
+## The twenty-one, and why
+
+Twenty of these cannot be made deterministic, and the reason is named. The
+twenty-first, row 25, is fully deterministic and listed here only so the count
+in "Two ways to shoot" reconciles: it is shot by hand because its crop is
+tighter than the whole window, not because anything about it varies.
+
+**N1. A real download in progress** (rows 4, 11)
+The useful instant lasts a few seconds and depends on your connection. Mitigated
+as far as it can be: **Qwen3 14B** is 8.4 GB, so the bar stays visible for a
+while on any normal link. Start the download, count to ten, shoot. If the bar is
+past 60 %, cancel and start again.
+
+**N2. A live model turn during onboarding** (rows 5, 6)
+Calibration is a conversation with the onboarding agent, and its wording changes
+every run. The four answers are fixed above so the *questions* are the same; the
+agent's phrasing will not be. Accept it, or shoot the same row twice and keep
+the more legible one.
+
+**N3. A live model turn in chat** (rows 23, 24, 60)
+Same reason. The questions are fixed above, the generated text is not. Row 25,
+which used to be here, is now seeded and no longer needs a model at all.
+
+**N4. The inbox pending list lives in memory** (rows 17, 48, 49, 50, 51, 84, 85)
+`list_pending_approvals` reads an in-memory set, not a database, so no seed can
+reach it. You have to provoke an approval during the session:
+
+1. Open the `Auditing the legacy documentation set` conversation.
+2. Send: `Clear the out/ directory before the next batch.`
+3. The agent proposes `bash_executor` and the approval appears inline (row 48)
+   and in the Inbox (rows 17, 49, 84).
+4. Refuse it with the row-50 reason (rows 50, 85).
+5. Rows 51 and 85 read the persisted history, which the seed already fills, but
+   the block only renders while a pending item exists. Shoot them before you
+   resolve the last approval.
+
+**N4b. Session authorizations are not in the same family** (row 55)
+The Active sessions block reads the running `ChatSessionManager`, which is what
+makes the Inbox unseedable, so it looks like the same trap. It is not.
+`restore_sessions` hydrates each active session's authorized tools from
+`chat_tool_authorizations` at boot (`chat/manager/user_input.rs`, called from
+`chat/manager/handle.rs`), so the seeded rows are on screen from the first
+launch. Row 55 is `auto` and needs no gesture. Verify it before shooting: the
+`Settings > Permissions, Active sessions` block of `verify.py` prints the exact
+rows the panel will list.
+
+**N5. The native folder picker** (rows 31, 32, 33, 34)
+Installing a package opens the macOS folder dialog, which lives outside the web
+view and cannot be driven. Do it by hand, once, and shoot the four steps of the
+flow it opens. Use `scripts/automation/seed/files/agents/packages/seed-office-pack`
+as the package: it is a valid bundle and it is the one the rest of the set shows.
+Row 32 needs a package with a webhook trigger, which `seed-office-pack` does not
+have. That one image cannot be shot from the seed at all: either add a webhook
+trigger to a copy of the package, or leave the stale image in place.
+
+**N6. A real Google account** (rows 62, 63, 64)
+Row 63 is Google's own consent screen, outside the application entirely. All
+three need a real account and a real OAuth client. If you have neither, leave
+the three stale images in place: they are the only rows in the set where that is
+the honest answer.
+
+**N7. A backend in error needs the backend to fail** (row 82)
+The seed disables `openai-gpt4o-mini` but disabled is not error: the card shows
+grey, not red. To get the red state, configure a backend pointing at an
+unreachable host and let the health check fail. Name it `Remote GPU` and point
+it at `http://127.0.0.1:9/v1`, which refuses instantly.
+
+---
 
 ## Totals
 
-| | Count |
-|---|---|
-| seeded, shoot as is | 63 |
-| live, provoke first | 13 |
-| blocked | 9 |
-| **per locale** | **85** |
-| **both locales** | **170** |
+Counted from the **How** column, not from the label files:
+
+| | Count | Rows |
+|---|---|---|
+| `auto`, the runner reaches the state on its own | 62 | everything not listed below |
+| `auto` once a pending item exists | 2 | 51, 85 |
+| `hand`, deterministic, shot by hand for the crop | 1 | 25 |
+| `hand`, non-deterministic (N1 to N7) | 20 | 4, 5, 6, 11, 17, 23, 24, 31, 32, 33, 34, 48, 49, 50, 60, 62, 63, 64, 82, 84 |
+| **Images** | **85** | |
+| **Published directories** | **2, from one set** | |
+
+Separately, 66 rows carry an automaton capture label (61 in
+`screenshots-en.json`, 5 in `screenshots-en-llm.json`). That number answers a
+different question, as "Two ways to shoot" explains, and is not expected to
+equal 64.
+
+---
 
 ## Checking your work
 
 ```sh
 # names: what is referenced, what is missing, what is unused
-python3 scripts/automation/tools/publish_screenshots.py --locale en --from <dir>
-python3 scripts/automation/tools/publish_screenshots.py --locale fr --from <dir>
+python3 scripts/automation/tools/publish_screenshots.py --locale both --from <dir>
+
+# then, once the report is clean
+python3 scripts/automation/tools/publish_screenshots.py --locale both --from <dir> --apply
 
 # the site must still build, both locales
 cd docs/site && npm run build      # expect two SUCCESS lines
@@ -227,3 +463,38 @@ files a pass produced that no page uses, and which the pages want that the pass
 did not produce. Run it before the build, because it names the file, while the
 build only tells you a page is broken.
 
+When you are done:
+
+```sh
+bash scripts/automation/seed/unload.sh
+```
+
+It refuses while the application is running, because SQLite in WAL mode keeps
+files open next to each database. Quit the app first.
+
+---
+
+## Keeping this file true
+
+Each row is independent on purpose. A page added by another change gets one new
+row; a screen that is restyled gets its "What must be on screen" cell edited and
+nothing else. Nothing below the tables needs rewriting for either.
+
+One thing is checked for you. The File column and the image names the pages
+reference must be the same set, and neither side reports a mismatch on its own:
+
+```sh
+python3 scripts/check_screenshot_script.py
+```
+
+CI runs it, along with `--self-test`, which replays each mismatch the check
+claims to catch so a check that has gone blind fails instead of passing.
+
+Two things do go stale silently and are worth a glance before a shooting day:
+
+- the row counts in "What the seed puts on screen", if the overlay changes.
+  `verify.py` prints the real ones, and it is the only honest source: the counts
+  written here were wrong on five rows the first time they were transcribed by
+  hand.
+- the automated / by hand split, if a script gains or loses a capture label.
+  `python3 -c` over `screenshots-en.json` counts them; today it is 61 + 5.

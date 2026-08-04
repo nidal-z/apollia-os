@@ -76,6 +76,11 @@ trap 'rm -rf "$STAGE"' EXIT
 APOLLIA_SEED_HOME_ALIAS="$(dirname "$APOLLIA_DIR")" \
   bash "$HERE/build-seed.sh" "$STAGE" >/dev/null
 mkdir -p "$(dirname "$APOLLIA_DIR")"
+# Only `.apollia` moves. build-seed.sh also drops a copy of apollia.toml under
+# the staging `.config/apollia/`, which is deliberately left behind: the desktop
+# resolves `~/.apollia/apollia.toml` first (main.rs), that copy travels inside
+# the directory being moved, and writing into the operator's real
+# `~/.config/apollia` would be a side effect unload.sh could not undo.
 mv "$STAGE/.apollia" "$APOLLIA_DIR"
 
 echo ""

@@ -36,14 +36,53 @@ Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`. For a dense model a
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
-## Taking the documentation screenshots by hand
+## Taking the documentation screenshots
 
-The operator-help images are shot manually, not by the automaton: the runner
-frames the whole window, cannot reach a native dialog, and cannot populate the
-inbox, which lives in the runtime's memory. `SCREENSHOTS.md` next to this file
-is the shooting script, one row per image with its exact filename, and
+`SCREENSHOTS.md` next to this file is the shooting script: one row per image,
+with its route, its gesture, the state the seed puts on screen, the exact values
+to type where a value is needed, and the destination filename. Read it before
+anything else on a shooting day.
+
+The 85 images are shot two ways, and the script's **How** column says which:
+
+- **64 by the automaton**, two of them only once a pending item exists.
+  `screenshots-en.json` (61 capture labels) and `screenshots-en-llm.json` (5)
+  drive the real app by testid. The runner frames the whole window, which is
+  looser than the crops the script describes, so these are a baseline to re-crop
+  rather than a finished set.
+- **21 by hand.** Twenty for a named reason: a native folder dialog, a real
+  Google consent screen, a download whose useful instant lasts seconds, a live
+  model turn, and the inbox pending list, which `list_pending_approvals` reads
+  from an in-memory set no seed can reach. The twenty-first is deterministic and
+  by hand only because its crop is tighter than the whole window.
+  `SCREENSHOTS.md` names all the reasons and says how to provoke what can be
+  provoked.
+
+The 66 capture labels and the 64 `auto` rows answer different questions and are
+not meant to match: three labelled rows still need their state provoked first,
+and one unlabelled row is captured as a side effect. `SCREENSHOTS.md` reconciles
+the two counts row by row.
+
+The File column and the image names the published pages reference are checked
+against each other in CI, because a misnamed file is invisible (the stale image
+simply stays) and an unreferenced one ships to every visitor unserved:
+
+```sh
+python3 scripts/check_screenshot_script.py             # the two sets agree
+python3 scripts/check_screenshot_script.py --self-test # and the check can fail
+```
+
 `seed/load.sh` and `seed/unload.sh` put the seed into the real profile and take
-it back out again.
+it back out again. `load.sh` also picks up the narrative overlay
+(`~/.apollia-seed-overlay`) when there is one, which is what fills the timeline,
+the plans and the agentic conversation the images show. See `seed/README.md`,
+section Overlay.
+
+One English set is published into both locale directories:
+
+```sh
+python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
+```
 
 ## The canonical suite
 
