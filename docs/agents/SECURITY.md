@@ -35,7 +35,11 @@ What this means in practice:
   not the agent. On Linux they run under PID and mount namespaces via `unshare`;
   on macOS there is no OS sandbox and a per-invocation warning is emitted. On
   every Unix platform their child processes carry per-process resource limits
-  (CPU, address space, file descriptors) via `setrlimit`. See sections 6 and 7.
+  (CPU, address space, file descriptors) via `setrlimit`. On Windows there is
+  no confinement at all (no namespaces, no resource limits: `apply_rlimits`
+  is an empty no-op off Unix), and `bash_executor` requires a POSIX shell on
+  `PATH` (Git Bash, MSYS2 or WSL), refusing with an actionable error without
+  one (ADR-049). See sections 6 and 7.
 
 Never imply, in code, comments, or public docs, that agent code is sandboxed.
 The honest posture is a feature for a regulated adopter; overstating it is a

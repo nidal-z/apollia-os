@@ -11,6 +11,14 @@
 
 ## Context
 
+> **Amendment (2026-08-04).** The "Windows is out of scope" restatement below
+> reflects ADR-003 as it stood at the time of writing. The platform-scope
+> section of ADR-003 has since been superseded by
+> [ADR-049](ADR-049-windows-in-scope-for-v0-1-0.md) (2026-07-30): Windows
+> x86_64 is a supported platform for v0.1.0, with no OS-level tool sandbox and
+> a POSIX shell required for `bash_executor`. The isolation and posture
+> decisions of this ADR stand unchanged.
+
 [ADR-003](ADR-003-sandbox-trust-platform-scope.md) settled the trust model:
 agent Python is trusted in-process code, native tools get an OS-native sandbox
 with no Docker, macOS runs tools without a sandbox behind an explicit warning,
