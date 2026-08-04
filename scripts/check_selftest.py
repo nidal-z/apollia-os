@@ -177,6 +177,34 @@ def check_claims_wired() -> None:
                 "exported but read by nobody would keep its claim green",
             )
 
+        # `strip_test_code` cuts a file at its FIRST `#[cfg(test)]`, so a real
+        # call site sitting below an inline test item is invisible. That was
+        # raised as a blind spot; it is a blind spot, but pin its direction
+        # rather than trust the prose: dropping lines can only make
+        # `check_wired` find fewer uses, so it errs toward a false alarm, never
+        # toward a claim that passes on nothing. A gate that cries wolf is the
+        # one that ends up behind continue-on-error, which this repo has had to
+        # repair twice, so the day someone loosens the cut this case says which
+        # way the loosening went.
+        below = root / "use_below_inline_test.rs"
+        below.write_text(
+            "#[cfg(test)]\nconst FIXTURE: u8 = 1;\n\n"
+            "fn caller() {\n    PlanCache::lookup(key);\n}\n",
+            encoding="utf-8",
+        )
+        raised = False
+        try:
+            check_claims.check_wired(claim, [below])
+        except check_claims.Failure:
+            raised = True
+        case(
+            "a use below an inline `#[cfg(test)]` errs toward alarm, not silence",
+            raised,
+            "the truncation started letting through code it used to cut, which "
+            "flips the bias from false alarm to false pass and makes every "
+            "`wired` claim satisfiable by a test fixture",
+        )
+
         used = root / "real_use.rs"
         used.write_text(CLAIM_REAL_USE, encoding="utf-8")
         raised = False

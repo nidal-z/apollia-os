@@ -34,10 +34,11 @@
     /* ── Logo paper ──
        The symbol is a light-background artwork: its inner counter is painted
        in the cream it was drawn against, and its dominant swoosh runs from
-       #0053da to #001eb4. Measured against the dark surfaces, that swoosh
-       lands at 1.36 (card) and 2.76 (background), under the 3:1 floor WCAG
-       1.4.11 sets for a non-text graphic, so the body of the mark drops out
-       and only the violet crescent survives. There is no dark artwork to
+       #0053da to #001eb4. Measured against the dark surfaces, every end of
+       that gradient falls short: 2.39 and 2.76 for the light end on card and
+       background, 1.36 and 1.57 for the dark end. The whole range sits under
+       the 3:1 floor WCAG 1.4.11 sets for a non-text graphic, so the body of
+       the mark drops out and only the violet crescent survives. There is no dark artwork to
        switch to, and inventing one means inventing brand colours.
        This token is the paper the mark expects, held identical in both themes
        on purpose: `.dark` must not override it. Any surface that renders the

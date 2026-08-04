@@ -187,13 +187,13 @@
 
       <SettingsFieldRow label={$t("settings.about.kv_engine")}>
         {#snippet control()}
-          <span class="font-mono text-body-sm text-foreground">{ENGINE}</span>
+          <CopyValue value={ENGINE} label={$t("settings.about.kv_engine")} data-testid="about-copy-engine" />
         {/snippet}
       </SettingsFieldRow>
 
       <SettingsFieldRow label={$t("settings.about.kv_stt")} border={false}>
         {#snippet control()}
-          <span class="font-mono text-body-sm text-foreground">{STT_ENGINE}</span>
+          <CopyValue value={STT_ENGINE} label={$t("settings.about.kv_stt")} data-testid="about-copy-stt" />
         {/snippet}
       </SettingsFieldRow>
     {/if}

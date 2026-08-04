@@ -75,9 +75,10 @@ export const gradient = {
  *
  * The one token in this file that is deliberately identical in both themes,
  * and the reason is measurable. `/logo.svg` is a light-background artwork: its
- * dominant swoosh runs #0053da → #001eb4, which lands at 1.36:1 on `--card` and
- * 1.57:1 on `--background` in the dark theme, both under the 3:1 floor WCAG
- * 1.4.11 sets for a non-text graphic. On a dark surface the body of the mark is
+ * dominant swoosh runs #0053da → #001eb4, and no end of that gradient clears
+ * the bar on a dark surface: 2.39:1 and 2.76:1 for the light end on `--card`
+ * and `--background`, 1.36:1 and 1.57:1 for the dark end. All four sit under
+ * the 3:1 floor WCAG 1.4.11 sets for a non-text graphic. On a dark surface the body of the mark is
  * not dim, it is absent, and only the violet crescent reads.
  *
  * There is no dark vector to swap in, and inventing one means inventing brand
