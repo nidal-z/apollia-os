@@ -48,6 +48,18 @@ export async function checkOnboardingFinalized(): Promise<boolean> {
   return invoke<boolean>("check_onboarding_finalized");
 }
 
+/**
+ * Finalize the acquaintance chat directly, without a model turn.
+ *
+ * Stamps the same `onboarding.completed_at` key the wrap-up gate reads, so the
+ * flow routes straight to the permission proposals. Backs the "skip the
+ * optional questions" button; the in-chat "finish" button keeps the
+ * conversational nudge instead.
+ */
+export async function finalizeOnboardingChat(): Promise<void> {
+  return invoke<void>("finalize_onboarding_chat");
+}
+
 // ── Acquaintance chat ────────────────────────────────────────────────────────
 
 /** Start a fresh onboarding chat session. */

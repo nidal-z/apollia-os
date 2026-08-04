@@ -301,17 +301,29 @@ pub async fn get_onboarding_state(
 /// with installs that ran an older agent).
 #[tauri::command]
 pub async fn check_onboarding_finalized() -> Result<bool, String> {
-    let memory_dir = {
-        let home = apollia_core::paths::home_dir_or_temp()
-            .display()
-            .to_string();
-        std::path::PathBuf::from(home)
-            .join(".apollia")
-            .join("memory")
-    };
+    let memory_dir = onboarding_memory_dir();
+    let result = tokio::task::spawn_blocking(move || check_finalized_in(&memory_dir))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?;
+    Ok(result)
+}
 
+/// Directory holding the per-agent memory databases (`~/.apollia/memory`).
+fn onboarding_memory_dir() -> std::path::PathBuf {
+    let home = apollia_core::paths::home_dir_or_temp()
+        .display()
+        .to_string();
+    std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("memory")
+}
+
+/// Whether `onboarding.completed_at` exists in the onboarding agent's semantic
+/// memory under `memory_dir`. Read side of the finalization contract: whatever
+/// [`finalize_in`] writes must be found here.
+fn check_finalized_in(memory_dir: &std::path::Path) -> bool {
     if !memory_dir.exists() {
-        return Ok(false);
+        return false;
     }
 
     // (db_filename, namespace_in_table) - the manifest namespace also names
@@ -322,29 +334,73 @@ pub async fn check_onboarding_finalized() -> Result<bool, String> {
         ("onboarding-agent.db", "onboarding-agent"),
     ];
 
-    let result = tokio::task::spawn_blocking(move || -> bool {
-        for (filename, namespace) in candidates {
-            let db_path = memory_dir.join(filename);
-            if !db_path.exists() {
-                continue;
-            }
-            let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
-                continue;
-            };
-            let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-            let Ok(entries) = sem.recall_all(namespace, None) else {
-                continue;
-            };
-            if entries.iter().any(|e| e.key == "onboarding.completed_at") {
-                return true;
-            }
+    for (filename, namespace) in candidates {
+        let db_path = memory_dir.join(filename);
+        if !db_path.exists() {
+            continue;
         }
-        false
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?;
+        let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+            continue;
+        };
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        let Ok(entries) = sem.recall_all(namespace, None) else {
+            continue;
+        };
+        if entries.iter().any(|e| e.key == "onboarding.completed_at") {
+            return true;
+        }
+    }
+    false
+}
 
-    Ok(result)
+/// Stamps `onboarding.completed_at` in the onboarding agent's semantic memory
+/// under `memory_dir`, plus `onboarding.finalized_by = "operator_skip"` so the
+/// audit trail distinguishes an operator skip from the agent's own wrap-up.
+///
+/// Writes the same store and key that [`check_finalized_in`] reads, in the
+/// current namespace (`onboarding`); `MemoryStore::open` creates and migrates
+/// the database when the agent has not opened it yet.
+fn finalize_in(memory_dir: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(memory_dir).map_err(|e| format!("cannot create memory dir: {e}"))?;
+    let db_path = memory_dir.join("onboarding.db");
+    let store = apollia_memory::store::MemoryStore::open(&db_path)
+        .map_err(|e| format!("cannot open onboarding memory: {e}"))?;
+    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+    let now = chrono::Utc::now().to_rfc3339();
+    for (key, value) in [
+        ("onboarding.completed_at", now.as_str()),
+        ("onboarding.finalized_by", "operator_skip"),
+    ] {
+        sem.remember(apollia_memory::semantic::RememberInput {
+            namespace: "onboarding",
+            key,
+            value: &serde_json::Value::String(value.to_string()),
+            confidence: 1.0,
+            source: Some("onboarding"),
+            expires_at: None,
+        })
+        .map_err(|e| format!("cannot write {key}: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Finalizes the onboarding acquaintance chat without a model turn.
+///
+/// Backs the "skip the optional questions" button: it stamps the completion
+/// key the wrap-up gate reads ([`check_onboarding_finalized`]), so the modal
+/// moves straight to the permission proposals instead of spending one or more
+/// inference turns nudging the agent to close the interview.
+///
+/// Deliberately writes the agent's semantic memory rather than widening the
+/// gate to the `UserMemoryRepository` phase machine: `resume_onboarding` (the
+/// profile-enrichment re-entry) runs after a previous full completion, and a
+/// phase-machine OR in the gate would instantly finalize that resumed chat.
+#[tauri::command]
+pub async fn finalize_onboarding_chat() -> Result<(), String> {
+    let memory_dir = onboarding_memory_dir();
+    tokio::task::spawn_blocking(move || finalize_in(&memory_dir))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
 /// Attempts to advance the onboarding flow to `target_phase`.
@@ -1328,6 +1384,41 @@ pub async fn get_companion_enabled(state: State<'_, RuntimeHandle>) -> Result<bo
 // ---------------------------------------------------------------------------
 // Companion - tests
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod finalize_tests {
+    use super::*;
+
+    #[test]
+    fn test_finalize_writes_key_check_reads() {
+        // GIVEN an empty memory directory (fresh install, agent never ran)
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        // WHEN the operator skip finalizes the chat
+        finalize_in(dir.path()).expect("finalize");
+
+        // THEN the wrap-up gate reads the finalization from the same store
+        assert!(check_finalized_in(dir.path()));
+        let store = apollia_memory::store::MemoryStore::open(&dir.path().join("onboarding.db"))
+            .expect("open");
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        let entries = sem.recall_all("onboarding", None).expect("recall");
+        assert!(entries.iter().any(|e| e.key == "onboarding.completed_at"));
+        assert!(entries.iter().any(
+            |e| e.key == "onboarding.finalized_by" && e.value.as_str() == Some("operator_skip")
+        ));
+    }
+
+    #[test]
+    fn test_check_finalized_false_on_missing_db() {
+        // GIVEN an empty memory directory
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        // WHEN checking finalization without any database
+        // THEN the gate stays closed
+        assert!(!check_finalized_in(dir.path()));
+    }
+}
 
 #[cfg(test)]
 mod companion_tests {

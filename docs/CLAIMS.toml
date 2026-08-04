@@ -1099,3 +1099,20 @@ Executing, and parks the continuation for redispatch when the in-flight turn
 completes. If this evidence stops matching, the approve path no longer moves
 the session to execution and the page overstates the gate again.
 """
+
+[[claim]]
+id = "onboarding-skip-direct"
+scope = "public"
+symbol = "finalize_onboarding_chat"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/onboarding.rs"
+evidence = "onboarding.completed_at"
+note = """
+The page promises that skipping the optional questions ends the interview with
+no extra AI turn. Before this command existed, the skip button sent the chat
+message "C'est bon pour moi, terminons." and burned one or more inference
+turns waiting for the agent to close; there was no backend path that finalized
+without a model turn. The command stamps the exact key the wrap-up gate reads
+from the agent's semantic memory. If this evidence stops matching, the button
+is back to nudging the model and the sentence overstates the flow.
+"""

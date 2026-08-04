@@ -22,12 +22,14 @@
   import OnboardingConfetti from "./OnboardingConfetti.svelte";
   import {
     checkOnboardingFinalized,
+    finalizeOnboardingChat,
     getChatSession,
     resumeOnboarding,
     sendChatMessage,
     triggerOnboarding,
   } from "$lib/ipc/onboarding";
   import { get } from "svelte/store";
+  import { isChatComplete, runDirectSkip } from "$lib/onboarding/skipFlow";
   import { llmBackends } from "$lib/stores/sse";
   import { onboardingResumeMode } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
@@ -41,7 +43,8 @@
      * Incremented by the orchestrator's footer to request an early wrap-up:
      * skip the remaining OPTIONAL questions and route forward to the
      * permissions phase. It must never abandon onboarding (that would skip
-     * permissions). Each increment triggers one wrap-up nudge.
+     * permissions). Each increment finalizes the chat directly through the
+     * backend, with no model turn (conversational nudge as fallback only).
      */
     skipSignal?: number;
   }
@@ -83,8 +86,16 @@
 
   const turnIndex = $derived(Math.min(userTurns, TOTAL_TURNS));
   const realReplies = $derived(Math.max(0, userTurns - KICK_MESSAGES));
+  // Set when the operator explicitly skipped the optional questions: an
+  // explicit user action, so it bypasses the MIN_REAL_REPLIES stale-memory
+  // guard (which only exists to distrust a leftover `completed_at`).
+  let skippedDirectly = $state(false);
   const completed = $derived(
-    (agentFinalized && realReplies >= MIN_REAL_REPLIES) || realReplies >= SAFETY_REPLIES,
+    isChatComplete(
+      { skippedDirectly, agentFinalized, realReplies },
+      MIN_REAL_REPLIES,
+      SAFETY_REPLIES,
+    ),
   );
   const llmReady = $derived($llmBackends.length > 0);
 
@@ -154,17 +165,30 @@
   });
 
   // Forward wrap-up requested from the orchestrator footer ("skip the optional
-  // questions"). Nudge the agent to close: once the mandatory keys are present
-  // it finalises, which writes `onboarding.completed_at` and routes the flow
-  // into the permissions phase. Never dismisses onboarding.
+  // questions"). Finalize directly through the backend command: no model turn,
+  // the completion key is stamped and the flow routes into the permissions
+  // phase immediately. Never dismisses onboarding. On failure, fall back to
+  // the conversational nudge so the user is never stranded.
   let lastSkipSignal = 0;
   $effect(() => {
     const signal = skipSignal;
     if (signal > lastSkipSignal) {
       lastSkipSignal = signal;
-      if (sessionId && !completed) void finishEarly();
+      if (sessionId && !completed) void skipDirectly();
     }
   });
+
+  async function skipDirectly(): Promise<void> {
+    const path = await runDirectSkip(finalizeOnboardingChat, finishEarly);
+    if (path === "finalized") {
+      agentFinalized = true;
+      skippedDirectly = true;
+      if (pollTimer !== undefined) {
+        clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+    }
+  }
 
   async function pollSession(): Promise<void> {
     if (!sessionId) return;

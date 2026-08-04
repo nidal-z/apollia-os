@@ -97,6 +97,9 @@ Les questions couvrent :
 | Niveau de supervision souhaité | Fréquence à laquelle les agents vous demandent une validation |
 | Préférence de souveraineté des données | Avec ou sans services cloud tiers |
 
+<!-- claim:onboarding-skip-direct -->
+Les premières questions sont les plus importantes ; la suite est un enrichissement optionnel. Le bouton **Passer les questions optionnelles** (dans le pied de la fenêtre) met fin à l'entretien **immédiatement, sans tour d'IA supplémentaire** : le flux passe directement aux suggestions de permissions ci-dessous. Le bouton **Terminer** dans le chat, lui, laisse l'agent conclure la conversation par lui-même.
+
 Répondez naturellement, sans formulation précise. Après la dernière question, l'agent dérive un jeu de règles de permissions à partir de vos réponses et les propose **inline dans la fenêtre d'onboarding, juste avant le bouton « Terminer »**. Chaque proposition est une mini-carte avec deux boutons :
 
 - **Appliquer** - la règle est enregistrée immédiatement dans la base `governance.db` avec l'auteur `onboarding-agent`.

@@ -447,13 +447,13 @@ pub(crate) fn setup_stt_hotkey(
     if let Err(e) = listener.register(
         app,
         move || {
-            flow_start.start_recording();
+            // Global hotkey: the result is pasted into the focused application.
+            flow_start.start_recording(stt::flow::RecordingOrigin::Hotkey);
         },
         move || {
             let flow = Arc::clone(&flow_stop);
             tauri::async_runtime::spawn(async move {
-                // Global hotkey: paste into the focused application.
-                flow.stop_and_transcribe(true).await;
+                flow.stop_and_transcribe().await;
             });
         },
     ) {
@@ -788,23 +788,34 @@ fn main() {
                 }
             }
 
-            // Clicking the window close button (red traffic light) hides the
-            // window instead of quitting: the runtime keeps running in the
-            // background and the tray icon remains visible. The user re-opens
-            // via the tray "open" menu item. Every explicit quit surface (tray
-            // "Quitter", the macOS app menu / Cmd+Q, the in-app user menu, and
-            // the command palette) routes through `initiate_quit`, which calls
-            // `AppHandle::exit` and bypasses this handler, so quitting is never
-            // swallowed by `prevent_close`.
+            // What the window close button does is a platform convention, so
+            // `tray::close_button_action` decides rather than this handler.
+            //
+            // On macOS it hides the window: the runtime keeps running, the tray
+            // icon stays visible, and the user re-opens via the tray "open"
+            // item. On Windows and Linux the close button means quit, and
+            // hiding there left the runtime and its child processes alive with
+            // no window to point at them.
+            //
+            // `prevent_close` on both branches. On the quit branch it stops the
+            // window teardown from racing `initiate_quit`, which needs to reach
+            // `POST /api/v1/shutdown` before `AppHandle::exit` runs.
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found in tauri.conf.json");
 
-            let window_for_hide = main_window.clone();
+            let window_for_close = main_window.clone();
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window_for_hide.hide();
+                    match tray::close_button_action() {
+                        tray::CloseAction::HideToTray => {
+                            let _ = window_for_close.hide();
+                        }
+                        tray::CloseAction::Quit => {
+                            tray::initiate_quit(window_for_close.app_handle());
+                        }
+                    }
                 }
             });
 
@@ -853,6 +864,7 @@ fn main() {
             commands::integrations::oauth_list_client_ids,
             commands::integrations::oauth_set_client_id,
             commands::integrations::oauth_set_client_secret,
+            commands::integrations::oauth_import_client_json,
             commands::integrations::oauth_list_drive_folders,
             commands::integrations::oauth_set_drive_folder,
             commands::integrations::oauth_reset_drive_folder,
@@ -994,6 +1006,7 @@ fn main() {
             commands::artifacts::delete_artifact,
             commands::onboarding::get_onboarding_state,
             commands::onboarding::check_onboarding_finalized,
+            commands::onboarding::finalize_onboarding_chat,
             commands::onboarding::advance_onboarding_phase,
             commands::onboarding::set_onboarding_profile,
             commands::onboarding::get_onboarding_status,
@@ -1112,18 +1125,20 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            // Kill the runner sidecar before the process exits. Otherwise it is
-            // orphaned: `kill_on_drop` never runs because `app.exit` terminates
-            // the process before the managed `RuntimeHandle` (and its child
-            // handle) is dropped. ExitRequested covers every quit path: window
-            // close, Cmd+Q, and the tray "Quitter".
+            // Kill every child process before the process exits. Otherwise they
+            // are orphaned: `kill_on_drop` never runs because `app.exit`
+            // terminates the process before the managed `RuntimeHandle` (and
+            // its child handles) is dropped. ExitRequested covers every quit
+            // path: window close, Cmd+Q, and the tray "Quitter".
+            //
+            // This used to stop the runner alone, which left `llama-server`
+            // holding its VRAM and its loopback port after the app had quit.
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
                 if let Some(rt) = app.try_state::<RuntimeHandle>() {
-                    if let Some(supervisor) = rt.runner_supervisor.clone() {
-                        tauri::async_runtime::block_on(async move {
-                            supervisor.shutdown_in_place().await;
-                        });
-                    }
+                    let rt = rt.inner().clone();
+                    tauri::async_runtime::block_on(async move {
+                        rt.stop_child_processes().await;
+                    });
                 }
             }
         });

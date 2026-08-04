@@ -97,6 +97,9 @@ The questions cover:
 | Desired supervision level | How often agents ask you to confirm |
 | Data sovereignty preference | With or without third-party cloud services |
 
+<!-- claim:onboarding-skip-direct -->
+The first questions are the important ones; the rest is optional enrichment. The **Skip the optional questions** button (in the window footer) ends the interview **immediately, with no extra AI turn**: the flow goes straight to the permission suggestions below. The in-chat **Finish** button, by contrast, lets the agent wrap up the conversation itself.
+
 Answer naturally, no precise wording required. After the last question, the agent derives a set of permission rules from your answers and offers them **inline in the onboarding window, right before the "Finish" button**. Each suggestion is a small card with two buttons:
 
 - **Apply** - the rule is stored immediately in the `governance.db` database with author `onboarding-agent`.
