@@ -21,8 +21,8 @@ function statusOf(over: Partial<OauthClientIdStatus> = {}): OauthClientIdStatus 
 
 describe("oauthReadiness", () => {
   it("reports none on a fresh install, where no source resolves", () => {
-    // GIVEN a provider whose credentials resolve from nowhere, the state of
-    // every published build
+    // GIVEN a provider whose credentials resolve from nowhere, which on a
+    // fresh install is Google's state and no longer Microsoft's
     const status = statusOf({ source: "none", effective_client_id: "" });
 
     // WHEN readiness is derived
@@ -52,6 +52,26 @@ describe("oauthReadiness", () => {
 
     // WHEN readiness is derived
     // THEN the absent secret is not held against it
+    expect(oauthReadiness(status)).toBe("ready");
+    expect(needsOauthSetup(status)).toBe(false);
+  });
+
+  it("reports ready for Microsoft on a fresh install, from the shipped client", () => {
+    // GIVEN a fresh install that has configured nothing: Microsoft resolves
+    // from the client id Apollia ships, so its source is "builtin"
+    const status = statusOf({
+      provider: "microsoft",
+      source: "builtin",
+      effective_client_id: "c4f95bc5-8895-4550-8119-ed0e548fd941",
+      requires_client_secret: false,
+      has_client_secret: false,
+      client_secret_source: "none",
+      requires_api_key: false,
+    });
+
+    // WHEN readiness is derived
+    // THEN Microsoft is connectable with nothing to configure, so the detail
+    // pane must offer "Connect" and not the setup prompt Google still gets
     expect(oauthReadiness(status)).toBe("ready");
     expect(needsOauthSetup(status)).toBe(false);
   });
