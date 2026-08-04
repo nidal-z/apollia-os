@@ -229,6 +229,69 @@ them. A switch that looks like a privacy control and does nothing is worse than
 an absent one, so until they are implemented or removed, this table is the
 authority.
 
+## Dictation (`system.db`, not `apollia.toml`)
+
+Voice dictation has no `apollia.toml` section. Its ten settings live in a single
+row of `~/.apollia/system.db`, written from Settings, Speech-to-Text in the
+desktop application, or with `apollia-os stt config get` and
+`apollia-os stt config update`. Writing an `[stt]` block into `apollia.toml`
+changes nothing: nothing reads it.
+
+<!-- claim:stt-settings-apply-without-restart -->
+
+Saving re-arms the capture flow, so a change takes effect on the next dictation
+without restarting the application.
+
+| Key | Default | Effect |
+|---|---|---|
+| `enabled` | `false` | Whether the dictation engine starts and the global shortcut is armed. |
+| `model_path` | *(empty)* | Whisper model file. `~` is expanded. The desktop scans `~/.apollia/models` for `.bin` and `.gguf`. |
+| `hotkey` | `ctrl+shift+space` | Global shortcut that starts and stops dictation. |
+| `trigger_mode` | `toggle` | `toggle` (press to start, press to stop) or `push-to-talk` (hold). |
+| `input_device` | *(unset)* | Microphone name as the system reports it. Unset means the system default input. |
+| `language` | *(unset)* | Language forced on the engine. Unset means auto-detection. Accepted values below. |
+| `silence_threshold_db` | `-40.0` | RMS level, in dB, under which a 10 ms window counts as silence. |
+| `max_recording_sec` | `60` | Longest recording kept. Beyond it, the audio is truncated. |
+| `clipboard_mode` | `paste` | `paste`, `clipboard`, `memo` or `both`. Applies to shortcut dictation only. |
+| `clipboard_restore` | `true` | Restores the previous clipboard content after a paste. |
+
+### Accepted language codes
+
+<!-- claim:stt-language-hint-is-a-closed-list -->
+
+`language` is an ISO 639-1 code from this closed list, or unset for
+auto-detection. The desktop offers exactly these in a picker; a value outside the
+list is rejected rather than passed through, so two machines cannot end up with
+different spellings of the same language.
+
+| Code | Language | Code | Language |
+|---|---|---|---|
+| `fr` | French | `pl` | Polish |
+| `en` | English | `ru` | Russian |
+| `es` | Spanish | `zh` | Chinese |
+| `de` | German | `ja` | Japanese |
+| `it` | Italian | `ko` | Korean |
+| `pt` | Portuguese | `ar` | Arabic |
+| `nl` | Dutch | | |
+
+<!-- claim:stt-api-language-is-per-request -->
+
+`POST /stt/transcribe` also accepts a `language` field, which applies to that
+request only and overrides the stored value; sending it empty means
+auto-detection for that request.
+
+### Silence is not transcribed
+
+<!-- claim:stt-refuses-silent-audio -->
+
+A recording whose every 10 ms window sits below `silence_threshold_db` is
+discarded instead of being sent to the model. This is not an optimisation.
+Whisper does not answer silence with an empty string, it answers with filler
+learnt from its training data, and those inventions used to arrive as if they
+were transcriptions. The interface reports that nothing audible was captured, and
+the log line `stt.audio.nothing_audible` records the peak level measured, which
+separates a muted microphone from a threshold set too high.
+
 ## MCP servers (`[[mcp.servers]]`)
 
 Each entry configures one MCP server. The security-relevant limits:

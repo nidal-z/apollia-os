@@ -56,7 +56,7 @@ impl ResourceLimits {
 /// Attaches a `pre_exec` hook that applies `limits` to the child spawned by
 /// `cmd`. The hook runs in the child after `fork` and before `execve`, so the
 /// limits are inherited by the executed image and by any process it forks
-/// (for example `/bin/sh` under `unshare --fork`).
+/// (for example the resolved POSIX shell under `unshare --fork`).
 #[cfg(unix)]
 pub fn apply_rlimits(cmd: &mut std::process::Command, limits: ResourceLimits) {
     use std::os::unix::process::CommandExt;

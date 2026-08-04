@@ -91,12 +91,47 @@ pub struct NativeDispatcherConfig {
 /// Build a [`ToolDispatcher`] populated with every native tool available for
 /// *cfg*.
 ///
-/// Tools whose construction fails (e.g. `python_executor` when `python3` is
-/// missing, file tools when the sandbox root is invalid) are logged at `warn`
-/// and skipped. The dispatcher returns `UnknownTool` if the agent later
-/// attempts to invoke them, which surfaces as a clear error to the caller.
+/// A code-execution tool whose construction fails (`python_executor` when no
+/// system Python 3 exists) stays registered as an [`UnavailableTool`], so an
+/// agent invoking it receives the constructor's actionable error instead of
+/// `UnknownTool`. Other tools whose construction fails (file tools when the
+/// sandbox root is invalid) are logged at `warn` and skipped; the dispatcher
+/// returns `UnknownTool` if the agent later attempts to invoke them.
 pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
     build_dispatcher_with(cfg, Vec::new())
+}
+
+/// Placeholder registered when a native tool cannot be constructed on this
+/// host, so an agent invoking it receives the constructor's actionable error
+/// (what is missing and how to obtain it) instead of `UnknownTool`.
+struct UnavailableTool {
+    name: &'static str,
+    reason: String,
+}
+
+impl ToolExecutor for UnavailableTool {
+    fn name(&self) -> &str {
+        self.name
+    }
+
+    fn execute(
+        &self,
+        _input: serde_json::Value,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<serde_json::Value, crate::executor::ToolExecutionError>,
+                > + Send
+                + '_,
+        >,
+    > {
+        Box::pin(async move {
+            Err(crate::executor::ToolExecutionError::ExecutionFailed {
+                code: "tool_unavailable".to_string(),
+                message: self.reason.clone(),
+            })
+        })
+    }
 }
 
 /// Build a [`ToolDispatcher`] like [`build_native_dispatcher`] but with extra
@@ -121,7 +156,18 @@ pub fn build_dispatcher_with(
     if is_active("python_executor") {
         match PythonExecutor::new(&cfg.agent_id, &cfg.venv_base_dir) {
             Ok(exec) => executors.push(Box::new(exec)),
-            Err(e) => tracing::warn!(error = %e, "python_executor unavailable - skipped"),
+            Err(e) => {
+                // Keep the tool addressable: its descriptor is advertised to
+                // the LLM independently of this dispatcher, so a silent drop
+                // would surface as UnknownTool with no hint that Python is
+                // the missing prerequisite. push_sandbox_tool failures are
+                // candidates for the same treatment later.
+                tracing::warn!(error = %e, "python_executor unavailable - registered as stub");
+                executors.push(Box::new(UnavailableTool {
+                    name: "python_executor",
+                    reason: e.to_string(),
+                }));
+            }
         }
     }
 
@@ -286,5 +332,42 @@ fn push_sandbox_tool<T, E>(
     match built {
         Ok(exec) => executors.push(Box::new(exec)),
         Err(e) => tracing::warn!(tool = name, error = %e, "native tool unavailable - skipped"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::executor::ToolExecutionError;
+
+    #[tokio::test]
+    async fn unavailable_tool_returns_actionable_error_not_unknown_tool() {
+        // GIVEN a dispatcher containing an UnavailableTool carrying the
+        // PythonUnavailable constructor message
+        let reason = "no working Python 3 interpreter found on PATH (tried: \
+                      python, py -3, python3). Install Python 3 from \
+                      python.org and ensure it is on PATH."
+            .to_string();
+        let dispatcher = ToolDispatcher::new(vec![Box::new(UnavailableTool {
+            name: "python_executor",
+            reason: reason.clone(),
+        })]);
+
+        // WHEN the agent invokes the tool
+        let result = dispatcher
+            .dispatch("python_executor", serde_json::json!({}))
+            .await;
+
+        // THEN it receives the actionable reason, not UnknownTool
+        match result {
+            Err(ToolExecutionError::ExecutionFailed { code, message }) => {
+                assert_eq!(code, "tool_unavailable");
+                assert!(
+                    message.contains("Install Python 3"),
+                    "message must carry the actionable guidance, got: {message}"
+                );
+            }
+            other => panic!("expected ExecutionFailed with tool_unavailable, got {other:?}"),
+        }
     }
 }

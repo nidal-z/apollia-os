@@ -33,6 +33,16 @@ the models directory, Python, the sandbox posture and the runtime socket. It doe
 **not** detect your GPU, and there is no command that reports one. On macOS the
 inference device defaults to Metal without being probed.
 
+## Closing the app
+
+Closing the window with the red button hides it and leaves Apollia running
+behind the menu-bar icon, which is the macOS convention: the daemon, the
+`llama-server` engine and the runner all stay up, and the menu-bar icon reopens
+the window. Quitting for real goes through `Cmd+Q`, the application menu, or
+"Quitter" in the menu-bar icon, and that stops every background process.
+
+Windows and Linux differ here: the close button quits outright on both.
+
 ## Embedded components
 
 The macOS bundle contains:

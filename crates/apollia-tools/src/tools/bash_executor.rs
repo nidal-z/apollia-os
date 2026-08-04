@@ -1,11 +1,17 @@
-//! Native bash executor tool with Linux namespace isolation.
+//! Native shell executor tool. Namespace isolation is Linux-only.
 //!
-//! On Linux: wraps every command with `unshare --pid --mount --fork`.
-//! On macOS/non-Linux: executes directly with a per-invocation `tracing::warn!`.
+//! Every command runs through one resolved POSIX shell (`/bin/sh` on Unix, a
+//! `PATH`-discovered bash/sh off Unix; see [`crate::tools::shell_discovery`]).
+//! On Linux the command is additionally wrapped with
+//! `unshare --pid --mount --fork`. On macOS and Windows there is no OS
+//! sandbox and a per-invocation `tracing::warn!` says so.
 //!
-//! Before spawning a process, two validation steps are applied in order:
+//! Before spawning a process, the validation steps applied in order are:
 //! 1. Risk classification (sync): blocked if a risky pattern is matched.
-//! 2. Syntax validation (async, `bash -n -c`): blocked if syntax is invalid.
+//! 2. Shell resolution: fails with an actionable message when the host has
+//!    no POSIX shell (Windows without Git Bash, MSYS2 or WSL).
+//! 3. Syntax validation (async, `<shell> -n -c`): blocked if syntax is
+//!    invalid, using the same shell that will execute the command.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,13 +31,15 @@ use crate::tools::risk_classifier::RiskCategory;
 #[cfg(unix)]
 use crate::tools::rlimits::ResourceLimits;
 
-/// Native shell executor with Linux namespace isolation (PID + mount).
+/// Native shell executor. Namespace isolation (PID + mount) is Linux-only.
 ///
-/// On Linux: wraps commands with `unshare --pid --mount --fork /bin/sh -c` for PID
-/// and mount namespace isolation.
+/// On Linux: wraps commands with `unshare --pid --mount --fork <shell> -c` for
+/// PID and mount namespace isolation, where `<shell>` is the resolved POSIX
+/// shell (`/bin/sh`).
 ///
-/// On non-Linux (macOS, dev): executes directly via `/bin/sh -c` with a per-invocation
-/// `tracing::warn!` to make the absence of sandbox impossible to miss.
+/// On non-Linux (macOS, Windows): executes directly via `<shell> -c` with a
+/// per-invocation `tracing::warn!` to make the absence of an OS sandbox
+/// impossible to miss.
 ///
 /// Before any process is spawned, [`BashValidator`] applies risk classification
 /// and syntax validation (fail fast).
@@ -48,7 +56,8 @@ pub struct BashExecutor {
 
 /// Input parameters for a bash invocation.
 pub struct BashInput {
-    /// Shell command interpreted by `/bin/sh -c`. Must not be empty or whitespace-only.
+    /// Shell command interpreted by the resolved POSIX shell (`<shell> -c`).
+    /// Must not be empty or whitespace-only.
     pub command: String,
     /// Hard timeout in seconds before SIGKILL. Max 300s recommended.
     pub timeout_secs: u64,
@@ -92,12 +101,12 @@ pub enum BashExecutorError {
     /// I/O error reading stdout or stderr from the child process.
     #[error("output capture failed: {0}")]
     OutputCaptureFailed(String),
-    /// `bash -n -c` reported a syntax error; the command was never executed.
-    #[error("bash syntax error in `{cmd}`: {detail}")]
+    /// `<shell> -n -c` reported a syntax error; the command was never executed.
+    #[error("shell syntax error in `{cmd}`: {detail}")]
     SyntaxError {
         /// The command that failed syntax validation.
         cmd: String,
-        /// stderr output from `bash -n -c`.
+        /// stderr output from `<shell> -n -c`.
         detail: String,
     },
     /// A risk pattern was matched; the command was blocked before spawning.
@@ -108,9 +117,12 @@ pub enum BashExecutorError {
         /// The first risk category detected.
         category: RiskCategory,
     },
-    /// `bash -n -c` did not complete within the configured timeout.
-    #[error("bash syntax validation timed out")]
+    /// `<shell> -n -c` did not complete within the configured timeout.
+    #[error("shell syntax validation timed out")]
     SyntaxValidationTimeout,
+    /// No POSIX shell is available on this host; nothing was validated or run.
+    #[error(transparent)]
+    ShellUnavailable(#[from] crate::tools::shell_discovery::ShellUnavailable),
 }
 
 impl BashExecutor {
@@ -208,22 +220,25 @@ impl BashExecutor {
         }
     }
 
-    /// Executes a shell command with sandbox isolation.
+    /// Executes a shell command through the resolved POSIX shell.
     ///
     /// # Validation order (fail fast)
     ///
     /// 1. Empty-command check (sync).
     /// 2. Working-directory existence check (sync).
     /// 3. Risk classification via [`BashValidator::classify_risks`] (sync).
-    /// 4. Syntax validation via `bash -n -c` (async, timeout-bounded).
-    /// 5. Process spawn and execution.
+    /// 4. Shell resolution via [`crate::tools::shell_discovery::resolve_posix_shell`].
+    /// 5. Syntax validation via `<shell> -n -c` (async, timeout-bounded).
+    /// 6. Process spawn and execution with the same shell.
     ///
     /// # Errors
     ///
     /// - [`BashExecutorError::EmptyCommand`]: `command` is blank.
     /// - [`BashExecutorError::WorkingDirNotFound`]: `working_dir` path does not exist.
     /// - [`BashExecutorError::RiskyCommand`]: a risk pattern was matched; process never spawned.
-    /// - [`BashExecutorError::SyntaxError`]: `bash -n` reported a parse error.
+    /// - [`BashExecutorError::ShellUnavailable`]: no POSIX shell on this host; the
+    ///   message names what to install (Git Bash, MSYS2 or WSL).
+    /// - [`BashExecutorError::SyntaxError`]: `<shell> -n` reported a parse error.
     /// - [`BashExecutorError::SyntaxValidationTimeout`]: syntax check exceeded its timeout.
     /// - [`BashExecutorError::Timeout`]: command exceeded `timeout_secs`; child is killed.
     /// - [`BashExecutorError::SpawnFailed`]: OS refused to spawn the child.
@@ -267,11 +282,20 @@ impl BashExecutor {
             });
         }
 
-        // Step 4, syntax validation (async, bash -n -c).
-        self.validator.validate_syntax(&input.command).await?;
+        // Step 4, resolve the single shell that validates AND executes. On a
+        // host without one (Windows before Git Bash, MSYS2 or WSL is
+        // installed) this fails pre-spawn with a message naming the missing
+        // prerequisite, instead of the bare NotFound a hardcoded shell name
+        // used to produce.
+        let shell = crate::tools::shell_discovery::resolve_posix_shell()?;
 
-        // Step 5, execution.
-        let mut cmd = Self::build_command(&input);
+        // Step 5, syntax validation (async, `<shell> -n -c`).
+        self.validator
+            .validate_syntax(&shell, &input.command)
+            .await?;
+
+        // Step 6, execution.
+        let mut cmd = Self::build_command(&input, &shell);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
@@ -356,36 +380,35 @@ impl BashExecutor {
 
     /// Builds the OS-appropriate [`tokio::process::Command`] for the given input.
     ///
+    /// `shell` is the POSIX shell already resolved by
+    /// [`crate::tools::shell_discovery::resolve_posix_shell`], the same one the
+    /// syntax validation ran under.
+    ///
     /// On Linux: wraps with `unshare --pid --mount --fork` for namespace isolation.
-    /// On non-Linux: direct `/bin/sh -c` with a per-invocation dev-mode warning.
+    /// On non-Linux: direct `<shell> -c` with a per-invocation dev-mode warning.
     ///
     /// On every Unix platform, per-process resource limits ([`ResourceLimits`])
     /// are attached via a `pre_exec` hook. They are inherited across
-    /// `unshare --fork`, so the limits reach `/bin/sh`.
+    /// `unshare --fork`, so the limits reach the shell.
     #[cfg(target_os = "linux")]
-    fn build_command(input: &BashInput) -> tokio::process::Command {
+    fn build_command(input: &BashInput, shell: &std::path::Path) -> tokio::process::Command {
         let mut cmd = std::process::Command::new("/usr/bin/unshare");
-        cmd.args([
-            "--pid",
-            "--mount",
-            "--fork",
-            "/bin/sh",
-            "-c",
-            &input.command,
-        ]);
+        cmd.args(["--pid", "--mount", "--fork"])
+            .arg(shell)
+            .args(["-c", &input.command]);
         crate::tools::rlimits::apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
         tokio::process::Command::from(cmd)
     }
 
     #[cfg(all(unix, not(target_os = "linux")))]
-    fn build_command(input: &BashInput) -> tokio::process::Command {
+    fn build_command(input: &BashInput, shell: &std::path::Path) -> tokio::process::Command {
         tracing::warn!(
             command = %input.command,
             "bash_executor: running in Dev mode - no sandbox active. \
              Linux namespaces are not available on this platform. \
              Production deployments require Linux."
         );
-        let mut cmd = std::process::Command::new("/bin/sh");
+        let mut cmd = std::process::Command::new(shell);
         cmd.args(["-c", &input.command]);
         // The agent's shell must not inherit the desktop's embedded-Python
         // environment: a script that calls python3 would otherwise load the
@@ -395,61 +418,27 @@ impl BashExecutor {
         tokio::process::Command::from(cmd)
     }
 
-    /// Off Unix, run the command through a POSIX shell found on `PATH`.
+    /// Off Unix, run the command through the POSIX shell found on `PATH`.
     ///
     /// Windows ships no POSIX shell, so one has to come from Git Bash, WSL or
     /// MSYS2. That is a deliberate requirement rather than a fallback to
-    /// `cmd.exe` or PowerShell: the command validator guarding this tool
-    /// (`is_single_simple_command` and the injection scanner) encodes POSIX
-    /// quoting and chaining rules. A different shell has different operators,
-    /// different escaping and therefore a different injection surface, so
-    /// switching would silently invalidate the guarantee the validator provides.
-    /// Supporting a native Windows shell means writing a second validator of
-    /// equal quality, which is its own piece of work.
-    ///
-    /// When no POSIX shell is present the spawn fails with a message naming the
-    /// requirement, instead of the bare `NotFound` that a hardcoded `/bin/sh`
-    /// produced.
+    /// `cmd.exe` or PowerShell: the command validators guarding this tool
+    /// encode POSIX quoting and chaining rules, and a different shell has a
+    /// different injection surface. Hosts without one are rejected earlier in
+    /// `run`, at shell resolution, with a message naming the requirement.
     #[cfg(not(unix))]
-    fn build_command(input: &BashInput) -> tokio::process::Command {
-        let shell = posix_shell_on_path();
+    fn build_command(input: &BashInput, shell: &std::path::Path) -> tokio::process::Command {
         tracing::warn!(
             command = %input.command,
-            shell = %shell.as_deref().unwrap_or("<none found>"),
+            shell = %shell.display(),
             "bash_executor: no OS sandbox on this platform and no resource limits. \
              Production deployments require Linux."
         );
-        // Falling back to the bare name keeps the spawn error self-describing
-        // when nothing was found.
-        let mut cmd = std::process::Command::new(shell.as_deref().unwrap_or("sh"));
+        let mut cmd = std::process::Command::new(shell);
         cmd.args(["-c", &input.command]);
         apollia_core::subprocess_env::scrub_bundled_python(&mut cmd);
         tokio::process::Command::from(cmd)
     }
-}
-
-/// Locates a POSIX shell on `PATH`, preferring `bash` then `sh`.
-///
-/// Covers the usual Windows providers: Git for Windows ships `bash.exe`, MSYS2
-/// and Cygwin ship both. Returns `None` when the host has neither, which
-/// `bash_executor` reports rather than guessing another shell.
-#[cfg(not(unix))]
-fn posix_shell_on_path() -> Option<String> {
-    for name in ["bash.exe", "sh.exe", "bash", "sh"] {
-        if let Ok(path) = std::env::var_os("PATH")
-            .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
-            .map(|dirs| {
-                dirs.into_iter()
-                    .map(|d| d.join(name))
-                    .find(|c| c.is_file())
-                    .ok_or(())
-            })
-            .unwrap_or(Err(()))
-        {
-            return Some(path.display().to_string());
-        }
-    }
-    None
 }
 
 impl Default for BashExecutor {

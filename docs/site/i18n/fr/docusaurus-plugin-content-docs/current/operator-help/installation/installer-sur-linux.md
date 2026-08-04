@@ -42,6 +42,14 @@ le périphérique d'inférence se configure au lieu de se sonder. Sous Linux il 
 CPU par défaut, donc l'accélération GPU est quelque chose que vous posez, pas que
 vous vérifiez ici. Voir la section ci-dessous.
 
+## Fermer l'application
+
+La croix de fermeture quitte Apollia sous Linux, et le daemon s'arrête avec
+elle, de même que le moteur `llama-server` et le runner `apollia-runner-*`. Pour
+garder le runtime résident en masquant la fenêtre, passez par l'icône de la zone
+de notification plutôt que par la croix. macOS fait exception : la fermeture
+d'une fenêtre y laisse l'app active derrière l'icône de la barre de menus.
+
 ## Accélération GPU
 
 L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'AppImage / paquet `.deb` embarque la variante CPU. Pour accélérer la dictée sur GPU :

@@ -45,6 +45,9 @@ pub struct PythonExecutor {
     venv_path: PathBuf,
     /// Absolute path to the Python interpreter inside the venv.
     python_bin: PathBuf,
+    /// The system interpreter discovered at construction time, used to build
+    /// the virtualenv (`<system_python> -m venv`).
+    system_python: crate::tools::python_discovery::PythonCommand,
 }
 
 /// Input parameters for a Python invocation.
@@ -73,10 +76,20 @@ pub enum PythonExecutorError {
     /// `code` is empty, rejected before any I/O (fail fast).
     #[error("code must not be empty")]
     EmptyCode,
-    /// `python3` is not available in PATH, detected at construction time (fail fast).
-    #[error("python3 is not available in PATH")]
-    PythonUnavailable,
-    /// `python3 -m venv` failed to create the virtualenv.
+    /// No working Python 3 interpreter found on PATH, detected at
+    /// construction time (fail fast).
+    #[error(
+        "no working Python 3 interpreter found on PATH (tried: {tried}). \
+         Install Python 3 from python.org and ensure it is on PATH. On \
+         Windows, the preinstalled 'python3' alias is a Microsoft Store stub, \
+         not an interpreter; install the full distribution or the 'py' \
+         launcher."
+    )]
+    PythonUnavailable {
+        /// The candidate commands probed, in order.
+        tried: String,
+    },
+    /// The system Python `-m venv` failed to create the virtualenv.
     #[error("failed to create virtualenv: {0}")]
     VenvCreationFailed(String),
     /// `pip install` failed for a specific package.
@@ -313,29 +326,20 @@ pub fn validate_package_spec(package: &str) -> Result<(), PythonExecutorError> {
 impl PythonExecutor {
     /// Creates a `PythonExecutor` for the given agent.
     ///
-    /// Verifies that `python3` is available in PATH. Does **not** create the virtualenv
-    /// (call [`setup_venv`][Self::setup_venv] at agent `INITIALIZING` for that).
+    /// Locates a working system Python 3 via
+    /// [`crate::tools::python_discovery::locate_system_python`] (per-platform
+    /// candidate order, Microsoft Store stub rejected). Does **not** create
+    /// the virtualenv (call [`setup_venv`][Self::setup_venv] at agent
+    /// `INITIALIZING` for that).
     ///
     /// # Errors
     ///
-    /// Returns [`PythonExecutorError::PythonUnavailable`] if `python3` is not in PATH.
+    /// Returns [`PythonExecutorError::PythonUnavailable`] when no probed
+    /// candidate is a working Python 3; the message names what was tried and
+    /// how to install one.
     pub fn new(agent_id: &str, venv_base_dir: &Path) -> Result<Self, PythonExecutorError> {
-        // Fail fast: verify python3 availability at construction time.
-        // Probe the interpreter the operator actually has. Under the desktop's
-        // inherited PYTHONHOME this check would answer for the bundled runtime
-        // instead, and `--version` succeeds even when a real run would not.
-        let mut probe = std::process::Command::new("python3");
-        apollia_core::subprocess_env::scrub_bundled_python(&mut probe);
-        let python3_check = probe
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-
-        match python3_check {
-            Ok(status) if status.success() => {}
-            _ => return Err(PythonExecutorError::PythonUnavailable),
-        }
+        // Fail fast: locate the system interpreter at construction time.
+        let system_python = crate::tools::python_discovery::locate_system_python()?;
 
         let venv_path = venv_base_dir.join(agent_id).join("venv");
         let python_bin = venv_script(&venv_path, "python");
@@ -344,6 +348,7 @@ impl PythonExecutor {
             agent_id: agent_id.to_string(),
             venv_path,
             python_bin,
+            system_python,
         })
     }
 
@@ -358,7 +363,7 @@ impl PythonExecutor {
     ///
     /// # Errors
     ///
-    /// - [`PythonExecutorError::VenvCreationFailed`]: `python3 -m venv` failed
+    /// - [`PythonExecutorError::VenvCreationFailed`]: the system Python `-m venv` failed
     /// - [`PythonExecutorError::PackageInstallFailed`]: `pip install <package>` failed
     pub async fn setup_venv(&self, packages: &[String]) -> Result<(), PythonExecutorError> {
         // Refuse the whole list before touching the filesystem. An agent manifest
@@ -400,7 +405,8 @@ impl PythonExecutor {
             // The venv must be built by the interpreter the operator has, with
             // its own standard library. Inheriting the desktop's PYTHONHOME
             // would seed it from the bundle instead.
-            let mut venv_cmd = tokio::process::Command::new("python3");
+            let mut venv_cmd = tokio::process::Command::new(&self.system_python.program);
+            venv_cmd.args(&self.system_python.args);
             apollia_core::subprocess_env::scrub_bundled_python_async(&mut venv_cmd);
             let venv_output = venv_cmd
                 .args(&cmd_args)
@@ -640,12 +646,12 @@ mod tests {
         std::env::temp_dir().join("apollia_test_venv")
     }
 
-    /// Helper: creates a PythonExecutor, skipping the test if python3 is unavailable.
+    /// Helper: creates a PythonExecutor, skipping the test if no system Python is available.
     macro_rules! make_executor {
         ($agent_id:expr) => {
             match PythonExecutor::new($agent_id, &test_venv_dir()) {
                 Ok(e) => e,
-                Err(PythonExecutorError::PythonUnavailable) => return,
+                Err(PythonExecutorError::PythonUnavailable { .. }) => return,
                 Err(e) => panic!("unexpected error creating executor: {:?}", e),
             }
         };
@@ -698,12 +704,14 @@ mod tests {
 
     #[test]
     fn test_python_unavailable_detected_at_construction() {
-        // GIVEN: we test the happy path: if python3 is present, new() succeeds.
+        // GIVEN: we test the happy path: if a system Python is present, new() succeeds.
         // The error case (PythonUnavailable) is covered implicitly by make_executor! in other tests.
         let result = PythonExecutor::new("test-agent-ac2", &test_venv_dir());
         match result {
-            Ok(_) => { /* python3 present - construction succeeded as expected */ }
-            Err(PythonExecutorError::PythonUnavailable) => { /* python3 absent - also valid */ }
+            Ok(_) => { /* system Python present - construction succeeded as expected */ }
+            Err(PythonExecutorError::PythonUnavailable { .. }) => {
+                /* no system Python - also valid */
+            }
             Err(e) => panic!("unexpected error: {:?}", e),
         }
     }

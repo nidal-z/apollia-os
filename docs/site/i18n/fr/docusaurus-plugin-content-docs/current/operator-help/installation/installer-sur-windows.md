@@ -16,10 +16,49 @@ Apollia est distribué pour Windows x86_64 sous trois formats :
 ## Installation (MSI)
 
 1. Téléchargez `Apollia-OS_<version>_x64.msi`.
-2. Double-cliquez, suivez l'assistant.
+2. Double-cliquez, suivez l'assistant. Il affiche le nom du produit, l'éditeur
+   (Apollia), la version et la double licence MIT / Apache-2.0.
 3. L'app apparaît dans le menu Démarrer.
 
+L'installeur n'est pas encore signé par un certificat Authenticode : SmartScreen
+signale donc un éditeur inconnu. Choisissez **Informations complémentaires**,
+puis **Exécuter quand même**.
+
 Le pare-feu Windows demandera à autoriser `apollia-os.exe`, le moteur d'inférence `llama-server.exe` et `apollia-runner-*.exe` (reconnaissance vocale) au premier lancement : **autorisez-les pour les réseaux privés** (ces composants communiquent avec le daemon en loopback 127.0.0.1).
+
+L'installeur télécharge le runtime WebView2 si votre machine ne l'a pas déjà :
+l'installation demande donc une connexion réseau sur une machine qui n'a jamais
+fait tourner d'application WebView2. Windows 11 à jour le fournit d'origine.
+
+## Fermer l'application
+
+<!-- claim:desktop-close-button-quits-outside-macos -->
+La croix de fermeture quitte Apollia sous Windows, comme pour n'importe quelle
+autre application Windows. Le runtime s'arrête avec elle, ainsi que les deux
+processus d'arrière-plan qu'il détient : le moteur d'inférence
+`llama-server.exe` et le runner de reconnaissance vocale
+`apollia-runner-*.exe`. macOS se comporte différemment, la fermeture d'une
+fenêtre n'y étant pas le même geste que quitter : l'app y reste résidente
+derrière l'icône de la barre de menus.
+
+<!-- claim:desktop-exit-stops-inference-engine -->
+Quitter arrête toujours le moteur d'inférence, quelle que soit la surface
+utilisée : la croix, le menu de la zone de notification ou le menu de
+l'application. Rien ne reste à occuper de la mémoire vidéo ou un port loopback.
+Pour le vérifier, depuis PowerShell après avoir quitté :
+
+```powershell
+Get-Process apollia-os, llama-server, apollia-runner-cpu -ErrorAction SilentlyContinue
+```
+
+La commande ne doit rien afficher.
+
+<!-- claim:windows-no-console-window -->
+Vous ne devriez jamais voir de fenêtre de terminal appartenant à Apollia. Les
+processus d'arrière-plan sont des programmes console, et ils sont lancés avec le
+drapeau Windows `CREATE_NO_WINDOW` pour qu'aucun n'ouvre sa propre console. Si
+une fenêtre de terminal apparaît malgré tout, c'est un défaut à signaler plutôt
+qu'une fenêtre à refermer à la main.
 
 ## Vérification
 

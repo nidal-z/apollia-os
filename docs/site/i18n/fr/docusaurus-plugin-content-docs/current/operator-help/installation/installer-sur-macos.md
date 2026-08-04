@@ -33,6 +33,17 @@ bases, le répertoire des modèles, Python, la posture de bac à sable et la soc
 du runtime. Il ne détecte **pas** votre GPU, et aucune commande ne le rapporte.
 Sous macOS le périphérique d'inférence vaut Metal par défaut, sans être sondé.
 
+## Fermer l'application
+
+Fermer la fenêtre par le bouton rouge la masque et laisse Apollia active
+derrière l'icône de la barre de menus, ce qui est la convention macOS : le
+daemon, le moteur `llama-server` et le runner restent en place, et l'icône de la
+barre de menus rouvre la fenêtre. Quitter réellement passe par `Cmd+Q`, le menu
+de l'application ou « Quitter » dans l'icône de la barre de menus, ce qui arrête
+tous les processus d'arrière-plan.
+
+Windows et Linux diffèrent ici : la croix y quitte directement.
+
 ## Composants embarqués
 
 Le bundle macOS contient :
