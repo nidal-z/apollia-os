@@ -1,13 +1,46 @@
 # Connect Google Workspace
 
-> For any operator who wants to plug Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks or YouTube into Apollia, in a few clicks.
+> For any operator who wants to plug Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks or YouTube into Apollia.
+
+A personal `@gmail.com` account works. Nothing here needs a Workspace subscription, a company domain, or an administrator.
 
 ## Prerequisites
 
 - Apollia running.
-- A personal or Workspace Google account.
+- A Google account, personal or Workspace.
+- **Your own OAuth client**, set up once, see the section right below.
 - Your sovereignty profile is not set to `local_only` (otherwise the cloud buttons are greyed out).
 - An active internet connection.
+
+## Set up your OAuth client, once
+
+<!-- claim:oauth-client-resolution-order -->
+Apollia ships without a Google OAuth client, and no published build embeds one. You register your own application with Google and hand its credentials to Apollia. This is a one-off that takes a few minutes, and it is what keeps the connector free of a shared identity you do not control.
+
+**Why there is no shared client.** The Google scopes classified *restricted* (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`) require a CASA Tier 2 audit by a Google-approved third party, billed 5,000 to 15,000 dollars a year. A shared Apollia application would also put every user behind one quota and one consent screen. Your own client keeps you in control of both.
+
+**In the Google Cloud console.**
+
+1. Create a project, then enable the Gmail, Calendar and Drive APIs.
+2. Configure the OAuth consent screen in **External** mode, leave it in **Testing** status, and add your own address as a test user. Testing status allows up to 100 test users and costs nothing.
+3. Create an OAuth client of type **Desktop app**.
+4. **Download the JSON file** the console offers. Keep it, you need it in the next step.
+
+<!-- claim:oauth-google-client-json-import -->
+**In Apollia.**
+
+1. Open **Settings → OAuth integrations**.
+2. On the Google card, click **Import JSON** and pick the file you just downloaded. The client ID and the client secret are read from it and stored in `~/.apollia/oauth-clients.toml`, readable by your user only.
+3. Click **Test configuration**. It should report that the client is present, well-formed, and that Google's authorization server is reachable.
+
+If you prefer to type the values yourself, the two fields on the same card accept them directly.
+
+**Why a client secret.** Google issues a `client_secret` alongside the client ID for a Desktop client, and requires it when the authorization code is exchanged for a token, even though Apollia also uses PKCE. Apollia stores it locally and never sends it anywhere but Google.
+
+<!-- claim:oauth-connect-refuses-before-consent -->
+If either half is missing, Apollia refuses the connection before opening your browser and tells you which one, rather than sending you through a consent screen that cannot complete.
+
+**Alternative for a shell or a headless host.** `APOLLIA_GOOGLE_CLIENT_ID` and `APOLLIA_GOOGLE_CLIENT_SECRET` take priority over the file. They only apply to processes launched from the shell where you exported them, which is a common reason a client looks configured but is not. See [Environment variables](/reference/environment-variables).
 
 ## Steps
 
@@ -60,41 +93,21 @@ You can connect several Google accounts. Each account appears in the sidebar wit
 
 ## If it does not work
 
-- **The Google consent screen shows "This app is not verified"**: that is expected in expert mode with your own OAuth app. Click **Advanced** then **Go to Apollia** to continue.
+- **The Google Workspace card reads "Setup required"**: no OAuth client is configured yet. Click **Set up credentials** and follow the section at the top of this page.
+- **Apollia says the client secret is missing**: the client ID was saved but not its secret. Re-import the JSON file from the Google Cloud console, which carries both, or paste the secret into the Google card in **Settings → OAuth integrations**.
+- **The Google consent screen shows "This app is not verified"**: expected, since the application is yours and sits in Testing status. Click **Advanced** then **Go to Apollia** to continue.
 - **The Connect button is greyed out**: your sovereignty profile is `local_only`. Cloud connectors are disabled in that mode.
-- **You want full Gmail or Drive read access**: those scopes are restricted (Google CASA audit) and out of scope for v0.1.0. No Apollia tool uses them yet, see "Expert mode" below.
+- **You want full Gmail or Drive read access**: those scopes are restricted (Google CASA audit) and out of scope for v0.1.0. No Apollia tool uses them yet, see "About the restricted scopes" below.
 - **The agent does not see a specific file on Drive**: it only has access to the `Apollia/<agent>/` folder. Drop the file into that folder or pass it the explicit identifier in your prompt.
 - **An agent asks for a full-read Gmail tool**: there is none. The Google operation catalogue only contains non-restricted scopes, and a test locks that down. The agent will get an unknown tool error, not a scope error.
 
-## Expert mode: your own OAuth app
+## About the restricted scopes
 
-This section is for power users familiar with the Google Cloud Console. If you are not one, the default perimeter already covers sending, composing, the full calendar and the scoped Drive, and you can skip it.
+Your OAuth consent screen can offer the *restricted* scopes (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`), but **no Apollia tool uses them yet**: the Google operation catalogue contains none of them, and a test locks that down. Granting one unlocks no capability for now. The default perimeter already covers sending, composing, the full calendar and the scoped Drive.
 
-**Why this mode exists.** The Google scopes classified *restricted* (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`) require a CASA Tier 2 audit by a Google-approved third party, billed 5,000 to 15,000 dollars a year. To stay free, the default Apollia app does not request them. You can create your own OAuth app, keep it in **Testing** status (up to 100 test users), and plug it into Apollia. No cost.
+**Responsibility.** The OAuth application is yours and Apollia does not audit that configuration. If you distribute a build with your client ID embedded beyond 100 users, Google will require the CASA Tier 2 audit.
 
-**What this mode does today, and what it does not.** It plugs your OAuth client in place of the shared app, and the consent screen can then offer the restricted scopes. On the other hand **no Apollia tool uses those scopes yet**: the Google operation catalogue contains none of them, and a test locks that down. Obtaining the scope therefore unlocks no new capability for now. Use this mode if you want to own your OAuth app, not to gain features.
-
-**Procedure.**
-
-1. **Google Cloud Console**: create a project, enable the Gmail, Calendar and Drive APIs, configure the OAuth consent screen in External + Testing mode, add your email as a test user, add the restricted scopes you want, create a Desktop type OAuth client, note the **Client ID**.
-2. **Apollia**: export the environment variable before launching Apollia:
-
-   ```bash
-   export APOLLIA_GOOGLE_CLIENT_ID="123456789-abcdef.apps.googleusercontent.com"
-   ```
-
-3. **Reconnect Google** in Apollia. The consent screen will show your app.
-
-**Verification.** The Google consent screen shows the name of your app and not "Apollia OS", and the `granted_scopes` listed under the connected account include the granted scope.
-
-**If it does not work.**
-
-- **The screen still shows "Apollia OS"**: the process that launched Apollia does not have the variable. Relaunch Apollia from the shell where you ran `export`, or add the variable to your `~/.zshrc` or `~/.bashrc`.
-- **Google refuses the scopes**: stay in **Testing** mode and add yourself as a test user.
-
-**Responsibility.** In expert mode, the OAuth app is yours and Apollia does not audit that configuration. If you distribute Apollia with your Client ID embedded beyond 100 users, Google will require the CASA Tier 2 audit.
-
-**Alternative.** If the Google Cloud Console feels heavy, a community Gmail MCP server (search for `mcp-server-gmail`) runs locally with your credentials and exposes the Gmail tools through MCP. See [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
+**Alternative.** If the Google Cloud console feels heavy, a community Gmail MCP server (search for `mcp-server-gmail`) runs locally with your credentials and exposes the Gmail tools through MCP. See [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
 
 ## Disconnecting an account
 

@@ -19,9 +19,11 @@ pub mod memory_search;
 pub mod notebook_edit;
 pub mod notebook_read;
 pub mod permission_rules;
+pub mod python_discovery;
 pub mod python_executor;
 pub mod risk_classifier;
 pub mod rlimits;
+pub mod shell_discovery;
 #[cfg(feature = "web-read")]
 pub mod web_read;
 #[cfg(feature = "web-search")]

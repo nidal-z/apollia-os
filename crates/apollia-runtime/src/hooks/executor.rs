@@ -357,6 +357,7 @@ impl HookExecutor {
             .ok_or_else(|| "empty command argv".to_string())?;
         let mut hook_cmd = tokio::process::Command::new(exe);
         apollia_core::subprocess_env::scrub_bundled_python_async(&mut hook_cmd);
+        apollia_core::subprocess_window::hide_console_async(&mut hook_cmd);
         let mut child = hook_cmd
             .args(args)
             .stdin(Stdio::piped())

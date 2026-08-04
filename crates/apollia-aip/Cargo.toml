@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 apollia-core          = { workspace = true }
+apollia-prompts       = { workspace = true }
 apollia-tools         = { workspace = true }
 apollia-memory        = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }

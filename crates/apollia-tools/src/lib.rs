@@ -4,14 +4,15 @@
 //! Provides the tooling infrastructure for agents:
 //! - `ToolRegistry`: in-memory catalogue of available tools
 //! - `ToolResolver`: validates tool availability at INITIALIZING
-//! - `SandboxProfile`: Linux namespace isolation profiles
+//! - `SandboxProfile`: tool isolation profiles (namespace isolation is Linux-only)
 //! - `AuditTrail`: SQLite-persisted tool invocation log
 //! - `TaskRepository`: SQLite-persisted HITL task state
 //! - `AgentRepository`: SQLite-persisted installed agents
 //! - `executor`: [`ToolExecutor`] trait and [`ToolDispatcher`] for unified JSON dispatch
 //!
 //! Native tools:
-//! - `bash_executor`: sandboxed shell execution via unshare(1)
+//! - `bash_executor`: shell execution through a resolved POSIX shell;
+//!   namespace isolation via unshare(1) on Linux only, no OS sandbox elsewhere
 //! - `python_executor`: isolated virtualenv execution
 //! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep`: atomic filesystem operations
 //! - `http_fetch`: network-restricted HTTP client (feature `http`)
@@ -27,6 +28,7 @@ pub mod dispatcher_invoker;
 pub mod executor;
 pub mod file_path_extractor;
 pub mod governance_db;
+pub mod host_env;
 pub mod journal;
 pub mod native_dispatcher;
 pub mod package_repository;

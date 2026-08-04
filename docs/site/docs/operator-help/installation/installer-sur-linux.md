@@ -42,6 +42,14 @@ inference device is chosen by configuration rather than probed. On Linux it
 defaults to CPU, so GPU acceleration is something you set, not something you
 verify here. See the section below.
 
+## Closing the app
+
+The window close button quits Apollia on Linux, and the daemon stops with it,
+along with the `llama-server` engine and the `apollia-runner-*` runner. To keep
+the runtime resident while hiding the window, use the tray icon rather than the
+close button. macOS is the exception: there, closing a window leaves the app
+running behind the menu-bar icon.
+
 ## GPU acceleration
 
 Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the AppImage / `.deb` package embeds its CPU variant. To accelerate dictation on GPU:

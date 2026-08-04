@@ -876,7 +876,9 @@ pub async fn create_agent_from_template(
         return Err(format!("Un agent '{}' existe deja", name));
     }
 
-    let output = tokio::process::Command::new(sdk_interpreter())
+    let mut scaffold = tokio::process::Command::new(sdk_interpreter());
+    apollia_core::subprocess_window::hide_console_async(&mut scaffold);
+    let output = scaffold
         .args([
             "-m",
             "apollia",
@@ -926,7 +928,9 @@ fn sdk_interpreter() -> std::ffi::OsString {
 /// the import succeeds.
 #[tauri::command]
 pub async fn check_sdk_available() -> Result<bool, String> {
-    let output = tokio::process::Command::new(sdk_interpreter())
+    let mut probe = tokio::process::Command::new(sdk_interpreter());
+    apollia_core::subprocess_window::hide_console_async(&mut probe);
+    let output = probe
         .args(["-c", "import apollia; print(apollia.__version__)"])
         .output()
         .await

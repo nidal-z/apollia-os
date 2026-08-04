@@ -6,18 +6,41 @@
 
 - Apollia lancé.
 - Un compte Microsoft, personnel ou professionnel.
+- **Votre propre inscription d'application**, configurée une fois, voir la section juste en dessous.
 - Votre profil de souveraineté n'est pas réglé sur `local_only`.
-- Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver Apollia.
+- Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver l'application.
 - Connexion internet active.
 
 ## Quel type de compte je peux utiliser
 
-Les deux fonctionnent nativement avec l'app Apollia, sans configuration supplémentaire. L'endpoint utilisé (`/common/`) accepte indifféremment :
+Les deux passent par la même inscription. L'endpoint utilisé (`/common/`) accepte indifféremment :
 
 - les comptes personnels Microsoft (outlook.com, hotmail.com, live.com),
 - les comptes professionnels ou d'éducation (Entra ID, M365 Business, M365 Developer tenant).
 
 Voir les différences observables dans le tableau plus bas.
+
+## Inscrire votre application, une fois
+
+<!-- claim:oauth-client-resolution-order -->
+Apollia est livré sans client OAuth Microsoft, et aucun build publié n'en embarque. Vous inscrivez votre propre application dans le portail Microsoft et vous en collez l'identifiant dans Apollia. C'est une opération unique de deux minutes.
+
+**Contrairement à Google, aucun secret à manipuler.** Une application de bureau est un *client public* au sens Microsoft : elle s'authentifie par PKCE seul, et l'identifiant d'application est un GUID public, pas un secret.
+
+**Dans le centre d'administration Microsoft Entra** (ou le portail Azure, « Inscriptions d'applications ») :
+
+1. Choisissez **Nouvelle inscription**.
+2. Pour les types de comptes pris en charge, choisissez **Comptes dans un annuaire organisationnel quelconque et comptes Microsoft personnels**, ce qui rend utilisables aussi bien une adresse `outlook.com` qu'un compte professionnel.
+3. Sous **URI de redirection**, ajoutez une plateforme de type **Applications mobiles et de bureau** et saisissez `http://127.0.0.1`. Apollia écoute sur un port de loopback choisi au moment de la connexion, et Microsoft accepte n'importe quel port sur cet hôte.
+4. Inscrivez, puis copiez l'**ID d'application (client)** depuis la page de vue d'ensemble. Il ressemble à `00000000-1111-2222-3333-444444444444`.
+
+**Dans Apollia.**
+
+1. Ouvrez **Réglages → Intégrations OAuth**.
+2. Collez l'identifiant dans le champ identifiant client de la carte Microsoft et enregistrez. Il est stocké dans `~/.apollia/oauth-clients.toml`, lisible par votre seul utilisateur. Laissez le champ secret vide.
+3. Cliquez sur **Tester la configuration**.
+
+**Alternative pour un shell ou une machine sans interface.** `APOLLIA_MICROSOFT_CLIENT_ID` prime sur le fichier, et ne vaut que pour les processus lancés depuis le shell où vous l'avez exportée. Voir [Environment variables](/reference/environment-variables).
 
 ## Étapes
 
@@ -77,7 +100,9 @@ Les outils sont les mêmes des deux côtés, seul le backend qui répond change.
 
 ## Si ça ne marche pas
 
-- **Consentement refusé à l'écran Microsoft** : un tenant Entra ID géré exige souvent une approbation au niveau organisation avant qu'une application externe puisse être utilisée. Le texte d'erreur vient de Microsoft et non d'Apollia, et il nomme la politique de tenant en cause. Demandez à votre administrateur de pré-approuver Apollia, ou utilisez un compte Microsoft personnel.
+- **La carte Microsoft 365 affiche « Configuration requise »** : aucun identifiant d'application n'est encore configuré. Cliquez sur **Configurer les identifiants** et suivez la section d'inscription ci-dessus.
+- **Microsoft rejette l'URI de redirection** : l'inscription n'a pas sa plateforme **Applications mobiles et de bureau**, ou celle-ci ne liste pas `http://127.0.0.1`. Une inscription créée en « Web » ne fonctionnera pas.
+- **Consentement refusé à l'écran Microsoft** : un tenant Entra ID géré exige souvent une approbation au niveau organisation avant qu'une application externe puisse être utilisée. Le texte d'erreur vient de Microsoft et non d'Apollia, et il nomme la politique de tenant en cause. Demandez à votre administrateur de pré-approuver l'application, ou utilisez un compte Microsoft personnel.
 - **`outlook.send` échoue sur un destinataire** : Microsoft Graph valide les destinataires plus strictement que Google. Apollia remonte l'erreur de Graph telle quelle, préfixée du statut HTTP. Vérifiez l'adresse cible et l'absence d'alias mort.
 - **OneDrive en écriture refusé** : c'est attendu en v0.1.0, OneDrive est en lecture seule.
 - **Le bouton Connecter est grisé** : votre profil de souveraineté est `local_only`.

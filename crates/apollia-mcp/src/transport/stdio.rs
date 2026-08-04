@@ -80,6 +80,9 @@ impl StdioTransport {
         // one the desktop exports for its embedded interpreter, which would
         // otherwise make a Python MCP server load the wrong standard library.
         apollia_core::subprocess_env::scrub_bundled_python_async(&mut command_builder);
+        // One console window per configured server otherwise, on Windows, for
+        // the whole life of the session.
+        apollia_core::subprocess_window::hide_console_async(&mut command_builder);
         let mut child = command_builder
             .envs(envs)
             .stdin(Stdio::piped())

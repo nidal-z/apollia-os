@@ -264,9 +264,11 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         )
     })?;
 
-    let _ = language;
+    // The `language` field is honoured for this request only; when the caller
+    // omits it, the persisted configuration hint applies. It used to be parsed
+    // and then dropped, so a caller could set it and see no effect at all.
     let transcript = engine
-        .transcribe(audio, 16000, TranscriptSource::Api)
+        .transcribe_with_language(audio, 16000, TranscriptSource::Api, language)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "STT transcription failed");

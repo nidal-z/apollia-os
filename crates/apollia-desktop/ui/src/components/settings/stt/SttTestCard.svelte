@@ -12,10 +12,15 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { Mic, Play, Square, RefreshCw, Check } from "lucide-svelte";
+  import { Mic, Play, Square, RefreshCw, Check, AlertTriangle } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
   import { ensureMicPermission } from "$lib/stt/micPermission";
+  import {
+    DICTATION_FAILED_EVENT,
+    failureMessageKey,
+    readFailureReason,
+  } from "$lib/stt/dictationFailure";
   import { startTourRecording, stopTourRecording } from "$lib/ipc/stt";
 
   interface Props {
@@ -32,6 +37,9 @@
   let recording = $state(false);
   let busy = $state(false);
   let result = $state<string | null>(null);
+  // Why the last test produced no text. Without it a self-test on a muted
+  // microphone leaves the card spinning on "transcribing" with nothing to say.
+  let failure = $state<string | null>(null);
   let bars = $state<number[]>(Array(BAR_COUNT).fill(IDLE));
   let history = Array(BAR_COUNT).fill(IDLE);
 
@@ -60,6 +68,7 @@
         // busy stays true until the transcription event arrives.
       } else {
         result = null;
+        failure = null;
         resetMeter();
         await ensureMicPermission();
         await startTourRecording();
@@ -83,6 +92,15 @@
       if (!recording) return;
       result =
         typeof event.payload === "string" ? event.payload : (event.payload?.text ?? "");
+      failure = null;
+      recording = false;
+      busy = false;
+      resetMeter();
+    }).then((fn) => (cancelled ? fn() : unlisteners.push(fn)));
+    void listen(DICTATION_FAILED_EVENT, (event) => {
+      if (!recording && !busy) return;
+      failure = $t(failureMessageKey(readFailureReason(event.payload)));
+      result = null;
       recording = false;
       busy = false;
       resetMeter();
@@ -172,12 +190,23 @@
           {$t("settings.stt.test.threshold_label", { values: { db: silenceThresholdDb } })}
         </span>
       </div>
-    {:else if result === null}
+    {:else if result === null && failure === null}
       <div class="absolute inset-0 grid place-items-center text-caption text-muted-foreground">
         {$t("settings.stt.test.idle_hint")}
       </div>
     {/if}
   </div>
+
+  {#if failure !== null}
+    <div
+      class="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-body-sm text-warning"
+      role="alert"
+      data-testid="stt-test-failure"
+    >
+      <AlertTriangle size={13} strokeWidth={2} class="mt-0.5 shrink-0" />
+      <span>{failure}</span>
+    </div>
+  {/if}
 
   {#if result !== null}
     <div

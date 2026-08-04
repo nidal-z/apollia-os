@@ -6,18 +6,41 @@
 
 - Apollia running.
 - A Microsoft account, personal or professional.
+- **Your own application registration**, set up once, see the section right below.
 - Your sovereignty profile is not set to `local_only`.
-- If your Entra ID tenant requires administrative approval, the administrator has to pre-approve Apollia.
+- If your Entra ID tenant requires administrative approval, the administrator has to pre-approve the application.
 - An active internet connection.
 
 ## Which account type I can use
 
-Both work natively with the Apollia app, with no extra configuration. The endpoint used (`/common/`) accepts either:
+Both work through the same registration. The endpoint used (`/common/`) accepts either:
 
 - personal Microsoft accounts (outlook.com, hotmail.com, live.com),
 - professional or education accounts (Entra ID, M365 Business, M365 Developer tenant).
 
 See the observable differences in the table further down.
+
+## Register your application, once
+
+<!-- claim:oauth-client-resolution-order -->
+Apollia ships without a Microsoft OAuth client, and no published build embeds one. You register your own application in the Microsoft portal and paste its identifier into Apollia. This is a one-off and takes a couple of minutes.
+
+**Unlike Google, there is no secret to handle.** A desktop application is a *public client* in Microsoft's model: it authenticates with PKCE alone, and the application identifier is a public GUID, not a credential.
+
+**In the Microsoft Entra admin center** (or the Azure portal, "App registrations"):
+
+1. Choose **New registration**.
+2. For supported account types, pick **Accounts in any organizational directory and personal Microsoft accounts**, which is what makes both an `outlook.com` address and a work account usable.
+3. Under **Redirect URI**, add a platform of type **Mobile and desktop applications** and enter `http://127.0.0.1`. Apollia listens on a loopback port picked at connection time, and Microsoft accepts any port on that host.
+4. Register, then copy the **Application (client) ID** from the overview page. It looks like `00000000-1111-2222-3333-444444444444`.
+
+**In Apollia.**
+
+1. Open **Settings → OAuth integrations**.
+2. Paste the identifier into the client ID field on the Microsoft card and save. It is stored in `~/.apollia/oauth-clients.toml`, readable by your user only. Leave the secret field empty.
+3. Click **Test configuration**.
+
+**Alternative for a shell or a headless host.** `APOLLIA_MICROSOFT_CLIENT_ID` takes priority over the file, and only applies to processes launched from the shell where you exported it. See [Environment variables](/reference/environment-variables).
 
 ## Steps
 
@@ -77,7 +100,9 @@ The tools are the same on both sides, only the backend answering changes.
 
 ## If it does not work
 
-- **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve Apollia, or use a personal Microsoft account.
+- **The Microsoft 365 card reads "Setup required"**: no application identifier is configured yet. Click **Set up credentials** and follow the registration section above.
+- **Microsoft rejects the redirect URI**: the registration is missing its **Mobile and desktop applications** platform, or that platform does not list `http://127.0.0.1`. A registration created as "Web" will not work.
+- **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
 - **The Connect button is greyed out**: your sovereignty profile is `local_only`.

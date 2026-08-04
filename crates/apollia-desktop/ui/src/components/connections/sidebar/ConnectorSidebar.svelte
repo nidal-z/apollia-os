@@ -28,6 +28,8 @@
   interface Props {
     nativeConnectors: NativeConnectorCard[];
     accountCountFor: (id: ProviderId) => number;
+    /** Whether a native provider still lacks usable OAuth credentials. */
+    needsSetupFor?: (id: ProviderId) => boolean;
     servers: McpServerStatusView[];
     enrichmentMap: Map<string, ConnectorEnrichmentView>;
     selection: Selection;
@@ -41,6 +43,7 @@
   let {
     nativeConnectors,
     accountCountFor,
+    needsSetupFor,
     servers,
     enrichmentMap,
     selection,
@@ -126,6 +129,7 @@
     <NativeConnectorRow
       {connector}
       accountCount={accountCountFor(connector.id)}
+      needsSetup={needsSetupFor?.(connector.id) ?? false}
       selected={selection?.kind === "native" && selection.provider === connector.id}
       onselect={() => onselect({ kind: "native", provider: connector.id })}
     />

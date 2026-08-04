@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { listen } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { X, MessageSquare, Link, Zap, Check } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
@@ -27,6 +27,8 @@
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
   import { parseStream } from "$lib/chat/streamParser";
+  import { computeScrollFollow } from "$lib/chat/scrollFollow";
+  import { createSubscriptionGuard } from "$lib/utils/subscriptionGuard";
   import ChatInput from "./ChatInput.svelte";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
@@ -204,10 +206,13 @@
   // streaming (tokenBuffer changes don't affect the committed messages array).
   const messageGroups = $derived(groupMessages(messages ?? []));
 
-  let unlistenToken: UnlistenFn | undefined;
-  let unlistenChanged: UnlistenFn | undefined;
-  let unlistenA2A: UnlistenFn | undefined;
-  let unlistenTaskChanged: UnlistenFn | undefined;
+  /**
+   * Owns the four runtime subscriptions. Registration below awaits an IPC
+   * round-trip first, so a component torn down during that window would
+   * otherwise leave its listeners subscribed for the lifetime of the app, one
+   * of them still buffering tokens for a session nobody is looking at.
+   */
+  const subscriptions = createSubscriptionGuard();
   /** Non-null while an A2A delegation is in progress. */
   let activeA2A = $state<{ target: string; skill_id: string } | null>(null);
   /** Steps reported by the sub-agent during A2A delegation. */
@@ -250,7 +255,7 @@
     restoreGlobalState();
     void loadAvailableProjects();
 
-    unlistenToken = await listen<{ session_id: string; message_id: string; token: string }>(
+    subscriptions.keep(await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
       (event) => {
         if (event.payload.session_id !== sessionId) return;
@@ -259,9 +264,9 @@
         isProcessing = false;
         scrollToBottom();
       },
-    );
+    ));
 
-    unlistenA2A = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
+    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
       "runtime-event",
       (event) => {
         if (event.payload.category !== "a2a") return;
@@ -297,10 +302,10 @@
           scrollToBottom();
         }
       },
-    );
+    ));
 
     // Listen for sub-agent step events during A2A delegation.
-    unlistenTaskChanged = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
+    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
       "runtime-event",
       (event) => {
         if (event.payload.category !== "task-changed") return;
@@ -346,9 +351,9 @@
           scrollToBottom();
         }
       },
-    );
+    ));
 
-    unlistenChanged = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
+    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
       "runtime-event",
       (event) => {
         if (event.payload.category !== "chat-changed") return;
@@ -471,7 +476,7 @@
         }
         void refreshSession();
       },
-    );
+    ));
   });
 
   // Track new messages that land while the user is scrolled up (B.8).
@@ -503,6 +508,7 @@
       unreadWhileScrolled = 0;
       showScrollToBottom = false;
       userScrolledUp = false;
+      previousScrollTop = 0;
       lastSeenMessageCount = 0;
       isStreaming = false;
       isProcessing = false;
@@ -520,10 +526,11 @@
   });
 
   onDestroy(() => {
-    unlistenToken?.();
-    unlistenChanged?.();
-    unlistenA2A?.();
-    unlistenTaskChanged?.();
+    if (followFrame !== null) {
+      cancelAnimationFrame(followFrame);
+      followFrame = null;
+    }
+    subscriptions.dispose();
     currentSession.set(null);
     closeSessionBuffer(sessionId);
   });
@@ -662,23 +669,42 @@
     }
   }
 
+  /** Pending follow frame, so several calls within one frame scroll once. */
+  let followFrame: number | null = null;
+  /** Offset at the previous scroll event, read to tell a follow from a user. */
+  let previousScrollTop = 0;
+
   function scrollToBottom(force = false): void {
     if (!force && userScrolledUp) return;
-    requestAnimationFrame(() => {
-      if (messagesContainer) {
-        messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: force ? "instant" : "smooth" });
-      }
+    if (followFrame !== null) return;
+    followFrame = requestAnimationFrame(() => {
+      followFrame = null;
+      if (!messagesContainer) return;
+      // A smooth animation retargeted on every chunk never reaches the bottom,
+      // and its lag is indistinguishable from content the user has not read.
+      // Instant while the answer is still arriving, smooth for a settled thread.
+      const behavior: ScrollBehavior =
+        force || isStreaming || isProcessing ? "instant" : "smooth";
+      messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior });
     });
   }
 
-  /** Scroll observer (B.8). Shows floating button when the user
-   *  scrolls more than ~200px above the bottom, resets unread counter on catch-up. */
+  /** Scroll observer (B.8). Pauses the follow when the user moves up, shows the
+   *  floating button once they are well above the bottom, and resets the unread
+   *  counter on catch-up. */
   function handleScroll(): void {
     if (!messagesContainer) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    userScrolledUp = distanceFromBottom > 60;
-    showScrollToBottom = distanceFromBottom > 200;
+    const next = computeScrollFollow({
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      previousScrollTop,
+      wasReleased: userScrolledUp,
+    });
+    previousScrollTop = scrollTop;
+    userScrolledUp = next.userScrolledUp;
+    showScrollToBottom = next.showScrollToBottom;
     if (!userScrolledUp) {
       unreadWhileScrolled = 0;
     }

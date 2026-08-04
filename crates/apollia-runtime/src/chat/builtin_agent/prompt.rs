@@ -34,7 +34,13 @@ impl BuiltInChatAgent {
         };
 
         // Dynamic blocks owned by the caller; apollia-prompts only composes.
-        let temporal = apollia_core::temporal_context::temporal_context_block();
+        // The host-environment block rides in the temporal slot: both are
+        // authoritative ground truth about "here and now" and belong at the top.
+        let temporal = format!(
+            "{}\n{}",
+            apollia_core::temporal_context::temporal_context_block(),
+            host_environment_block(self.workspace_path.clone())
+        );
 
         let working_dir_note = self
             .workspace_path
@@ -84,4 +90,21 @@ impl BuiltInChatAgent {
             .plan(plan)
             .build()
     }
+}
+
+/// Render the host-environment block from freshly gathered host facts.
+///
+/// Gathering lives in `apollia-tools` (shell discovery, OS version probes),
+/// rendering in `apollia-prompts` (zero-I/O crate); this helper is the glue.
+pub(crate) fn host_environment_block(fs_root: Option<std::path::PathBuf>) -> String {
+    let env = apollia_tools::host_env::gather_host_environment(fs_root);
+    let shell = env.posix_shell.as_ref().map(|p| p.display().to_string());
+    let root = env.fs_root.as_ref().map(|p| p.display().to_string());
+    apollia_prompts::blocks::environment_block(
+        env.os,
+        env.os_version.as_deref(),
+        env.arch,
+        shell.as_deref(),
+        root.as_deref(),
+    )
 }

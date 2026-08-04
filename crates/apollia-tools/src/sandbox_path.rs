@@ -69,9 +69,13 @@ impl SandboxRoot {
     /// (e.g. a fresh `file_write`), the longest existing ancestor is
     /// canonicalized and the not-yet-created tail is re-appended.
     ///
-    /// Absolute paths are accepted if they point under the canonical root
-    /// (e.g. `/Users/alice/docs` with root `/Users/alice`). Absolute paths
-    /// outside the root (e.g. `/etc/passwd`) are rejected.
+    /// Absolute paths are accepted if their canonical form stays under the
+    /// canonical root (e.g. `/Users/alice/docs` with root `/Users/alice`).
+    /// The comparison happens after canonicalizing the path's existing
+    /// prefix, so an uncanonicalized alias of an in-root path is accepted
+    /// (macOS `/var/...` for a root stored as `/private/var/...`, Windows
+    /// `C:\...` for a root stored in verbatim `\\?\C:\...` form). Absolute
+    /// paths outside the root (e.g. `/etc/passwd`) are rejected.
     ///
     /// # Rejections
     ///
@@ -104,13 +108,20 @@ impl SandboxRoot {
             }
         }
 
-        let resolved = self.canonical.join(&normalized);
-
-        if !resolved.starts_with(&self.canonical) {
-            return Err(SandboxPathError::SandboxViolation {
-                path: relative_path.to_string(),
-            });
-        }
+        // An absolute input (RootDir, or a Windows drive Prefix even without a
+        // RootDir) must not be joined onto the root: `Path::join` would replace
+        // the root, and a lexical `starts_with` against the canonical root is
+        // meaningless for a path the caller spelled in uncanonicalized form
+        // (macOS `/var` vs `/private/var`, Windows verbatim `\\?\C:\`). It goes
+        // as-is to the canonicalize-then-compare check below, which is the only
+        // comparison valid across those aliases and stays fail-closed.
+        let is_absolute = normalized.is_absolute()
+            || matches!(normalized.components().next(), Some(Component::Prefix(_)));
+        let resolved = if is_absolute {
+            normalized
+        } else {
+            self.canonical.join(&normalized)
+        };
 
         self.contain_within_root(&resolved, relative_path)
     }
@@ -367,6 +378,172 @@ mod tests {
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn resolve_accepts_uncanonicalized_absolute_path_under_root() {
+        // GIVEN: a sandbox created from the raw temp path. On macOS the raw
+        // path is `/var/folders/...` while the stored canonical root is
+        // `/private/var/...`, which is exactly the aliasing that used to be
+        // rejected. A file exists inside the sandbox.
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+        std::fs::create_dir_all(raw_root.join("sub")).expect("create sub dir");
+        std::fs::write(raw_root.join("sub/f.txt"), b"inside").expect("seed file");
+
+        // WHEN: resolving the raw (uncanonicalized) absolute path of that file
+        let raw_input = raw_root.join("sub/f.txt");
+        let result = sandbox.resolve(raw_input.to_str().expect("valid utf-8"));
+
+        // THEN: the path is accepted and lands under the canonical root
+        let resolved = result.expect("in-sandbox absolute path must resolve");
+        assert!(resolved.starts_with(sandbox.path()));
+        assert!(resolved.ends_with("sub/f.txt"));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_accepts_absolute_path_via_symlinked_root() {
+        // GIVEN: a real directory R and a symlink L -> R, with the sandbox
+        // created from L (canonical root is therefore R). This reproduces the
+        // /var -> /private/var class on hosts where temp_dir is already canonical.
+        let real = std::env::temp_dir().join(format!("apollia-real-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&real).expect("create real root");
+        let link = std::env::temp_dir().join(format!("apollia-link-{}", uuid::Uuid::new_v4()));
+        std::os::unix::fs::symlink(&real, &link).expect("create root symlink");
+        let sandbox = SandboxRoot::new(link.clone()).expect("Failed to create sandbox");
+        std::fs::write(real.join("f.txt"), b"inside").expect("seed file");
+
+        // WHEN: resolving the absolute path spelled through the symlinked alias
+        let via_link = link.join("f.txt");
+        let result = sandbox.resolve(via_link.to_str().expect("valid utf-8"));
+
+        // THEN: the alias is accepted and resolves to the real in-root file
+        let resolved = result.expect("aliased in-sandbox path must resolve");
+        let canonical_real = real.canonicalize().expect("canonicalize real root");
+        assert!(resolved.starts_with(&canonical_real));
+        assert!(resolved.ends_with("f.txt"));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&real);
+        let _ = std::fs::remove_file(&link);
+    }
+
+    #[test]
+    fn resolve_accepts_uncanonicalized_absolute_path_to_nonexistent_leaf() {
+        // GIVEN: a sandbox created from the raw temp path, and a target whose
+        // tail components do not exist yet (the fresh `file_write` case)
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+
+        // WHEN: resolving the raw absolute path of the not-yet-created target
+        let raw_input = raw_root.join("new/dir/file.txt");
+        let result = sandbox.resolve(raw_input.to_str().expect("valid utf-8"));
+
+        // THEN: the existing prefix is canonicalized and the tail re-appended
+        let resolved = result.expect("nonexistent in-sandbox target must resolve");
+        assert!(resolved.starts_with(sandbox.path()));
+        assert!(resolved.ends_with("new/dir/file.txt"));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_rejects_absolute_symlink_escape() {
+        // GIVEN: a symlink inside the sandbox pointing outside of it
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+        let outside = std::env::temp_dir().join(format!("apollia-out-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+        std::fs::write(outside.join("secret.txt"), b"top secret").expect("seed outside file");
+        std::os::unix::fs::symlink(&outside, raw_root.join("link"))
+            .expect("create escaping symlink");
+
+        // WHEN: resolving the escaping target through its raw absolute path
+        let raw_input = raw_root.join("link/secret.txt");
+        let result = sandbox.resolve(raw_input.to_str().expect("valid utf-8"));
+
+        // THEN: the escape is rejected (fail-closed is preserved for absolutes)
+        assert!(
+            matches!(result, Err(SandboxPathError::SandboxViolation { .. })),
+            "absolute path through an escaping symlink must be rejected, got {result:?}"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_accepts_windows_drive_absolute_path_under_root() {
+        // GIVEN: a sandbox whose canonical root is in verbatim form (\\?\C:\...)
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+        std::fs::write(raw_root.join("f.txt"), b"inside").expect("seed file");
+
+        // WHEN: resolving the plain C:\... spelling (no verbatim prefix), as an
+        // agent would write it
+        let canonical_str = sandbox.path().display().to_string();
+        let plain = canonical_str
+            .strip_prefix(r"\\?\")
+            .unwrap_or(&canonical_str)
+            .to_string();
+        let result = sandbox.resolve(&format!(r"{plain}\f.txt"));
+
+        // THEN: the plain form is accepted
+        let resolved = result.expect("plain drive-absolute in-sandbox path must resolve");
+        assert!(resolved.starts_with(sandbox.path()));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_rejects_windows_absolute_path_outside_root() {
+        // GIVEN: a sandbox in the temp directory
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+
+        // WHEN: resolving a system path outside the root
+        let result = sandbox.resolve(r"C:\Windows\System32\config");
+
+        // THEN: it is rejected
+        assert!(matches!(
+            result,
+            Err(SandboxPathError::SandboxViolation { .. })
+        ));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_never_escapes_on_drive_relative_path() {
+        // GIVEN: a sandbox in the temp directory
+        let raw_root = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(raw_root.clone()).expect("Failed to create sandbox");
+
+        // WHEN: resolving a drive-relative path (Prefix without RootDir)
+        let result = sandbox.resolve(r"C:sub\f.txt");
+
+        // THEN: it either resolves inside the root or is rejected; it never
+        // lands outside the canonical root
+        match result {
+            Ok(resolved) => assert!(resolved.starts_with(sandbox.path())),
+            Err(SandboxPathError::SandboxViolation { .. }) => {}
+            Err(other) => panic!("unexpected error kind: {other:?}"),
+        }
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&raw_root);
     }
 
     #[test]

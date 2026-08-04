@@ -87,6 +87,18 @@ export function setOauthClientSecret(
   return invoke("oauth_set_client_secret", { provider, clientSecret });
 }
 
+/**
+ * Import a provider's OAuth client from the JSON file its console produces.
+ *
+ * Google only: the Cloud console hands out a downloadable credentials file, so
+ * reading it directly spares the operator from picking `client_id` and
+ * `client_secret` out of it by hand. Writes both into
+ * `~/.apollia/oauth-clients.toml`.
+ */
+export function importOauthClientJson(provider: string, path: string): Promise<void> {
+  return invoke("oauth_import_client_json", { provider, path });
+}
+
 /** Persist (or clear, when empty) the Picker API key for a provider. */
 export function setOauthApiKey(
   provider: string,

@@ -47,6 +47,14 @@
       "msi",
       "nsis"
     ],
+    "publisher": "Apollia",
+    "homepage": "https://apollia.fr",
+    "copyright": "Copyright (c) 2026 Nidal Zoumita",
+    "license": "MIT OR Apache-2.0",
+    "licenseFile": "../../packaging/windows/eula.rtf",
+    "category": "DeveloperTool",
+    "shortDescription": "Sovereign runtime for autonomous AI agents",
+    "longDescription": "Apollia OS runs autonomous AI agents on your own machine. Local inference, local storage, local tools: nothing leaves the machine without an explicit action.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -76,6 +84,9 @@
       }
     },
     "windows": {
+      "wix": {
+        "upgradeCode": "5a8d3ad7-989a-5c2e-8067-0377601091b3"
+      },
       "nsis": {
         "languages": [
           "English",

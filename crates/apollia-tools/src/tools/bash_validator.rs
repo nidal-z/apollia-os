@@ -5,14 +5,18 @@
 //! 1. **Risk classification** (synchronous, no I/O), delegated to [`RiskClassifier`].
 //!    Returns immediately if a risk pattern is detected.
 //!
-//! 2. **Syntax validation** (asynchronous, `bash -n -c`), invokes a `bash`
-//!    subprocess in dry-run mode to detect syntax errors without running the
-//!    command. Subject to a configurable timeout (default: 1000 ms).
+//! 2. **Syntax validation** (asynchronous, `<shell> -n -c`), invokes the
+//!    resolved POSIX shell in dry-run mode to detect syntax errors without
+//!    running the command. The shell is the caller-resolved one that will also
+//!    execute the command (see `tools::shell_discovery`), so a command can
+//!    never pass validation under one parser and run under another. Subject to
+//!    a configurable timeout (default: 1000 ms).
 //!
 //! The order is imposed by the architecture: classification, then syntax, then
 //! execution. This guarantees that risky commands never consume a StepBudget
 //! invocation (fail fast).
 
+use std::path::Path;
 use std::time::Duration;
 
 use apollia_core::BashValidatorConfig;
@@ -43,12 +47,14 @@ impl BashValidator {
         RiskClassifier::classify(cmd, &self.config)
     }
 
-    /// Validates the bash syntax of `cmd` via `bash -n -c`.
+    /// Validates the syntax of `cmd` via `<shell> -n -c`.
     ///
-    /// Runs `bash -n -c <cmd>` in an isolated subprocess (dry-run mode, no
-    /// command is actually executed). If `bash` reports a syntax error (exit
-    /// code != 0), returns [`BashExecutorError::SyntaxError`] with the stderr of
-    /// `bash -n`.
+    /// Runs `<shell> -n -c <cmd>` in an isolated subprocess (dry-run mode, no
+    /// command is actually executed). `shell` must be the same resolved POSIX
+    /// shell that will execute the command, so validation and execution share
+    /// one parser. If the shell reports a syntax error (exit code != 0),
+    /// returns [`BashExecutorError::SyntaxError`] with the stderr of
+    /// `<shell> -n`.
     ///
     /// The subprocess is subject to the configured `syntax_check_timeout_ms`
     /// timeout. Beyond that, the process is killed and
@@ -56,13 +62,13 @@ impl BashValidator {
     ///
     /// # Errors
     ///
-    /// - [`BashExecutorError::SyntaxError`]: `bash -n` reported a syntax error.
+    /// - [`BashExecutorError::SyntaxError`]: `<shell> -n` reported a syntax error.
     /// - [`BashExecutorError::SyntaxValidationTimeout`]: timeout exceeded.
-    /// - [`BashExecutorError::SpawnFailed`]: `bash` is unavailable or the spawn failed.
-    pub async fn validate_syntax(&self, cmd: &str) -> Result<(), BashExecutorError> {
+    /// - [`BashExecutorError::SpawnFailed`]: the shell could not be spawned.
+    pub async fn validate_syntax(&self, shell: &Path, cmd: &str) -> Result<(), BashExecutorError> {
         let timeout = Duration::from_millis(self.config.syntax_check_timeout_ms);
 
-        let mut validator = Command::new("bash");
+        let mut validator = Command::new(shell);
         apollia_core::subprocess_env::scrub_bundled_python_async(&mut validator);
         let mut child = validator
             .args(["-n", "-c", cmd])
@@ -72,7 +78,7 @@ impl BashValidator {
             .map_err(|e| BashExecutorError::SpawnFailed(e.to_string()))?;
 
         let mut stderr_pipe = child.stderr.take().ok_or_else(|| {
-            BashExecutorError::SpawnFailed("bash -n: stderr pipe missing".to_string())
+            BashExecutorError::SpawnFailed("syntax check: stderr pipe missing".to_string())
         })?;
 
         // Drain stderr in a background task to avoid deadlock on a full pipe.
@@ -119,13 +125,17 @@ mod tests {
         BashValidator::new(BashValidatorConfig::default())
     }
 
+    fn resolved_shell() -> std::path::PathBuf {
+        crate::tools::shell_discovery::resolve_posix_shell().expect("test host has a POSIX shell")
+    }
+
     #[tokio::test]
     async fn bash_validator_rejects_invalid_syntax() {
-        // GIVEN a BashValidator with default config
+        // GIVEN a BashValidator with default config and the resolved shell
         let validator = default_validator();
-        // WHEN a syntactically invalid bash command
+        // WHEN a syntactically invalid shell command
         let result = validator
-            .validate_syntax("if [ -z $VAR; then echo ok")
+            .validate_syntax(&resolved_shell(), "if [ -z $VAR; then echo ok")
             .await;
         // THEN a syntax error is returned
         assert!(
@@ -136,11 +146,11 @@ mod tests {
 
     #[tokio::test]
     async fn bash_validator_accepts_valid_complex_command() {
-        // GIVEN a BashValidator with default config
+        // GIVEN a BashValidator with default config and the resolved shell
         let validator = default_validator();
-        // WHEN a complex but syntactically correct bash command
+        // WHEN a complex but syntactically correct POSIX command
         let result = validator
-            .validate_syntax("if [ -z \"$VAR\" ]; then echo ok; fi")
+            .validate_syntax(&resolved_shell(), "if [ -z \"$VAR\" ]; then echo ok; fi")
             .await;
         // THEN no error
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
@@ -151,7 +161,9 @@ mod tests {
         // GIVEN
         let validator = default_validator();
         // WHEN
-        let result = validator.validate_syntax("echo hello world").await;
+        let result = validator
+            .validate_syntax(&resolved_shell(), "echo hello world")
+            .await;
         // THEN
         assert!(result.is_ok());
     }
@@ -161,9 +173,28 @@ mod tests {
         // GIVEN
         let validator = default_validator();
         // WHEN an unclosed string
-        let result = validator.validate_syntax("echo \"unclosed").await;
+        let result = validator
+            .validate_syntax(&resolved_shell(), "echo \"unclosed")
+            .await;
         // THEN
         assert!(matches!(result, Err(BashExecutorError::SyntaxError { .. })));
+    }
+
+    #[tokio::test]
+    async fn bash_validator_uses_resolved_shell() {
+        // GIVEN a validator and the shell resolved by shell_discovery, the
+        // same one build_command executes with
+        let validator = default_validator();
+        let shell = resolved_shell();
+        // WHEN validating one valid and one invalid POSIX command through it
+        let valid = validator.validate_syntax(&shell, "printf '%s\\n' ok").await;
+        let invalid = validator.validate_syntax(&shell, "echo \"unclosed").await;
+        // THEN the resolved shell accepts the former and rejects the latter
+        assert!(valid.is_ok(), "expected Ok, got: {valid:?}");
+        assert!(matches!(
+            invalid,
+            Err(BashExecutorError::SyntaxError { .. })
+        ));
     }
 
     #[test]

@@ -79,6 +79,35 @@ fn plural_s(n: usize) -> &'static str {
     }
 }
 
+/// What the window close button does on this platform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CloseAction {
+    /// Hide the window and keep the runtime alive behind the tray icon.
+    HideToTray,
+    /// Quit the application, stopping the runtime and its child processes.
+    Quit,
+}
+
+/// Resolves the close-button behaviour for the host platform.
+///
+/// macOS keeps the window open in spirit: closing the last window is expected
+/// to leave the application running in the Dock, and every macOS quit surface
+/// (Cmd+Q, the app menu) is a separate gesture.
+///
+/// Windows and Linux read the close button as "quit". Leaving the runtime alive
+/// there strands the child processes with no visible owner, which is exactly
+/// what a Windows test session reported: the window was gone and the backend
+/// was still running.
+/// `cfg!` rather than `#[cfg]`: both arms are then compiled on every platform,
+/// so neither variant reads as dead code on the platform that does not pick it.
+pub(crate) fn close_button_action() -> CloseAction {
+    if cfg!(target_os = "macos") {
+        CloseAction::HideToTray
+    } else {
+        CloseAction::Quit
+    }
+}
+
 /// Shows and focuses the main window.
 ///
 /// Silently ignores errors if the window is not found (defensive; should not
@@ -99,10 +128,10 @@ fn show_main_window(app: &AppHandle) {
 /// process exit.
 ///
 /// This is the single quit entry point shared by every surface: the tray
-/// "Quitter", the macOS app menu / Cmd+Q, the in-app user menu, and the
-/// command palette. It relies on [`AppHandle::exit`], which bypasses the
-/// window `CloseRequested` handler (the close-to-tray behaviour) so quitting
-/// is never swallowed by `prevent_close`.
+/// "Quitter", the macOS app menu / Cmd+Q, the in-app user menu, the command
+/// palette, and the window close button on Windows and Linux. It relies on
+/// [`AppHandle::exit`], which bypasses the window `CloseRequested` handler so
+/// quitting is never swallowed by `prevent_close`.
 pub(crate) fn initiate_quit(app: &AppHandle) {
     // Release global hotkeys before the process exits so the OS reclaims them
     // immediately and other applications can register the same shortcuts.
@@ -365,6 +394,20 @@ mod tests {
         assert_eq!(plural_s(1), "");
         assert_eq!(plural_s(2), "s");
         assert_eq!(plural_s(100), "s");
+    }
+
+    #[test]
+    fn test_close_button_quits_everywhere_but_macos() {
+        // GIVEN the platform this test was compiled for
+        // WHEN the close-button behaviour is resolved
+        let action = close_button_action();
+
+        // THEN macOS keeps the runtime alive behind the tray, and Windows and
+        // Linux quit, where leaving it alive stranded the child processes
+        #[cfg(target_os = "macos")]
+        assert_eq!(action, CloseAction::HideToTray);
+        #[cfg(not(target_os = "macos"))]
+        assert_eq!(action, CloseAction::Quit);
     }
 
     #[test]

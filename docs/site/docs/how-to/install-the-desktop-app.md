@@ -21,7 +21,7 @@ Releases page:
 | Platform | Installer | Notes |
 |---|---|---|
 | macOS (Apple Silicon) | `.dmg` | Gatekeeper shows a warning on first launch unless the build is Developer ID signed (see below). |
-| Windows (x86-64) | `.msi` / `.exe` | SmartScreen warns on an unrecognised publisher. Needs the WebView2 runtime, preinstalled on current Windows. |
+| Windows (x86-64) | `.msi` / `.exe` | SmartScreen warns until the build is Authenticode signed. Needs the WebView2 runtime, preinstalled on current Windows and downloaded by the installer otherwise. |
 | Linux (x86-64) | `.AppImage` / `.deb` | Needs WebKitGTK, present on current desktop distributions. |
 
 Tool confinement is not uniform across the three, and that difference is not
@@ -83,13 +83,21 @@ Apollia OS requires macOS 13 (Ventura) or newer.
 1. Double-click the `.msi` (or `.exe`) installer.
 2. Follow the installer steps, then launch **Apollia OS** from the Start menu.
 
-Windows SmartScreen may warn that the publisher is unrecognized. Choose **More
-info**, then **Run anyway** to proceed.
+Windows SmartScreen may warn that the publisher is unrecognized. The installer
+names Apollia as its publisher, but it is not signed with an Authenticode
+certificate yet, which is what SmartScreen checks. Choose **More info**, then
+**Run anyway** to proceed.
 
 The app renders its interface with Microsoft Edge WebView2. It is preinstalled on
-current Windows 11 and updated Windows 10 systems. If the app reports a missing
-WebView2 runtime, install the "Evergreen Bootstrapper" from Microsoft's WebView2
-Runtime download page, then relaunch.
+current Windows 11 and updated Windows 10 systems. Where it is missing, the
+installer downloads it, so that step needs a network connection. If the app
+reports a missing WebView2 runtime, install the "Evergreen Bootstrapper" from
+Microsoft's WebView2 Runtime download page, then relaunch.
+
+The window close button quits the app on Windows, stopping the runtime and the
+background inference and speech-to-text processes with it. Use the tray icon to
+keep it running while hiding the window. macOS is the exception, where closing a
+window leaves the app resident behind the menu-bar icon.
 
 ### Linux
 

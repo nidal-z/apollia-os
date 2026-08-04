@@ -176,14 +176,14 @@ impl ConnectorProvider {
         }
     }
 
-    /// Environment variable that overrides the compiled-in OAuth client ID.
+    /// Environment variable that overrides the OAuth client ID resolved from
+    /// the other two sources.
     ///
-    /// **Not part of the user-facing flow.** This override targets Expert
-    /// Mode power users who run their own OAuth app (see the Expert Mode
-    /// section of `connecter-google-workspace.md`) and developers running a
-    /// dev build against a non-production AS. End users never set this; the
-    /// compiled-in [`default_client_id`](Self::default_client_id) is used and
-    /// shipped in the binary.
+    /// Suits a shell session, a CI job, or a headless host. The interactive
+    /// path is Settings → Integrations, which writes
+    /// `~/.apollia/oauth-clients.toml` and survives a restart; an exported
+    /// variable is only visible to processes launched from that same shell,
+    /// which is a common way to think the client is configured when it is not.
     pub const fn client_id_env_var(self) -> &'static str {
         match self {
             Self::Google => "APOLLIA_GOOGLE_CLIENT_ID",
@@ -202,30 +202,32 @@ impl ConnectorProvider {
         }
     }
 
-    /// Compiled-in default OAuth client ID shipped with Apollia.
+    /// Build-time OAuth client ID compiled into the binary.
     ///
-    /// Apollia is a public OAuth client (PKCE, no client secret), so it is
-    /// safe to embed the client ID directly in the binary. Released builds
-    /// substitute the real values produced by the project's Google Cloud /
-    /// Azure AD apps at build time.
+    /// **Empty in every Apollia build.** No release recipe and no CI workflow
+    /// sets `APOLLIA_BUILD_*`, so this returns `""` for both providers in the
+    /// artifacts the project publishes. The operator supplies their own client
+    /// through Settings → Integrations, and the connect path refuses the
+    /// handshake by name when they have not.
     ///
-    /// Returns an empty string in dev / unconfigured builds; the runtime
-    /// surfaces a clear "OAuth client not configured" error in that case
-    /// rather than panicking.
+    /// The hook stays because it is the seam for anyone rebuilding Apollia
+    /// from source against their own registered application, a fleet
+    /// deployment being the obvious case. Do not read it as evidence that a
+    /// shipped build carries credentials.
     pub const fn default_client_id(self) -> &'static str {
         match self {
-            // Replaced at release build time with the production client IDs.
-            // Dev / open-source builds default to empty; the runtime then
-            // surfaces an explicit "OAuth client not configured" error.
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_ID")),
             Self::Microsoft => env_or_empty(option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID")),
         }
     }
 
-    /// Compiled-in default OAuth client secret. Returns an empty string for
-    /// Microsoft (public client, no secret per spec) and the build-time
-    /// constant for Google (Installed App requires a secret per Google's
-    /// non-standard implementation). Replaced at release build time.
+    /// Build-time OAuth client secret, same posture as
+    /// [`default_client_id`](Self::default_client_id): empty in every Apollia
+    /// build, present only for a source rebuild that sets `APOLLIA_BUILD_*`.
+    ///
+    /// Hardcoded empty for Microsoft, whose public clients carry no secret at
+    /// all. Google needs one even under PKCE because its Installed App type
+    /// requires it at the token endpoint.
     pub const fn default_client_secret(self) -> &'static str {
         match self {
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_SECRET")),
@@ -243,9 +245,10 @@ impl ConnectorProvider {
         }
     }
 
-    /// Compiled-in default Google API key shipped with Apollia (Picker
-    /// requires it alongside the OAuth token). Replaced at release build
-    /// time. Microsoft returns empty for now.
+    /// Build-time Google API key, which Picker requires alongside the OAuth
+    /// token. Empty in every Apollia build, same posture as
+    /// [`default_client_id`](Self::default_client_id). Microsoft returns empty
+    /// because no Microsoft surface uses an API key yet.
     pub const fn default_api_key(self) -> &'static str {
         match self {
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_API_KEY")),
@@ -257,17 +260,17 @@ impl ConnectorProvider {
     ///
     /// Priority order:
     /// 1. Runtime env var override (`APOLLIA_GOOGLE_CLIENT_ID` /
-    ///    `APOLLIA_MICROSOFT_CLIENT_ID`), handy for one-off shell sessions
-    ///    and CI.
-    /// 2. User-editable `~/.apollia/oauth-clients.toml`, populated by the
-    ///    Settings → Integrations panel, so a power user running a custom
-    ///    build can plug in their own Google / Microsoft client IDs without
-    ///    rebuilding the binary.
-    /// 3. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`), what
-    ///    the official desktop release uses.
+    ///    `APOLLIA_MICROSOFT_CLIENT_ID`), for a shell session or CI.
+    /// 2. `~/.apollia/oauth-clients.toml`, written by the Settings →
+    ///    Integrations panel. **This is the path an operator takes**, and the
+    ///    only one that survives a restart of the application.
+    /// 3. Build-time constant (`APOLLIA_BUILD_*_CLIENT_ID`), empty in every
+    ///    published Apollia build, see
+    ///    [`default_client_id`](Self::default_client_id).
     ///
-    /// Returns `None` when all sources are absent so the UI can surface a
-    /// clear "OAuth not configured" message instead of failing mid-handshake.
+    /// Returns `None` when all three are absent, which is the state of a fresh
+    /// install, so the UI can name what is missing instead of failing
+    /// mid-handshake.
     pub fn resolve_client_id(self) -> Option<String> {
         if let Ok(v) = std::env::var(self.client_id_env_var()) {
             if !v.is_empty() {

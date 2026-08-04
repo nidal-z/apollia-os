@@ -14,6 +14,7 @@ mod events;
 pub mod mcp;
 mod project_context;
 pub mod stt;
+mod token_coalescer;
 pub mod tray;
 
 use std::sync::Arc;

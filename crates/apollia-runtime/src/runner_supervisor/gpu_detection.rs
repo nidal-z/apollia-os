@@ -574,10 +574,11 @@ fn wmi_list_video_controllers() -> Option<Vec<VideoController>> {
 
 #[cfg(target_os = "windows")]
 fn probe_cuda_version_windows() -> Option<(u32, u32)> {
-    let out = std::process::Command::new("nvidia-smi.exe")
-        .arg("-q")
-        .output()
-        .ok()?;
+    // Runs on every boot, so without this the desktop app flashes a console
+    // window before its own window is even up.
+    let mut smi = std::process::Command::new("nvidia-smi.exe");
+    apollia_core::subprocess_window::hide_console(&mut smi);
+    let out = smi.arg("-q").output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -588,7 +589,9 @@ fn probe_cuda_version_windows() -> Option<(u32, u32)> {
 #[cfg(target_os = "windows")]
 fn vulkan_loader_present_windows() -> bool {
     // `vulkan-1.dll` is shipped by the GPU driver on Windows.
-    std::process::Command::new("where")
+    let mut where_cmd = std::process::Command::new("where");
+    apollia_core::subprocess_window::hide_console(&mut where_cmd);
+    where_cmd
         .arg("vulkan-1.dll")
         .output()
         .map(|out| !out.stdout.is_empty())

@@ -9,6 +9,17 @@ use apollia_core::EventBusSender;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::token_coalescer::TokenCoalescer;
+
+/// How long streamed tokens are allowed to accumulate before reaching the
+/// webview.
+///
+/// One flush per interval instead of one per token, so the IPC and re-render
+/// cost of a turn follows its wall-clock duration rather than its token count.
+/// Roughly thirty frames a second, which is above the threshold where the eye
+/// reads text as arriving continuously.
+const TOKEN_FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(33);
+
 /// Payload emitted to the Svelte frontend via `app.emit("chat-token", …)`.
 ///
 /// Dedicated fast-path for token streaming, avoids the generic `"runtime-event"`
@@ -116,53 +127,100 @@ pub fn spawn_heartbeat(app: AppHandle) {
     });
 }
 
-/// Spawns a background Tokio task that bridges `EventBus` → Tauri events.
-///
-/// The task runs for the lifetime of the application.  It terminates when the
-/// broadcast channel is closed (runtime shutdown).
-pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
-    let mut rx = event_bus.subscribe();
-    tauri::async_runtime::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(event) => bridge_one_event(&app, &event),
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(skipped = n, "event bridge lagged, events dropped");
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    tracing::info!("EventBus closed, stopping event bridge");
-                    break;
-                }
-            }
-        }
-    });
+/// What the bridge has to do with one event received from the `EventBus`.
+pub(crate) struct BridgeStep {
+    /// Coalesced token chunks that must reach the webview first.
+    pub tokens: Vec<ChatTokenPayload>,
+    /// Whether the event itself is then forwarded. False for a streamed token,
+    /// which the coalescer has absorbed.
+    pub forward: bool,
 }
 
-/// Re-emit a single `RuntimeEvent` to the frontend.
+/// Decide what one incoming event produces, given the tokens already buffered.
 ///
-/// Some events take a dedicated fast-path Tauri channel; all events (except
-/// `ChatToken`, which returns early) are also emitted via the generic
-/// `"runtime-event"` envelope.
-fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
-    // ChatToken uses a dedicated "chat-token" Tauri event for
-    // real-time streaming without triggering a full IPC refresh.
+/// A token is absorbed and nothing is emitted. Anything else drains the buffer
+/// first: the frontend derives state from the accumulated answer at the instant
+/// a non-token event lands (the reasoning cursor attached to a starting tool
+/// call, for one), so delivering a token after the event it preceded would
+/// misplace it.
+pub(crate) fn coalesce_step(coalescer: &mut TokenCoalescer, event: &RuntimeEvent) -> BridgeStep {
     if let RuntimeEvent::ChatToken {
         session_id,
         message_id,
         token,
     } = event
     {
-        let payload = ChatTokenPayload {
-            session_id: session_id.clone(),
-            message_id: message_id.clone(),
-            token: token.clone(),
+        coalescer.push(session_id, message_id, token);
+        return BridgeStep {
+            tokens: Vec::new(),
+            forward: false,
         };
+    }
+
+    BridgeStep {
+        tokens: coalescer.drain(),
+        forward: true,
+    }
+}
+
+/// Spawns a background Tokio task that bridges `EventBus` → Tauri events.
+///
+/// The task runs for the lifetime of the application.  It terminates when the
+/// broadcast channel is closed (runtime shutdown).
+///
+/// Streamed tokens are coalesced over [`TOKEN_FLUSH_INTERVAL`] instead of
+/// crossing the IPC boundary one by one.
+pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
+    let mut rx = event_bus.subscribe();
+    tauri::async_runtime::spawn(async move {
+        let mut coalescer = TokenCoalescer::new();
+        let mut ticker = tokio::time::interval(TOKEN_FLUSH_INTERVAL);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tokio::select! {
+                received = rx.recv() => match received {
+                    Ok(event) => {
+                        let step = coalesce_step(&mut coalescer, &event);
+                        emit_tokens(&app, step.tokens);
+                        if step.forward {
+                            bridge_one_event(&app, &event);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(skipped = n, "event bridge lagged, events dropped");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        emit_tokens(&app, coalescer.drain());
+                        tracing::info!("EventBus closed, stopping event bridge");
+                        break;
+                    }
+                },
+                _ = ticker.tick() => {
+                    if !coalescer.is_empty() {
+                        emit_tokens(&app, coalescer.drain());
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Deliver coalesced token chunks on the dedicated `"chat-token"` channel.
+fn emit_tokens(app: &AppHandle, payloads: Vec<ChatTokenPayload>) {
+    for payload in payloads {
         if let Err(e) = app.emit("chat-token", &payload) {
             tracing::warn!(error = %e, "failed to emit chat-token event");
         }
-        return;
     }
+}
 
+/// Re-emit a single `RuntimeEvent` to the frontend.
+///
+/// Some events take a dedicated fast-path Tauri channel; all of them are also
+/// emitted via the generic `"runtime-event"` envelope. Streamed tokens never
+/// reach this function: [`coalesce_step`] absorbs them into the dedicated
+/// `"chat-token"` channel.
+fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
     emit_hitl_fs_fastpath(app, event);
     emit_stt_fastpath(app, event);
     emit_todo_fastpath(app, event);
@@ -506,6 +564,72 @@ mod tests {
             status: apollia_core::plan::PlanStatus::Draft,
             steps: vec![apollia_core::plan::PlanStep::new("s1", "do the thing")],
         })
+    }
+
+    /// One streamed token for the coalescing tests.
+    fn chat_token(session_id: &str, message_id: &str, token: &str) -> RuntimeEvent {
+        RuntimeEvent::ChatToken {
+            session_id: session_id.into(),
+            message_id: message_id.into(),
+            token: token.into(),
+        }
+    }
+
+    /// A non-token chat event, the kind that has to observe every token that
+    /// preceded it.
+    fn tool_call_started(session_id: &str) -> RuntimeEvent {
+        RuntimeEvent::ChatToolCallStarted {
+            session_id: session_id.into(),
+            message_id: "m1".into(),
+            tool_name: "web_search".into(),
+            input_preview: String::new(),
+            rationale: None,
+        }
+    }
+
+    #[test]
+    fn test_a_streamed_token_is_absorbed_and_not_forwarded() {
+        // GIVEN a fresh coalescer
+        let mut coalescer = TokenCoalescer::new();
+
+        // WHEN a streamed token arrives
+        let step = coalesce_step(&mut coalescer, &chat_token("s1", "m1", "Bon"));
+
+        // THEN nothing is emitted yet and the event is not bridged
+        assert!(step.tokens.is_empty());
+        assert!(!step.forward);
+        assert!(!coalescer.is_empty());
+    }
+
+    #[test]
+    fn test_pending_tokens_are_delivered_before_the_event_that_follows_them() {
+        // GIVEN two tokens buffered but not yet flushed
+        let mut coalescer = TokenCoalescer::new();
+        let _ = coalesce_step(&mut coalescer, &chat_token("s1", "m1", "Bon"));
+        let _ = coalesce_step(&mut coalescer, &chat_token("s1", "m1", "jour"));
+
+        // WHEN a tool call starts
+        let step = coalesce_step(&mut coalescer, &tool_call_started("s1"));
+
+        // THEN the buffered text is emitted first, then the event is bridged,
+        // so the frontend reads the tool call against the complete answer
+        assert_eq!(step.tokens.len(), 1);
+        assert_eq!(step.tokens[0].token, "Bonjour");
+        assert!(step.forward);
+        assert!(coalescer.is_empty());
+    }
+
+    #[test]
+    fn test_a_non_token_event_with_nothing_buffered_emits_no_token() {
+        // GIVEN a coalescer holding nothing
+        let mut coalescer = TokenCoalescer::new();
+
+        // WHEN a non-token event arrives
+        let step = coalesce_step(&mut coalescer, &tool_call_started("s1"));
+
+        // THEN it is bridged without a spurious empty token payload
+        assert!(step.tokens.is_empty());
+        assert!(step.forward);
     }
 
     /// A minimal Propose mutation (boxed to match the [`RuntimeEvent`] shape).

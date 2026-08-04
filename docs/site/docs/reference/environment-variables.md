@@ -46,18 +46,30 @@ tune and why.
 
 ## Connector OAuth clients
 
-Apollia ships with its own OAuth client for the Google and Microsoft connectors.
-Set these only to run your own registered application, which is what Expert Mode
-means.
+Apollia ships **without** an OAuth client for the Google and Microsoft
+connectors, and no published build embeds one. You register your own
+application with the provider and give Apollia its credentials. The supported
+way to do that is Settings → OAuth integrations, which writes
+`~/.apollia/oauth-clients.toml`; see
+[Connect Google Workspace](/operator-help/integrations/connecter-google-workspace)
+and
+[Connect Microsoft 365](/operator-help/integrations/connecter-microsoft-365).
+
+<!-- claim:oauth-client-resolution-order -->
+The variables below are the third way in, ahead of that file, for a shell
+session, a CI job, or a host with no interface. They are read at process start,
+so they only reach an Apollia launched from the shell that exported them.
+Resolution order for each credential: environment variable, then
+`oauth-clients.toml`, then the build-time constant.
 
 | Variable | Effect |
 |---|---|
-| `APOLLIA_GOOGLE_CLIENT_ID` | Overrides the compiled-in Google client id. |
-| `APOLLIA_GOOGLE_CLIENT_SECRET` | Paired secret. |
-| `APOLLIA_GOOGLE_API_KEY` | API key for the Google calls that use one rather than OAuth. |
-| `APOLLIA_MICROSOFT_CLIENT_ID` | Overrides the compiled-in Microsoft client id. |
-| `APOLLIA_MICROSOFT_CLIENT_SECRET` | Paired secret. |
-| `APOLLIA_MICROSOFT_API_KEY` | API key, same role as above. |
+| `APOLLIA_GOOGLE_CLIENT_ID` | Google client id. Required to connect Google. |
+| `APOLLIA_GOOGLE_CLIENT_SECRET` | Paired secret. Also required: Google's Desktop client type demands it at the token endpoint, PKCE notwithstanding. |
+| `APOLLIA_GOOGLE_API_KEY` | API key for the Google calls that use one rather than OAuth (Drive Picker). |
+| `APOLLIA_MICROSOFT_CLIENT_ID` | Microsoft application (client) id. Required to connect Microsoft. |
+| `APOLLIA_MICROSOFT_CLIENT_SECRET` | Paired secret. Leave unset: a Microsoft public client carries none, and sending one makes the exchange fail. |
+| `APOLLIA_MICROSOFT_API_KEY` | API key, same role as above. Unused today. |
 | `APOLLIA_FIGMA_CLIENT_ID` | Client id for the Figma connector. |
 
 ## Diagnostics
@@ -86,5 +98,12 @@ out.
 
 ## Not read by the runtime
 
-`APOLLIA_BUILD_*` variables are consumed by the release pipeline at compile time
-to bake in default OAuth client ids. Setting one at runtime does nothing.
+`APOLLIA_BUILD_*` variables are read at compile time, not at runtime; setting
+one before launching Apollia does nothing.
+
+They are a hook for rebuilding Apollia from source against your own registered
+application, a fleet deployment being the obvious case: set them in the build
+environment and the resulting binary carries those credentials, so the machines
+it lands on need no per-host configuration. **No Apollia release sets them**, so
+in every published build the compiled-in value is empty and the two runtime
+sources above are the only ones that resolve.

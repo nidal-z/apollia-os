@@ -118,6 +118,7 @@
           ? $t("settings.integrations.stored_note")
           : $t("settings.integrations.ms_no_secret")}
         footerInfo={!isGoogle}
+        onimported={() => void refresh()}
       >
         <OauthCredentialRow
           mode="public"

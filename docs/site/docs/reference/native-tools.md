@@ -47,7 +47,8 @@ credential.
 | all other native tools | always compiled | none |
 
 The `permission_rule_*` tools additionally require a governance database to be
-configured; when it is absent, they are not registered.
+configured; when it is absent, they are not registered. `python_executor`
+requires a system Python 3 on the host (see the platform notes below).
 
 Store the optional Brave key with:
 
@@ -62,13 +63,54 @@ apollia-os tools credentials set web_search brave.api_key
 | `bash_executor` | Execute a shell command. Prefer targeted, fast commands over broad scans. | `command`, `timeout_secs`, `working_dir` |
 | `python_executor` | Execute Python code in the agent's per-agent virtualenv (only pre-installed packages are available). | `code`, `timeout_secs` |
 
-Both run under the sandbox and resource limits described in
-[the agent trust model](/explanation/agent-trust-model).
+### Platform availability
+
+What confines the spawned child process differs per OS; the vocabulary and the
+full picture live in [the agent trust model](/explanation/agent-trust-model).
+
+| OS | `bash_executor` | `python_executor` | Child-process confinement |
+|---|---|---|---|
+| Linux | available, runs via `/bin/sh` | available, needs `python3` or `python` | `unshare` PID + mount namespaces (needs `CAP_SYS_ADMIN`), plus resource limits |
+| macOS | available, runs via `/bin/sh` | available, needs `python3` or `python` | resource limits only (CPU, open files), no OS sandbox |
+| Windows | requires a POSIX shell on `PATH` (Git Bash, MSYS2 or WSL) | available, needs an installed Python 3 | none |
+
+<!-- claim:bash-executor-requires-posix-shell -->
+On Windows, `bash_executor` refuses with an error naming the missing
+prerequisite when no POSIX shell is on `PATH`; `cmd.exe` and PowerShell are
+never used, because command validation encodes POSIX shell semantics (ADR-049).
+One resolved shell both validates and executes every command, on every OS.
+
+<!-- claim:python-executor-locates-windows-interpreter -->
+`python_executor` locates the system interpreter per platform: on Windows it
+probes `python`, then the `py -3` launcher, then `python3` last, and rejects
+the Microsoft Store stub that answers to `python3` on stock installs.
+
+<!-- claim:unavailable-tool-surfaces-reason -->
+A code-execution tool that cannot start on this host stays callable and
+returns the reason for its unavailability (what is missing, how to install
+it) instead of a bare `UnknownTool` error.
 
 ## Filesystem
 
-Every filesystem tool is confined to the agent's sandbox root. Paths are
-relative to that root; attempts to escape it are rejected.
+<!-- claim:tool-sandbox-covers-child-processes-only -->
+Every filesystem tool is restricted to the agent's workspace root by a
+canonicalised path-prefix check, an application guarantee, not an OS sandbox
+(the trust model reserves that word for child-process confinement).
+
+<!-- claim:absolute-paths-resolve-inside-workspace-root -->
+Paths may be relative to that root or absolute: an absolute path is accepted
+when its canonical form stays under the root, so platform aliases of an
+in-root path (macOS `/var` vs `/private/var`, Windows `\\?\` verbatim
+prefixes) resolve instead of being refused. Symlink escapes and any path
+whose real target leaves the root are rejected.
+
+<!-- claim:chat-file-root-is-home-without-project -->
+Which directory is the root depends on the session. With a project open, it is
+the project directory. In a chat with no project, it is your home directory: the
+assistant is meant to reach the files you actually own, and the barrier on that
+path is the approval you are asked for before a write, not a narrower root. The
+system temporary directory is used only when the home directory cannot be
+resolved at all.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
@@ -81,7 +123,8 @@ relative to that root; attempts to escape it are rejected.
 
 ## Notebooks
 
-Jupyter `.ipynb` tools, sandbox-confined, nbformat v4 only.
+Jupyter `.ipynb` tools, confined to the same workspace root as the filesystem
+tools, nbformat v4 only.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|

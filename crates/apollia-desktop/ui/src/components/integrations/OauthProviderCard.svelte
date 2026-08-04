@@ -8,9 +8,24 @@
    */
   import type { Snippet } from "svelte";
   import { t } from "svelte-i18n";
-  import { CheckCircle2, AlertTriangle, XCircle, Lock, Info, Link2, Check } from "lucide-svelte";
+  import {
+    CheckCircle2,
+    AlertTriangle,
+    XCircle,
+    Lock,
+    Info,
+    Link2,
+    Check,
+    Upload,
+  } from "lucide-svelte";
+  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { Button } from "$lib/components/ui/button";
-  import { oauthTestClient, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
+  import {
+    oauthTestClient,
+    importOauthClientJson,
+    type OauthClientIdStatus,
+  } from "$lib/ipc/oauthClients";
+  import { oauthReadiness } from "$lib/connections/status";
   import { reportError } from "$lib/errors/reportError";
 
   interface Props {
@@ -23,6 +38,8 @@
     footerNote: string;
     /** Whether the footer note is neutral info (Microsoft) vs security (Google). */
     footerInfo?: boolean;
+    /** Notify the parent so it can refresh the credential status after an import. */
+    onimported?: () => void;
     children: Snippet;
   }
 
@@ -33,18 +50,13 @@
     redirectUri,
     footerNote,
     footerInfo = false,
+    onimported,
     children,
   }: Props = $props();
 
-  type Readiness = "ready" | "partial" | "none";
-
-  const readiness = $derived<Readiness>(
-    status.source === "none"
-      ? "none"
-      : status.requires_client_secret && !status.has_client_secret
-        ? "partial"
-        : "ready",
-  );
+  // Shared with the Connections route so the two surfaces cannot disagree
+  // about whether a connector is usable.
+  const readiness = $derived(oauthReadiness(status));
 
   const monogram = $derived(name.charAt(0).toUpperCase());
 
@@ -78,6 +90,32 @@
       const humanized = reportError(err, { surface: "inline" });
       testOutcome = "error";
       testMessage = humanized.friendly_message;
+    }
+  }
+
+  // Google's console hands out a downloadable credentials file rather than two
+  // strings on screen, so importing it is fewer steps and fewer transcription
+  // mistakes than the manual rows below. Microsoft issues no such file.
+  const supportsJsonImport = $derived(status.provider === "google");
+  let importing = $state(false);
+  let importError = $state("");
+
+  async function importClientJson(): Promise<void> {
+    const picked = await openFilePicker({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (typeof picked !== "string") return;
+    importing = true;
+    importError = "";
+    try {
+      await importOauthClientJson(status.provider, picked);
+      onimported?.();
+    } catch (err) {
+      importError = reportError(err, { surface: "inline" }).friendly_message;
+    } finally {
+      importing = false;
     }
   }
 
@@ -138,6 +176,21 @@
         </span>
       {/if}
 
+      {#if supportsJsonImport}
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-7 px-2.5 text-caption"
+          onclick={importClientJson}
+          loading={importing}
+          disabled={importing}
+          data-testid={`oauth-import-json-${status.provider}`}
+        >
+          {#snippet icon()}<Upload size={12} />{/snippet}
+          {$t("settings.integrations.import_json")}
+        </Button>
+      {/if}
+
       <Button
         variant="outline"
         size="sm"
@@ -151,6 +204,18 @@
       </Button>
     </div>
   </header>
+
+  {#if importError}
+    <div
+      class="flex items-start gap-2 border-b border-border/60 bg-destructive/10 px-4 py-2.5 text-caption text-danger-a11y"
+      role="status"
+      aria-live="polite"
+      data-testid={`oauth-import-error-${status.provider}`}
+    >
+      <AlertTriangle size={13} strokeWidth={2} class="mt-px shrink-0" aria-hidden="true" />
+      <span>{importError}</span>
+    </div>
+  {/if}
 
   {#if testOutcome !== "idle" && testOutcome !== "testing"}
     <div

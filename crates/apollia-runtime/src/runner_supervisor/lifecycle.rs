@@ -67,7 +67,13 @@ impl RunnerSupervisor {
             "spawning apollia-runner"
         );
 
-        let mut child = Command::new(&bin_path)
+        let mut runner_cmd = Command::new(&bin_path);
+        // The runner is a console-subsystem executable, so on Windows a GUI
+        // parent would give it a terminal window of its own that outlives the
+        // spawn and sits behind the desktop app. Both pipes are already
+        // captured below, so nothing is lost by hiding it.
+        apollia_core::subprocess_window::hide_console_async(&mut runner_cmd);
+        let mut child = runner_cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -251,6 +257,27 @@ impl RunnerSupervisor {
     /// Current HTTP port of the runner. For debug / tests.
     pub async fn port(&self) -> Option<u16> {
         self.inner.read().await.as_ref().map(|i| i.port)
+    }
+
+    /// Build a supervisor that owns no child, for the teardown tests.
+    ///
+    /// `start` spawns the runner binary, which is absent on a CI runner; the
+    /// teardown path only reads the shutdown flag and the (empty) child slot.
+    #[cfg(test)]
+    pub(crate) fn for_tests() -> Self {
+        Self {
+            backend: RunnerBackend::Cpu,
+            gpu_info: GpuInfo::cpu_fallback(),
+            inner: Arc::new(RwLock::new(None)),
+            child: Arc::new(Mutex::new(None)),
+            shutting_down: Arc::new(Mutex::new(false)),
+        }
+    }
+
+    /// Whether a shutdown has been requested. Test-only observation point.
+    #[cfg(test)]
+    pub(crate) async fn is_shutting_down(&self) -> bool {
+        *self.shutting_down.lock().await
     }
 
     /// Kill the runner child without consuming the supervisor.

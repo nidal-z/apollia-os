@@ -27,12 +27,15 @@ Apollia transcrit en local avec un modèle Whisper. Sans modèle chargé, l'appu
 
 ### 3. Votre microphone système est muet ou mal sélectionné
 
-Si le micro est désactivé au niveau du système d'exploitation, Apollia n'entend rien - sans message d'erreur.
+Si le micro est désactivé au niveau du système d'exploitation, Apollia n'entend rien. Elle le dit au lieu de rester muette : la dictée se termine sur **« Rien d'audible n'a été capté »**.
+
+Un périphérique d'entrée virtuel est une cause fréquente. Des outils comme BlackHole, Soundflower ou un périphérique agrégé apparaissent comme des microphones et peuvent devenir l'entrée par défaut du système : Apollia enregistre alors un flux dans lequel personne ne parle.
 
 **Solution :**
-1. Ouvrez les réglages son de votre système et vérifiez que le bon microphone est sélectionné comme entrée par défaut.
-2. Parlez normalement : le niveau d'entrée doit bouger.
-3. Si rien ne bouge, débranchez et rebranchez le micro (ou ajustez le volume d'entrée).
+1. Ouvrez **Paramètres → Reconnaissance vocale** et utilisez le sélecteur **Périphérique d'entrée** pour nommer explicitement votre microphone, au lieu de vous en remettre au défaut système.
+2. Enregistrez. Le choix s'applique dès la dictée suivante, sans relancer l'application.
+3. Lancez le **Test** de la même page et parlez : les barres doivent suivre votre voix. Des barres plates signifient que le périphérique choisi ne délivre rien.
+4. Si rien ne bouge, débranchez et rebranchez le micro (ou ajustez le volume d'entrée).
 
 ### 4. Apollia n'a pas l'autorisation d'utiliser le microphone
 
@@ -48,14 +51,25 @@ Au premier usage, le système demande la permission d'accès au micro. Si elle a
 Le modèle Whisper transcrit selon la langue configurée. Une langue erronée produit du texte incohérent ou rien d'utile.
 
 **Solution :**
-1. Dans **Paramètres → Reconnaissance vocale**, vérifiez le champ **Langue**.
-2. Sélectionnez **Français** (ou la langue effective de votre dictée).
+1. Dans **Paramètres → Reconnaissance vocale**, ouvrez le sélecteur **Langue**.
+2. Sélectionnez **Français** (ou la langue effective de votre dictée). Laisser **Détection automatique** confie le choix au modèle, ce qui n'est pas fiable sur un enregistrement court ou bruité.
 3. Refaites un essai court de quelques secondes.
+
+### 6. Le micro reste allumé et la dictée ne se termine jamais
+
+<!-- claim:stt-dictation-always-reports-an-outcome -->
+
+Une dictée se termine toujours, qu'elle ait produit du texte ou non. Si le bouton micro reste rouge sans résultat, l'exécution dit pourquoi au lieu de vous laisser attendre : aucun microphone détecté, rien d'audible capté, enregistrement trop court, aucun modèle chargé, ou échec de transcription.
+
+**Solution :**
+1. Lisez le message affiché à côté du champ de saisie, ou sous la carte **Test** dans **Paramètres → Reconnaissance vocale**.
+2. Agissez sur ce qu'il nomme : il désigne le périphérique de capture, le modèle, ou l'enregistrement lui-même.
+3. Si le bouton reste rouge sans aucun message, c'est un défaut à signaler : l'issue devrait toujours être annoncée.
 
 ## Si rien ne fonctionne
 
 1. Allez dans **Transcriptions** *(visible dans la sidebar en mode Builder)* pour voir si des essais récents ont produit du contenu vide ou incohérent : cela aide à localiser le problème.
 2. Téléchargez un modèle Whisper plus précis (**Medium** ou **Large**) depuis **Paramètres → Hub de modèles** si vos dictées sont systématiquement floues.
-3. Relancez Apollia après chaque changement de modèle ou de raccourci pour que le moteur recharge sa configuration.
+3. Les réglages de dictée s'appliquent dès la dictée suivante, sans relance. Relancer n'est utile que si l'application elle-même ne répond plus.
 
 > **Référence technique :** [Référence Apollia](/reference) - comprendre comment Apollia capte, traite et stocke vos dictées en local.

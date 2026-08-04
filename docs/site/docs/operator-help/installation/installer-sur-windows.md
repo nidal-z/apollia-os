@@ -16,10 +16,47 @@ Apollia ships for Windows x86_64 in three formats:
 ## Installation (MSI)
 
 1. Download `Apollia-OS_<version>_x64.msi`.
-2. Double-click, follow the wizard.
+2. Double-click, follow the wizard. It names the product, the publisher
+   (Apollia), the version and the dual MIT / Apache-2.0 licence.
 3. The app shows up in the Start menu.
 
+The installer is not signed with an Authenticode certificate yet, so SmartScreen
+warns about an unrecognised publisher: choose **More info**, then **Run anyway**.
+
 The Windows firewall will ask you to allow `apollia-os.exe`, the `llama-server.exe` inference engine and `apollia-runner-*.exe` (speech-to-text) on first launch: **allow them on private networks** (these components talk to the daemon over loopback 127.0.0.1).
+
+The installer downloads the WebView2 runtime if your machine does not already
+have it, so the install step needs a network connection on a machine that has
+never run a WebView2 application. Current Windows 11 ships it preinstalled.
+
+## Closing the app
+
+<!-- claim:desktop-close-button-quits-outside-macos -->
+The window close button quits Apollia on Windows, the way it does for any other
+Windows application. The runtime stops with it, and so do the two background
+processes it owns: the `llama-server.exe` inference engine and the
+`apollia-runner-*.exe` speech-to-text runner. macOS behaves differently, where
+closing a window is not the same gesture as quitting: there the app stays
+resident behind the menu-bar icon.
+
+<!-- claim:desktop-exit-stops-inference-engine -->
+Quitting always stops the inference engine, whichever surface you quit from: the
+close button, the tray menu, or the in-app menu. Nothing is left holding video
+memory or a loopback port afterwards. To confirm, from PowerShell after
+quitting:
+
+```powershell
+Get-Process apollia-os, llama-server, apollia-runner-cpu -ErrorAction SilentlyContinue
+```
+
+It should print nothing.
+
+<!-- claim:windows-no-console-window -->
+You should never see a terminal window belonging to Apollia. The background
+processes are console programs, and they are started with the Windows
+`CREATE_NO_WINDOW` flag so none of them opens a console of its own. If a terminal
+window does appear, that is a defect worth reporting rather than something to
+close by hand.
 
 ## Verification
 

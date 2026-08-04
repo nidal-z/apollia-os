@@ -16,7 +16,7 @@
   import StreamingText from "./StreamingText.svelte";
   import ActivityStrip from "./ActivityStrip.svelte";
   import { formatDurationSeconds } from "$lib/chat/duration";
-  import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
+  import { parseStream, isThinking as isActiveThinking, answerText } from "$lib/chat/streamParser";
   import { resolveToolDisplay, humanizeToolName } from "$lib/tools/tool-display";
 
   // Clear, human name for a tool's live row (e.g. "Recherche web" rather than
@@ -86,13 +86,10 @@
   const activeThinkingContent = $derived(
     activeThinking ? (blocks.at(-1)?.content ?? "") : "",
   );
-  // Only non-thinking content goes into the answer bubble.
-  const textContent = $derived(
-    blocks
-      .filter((b) => b.type !== "thinking")
-      .map((b) => b.content)
-      .join(""),
-  );
+  // Only non-thinking content goes into the answer bubble. `answerText` also
+  // strips the stream markers, which is what lets `StreamingText` render the
+  // result as plain markdown without parsing it a second time.
+  const textContent = $derived(answerText(blocks));
 
   // Live rows for the tool chain, in arrival order. These render as visible
   // rows in the thread flow (below the reasoning strip), mirroring the two-zone

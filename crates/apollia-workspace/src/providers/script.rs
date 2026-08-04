@@ -88,14 +88,11 @@ impl WorkspaceProvider for ScriptProvider {
             Duration::from_secs(30)
         };
 
-        let output_result = tokio::time::timeout(
-            timeout,
-            {
-                let mut script = tokio::process::Command::new(&self.path);
-                apollia_core::subprocess_env::scrub_bundled_python_async(&mut script);
-                script.current_dir(cwd).output()
-            },
-        )
+        let output_result = tokio::time::timeout(timeout, {
+            let mut script = tokio::process::Command::new(&self.path);
+            apollia_core::subprocess_env::scrub_bundled_python_async(&mut script);
+            script.current_dir(cwd).output()
+        })
         .await;
 
         let output = match output_result {

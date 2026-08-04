@@ -11,7 +11,7 @@
    * (no own backdrop or fixed positioning).
    */
   import { onDestroy } from "svelte";
-  import { listen } from "@tauri-apps/api/event";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { get } from "svelte/store";
@@ -51,6 +51,11 @@
   import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
   import { formatCombo } from "$lib/keyboard/hotkeyCapture";
   import { ensureMicPermission } from "$lib/stt/micPermission";
+  import {
+    DICTATION_FAILED_EVENT,
+    failureMessageKey,
+    readFailureReason,
+  } from "$lib/stt/dictationFailure";
   import {
     Cpu,
     HardDrive,
@@ -455,6 +460,7 @@
 
   function attachSttTestListener(): void {
     if (sttTestUnlisten !== null) return;
+    const unlisteners: UnlistenFn[] = [];
     void listen<{ text?: string } | string>("stt-transcribed", (event) => {
       const text =
         typeof event.payload === "string"
@@ -465,8 +471,22 @@
       sttTesting = false;
       sttTestRecording = false;
     }).then((unlisten) => {
-      sttTestUnlisten = unlisten;
+      unlisteners.push(unlisten);
     });
+    // A test that captures silence never produces a transcription. Without
+    // this the button stays on "stop" and the step cannot be completed.
+    void listen(DICTATION_FAILED_EVENT, (event) => {
+      sttTestTranscript = null;
+      sttTestError = get(t)(failureMessageKey(readFailureReason(event.payload)));
+      sttTesting = false;
+      sttTestRecording = false;
+    }).then((unlisten) => {
+      unlisteners.push(unlisten);
+    });
+    sttTestUnlisten = () => {
+      for (const unlisten of unlisteners) unlisten();
+      unlisteners.length = 0;
+    };
   }
 
   async function startSttTest(): Promise<void> {

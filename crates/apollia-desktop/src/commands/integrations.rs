@@ -21,7 +21,12 @@
 //! When the user has selected the `local_only` sovereignty profile, every
 //! OAuth-starting command returns [`IntegrationsError::SovereigntyBlocked`]
 //! and the UI surfaces a static explanation panel instead of the wizards.
-//! Cf. plan §8.0.
+//!
+//! ## Credentials
+//!
+//! No published Apollia build embeds a Google or Microsoft OAuth client, so
+//! every connect attempt goes through [`credential_gate`] first and is
+//! refused, by name, before a browser window opens.
 
 use std::sync::{Arc, OnceLock};
 
@@ -83,12 +88,27 @@ pub enum IntegrationsError {
     SovereigntyBlocked,
     /// The provider has no OAuth client id configured.
     ///
-    /// Means the build was made without `APOLLIA_BUILD_*_CLIENT_ID` and the
-    /// user has not set the runtime override either. The UI surfaces a clear
-    /// "OAuth client not configured" message instead of letting the flow
-    /// fail mid-handshake with an opaque AS error.
+    /// No published Apollia build embeds one, so this is the normal state
+    /// until the operator supplies their own client through Settings →
+    /// Integrations, `~/.apollia/oauth-clients.toml`, or the runtime env var.
+    /// The UI surfaces a clear "OAuth client not configured" message instead
+    /// of letting the flow fail mid-handshake with an opaque AS error.
     #[error("OAuth client not configured for {0}")]
     OauthClientNotConfigured(String),
+    /// The provider needs a client secret at the token endpoint and none is
+    /// configured.
+    ///
+    /// Google's Installed App client type requires the secret even under
+    /// PKCE. Without this guard the browser opens, the user grants consent,
+    /// and only then does the token exchange fail with an opaque
+    /// `invalid_client` from Google. Refusing up front costs the user nothing
+    /// and names the missing piece.
+    #[error("OAuth client secret not configured for {0}")]
+    OauthClientSecretMissing(String),
+    /// The credentials file the operator picked is not a recognisable OAuth
+    /// client export.
+    #[error("invalid OAuth client file: {0}")]
+    InvalidClientFile(String),
     /// The provider id sent by the frontend is not recognised.
     #[error("unknown provider: {0}")]
     UnknownProvider(String),
@@ -250,11 +270,7 @@ pub async fn oauth_start_flow(
 
     ensure_cloud_allowed(sovereignty)?;
     let provider_id = provider_from_id(&provider)?;
-    if provider_id.resolve_client_id().is_none() {
-        return Err(IntegrationsError::OauthClientNotConfigured(
-            provider_id.id().to_owned(),
-        ));
-    }
+    ensure_credentials(provider_id)?;
     let provider_config = build_provider_with_scopes(provider_id, &scopes)?;
 
     let (listener, port) = apollia_auth::callback::bind_ephemeral_port()
@@ -498,6 +514,44 @@ fn detect_api_key_source(provider: ConnectorProvider) -> &'static str {
 
 const fn provider_requires_secret(provider: ConnectorProvider) -> bool {
     matches!(provider, ConnectorProvider::Google)
+}
+
+/// Refuse an OAuth handshake whose credentials are incomplete, before any
+/// browser window opens.
+///
+/// Checking the client id alone is not enough: a Google client id without its
+/// paired secret passes every local check, opens the consent screen, and fails
+/// only at the token endpoint, after the user has already granted access. The
+/// resulting `invalid_client` names nothing the operator can act on.
+///
+/// Pure on purpose. The callers resolve the three-source chain
+/// (`ConnectorProvider::resolve_*`) and hand the outcome in, which keeps this
+/// testable without touching process environment.
+fn credential_gate(
+    provider: ConnectorProvider,
+    client_id: Option<&str>,
+    client_secret: Option<&str>,
+) -> Result<(), IntegrationsError> {
+    let has_value = |v: Option<&str>| v.is_some_and(|s| !s.trim().is_empty());
+
+    if !has_value(client_id) {
+        return Err(IntegrationsError::OauthClientNotConfigured(
+            provider.id().to_owned(),
+        ));
+    }
+    if provider_requires_secret(provider) && !has_value(client_secret) {
+        return Err(IntegrationsError::OauthClientSecretMissing(
+            provider.id().to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve a provider's credentials and run them through [`credential_gate`].
+fn ensure_credentials(provider: ConnectorProvider) -> Result<(), IntegrationsError> {
+    let client_id = provider.resolve_client_id();
+    let client_secret = provider.resolve_client_secret();
+    credential_gate(provider, client_id.as_deref(), client_secret.as_deref())
 }
 
 const fn provider_requires_api_key(provider: ConnectorProvider) -> bool {
@@ -765,6 +819,10 @@ pub async fn oauth_google_picker_session(
                 .into(),
         )
     })?;
+    // The picker session resolves a token, which may trigger a refresh; a
+    // refresh posts to the same token endpoint as the initial exchange and
+    // needs the same credentials.
+    ensure_credentials(ConnectorProvider::Google)?;
     let client_id = ConnectorProvider::Google
         .resolve_client_id()
         .ok_or_else(|| IntegrationsError::OauthClientNotConfigured("google".into()))?;
@@ -902,6 +960,83 @@ pub async fn oauth_set_client_secret(
     let provider_id = provider_from_id(&provider)?;
     apollia_auth::oauth_clients_file::set_client_secret(provider_id.id(), client_secret.trim())
         .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    Ok(())
+}
+
+// ─── Credentials file import ────────────────────────────────────────────────
+
+/// Extract the client id and optional secret from a Google Cloud OAuth client
+/// export.
+///
+/// The console hands the operator a JSON file rather than two strings on a
+/// page, so reading the file directly removes the step where they hunt for
+/// `client_id` inside it and paste the wrong half. Desktop clients nest under
+/// `installed`; `web` is accepted too because the console produces that shape
+/// for the other client type and the fields are identical.
+fn parse_google_client_json(raw: &str) -> Result<(String, Option<String>), IntegrationsError> {
+    let root: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|e| IntegrationsError::InvalidClientFile(format!("not valid JSON: {e}")))?;
+
+    let section = root
+        .get("installed")
+        .or_else(|| root.get("web"))
+        .ok_or_else(|| {
+            IntegrationsError::InvalidClientFile(
+                "expected an \"installed\" or \"web\" object at the root".to_owned(),
+            )
+        })?;
+
+    let client_id = section
+        .get("client_id")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| IntegrationsError::InvalidClientFile("no client_id field".to_owned()))?
+        .to_owned();
+
+    let client_secret = section
+        .get("client_secret")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
+
+    Ok((client_id, client_secret))
+}
+
+/// Import an OAuth client from the JSON file the provider's console produces.
+///
+/// Google only for now: Microsoft's portal shows the application id on screen
+/// and issues no secret for a public client, so there is no file to import.
+/// Both fields land in `~/.apollia/oauth-clients.toml` through the same
+/// writers the manual fields use, which already create the file `0o600`.
+#[tauri::command]
+pub async fn oauth_import_client_json(
+    provider: String,
+    path: String,
+) -> Result<(), IntegrationsError> {
+    let provider_id = provider_from_id(&provider)?;
+    if provider_id != ConnectorProvider::Google {
+        return Err(IntegrationsError::InvalidClientFile(format!(
+            "{} does not publish a credentials file; paste the application id instead",
+            provider_id.id()
+        )));
+    }
+
+    let raw = std::fs::read_to_string(path.trim())
+        .map_err(|e| IntegrationsError::InvalidClientFile(format!("cannot read the file: {e}")))?;
+    let (client_id, client_secret) = parse_google_client_json(&raw)?;
+
+    if let Some(reason) = client_id_shape_error(provider_id, &client_id) {
+        return Err(IntegrationsError::InvalidClientFile(reason));
+    }
+
+    apollia_auth::oauth_clients_file::set_client_id(provider_id.id(), &client_id)
+        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    if let Some(secret) = client_secret {
+        apollia_auth::oauth_clients_file::set_client_secret(provider_id.id(), &secret)
+            .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    }
     Ok(())
 }
 
@@ -1061,5 +1196,140 @@ mod tests {
         let err = IntegrationsError::UnknownProvider("foo".into());
         let json = serde_json::to_value(&err).expect("serialize");
         assert_eq!(json["kind"], "unknown_provider");
+    }
+
+    #[test]
+    fn test_credential_gate_google_without_secret_is_refused() {
+        // GIVEN a Google client id configured but no paired secret
+        let client_id = Some("123-abc.apps.googleusercontent.com");
+        let client_secret = None;
+
+        // WHEN the connect attempt is gated
+        let err = credential_gate(ConnectorProvider::Google, client_id, client_secret)
+            .expect_err("Google without a secret must not reach the browser");
+
+        // THEN the refusal names the secret, before any consent screen opens
+        match err {
+            IntegrationsError::OauthClientSecretMissing(p) => assert_eq!(p, "google"),
+            other => panic!("expected OauthClientSecretMissing, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_credential_gate_google_blank_secret_counts_as_missing() {
+        // GIVEN a secret entry that holds only whitespace
+        let client_secret = Some("   ");
+
+        // WHEN the connect attempt is gated
+        let err = credential_gate(
+            ConnectorProvider::Google,
+            Some("123-abc.apps.googleusercontent.com"),
+            client_secret,
+        )
+        .expect_err("a blank secret is not a secret");
+
+        // THEN it is treated exactly like an absent one
+        assert!(matches!(
+            err,
+            IntegrationsError::OauthClientSecretMissing(_)
+        ));
+    }
+
+    #[test]
+    fn test_credential_gate_microsoft_needs_no_secret() {
+        // GIVEN a Microsoft public client, which the spec says carries no secret
+        let client_id = Some("00000000-1111-2222-3333-444444444444");
+
+        // WHEN the connect attempt is gated without one
+        let result = credential_gate(ConnectorProvider::Microsoft, client_id, None);
+
+        // THEN it is allowed through
+        assert!(result.is_ok(), "Microsoft must connect without a secret");
+    }
+
+    #[test]
+    fn test_credential_gate_without_client_id_is_refused_first() {
+        // GIVEN no client id at all, for a provider that also wants a secret
+        // WHEN the connect attempt is gated
+        let err = credential_gate(ConnectorProvider::Google, None, None)
+            .expect_err("no client id means nothing to connect with");
+
+        // THEN the missing client id is reported, not the missing secret
+        match err {
+            IntegrationsError::OauthClientNotConfigured(p) => assert_eq!(p, "google"),
+            other => panic!("expected OauthClientNotConfigured, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_secret_missing_error_serializes_with_its_own_kind() {
+        // GIVEN the new refusal
+        let err = IntegrationsError::OauthClientSecretMissing("google".into());
+
+        // WHEN it crosses the IPC boundary
+        let json = serde_json::to_value(&err).expect("serialize");
+
+        // THEN the frontend can tell it apart from a missing client id
+        assert_eq!(json["kind"], "oauth_client_secret_missing");
+        assert_eq!(json["detail"], "google");
+    }
+
+    #[test]
+    fn test_parse_google_client_json_reads_installed_section() {
+        // GIVEN the file a Google Cloud Desktop client download produces
+        let raw = r#"{
+            "installed": {
+                "client_id": "123-abc.apps.googleusercontent.com",
+                "project_id": "apollia-test",
+                "client_secret": "GOCSPX-example",
+                "redirect_uris": ["http://localhost"]
+            }
+        }"#;
+
+        // WHEN it is parsed
+        let (id, secret) = parse_google_client_json(raw).expect("parse");
+
+        // THEN both halves come out, so the operator never reads the file
+        assert_eq!(id, "123-abc.apps.googleusercontent.com");
+        assert_eq!(secret.as_deref(), Some("GOCSPX-example"));
+    }
+
+    #[test]
+    fn test_parse_google_client_json_accepts_web_section() {
+        // GIVEN the other shape the console produces
+        let raw = r#"{"web": {"client_id": "456-def.apps.googleusercontent.com"}}"#;
+
+        // WHEN it is parsed
+        let (id, secret) = parse_google_client_json(raw).expect("parse");
+
+        // THEN the client id is read and the absent secret stays absent
+        assert_eq!(id, "456-def.apps.googleusercontent.com");
+        assert!(secret.is_none());
+    }
+
+    #[test]
+    fn test_parse_google_client_json_rejects_unknown_shape() {
+        // GIVEN a JSON file that is not an OAuth client export
+        let raw = r#"{"type": "service_account", "private_key": "..."}"#;
+
+        // WHEN it is parsed
+        let err =
+            parse_google_client_json(raw).expect_err("service accounts are not OAuth clients");
+
+        // THEN the operator is told what was expected
+        match err {
+            IntegrationsError::InvalidClientFile(reason) => assert!(reason.contains("installed")),
+            other => panic!("expected InvalidClientFile, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_google_client_json_rejects_malformed_input() {
+        // GIVEN a file that is not JSON at all
+        // WHEN it is parsed
+        let err = parse_google_client_json("not json").expect_err("must not accept garbage");
+
+        // THEN the failure is attributed to the file, not to Apollia
+        assert!(matches!(err, IntegrationsError::InvalidClientFile(_)));
     }
 }

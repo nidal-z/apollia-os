@@ -16,6 +16,7 @@
   import SettingsFieldRow from "../SettingsFieldRow.svelte";
   import { sttModelsStore, settingsLoaders } from "$lib/stores/settings";
   import { importModelFile } from "$lib/ipc/stt";
+  import { buildModelOptions, selectedModelValue } from "$lib/stt/modelOptions";
   import type { SttConfigView } from "$lib/types";
 
   interface Props {
@@ -26,7 +27,11 @@
 
   let { config, inputDevices, noMicrophone }: Props = $props();
 
-  // Autonyms are proper nouns, identical in every locale.
+  // Autonyms are proper nouns, identical in every locale. The set matches the
+  // codes documented in `reference/configuration.md` and recognised by the
+  // model-name language detection on the Rust side; a code offered by one and
+  // not the other would leave this field with a value no option carries, and a
+  // select in that state displays nothing.
   const STT_LANGUAGES: ReadonlyArray<{ code: string; label: string }> = [
     { code: "fr", label: "Français" },
     { code: "en", label: "English" },
@@ -35,24 +40,38 @@
     { code: "it", label: "Italiano" },
     { code: "pt", label: "Português" },
     { code: "nl", label: "Nederlands" },
+    { code: "pl", label: "Polski" },
     { code: "ru", label: "Русский" },
     { code: "zh", label: "中文" },
     { code: "ja", label: "日本語" },
+    { code: "ko", label: "한국어" },
+    { code: "ar", label: "العربية" },
   ];
+
+  // A persisted language outside the list above, or a microphone that has since
+  // been unplugged, would otherwise leave its select blank. Listing the stored
+  // value keeps both fields truthful about what is configured.
+  const languageOptions = $derived(
+    config.language && !STT_LANGUAGES.some((l) => l.code === config.language)
+      ? [{ code: config.language, label: config.language }, ...STT_LANGUAGES]
+      : STT_LANGUAGES,
+  );
+  const deviceOptions = $derived(
+    config.input_device && !inputDevices.includes(config.input_device)
+      ? [config.input_device, ...inputDevices]
+      : inputDevices,
+  );
 
   let importing = $state(false);
 
-  function fileName(p: string): string {
-    return p.split(/[\\/]/).pop() ?? "";
-  }
-
-  // Match by file name so the select reflects the configured model whether it
-  // was stored as an absolute or `~`-prefixed path.
-  const selectedModelValue = $derived.by(() => {
-    const currentName = fileName(config.model_path);
-    const match = ($sttModelsStore.data ?? []).find((m) => m.name === currentName);
-    return match ? `~/.apollia/models/${match.name}` : "";
-  });
+  // The configured model always gets an option, even when the directory scan
+  // did not return it. A select handed a value that no option carries selects
+  // nothing at all, which is what made this field render blank while the status
+  // row beside it showed the loaded model correctly.
+  const modelOptions = $derived(
+    buildModelOptions($sttModelsStore.data ?? [], config.model_path),
+  );
+  const selectedModel = $derived(selectedModelValue(config.model_path));
 
   async function loadModel() {
     if (importing) return;
@@ -111,18 +130,16 @@
     layout="stack"
   >
     {#snippet control()}
-      {#if ($sttModelsStore.data ?? []).length > 0}
+      {#if modelOptions.length > 0}
         <Select
           id="stt-model-select"
-          value={selectedModelValue}
+          value={selectedModel}
           onchange={(e: Event) => (config.model_path = (e.currentTarget as HTMLSelectElement).value)}
           class="text-sm"
           data-testid="stt-model-select"
         >
-          {#each ($sttModelsStore.data ?? []) as model (model.name)}
-            <option value="~/.apollia/models/{model.name}">
-              {model.name} ({model.size_mb.toFixed(0)} Mo{model.language ? ` · ${model.language}` : ''})
-            </option>
+          {#each modelOptions as option (option.value)}
+            <option value={option.value}>{option.label}</option>
           {/each}
         </Select>
       {:else}
@@ -159,7 +176,7 @@
         class="text-sm"
       >
         <option value="">{$t('settings.stt_language_auto')}</option>
-        {#each STT_LANGUAGES as lang (lang.code)}
+        {#each languageOptions as lang (lang.code)}
           <option value={lang.code}>{lang.label}</option>
         {/each}
       </Select>
@@ -182,7 +199,7 @@
         class="text-sm"
       >
         <option value="">{$t('settings.stt_input_device_default')}</option>
-        {#each inputDevices as device (device)}
+        {#each deviceOptions as device (device)}
           <option value={device}>{device}</option>
         {/each}
       </Select>
