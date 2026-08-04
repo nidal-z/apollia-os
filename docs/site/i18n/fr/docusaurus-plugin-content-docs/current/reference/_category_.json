@@ -1,0 +1,9 @@
+{
+  "label": "Référence",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "slug": "/reference",
+    "description": "Des faits précis, orientés information. Les sections API, CLI et SDK sont générées à partir de la source de vérité et ne doivent jamais être modifiées à la main."
+  }
+}
