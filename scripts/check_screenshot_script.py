@@ -26,6 +26,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "automation" / "SCREENSHOTS.md"
 BY_HAND = REPO_ROOT / "scripts" / "automation" / "SHOOT-BY-HAND.md"
+# The one image directory. No locale segment: both locales reference it.
+IMG = REPO_ROOT / "docs" / "site" / "static" / "img" / "operator-help"
 DOCS = REPO_ROOT / "docs" / "site" / "docs" / "operator-help"
 MIRROR = (
     REPO_ROOT
@@ -260,6 +262,27 @@ def by_hand_list_matches_the_scripts() -> list[str]:
     return problems
 
 
+def files_on_disk_match_the_pages() -> list[str]:
+    """Every image a page references must exist as a file.
+
+    The other checks compare the shooting rows against the page references,
+    which are both prose. Neither looks at the directory. A file deleted by a
+    bad `git checkout` passed all of them and the set still "agreed", while the
+    Docusaurus build died on `Can't resolve ./installation-configurer-votre-
+    profil-7.png`. The build does catch it, which is the good news, but it
+    catches it two minutes into a bundle instead of in a check that runs in
+    seconds.
+    """
+    problems = []
+    for name in sorted(referenced_by_pages()):
+        if not (IMG / name).is_file():
+            problems.append(
+                f"{name} is referenced by a page and does not exist in "
+                f"{IMG.relative_to(REPO_ROOT)}"
+            )
+    return problems
+
+
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
@@ -268,6 +291,8 @@ def main() -> int:
         check()
         + counts_in_prose_match_the_scripts()
         + by_hand_list_matches_the_scripts()
+        + files_on_disk_match_the_pages()
+        + files_on_disk_match_the_pages()
     )
     if problems:
         print(f"{len(problems)} problem(s) between SCREENSHOTS.md and the published pages:")
