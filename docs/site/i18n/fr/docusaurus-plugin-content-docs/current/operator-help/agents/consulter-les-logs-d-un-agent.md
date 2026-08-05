@@ -14,7 +14,7 @@
 2. Localisez la carte de l'agent dont vous voulez consulter l'activité.
 
 3. Cliquez sur **Logs** sur sa carte. Un panneau s'ouvre à droite, intitulé **Logs de l'agent**, avec un compteur de tâches en haut.
-   ![panneau Logs ouvert avec compteur, barre de recherche, filtres de statut et tri](/img/operator-help/fr/agents-consulter-les-logs-d-un-agent-1.png)
+   ![panneau Logs ouvert avec compteur, barre de recherche, filtres de statut et tri](/img/operator-help/agents-consulter-les-logs-d-un-agent-1.png)
 
    > **Note :** ce panneau affiche l'historique des tâches exécutées par l'agent. Il ne s'agit pas d'un journal textuel avec niveaux Info/Warning/Error.
 

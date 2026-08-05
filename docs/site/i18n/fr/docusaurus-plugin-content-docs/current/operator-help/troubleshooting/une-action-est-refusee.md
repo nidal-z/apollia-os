@@ -12,7 +12,7 @@ Chaque refus manuel envoie un message clair à l'agent, qui s'adapte ou s'arrêt
 1. Dans la sidebar, cliquez sur **Boîte de réception**.
 2. Onglet **À traiter**. Faites défiler vers le bas jusqu'à la section **Historique récent (14 jours)** sous la liste des items en attente.
 3. Repérez la ligne avec l'icône ❌ **Refusé** correspondant à l'action. La **raison saisie au moment du refus** est affichée en rouge en sous-texte juste en dessous. Elle explique à l'agent ce qu'il doit changer.
-   ![Boite de reception sur l'onglet A traiter, historique recent en bas montrant une ligne refusee et son motif](/img/operator-help/fr/troubleshooting-une-action-est-refusee-1.png)
+   ![Boite de reception sur l'onglet A traiter, historique recent en bas montrant une ligne refusee et son motif](/img/operator-help/troubleshooting-une-action-est-refusee-1.png)
 4. Si le refus était une erreur, relancez l'agent ou demandez-lui dans le chat de retenter avec une nouvelle instruction.
 
 ### 2. Une règle de permissions persistée bloque l'action

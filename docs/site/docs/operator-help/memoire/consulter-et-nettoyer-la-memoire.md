@@ -19,7 +19,7 @@ This page covers the second one: browsing the memory namespaces and deleting ent
 
 1. In the sidebar, click **Memory**. The page shows a two-column layout: the namespace sidebar on the left, the central panel with the list of entries for the selected namespace.
 
-   ![Memory page: the namespace list on the left, the type filters and the search in the middle, and the entries of the user profile memory](/img/operator-help/en/memoire-consulter-et-nettoyer-la-memoire-1.png)
+   ![Memory page: the namespace list on the left, the type filters and the search in the middle, and the entries of the user profile memory](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
 
 2. **Left sidebar** - the list of **namespaces** (one namespace = one isolated memory space). Each namespace is classified automatically:
    - **Profile**: your shared user profile (`__user__`). Read-only from this page, editing happens in **Settings → Profile**. A banner reminds you of that when you select `__user__`.
@@ -37,7 +37,7 @@ This page covers the second one: browsing the memory namespaces and deleting ent
 
 4. **Click an entry** to open the **detail panel** on the right. It shows the full value (with automatic JSON pretty-print when applicable), all the metadata (type, namespace, ID, dates, BM25 score in search mode), and exposes two actions: **Copy** the value and **Delete** the entry.
 
-   ![Detail panel of a memory entry, with its value, its metadata and the Copy and Delete actions](/img/operator-help/en/memoire-consulter-et-nettoyer-la-memoire-2.png)
+   ![Detail panel of a memory entry, with its value, its metadata and the Copy and Delete actions](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-2.png)
 
 5. To **search**, type a few keywords in the **search bar** at the top of the central panel. Matching entries are shown sorted by relevance (BM25 score), and the breadcrumb reads "*N results*".
 

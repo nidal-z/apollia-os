@@ -68,20 +68,27 @@ opens on every launch. It is the first thing you will see and it is not a bug.
 
 ---
 
-## One set, two locales
+## One set, one directory, English
 
-The English pages reference `/img/operator-help/en/`, the French pages
-`/img/operator-help/fr/`. Both directories are filled from **one English
-capture set**:
+Every image lives in `docs/site/static/img/operator-help/`, with no locale
+segment, and both locales reference the same file. The interface in the images
+is English.
+
+That is a deliberate narrowing, and it replaces the previous arrangement of
+`en/` and `fr/` filled from a single capture set. The two directories stayed
+byte identical until the day only one was refreshed. Then the English pages
+served French captures for two weeks, and nothing caught it: a stale image is
+not a broken link, the build says nothing, and the reader has no way to know.
+One directory removes the failure mode instead of documenting it.
+
+The cost is stated rather than hidden: a French reader sees an English
+interface. It buys one capture set to maintain instead of two, one seed
+narrative to keep coherent instead of two, and no possible drift between
+halves of the site.
 
 ```sh
-python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
+python3 scripts/automation/tools/publish_screenshots.py --apply
 ```
-
-The alternative, shooting the interface twice, produced a second set nobody ever
-compared against the first and left the two halves of the site drifting apart
-whenever only one pass was redone. If a French screen genuinely diverges one
-day, `--locale fr` still exists for exactly that image.
 
 ---
 
@@ -93,7 +100,7 @@ testid and capture under the right label:
 
 ```sh
 lsof -ti :5173 :8899 | xargs kill -9 2>/dev/null
-just desktop-dev-automation-seeded scripts/automation/screenshots-en.json
+just desktop-screenshots scripts/automation/screenshots-en.json
 ```
 
 Those runs frame the whole window, which is looser than the crops described
@@ -452,7 +459,7 @@ equal 64.
 python3 scripts/automation/tools/publish_screenshots.py --locale both --from <dir>
 
 # then, once the report is clean
-python3 scripts/automation/tools/publish_screenshots.py --locale both --from <dir> --apply
+python3 scripts/automation/tools/publish_screenshots.py --from <dir> --apply
 
 # the site must still build, both locales
 cd docs/site && npm run build      # expect two SUCCESS lines

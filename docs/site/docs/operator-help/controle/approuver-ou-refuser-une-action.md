@@ -14,10 +14,10 @@
 An approval request can pop up in two places, depending on the context:
 
 - **In the chat** (with Apollia Chat or a conversational agent): an **approval card** is inserted into the message flow, at the chronological position of the request. The card carries a shield icon ⛨ and an orange border.
-  ![Inline approval card in the chat, with an orange shield icon, a preview of the command to authorise, and the Allow once, Refuse and Always allow buttons](/img/operator-help/en/controle-approuver-ou-refuser-une-action-1.png)
+  ![Inline approval card in the chat, with an orange shield icon, a preview of the command to authorise, and the Allow once, Refuse and Always allow buttons](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
 
 - **In the sidebar → Approvals** (which opens the **Inbox** page): for agents running in the background or that paused their task for a human check. Each request appears as a row in a list grouped by date (Today / Yesterday / Earlier). Clicking a row expands the **HITL card** with the details and the action buttons.
-  ![Inbox page with the filter chips at the top and an expanded approval card showing its risk badge](/img/operator-help/en/controle-approuver-ou-refuser-une-action-2.png)
+  ![Inbox page with the filter chips at the top and an expanded approval card showing its risk badge](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
 
 > **Note:** Requests appear **in real time** without refreshing. A counter in the page subtitle shows the total number pending.
 
@@ -28,7 +28,7 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
 1. **Allow once** - the action runs immediately, for this request only. The agent resumes, and the next occurrence will ask for confirmation again.
 
 2. **Refuse** - a **Reject action** dialog opens. Enter an explanation of **5 to 500 characters** (counter at the bottom of the textarea) then confirm. The button only becomes active from 5 characters on.
-   ![Reject action dialog with textarea, "12 / 500" counter, Cancel / Confirm rejection buttons at the bottom](/img/operator-help/en/controle-approuver-ou-refuser-une-action-3.png)
+   ![Reject action dialog with textarea, "12 / 500" counter, Cancel / Confirm rejection buttons at the bottom](/img/operator-help/controle-approuver-ou-refuser-une-action-3.png)
 
    The reason is **passed on to the agent**: it is injected into the tool message the LLM sees at the next iteration, in the form *"Tool refused by the user. Reason: ..."*. This lets the agent correct its trajectory instead of retrying blindly. The reason is also **persisted** in the recent history (see below) so you can find the context later.
 
@@ -82,7 +82,7 @@ At the bottom of the **Inbox** page, below the list of pending actions, a **Rece
 - Relative timestamp (`5min ago`, `2h ago`…) with the absolute date in a tooltip.
 - Short prefix of the originating session.
 
-![Recent history section - four rows with different icons, one rejection with its reason shown in red](/img/operator-help/en/controle-approuver-ou-refuser-une-action-4.png)
+![Recent history section - four rows with different icons, one rejection with its reason shown in red](/img/operator-help/controle-approuver-ou-refuser-une-action-4.png)
 
 The history is **read-only**; it does not replace the Settings → Permissions → Recent audit page, which also shows automatic decisions (triggered by persisted rules) over 20 entries.
 

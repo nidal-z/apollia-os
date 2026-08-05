@@ -12,7 +12,7 @@ Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotl
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
 2. Repérez la ligne **Raccourci global** : la combinaison actuelle s'affiche sous forme de touches stylisées.
 3. **Cliquez sur la combinaison** : un dialog plein écran de capture s'ouvre. Appuyez sur la nouvelle combinaison souhaitée - elle est capturée en temps réel et enregistrée à la validation.
-   ![Dialogue de capture de raccourci clavier, en attente d'une combinaison de touches](/img/operator-help/fr/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
+   ![Dialogue de capture de raccourci clavier, en attente d'une combinaison de touches](/img/operator-help/troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png)
 4. Quittez le dialog avec **Échap** pour annuler.
 5. Testez à nouveau le raccourci : **un overlay d'enregistrement avec visualizer audio** doit s'afficher dès l'appui.
 

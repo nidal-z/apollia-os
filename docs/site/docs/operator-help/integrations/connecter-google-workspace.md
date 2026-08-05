@@ -54,17 +54,17 @@ If either half is missing, Apollia refuses the connection before opening your br
 
 1. In the sidebar, open **Connections**, then select the **Google Workspace** card in the list of native connectors.
 
-   ![Connections page, Google Workspace card selected in the sidebar (Not connected state), right-hand panel with the Accounts (0) tab and the Connect an account button](/img/operator-help/en/integration-google-workspace-1.png)
+   ![Connections page, Google Workspace card selected in the sidebar (Not connected state), right-hand panel with the Accounts (0) tab and the Connect an account button](/img/operator-help/integration-google-workspace-1.png)
 
 2. Click **Connect an account**. A window opens inside Apollia and your browser automatically opens the Google consent page.
 
 3. Pick the Google account to use, then accept the permissions offered (Mail, Calendar, Drive Workspace, and so on).
 
-   ![Google consent screen, Apollia asks for access to the account, list of permissions (app Drive files, Calendar events, sending mail, draft management), warning that the app is not verified by Google](/img/operator-help/en/integration-google-workspace-2.png)
+   ![Google consent screen, Apollia asks for access to the account, list of permissions (app Drive files, Calendar events, sending mail, draft management), warning that the app is not verified by Google](/img/operator-help/integration-google-workspace-2.png)
 
 4. Back in Apollia, the window detects the return automatically. A second step offers you the agent Drive root folder (default **Apollia**). Confirm by clicking **Save** (or **Keep the default** to keep the value offered).
 
-   ![Google Drive folder dialog in Apollia, explanation of the drive.file scope, Folder path field with the value Apollia, Keep the default and Save buttons](/img/operator-help/en/integration-google-workspace-3.png)
+   ![Google Drive folder dialog in Apollia, explanation of the drive.file scope, Folder path field with the value Apollia, Keep the default and Save buttons](/img/operator-help/integration-google-workspace-3.png)
 
 5. The window closes, your account appears in the sidebar with a green dot.
 

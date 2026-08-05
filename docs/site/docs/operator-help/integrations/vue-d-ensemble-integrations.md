@@ -37,7 +37,7 @@ Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, Pos
 
 You can also add your own servers or modify the catalogue.
 
-![Connections page, left sidebar listing the native connectors (Google Workspace, Microsoft 365) and the MCP servers, right panel with the Overview tab of the selected connector and the Add a connector button at the bottom](/img/operator-help/en/integration-overview-1.png)
+![Connections page, left sidebar listing the native connectors (Google Workspace, Microsoft 365) and the MCP servers, right panel with the Overview tab of the selected connector and the Add a connector button at the bottom](/img/operator-help/integration-overview-1.png)
 
 ## Where to start
 

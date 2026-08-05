@@ -24,7 +24,7 @@ The active tab is remembered between sessions (refreshing the page keeps your la
 
 ## The "To do" tab
 
-![Inbox on the To do tab, with the counter chips in the tab bar and the filter chips below](/img/operator-help/en/transversal-utiliser-l-inbox-1.png)
+![Inbox on the To do tab, with the counter chips in the tab bar and the filter chips below](/img/operator-help/transversal-utiliser-l-inbox-1.png)
 
 ### Filter the list
 
@@ -42,7 +42,7 @@ One difference from the chat window: the inbox lists items coming from several s
 
 When an agent uses the `ask_user` tool to question you, the item shows up in this tab under the **Question** label. Click to expand the dynamic form.
 
-![An expanded ask_user form, with its context callout at the top followed by the questions to answer](/img/operator-help/en/transversal-utiliser-l-inbox-2.png)
+![An expanded ask_user form, with its context callout at the top followed by the questions to answer](/img/operator-help/transversal-utiliser-l-inbox-2.png)
 
 The form displays, in order:
 
@@ -65,7 +65,7 @@ Below the list of pending items, a **Recent history (last 14 days)** section lis
 
 ## The "Activity" tab
 
-![Inbox on the Activity tab, with its four filter chips and the list of event cards](/img/operator-help/en/transversal-utiliser-l-inbox-3.png)
+![Inbox on the Activity tab, with its four filter chips and the list of event cards](/img/operator-help/transversal-utiliser-l-inbox-3.png)
 
 This tab lists the events that did not call for immediate action but are worth a look. Four categories covered over the 14-day window:
 
@@ -79,7 +79,7 @@ Filter with the chips at the top. Each row offers a **View logs** button that op
 
 ## The "Notifications sent" tab
 
-![Inbox on the Notifications sent tab, with the channel filter and the four-column delivery table](/img/operator-help/en/transversal-utiliser-l-inbox-4.png)
+![Inbox on the Notifications sent tab, with the channel filter and the four-column delivery table](/img/operator-help/transversal-utiliser-l-inbox-4.png)
 
 Table of the **last 50 notifications** pushed to your Desktop or Webhook channels, with:
 

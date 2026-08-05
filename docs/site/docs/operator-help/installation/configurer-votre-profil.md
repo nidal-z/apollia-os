@@ -28,7 +28,7 @@ The flow is paced by a progress rail visible at the top of the window: **Welcome
 
 At launch, Apollia detects that no profile exists and opens the configuration window centered on the screen.
 
-![Welcome window with the Apollia logo, subtitle "The sovereign runtime to run your AI agents locally", three cards Local-first / LLM of your choice / Autonomous agents, "Start configuration" button](/img/operator-help/en/installation-configurer-votre-profil-1.png)
+![Welcome window with the Apollia logo, subtitle "The sovereign runtime to run your AI agents locally", three cards Local-first / LLM of your choice / Autonomous agents, "Start configuration" button](/img/operator-help/installation-configurer-votre-profil-1.png)
 
 Read the welcome banner, then click **Start configuration**.
 
@@ -36,7 +36,7 @@ Read the welcome banner, then click **Start configuration**.
 
 Two cards are offered side by side. Click the one that best matches your use - you can change it later from **Settings → Profile**.
 
-![Profile step with two cards Operator (sparkles icon) and Builder (code icon), each with 3 bullets and a sample role](/img/operator-help/en/installation-configurer-votre-profil-2.png)
+![Profile step with two cards Operator (sparkles icon) and Builder (code icon), each with 3 bullets and a sample role](/img/operator-help/installation-configurer-votre-profil-2.png)
 
 - **Operator**: for anyone who wants agents that carry out concrete tasks (emails, monitoring, summaries) without touching code. Explicit validation of sensitive actions, ready-to-use agents.
 - **Builder**: for anyone who wants to design, debug and observe their agents. Full observability (timeline, traces, costs), Python SDK, granular permissions.
@@ -47,7 +47,7 @@ A discreet link at the bottom - **I'm both → Builder mode** - switches you to 
 
 This step calibrates Apollia to your hardware and your sovereignty preferences. A system information banner (RAM, OS, GPU) appears at the top to help you choose.
 
-![Models step, RAM · macOS · GPU banner, LLM section with a curated list of Qwen3 models and a "Recommended" badge](/img/operator-help/en/installation-configurer-votre-profil-3.png)
+![Models step, RAM · macOS · GPU banner, LLM section with a curated list of Qwen3 models and a "Recommended" badge](/img/operator-help/installation-configurer-votre-profil-3.png)
 
 #### LLM section (required)
 
@@ -58,7 +58,7 @@ Three possible paths, depending on your situation:
 3. **HuggingFace search.** The **Search on HuggingFace** button opens a built-in mini browser: type a model name, expand the available GGUF files, and click to download the one that matches your RAM (files are tagged *fits* / *might fit* / *too large*).
 4. **Cloud provider.** The **Use a cloud provider** button closes the window and takes you to the **LLM Backends** settings page to plug in Anthropic, OpenAI or Ollama. Once a backend is added, the onboarding flow reopens automatically at this same step.
 
-![Qwen3 download in progress with a progress bar and throughput, plus a Whisper model downloaded in parallel](/img/operator-help/en/installation-configurer-votre-profil-4.png)
+![Qwen3 download in progress with a progress bar and throughput, plus a Whisper model downloaded in parallel](/img/operator-help/installation-configurer-votre-profil-4.png)
 
 Once the LLM setup succeeds (green **Configured** badge or a detected backend list), the **Continue** button at the bottom becomes active.
 
@@ -86,7 +86,7 @@ You can skip this section and enable it later from **Settings → Speech-to-Text
 
 The onboarding agent opens in the window. It asks you up to 4 questions, one after another.
 
-![Calibration step with 4 progress pips at the top, the onboarding agent asking the first question and the user answering by describing their role](/img/operator-help/en/installation-configurer-votre-profil-5.png)
+![Calibration step with 4 progress pips at the top, the onboarding agent asking the first question and the user answering by describing their role](/img/operator-help/installation-configurer-votre-profil-5.png)
 
 The questions cover:
 
@@ -118,7 +118,7 @@ The number and nature of the cards offered depend on your earlier choices:
 | Supervision `Always confirm` | no allow rule - every sensitive action will raise an approval card |
 | Integrations ticked (GitHub, Slack, Notion, Gmail) | `allow http_fetch` on the matching API (global) |
 
-![Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com and api.anthropic.com, allow file_read, Dismiss and Apply buttons on each card](/img/operator-help/en/installation-configurer-votre-profil-6.png)
+![Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com and api.anthropic.com, allow file_read, Dismiss and Apply buttons on each card](/img/operator-help/installation-configurer-votre-profil-6.png)
 
 Once every card is handled, the window closes automatically. Apollia is ready.
 
@@ -151,7 +151,7 @@ The **Factory Reset** button (danger zone, bottom of the page) deletes **all** y
 
 Once the flow is finished, open a chat and ask a question about your domain. The agent addresses you by your name and adapts its answer to your context. In **Settings → Permissions**, the rules suggested during calibration are visible, and in **Settings → Profile** you find every piece of information collected, editable at any time.
 
-![Settings → Profile page after onboarding, Identity (first name, role, sector), Goals, and Agent supervision sections with the HITL levels](/img/operator-help/en/installation-configurer-votre-profil-7.png)
+![Settings → Profile page after onboarding, Identity (first name, role, sector), Goals, and Agent supervision sections with the HITL levels](/img/operator-help/installation-configurer-votre-profil-7.png)
 
 ## If it does not work
 

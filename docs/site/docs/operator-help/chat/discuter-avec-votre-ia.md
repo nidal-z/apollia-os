@@ -11,7 +11,7 @@
 ## Steps
 
 1. In the sidebar, click **Chat**. The list of your conversations shows on the left, the input area in the middle.
-   ![Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom](/img/operator-help/en/chat-discuter-avec-votre-ia-1.png)
+   ![Chat page, conversation sidebar on the left, empty area in the middle with the input field at the bottom](/img/operator-help/chat-discuter-avec-votre-ia-1.png)
 
 2. Click **New chat** at the top of the list. A blank conversation opens.
 
@@ -20,15 +20,15 @@
 4. Type your instruction in plain language in the input field at the bottom. Be specific: *"Summarise this file in 5 bullet points"* works better than *"Help me"*.
 
 5. Press **Enter** or click **Send**. The answer streams in, word by word.
-   ![conversation with a user message and an AI answer streaming in, markdown formatting rendered](/img/operator-help/en/chat-discuter-avec-votre-ia-2.png)
+   ![conversation with a user message and an AI answer streaming in, markdown formatting rendered](/img/operator-help/chat-discuter-avec-votre-ia-2.png)
 
-![conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued)](/img/operator-help/en/chat-discuter-avec-votre-ia-2bis.png)
+![conversation with a user message and an AI answer streaming in, markdown formatting rendered (continued)](/img/operator-help/chat-discuter-avec-votre-ia-2bis.png)
 
 6. Ask your follow-up questions in the same thread. The AI keeps the whole conversation history.
 
 <!-- claim:chat-timeline-follows-execution-order -->
 7. Above the answer, a summary line says how much the turn thought and how many tools it used. Under it, the turn is laid out **in the order it happened**: a thought, then the action it led to, then the next thought, and so on. Every row is collapsed and expands to its own detail, the reasoning as written, a tool call as a plain-language account in Operator mode or its raw input and output in Builder mode.
-   ![answer bubble with the summary line and the ordered timeline of thoughts and tool calls](/img/operator-help/en/chat-discuter-avec-votre-ia-3.png)
+   ![answer bubble with the summary line and the ordered timeline of thoughts and tool calls](/img/operator-help/chat-discuter-avec-votre-ia-3.png)
 
 <!-- claim:failed-tool-call-is-marked-failed -->
 8. A tool call that fails is marked as such, with a red cross rather than a green check, and stays marked when you reopen the conversation later. A call you refused is shown as refused, which is a different thing from one that ran and failed.

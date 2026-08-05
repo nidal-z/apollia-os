@@ -11,7 +11,7 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](/img/operator-help/fr/chat-activer-la-dictee-vocale-1.png)
+   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
 
 2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
 
@@ -20,7 +20,7 @@
 4. Sélectionnez votre microphone dans le sélecteur **Périphérique d'entrée**. Laisser le défaut système convient jusqu'au jour où un périphérique virtuel (BlackHole, Soundflower, un périphérique agrégé) devient ce défaut : Apollia enregistre alors du silence. Nommer le périphérique lève l'ambiguïté.
 
 5. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
-   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](/img/operator-help/fr/chat-activer-la-dictee-vocale-2.png)
+   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
 
 6. Dans le sélecteur **Mode de déclenchement**, choisissez l'un des deux modes :
    - **Toggle (appui = start/stop)** : un premier appui sur le raccourci démarre l'enregistrement, un second l'arrête.

@@ -16,7 +16,7 @@ Rules appear automatically when an agent requests access to a tool and you choos
 1. In the sidebar, click **Settings**.
 
 2. In the left menu, select **Permissions**.
-   ![Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges](/img/operator-help/en/controle-configurer-les-permissions-de-fichiers-1.png)
+   ![Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
 
 3. The central panel shows every active rule as a **list of cards**. Each card states:
    - the **tool name** that is authorised (e.g.: `bash_executor`, `file_write`, `http_fetch`)
@@ -39,7 +39,7 @@ Rules appear automatically when an agent requests access to a tool and you choos
 1. Find the card matching the rule you want to remove.
 2. Click the **Revoke** button (bin icon, on the right of the card).
 3. A confirmation message appears briefly. The card disappears immediately.
-   ![permission card with the Revoke button visible, confirmation toast "Rule bash revoked"](/img/operator-help/en/controle-configurer-les-permissions-de-fichiers-2.png)
+   ![permission card with the Revoke button visible, confirmation toast "Rule bash revoked"](/img/operator-help/controle-configurer-les-permissions-de-fichiers-2.png)
 
 Once revoked, the tool involved will ask for manual approval again at its next invocation.
 
@@ -49,7 +49,7 @@ The **Active sessions** section lists the tools auto-approved through "For this 
 
 Each entry states the tool name, the session involved (title or short identifier), the mode (*Apollia Chat*, *Agent*, *Companion*) and an orange *Session* badge. Click **Revoke** to remove the permission immediately. The tool will ask for confirmation again at the next call in that session.
 
-![Active sessions section, list of entries with an orange Session badge and a Revoke button](/img/operator-help/en/controle-configurer-les-permissions-de-fichiers-3.png)
+![Active sessions section, list of entries with an orange Session badge and a Revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-3.png)
 
 ## Revoke every permission at once
 
@@ -60,7 +60,7 @@ Each entry states the tool name, the session involved (title or short identifier
    - *Everywhere* - removes the global rules
    - *All scopes* - removes every persisted rule
 3. Check the number of affected rules shown in the dialog, then click **Revoke**.
-   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/en/controle-configurer-les-permissions-de-fichiers-1bis.png)
+   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1bis.png)
 
 ## Chat rules (Apollia Chat)
 

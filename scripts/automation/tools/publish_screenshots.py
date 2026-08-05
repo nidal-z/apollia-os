@@ -1,40 +1,23 @@
-#!/usr/bin/env python3
-"""Publish automation captures into the documentation image set.
+"""Copy an automaton run's captures into the documentation's image directory.
 
-The runner writes `NNN-<label>.png` into its output directory, where `NNN` is the
-step sequence. The documentation references `<label>.png` under
-`/img/operator-help/`. Bridging the two was a manual copy, which is how the set
-drifted: an image nobody could regenerate, a capture nobody published, and no way
-to tell which was which.
+The automaton writes `NNN-<label>.png` into `.apollia-automation/`; the pages
+reference `/img/operator-help/<label>.png`. Bridging the two was a manual copy,
+which is how the set went stale without anyone noticing.
 
-This does the copy and, more usefully, answers three questions the manual step
-never did:
-
-  - which documented images the run produced (published),
-  - which it did not (missing, so still stale on the site),
-  - which it produced that no page uses (extra, so dead weight).
-
-It refuses to invent: a label the documentation does not reference is never
-copied, because an unreferenced image in `static/` is a file that ships to every
-visitor and is served to no one.
+One directory, no locale. Both locales reference the same image and the
+interface in it is English. The site used to keep `en/` and `fr/`, both filled
+from one capture set: they stayed byte identical until the day only one was
+refreshed, and then the English pages served French captures for two weeks with
+no gate able to see it, because a stale image is not a broken link.
 
 Usage:
-    python3 scripts/automation/tools/publish_screenshots.py --locale both
-    python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
-    python3 scripts/automation/tools/publish_screenshots.py --locale fr --from DIR
 
-`--locale both` is the normal case and the one `SCREENSHOTS.md` prescribes: one
-English capture set, copied into both image directories. The French pages
-reference `/img/operator-help/fr/`, so the directory has to exist and be filled,
-but the images in it are the English ones. Shooting the interface twice, once
-per language, doubled a day's work to produce a second set nobody compared
-against the first, and left the two halves of the site drifting apart whenever
-only one pass was redone.
+  python3 scripts/automation/tools/publish_screenshots.py
+  python3 scripts/automation/tools/publish_screenshots.py --apply
+  python3 scripts/automation/tools/publish_screenshots.py --from DIR --apply
 
-`--locale en` and `--locale fr` remain, for the day a locale genuinely diverges.
-
-The default source is `$APOLLIA_AUTOMATION_OUT`, falling back to the runner's own
-default under the system temp directory.
+Without --apply it reports what it would do, which labels the run produced that
+no page wants, and which the pages want that the run did not produce.
 """
 
 import argparse
@@ -60,7 +43,7 @@ MIRROR = (
 IMG = REPO_ROOT / "docs" / "site" / "static" / "img" / "operator-help"
 
 SEQ = re.compile(r"^\d{3}-(.+\.png)$")
-REF = re.compile(r"/img/operator-help/(?:en|fr)/([a-z0-9-]+\.png)")
+REF = re.compile(r"/img/operator-help/([a-z0-9-]+\.png)")
 
 
 def referenced() -> set[str]:
@@ -84,14 +67,6 @@ def default_source() -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--from", dest="source", type=Path, default=None)
-    parser.add_argument(
-        "--locale",
-        required=True,
-        choices=("en", "fr", "both"),
-        help="which image directory to fill. 'both' publishes one English "
-        "capture set into en/ and fr/, which is what the site actually needs: "
-        "the French pages reference fr/ and there is only one set of images",
-    )
     parser.add_argument("--apply", action="store_true", help="copy, rather than report")
     args = parser.parse_args()
 
@@ -117,15 +92,18 @@ def main() -> int:
     missing = sorted(wanted - produced.keys())
     extra = sorted(produced.keys() - wanted)
 
-    locales = ("en", "fr") if args.locale == "both" else (args.locale,)
-    for locale in locales:
-        dest = IMG / locale
-        dest.mkdir(parents=True, exist_ok=True)
-        for name in published:
-            if args.apply:
-                shutil.copy2(produced[name], dest / name)
+    # One directory, no locale dimension. The site used to keep en/ and fr/,
+    # both filled from the same English capture set, and the two stayed byte
+    # identical until the day only one was refreshed. Then the English pages
+    # served French captures for two weeks and no gate could see it, because a
+    # stale image is not a broken link. A single directory removes the failure
+    # mode rather than documenting it.
+    IMG.mkdir(parents=True, exist_ok=True)
+    for name in published:
+        if args.apply:
+            shutil.copy2(produced[name], IMG / name)
     verb = "published" if args.apply else "would publish"
-    print(f"{verb} into {'/, '.join(locales)}/: {len(published)}")
+    print(f"{verb} into {IMG.relative_to(REPO_ROOT)}: {len(published)}")
 
     if missing:
         print(f"\nmissing from this run ({len(missing)}), still stale on the site:")

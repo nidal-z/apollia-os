@@ -13,12 +13,12 @@
 1. In the sidebar, click **My Triggers**. The page is titled **Automations**.
 
 2. Click the **Create an automation** button at the top right. A **4-step** wizard opens (Describe → Schedule → Assistant → Preview).
-   ![Automations page, with the Create an automation button at the top right and the four-step stepper](/img/operator-help/en/automatisations-programmer-un-trigger-1.png)
+   ![Automations page, with the Create an automation button at the top right and the four-step stepper](/img/operator-help/automatisations-programmer-un-trigger-1.png)
 
 3. **Describe step** - Describe **the when**: at what moment or how often the trigger should fire. Examples: *"Every morning at 8am"*, *"Every Monday at 9am to prep the week"*, *"Every 30 minutes"*. You do not need to name an assistant at this stage: a trigger is independent from the assistant that will run it, and you pick that assistant at the **Assistant** step. Click **Next**; Apollia parses the sentence (the button label switches to *"Parsing…"*).
 
 4. **Schedule step** - Apollia shows how it read your sentence in a box (for example *"Every day at 08:00"*) with the **next scheduled run**. If something looks off, adjust it in plain language in the field at the bottom (*"actually 9am"*) and press Enter - the schedule updates. If Apollia needs a detail about the calendar (missing time, ambiguous day…), an orange banner lists the points to clarify; fill them in through the refine field. A missing assistant in the description does not block this step.
-   ![Schedule step, with the human-readable schedule box, the next-run line and the refinement fields](/img/operator-help/en/automatisations-programmer-un-trigger-2.png)
+   ![Schedule step, with the human-readable schedule box, the next-run line and the refinement fields](/img/operator-help/automatisations-programmer-un-trigger-2.png)
 
 5. **Assistant step** - Select the assistant that will run this trigger. A trigger always launches **one assistant at a time**. If your sentence named an existing agent, it is preselected and a sub-label reads *"Recognized automatically: …"*. Otherwise, an orange box reminds you that no assistant was recognised, and you pick it from the dropdown. Only installed assistants show up.
 

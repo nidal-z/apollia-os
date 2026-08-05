@@ -13,19 +13,19 @@
 1. Dans la sidebar, cliquez sur **Projets**.
 
 2. Cliquez sur **+ Nouveau projet** en haut à droite.
-   ![page Projets, bouton + Nouveau projet surligné en haut à droite](/img/operator-help/fr/projets-creer-un-projet-1.png)
+   ![page Projets, bouton + Nouveau projet surligné en haut à droite](/img/operator-help/projets-creer-un-projet-1.png)
 
 3. Donnez un **nom** clair à votre projet (par exemple : *Site marketing 2026*). Ce nom apparaîtra dans la sidebar, dans les chats liés et dans les notifications.
 
 4. Cliquez sur **Parcourir** et sélectionnez le **dossier racine** du projet sur votre machine.
 
 5. (Optionnel) Choisissez un **modèle de projet** dans la liste déroulante. Le modèle pré-active les fournisseurs de contexte adaptés (un projet de code aura par défaut Git et Arborescence).
-   ![modal Nouveau projet avec champs Nom, Dossier racine, Modèle](/img/operator-help/fr/projets-creer-un-projet-2.png)
+   ![modal Nouveau projet avec champs Nom, Dossier racine, Modèle](/img/operator-help/projets-creer-un-projet-2.png)
 
 6. Cliquez sur **Créer**. Le projet apparaît immédiatement dans la liste.
 
 7. Cliquez sur la carte du projet pour ouvrir son **panneau de détail** (Sheet latérale). Vous y voyez le chemin, les agents liés, les context providers actifs, les documents attachés et les chats liés - dans des sections scrollables, sans onglets formels.
-   ![Panneau de detail du projet ouvert en volet lateral, avec ses sections Description, Agents, Context Providers, Documents et Chat](/img/operator-help/fr/projets-creer-un-projet-3.png)
+   ![Panneau de detail du projet ouvert en volet lateral, avec ses sections Description, Agents, Context Providers, Documents et Chat](/img/operator-help/projets-creer-un-projet-3.png)
 
 8. Continuez avec **Activer les context providers** pour charger automatiquement les bonnes informations dans vos futurs chats.
 

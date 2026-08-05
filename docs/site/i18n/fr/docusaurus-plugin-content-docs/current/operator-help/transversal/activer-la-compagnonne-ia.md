@@ -17,13 +17,13 @@
 
    Rien ne s'ouvre tant qu'aucun fournisseur d'IA n'est prêt.
 
-   ![Le tableau de bord, au moment où le panneau Aide Apollia va s'ouvrir](/img/operator-help/fr/transversal-activer-la-compagnonne-ia-1.png)
+   ![Le tableau de bord, au moment où le panneau Aide Apollia va s'ouvrir](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
 2. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
 
 3. Posez une question rapide. L'Aide Apollia répond sans interrompre votre travail sur la page principale.
 
-   ![Panneau de l'Aide Apollia ouvert, avec son message d'accueil et la zone de saisie](/img/operator-help/fr/transversal-activer-la-compagnonne-ia-2.png)
+   ![Panneau de l'Aide Apollia ouvert, avec son message d'accueil et la zone de saisie](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
 
 4. **Déplacer le panneau** : saisissez la **poignée en haut du panneau** (icône grip-handle) et glissez-le où vous voulez. Il s'aligne automatiquement aux bords de l'écran pour rester accessible.
 

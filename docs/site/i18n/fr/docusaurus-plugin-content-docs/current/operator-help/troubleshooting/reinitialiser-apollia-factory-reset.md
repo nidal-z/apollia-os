@@ -22,7 +22,7 @@ Avant de continuer, demandez-vous :
 ## Étape 2 - Lancer la réinitialisation
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Zone de danger**.
-   ![page Paramètres Zone de danger, encart rouge "Réinitialisation d'usine" avec bouton clairement isolé](/img/operator-help/fr/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
+   ![page Paramètres Zone de danger, encart rouge "Réinitialisation d'usine" avec bouton clairement isolé](/img/operator-help/troubleshooting-reinitialiser-apollia-factory-reset-1.png)
 2. Repérez le bloc **Réinitialisation d'usine**. Lisez attentivement la liste des données qui vont être supprimées.
 3. Cliquez sur le bouton rouge **Réinitialisation d'usine**.
 

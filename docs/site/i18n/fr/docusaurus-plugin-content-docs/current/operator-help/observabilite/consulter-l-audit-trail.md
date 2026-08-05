@@ -14,7 +14,7 @@
 2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent. C'est la trace immuable de chaque outil invoqué par un agent.
 
 3. Juste en dessous, **quatre indicateurs clés** (KPI) se mettent à jour selon les filtres : **Entrées affichées**, **Outils distincts**, **Échecs** (en rouge si > 0), **Durée moyenne**.
-   ![onglet Piste d'audit - bannière de purpose en haut, 4 KPI, filtres, puis tableau](/img/operator-help/fr/observabilite-consulter-l-audit-trail-1.png)
+   ![onglet Piste d'audit - bannière de purpose en haut, 4 KPI, filtres, puis tableau](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
 
 4. Le tableau présente toutes les invocations d'outils tracées, du plus récent au plus ancien. **Cinq colonnes** :
    - **Horodatage** (date + heure locale)
@@ -33,7 +33,7 @@
    - **stderr** - sortie d'erreur, affichée en rouge.
 
    Si l'invocation n'a rien produit de capturable (outils MCP en lecture seule, outils sans I/O standard…), un message *« Aucun détail disponible »* s'affiche.
-   ![ligne dépliée affichant les sections Arguments / stdout / stderr](/img/operator-help/fr/observabilite-consulter-l-audit-trail-2.png)
+   ![ligne dépliée affichant les sections Arguments / stdout / stderr](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
 
 7. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
 

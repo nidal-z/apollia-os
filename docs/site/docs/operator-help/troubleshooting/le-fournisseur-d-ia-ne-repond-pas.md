@@ -29,7 +29,7 @@ A revoked key, an expired one, or one copied with an extra space makes every req
 **Solution:**
 1. In the sidebar, open **Settings**, then the **LLM backends** section.
 2. Find the backend marked `✗ error` in the list. **Hover the status label**: a native tooltip shows the exact error reason (for example *"401 Unauthorized"*, *"connection refused"*).
-   ![LLM backends page: a backend card in error, with its red icon and the Error label](/img/operator-help/en/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
+   ![LLM backends page: a backend card in error, with its red icon and the Error label](/img/operator-help/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
 3. Click the **Plug icon** (first in the card actions) to test the connection again. A green **OK · *Nms*** badge appears on success, a red **Error** one otherwise. The badge fades after 5 seconds.
 4. If the failure persists, click the **pencil icon** to open the edit dialog, paste a valid key from the provider console, then click **Test connection** again at the bottom of the dialog.
 

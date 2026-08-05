@@ -29,7 +29,7 @@ Une clé révoquée, expirée ou recopiée avec un espace en trop fait échouer 
 **Solution :**
 1. Dans la sidebar, ouvrez **Paramètres**, puis la section **Backends LLM**.
 2. Repérez le backend marqué `✗ erreur` dans la liste. **Survolez le label de statut** : un tooltip natif affiche le motif d'erreur exact (ex. *« 401 Unauthorized »*, *« connection refused »*).
-   ![Page Backends LLM : une carte de backend en erreur, avec son icône rouge et le libellé Erreur](/img/operator-help/fr/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
+   ![Page Backends LLM : une carte de backend en erreur, avec son icône rouge et le libellé Erreur](/img/operator-help/troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png)
 3. Cliquez sur l'**icône Plug** (en première position dans les actions de la carte) pour re-tester la connexion. Un badge **OK · *Nms*** vert s'affiche en cas de succès, **Erreur** rouge sinon. Le badge s'efface après 5 secondes.
 4. Si l'échec persiste, cliquez sur l'**icône crayon** pour ouvrir le dialog d'édition, collez une clé valide depuis la console du fournisseur, puis cliquez à nouveau sur **Tester la connexion** en bas du dialog.
 

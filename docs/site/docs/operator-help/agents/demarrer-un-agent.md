@@ -19,7 +19,7 @@ You will also find a system agent pinned at the top, **Apollia Chat**: it is alw
 ## Steps - Start a single assistant
 
 1. In the sidebar, open **My Assistants**. The left column lists your assistants under **My assistants · N**.
-   ![My Assistants page - left column with the two sections "My assistants" and "My packages" visible](/img/operator-help/en/agents-demarrer-un-agent-1.png)
+   ![My Assistants page - left column with the two sections "My assistants" and "My packages" visible](/img/operator-help/agents-demarrer-un-agent-1.png)
 
 2. Find your agent in the list. The dot to the right of its name shows its state: **grey** (stopped), **green** (active), **orange** (degraded).
 
@@ -42,9 +42,9 @@ You will also find a system agent pinned at the top, **Apollia Chat**: it is alw
 3. Click the **play button** (▶) at the right of the row. Apollia starts every agent of the package and activates their triggers in a single operation. The dot turns green; the counter shows `2/2 agents · 1/1 triggers`.
 
 4. Click the row to open the package detail: there you see the list of the agents it contains, their roles (*director* or *worker*), and the list of the configured triggers (cron, webhook, and so on).
-   ![package detail panel - Information, Agents (with director/worker roles) and Triggers sections](/img/operator-help/en/agents-demarrer-un-agent-2.png)
+   ![package detail panel - Information, Agents (with director/worker roles) and Triggers sections](/img/operator-help/agents-demarrer-un-agent-2.png)
 
-![package detail panel - Information, Agents (with director/worker roles) and Triggers sections (continued)](/img/operator-help/en/agents-demarrer-un-agent-2bis.png)
+![package detail panel - Information, Agents (with director/worker roles) and Triggers sections (continued)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
 
 5. If only some of the agents started, the package dot turns **orange** (**partial** status). Click an agent row in the panel to identify the one that is failing, then open its logs.
 

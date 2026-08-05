@@ -36,7 +36,7 @@ Dans l'ordre : activez d'abord au global ce qui vous intéresse, affinez ensuite
 1. Dans la sidebar, cliquez sur **Notifications**.
 2. Repérez la section **Événements globaux** en haut de la page : une grille de cases à cocher, une par type, avec libellé, description courte et identifiant technique.
 
-   ![section Événements globaux, grille de 7 cases à cocher avec libellé, description et identifiant technique](/img/operator-help/fr/notifications-choisir-les-evenements-notifies-1.png)
+   ![section Événements globaux, grille de 7 cases à cocher avec libellé, description et identifiant technique](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Cochez ou décochez selon ce que vous voulez voir remonter.
 4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. **Sans ce clic, rien n'est appliqué** : les coches restent locales à l'écran.
@@ -50,7 +50,7 @@ Apollia crée automatiquement un canal **Bureau** par défaut au tout premier d�
 1. Dans la sidebar, cliquez sur **Notifications**. La liste affiche vos canaux existants, plus une section *« Événements globaux »* en haut.
 
 2. Cliquez sur **+ Nouveau canal** en haut à droite. Le dialog **Créer un canal** s'ouvre.
-   ![page Notifications - section Événements globaux, liste de canaux, bouton "Nouveau canal" en haut à droite](/img/operator-help/fr/notifications-configurer-un-canal-1.png)
+   ![page Notifications - section Événements globaux, liste de canaux, bouton "Nouveau canal" en haut à droite](/img/operator-help/notifications-configurer-un-canal-1.png)
 
 3. **Nom** (premier champ, focus automatique) - saisissez un nom clair, libre (espaces, accents et emojis acceptés, 80 caractères max). Exemples : *Alertes Slack équipe*, *Webhook supervision*, *Bureau perso*. Ce nom apparaîtra dans la liste, dans l'historique d'envoi et dans les toasts.
 
@@ -96,7 +96,7 @@ Une fois créé, chaque canal est rendu sous forme de carte avec :
 - À l'extrême droite de la ligne d'événements, un petit indicateur **⏱ … s** apparaît si un throttling est configuré.
 - En pied de carte, séparé par un trait fin, **trois icônes d'action** côte à côte : avion en papier (Tester), crayon (Modifier), corbeille rouge (Supprimer). Survolez chaque icône pour voir son tooltip.
 
-![Carte d'un canal de notification, barre d'accent, icone du canal, nom et identifiant, et ses badges](/img/operator-help/fr/notifications-configurer-un-canal-2.png)
+![Carte d'un canal de notification, barre d'accent, icone du canal, nom et identifiant, et ses badges](/img/operator-help/notifications-configurer-un-canal-2.png)
 
 ## Tester le canal
 

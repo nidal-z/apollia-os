@@ -13,19 +13,19 @@
 1. In the sidebar, click **Projects**.
 
 2. Click **+ New Project** at the top right.
-   ![Projects page, + New Project button highlighted at the top right](/img/operator-help/en/projets-creer-un-projet-1.png)
+   ![Projects page, + New Project button highlighted at the top right](/img/operator-help/projets-creer-un-projet-1.png)
 
 3. Give your project a clear **name** (for example: *Marketing website 2026*). This name appears in the sidebar, in the linked chats and in the notifications.
 
 4. Click **Browse** and select the **root folder** of the project on your machine.
 
 5. (Optional) Pick a **project template** in the drop-down list. The template pre-enables the matching context providers (a code project gets Git and File tree by default).
-   ![New Project modal with Name, Root folder and Template fields](/img/operator-help/en/projets-creer-un-projet-2.png)
+   ![New Project modal with Name, Root folder and Template fields](/img/operator-help/projets-creer-un-projet-2.png)
 
 6. Click **Create**. The project appears in the list immediately.
 
 7. Click the project card to open its **detail panel** (side Sheet). It shows the path, the linked agents, the active context providers, the attached documents and the linked chats, in scrollable sections, with no formal tabs.
-   ![Project detail panel opened as a side sheet, with its Description, Agents, Context Providers, Documents and Chat sections](/img/operator-help/en/projets-creer-un-projet-3.png)
+   ![Project detail panel opened as a side sheet, with its Description, Agents, Context Providers, Documents and Chat sections](/img/operator-help/projets-creer-un-projet-3.png)
 
 8. Carry on with **Enable context providers** to load the right information into your future chats automatically.
 

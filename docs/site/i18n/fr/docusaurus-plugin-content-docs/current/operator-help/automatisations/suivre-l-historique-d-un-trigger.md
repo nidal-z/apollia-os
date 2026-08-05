@@ -14,7 +14,7 @@
 2. Repérez la ligne de l'automatisation qui vous intéresse dans la table. Passez la souris dessus pour faire apparaître les actions à droite.
 
 3. Cliquez sur l'icône **⋯** (trois points) à droite de la ligne → **Voir l'historique**. Un panneau coulissant s'ouvre depuis la droite, intitulé **Historique des déclenchements**, avec un compteur en haut indiquant le nombre total d'événements.
-   ![Ligne d'automatisation au survol, menu a trois points ouvert sur Voir l'historique](/img/operator-help/fr/automatisations-suivre-l-historique-d-un-trigger-1.png)
+   ![Ligne d'automatisation au survol, menu a trois points ouvert sur Voir l'historique](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-1.png)
 
 4. Chaque ligne de la liste contient déjà l'essentiel - pas besoin de cliquer pour ouvrir un détail :
    - **Statut** (à gauche) - badge coloré DÉCLENCHÉ / IGNORÉ / ERREUR.
@@ -23,7 +23,7 @@
    - **Identifiant court** de la tâche créée (8 premiers caractères, ou `-` si aucune tâche n'a été produite).
    - **Raison** affichée en rouge sur une ligne dédiée pour les statuts ERREUR.
 
-   ![Panneau d'historique des declenchements, puces de filtre de statut en haut et cartes d'execution empilees](/img/operator-help/fr/automatisations-suivre-l-historique-d-un-trigger-2.png)
+   ![Panneau d'historique des declenchements, puces de filtre de statut en haut et cartes d'execution empilees](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
 5. Repérez les **statuts possibles** :
    - **DÉCLENCHÉ** - le déclenchement a bien eu lieu et une tâche a été créée pour l'assistant. Ce statut ne dit rien du résultat de la tâche elle-même : pour savoir si l'agent a réussi son travail, voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md).

@@ -39,7 +39,11 @@ MIRROR = (
 
 # Same expression `publish_screenshots.py` uses to find image references, so the
 # two tools cannot disagree about what counts as referenced.
-REF = re.compile(r"/img/operator-help/(?:en|fr)/([a-z0-9-]+\.png)")
+# One directory, no locale segment. Both locales reference the same image:
+# keeping en/ and fr/ side by side, filled from one capture set, is what let
+# the English pages serve French captures for two weeks without any gate
+# noticing, since a stale image is not a broken link.
+REF = re.compile(r"/img/operator-help/([a-z0-9-]+\.png)")
 
 # A shooting row: | 12 | `some-name.png` | ... The row number and the File cell
 # are the only two columns this cares about.
@@ -150,8 +154,8 @@ def self_test() -> int:
     header = "| # | File |\n|---|---|\n"
     row_a = "| 1 | `alpha.png` |\n"
     row_b = "| 2 | `beta.png` |\n"
-    ref_a = "![a](/img/operator-help/en/alpha.png)\n"
-    ref_b = "![b](/img/operator-help/fr/beta.png)\n"
+    ref_a = "![a](/img/operator-help/alpha.png)\n"
+    ref_b = "![b](/img/operator-help/beta.png)\n"
 
     run_case("consistent pair", header + row_a + row_b, ref_a + ref_b, None)
     run_case("row shoots an image no page uses", header + row_a + row_b, ref_a, "beta.png")

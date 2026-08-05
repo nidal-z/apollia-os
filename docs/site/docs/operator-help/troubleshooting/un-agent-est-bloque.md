@@ -11,7 +11,7 @@ By far the most frequent case. The agent tried a sensitive action (writing a fil
 **Solution:**
 1. In the sidebar, click **Inbox**.
 2. The **To do** tab is selected by default. Filter on the **Approvals** chip to see only pending approvals, and use the **Agent** selector on the right to isolate the agent concerned.
-   ![Inbox on the To do tab, with one approval card expanded to show what the agent is waiting for](/img/operator-help/en/troubleshooting-un-agent-est-bloque-1.png)
+   ![Inbox on the To do tab, with one approval card expanded to show what the agent is waiting for](/img/operator-help/troubleshooting-un-agent-est-bloque-1.png)
 3. Click the item to expand it into a HITL card, then **Allow** / **Refuse**. The agent resumes its work immediately. See [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md) for the details.
 
 ### 2. The agent is waiting for an answer from an external tool

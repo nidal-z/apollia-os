@@ -10,11 +10,11 @@
 
 1. In the **Connections** sidebar, select the MCP server to test.
 
-   ![Connections page: an MCP server selected in the sidebar, its detail page on the right](/img/operator-help/en/integration-tester-une-connexion-mcp-1.png)
+   ![Connections page: an MCP server selected in the sidebar, its detail page on the right](/img/operator-help/integration-tester-une-connexion-mcp-1.png)
 
 2. In the detail panel, click the **plug** icon next to the server name, or **Test connection** in the actions menu.
 
-   ![Page of an installed MCP server, with the Test button in the actions area](/img/operator-help/en/integration-tester-une-connexion-mcp-2.png)
+   ![Page of an installed MCP server, with the Test button in the actions area](/img/operator-help/integration-tester-une-connexion-mcp-2.png)
 
 3. During the test, the icon pulses and the button is disabled. The test typically takes less than a second.
 

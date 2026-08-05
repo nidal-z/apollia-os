@@ -19,7 +19,7 @@ Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** 
 
 Quand vous voyez la popup, vous pouvez cocher *"Toujours autoriser pour ce projet"*. Cela crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
 
-![Popup d'approbation dans le chat : le titre de l'outil, les paramètres exposés, les boutons Autoriser une fois et Refuser, et le menu Toujours autoriser](/img/operator-help/fr/integration-comprendre-les-permissions-mcp-1.png)
+![Popup d'approbation dans le chat : le titre de l'outil, les paramètres exposés, les boutons Autoriser une fois et Refuser, et le menu Toujours autoriser](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
 
 ## Voir et changer les règles
 
@@ -34,7 +34,7 @@ Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'une 
 
 Le niveau d'approbation par serveur (`auto` / `ask` / `readonly`) n'est pas sur cette page : il se trouve dans **Connexions**, sur l'onglet **Réglages** du serveur.
 
-![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/fr/integration-comprendre-les-permissions-mcp-2.png)
+![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
 
 Une règle se crée de deux façons. La plupart du temps elle apparaît toute seule, quand vous répondez « Toujours autoriser » à une demande d'approbation. Vous pouvez aussi en créer une à la main depuis cette page, via le formulaire **Ajouter une règle**, ce qui permet d'autoriser quelque chose avant même qu'un agent le demande.
 

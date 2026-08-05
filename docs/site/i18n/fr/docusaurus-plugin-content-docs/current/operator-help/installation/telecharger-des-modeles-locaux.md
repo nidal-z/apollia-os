@@ -11,7 +11,7 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Hub de modèles**.
-   ![page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État](/img/operator-help/fr/installation-telecharger-des-modeles-locaux-1.png)
+   ![page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État](/img/operator-help/installation-telecharger-des-modeles-locaux-1.png)
 
 2. Filtrez la liste par type **GGUF** pour les modèles d'IA conversationnelle.
 
@@ -20,14 +20,14 @@
 3. Cliquez sur la ligne du modèle qui vous intéresse. Un panneau affiche la taille exacte, la durée estimée de téléchargement et la configuration matérielle recommandée.
 
 4. Cliquez sur **Télécharger**. Une barre de progression apparaît à côté du modèle.
-   ![ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler](/img/operator-help/fr/installation-telecharger-des-modeles-locaux-2.png)
+   ![ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler](/img/operator-help/installation-telecharger-des-modeles-locaux-2.png)
 
 5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue - seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
 
 6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
 
 7. (Optionnel) Cliquez sur **Définir par défaut** pour utiliser ce modèle automatiquement dans les nouveaux chats (GGUF) ou pour la dictée (Whisper). Juste après la sélection d'un modèle local pendant l'onboarding, l'étape de conversation affiche brièvement un statut **Démarrage du moteur** le temps que le modèle s'enregistre ; la conversation démarre d'elle-même dès qu'il est prêt.
-   ![Hub de modèles : la section Modèles installés, avec le modèle actif marqué d'un badge Utilisé](/img/operator-help/fr/installation-telecharger-des-modeles-locaux-1bis.png)
+   ![Hub de modèles : la section Modèles installés, avec le modèle actif marqué d'un badge Utilisé](/img/operator-help/installation-telecharger-des-modeles-locaux-1bis.png)
 
 8. L'espace disque utilisé par tous vos modèles est affiché en bas de la page. Pour libérer de la place, cliquez sur **Supprimer** sur n'importe quel modèle déjà téléchargé.
 

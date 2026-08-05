@@ -26,7 +26,7 @@ Trois cartes côte à côte, et une bande d'activité en dessous :
 - **Livrables prêts** : les tâches récemment complétées. Un clic sur une ligne ouvre l'onglet **Tâches**.
 - **Au travail** : les agents actuellement actifs. Un clic ouvre le détail de l'agent.
 
-![tableau de bord en mode opérateur, trois cartes en grille, Décisions en attente à gauche occupant deux colonnes](/img/operator-help/fr/observabilite-lire-le-digest-quotidien-1.png)
+![tableau de bord en mode opérateur, trois cartes en grille, Décisions en attente à gauche occupant deux colonnes](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
 
 Sous les cartes, **Activité récente** liste les dernières tâches tous statuts confondus sous forme de mini-cartes, et mène à la page **Tâches**.
 
@@ -39,7 +39,7 @@ Les compteurs se mettent à jour tout seuls : lancez une tâche et *« Au travai
 2. En haut, **quatre KPIs** résument la fenêtre courante : Événements · Outils · Appels LLM · Erreurs (compteur en rouge si > 0). Les KPIs réagissent aux filtres : si vous masquez les outils, leur compteur reste mais le total **Événements** descend.
 
 3. Choisissez la **fenêtre temporelle** : **30 min / 1 h / 6 h / 24 h / 7 j**. Par défaut : 1 h. Les événements se rechargent automatiquement environ toutes les 15 secondes.
-   ![Onglet Chronologie : la bande de KPIs, la barre de filtres, puis les événements groupés par jour](/img/operator-help/fr/observabilite-consulter-l-historique-des-taches-1.png)
+   ![Onglet Chronologie : la bande de KPIs, la barre de filtres, puis les événements groupés par jour](/img/operator-help/observabilite-consulter-l-historique-des-taches-1.png)
 
 4. **Filtrez les événements** :
    - **Type** - 7 chips arrondies (Tâche / Outil / LLM / Approbation / Mémoire / Délégation / Erreur). Chaque chip active/désactive sa catégorie ; les chips grisés sont désactivés.

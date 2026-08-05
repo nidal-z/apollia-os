@@ -11,12 +11,12 @@
 ## Étapes
 
 1. **Depuis la page Projets** : cliquez sur **Projets** dans la sidebar, ouvrez le projet, puis cliquez sur **+ Nouveau chat lié** en haut à droite.
-   ![page de détail projet, bouton + Nouveau chat lié surligné](/img/operator-help/fr/projets-lier-un-projet-a-un-chat-1.png)
+   ![page de détail projet, bouton + Nouveau chat lié surligné](/img/operator-help/projets-lier-un-projet-a-un-chat-1.png)
 
 2. Le chat s'ouvre automatiquement. L'icône du projet apparaît dans son en-tête : il est attaché.
 
 3. **Depuis un chat existant** : ouvrez le chat, cliquez sur le menu en haut (trois points), puis sur **Lier à un projet**.
-   ![en-tête de chat, menu déroulant avec option Lier à un projet](/img/operator-help/fr/projets-lier-un-projet-a-un-chat-2.png)
+   ![en-tête de chat, menu déroulant avec option Lier à un projet](/img/operator-help/projets-lier-un-projet-a-un-chat-2.png)
 
 4. Sélectionnez le projet cible dans la liste déroulante. Le contexte s'attache instantanément.
 
@@ -25,7 +25,7 @@
 6. Posez une question spécifique au projet pour valider - par exemple : *"Quels fichiers ont changé cette semaine ?"*. La réponse doit citer des fichiers et des commits réels.
 
 7. Vous pouvez créer plusieurs chats liés au même projet. Chacun garde son propre historique mais partage le même contexte.
-   ![page projet avec liste de chats liés, chacun avec son titre et sa date](/img/operator-help/fr/projets-lier-un-projet-a-un-chat-3.png)
+   ![page projet avec liste de chats liés, chacun avec son titre et sa date](/img/operator-help/projets-lier-un-projet-a-un-chat-3.png)
 
 8. Pour délier un chat, ouvrez son menu en haut et cliquez sur **Délier du projet**. Le chat est conservé, seul le contexte projet disparaît.
 

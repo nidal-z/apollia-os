@@ -12,7 +12,7 @@
 
 1. Dans la barre latérale **Connexions**, cliquez sur **Ajouter un connecteur** en bas. Une feuille s'ouvre sur l'onglet **Catalogue MCP** ; passez sur l'onglet **MCP personnalisé**.
 
-   ![Onglet Personnalisé du catalogue : le formulaire vierge](/img/operator-help/fr/integration-cabler-son-propre-serveur-mcp-1.png)
+   ![Onglet Personnalisé du catalogue : le formulaire vierge](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
 
 2. Remplissez le formulaire selon le transport choisi (voir sous-sections).
 
@@ -28,7 +28,7 @@
 - **Arguments** : séparés par des espaces (par exemple `-y @modelcontextprotocol/server-filesystem ~/Documents`).
 - **Exiger approbation** : cochez si vous voulez une approbation HITL à chaque appel d'outil.
 
-![Formulaire Personnalisé en transport stdio, avec la commande et les arguments remplis](/img/operator-help/fr/integration-cabler-son-propre-serveur-mcp-2.png)
+![Formulaire Personnalisé en transport stdio, avec la commande et les arguments remplis](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
 
 ### Cas streamable-http (serveur distant)
 
@@ -37,7 +37,7 @@
 - **URL** : endpoint HTTP du serveur (`https://...`).
 - **En-têtes** (optionnel) : un par ligne au format `Nom-Header=valeur`. Exemple : `Authorization=Bearer sk-...` ou `X-API-Key=...`.
 
-![Formulaire Personnalisé en transport streamable-http, avec l'URL et les en-têtes d'authentification](/img/operator-help/fr/integration-cabler-son-propre-serveur-mcp-3.png)
+![Formulaire Personnalisé en transport streamable-http, avec l'URL et les en-têtes d'authentification](/img/operator-help/integration-cabler-son-propre-serveur-mcp-3.png)
 
 ### Cas SSE
 
