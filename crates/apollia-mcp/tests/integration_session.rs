@@ -231,6 +231,13 @@ async fn test_deferred_start_loads_index_only() {
     // THEN the index holds both tools while the schema slice stays empty
     assert_eq!(session.tool_index().len(), 2);
     assert!(session.tools().is_empty());
+    // AND the schemas that came back with that same tools/list are kept in the
+    // cache rather than dropped: they cost nothing in the prompt and they are
+    // what makes an indexed tool callable.
+    let cached = session
+        .cached_tool_schema("echo")
+        .expect("boot discovery seeds the schema cache");
+    assert!(cached["properties"]["message"].is_object());
     let names: Vec<&str> = session
         .tool_index()
         .iter()
@@ -242,7 +249,7 @@ async fn test_deferred_start_loads_index_only() {
     session.shutdown().await;
 }
 
-/// fetch_tool_schema must return the schema and serve repeats from the cache.
+/// fetch_tool_schema must serve every indexed tool without a round-trip.
 #[tokio::test]
 async fn test_deferred_fetch_schema_caches() {
     // GIVEN a deferred session against a server that dies after its 2nd tools/list
@@ -251,7 +258,8 @@ async fn test_deferred_fetch_schema_caches() {
         .await
         .unwrap();
 
-    // WHEN the first schema is fetched (this is the 2nd tools/list; server now exits)
+    // WHEN a schema is fetched: the boot tools/list already cached it, so no
+    // second request is sent and the mock never reaches its exit condition
     let schema = session.fetch_tool_schema("echo").await.unwrap();
     // THEN it carries the expected shape
     assert_eq!(schema["type"], "object");
@@ -305,14 +313,21 @@ async fn test_deferred_fetch_network_error_is_typed() {
     // Allow the server process to fully exit before the on-demand fetch
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    // WHEN a schema is fetched and the on-demand tools/list hits the dead process
-    let result = session.fetch_tool_schema("echo").await;
+    // WHEN a schema is fetched for a tool the boot index never saw, forcing the
+    // on-demand tools/list onto the dead process
+    let result = session.fetch_tool_schema("appeared_after_boot").await;
 
     // THEN the network failure surfaces as a typed SchemaFetchFailed, not a panic
     assert!(matches!(
         result,
         Err(McpSessionError::SchemaFetchFailed { .. })
     ));
+
+    // AND an indexed tool is still served, because its schema was cached at
+    // boot: a server that dies does not make what it already published
+    // unreachable
+    let indexed = session.fetch_tool_schema("echo").await.unwrap();
+    assert_eq!(indexed["type"], "object");
 
     session.shutdown().await;
 }

@@ -84,7 +84,7 @@ tool_loading = "eager"
 
 En mode `eager`, tous les outils du serveur sont chargés en contexte à chaque appel. Cela simplifie le comportement de l'agent mais augmente la consommation de tokens.
 
-Le paramètre `tool_search_limit` borne le nombre d'outils renvoyés par `tool_search` en mode `deferred`. Valeur par défaut : `20`. Plage valide : `1` à `500`.
+Le paramètre `tool_search_limit` borne le nombre d'outils renvoyés par `tool_search` en mode `deferred`, et sous cette même borne l'index est déclaré d'emblée à l'agent plutôt que cherché. Valeur par défaut : `20`. Plage valide : `1` à `500`. Une installation à deux serveurs passe généralement en dessous, ce qui explique que `deferred` s'y comporte comme `eager`.
 
 ```toml
 [mcp]

@@ -386,9 +386,10 @@ pub(in crate::chat::builtin_agent) async fn build_tool_specs(
     let deferred = mcp_index.is_some();
     let mut specs = Vec::with_capacity(available_tools.len());
     for name in available_tools {
-        // In deferred mode the individual MCP schemas are never sent to the LLM:
-        // the synthetic `tool_search` tool (appended below) is the only entry
-        // point. Native tools are resolved normally in both modes.
+        // Deferred MCP tools are advertised from the index below, never from
+        // the registry, which holds no `mcp:` descriptor in that mode anyway.
+        // Skipping here keeps a stale registry entry from producing a duplicate
+        // spec. Native tools are resolved normally in both modes.
         if deferred && name.starts_with("mcp:") {
             continue;
         }
@@ -410,6 +411,55 @@ pub(in crate::chat::builtin_agent) async fn build_tool_specs(
     }
     if deferred {
         specs.push(tool_search_spec(tool_search_limit));
+        // Deferred mode used to stop here, and that made every MCP tool
+        // unreachable from chat on the default setting.
+        //
+        // The runtime was ready: `valid_tool_names` accepts any indexed
+        // `mcp:server/tool` and an executor is registered for each. Only the
+        // model was never told. It saw `tool_search`, called it, got back
+        // `mcp:notes/list_seed_notes`, and then had to emit a call for a name
+        // absent from its declared tools. Providers constrain tool calls to the
+        // declared set, so it could not: it answered that it had no way to
+        // invoke MCP tools while three of them sat indexed and callable behind
+        // it.
+        //
+        // So when the whole index fits inside the search limit, advertise it
+        // with the schemas the discovery `tools/list` already brought back.
+        // That is the small fixed set where deferring saved little anyway, and
+        // it is what a two-server install looks like. Above that bound nothing
+        // changes and `tool_search` stays the only path, which is the point of
+        // deferring; the schemas the search result carries are what let the
+        // model call what it finds.
+        if let Some(index) = mcp_index {
+            if index.len() <= tool_search_limit {
+                for entry in index {
+                    specs.push(ToolSpec {
+                        name: format!("mcp:{}/{}", entry.server_name, entry.tool_name),
+                        description: entry.description.clone().unwrap_or_else(|| {
+                            format!(
+                                "MCP tool `{}` from server `{}`.",
+                                entry.tool_name, entry.server_name
+                            )
+                        }),
+                        parameters: entry
+                            .input_schema
+                            .clone()
+                            .unwrap_or_else(|| serde_json::json!({ "type": "object" })),
+                    });
+                }
+                tracing::info!(
+                    indexed = index.len(),
+                    limit = tool_search_limit,
+                    "mcp.deferred.index_advertised"
+                );
+            } else {
+                tracing::info!(
+                    indexed = index.len(),
+                    limit = tool_search_limit,
+                    "mcp.deferred.index_reachable_through_search_only"
+                );
+            }
+        }
     }
     specs
 }

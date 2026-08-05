@@ -84,7 +84,7 @@ tool_loading = "eager"
 
 In `eager` mode, every tool of the server is loaded into the context on every call. This simplifies the agent behaviour but increases token consumption.
 
-The `tool_search_limit` parameter bounds the number of tools returned by `tool_search` in `deferred` mode. Default value: `20`. Valid range: `1` to `500`.
+The `tool_search_limit` parameter bounds the number of tools returned by `tool_search` in `deferred` mode, and below that same bound the index is declared to the agent up front rather than searched. Default value: `20`. Valid range: `1` to `500`. A two-server install is usually under it, which is why `deferred` behaves much like `eager` at that size.
 
 ```toml
 [mcp]

@@ -2090,6 +2090,11 @@ fn snapshot(server: &str, tool: &str) -> ToolIndexSnapshot {
         tool_name: tool.to_string(),
         description: Some(format!("{tool} description")),
         tags: vec![],
+        input_schema: Some(serde_json::json!({
+            "type": "object",
+            "properties": { "query": { "type": "string" } },
+            "required": ["query"]
+        })),
     }
 }
 
@@ -2753,11 +2758,65 @@ async fn test_build_tool_specs_deferred_injects_tool_search() {
     let index = vec![snapshot("notion", "search_pages")];
     // WHEN build_tool_specs runs with the index (deferred)
     let specs = build_tool_specs(&available, &registry, Some(&index), 20).await;
-    // THEN the native tool stays, the MCP schema is gone, tool_search is present
+    // THEN the native tool stays, tool_search is present, and the indexed MCP
+    // tool is advertised once with the schema the index carries: an index that
+    // fits the search limit is callable, not merely searchable.
     let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
     assert!(names.contains(&"bash_executor"));
-    assert!(!names.contains(&"mcp:notion/search_pages"));
     assert!(names.contains(&"tool_search"));
+    assert_eq!(
+        names
+            .iter()
+            .filter(|n| **n == "mcp:notion/search_pages")
+            .count(),
+        1,
+        "the indexed MCP tool is advertised exactly once, got {names:?}"
+    );
+    let mcp = specs
+        .iter()
+        .find(|s| s.name == "mcp:notion/search_pages")
+        .expect("indexed MCP spec present");
+    assert_eq!(mcp.parameters["properties"]["query"]["type"], "string");
+}
+
+#[tokio::test]
+async fn test_build_tool_specs_deferred_index_above_limit_stays_search_only() {
+    // GIVEN an index larger than the search limit
+    let registry = ToolRegistryHandle::start();
+    registry
+        .register(apollia_tools::tools::bash_executor::BashExecutor::descriptor())
+        .await
+        .unwrap();
+    let index: Vec<_> = (0..5)
+        .map(|i| snapshot("notion", &format!("tool_{i}")))
+        .collect();
+    // WHEN build_tool_specs runs with a limit below the index size
+    let specs = build_tool_specs(&["bash_executor".to_string()], &registry, Some(&index), 3).await;
+    // THEN no MCP schema is advertised and tool_search remains the only entry
+    // point, which is what deferring is for
+    let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&"tool_search"));
+    assert!(
+        !names.iter().any(|n| n.starts_with("mcp:")),
+        "an index above the limit must not be advertised, got {names:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_build_tool_specs_deferred_index_without_schema_is_still_callable() {
+    // GIVEN an indexed tool whose server sent no usable schema
+    let registry = ToolRegistryHandle::start();
+    let mut entry = snapshot("notion", "search_pages");
+    entry.input_schema = None;
+    // WHEN build_tool_specs runs in deferred mode
+    let specs = build_tool_specs(&[], &registry, Some(&[entry]), 20).await;
+    // THEN the tool is still declared, with a permissive object schema, because
+    // a name the model cannot emit is a tool that does not exist
+    let mcp = specs
+        .iter()
+        .find(|s| s.name == "mcp:notion/search_pages")
+        .expect("indexed MCP spec present");
+    assert_eq!(mcp.parameters["type"], "object");
 }
 
 #[tokio::test]

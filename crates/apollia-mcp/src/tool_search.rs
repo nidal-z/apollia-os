@@ -39,6 +39,12 @@ pub struct ToolIndexSnapshot {
     pub description: Option<String>,
     /// Tags configured on the owning server, used as extra search terms.
     pub tags: Vec<String>,
+    /// The tool's JSON input schema, when the owning session has it cached.
+    ///
+    /// Carried so a search result can tell the model what arguments the tool
+    /// takes. Without it the model learns a callable name and still has to
+    /// guess its parameters, which is a call that fails on the server side.
+    pub input_schema: Option<Value>,
 }
 
 /// A single match returned by [`search_index`].
@@ -53,6 +59,11 @@ pub struct ToolSearchMatch {
     pub server_name: String,
     /// Description, when available.
     pub description: Option<String>,
+    /// JSON input schema, when the index carries one. This is what makes the
+    /// match actionable: the model reads the arguments here and calls
+    /// `full_name` directly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<Value>,
 }
 
 // ─── pure search ───────────────────────────────────────────────────────────
@@ -111,6 +122,7 @@ pub fn search_index(
             tool_name: entry.tool_name.clone(),
             server_name: entry.server_name.clone(),
             description: entry.description.clone(),
+            input_schema: entry.input_schema.clone(),
         })
         .collect())
 }
@@ -224,6 +236,7 @@ mod tests {
             tool_name: tool.to_string(),
             description: desc.map(str::to_string),
             tags: tags.iter().map(|t| t.to_string()).collect(),
+            input_schema: None,
         }
     }
 

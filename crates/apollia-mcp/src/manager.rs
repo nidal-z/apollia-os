@@ -1379,6 +1379,7 @@ impl McpClientManager {
                     tool_name: entry.name.clone(),
                     description: entry.description.clone(),
                     tags: tags.clone(),
+                    input_schema: session.cached_tool_schema(&entry.name).cloned(),
                 });
             }
         }

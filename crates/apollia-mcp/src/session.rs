@@ -265,15 +265,23 @@ impl From<apollia_core::McpToolLoading> for LoadingMode {
 /// A lightweight entry in the deferred tool index.
 ///
 /// Populated from a `tools/list` response when running in
-/// [`LoadingMode::Deferred`]. The tool's `input_schema` is intentionally
-/// omitted to keep the index cheap; it is fetched on demand by
-/// [`McpSession::fetch_tool_schema`].
+/// [`LoadingMode::Deferred`]. The entry stays cheap in the prompt, which is
+/// what deferring is about: the schema is held in memory but never advertised
+/// to the model unless the whole index fits the search limit.
 #[derive(Debug, Clone)]
 pub struct ToolIndexEntry {
     /// Tool name within the server (e.g. `"search_pages"`).
     pub name: String,
     /// Human-readable description, when provided by the server.
     pub description: Option<String>,
+}
+
+impl ToolIndexEntry {
+    /// The fully qualified name this tool answers to, `mcp:{server}/{tool}`.
+    #[must_use]
+    pub fn full_name(&self, server_name: &str) -> String {
+        format!("mcp:{server_name}/{}", self.name)
+    }
 }
 
 // ─── session ─────────────────────────────────────────────────────────────────
@@ -540,11 +548,22 @@ impl McpSession {
             &self.config.name,
             self.config.max_tools as usize,
         );
+        // One `tools/list` carries names, descriptions and schemas together. The
+        // index keeps the first two, and the schema cache keeps the third rather
+        // than dropping it: deferring is about what enters the prompt, not about
+        // what the process holds. Seeding the cache here also removes the extra
+        // `tools/list` round-trip `fetch_tool_schema` used to pay on its first
+        // call, and gives `collect_tool_index` a schema to hand to the model
+        // when the index is small enough to advertise in full.
         self.tool_index = sanitized
             .into_iter()
-            .map(|tool| ToolIndexEntry {
-                name: tool.name,
-                description: tool.description,
+            .map(|tool| {
+                self.schema_cache
+                    .insert(tool.name.clone(), tool.input_schema);
+                ToolIndexEntry {
+                    name: tool.name,
+                    description: tool.description,
+                }
             })
             .collect();
 
@@ -689,12 +708,23 @@ impl McpSession {
         &self.tool_index
     }
 
+    /// The cached input schema for `tool_name`, without any I/O.
+    ///
+    /// In [`LoadingMode::Deferred`] the cache is seeded at discovery, so this
+    /// answers for every indexed tool. In [`LoadingMode::Eager`] the schemas
+    /// live in `tools` instead and this returns `None`.
+    #[must_use]
+    pub fn cached_tool_schema(&self, tool_name: &str) -> Option<&serde_json::Value> {
+        self.schema_cache.get(tool_name)
+    }
+
     /// Fetch and cache the full JSON schema for a named tool.
     ///
     /// In [`LoadingMode::Eager`] the schema is read from the already-loaded
     /// `tools` slice with no network round-trip. In [`LoadingMode::Deferred`] the
-    /// first miss triggers a single `tools/list` call whose every schema is
-    /// cached; subsequent calls for any tool are served from `schema_cache`.
+    /// cache is seeded at discovery, so an indexed tool never reaches the wire;
+    /// a name that appeared after discovery triggers a single `tools/list` whose
+    /// every schema is cached.
     ///
     /// # Errors
     ///
