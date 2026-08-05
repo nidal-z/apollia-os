@@ -41,6 +41,41 @@ it.
 
 ---
 
+## Where the images go, and under exactly what name
+
+One directory, no locale, no subfolder:
+
+```
+docs/site/static/img/operator-help/<name>.png
+```
+
+`<name>` is the **File** column of the row, verbatim, without the backticks and
+without any prefix. `agents-installer-un-agent-2.png` is saved as
+`agents-installer-un-agent-2.png`, nothing else. That name is already written
+into the pages, so a correctly named file replaces the old image with no edit
+anywhere, and a misnamed one is invisible: nothing breaks, no build fails, the
+old image simply stays and you believe you refreshed it.
+
+Two ways to get a file there, and only two.
+
+**Through the publisher**, which is what the automaton runs use. It reads
+`NNN-<name>.png` from a capture directory, strips the numeric prefix, and copies
+only the names the pages actually reference:
+
+```sh
+python3 scripts/automation/tools/publish_screenshots.py --from <dir> --apply
+```
+
+**By hand**, for the thirteen the automaton cannot take. Save or rename your
+capture to the exact **File** name and drop it in the directory above. Then run
+the publisher with no arguments, or `check_screenshot_script.py`, to confirm the
+sets still agree.
+
+A hand-shot capture does not need the `NNN-` prefix. That prefix only exists so
+a run can shoot the same label twice and let the later one win.
+
+---
+
 ## The procedure, in order
 
 Six steps. Do not reorder them: the seed has to be in place before the
@@ -484,11 +519,22 @@ rows the panel will list.
 **N5. The native folder picker** (rows 31, 32, 33, 34)
 Installing a package opens the macOS folder dialog, which lives outside the web
 view and cannot be driven. Do it by hand, once, and shoot the four steps of the
-flow it opens. Use `scripts/automation/seed/files/agents/packages/seed-office-pack`
-as the package: it is a valid bundle and it is the one the rest of the set shows.
-Row 32 needs a package with a webhook trigger, which `seed-office-pack` does not
-have. That one image cannot be shot from the seed at all: either add a webhook
-trigger to a copy of the package, or leave the stale image in place.
+flow it opens.
+
+Two demo packages exist for exactly this, outside the repository in
+`~/apollia-demo-packages/`, next to the narrative overlay and for the same
+reason: they are shooting props, not product. They carry metadata only and are
+never executed.
+
+- **`atlas-reporter`** for rows 31, 33 and 34. Two agents, one pip dependency,
+  no triggers, which is the common case.
+- **`inbox-triage`** for row 32. One agent and two triggers, a webhook and a
+  schedule, one enabled and one disabled, so the preview shows the Triggers
+  section and the Configure step has a webhook to configure.
+
+Both are named after the seed's own narrative, an Atlas documentation
+migration, so the installer images do not contradict the rest of the set. Their
+README says which to pick for which row.
 
 **N6. A real Google account** (rows 62, 63, 64)
 Row 63 is Google's own consent screen, outside the application entirely. All
