@@ -82,7 +82,7 @@ INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_defaul
 INSERT INTO stt_config (id, enabled, model_path, hotkey, clipboard_mode, clipboard_restore, silence_threshold_db, max_recording_sec, language, trigger_mode, updated_at) VALUES
   (1,
    1,
-   '~/.apollia/models/ggml-base.bin',
+   '__APOLLIA_SEED_HOME__/.apollia/models/ggml-base.bin',
    'ctrl+shift+space',
    'paste',
    1,

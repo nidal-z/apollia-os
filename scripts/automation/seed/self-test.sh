@@ -181,3 +181,8 @@ expect_eq "the home alias reaches the seeded rows" "1" "$watched"
 echo
 echo "seed self-test: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
+
+# Every absolute path a seeded database names must exist. Added after the
+# agents vanished from a loaded seed: the files were in place, agents.db named a
+# staging directory that load.sh had deleted, and nothing logged an error.
+bash "$(dirname "$0")/self-test-paths.sh" "${SEED_DATA:-$HOME/.apollia}"

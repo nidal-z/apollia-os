@@ -38,6 +38,15 @@ CFG="$SEED_HOME/.config/apollia"
 
 PROJECT_ROOT="${APOLLIA_SEED_PROJECT_ROOT:-$REPO_ROOT}"
 HOME_ALIAS="${APOLLIA_SEED_HOME_ALIAS:-$SEED_HOME}"
+# Every absolute path written INTO a database has to name the home the profile
+# will end up under, not the directory this script happens to build in. They are
+# the same for the automaton, which builds straight into its target, and they
+# differ for load.sh, which builds into a staging directory and then moves the
+# result. Writing $DATA there baked a path under /var/folders that load.sh
+# deletes on the way out: the agent files landed correctly in the home while
+# agents.db pointed at a directory that no longer existed, so the boot loader
+# found nothing and the guide and onboarding agents simply never appeared.
+DATA_ALIAS="$HOME_ALIAS/.apollia"
 
 OVERLAY="${APOLLIA_SEED_OVERLAY:-}"
 if [ -n "$OVERLAY" ] && [ ! -d "$OVERLAY" ]; then
@@ -148,11 +157,14 @@ fi
 #     HOME is dynamic, so the path cannot live in the SQL fragment).
 if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   STUB_DST="$DATA/mcp-stub-server.py"
+  # Copied to the staging path, referenced by the final one, for the reason
+  # given at DATA_ALIAS above.
+  STUB_REF="$DATA_ALIAS/mcp-stub-server.py"
   cp "$HERE/files/mcp-stub-server.py" "$STUB_DST"
   chmod +x "$STUB_DST"
   if [ -f "$DATA/mcp.db" ]; then
     sqlite3 "$DATA/mcp.db" \
-      "UPDATE mcp_servers SET args_json = replace(args_json, '__APOLLIA_SEED_MCP_STUB__', '$STUB_DST') WHERE args_json LIKE '%__APOLLIA_SEED_MCP_STUB__%';"
+      "UPDATE mcp_servers SET args_json = replace(args_json, '__APOLLIA_SEED_MCP_STUB__', '$STUB_REF') WHERE args_json LIKE '%__APOLLIA_SEED_MCP_STUB__%';"
   fi
 fi
 
@@ -162,11 +174,11 @@ fi
 #    loader validates it as a .py file (loader.rs), not the containing directory.
 if [ -f "$DATA/agents.db" ]; then
   sqlite3 "$DATA/agents.db" \
-    "UPDATE installed_agents SET install_path = '$DATA/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
+    "UPDATE installed_agents SET install_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
   sqlite3 "$DATA/agents.db" \
-    "UPDATE installed_agents SET source_path = '$DATA/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
+    "UPDATE installed_agents SET source_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
   sqlite3 "$DATA/agents.db" \
-    "UPDATE installed_packages SET root_path = '$DATA/agents/packages/' || name WHERE 1;" 2>/dev/null || true
+    "UPDATE installed_packages SET root_path = '$DATA_ALIAS/agents/packages/' || name WHERE 1;" 2>/dev/null || true
 fi
 
 # 4) Config: place apollia.toml in both the standard and XDG locations. An
