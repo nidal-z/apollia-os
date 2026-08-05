@@ -215,10 +215,15 @@ def counts_in_prose_match_the_scripts() -> list[str]:
                 f"carries {n} screenshot steps"
             )
     total = sum(totals.values())
-    if f"**{total} of the 85" not in prose:
+    # The set size is read from the rows, never hardcoded here. It was hardcoded
+    # once, at 85, and adding a single row turned this check into a false alarm
+    # about a number that had just become right.
+    published = len(rows_from_script(prose))
+    if f"**{total} of the {published}" not in prose:
         problems.append(
-            f"{SCRIPT.name} does not claim '{total} of the 85' as automated coverage, "
-            f"which is what the two scripts add up to"
+            f"{SCRIPT.name} does not claim '{total} of the {published}' as automated "
+            f"coverage, which is what the two scripts add up to against "
+            f"{published} shooting rows"
         )
     return problems
 
@@ -291,7 +296,6 @@ def main() -> int:
         check()
         + counts_in_prose_match_the_scripts()
         + by_hand_list_matches_the_scripts()
-        + files_on_disk_match_the_pages()
         + files_on_disk_match_the_pages()
     )
     if problems:

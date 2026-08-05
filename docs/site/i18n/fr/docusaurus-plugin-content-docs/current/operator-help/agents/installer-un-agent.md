@@ -51,18 +51,24 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
 
 5. Cliquez sur **Installer**. Si le package contient des déclencheurs **webhook** à paramétrer, le bouton affiche **Configurer →** à la place, voir l'étape suivante.
 
-6. **(Optionnel) Configuration des webhooks.** Si on vous le demande, chaque webhook nécessite un **secret** (au moins 32 caractères) qui sécurise les appels entrants. Trois cas :
+6. **(Optionnel) Dépendances Python.** Si le package déclare des dépendances pip, un écran de confirmation les liste avant que quoi que ce soit ne soit téléchargé. Rien n'est installé tant que vous n'avez pas confirmé.
+
+   ![Dialogue d'installation, étape de confirmation des dépendances : encart ambre, liste des paquets pip, note sur le venv](/img/operator-help/agents-installer-un-agent-2ter.png)
+
+   Les paquets viennent de [pypi.org](https://pypi.org) et atterrissent dans un environnement virtuel dédié à cet agent, sous `~/.apollia/venvs/`. Votre Python système n'est pas touché, et désinstaller le package les emporte avec lui. Lisez la liste : c'est le seul moment où vous voyez exactement quel code tiers l'agent va exécuter.
+
+7. **(Optionnel) Configuration des webhooks.** Si on vous le demande, chaque webhook nécessite un **secret** (au moins 32 caractères) qui sécurise les appels entrants. Trois cas :
    - Si la personne qui a préparé le package vous a fourni un secret, copiez-le dans le champ.
    - Sinon, générez-en un long et imprévisible (n'importe quel mot de passe robuste fait l'affaire) et conservez-le précieusement, vous en aurez besoin pour configurer le service qui appellera le webhook.
    - L'URL affichée au-dessus du champ est l'adresse à laquelle ce webhook répondra : copiez-la avec le bouton dédié.
 
    ![Dialogue d'installation, étape configure : carte d'un trigger webhook avec endpoint URL et champ secret HMAC-SHA256](/img/operator-help/agents-installer-un-agent-3.png)
 
-7. Cliquez sur **Installer**. Apollia copie le package, enregistre les agents et active leurs déclencheurs. Un écran final confirme l'installation avec le nombre d'agents et de déclencheurs créés.
+8. Cliquez sur **Installer**. Apollia copie le package, enregistre les agents et active leurs déclencheurs. Un écran final confirme l'installation avec le nombre d'agents et de déclencheurs créés.
 
    ![Écran de confirmation Package installé ! avec compteur agents et triggers, bouton Fermer](/img/operator-help/agents-installer-un-agent-4.png)
 
-8. Fermez le dialogue. Le package apparaît dans la colonne de gauche, sous **Mes packages**. Les agents qu'il contient sont aussi listés sous **Mes assistants** (sauf ceux qui sont uniquement appelés en interne par d'autres agents).
+9. Fermez le dialogue. Le package apparaît dans la colonne de gauche, sous **Mes packages**. Les agents qu'il contient sont aussi listés sous **Mes assistants** (sauf ceux qui sont uniquement appelés en interne par d'autres agents).
 
 ## Vérification
 

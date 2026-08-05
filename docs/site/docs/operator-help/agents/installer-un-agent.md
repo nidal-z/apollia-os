@@ -51,18 +51,24 @@ If in doubt, ask the person who delivered the agent.
 
 5. Click **Install**. If the package contains **webhook** triggers to set up, the button shows **Configure →** instead, see the next step.
 
-6. **(Optional) Webhook configuration.** If you are asked for it, each webhook requires a **secret** (at least 32 characters) that secures the incoming calls. Three cases:
+6. **(Optional) Python dependencies.** If the package declares pip dependencies, a confirmation screen lists them before anything is downloaded. Nothing is installed until you confirm.
+
+   ![Installation dialog, dependency confirmation step: the amber callout, the list of pip packages, the venv note](/img/operator-help/agents-installer-un-agent-2ter.png)
+
+   The packages come from [pypi.org](https://pypi.org) and land in a virtual environment dedicated to this agent, under `~/.apollia/venvs/`. Your system Python is untouched, and uninstalling the package removes them with it. Read the list: it is the one moment where you see exactly what third-party code the agent will run.
+
+7. **(Optional) Webhook configuration.** If you are asked for it, each webhook requires a **secret** (at least 32 characters) that secures the incoming calls. Three cases:
    - If the person who prepared the package gave you a secret, copy it into the field.
    - Otherwise, generate a long and unpredictable one (any robust password will do) and keep it safe, you will need it to configure the service that will call the webhook.
    - The URL shown above the field is the address this webhook will answer on: copy it with the dedicated button.
 
    ![Installation dialog, configure step: webhook trigger card with endpoint URL and HMAC-SHA256 secret field](/img/operator-help/agents-installer-un-agent-3.png)
 
-7. Click **Install**. Apollia copies the package, registers the agents and activates their triggers. A final screen confirms the installation with the number of agents and triggers created.
+8. Click **Install**. Apollia copies the package, registers the agents and activates their triggers. A final screen confirms the installation with the number of agents and triggers created.
 
    ![Package installed! confirmation screen with agents and triggers counters, Close button](/img/operator-help/agents-installer-un-agent-4.png)
 
-8. Close the dialog. The package appears in the left column, under **My packages**. The agents it contains are also listed under **My assistants** (except those that are only called internally by other agents).
+9. Close the dialog. The package appears in the left column, under **My packages**. The agents it contains are also listed under **My assistants** (except those that are only called internally by other agents).
 
 ## Verification
 

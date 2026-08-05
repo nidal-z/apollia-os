@@ -1,6 +1,6 @@
-# The thirteen to shoot by hand
+# The fourteen to shoot by hand
 
-Every other image in the documentation is taken by the automaton. These thirteen
+Every other image in the documentation is taken by the automaton. These fourteen
 are not, because each one needs something the runner cannot reach: a native OS
 dialog, a real download, an OAuth round trip, or a model turn no prompt makes
 repeatable.
@@ -87,14 +87,12 @@ Same rule as row 4: past 60 %, cancel and restart.
 
 ---
 
-## Session C. Installing a package, four images
+## Session C. Installing a package, five images
 
 Two demo packages exist for this, in `~/apollia-demo-packages/`. They carry
 metadata only and are never executed. Their README says which is which, and
-records the two rules that made the first version of them fail to install:
-`role` accepts only `director`, `worker` or `assistant`, and neither package
-declares a pip dependency, because declaring one sends the installer into a
-virtualenv build and a network round trip in the middle of a shooting session.
+records the rule that made the first version of them fail to install: `role`
+accepts only `director`, `worker` or `assistant`, and nothing else.
 
 - **`atlas-reporter`**: two agents, one pip dependency, no triggers.
 - **`inbox-triage`**: one agent, two triggers, a webhook and a schedule.
@@ -102,9 +100,16 @@ virtualenv build and a network round trip in the middle of a shooting session.
 | File | Gesture | What must be on screen | Crop |
 |---|---|---|---|
 | `agents-installer-un-agent-2.png` | Agents, new assistant, pick a package folder, point at **`atlas-reporter`**. | The Preview step: the Agents and Triggers sections, the green Valid badge. | dialog |
-| `agents-installer-un-agent-2bis.png` | Same flow, point at **`inbox-triage`** instead. | The webhook trigger card with its Configure button. | dialog |
+| `agents-installer-un-agent-2ter.png` | From that preview, click Install. | The dependency confirmation: the amber callout naming `atlas-reporter` and its one dependency, the list showing `markdown-it-py==3.0.0`, the venv note. | dialog |
+| `agents-installer-un-agent-2bis.png` | Start over, point at **`inbox-triage`** instead. | The webhook trigger card with its Configure button. | dialog |
 | `agents-installer-un-agent-3.png` | From the `inbox-triage` preview, click Configure. | The Configure step: the webhook card, the endpoint URL, the HMAC-SHA256 secret field. | dialog |
 | `agents-installer-un-agent-4.png` | Click Install. | "Package installed!" with the agent and trigger counters, and the Close button. | dialog |
+
+The 2ter row is why `atlas-reporter` declares a pip dependency: without one, the
+installer skips that screen and the page documents a step nobody can photograph.
+Confirming it builds a virtualenv and runs pip, so it needs the network and
+takes a few seconds; `markdown-it-py` is small and pure Python, so the wait is
+short. Shoot the screen **before** you confirm.
 
 Rows 2bis and 3 need the package that carries a trigger, which is why the second
 demo package exists at all.
@@ -119,7 +124,7 @@ demo package exists at all.
 
 This one is fully deterministic: the session comes from the seed and needs no
 model at all. It is manual only because conversation rows carry no `data-testid`
-yet. Add one and this becomes the fourteenth automated capture.
+yet. Add one and this becomes the seventy-third automated capture.
 
 ---
 
@@ -132,16 +137,19 @@ servers, `notes` and `filesystem`, six tools between them.
 |---|---|---|---|
 | `integration-comprendre-les-permissions-mcp-1.png` | In a chat, ask: `List the seed notes using the notes server, then read the most recent one.` | The approval popup: the tool title, the exposed parameters, Allow once / Deny, and the scope note. | panel |
 
-If the model answers that it cannot call MCP tools and only lists resources,
-that is not a product defect and not a stub limitation: MCP tool loading
-defaults to `deferred`, which indexes tool names but never puts their schemas in
-front of the model. It is supposed to find them through the synthetic
-`tool_search` tool first, and it does not reliably do that on the first try.
+The seed leaves `mcp.tool_loading` at its default, `deferred`, which is the
+setting a reader has. A model that answers it cannot call MCP tools used to be
+the expected outcome there, and it was a real defect: deferred mode indexed the
+tool names, registered an executor for each, accepted the call at the runtime
+boundary, and never declared a single one to the model. It saw `tool_search`,
+called it, got a name back, and had no declared tool to emit. Six tools sat
+indexed and unreachable.
 
-The seed now sets `tool_loading = "eager"` for exactly this reason, which puts
-the six tools directly in the model's toolset. Two servers and six tools is the
-small fixed set the reference page says eager is for, so nothing is bent. If you
-loaded the seed before that change, reload it.
+Deferred mode now advertises the whole index when it fits `mcp.tool_search_limit`
+(20 by default), schemas included, and falls back to search-only above that.
+Six tools across two servers is well inside that bound, so the approval popup is
+one prompt away. If the model still refuses, that is a finding, not a shooting
+problem: say so rather than switching the seed to `eager`.
 
 ---
 
@@ -183,7 +191,7 @@ aside until you do.
 
 ---
 
-## Not in these thirteen: four pages with no image at all
+## Not in these fourteen: four pages with no image at all
 
 Separate from the work above, and a decision rather than a task. Four operator
 pages carry no illustration, and one of them matters more than the rest:
