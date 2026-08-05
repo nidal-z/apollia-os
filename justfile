@@ -196,6 +196,22 @@ llama-qwen:
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
       exit 1
     fi
+    # A GGUF under a megabyte is not a model, it is the automation seed's
+    # placeholder. load.sh moves the real ~/.apollia aside and installs a profile
+    # whose models/ holds 8 KB stubs, so this path keeps resolving and
+    # llama-server dies on `unknown model architecture: ''`, which describes a
+    # corrupt model rather than a swapped profile. Say which it is.
+    if [ "$(wc -c < "$MODEL")" -lt 1000000 ]; then
+      echo "model file is only $(wc -c < "$MODEL") bytes: $MODEL" >&2
+      if [ -d "$HOME/.apollia.before-seed" ]; then
+        echo "  The automation seed is loaded. Your real profile is at" >&2
+        echo "  ~/.apollia.before-seed, and the real model with it." >&2
+        echo "  Close the application, then: bash scripts/automation/seed/unload.sh" >&2
+      else
+        echo "  That is a placeholder, not a model. Point APOLLIA_LLAMA_MODEL at a real one." >&2
+      fi
+      exit 1
+    fi
     # `command -v` returns non-zero when the binary is absent, and under
     # `set -e` that kills the recipe before any echo runs: the operator sees a
     # bare "exit code 1" and has to read the justfile to find out why. Resolve
@@ -224,6 +240,22 @@ desktop-dev-qwen: runners-dev-macos
     MODEL="${APOLLIA_LLAMA_MODEL:-$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf}"
     if [ ! -f "$MODEL" ]; then
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
+      exit 1
+    fi
+    # A GGUF under a megabyte is not a model, it is the automation seed's
+    # placeholder. load.sh moves the real ~/.apollia aside and installs a profile
+    # whose models/ holds 8 KB stubs, so this path keeps resolving and
+    # llama-server dies on `unknown model architecture: ''`, which describes a
+    # corrupt model rather than a swapped profile. Say which it is.
+    if [ "$(wc -c < "$MODEL")" -lt 1000000 ]; then
+      echo "model file is only $(wc -c < "$MODEL") bytes: $MODEL" >&2
+      if [ -d "$HOME/.apollia.before-seed" ]; then
+        echo "  The automation seed is loaded. Your real profile is at" >&2
+        echo "  ~/.apollia.before-seed, and the real model with it." >&2
+        echo "  Close the application, then: bash scripts/automation/seed/unload.sh" >&2
+      else
+        echo "  That is a placeholder, not a model. Point APOLLIA_LLAMA_MODEL at a real one." >&2
+      fi
       exit 1
     fi
     # `command -v` returns non-zero when the binary is absent, and under
