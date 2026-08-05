@@ -104,12 +104,66 @@ runners-dev-macos:
 desktop-ui-install:
     cd crates/apollia-desktop/ui && npm ci
 
+# Link PyO3 against the SAME interpreter setup_bundled_python will resolve at
+# run time.
+#
+# Without this a dev build links whatever libpython the host resolves, pyenv
+# here, while main.rs points PYTHONHOME at the bundle in target/python-bundle.
+# Two different CPython builds, so the interpreter cannot find its own standard
+# library and every agent dies at boot with `ModuleNotFoundError: No module
+# named '_opcode'` or `'math'`. The application starts, the failure is a warning
+# nobody reads, and the onboarding agent is simply absent from the registry.
+#
+# The automation recipes already did this, which is why they loaded four agents
+# while `desktop-dev-qwen` loaded none. Same block, hoisted so every dev entry
+# point gets it.
+_bundle-python:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BUNDLE_ROOT=""
+    for c in "$PWD/target/python-bundle/aarch64-apple-darwin/python" "$PWD/target/debug/python"; do
+      if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
+    done
+    if [ -z "$BUNDLE_ROOT" ]; then
+      echo "warning: no Python bundle in target/python-bundle or target/debug." >&2
+      echo "         Agents will fail to load at boot. Build one with:" >&2
+      echo "         bash packaging/build-python-bundle.sh" >&2
+      exit 0
+    fi
+    # The bundle is relocatable but its sysconfig still names its build path, so
+    # PyO3 emits `-L /install/lib` and the link fails on "library 'python3.13'
+    # not found". release.yml compensates with the same RUSTFLAGS.
+    #
+    # And the linked install_name is @executable_path/../Resources/python/lib,
+    # the packaged layout. In a dev run @executable_path is target/debug, so
+    # dyld looks in target/Resources and finds nothing, and the app dies before
+    # main(). DYLD_FALLBACK_LIBRARY_PATH is too late: setup_bundled_python runs
+    # inside the process, after dyld has resolved. A symlink makes the dev tree
+    # answer the same path the bundle does.
+    mkdir -p target/Resources
+    ln -sfn "$BUNDLE_ROOT" target/Resources/python
+    echo "$BUNDLE_ROOT"
+
 # Run desktop in dev mode (expects runners in target/debug/)
 desktop-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BUNDLE_ROOT="$(just _bundle-python | tail -1)"
+    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
+      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    fi
     cd crates/apollia-desktop && cargo tauri dev
 
 # macOS dev shortcut: ensure metal+cpu runners then start desktop
 desktop-dev-macos: runners-dev-macos
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BUNDLE_ROOT="$(just _bundle-python | tail -1)"
+    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
+      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    fi
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
 # Start a local llama-server as the external OpenAI-compat backend (:8899).
@@ -152,6 +206,11 @@ llama-server model=llama_model port=llama_port:
 desktop-dev-llama model=llama_model: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
+    BUNDLE_ROOT="$(just _bundle-python | tail -1)"
+    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
+      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    fi
     if [ -z "{{model}}" ]; then
       echo "set a model: just desktop-dev-llama /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
       exit 1
@@ -237,6 +296,11 @@ llama-qwen:
 desktop-dev-qwen: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
+    BUNDLE_ROOT="$(just _bundle-python | tail -1)"
+    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
+      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    fi
     MODEL="${APOLLIA_LLAMA_MODEL:-$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf}"
     if [ ! -f "$MODEL" ]; then
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
