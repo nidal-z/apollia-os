@@ -4397,6 +4397,7 @@
     "finish_early": "I'm done",
     "finish_early_hint_calibration": "You can wrap up once the first questions are answered.",
     "finish_early_hint_enrichment": "Optional from here - skip the rest whenever you like.",
+    "kick_message": "Hello!",
     "finish_early_message": "That's good for me, let's wrap up."
   },
   "onboarding_modal": {

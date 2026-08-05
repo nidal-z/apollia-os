@@ -4397,6 +4397,7 @@
     "finish_early": "J'ai fini",
     "finish_early_hint_calibration": "Vous pourrez conclure une fois les premières questions répondues.",
     "finish_early_hint_enrichment": "Optionnel à partir d'ici, passez le reste quand vous voulez.",
+    "kick_message": "Bonjour !",
     "finish_early_message": "C'est bon pour moi, terminons."
   },
   "onboarding_modal": {

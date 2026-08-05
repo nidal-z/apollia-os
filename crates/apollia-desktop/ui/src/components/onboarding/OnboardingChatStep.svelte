@@ -68,7 +68,7 @@
   // calibration, then an optional profile enrichment (~a handful of turns).
   // It's a UI hint, NOT a completion criterion.
   const TOTAL_TURNS = 8;
-  // The first user message is the auto-kick "Bonjour !" injected by this
+  // The first user message is the auto-kick greeting injected by this
   // component to prime the agent. We don't count it when judging whether
   // the user has actually engaged.
   const KICK_MESSAGES = 1;
@@ -249,8 +249,14 @@
       // Kick the agent so it produces its opening turn without waiting
       // for the user to type first. Failures here are non-fatal - the
       // agent will still respond once the user sends a real message.
+      //
+      // Translated, and not for cosmetics: this is the first message of the
+      // conversation, so it is what the model reads to decide which language
+      // to answer in. Hardcoded in French, it made the agent greet an English
+      // user in French and keep going in French for the whole calibration,
+      // whatever language they had just picked two screens earlier.
       try {
-        await sendChatMessage(result.session_id, "Bonjour !");
+        await sendChatMessage(result.session_id, $t("onboarding_chat.kick_message"));
       } catch {
         /* ignore */
       }
