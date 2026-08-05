@@ -214,7 +214,21 @@ pub struct TriggerResult {
 #[derive(Debug, thiserror::Error)]
 pub enum OnboardingError {
     /// The onboarding agent is not registered in the runtime.
-    #[error("onboarding-agent not found - it should be provisioned automatically at startup. Check that Python is available and restart the application.")]
+    ///
+    /// The registry is filled once, at boot, from `agents.db`. So this fires
+    /// whenever the application has been running since before the agent was
+    /// installed, which is the common case when a seeded profile is swapped in
+    /// under a live app. The previous wording blamed Python, which sent the
+    /// reader looking at the interpreter while the real cause was the boot
+    /// order, and the actual load failure, when there is one, is logged as a
+    /// warning nobody reads: `Failed to load installed agent at boot`.
+    #[error(
+        "onboarding-agent is not in the runtime registry. The registry is built \
+         once at startup, so restart the application first: if the agent was \
+         installed, or a profile swapped in, while it was running, it cannot \
+         have been picked up. If restarting does not help, look for `Failed to \
+         load installed agent at boot` in the logs, which names the real cause."
+    )]
     AgentNotInstalled,
 
     /// The UserMemory database is unavailable.
@@ -2188,10 +2202,24 @@ mod tests {
         // GIVEN AgentNotInstalled error
         let err = OnboardingError::AgentNotInstalled;
 
-        // THEN the message is actionable
+        // THEN the message names the first suspect, the boot-order one, and
+        // points at the log line that carries the real cause when restarting is
+        // not enough. It used to say "check that Python is available", which
+        // sent a maintainer into the interpreter for two hours while the app
+        // had simply been running since before the profile was swapped in.
         let msg = err.to_string();
         assert!(msg.contains("onboarding-agent"));
         assert!(msg.contains("restart"));
+        assert!(
+            msg.contains("built") && msg.contains("startup"),
+            "the message must say the registry is built once at startup, which \
+             is what makes restarting the first thing to try"
+        );
+        assert!(
+            msg.contains("Failed to load installed agent at boot"),
+            "the message must quote the log line that names the real cause, \
+             verbatim, so it can be grepped"
+        );
     }
 
     #[test]
