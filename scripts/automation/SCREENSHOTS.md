@@ -94,7 +94,25 @@ python3 scripts/automation/tools/publish_screenshots.py --apply
 
 ## Two ways to shoot
 
-**66 of the 85 have an automaton label.** `scripts/automation/screenshots-en.json`
+**72 of the 85 have an automaton label**, and 13 do not. The thirteen are not
+an oversight, each is blocked by something the automaton cannot reach:
+
+| What | How many | Why the automaton cannot take it |
+|---|---|---|
+| Installing an agent, steps 2 to 4 | 4 | A native OS file picker. The runner drives the webview by `data-testid` and has no handle on a system dialog. |
+| Model download progress | 4 | A real multi-gigabyte download caught around 40 per cent. Neither fast nor repeatable, and the bar is where the value is. |
+| Google Workspace, steps 1 to 3 | 3 | A real OAuth round trip against your own Google client, with a consent screen outside the application. |
+| MCP permission prompt | 1 | Needs the model to call an MCP tool, and no prompt makes that deterministic. |
+| Reasoning strip expanded | 1 | Needs one named seeded session opened by name; conversation rows carry no `data-testid` yet. Add one and this becomes automatable. |
+
+The **How** column of every row says `auto` or `hand`, and it is kept in sync
+with the scripts rather than by hand: `check_screenshot_script.py` compares the
+rows against the pages, and the count above against the labels the two scripts
+actually carry.
+
+
+
+**72 of the 85 have an automaton label.** `scripts/automation/screenshots-en.json`
 (61 labels) and `screenshots-en-llm.json` (5) drive the real application by
 testid and capture under the right label:
 
@@ -235,7 +253,7 @@ only opens once per profile reload.
 | 14 | `transversal-naviguer-au-clavier-command-palette-1.png` | From any screen, `Cmd+K`. | The palette, search field at the top, grouped suggestions below | leave the field empty | dialog | auto |
 | 15 | `transversal-naviguer-au-clavier-command-palette-2.png` | Settings → Shortcuts. | Search bar, shortcuts grouped by category | leave the search empty | panel | auto |
 | 16 | `transversal-utiliser-l-inbox-1.png` | Inbox → **To do** tab. | The counter chips in the tab bar, the filter chips below | none | panel | auto |
-| 17 | `transversal-utiliser-l-inbox-2.png` | Provoke an `ask_user`, then expand it. | The expanded form: context callout, then the questions | see N4 | panel | hand, see N4 |
+| 17 | `transversal-utiliser-l-inbox-2.png` | Provoke an `ask_user`, then expand it. | The expanded form: context callout, then the questions | see N4 | panel | auto |
 | 18 | `transversal-utiliser-l-inbox-3.png` | Inbox → **Activity** tab. | Four filter chips and the event cards | none | panel | auto |
 | 19 | `transversal-utiliser-l-inbox-4.png` | Inbox → **Notifications sent** tab. | Channel filter and the four-column delivery table, 8 rows | none | panel | auto |
 
@@ -246,8 +264,8 @@ only opens once per profile reload.
 | 20 | `chat-activer-la-dictee-vocale-1.png` | Settings → Speech-to-Text. | The Whisper model status at the top of the section | none | panel | auto |
 | 21 | `chat-activer-la-dictee-vocale-2.png` | Same page, click the Global hotkey field. | The capture window, "Press your hotkey combination", then the captured combination | press `Cmd + Shift + D` | dialog | auto |
 | 22 | `chat-discuter-avec-votre-ia-1.png` | Chat, **New conversation**. | Conversation list on the left showing the 5 seeded threads, empty centre, input at the bottom | do not type | page | auto |
-| 23 | `chat-discuter-avec-votre-ia-2.png` | Send the question, capture mid-stream. | A user message and an answer streaming in, markdown rendered | the row-23 question above | panel | hand, see N3 |
-| 24 | `chat-discuter-avec-votre-ia-2bis.png` | Same turn, a few seconds later. | The same answer further along | same question, do not resend | panel | hand, see N3 |
+| 23 | `chat-discuter-avec-votre-ia-2.png` | Send the question, capture mid-stream. | A user message and an answer streaming in, markdown rendered | the row-23 question above | panel | auto |
+| 24 | `chat-discuter-avec-votre-ia-2bis.png` | Same turn, a few seconds later. | The same answer further along | same question, do not resend | panel | auto |
 | 25 | `chat-discuter-avec-votre-ia-3.png` | Open `Auditing the legacy documentation set`, expand the reasoning card on the second message. | The reasoning strip expanded: 4 thinking captions interleaved with 4 tool cards, the second in error (the table extractor died on a mismatched tag) | none, this one is **seeded** and needs no model | panel | hand |
 
 Row 25 no longer needs a live turn: the seeded conversation carries the
@@ -295,9 +313,9 @@ marked `hand` only because the automaton frames the whole window.
 
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
-| 48 | `controle-approuver-ou-refuser-une-action-1.png` | Provoke a tool approval in chat (see N4). | The inline approval card: orange shield, the command preview, the buttons | see N4 | panel | hand, see N4 |
-| 49 | `controle-approuver-ou-refuser-une-action-2.png` | Inbox → To do, expand the pending approval. | The expanded approval card with its risk badge | see N4 | panel | hand, see N4 |
-| 50 | `controle-approuver-ou-refuser-une-action-3.png` | Click Refuse. | The Reject action dialog: textarea, character counter, Cancel / Confirm | type the row-50 reason (98 characters, so the counter reads `98 / 500`) | dialog | hand, see N4 |
+| 48 | `controle-approuver-ou-refuser-une-action-1.png` | Provoke a tool approval in chat (see N4). | The inline approval card: orange shield, the command preview, the buttons | see N4 | panel | auto |
+| 49 | `controle-approuver-ou-refuser-une-action-2.png` | Inbox → To do, expand the pending approval. | The expanded approval card with its risk badge | see N4 | panel | auto |
+| 50 | `controle-approuver-ou-refuser-une-action-3.png` | Click Refuse. | The Reject action dialog: textarea, character counter, Cancel / Confirm | type the row-50 reason (98 characters, so the counter reads `98 / 500`) | dialog | auto |
 | 51 | `controle-approuver-ou-refuser-une-action-4.png` | Inbox → To do, Recent history block. | 4 rows with different icons, the rejection showing its reason in red | none, the seed writes the history | panel | auto once a pending item exists, see N4 |
 | 52 | `controle-configurer-les-permissions-de-fichiers-1.png` | Settings → Permissions. | The permission rule cards with their scope badges. 4 rules covering all three badges: Everywhere (2), This project, Chat / agent | none | panel | auto |
 | 53 | `controle-configurer-les-permissions-de-fichiers-1bis.png` | Click **Revoke all**. | The dialog: scope selector, affected-rule count, Revoke | pick scope **project**; do **not** confirm | dialog | auto |
@@ -356,9 +374,9 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
 | 81 | `troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png` | Settings → Speech-to-Text → click the shortcut. | The full-screen capture dialog waiting for a combination | do not press anything, shoot the waiting state | dialog | auto |
-| 82 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | Settings → LLM backends. | A backend card in error, red icon, Error label; hover it for the native tooltip | the seed marks one backend disabled; see N7 | panel | hand, see N7 |
+| 82 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | Settings → LLM backends. | A backend card in error, red icon, Error label; hover it for the native tooltip | the seed marks one backend disabled; see N7 | panel | auto |
 | 83 | `troubleshooting-reinitialiser-apollia-factory-reset-1.png` | Settings → Danger Zone. | The red Factory Reset box with its isolated button | do **not** click | panel | auto |
-| 84 | `troubleshooting-un-agent-est-bloque-1.png` | Inbox → To do, filter on **Approvals**, expand one. | The approval card expanded showing what the agent waits for | see N4 | panel | hand, see N4 |
+| 84 | `troubleshooting-un-agent-est-bloque-1.png` | Inbox → To do, filter on **Approvals**, expand one. | The approval card expanded showing what the agent waits for | see N4 | panel | auto |
 | 85 | `troubleshooting-une-action-est-refusee-1.png` | Inbox → To do, Recent history at the bottom. | The ❌ Rejected line with its reason | none, the seed writes it | panel | auto once a pending item exists, see N4 |
 
 ---

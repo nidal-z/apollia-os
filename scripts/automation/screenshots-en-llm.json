@@ -3,7 +3,8 @@
   "notes": [
     "Complement de screenshots-en.json. A lancer avec desktop-dev-automation-seeded-llama, pas avec la recette deterministe.",
     "La boite de reception ne peut pas etre peuplee par le seed : list_pending_approvals lit l'ensemble en memoire PendingApprovals, pas la base (seed/fragments/hitl.sql:21-27 le documente). Il faut donc provoquer une vraie suspension.",
-    "Prerequis : llama-server demasque et un modele charge."
+    "Prerequis : llama-server demasque et un modele charge.",
+    "Les deux captures mid-stream s'appuient sur chat-stop-button, qui n'existe que pendant la generation : waitFor le voit apparaitre, waitGone le voit disparaitre, et les deux sleeps tombent entre les deux. C'est le seul signal deterministe de cet etat ; un sleep seul depend de la vitesse du modele."
   ],
   "stopOnError": false,
   "steps": [
@@ -85,6 +86,14 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "controle-approuver-ou-refuser-une-action-1"
+    },
+    {
       "kind": "click",
       "testidPrefix": "approval-refuse-",
       "nth": 0,
@@ -94,6 +103,14 @@
       "kind": "waitFor",
       "testid": "inbox-reject-dialog",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "controle-approuver-ou-refuser-une-action-3"
     },
     {
       "kind": "fill",
@@ -170,6 +187,10 @@
     },
     {
       "kind": "screenshot",
+      "label": "controle-approuver-ou-refuser-une-action-2"
+    },
+    {
+      "kind": "screenshot",
       "label": "troubleshooting-un-agent-est-bloque-1"
     },
     {
@@ -187,6 +208,20 @@
       "kind": "click",
       "testid": "inbox-filter-all",
       "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "controle-approuver-ou-refuser-une-action-4"
     },
     {
       "kind": "waitFor",
@@ -380,6 +415,65 @@
     {
       "kind": "screenshot",
       "label": "installation-connecter-un-modele-distant-1"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Explain in three paragraphs what an autonomous agent is, and why running one locally changes what you can trust it with."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "chat-discuter-avec-votre-ia-2"
+    },
+    {
+      "kind": "sleep",
+      "ms": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "chat-discuter-avec-votre-ia-2bis"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     }
   ]
 }
