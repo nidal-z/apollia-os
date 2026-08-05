@@ -185,11 +185,46 @@ def self_test() -> int:
     return 0
 
 
+def counts_in_prose_match_the_scripts() -> list[str]:
+    """The shooting doctrine quotes three numbers. Prose drifts, scripts do not.
+
+    SCREENSHOTS.md tells the maintainer to expect N captures from the
+    deterministic script, M from the model one, and states N+M of 85 as
+    automated coverage. Those three were written by hand and were already wrong
+    once, by six, the day six captures were added. A wrong count here is not
+    cosmetic: it is how someone concludes a run failed when it did exactly what
+    it was asked.
+    """
+    import json as _json
+
+    problems: list[str] = []
+    prose = SCRIPT.read_text(encoding="utf-8")
+    totals = {}
+    for name in ("screenshots-en", "screenshots-en-llm"):
+        path = REPO_ROOT / "scripts" / "automation" / f"{name}.json"
+        steps = _json.loads(path.read_text(encoding="utf-8"))["steps"]
+        totals[name] = sum(1 for s in steps if s.get("kind") == "screenshot")
+
+    for name, n in totals.items():
+        if f"{n} captures" not in prose:
+            problems.append(
+                f"{SCRIPT.name} does not say '{n} captures' anywhere, but {name}.json "
+                f"carries {n} screenshot steps"
+            )
+    total = sum(totals.values())
+    if f"**{total} of the 85" not in prose:
+        problems.append(
+            f"{SCRIPT.name} does not claim '{total} of the 85' as automated coverage, "
+            f"which is what the two scripts add up to"
+        )
+    return problems
+
+
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
 
-    problems = check()
+    problems = check() + counts_in_prose_match_the_scripts()
     if problems:
         print(f"{len(problems)} problem(s) between SCREENSHOTS.md and the published pages:")
         for p in problems:

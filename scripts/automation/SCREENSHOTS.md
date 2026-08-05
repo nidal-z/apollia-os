@@ -12,6 +12,60 @@ judgement. Say so and it gets a value.
 
 ---
 
+## State of play, 5 August 2026
+
+**Nothing on the site has been re-shot yet.** Read this before assuming an
+image is current.
+
+| What | State |
+|---|---|
+| The 85 images published under `/img/operator-help/` | Shot **21 July**, in a **French** interface. Every one is stale. |
+| `.apollia-automation/` at the repository root | An orphan run of **1 August**, 62 captures, never published. Also stale: it predates the logo, About and Help work of 4 August. |
+| The scripts | Current. 72 of the 85 labels are automated, 13 are shot by hand. |
+| The narrative seed | Current, and it lives outside the repository in `~/.apollia-seed-overlay`. |
+
+Between 21 July and today the interface changed more than fifty times: the chat
+rendering was reworked, the styles were redone, the whole premium redesign
+landed, and the logo replaced the generic icon on About and Help. So the images
+do not show a slightly older product, they show a different one.
+
+The consequence for this document: **treat every row as to be shot**, not as to
+be verified. There is no partial refresh to plan, and that is the simplest state
+this has ever been in.
+
+The orphan run of 1 August is not worth publishing. It would refresh 60 images
+to a state that is already two weeks behind on the identity work, and it would
+make the set inconsistent, some screens new, some old, which is exactly what
+one directory was meant to prevent. Delete it or ignore it, but do not publish
+it.
+
+---
+
+## The procedure, in order
+
+Six steps. Do not reorder them: the seed has to be in place before the
+application starts, and the application has to be closed before the seed comes
+back out.
+
+1. **Check the overlay is there.** `ls ~/.apollia-seed-overlay`. Without it you
+   shoot the bare test fixture and half the screens photograph as empty.
+2. **Load the seed**, per the section below. Read the line it prints naming the
+   overlay it used.
+3. **Run the deterministic script**, 61 captures:
+   `just desktop-screenshots scripts/automation/screenshots-en.json`
+4. **Run the model script**, 11 captures, needs `llama-server` on the `PATH`:
+   `just desktop-dev-automation-seeded-llama scripts/automation/screenshots-en-llm.json <model.gguf>`
+5. **Publish**, which copies what the run produced into the documentation and
+   names what it did not:
+   `python3 scripts/automation/tools/publish_screenshots.py --apply`
+   Run it without `--apply` first: it lists exactly which images are still
+   stale, and that list is the work left.
+6. **Shoot the 13 by hand**, using the rows marked `hand`, then publish again.
+
+Then unload the seed, with the application closed.
+
+---
+
 ## Before you start
 
 ### 1. Load the seed
