@@ -596,6 +596,8 @@
               onTabChange={(tab) => (activeTab = tab)}
               onNewChat={startNewChat}
               onContextUpdated={reloadDetail}
+              onAgentsChanged={reloadDetail}
+              onDocumentsChanged={reloadDetail}
               {onProjectSaved}
               onRequestDelete={requestDelete}
               chats={projectChats}

@@ -1280,7 +1280,18 @@
       "revert": "Annuler les modifications",
       "personality_placeholder": "Ex. : Tu es Apollia, un assistant local concis et pragmatique. Tu réponds en français, tu poses une question si quelque chose est ambigu, et tu privilégies les réponses courtes."
     },
-    "memory_relative_future": "à l'instant"
+    "memory_relative_future": "à l'instant",
+    "updating": "Mise à jour...",
+    "update_hint": "Remplacer le fichier Python de cet agent en conservant ses réglages, et le redémarrer s'il est en cours d'exécution",
+    "update_success": "{name} mis à jour vers la v{version}. La nouvelle version sera chargée au prochain démarrage.",
+    "update_success_restarted": "{name} mis à jour vers la v{version} et redémarré sur la nouvelle version.",
+    "update_restart_warning": "{name} est en cours d'exécution. Remplacer son fichier l'arrête puis le relance sur la nouvelle version.",
+    "update_restart_confirm": "Remplacer et redémarrer",
+    "update_restart_failed_title": "Redémarrage impossible",
+    "update_restart_stop_failed": "Le nouveau fichier est installé, mais {name} n'a pas pu être arrêté : il exécute toujours la version précédente.",
+    "update_restart_stop_failed_action": "Arrêtez l'agent, puis redémarrez-le pour charger la nouvelle version.",
+    "update_restart_start_failed": "{name} a été arrêté pour charger la nouvelle version et n'a pas redémarré : il n'exécute plus rien.",
+    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé."
   },
   "tasks": {
     "title": "Tâches",
@@ -1440,7 +1451,10 @@
       "always_accepted": "Toujours autorisé",
       "refused": "Refusé",
       "reason": "Raison :",
-      "session": "Session"
+      "session": "Session",
+      "origin_chat": "Chat",
+      "origin_task": "Tâche d'agent",
+      "task": "Tâche"
     },
     "activity": {
       "empty": "Tout va bien - aucun incident récent.",
@@ -1843,7 +1857,7 @@
     "status_error": "Erreur",
     "free_local": "Gratuit (tourne sur votre machine)",
     "pay_per_use": "Paiement à l'utilisation",
-    "used_today": "Utilisé {count} fois aujourd'hui, coût de {cost}",
+    "used_today": "Utilisé {count} fois sur les {days} derniers jours, {cost} dépensés",
     "table": {
       "backend": "Backend",
       "model": "Modèle",
@@ -1853,12 +1867,21 @@
       "total": "Total"
     },
     "default_set_toast": "'{name}' défini comme modèle par défaut",
-    "details": "Détails"
+    "details": "Détails",
+    "cost_threshold": {
+      "title": "Seuil d'alerte de coût",
+      "value": "{spend} sur {threshold}",
+      "meter_label": "Part du seuil utilisée",
+      "basis": "Journée la plus chargée des {days} derniers jours ({date}), comparée au seuil d'alerte du runtime.",
+      "no_spend": "Aucune dépense enregistrée sur les {days} derniers jours.",
+      "exceeded_badge": "Seuil dépassé",
+      "near_badge": "Proche du seuil",
+      "exceeded_note": "{spend} dépensés le {date} dépassent le seuil d'alerte de {threshold}.",
+      "unset": "Aucun seuil d'alerte de coût n'est défini : ajoutez cost_alert_threshold_usd dans la section [llm] d'apollia.toml pour être averti quand la dépense grimpe."
+    }
   },
   "automations": {
     "title": "Automatisations",
-    "subtitle": "Règles qui lancent vos assistants automatiquement.",
-    "new": "Créer une automatisation",
     "delete": "Supprimer",
     "col_automation": "Automatisation",
     "col_assistant": "Assistant",
@@ -1868,6 +1891,8 @@
     "empty_filter_title": "Aucune automatisation dans ce statut",
     "empty_filter_desc": "Changez de filtre pour explorer les autres automatisations.",
     "filter_show_all": "Voir toutes les automatisations",
+    "subtitle": "Règles qui lancent vos assistants automatiquement.",
+    "new": "Créer une automatisation",
     "run_now": "Lancer maintenant",
     "running": "Lancement…",
     "view_history": "Voir l'historique",
@@ -1939,7 +1964,8 @@
       "skip_next": "Ne plus me demander",
       "confirm": "Supprimer"
     },
-    "technical_details": "Détails techniques"
+    "technical_details": "Détails techniques",
+    "edit": "Modifier"
   },
   "triggers": {
     "title": "Triggers",
@@ -2061,7 +2087,15 @@
     "interval_custom": "Intervalle personnalisé",
     "advanced_section": "Paramètres avancés",
     "field_id_auto": "Généré automatiquement - personnalisable ci-dessous",
-    "empty_subtitle_operator": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Créez votre premier trigger ci-dessous."
+    "empty_subtitle_operator": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Créez votre premier trigger ci-dessous.",
+    "field_id_immutable": "L'identifiant ne peut plus être modifié après la création.",
+    "field_secret_kept": "Secret déjà enregistré, laissez vide pour le conserver",
+    "field_secret_rotate": "Nouveau secret",
+    "field_secret_rotate_hint": "Le secret actuel reste en place. Laissez ce champ vide sauf si vous voulez le remplacer.",
+    "field_secret_rotate_warning": "L'enregistrement remplace le secret : le service appelant devra être reconfiguré avec la nouvelle valeur.",
+    "edit_load_error": "Ce trigger n'a pas pu être chargé.",
+    "edit_not_editable_title": "Ce trigger ne se modifie pas ici.",
+    "edit_not_editable_hint": "Il provient du fichier de configuration apollia.toml, pas des triggers enregistrés par Apollia. Modifiez-le dans ce fichier, puis rechargez la configuration."
   },
   "memory": {
     "title": "Mémoire",
@@ -2122,44 +2156,6 @@
       "no_schema": "Non défini",
       "no_permissions": "Aucune permission requise"
     },
-    "insights": {
-      "toast_operator": "{count} nouvelles informations apprises",
-      "toast_builder": "{count} nouveaux insights extraits",
-      "toast_action_operator": "Voir",
-      "toast_action_builder": "Review",
-      "panel_title_operator": "Récemment appris",
-      "panel_title_builder": "Insights extraits",
-      "accept": "Garder",
-      "edit": "Modifier",
-      "reject": "Rejeter",
-      "accept_all_operator": "Tout accepter",
-      "accept_all_builder": "Accept all",
-      "reject_all_operator": "Tout rejeter",
-      "reject_all_builder": "Reject all",
-      "save": "Sauvegarder",
-      "cancel": "Annuler",
-      "category_preference": "préférence",
-      "category_habit": "habitude",
-      "category_context": "contexte",
-      "confidence_inferred": "Confiance : {score} (inféré)",
-      "confidence_explicit": "Confiance : {score} (explicite)",
-      "batch_accepted": "Tous les insights acceptés",
-      "batch_rejected": "Tous les insights rejetés",
-      "recent_title_operator": "Récemment appris",
-      "recent_title_builder": "Extractions récentes",
-      "accept_failed": "Échec de l'acceptation de l'insight",
-      "reject_failed": "Échec du rejet de l'insight",
-      "update_failed": "Échec de la mise à jour de l'insight",
-      "load_recent_failed": "Échec du chargement des extractions récentes",
-      "source_quote_label": "Source",
-      "reasoning_label": "Pourquoi cet insight a été extrait",
-      "reject_reason_label": "Raison du rejet",
-      "reject_reason_placeholder": "Expliquez pourquoi cet insight ne doit pas être conservé…",
-      "reject_all_disabled_hint": "rejeter chaque entrée avec une raison",
-      "tab_pending": "En attente",
-      "tab_rejected": "Rejetés",
-      "rejected_empty": "Aucun insight rejeté pour le moment."
-    },
     "kicker": "MÉMOIRE",
     "user_profile": "Profil utilisateur",
     "value_copied": "Valeur copiée",
@@ -2212,6 +2208,51 @@
     "embeddings": {
       "vector": "vecteur · nomic-embed-text 768-d · FTS5",
       "none": "aucun vecteur · texte brut"
+    },
+    "data": {
+      "scope": {
+        "all": "Tous les types"
+      },
+      "export": {
+        "button": "Exporter"
+      },
+      "import": {
+        "button": "Importer",
+        "title": "Importer de la mémoire",
+        "description": "Charge un export JSON dans le namespace {namespace}.",
+        "file_label": "Fichier source",
+        "file_hint": "Un fichier JSON produit par un export de mémoire Apollia.",
+        "pick_file": "Choisir un fichier",
+        "no_file": "Aucun fichier sélectionné",
+        "mode_label": "Stratégie",
+        "mode_merge": "Fusionner",
+        "mode_replace": "Remplacer",
+        "mode_merge_hint": "Ajoute les entrées manquantes et laisse les entrées existantes intactes.",
+        "mode_replace_hint": "Vide d'abord le namespace, puis charge le fichier.",
+        "replace_warning": "Tout ce que contient ce namespace sera supprimé avant l'import. Exportez-le d'abord si vous souhaitez le conserver.",
+        "replace_confirm_title": "Remplacer tout le namespace",
+        "replace_confirm_message": "Le namespace {namespace} va être vidé, puis rempli avec le contenu du fichier. Cette action est irréversible.",
+        "replace_confirm_yes": "Vider et importer",
+        "submit": "Importer"
+      },
+      "purge": {
+        "button": "Purger",
+        "title": "Purger par ancienneté",
+        "description": "Supprime les entrées les plus anciennes du namespace {namespace}. Libère de la place sans toucher à la mémoire récente.",
+        "scope_label": "Type de mémoire",
+        "days_label": "Plus ancien que (jours)",
+        "days_hint": "0 supprime toutes les entrées du type choisi.",
+        "days_error": "Saisissez un nombre entier de jours, 0 ou plus.",
+        "preview": "{count, plural, =0 {Aucune entrée listée ne correspond.} one {1 entrée listée correspond.} other {# entrées listées correspondent.}}",
+        "preview_note": "Compté sur les entrées visibles depuis cette page. Le total exact est indiqué une fois la purge effectuée.",
+        "preview_loading": "Comptage des entrées concernées…",
+        "preview_unavailable": "Aperçu indisponible. La purge indiquera tout de même combien d'entrées ont été supprimées.",
+        "continue": "Continuer",
+        "confirm_title": "Confirmer la purge",
+        "confirm_message": "Portée : {scope}. Toutes les entrées correspondantes du namespace {namespace} plus anciennes que {days} jours seront supprimées. Cette action est irréversible.",
+        "confirm_yes": "Purger",
+        "done": "{count, plural, =0 {Aucune entrée supprimée.} one {1 entrée supprimée.} other {# entrées supprimées.}}"
+      }
     }
   },
   "notifications": {
@@ -2464,12 +2505,6 @@
     "kpi_peak": "Jour le plus cher",
     "kpi_top_backend": "Backend principal",
     "kpi_backends": "Backends actifs",
-    "tool_filter": "Outil :",
-    "agent_filter": "Agent :",
-    "all_tools": "Tous les outils",
-    "all_agents": "Tous les agents",
-    "empty_audit": "Aucune invocation d'outil enregistrée.",
-    "load_more_audit": "Charger {count} de plus",
     "verify_ok": "Trace intègre - aucun maillon rompu.",
     "verify_fail": "Trace altérée - intégrité compromise.",
     "verify_broken_at": "Maillon rompu : entrée {entry}",
@@ -2498,6 +2533,12 @@
     "audit_status_ok": "Succès",
     "audit_status_error": "Échec",
     "audit_status_unknown": "-",
+    "tool_filter": "Outil :",
+    "agent_filter": "Agent :",
+    "all_tools": "Tous les outils",
+    "all_agents": "Tous les agents",
+    "empty_audit": "Aucune invocation d'outil enregistrée.",
+    "load_more_audit": "Charger {count} de plus",
     "table": {
       "timestamp": "Horodatage",
       "tool": "Outil",
@@ -2553,7 +2594,49 @@
     "audit_menu_inspect": "Inspecter le détail",
     "audit_row_copied": "Ligne copiée dans le presse-papiers",
     "audit_json_copied": "JSON copié dans le presse-papiers",
-    "audit_copy_failed": "Échec de la copie"
+    "audit_copy_failed": "Échec de la copie",
+    "tab_hooks": "Hooks",
+    "hooks_subtitle": "Hooks de cycle de vie enregistrés au démarrage du runtime. Lecture seule : le registre est construit une fois depuis la configuration, sans enregistrement dynamique ni rechargement à chaud.",
+    "hooks_registry_empty": "Aucun hook de cycle de vie déclaré.",
+    "hooks_count": "{n} hooks",
+    "hooks_col_events": "Événements",
+    "hooks_col_timeout": "Timeout",
+    "audit_global_title": "Journal complet",
+    "audit_global_hint": "Compté sur tout le journal, pas seulement sur les lignes chargées ci-dessous.",
+    "audit_global_events": "Invocations enregistrées",
+    "audit_global_tools": "Outils distincts",
+    "audit_global_agents": "Agents distincts",
+    "audit_global_error": "Totaux du journal indisponibles : {message}",
+    "task_timeline_heading": "Chronologie de la tâche",
+    "task_timeline_sources": "Agrégée depuis les transitions de statut, les étapes de plan, les appels modèle, les invocations d'outils et les validations.",
+    "task_timeline_count": "{n} événements",
+    "task_timeline_empty": "Aucun événement enregistré pour cette tâche.",
+    "task_timeline_failed": "Échec",
+    "task_timeline_scope_label": "Portée",
+    "task_timeline_scope_all": "Toute l'activité",
+    "task_timeline_scope_task": "Une tâche",
+    "task_timeline_select_label": "Tâche",
+    "task_timeline_no_tasks": "Aucune tâche enregistrée pour l'instant.",
+    "task_timeline_pick": "Choisissez une tâche pour lire sa chronologie.",
+    "task_timeline_row_transition": "Statut : {status}",
+    "task_timeline_row_step_started": "Étape {step} démarrée",
+    "task_timeline_row_step_completed": "Étape {step} terminée",
+    "task_timeline_row_step_failed": "Étape {step} en échec",
+    "task_timeline_row_llm_call": "Appel modèle : {model}",
+    "task_timeline_row_tool_call": "Outil : {tool}",
+    "task_timeline_row_tool_call_failed": "Outil en échec : {tool}",
+    "task_timeline_row_hitl_suspended": "Validation demandée",
+    "task_timeline_row_hitl_approved": "Validé par l'opérateur",
+    "task_timeline_row_hitl_rejected": "Refusé par l'opérateur",
+    "task_timeline_row_task_completed": "Tâche terminée",
+    "task_timeline_fact_tool": "Outil",
+    "task_timeline_fact_duration": "Durée",
+    "task_timeline_fact_latency": "Latence",
+    "task_timeline_fact_backend": "Backend",
+    "task_timeline_fact_tokens": "Tokens entrée / sortie",
+    "task_timeline_fact_cost": "Coût",
+    "task_timeline_fact_exit_code": "Code de sortie",
+    "task_timeline_fact_wait": "Attente"
   },
   "settings": {
     "title": "Paramètres",
@@ -3588,7 +3671,10 @@
       "ctx_copy_id": "Copier l'identifiant",
       "ctx_reset": "Réinitialiser la configuration",
       "copied_toast": "Identifiant copié",
-      "reset_toast": "Configuration réinitialisée"
+      "reset_toast": "Configuration réinitialisée",
+      "inspect": "Contrat",
+      "inspect_aria": "Voir le contrat de {name}",
+      "ctx_inspect": "Voir le contrat"
     },
     "tool_config": {
       "title": "Configurer {name}",
@@ -3733,6 +3819,34 @@
       "validation_empty": "Collez une valeur avant d'enregistrer. Pour retirer un secret existant, utilisez Supprimer.",
       "test_valid": "Valide",
       "test_valid_ms": "Valide ({ms} ms)"
+    },
+    "tool_contract": {
+      "title": "Contrat de {name}",
+      "aria": "Contrat de {name}",
+      "retry": "Réessayer",
+      "missing_title": "Contrat indisponible",
+      "missing_desc": "Cet outil n'est pas enregistré dans le runtime, il n'expose donc aucun contrat.",
+      "permissions": "Permissions requises",
+      "input_schema": "Entrée",
+      "output_schema": "Sortie",
+      "raw_json": "JSON brut",
+      "no_input": "Cet outil ne prend aucune entrée.",
+      "schema_not_flattenable": "Ce schéma n'est pas une liste de champs. Le document brut est affiché ci-dessous.",
+      "required": "requis",
+      "optional": "optionnel",
+      "default_value": "défaut : {value}",
+      "allowed_values": "Valeurs autorisées : {values}",
+      "kind_native": "Natif",
+      "kind_mcp_server": "Serveur MCP",
+      "kind_custom": "Outil Python"
+    },
+    "tool_credentials": {
+      "heading": "Identifiants",
+      "reload": "Recharger",
+      "empty": "Aucun identifiant configuré sur cette machine.",
+      "none_for_tool": "Aucun identifiant configuré pour cet outil.",
+      "created": "ajouté {date}",
+      "values_hidden": "Les valeurs restent chiffrées sur cette machine et ne sont jamais affichées."
     }
   },
   "onboarding": {
@@ -3756,8 +3870,6 @@
     "env_check_title_operator": "Vérification système",
     "env_check_subtitle_operator": "Vérification que tout est prêt.",
     "check_runtime": "Runtime démarré",
-    "check_python": "Python 3 détecté",
-    "check_llm": "Backend LLM configuré",
     "check_runtime_operator": "Système prêt",
     "check_python_operator": "Python installé",
     "check_llm_operator": "Modèle IA disponible",
@@ -4136,16 +4248,6 @@
       "section_pending": "À faire",
       "section_in_progress": "En cours",
       "section_completed": "Terminé"
-    },
-    "plan_alternatives": {
-      "choose_plan": "Choisissez un plan d'exécution",
-      "plan_a_label": "Plan A - conservateur",
-      "plan_b_label": "Plan B - exploratoire",
-      "no_steps": "Aucune étape.",
-      "selected_a": "✔ Sélectionné",
-      "selected_b": "Sélectionné",
-      "choose_plan_a": "Choisir Plan A",
-      "choose_plan_b": "Choisir Plan B"
     },
     "rename_session": "Renommer",
     "rename_placeholder": "Nom de la conversation…",
@@ -4877,7 +4979,24 @@
     "no_tasks_desc": "Les tâches créées par les agents apparaîtront ici.",
     "tasks_need_agents": "Les tâches ont besoin d'au moins un agent",
     "open": "Ouvrir",
-    "no_match_hint": "Aucun projet ne correspond à votre recherche. Ajustez ou effacez le filtre."
+    "no_match_hint": "Aucun projet ne correspond à votre recherche. Ajustez ou effacez le filtre.",
+    "tab_agents": "Agents",
+    "agents_hint": "Rattacher un agent le regroupe sous ce projet et restreint l'onglet Tâches à ses tâches. Cela ne change rien à son exécution : les instructions, les documents et les providers de contexte du projet sont injectés dans les conversations ouvertes depuis ce projet, jamais dans les tâches des agents.",
+    "agent_pick_placeholder": "Choisir un agent à rattacher...",
+    "agents_all_attached": "Tous les agents installés sont déjà rattachés",
+    "no_agents_desc": "Rattachez un agent installé pour le regrouper sous ce projet et suivre ses tâches depuis l'onglet Tâches.",
+    "agent_not_installed": "Agent non installé sur cette machine",
+    "remove_agent": "Retirer cet agent",
+    "attach_document": "Attacher un fichier",
+    "attaching_document": "Ajout en cours...",
+    "empty_documents_desc": "Attachez un fichier texte pour que les conversations ouvertes depuis ce projet puissent le lire.",
+    "document_added": "Document « {name} » attaché",
+    "remove_document": "Retirer ce document",
+    "detach_agent_confirm": "Retirer « {name} » de ce projet ?",
+    "detach_agent_confirm_action": "Retirer",
+    "detach_document_confirm": "Retirer « {name} » de ce projet ? Le fichier reste sur le disque.",
+    "detach_document_confirm_action": "Retirer",
+    "document_filter_text": "Fichier texte"
   },
   "hitl": {
     "impact": {

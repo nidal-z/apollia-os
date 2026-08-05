@@ -20,10 +20,16 @@
    * issuing a second request (double-click protection). On success the verdict
    * lands in `state.result`; on failure the normalized message lands in
    * `state.error`. `state.loading` is always cleared at the end.
+   *
+   * `onVerdict` runs once the state has settled and only when a verdict was
+   * produced, intact or corrupted alike: it is how the surfaces that read the
+   * same journal learn they must read it again. A rejected verification leaves
+   * them untouched.
    */
   export async function performVerify(
     state: VerifyState,
     verify: () => Promise<VerifyResult>,
+    onVerdict?: () => void,
   ): Promise<void> {
     if (state.loading) return;
     state.loading = true;
@@ -36,6 +42,7 @@
     } finally {
       state.loading = false;
     }
+    if (state.result !== null) onVerdict?.();
   }
 </script>
 
@@ -55,14 +62,16 @@
 
   interface Props {
     runId: string;
+    /** Raised once a verification produced a verdict, whatever the verdict. */
+    onverified?: (() => void) | undefined;
   }
 
-  let { runId }: Props = $props();
+  let { runId, onverified = undefined }: Props = $props();
 
   let state = $state<VerifyState>({ loading: false, result: null, error: null });
 
   async function handleVerify(): Promise<void> {
-    await performVerify(state, () => verifyAuditRun(runId));
+    await performVerify(state, () => verifyAuditRun(runId), onverified);
   }
 </script>
 

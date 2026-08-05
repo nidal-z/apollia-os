@@ -16,6 +16,7 @@
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
   import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
   import AutomationWizard from "../components/automations/AutomationWizard.svelte";
+  import AutomationEditDialog from "../components/automations/AutomationEditDialog.svelte";
   import DeleteAutomationDialog from "../components/automations/DeleteAutomationDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { listTriggers, deleteTrigger } from "$lib/ipc/triggers";
@@ -40,6 +41,7 @@
   let logsTriggerId = $state<string | null>(null);
   let showWizard = $state(false);
   let showAdvancedDialog = $state(false);
+  let editTriggerId = $state<string | null>(null);
   let deleteCandidate = $state<{ id: string; fireCount: number } | null>(null);
   let deleting = $state(false);
   let activeFilter = $state<Filter>("all");
@@ -95,6 +97,21 @@
 
   function handleCreate() {
     showWizard = true;
+  }
+
+  function handleRequestEdit(triggerId: string) {
+    editTriggerId = triggerId;
+  }
+
+  // Same confirmation pattern as the other write actions of this page: success
+  // toast, then a reload so the row shows the schedule that is now stored.
+  async function handleEdited(triggerId: string) {
+    editTriggerId = null;
+    addToast(
+      $t("triggers.updated_toast", { values: { id: triggerId } }),
+      "success",
+    );
+    await handleRefresh();
   }
 
   function handleSwitchAdvanced() {
@@ -180,7 +197,13 @@
     subtitle={$t("automations.subtitle")}
   >
     {#snippet actions()}
-      <Button variant="outline" size="sm" onclick={handleRefresh} disabled={refreshing}>
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={handleRefresh}
+        disabled={refreshing}
+        data-testid="automations-refresh-btn"
+      >
         {#snippet icon()}<RefreshCw size={12} class={refreshing ? "animate-spin" : ""} />{/snippet}
         {$t("common.refresh")}
       </Button>
@@ -291,6 +314,7 @@
                   locale={$locale ?? "en"}
                   onfire={handleFired}
                   onlogs={handleOpenHistory}
+                  onedit={handleRequestEdit}
                   ondelete={handleRequestDelete}
                 />
               </div>
@@ -325,6 +349,15 @@
   onclose={() => (showAdvancedDialog = false)}
   oncreated={() => (showAdvancedDialog = false)}
 />
+
+{#if editTriggerId}
+  <AutomationEditDialog
+    open={true}
+    triggerId={editTriggerId}
+    onclose={() => (editTriggerId = null)}
+    onsaved={(id) => void handleEdited(id)}
+  />
+{/if}
 
 {#if deleteCandidate}
   <DeleteAutomationDialog

@@ -37,6 +37,55 @@ export async function installAgent(path: string): Promise<void> {
   return invoke<void>("install_agent", { path });
 }
 
+/**
+ * What became of the running instance while the module was replaced.
+ *
+ * `not_running`  nothing was live, the new module loads at the next start.
+ * `restarted`    stopped and started again, the new module is serving now.
+ * `stop_failed`  the stop was refused, the previous module is still serving.
+ * `start_failed` stopped, but it did not come back up, nothing is serving.
+ */
+export type AgentRestartOutcome =
+  | "not_running"
+  | "restarted"
+  | "stop_failed"
+  | "start_failed";
+
+/** Answer of `update_agent`, richer than an install because of the restart. */
+export interface UpdateAgentResult {
+  /** Unique name of the updated agent. */
+  name: string;
+  /** Semver version read from the new module's manifest. */
+  version: string;
+  /** Install path on disk. */
+  install_path: string;
+  /** What became of the running instance. */
+  restart_outcome: AgentRestartOutcome;
+  /** Raw cause of a failed stop or start, `null` otherwise. */
+  restart_error: string | null;
+}
+
+/**
+ * Replace the Python module of an already installed agent.
+ *
+ * The new file is validated by the loader before anything is written, so a
+ * module the runtime refuses leaves the installed agent untouched. The install
+ * directory, the auto-start flag and `installed_at` are preserved; the version
+ * comes from the new module's manifest, which is why the answer carries it.
+ *
+ * A running agent is stopped and started again, because the interpreter keeps
+ * the module it imported at start time: without the cycle the file on disk
+ * changes and the previous code keeps answering. `restart_outcome` says which
+ * version is serving now, so the caller never announces a deployment the
+ * runtime did not perform.
+ */
+export async function updateAgent(
+  name: string,
+  path: string,
+): Promise<UpdateAgentResult> {
+  return invoke<UpdateAgentResult>("update_agent", { name, path });
+}
+
 /** Remove an installed agent: database row, install directory, runtime entry. */
 export async function uninstallAgent(name: string): Promise<void> {
   return invoke<void>("uninstall_agent", { name });

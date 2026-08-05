@@ -52,3 +52,16 @@ export async function deleteLlmBackend(name: string): Promise<void> {
 export async function getLlmCostStats(days: number): Promise<LlmCostStatsResponse> {
   return invoke<LlmCostStatsResponse>("get_llm_cost_stats", { days });
 }
+
+/**
+ * Reads the operator-configured LLM cost alert threshold, in USD.
+ *
+ * Resolves to `null` when `[llm] cost_alert_threshold_usd` is absent from
+ * `apollia.toml`, which is the "no ceiling configured" case the cost surface
+ * has to spell out rather than leave blank. The runtime evaluates this
+ * threshold against the cumulative cost of a session, not against a calendar
+ * window.
+ */
+export async function getCostAlertThreshold(): Promise<number | null> {
+  return invoke<number | null>("get_cost_alert_threshold");
+}

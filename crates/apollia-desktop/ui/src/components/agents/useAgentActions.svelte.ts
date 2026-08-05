@@ -18,25 +18,41 @@ import {
 } from "$lib/stores/agentPackages";
 import { addToast } from "$lib/components/ui/toast/store";
 import { reportError } from "$lib/errors/reportError";
+import type { HumanizedError } from "$lib/errors/humanize";
 import {
   clearAgentMemory,
   startAgent,
   stopAgent,
   uninstallAgent,
+  updateAgent,
+  type UpdateAgentResult,
 } from "$lib/ipc/agents";
+import { listAgents } from "$lib/ipc/connections";
 import { isActive } from "./agentStatus";
 import type { AgentListItem, AgentPackageListItem } from "$lib/types";
 
 export interface AgentActions {
   readonly busyKeys: Record<string, boolean>;
+  /**
+   * Last failed agent update, kept whole rather than reduced to a sentence.
+   *
+   * Two causes reach it: a Python module the loader refuses, and a runtime
+   * instance that could not be cycled onto the new module. Both carry a raw
+   * cause the route renders behind a details disclosure. `null` once no update
+   * is in error.
+   */
+  readonly updateError: HumanizedError | null;
   isBusy(key: string): boolean;
   toggleAgentRuntime(a: AgentListItem): Promise<void>;
   togglePackageRuntime(pkg: AgentPackageListItem): Promise<void>;
+  update(a: AgentListItem, path: string): Promise<void>;
+  clearUpdateError(): void;
   uninstall(a: AgentListItem, deleteMemory: boolean): Promise<void>;
 }
 
 export function createAgentActions(): AgentActions {
   let busyKeys = $state<Record<string, boolean>>({});
+  let updateError = $state<HumanizedError | null>(null);
 
   function setBusy(key: string, value: boolean): void {
     busyKeys = { ...busyKeys, [key]: value };
@@ -96,6 +112,85 @@ export function createAgentActions(): AgentActions {
   }
 
   /**
+   * Build the inline banner for a restart the runtime could not complete.
+   *
+   * Not routed through `humanize`: the raw cause is a stop refusal or a load
+   * failure, and both would land in the generic bucket, whose copy says
+   * nothing about which version is serving. That is the one thing the operator
+   * needs to read here, so the sentence is written for the case and the raw
+   * cause stays behind the details disclosure.
+   */
+  function restartFailure(
+    name: string,
+    result: UpdateAgentResult,
+  ): HumanizedError {
+    const stem =
+      result.restart_outcome === "stop_failed"
+        ? "agents.update_restart_stop_failed"
+        : "agents.update_restart_start_failed";
+    return {
+      title: get(t)("agents.update_restart_failed_title"),
+      friendly_message: get(t)(stem, { values: { name } }),
+      suggested_action: get(t)(`${stem}_action`),
+      category: "generic",
+      detail: result.restart_error ?? undefined,
+    };
+  }
+
+  /**
+   * Replace an installed agent's Python file with the one just picked.
+   *
+   * Reinstalling by hand meant uninstall then install, which loses the
+   * auto-start flag and the install date. The command keeps both.
+   *
+   * Two ways this reports something false if left alone. The loader rejects a
+   * malformed module and the Python cause is what tells the operator what to
+   * fix: it is kept whole on `updateError`, not flattened to a toast. And a
+   * running agent keeps its imported module in memory, so the command cycles
+   * it; `restart_outcome` says whether the new version is actually serving,
+   * and each of the four cases gets its own sentence. A success toast is only
+   * fired for the two that are one.
+   */
+  async function update(a: AgentListItem, path: string): Promise<void> {
+    const key = `agent:${a.name}`;
+    if (busyKeys[key]) return;
+    setBusy(key, true);
+    updateError = null;
+    try {
+      const result = await updateAgent(a.name, path);
+      // Read the list back instead of waiting for the runtime event: the row
+      // and the header badge must carry the new version and the post-restart
+      // status by the time the operator looks at them. A failed read-back is
+      // not an update failure, the event round trip still repairs the list.
+      try {
+        agents.set(await listAgents());
+      } catch {
+        // list refresh unavailable, the runtime event will settle it
+      }
+      if (
+        result.restart_outcome === "stop_failed" ||
+        result.restart_outcome === "start_failed"
+      ) {
+        updateError = restartFailure(a.name, result);
+        return;
+      }
+      addToast(
+        get(t)(
+          result.restart_outcome === "restarted"
+            ? "agents.update_success_restarted"
+            : "agents.update_success",
+          { values: { name: result.name, version: result.version } },
+        ),
+        "success",
+      );
+    } catch (err) {
+      updateError = reportError(err, { surface: "inline" });
+    } finally {
+      setBusy(key, false);
+    }
+  }
+
+  /**
    * Remove an installed agent, optionally taking its memory with it.
    *
    * The command already unregisters the runtime entry, so no stop is issued
@@ -132,9 +227,16 @@ export function createAgentActions(): AgentActions {
     get busyKeys() {
       return busyKeys;
     },
+    get updateError() {
+      return updateError;
+    },
     isBusy: (key: string) => busyKeys[key] === true,
     toggleAgentRuntime,
     togglePackageRuntime,
+    update,
+    clearUpdateError: () => {
+      updateError = null;
+    },
     uninstall,
   };
 }

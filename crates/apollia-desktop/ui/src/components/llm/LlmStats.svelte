@@ -5,8 +5,11 @@
   import { uiMode } from "$lib/stores/mode";
   import { getLlmCostStats } from "$lib/ipc/llm";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
+  import LlmCostThreshold from "./LlmCostThreshold.svelte";
 
   const REFRESH_INTERVAL_MS = 30_000;
+  /** Trailing window every figure on this block is aggregated over. */
+  const WINDOW_DAYS = 7;
 
   let rows = $state<LlmCostStatsRow[]>([]);
   let loading = $state(true);
@@ -15,7 +18,7 @@
 
   async function loadStats(): Promise<void> {
     try {
-      const result: LlmCostStatsResponse = await getLlmCostStats(7);
+      const result: LlmCostStatsResponse = await getLlmCostStats(WINDOW_DAYS);
       rows = result.rows;
       error = null;
     } catch (err: unknown) {
@@ -91,12 +94,16 @@
       {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
     </p>
   {:else if isOperator}
-    <!-- Operator mode: single summary line -->
+    <!-- Operator mode: the ceiling, then a single summary line -->
+    <LlmCostThreshold windowDays={WINDOW_DAYS} />
     <p class="text-sm text-muted-foreground">
-      {$t('llm.used_today', { values: { count: totalCalls, cost: formatCost(totalCost) } })}
+      {$t('llm.used_today', {
+        values: { count: totalCalls, days: WINDOW_DAYS, cost: formatCost(totalCost) },
+      })}
     </p>
   {:else}
-    <!-- Builder mode: full table -->
+    <!-- Builder mode: the ceiling, then the full table -->
+    <LlmCostThreshold windowDays={WINDOW_DAYS} />
     <div data-testid="llm-stats-table">
       <div class="overflow-x-auto">
         <DataTable

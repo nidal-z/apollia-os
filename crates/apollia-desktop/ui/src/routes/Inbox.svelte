@@ -30,6 +30,7 @@
     listPendingApprovals,
     listPendingUserInputs,
     listChatApprovalHistory,
+    listResolvedApprovals,
     listRuntimeActivity,
     getNotificationLogs,
     listNotificationChannels,
@@ -45,17 +46,20 @@
     type Translate,
   } from "../components/inbox/inboxModel";
   import { resolveItem, alwaysAccept } from "../components/inbox/inboxActions";
+  import { mergeApprovalHistory, type HistoryEntry } from "../components/inbox/historyModel";
   import { itemId } from "../components/inbox/rowMenu";
   import type { InboxItem } from "../components/inbox/types";
   import type {
     AskUserAnswer,
     NotificationChannel,
     NotificationLogEntry,
-    ResolvedChatApproval,
   } from "$lib/types";
 
   type Tab = "pending" | "activity" | "notifications";
   const TAB_STORAGE_KEY = "inbox.active_tab";
+  // Same window for both history origins so the merged list has one meaning.
+  const HISTORY_LIMIT = 50;
+  const HISTORY_DAYS = 14;
 
   let activeTab = $state<Tab>("pending");
   let loading = $state(true);
@@ -64,8 +68,9 @@
   let submitting = $state(false);
   let expandedId = $state<string | null>(null);
   let rejectTarget = $state<InboxItem | null>(null);
-  let history = $state<ResolvedChatApproval[]>([]);
+  let history = $state<HistoryEntry[]>([]);
   let historyError = $state<unknown>(null);
+  let historyPartialError = $state<unknown>(null);
   let activityEntries = $state<NotificationLogEntry[]>([]);
   let activityLoading = $state(false);
   let activityError = $state<unknown>(null);
@@ -213,14 +218,34 @@
     await loadHistory();
   }
 
+  /**
+   * Loads both origins of the decision history (chat authorizations and agent
+   * task approvals) and merges them into one date-sorted list. One failing
+   * origin degrades to a partial error above the surviving rows; only a double
+   * failure replaces the section with the error box.
+   */
   async function loadHistory(): Promise<void> {
-    try {
-      history = await listChatApprovalHistory(50, 14);
-      historyError = null;
-    } catch (e) {
-      historyError = e;
+    const [chatRes, taskRes] = await Promise.allSettled([
+      listChatApprovalHistory(HISTORY_LIMIT, HISTORY_DAYS),
+      listResolvedApprovals(HISTORY_LIMIT, HISTORY_DAYS),
+    ]);
+    const failures: unknown[] = [];
+    if (chatRes.status === "rejected") failures.push(chatRes.reason);
+    if (taskRes.status === "rejected") failures.push(taskRes.reason);
+
+    if (failures.length === 2) {
       history = [];
+      historyError = failures[0];
+      historyPartialError = null;
+      return;
     }
+
+    history = mergeApprovalHistory(
+      chatRes.status === "fulfilled" ? chatRes.value : [],
+      taskRes.status === "fulfilled" ? taskRes.value : [],
+    );
+    historyError = null;
+    historyPartialError = failures.length === 1 ? failures[0] : null;
   }
 
   async function loadActivity(): Promise<void> {
@@ -295,6 +320,7 @@
         partialError={userInputsError}
         {history}
         {historyError}
+        {historyPartialError}
         {submitting}
         {expandedId}
         {relTime}

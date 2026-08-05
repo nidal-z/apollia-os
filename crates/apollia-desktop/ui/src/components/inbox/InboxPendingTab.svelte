@@ -14,16 +14,19 @@
   import InboxHistoryList from "./InboxHistoryList.svelte";
   import InboxErrorBox from "./InboxErrorBox.svelte";
   import { rowFilterKey, groupOf, type FilterKey, type GroupKey } from "./inboxModel";
+  import type { HistoryEntry } from "./historyModel";
   import type { InboxItem } from "./types";
-  import type { AskUserAnswer, ResolvedChatApproval } from "$lib/types";
+  import type { AskUserAnswer } from "$lib/types";
 
   interface Props {
     items: InboxItem[];
     loading: boolean;
     error: unknown;
     partialError: unknown;
-    history: ResolvedChatApproval[];
+    history: HistoryEntry[];
     historyError: unknown;
+    /** One history origin failed while the other answered. */
+    historyPartialError: unknown;
     submitting: boolean;
     expandedId: string | null;
     relTime: (iso: string) => string;
@@ -46,6 +49,7 @@
     partialError,
     history,
     historyError,
+    historyPartialError,
     submitting,
     expandedId,
     relTime,
@@ -147,8 +151,14 @@
       {onOpenChat}
       {onCopyId}
     />
-    {#if history.length > 0 || historyError}
-      <InboxHistoryList {history} error={historyError} {relTime} onRetry={onRetryHistory} />
+    {#if history.length > 0 || historyError || historyPartialError}
+      <InboxHistoryList
+        {history}
+        error={historyError}
+        partialError={historyPartialError}
+        {relTime}
+        onRetry={onRetryHistory}
+      />
     {/if}
   {/if}
 </div>

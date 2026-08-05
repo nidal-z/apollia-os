@@ -7,7 +7,7 @@
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Play, Pause, History, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
+  import { Play, Pause, History, Pencil, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
   import { StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
@@ -25,10 +25,11 @@
     lastError?: { message: string; firedAt: string } | null;
     onfire: (taskId: string) => void;
     onlogs: (triggerId: string) => void;
+    onedit: (triggerId: string) => void;
     ondelete: (triggerId: string) => void;
   }
 
-  let { trigger, locale, lastError = null, onfire, onlogs, ondelete }: Props = $props();
+  let { trigger, locale, lastError = null, onfire, onlogs, onedit, ondelete }: Props = $props();
 
   let firing = $state(false);
   let toggling = $state(false);
@@ -155,6 +156,13 @@
       testid: `automation-run-now-menu-${trigger.id}`,
     },
     {
+      id: "edit",
+      label: $t("automations.edit"),
+      icon: Pencil,
+      onclick: () => onedit(trigger.id),
+      testid: `automation-edit-${trigger.id}`,
+    },
+    {
       id: "toggle-enabled",
       label: trigger.enabled ? $t("automations.pause") : $t("automations.resume"),
       icon: trigger.enabled ? Pause : Play,
@@ -193,6 +201,11 @@
       case "R":
         e.preventDefault();
         void fireNow();
+        break;
+      case "e":
+      case "E":
+        e.preventDefault();
+        onedit(trigger.id);
         break;
       case "Delete":
       case "Backspace":

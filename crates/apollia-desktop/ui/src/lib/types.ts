@@ -651,39 +651,6 @@ export interface SessionEvent {
   payload_json: unknown;
 }
 
-/** État de lecture du replay, piloté depuis `SessionReplayControls`. */
-export interface ReplayState {
-  cursor: number;
-  total: number;
-  playing: boolean;
-  speed: number;
-}
-
-/** Score de risque d'hallucination agrégé au niveau session. */
-export interface HallucinationRisk {
-  score: number;
-  factors: string[];
-}
-
-/** Inputs transmis à `compute_session_meta`. */
-export interface SessionHallucinationInputs {
-  heuristic_flag_count: number;
-  total_tool_outputs: number;
-  assertion_citation_gaps: number;
-  total_assertions: number;
-  thinking_contradictions: number;
-}
-
-/** Réponse agrégée du meta-layer de session. */
-export interface SessionMeta {
-  hallucination_risk: HallucinationRisk;
-  event_count: number;
-  summary: string | null;
-  title: string | null;
-  /** Suggestion actionnable retournée par `GenerateNextSteps` (string courte). */
-  next_steps: string[] | null;
-}
-
 /** Entrée de l'audit trail. */
 export interface AuditTrailEntry {
   id: string;
@@ -1075,16 +1042,6 @@ export interface PlanCacheHitEvent {
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
-
-/** Onboarding completion status returned by get_onboarding_status. */
-export interface OnboardingStatus {
-  completed: boolean;
-  mandatory_complete: boolean;
-  topics_covered: string[];
-  completion_pct: number;
-  last_session_at: string | null;
-  skipped: boolean;
-}
 
 /** Result of triggering an onboarding session via trigger_onboarding. */
 export interface TriggerResult {

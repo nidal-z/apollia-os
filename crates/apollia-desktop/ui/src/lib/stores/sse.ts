@@ -25,8 +25,6 @@ import type {
   TriggerStatus,
   ChatSessionSummary,
   PlanCacheHitEvent,
-  InsightEntry,
-  RejectedInsightEntry,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
@@ -91,16 +89,6 @@ export const planCacheHitCount = writable<number>(0);
 
 /** Dernier message inter-agents reçu via SSE (`null` si aucun). */
 export const lastAgentMessage = writable<AgentMessage | null>(null);
-
-/** Insights extracted from the most recent session by LLM analysis. */
-export const extractedInsights = writable<InsightEntry[]>([]);
-
-/**
- * Rejected insights kept in-memory for audit. Populated when the
- * user rejects an insight with a reason; surfaced in the "Rejected" tab of
- * InsightsFeedback so the rationale remains visible.
- */
-export const rejectedInsights = writable<RejectedInsightEntry[]>([]);
 
 /** Real-time session LLM cost - updated on every TokenBudgetUpdated event. */
 export const sessionBudget = writable<SessionBudgetState | null>(null);
@@ -574,14 +562,6 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       lastAgentMessage.set(event.payload as unknown as AgentMessage);
       void refreshAgentsViaIpc();
       break;
-    case "memory-extraction": {
-      const insights = (event.payload as { insights?: InsightEntry[] })
-        .insights;
-      if (insights && insights.length > 0) {
-        extractedInsights.set(insights);
-      }
-      break;
-    }
     case "stt-changed":
       void refreshSttStatus();
       void refreshTranscriptions();

@@ -8,33 +8,10 @@
  * circular dependency with `sse.ts`) and are re-exported here for convenience.
  */
 import { derived, writable } from "svelte/store";
-import { chatSessions, extractedInsights, rejectedInsights } from "./sse";
-import type {
-  ConversationStatsView,
-  InsightEntry,
-  RejectedInsightEntry,
-} from "$lib/types";
+import { chatSessions } from "./sse";
+import type { ConversationStatsView } from "$lib/types";
 
 export { chatSessions } from "./sse";
-export { extractedInsights, rejectedInsights } from "./sse";
-
-/**
- * Move an insight from the pending list into the rejected list with an
- * explicit reason. The entry remains browseable in the
- * "Rejected" tab for audit.
- */
-export function recordRejectedInsight(
-  insight: InsightEntry,
-  reason: string,
-): void {
-  const entry: RejectedInsightEntry = {
-    ...insight,
-    rejected_reason: reason,
-    rejected_at: new Date().toISOString(),
-  };
-  rejectedInsights.update((list) => [entry, ...list]);
-  extractedInsights.update((list) => list.filter((i) => i.id !== insight.id));
-}
 
 // Re-export global chat stores from the cycle-free module
 export {
@@ -80,11 +57,6 @@ export const memoryEntryCount = writable<number>(0);
 export const chatConversationStats = writable<ConversationStatsView | null>(
   null,
 );
-
-/** Reset extracted insights to empty. */
-export function clearInsights(): void {
-  extractedInsights.set([]);
-}
 
 /** Active chat sessions (status !== 'closed'), most recent first. */
 export const activeChatSessions = derived(chatSessions, ($sessions) =>

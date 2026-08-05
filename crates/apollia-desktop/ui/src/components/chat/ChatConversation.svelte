@@ -955,11 +955,13 @@
 
   async function exportCorruptedSessionRaw(): Promise<void> {
     // The UX contract is "give me something to send to support". We dump
-    // whatever the backend was able to surface - even if only the raw
-    // error - into a JSON envelope so the user can forward it.
+    // whatever the backend was able to surface - even if only the load
+    // error - into a JSON envelope so the user can forward it. The session
+    // detail is the only stored form the backend exposes; when the load that
+    // set `loadError` fails again here, the envelope carries the error alone.
     let raw: unknown = null;
     try {
-      raw = await invoke("get_chat_session_raw", { sessionId });
+      raw = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
     } catch {
       raw = null;
     }

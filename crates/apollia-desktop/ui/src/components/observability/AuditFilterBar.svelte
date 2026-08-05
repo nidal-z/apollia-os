@@ -13,6 +13,8 @@
     uniqueTools: string[];
     uniqueAgents: string[];
     runId?: string | undefined;
+    /** Forwarded to the verify action: a verdict was produced. */
+    onverified?: (() => void) | undefined;
   }
 
   let {
@@ -21,6 +23,7 @@
     uniqueTools,
     uniqueAgents,
     runId = undefined,
+    onverified = undefined,
   }: Props = $props();
 </script>
 
@@ -45,7 +48,7 @@
 
   {#if runId}
     <div class="ml-auto">
-      <AuditVerifyButton {runId} />
+      <AuditVerifyButton {runId} {onverified} />
     </div>
   {/if}
 </div>

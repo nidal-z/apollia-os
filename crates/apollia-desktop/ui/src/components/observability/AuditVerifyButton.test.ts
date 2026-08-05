@@ -71,6 +71,46 @@ describe("AuditVerifyButton - performVerify", () => {
     // THEN it is a no-op: the verify function is never invoked
     expect(verify).not.toHaveBeenCalled();
   });
+
+  test("notifies the verdict once the state has settled", async () => {
+    // GIVEN a fresh state and a listener on the verdict
+    const state = freshState();
+    const onVerdict = vi.fn(() => {
+      // The surfaces reading the same journal must see a settled state.
+      expect(state.loading).toBe(false);
+      expect(state.result).toEqual(okResult);
+    });
+
+    // WHEN a verification produces a verdict
+    await performVerify(state, () => Promise.resolve(okResult), onVerdict);
+
+    // THEN the listener ran exactly once
+    expect(onVerdict).toHaveBeenCalledTimes(1);
+  });
+
+  test("notifies on a corrupted verdict too", async () => {
+    // GIVEN a verify that resolves corrupted
+    const state = freshState();
+    const onVerdict = vi.fn();
+
+    // WHEN it completes
+    await performVerify(state, () => Promise.resolve(failResult), onVerdict);
+
+    // THEN the verdict is still a result to be read again from
+    expect(onVerdict).toHaveBeenCalledTimes(1);
+  });
+
+  test("stays silent when the verification is rejected", async () => {
+    // GIVEN a verify that rejects
+    const state = freshState();
+    const onVerdict = vi.fn();
+
+    // WHEN it fails
+    await performVerify(state, () => Promise.reject(new Error("run not found")), onVerdict);
+
+    // THEN nothing is asked to refresh: no verdict was produced
+    expect(onVerdict).not.toHaveBeenCalled();
+  });
 });
 
 describe("AuditVerifyButton - verifyErrorMessage", () => {

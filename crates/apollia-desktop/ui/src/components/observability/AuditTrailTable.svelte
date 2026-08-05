@@ -13,6 +13,7 @@
   import type { HumanizedError } from "$lib/errors/humanize";
   import { listNavigation } from "$lib/components/operator/listNavigation";
   import AuditPurposeBanner from "./AuditPurposeBanner.svelte";
+  import AuditGlobalStats from "./AuditGlobalStats.svelte";
   import AuditStatsStrip from "./AuditStatsStrip.svelte";
   import AuditFilterBar from "./AuditFilterBar.svelte";
   import PlanMutationRow from "./PlanMutationRow.svelte";
@@ -40,6 +41,13 @@
 
   let filterTool = $state<string>("all");
   let filterAgent = $state<string>("all");
+
+  /**
+   * Bumped when an action just read the journal end to end. The global totals
+   * are computed server-side, so they only move when this component asks for
+   * them again.
+   */
+  let globalStatsToken = $state(0);
 
   let toolEntries = $derived(
     rows.filter((r) => r.type === "tool").map((r) => r.entry),
@@ -140,6 +148,9 @@
 <div class="space-y-5">
   <AuditPurposeBanner />
 
+  <!-- Journal-wide totals, independent of the page of rows loaded below. -->
+  <AuditGlobalStats refreshToken={globalStatsToken} />
+
   {#if loading}
     <SkeletonList count={6} avatar={false} rowClass="py-1" />
   {:else if errState}
@@ -158,6 +169,7 @@
       {uniqueTools}
       {uniqueAgents}
       {runId}
+      onverified={() => (globalStatsToken += 1)}
     />
 
     <!-- Table -->

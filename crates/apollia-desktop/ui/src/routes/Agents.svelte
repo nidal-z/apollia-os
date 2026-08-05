@@ -41,6 +41,10 @@
 
   type AgentTab = "overview" | "tools" | "memory" | "activity" | "settings";
 
+  // The update failure lives on the controller (`actions.updateError`) rather
+  // than in a local state like `installError`: the button that triggers it sits
+  // in the detail header, two components down, while the banner belongs here,
+  // next to the install one.
   const actions = createAgentActions();
 
   // ── Selection + local UI state ───────────────────────────────────────
@@ -134,6 +138,9 @@
     apolliaChatSelected = false;
     selectedPackageName = null;
     if (uninstallConfirmName !== name) uninstallConfirmName = null;
+    // A rejected module belongs to the agent it was picked for. Moving away
+    // from that agent leaves a banner naming nothing on screen.
+    actions.clearUpdateError();
   }
 
   /**
@@ -235,6 +242,25 @@
             </summary>
             <p class="mt-1.5 break-all font-mono text-code-sm opacity-80">
               {installError.detail}
+            </p>
+          </details>
+        {/if}
+      </ErrorBanner>
+    {/if}
+    {#if actions.updateError}
+      <ErrorBanner class="mt-3" data-testid="agent-update-error">
+        <p class="font-medium">{actions.updateError.friendly_message}</p>
+        <p class="text-caption opacity-90">{actions.updateError.suggested_action}</p>
+        {#if actions.updateError.detail}
+          <details class="mt-2">
+            <summary
+              class="cursor-pointer text-caption opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              data-testid="agent-update-error-details"
+            >
+              {$t("errors.show_details")}
+            </summary>
+            <p class="mt-1.5 break-all font-mono text-code-sm opacity-80">
+              {actions.updateError.detail}
             </p>
           </details>
         {/if}

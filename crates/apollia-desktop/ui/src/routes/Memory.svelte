@@ -9,6 +9,7 @@
   import NamespaceSidebar, { type NamespaceCategory } from "../components/memory/NamespaceSidebar.svelte";
   import MemoryEntryRow from "../components/memory/MemoryEntryRow.svelte";
   import MemoryEntrySheet from "../components/memory/MemoryEntrySheet.svelte";
+  import NamespaceDataActions from "../components/memory/NamespaceDataActions.svelte";
   import { EmptyState } from "$lib/components/layout";
   import { Database, Clock, Cog, Search, UserCircle2 } from "lucide-svelte";
   import { flip } from "svelte/animate";
@@ -205,6 +206,18 @@
     }
   }
 
+  /**
+   * An import or a purge rewrites the namespace under the explorer: drop the
+   * search view, reload the entries, and refresh the sidebar counts.
+   */
+  async function handleNamespaceDataChanged(): Promise<void> {
+    searchQuery = "";
+    searching = false;
+    selectedEntry = null;
+    await loadNamespaces();
+    await loadEntries();
+  }
+
   async function handleCopyEntry(entry: MemoryEntry): Promise<void> {
     try {
       await navigator.clipboard.writeText(entry.value);
@@ -294,6 +307,10 @@
             <div class="w-64 max-w-[40vw]">
               <MemorySearch value={searchQuery} onsearch={handleSearch} />
             </div>
+            <NamespaceDataActions
+              namespace={selectedNamespace}
+              onchanged={handleNamespaceDataChanged}
+            />
           {/snippet}
         </DetailHeader>
 

@@ -15,6 +15,7 @@ import type {
   CreateSessionRequest,
   MemoryEntry,
   ProjectDetail,
+  ProjectDocument,
   ProjectSummary,
   TaskSummary,
   UpdateProjectRequest,
@@ -70,6 +71,55 @@ export interface SetProjectProviderArgs {
 /** Create or update a context provider attached to a project. */
 export function setProjectProvider(args: SetProjectProviderArgs): Promise<void> {
   return invoke<void>("set_project_provider", { ...args });
+}
+
+/**
+ * Attach a local file to a project.
+ *
+ * `filePath` comes from the native file picker, the backend reads the size and
+ * the base name from disk and returns the freshly created row.
+ */
+export function uploadProjectDocument(
+  projectId: string,
+  filePath: string,
+): Promise<ProjectDocument> {
+  return invoke<ProjectDocument>("upload_project_document", {
+    projectId,
+    filePath,
+  });
+}
+
+/** Detach a document from its project (the file on disk is left alone). */
+export function deleteProjectDocument(docId: string): Promise<void> {
+  return invoke<void>("delete_project_document", { docId });
+}
+
+/** Attach an installed agent to a project. */
+export function addProjectAgent(
+  projectId: string,
+  agentName: string,
+): Promise<void> {
+  return invoke<void>("add_project_agent", { projectId, agentName });
+}
+
+/** Detach an agent from a project. */
+export function removeProjectAgent(
+  projectId: string,
+  agentName: string,
+): Promise<void> {
+  return invoke<void>("remove_project_agent", { projectId, agentName });
+}
+
+/** Names of the agents attached to a project. */
+export function listProjectAgents(projectId: string): Promise<string[]> {
+  return invoke<string[]>("list_project_agents", { projectId });
+}
+
+/** Projects an agent is attached to (reverse lookup of `listProjectAgents`). */
+export function listProjectsForAgent(
+  agentName: string,
+): Promise<ProjectSummary[]> {
+  return invoke<ProjectSummary[]>("list_projects_for_agent", { agentName });
 }
 
 /** Chats scoped to a project (Conversations tab). */

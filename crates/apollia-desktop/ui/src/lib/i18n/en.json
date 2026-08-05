@@ -1280,7 +1280,18 @@
       "revert": "Discard changes",
       "personality_placeholder": "e.g. You are Apollia, a concise, pragmatic local assistant. You answer in the user's language, ask a question when something is ambiguous, and favor short answers."
     },
-    "memory_relative_future": "just now"
+    "memory_relative_future": "just now",
+    "updating": "Updating...",
+    "update_hint": "Replace this agent's Python file, keep its settings, and restart it if it is running",
+    "update_success": "{name} updated to v{version}. The new version will load the next time it starts.",
+    "update_success_restarted": "{name} updated to v{version} and restarted on the new version.",
+    "update_restart_warning": "{name} is running. Replacing its file stops it and starts it again on the new version.",
+    "update_restart_confirm": "Replace and restart",
+    "update_restart_failed_title": "Restart failed",
+    "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
+    "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
+    "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused."
   },
   "tasks": {
     "title": "Tasks",
@@ -1440,7 +1451,10 @@
       "always_accepted": "Always approved",
       "refused": "Rejected",
       "reason": "Reason:",
-      "session": "Session"
+      "session": "Session",
+      "origin_chat": "Chat",
+      "origin_task": "Agent task",
+      "task": "Task"
     },
     "activity": {
       "empty": "All clear - no recent incidents.",
@@ -1843,7 +1857,7 @@
     "status_error": "Error",
     "free_local": "Free (runs on your machine)",
     "pay_per_use": "Pay per use",
-    "used_today": "Used {count} times today, {cost} cost",
+    "used_today": "Used {count} times over the last {days} days, {cost} spent",
     "table": {
       "backend": "Backend",
       "model": "Model",
@@ -1853,7 +1867,18 @@
       "total": "Total"
     },
     "default_set_toast": "'{name}' set as the default model",
-    "details": "Details"
+    "details": "Details",
+    "cost_threshold": {
+      "title": "Cost alert threshold",
+      "value": "{spend} of {threshold}",
+      "meter_label": "Share of the threshold used",
+      "basis": "Busiest day of the last {days} days ({date}), compared against the threshold the runtime alerts on.",
+      "no_spend": "No spend recorded over the last {days} days.",
+      "exceeded_badge": "Over threshold",
+      "near_badge": "Close to threshold",
+      "exceeded_note": "{spend} spent on {date} is above the {threshold} alert threshold.",
+      "unset": "No cost alert threshold is set: add cost_alert_threshold_usd to the [llm] section of apollia.toml to be warned when spending climbs."
+    }
   },
   "automations": {
     "title": "Automations",
@@ -1939,7 +1964,8 @@
       "skip_next": "Don't ask again",
       "confirm": "Delete"
     },
-    "technical_details": "Technical details"
+    "technical_details": "Technical details",
+    "edit": "Edit"
   },
   "triggers": {
     "title": "Triggers",
@@ -2061,7 +2087,15 @@
     "interval_custom": "Custom interval",
     "advanced_section": "Advanced settings",
     "field_id_auto": "Auto-generated - customize below",
-    "empty_subtitle_operator": "Triggers let your assistants run automatically. Create your first trigger below."
+    "empty_subtitle_operator": "Triggers let your assistants run automatically. Create your first trigger below.",
+    "field_id_immutable": "The identifier cannot be changed after creation.",
+    "field_secret_kept": "Secret already stored, leave empty to keep it",
+    "field_secret_rotate": "New secret",
+    "field_secret_rotate_hint": "The current secret stays in place. Leave this field empty unless you want to replace it.",
+    "field_secret_rotate_warning": "Saving replaces the secret: the calling service must be reconfigured with the new value.",
+    "edit_load_error": "This trigger could not be loaded.",
+    "edit_not_editable_title": "This trigger cannot be edited here.",
+    "edit_not_editable_hint": "It comes from the apollia.toml configuration file, not from the triggers Apollia stores itself. Edit it there, then reload the configuration."
   },
   "memory": {
     "title": "Memory",
@@ -2122,44 +2156,6 @@
       "no_schema": "Not defined",
       "no_permissions": "No permissions required"
     },
-    "insights": {
-      "toast_operator": "{count} new things learned",
-      "toast_builder": "{count} new insights extracted",
-      "toast_action_operator": "Review",
-      "toast_action_builder": "Review",
-      "panel_title_operator": "Recently Learned",
-      "panel_title_builder": "Extracted Insights",
-      "accept": "Keep",
-      "edit": "Edit",
-      "reject": "Reject",
-      "accept_all_operator": "Accept all",
-      "accept_all_builder": "Accept all",
-      "reject_all_operator": "Reject all",
-      "reject_all_builder": "Reject all",
-      "save": "Save",
-      "cancel": "Cancel",
-      "category_preference": "preference",
-      "category_habit": "habit",
-      "category_context": "context",
-      "confidence_inferred": "Confidence: {score} (inferred)",
-      "confidence_explicit": "Confidence: {score} (explicit)",
-      "batch_accepted": "All insights accepted",
-      "batch_rejected": "All insights rejected",
-      "recent_title_operator": "Recently learned",
-      "recent_title_builder": "Recent Extractions",
-      "accept_failed": "Failed to accept insight",
-      "reject_failed": "Failed to reject insight",
-      "update_failed": "Failed to update insight",
-      "load_recent_failed": "Failed to load recent extractions",
-      "source_quote_label": "Source",
-      "reasoning_label": "Why this was extracted",
-      "reject_reason_label": "Rejection reason",
-      "reject_reason_placeholder": "Explain why this insight shouldn't be kept…",
-      "reject_all_disabled_hint": "reject each entry with a reason",
-      "tab_pending": "Pending",
-      "tab_rejected": "Rejected",
-      "rejected_empty": "No rejected insights yet."
-    },
     "kicker": "MEMORY",
     "user_profile": "User profile",
     "value_copied": "Value copied",
@@ -2212,6 +2208,51 @@
     "embeddings": {
       "vector": "vector · nomic-embed-text 768-d · FTS5",
       "none": "no vector · raw text"
+    },
+    "data": {
+      "scope": {
+        "all": "All types"
+      },
+      "export": {
+        "button": "Export"
+      },
+      "import": {
+        "button": "Import",
+        "title": "Import memory",
+        "description": "Load a JSON export into the namespace {namespace}.",
+        "file_label": "Source file",
+        "file_hint": "A JSON file produced by an Apollia memory export.",
+        "pick_file": "Choose a file",
+        "no_file": "No file selected",
+        "mode_label": "Strategy",
+        "mode_merge": "Merge",
+        "mode_replace": "Replace",
+        "mode_merge_hint": "Adds the entries that are missing and leaves the existing ones untouched.",
+        "mode_replace_hint": "Empties the namespace first, then loads the file.",
+        "replace_warning": "Everything currently stored in this namespace will be deleted before the import. Export it first if you want to keep it.",
+        "replace_confirm_title": "Replace the whole namespace",
+        "replace_confirm_message": "The namespace {namespace} will be emptied, then filled with the contents of the file. This cannot be undone.",
+        "replace_confirm_yes": "Empty and import",
+        "submit": "Import"
+      },
+      "purge": {
+        "button": "Purge",
+        "title": "Purge by age",
+        "description": "Delete the oldest entries of the namespace {namespace}. This frees space without touching recent memory.",
+        "scope_label": "Memory type",
+        "days_label": "Older than (days)",
+        "days_hint": "0 deletes every entry of the selected type.",
+        "days_error": "Enter a whole number of days, 0 or more.",
+        "preview": "{count, plural, =0 {No listed entry matches.} one {1 listed entry matches.} other {# listed entries match.}}",
+        "preview_note": "Counted on the entries this page can see. The exact total is reported once the purge runs.",
+        "preview_loading": "Counting the entries concerned…",
+        "preview_unavailable": "Preview unavailable. The purge will still report how many entries it removed.",
+        "continue": "Continue",
+        "confirm_title": "Confirm the purge",
+        "confirm_message": "Scope: {scope}. Every matching entry of the namespace {namespace} older than {days} days will be deleted. This cannot be undone.",
+        "confirm_yes": "Purge",
+        "done": "{count, plural, =0 {No entry removed.} one {1 entry removed.} other {# entries removed.}}"
+      }
     }
   },
   "notifications": {
@@ -2553,7 +2594,49 @@
     "audit_menu_inspect": "Inspect detail",
     "audit_row_copied": "Row copied to clipboard",
     "audit_json_copied": "JSON copied to clipboard",
-    "audit_copy_failed": "Copy failed"
+    "audit_copy_failed": "Copy failed",
+    "tab_hooks": "Hooks",
+    "hooks_subtitle": "Lifecycle handlers registered when the runtime started. Read-only: the registry is built once from the configuration, with no dynamic registration and no hot reload.",
+    "hooks_registry_empty": "No lifecycle hook declared.",
+    "hooks_count": "{n} handlers",
+    "hooks_col_events": "Events",
+    "hooks_col_timeout": "Timeout",
+    "audit_global_title": "Full journal",
+    "audit_global_hint": "Counted over the whole trail, not only the rows loaded below.",
+    "audit_global_events": "Recorded invocations",
+    "audit_global_tools": "Distinct tools",
+    "audit_global_agents": "Distinct agents",
+    "audit_global_error": "Journal totals unavailable: {message}",
+    "task_timeline_heading": "Task timeline",
+    "task_timeline_sources": "Aggregated from status transitions, plan steps, model calls, tool invocations and approvals.",
+    "task_timeline_count": "{n} events",
+    "task_timeline_empty": "No event recorded for this task.",
+    "task_timeline_failed": "Failure",
+    "task_timeline_scope_label": "Scope",
+    "task_timeline_scope_all": "All activity",
+    "task_timeline_scope_task": "One task",
+    "task_timeline_select_label": "Task",
+    "task_timeline_no_tasks": "No task recorded yet.",
+    "task_timeline_pick": "Pick a task to read its timeline.",
+    "task_timeline_row_transition": "Status: {status}",
+    "task_timeline_row_step_started": "Step {step} started",
+    "task_timeline_row_step_completed": "Step {step} completed",
+    "task_timeline_row_step_failed": "Step {step} failed",
+    "task_timeline_row_llm_call": "Model call: {model}",
+    "task_timeline_row_tool_call": "Tool: {tool}",
+    "task_timeline_row_tool_call_failed": "Tool failed: {tool}",
+    "task_timeline_row_hitl_suspended": "Approval requested",
+    "task_timeline_row_hitl_approved": "Approved by the operator",
+    "task_timeline_row_hitl_rejected": "Rejected by the operator",
+    "task_timeline_row_task_completed": "Task finished",
+    "task_timeline_fact_tool": "Tool",
+    "task_timeline_fact_duration": "Duration",
+    "task_timeline_fact_latency": "Latency",
+    "task_timeline_fact_backend": "Backend",
+    "task_timeline_fact_tokens": "Tokens in / out",
+    "task_timeline_fact_cost": "Cost",
+    "task_timeline_fact_exit_code": "Exit code",
+    "task_timeline_fact_wait": "Wait"
   },
   "settings": {
     "title": "Settings",
@@ -3588,7 +3671,10 @@
       "ctx_copy_id": "Copy identifier",
       "ctx_reset": "Reset configuration",
       "copied_toast": "Identifier copied",
-      "reset_toast": "Configuration reset"
+      "reset_toast": "Configuration reset",
+      "inspect": "Contract",
+      "inspect_aria": "View the contract of {name}",
+      "ctx_inspect": "View contract"
     },
     "tool_config": {
       "title": "Configure {name}",
@@ -3733,6 +3819,34 @@
       "validation_empty": "Paste a value before saving. To remove an existing secret, use Delete.",
       "test_valid": "Valid",
       "test_valid_ms": "Valid ({ms} ms)"
+    },
+    "tool_contract": {
+      "title": "Contract of {name}",
+      "aria": "Contract of {name}",
+      "retry": "Retry",
+      "missing_title": "Contract unavailable",
+      "missing_desc": "This tool is not registered in the runtime, so it exposes no contract.",
+      "permissions": "Required permissions",
+      "input_schema": "Input",
+      "output_schema": "Output",
+      "raw_json": "Raw JSON",
+      "no_input": "This tool takes no input.",
+      "schema_not_flattenable": "This schema is not a field list. The raw document is shown below.",
+      "required": "required",
+      "optional": "optional",
+      "default_value": "default: {value}",
+      "allowed_values": "Allowed values: {values}",
+      "kind_native": "Native",
+      "kind_mcp_server": "MCP server",
+      "kind_custom": "Python tool"
+    },
+    "tool_credentials": {
+      "heading": "Credentials",
+      "reload": "Reload",
+      "empty": "No credential configured on this machine.",
+      "none_for_tool": "No credential configured for this tool.",
+      "created": "added {date}",
+      "values_hidden": "Values stay encrypted on this machine and are never displayed."
     }
   },
   "onboarding": {
@@ -3756,8 +3870,6 @@
     "env_check_title_operator": "System check",
     "env_check_subtitle_operator": "Making sure everything is ready.",
     "check_runtime": "Runtime started",
-    "check_python": "Python 3 detected",
-    "check_llm": "LLM backend configured",
     "check_runtime_operator": "System ready",
     "check_python_operator": "Python installed",
     "check_llm_operator": "AI model available",
@@ -4136,16 +4248,6 @@
       "section_pending": "Pending",
       "section_in_progress": "In progress",
       "section_completed": "Completed"
-    },
-    "plan_alternatives": {
-      "choose_plan": "Choose an execution plan",
-      "plan_a_label": "Plan A - conservative",
-      "plan_b_label": "Plan B - exploratory",
-      "no_steps": "No steps.",
-      "selected_a": "✔ Selected",
-      "selected_b": "Selected",
-      "choose_plan_a": "Choose Plan A",
-      "choose_plan_b": "Choose Plan B"
     },
     "rename_session": "Rename",
     "rename_placeholder": "Conversation name…",
@@ -4877,7 +4979,24 @@
     "no_tasks_desc": "Tasks created by agents will appear here.",
     "tasks_need_agents": "Tasks need at least one agent",
     "open": "Open",
-    "no_match_hint": "No project matches your search. Adjust or clear the filter."
+    "no_match_hint": "No project matches your search. Adjust or clear the filter.",
+    "tab_agents": "Agents",
+    "agents_hint": "Attaching an agent groups it under this project and narrows the Tasks tab to its tasks. It does not change how the agent runs: project instructions, documents and context providers are injected into chats opened from this project, never into agent tasks.",
+    "agent_pick_placeholder": "Choose an agent to attach...",
+    "agents_all_attached": "Every installed agent is already attached",
+    "no_agents_desc": "Attach an installed agent to group it under this project and follow its tasks from the Tasks tab.",
+    "agent_not_installed": "Agent not installed on this machine",
+    "remove_agent": "Detach this agent",
+    "attach_document": "Attach a file",
+    "attaching_document": "Attaching...",
+    "empty_documents_desc": "Attach a text file so conversations opened from this project can read it.",
+    "document_added": "Document \"{name}\" attached",
+    "remove_document": "Detach this document",
+    "detach_agent_confirm": "Detach \"{name}\" from this project?",
+    "detach_agent_confirm_action": "Detach",
+    "detach_document_confirm": "Detach \"{name}\" from this project? The file stays on disk.",
+    "detach_document_confirm_action": "Detach",
+    "document_filter_text": "Text file"
   },
   "hitl": {
     "impact": {

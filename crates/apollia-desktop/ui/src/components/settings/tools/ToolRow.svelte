@@ -3,7 +3,7 @@
    * ToolRow - one native tool as a discrete governance card.
    *
    * A bordered card (icon tile + title / mono id / status pill + description +
-   * optional warning + configure button + toggle). Richer than the canonical
+   * optional warning + contract button + configure button + toggle). Richer than the canonical
    * EntityCard because governance needs four visual states (active, disabled,
    * attention, toggling) expressed on the border and the icon tile, plus a
    * right-click context menu of quick governance actions. Toggle and
@@ -12,6 +12,7 @@
   import { t } from "svelte-i18n";
   import {
     AlertTriangle,
+    Braces,
     ChevronRight,
     Power,
     Settings2,
@@ -36,6 +37,8 @@
     busy: boolean;
     onToggle: (enabled: boolean) => Promise<void> | void;
     onConfigure: () => void;
+    /** Opens the read-only contract panel (descriptor + input schema). */
+    onInspect: () => void;
     onReset: () => void;
     onCopyId: () => void;
   }
@@ -49,6 +52,7 @@
     busy,
     onToggle,
     onConfigure,
+    onInspect,
     onReset,
     onCopyId,
   }: Props = $props();
@@ -128,6 +132,13 @@
           ]
         : []),
       {
+        id: "inspect",
+        label: $t("settings.tools_page.ctx_inspect"),
+        icon: Braces,
+        onclick: onInspect,
+        testid: `tool-ctx-inspect-${tool.name}`,
+      },
+      {
         id: "copy",
         label: $t("settings.tools_page.ctx_copy_id"),
         icon: Copy,
@@ -196,6 +207,16 @@
     </div>
 
     <div class="flex shrink-0 items-center gap-1.5">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onclick={onInspect}
+        title={$t("settings.tools_page.inspect")}
+        aria-label={$t("settings.tools_page.inspect_aria", { values: { name: title } })}
+        data-testid="tool-inspect-{tool.name}"
+      >
+        <Braces size={14} strokeWidth={1.9} aria-hidden="true" />
+      </Button>
       {#if canConfigure}
         <Button
           variant="ghost"

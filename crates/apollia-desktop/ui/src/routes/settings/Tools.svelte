@@ -16,6 +16,8 @@
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import ToolRow from "../../components/settings/tools/ToolRow.svelte";
+  import ToolContractSheet from "../../components/settings/tools/ToolContractSheet.svelte";
+  import CredentialInventory from "../../components/settings/tools/CredentialInventory.svelte";
   import ToolConfigDrawer from "../../components/settings/ToolConfigDrawer.svelte";
   import {
     TOOL_CATEGORIES,
@@ -37,6 +39,9 @@
   let drawerOpen = $state(false);
   let drawerTool = $state<ToolStatusDto | null>(null);
   let drawerTitle = $state("");
+  let contractOpen = $state(false);
+  let contractTool = $state<string | null>(null);
+  let contractTitle = $state("");
   let initialized = $state(false);
   let filter = $state("");
 
@@ -172,6 +177,16 @@
     void loadTools();
   }
 
+  function openContract(tool: ToolStatusDto): void {
+    contractTool = tool.name;
+    contractTitle = displayTitle(tool.name);
+    contractOpen = true;
+  }
+
+  function closeContract(): void {
+    contractOpen = false;
+  }
+
   async function reload(): Promise<void> {
     await loadTools();
     if (!get(toolsError)) {
@@ -262,6 +277,7 @@
                   busy={$loadingTools && initialized}
                   onToggle={(enabled) => handleToggle(row.tool, enabled)}
                   onConfigure={() => openDrawer(row.tool)}
+                  onInspect={() => openContract(row.tool)}
                   onReset={() => void resetConfig(row.tool)}
                   onCopyId={() => void copyId(row.tool)}
                 />
@@ -272,6 +288,17 @@
       </div>
     {/if}
   {/if}
+
+  {#if initialized && !listError}
+    <CredentialInventory labelFor={displayTitle} />
+  {/if}
 </SettingsSubPage>
 
 <ToolConfigDrawer open={drawerOpen} tool={drawerTool} title={drawerTitle} onclose={closeDrawer} />
+
+<ToolContractSheet
+  open={contractOpen}
+  toolName={contractTool}
+  title={contractTitle}
+  onclose={closeContract}
+/>

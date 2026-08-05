@@ -34,6 +34,35 @@ export async function listChatApprovalHistory(
   return invoke<ResolvedChatApproval[]>("list_chat_approval_history", { limit, days });
 }
 
+/**
+ * One resolved HITL **task** approval, as stored in the `task_approvals` table.
+ *
+ * Shape differs from {@link ResolvedChatApproval}: the decision is a boolean,
+ * there is no tool name, and the timestamp can be absent on legacy rows.
+ */
+export interface ResolvedTaskApproval {
+  /** Identifier of the approved / rejected task. */
+  task_id: string;
+  /** Agent that requested the approval. */
+  agent_name: string;
+  /** `true` when approved, `false` when rejected. */
+  approved: boolean;
+  /** Operator reason (rejection only). */
+  reason: string | null;
+  /** Time the operator took to decide, in milliseconds. */
+  wait_duration_ms: number | null;
+  /** ISO-8601 decision timestamp, absent on rows written before it existed. */
+  responded_at: string | null;
+}
+
+/** Reads the resolved HITL task-approval history (agent tasks, not chat). */
+export async function listResolvedApprovals(
+  limit = 50,
+  days = 14,
+): Promise<ResolvedTaskApproval[]> {
+  return invoke<ResolvedTaskApproval[]>("list_resolved_approvals", { limit, days });
+}
+
 /** Reads recent runtime activity events (failures, degradations, LLM down). */
 export async function listRuntimeActivity(days = 14): Promise<NotificationLogEntry[]> {
   return invoke<NotificationLogEntry[]>("list_runtime_activity", { days });

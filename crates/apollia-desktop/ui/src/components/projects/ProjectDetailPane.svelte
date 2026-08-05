@@ -2,6 +2,7 @@
   export type ProjectTab =
     | "conversations"
     | "tasks"
+    | "agents"
     | "memory"
     | "context"
     | "settings";
@@ -26,6 +27,7 @@
   import ContextProvidersTab from "../project/ContextProvidersTab.svelte";
   import ProjectConversationsTab from "./ProjectConversationsTab.svelte";
   import ProjectTasksTab from "./ProjectTasksTab.svelte";
+  import ProjectAgentsTab from "./ProjectAgentsTab.svelte";
   import ProjectMemoryTab from "./ProjectMemoryTab.svelte";
   import ProjectSettingsTab from "./ProjectSettingsTab.svelte";
   import type { ChatSessionSummary, ProjectDetail } from "$lib/types";
@@ -42,6 +44,10 @@
     onTabChange: (tab: ProjectTab) => void;
     onNewChat: () => void;
     onContextUpdated: () => void;
+    /** Reload the detail after an agent link changed. */
+    onAgentsChanged: () => void | Promise<void>;
+    /** Reload the detail after a document was attached or detached. */
+    onDocumentsChanged: () => void | Promise<void>;
     onProjectSaved: (updated: ProjectDetail) => void;
     onRequestDelete: (id: string, name: string) => void;
     chats: ChatSessionSummary[];
@@ -60,6 +66,8 @@
     onTabChange,
     onNewChat,
     onContextUpdated,
+    onAgentsChanged,
+    onDocumentsChanged,
     onProjectSaved,
     onRequestDelete,
     chats,
@@ -76,6 +84,7 @@
   const tabItems = $derived([
     { key: "conversations", label: $t("projects.tab_conversations") },
     { key: "tasks", label: $t("projects.tab_tasks") },
+    { key: "agents", label: $t("projects.tab_agents"), count: agentCount },
     { key: "memory", label: $t("projects.tab_memory") },
     { key: "context", label: $t("projects.tab_context") },
     { key: "settings", label: $t("projects.tab_settings") },
@@ -139,9 +148,22 @@
   {#if activeTab === "conversations"}
     <ProjectConversationsTab {chats} loading={chatsLoading} {formatRelative} onOpen={onOpenChat} />
   {:else if activeTab === "tasks"}
-    <ProjectTasksTab rows={taskRows} loading={tasksLoading} hasAgents={agentCount > 0} />
+    <ProjectTasksTab
+      rows={taskRows}
+      loading={tasksLoading}
+      hasAgents={agentCount > 0}
+      onAttachAgents={() => onTabChange("agents")}
+    />
+  {:else if activeTab === "agents"}
+    <ProjectAgentsTab {project} onChanged={onAgentsChanged} />
   {:else if activeTab === "memory"}
-    <ProjectMemoryTab documents={project.documents} {namespaces} loading={memoryLoading} />
+    <ProjectMemoryTab
+      projectId={project.id}
+      documents={project.documents}
+      {namespaces}
+      loading={memoryLoading}
+      {onDocumentsChanged}
+    />
   {:else if activeTab === "context"}
     <ContextProvidersTab {project} onUpdated={onContextUpdated} />
   {:else}

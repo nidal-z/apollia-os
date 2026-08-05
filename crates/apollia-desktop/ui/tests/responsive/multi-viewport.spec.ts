@@ -22,7 +22,6 @@ async function installTauriStub(page: Page): Promise<void> {
       get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
       get_system_info: () => ({}),
       list_llm_backends: () => [],
-      get_onboarding_status: () => ({ completed: true, phase: "done", required: false }),
     };
     (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
