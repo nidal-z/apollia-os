@@ -417,7 +417,15 @@ desktop-dev-automation-seeded script: runners-dev-macos
     # session, not for assertions. A maintainer who exports it in their shell
     # would otherwise change the row counts this suite asserts on, and the
     # failures would read as product regressions.
-    env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    # The overlay is stripped by default: it changes row counts, and an
+    # assertion suite run with it reads its own failures as product
+    # regressions. `desktop-screenshots` sets APOLLIA_SEED_SHOOTING=1 to opt
+    # back in, because for a screenshot an empty timeline is the defect.
+    if [ "${APOLLIA_SEED_SHOOTING:-0}" = "1" ]; then
+      bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    else
+      env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    fi
     # Preserve the toolchain env (defaults derive from the REAL home) before the swap.
     export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
@@ -464,6 +472,31 @@ desktop-dev-automation-seeded script: runners-dev-macos
     cd crates/apollia-desktop && \
       HOME="$SEED_HOME" APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=info cargo tauri dev
+
+# Screenshot runs: seeded WITH the narrative overlay.
+#
+# `desktop-dev-automation-seeded` deliberately strips APOLLIA_SEED_OVERLAY,
+# because the overlay changes row counts and would make the assertion suites
+# read as product regressions. Screenshots want the opposite: the narrative is
+# the whole point, an empty timeline photographs as a broken product. So the
+# shooting runs get their own recipe rather than an env var a maintainer has to
+# remember, which is how the two ended up conflated in the first place.
+#
+# Usage: just desktop-screenshots scripts/automation/screenshots-en.json
+desktop-screenshots script:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    OVERLAY="${APOLLIA_SEED_OVERLAY:-$HOME/.apollia-seed-overlay}"
+    if [ ! -d "$OVERLAY" ]; then
+      echo "narrative overlay not found at $OVERLAY." >&2
+      echo "  It lives outside the repository on purpose. Set APOLLIA_SEED_OVERLAY" >&2
+      echo "  to its directory, or shoot without it via desktop-dev-automation-seeded" >&2
+      echo "  and accept empty timelines in the images." >&2
+      exit 1
+    fi
+    echo "→ screenshots with narrative overlay: $OVERLAY"
+    APOLLIA_SEED_SHOOTING=1 APOLLIA_SEED_OVERLAY="$OVERLAY" \
+      just desktop-dev-automation-seeded "{{script}}"
 
 # Seeded + llama-server (for the -llama scripts). The app runs under the seeded
 # HOME, but llama-server loads the REAL model from the real home (the seed's

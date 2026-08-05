@@ -1,10 +1,10 @@
 {
   "name": "screenshots-en (operator-help doc captures, English, seeded)",
   "notes": [
-    "Derive de screenshots-fr.json. Meme parcours, meme jeu de labels : les images publiees sont partagees par les deux locales du site, il n'existe donc qu'un seul jeu et il est anglais.",
-    "Le prelude bascule l'interface en anglais via Parametres > Apparence > language-en. Ce chemin est deja exerce par settings-det.json, il n'introduit aucun testid nouveau.",
-    "Ne pas rejouer avant que les builds Windows et Linux et le test du .dmg sans llama-server sur le PATH aient produit leurs correctifs : toute capture prise avant serait a refaire.",
-    "Bloc deterministe uniquement. Les captures qui exigent un tour de modele sont dans screenshots-en-llm.json."
+    "Derive de screenshots-fr.json : memes pas, meme jeu de labels, seule la bascule de langue change.",
+    "Les deux jeux d'images sont SEPARES par locale, sous /img/operator-help/{en,fr}/. Les pages anglaises referencent en/, les francaises fr/, verifie : 85 references de chaque cote.",
+    "Ce script publie donc dans en/ UNIQUEMENT. Une note precedente affirmait qu'il n'existait qu'un seul jeu partage : c'etait vrai avant le passage aux repertoires par locale, et faux depuis. Le symptome que cela a produit : les pages anglaises affichaient des captures francaises, parce qu'un seul jeu avait ete copie dans les deux repertoires.",
+    "Le prelude bascule l'interface en anglais (settings > appearance > language-en) avant la premiere capture. Ne le retire pas : sans lui le run photographie la langue laissee par le run precedent."
   ],
   "stopOnError": false,
   "steps": [

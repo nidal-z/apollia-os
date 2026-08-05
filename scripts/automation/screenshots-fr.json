@@ -1,11 +1,10 @@
 {
   "name": "screenshots-fr (operator-help doc captures, French, seeded)",
   "notes": [
-    "Derive de screenshots-en.json : memes pas, meme jeu de labels, seule la bascule de langue change. Les deux jeux d'images sont separes par locale sous /img/operator-help/{en,fr}/.",
-    "Derive de screenshots-fr.json. Meme parcours, meme jeu de labels : les images publiees sont partagees par les deux locales du site, il n'existe donc qu'un seul jeu et il est francais.",
-    "Le prelude bascule l'interface en francais via Parametres > Apparence > language-fr. Ce chemin est deja exerce par settings-det.json, il n'introduit aucun testid nouveau.",
-    "Ne pas rejouer avant que les builds Windows et Linux et le test du .dmg sans llama-server sur le PATH aient produit leurs correctifs : toute capture prise avant serait a refaire.",
-    "Bloc deterministe uniquement. Les captures qui exigent un tour de modele sont dans screenshots-en-llm.json."
+    "Jeu francais. Memes pas et memes labels que screenshots-en.json, seule la bascule de langue change.",
+    "Les deux jeux d'images sont SEPARES par locale, sous /img/operator-help/{en,fr}/. Ce script publie dans fr/ UNIQUEMENT.",
+    "Le prelude bascule l'interface en francais avant la premiere capture. Ne le retire pas : sans lui le run photographie la langue laissee par le run precedent.",
+    "Les deux repertoires ont ete octet pour octet identiques jusqu'au 5 aout : un seul jeu avait ete copie des deux cotes, donc les pages anglaises montraient une interface francaise. Rejouer les DEUX scripts est ce qui repare cela."
   ],
   "stopOnError": false,
   "steps": [
