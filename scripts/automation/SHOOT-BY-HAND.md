@@ -90,7 +90,11 @@ Same rule as row 4: past 60 %, cancel and restart.
 ## Session C. Installing a package, four images
 
 Two demo packages exist for this, in `~/apollia-demo-packages/`. They carry
-metadata only and are never executed. Their README says which is which.
+metadata only and are never executed. Their README says which is which, and
+records the two rules that made the first version of them fail to install:
+`role` accepts only `director`, `worker` or `assistant`, and neither package
+declares a pip dependency, because declaring one sends the installer into a
+virtualenv build and a network round trip in the middle of a shooting session.
 
 - **`atlas-reporter`**: two agents, one pip dependency, no triggers.
 - **`inbox-triage`**: one agent, two triggers, a webhook and a schedule.
@@ -122,32 +126,41 @@ yet. Add one and this becomes the fourteenth automated capture.
 ## Session E. An MCP tool approval, one image
 
 Needs `llama-server` on the `PATH` and the seed loaded: it connects two MCP
-servers, `notes` and `filesystem`.
+servers, `notes` and `filesystem`, six tools between them.
 
 | File | Gesture | What must be on screen | Crop |
 |---|---|---|---|
-| `integration-comprendre-les-permissions-mcp-1.png` | In a chat, ask the model to use a tool from the `notes` MCP server, for instance `List the notes available on the notes server and read the most recent one.` | The approval popup: the tool title, the exposed parameters, Allow once / Deny, and the scope note. | panel |
+| `integration-comprendre-les-permissions-mcp-1.png` | In a chat, ask: `List the seed notes using the notes server, then read the most recent one.` | The approval popup: the tool title, the exposed parameters, Allow once / Deny, and the scope note. | panel |
 
-The model does not always reach for the MCP tool on the first try. Rephrase
-until it does, then shoot. That unpredictability is exactly why the automaton
-cannot take this one.
+If the model answers that it cannot call MCP tools and only lists resources,
+that is not a product defect and not a stub limitation: MCP tool loading
+defaults to `deferred`, which indexes tool names but never puts their schemas in
+front of the model. It is supposed to find them through the synthetic
+`tool_search` tool first, and it does not reliably do that on the first try.
+
+The seed now sets `tool_loading = "eager"` for exactly this reason, which puts
+the six tools directly in the model's toolset. Two servers and six tools is the
+small fixed set the reference page says eager is for, so nothing is bent. If you
+loaded the seed before that change, reload it.
 
 ---
 
-## Session F. Google Workspace, three images
+## Session F. Google Workspace, three images, deferred
 
-Needs a real Google account **and** your own OAuth client, since Apollia
-deliberately embeds none.
+**Skipped for this release.** The three images are placeholders that say so on
+their face: a "screenshot pending" card naming the screen it will show and why
+it is not there. They ship rather than leaving a broken image, and a reader who
+lands on one learns something true instead of seeing nothing.
 
-| File | Gesture | What must be on screen | Crop |
-|---|---|---|---|
-| `integration-google-workspace-1.png` | Connections, the Google Workspace card. | The card selected showing Not connected, and the right panel with the connect action. | page |
-| `integration-google-workspace-2.png` | Click Connect, follow through to Google. | Google's own consent screen listing the requested permissions. | dialog |
-| `integration-google-workspace-3.png` | Come back to Apollia after consenting. | The Drive folder dialog, the `drive.file` scope explanation, the Folder path field. | dialog |
+| File | What it will show, when it is shot |
+|---|---|
+| `integration-google-workspace-1.png` | The Connections page, Google Workspace card selected showing Not connected, connect action in the right panel. |
+| `integration-google-workspace-2.png` | Google's own consent screen listing the requested permissions. |
+| `integration-google-workspace-3.png` | Back in Apollia after consent: the Drive folder dialog, the `drive.file` scope explanation, the Folder path field. |
 
-If you have neither account nor client today, leave these three stale and say so
-in the release notes. They are the only three in the whole set where that is the
-honest answer.
+They need a real Google account **and** your own OAuth client, since Apollia
+deliberately embeds none. Regenerate the placeholders, or replace them with real
+captures, whenever that changes.
 
 ---
 

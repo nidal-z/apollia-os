@@ -5,3 +5,15 @@
 
 [chat]
 default_workspace = "__APOLLIA_SEED_WORKSPACE__"
+
+[mcp]
+# Eager rather than the default deferred, and this is a seed decision, not a
+# product one. In deferred mode a server's tools are indexed but their schemas
+# never reach the model: it sees `tool_search` and has to discover them, which
+# it does not reliably do on the first try. For a screenshot session that turns
+# "ask the model to use an MCP tool" into a dice roll, and the approval popup
+# that row 60 needs never appears.
+#
+# Two servers and six tools is exactly the small fixed set the reference page
+# says eager is for, so nothing is being bent here.
+tool_loading = "eager"
