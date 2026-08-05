@@ -1,10 +1,8 @@
 //! `apollia-os digest`: aggregate activity overview.
 //!
 //! Combines the runtime's tasks list, LLM cost summary, and audit stats into
-//! a compact "what happened recently" snapshot. The Desktop computes a richer
-//! digest in-process (`meta_generate_daily_digest`); the CLI digest is a
-//! lightweight aggregator over the existing HTTP routes so the runtime does
-//! not need any new endpoint.
+//! a compact "what happened recently" snapshot. It is a lightweight aggregator
+//! over the existing HTTP routes so the runtime does not need any new endpoint.
 
 use std::path::PathBuf;
 

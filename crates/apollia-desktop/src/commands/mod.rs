@@ -23,19 +23,14 @@ pub mod mcp;
 pub mod mcp_coaching;
 pub mod memory;
 pub mod meta_automation;
-pub mod meta_digest;
 pub mod meta_next_steps;
 pub mod model_hub;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;
 pub mod permissions_proposals;
-pub mod plan_alternatives;
 pub mod plan_mode;
 pub mod projects;
-pub mod review;
-pub mod session;
-pub mod session_meta;
 pub(crate) mod ssrf;
 pub mod stt;
 pub mod tasks;
@@ -45,7 +40,6 @@ pub mod trace;
 pub mod triggers;
 pub mod updates;
 pub mod user_memory;
-pub mod workspace;
 
 /// Process-wide lock for tests that read or write the home-directory env vars.
 ///

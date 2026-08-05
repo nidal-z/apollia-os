@@ -78,15 +78,30 @@ async fn list_tools_inner(port: u16) -> Result<Vec<ToolSummary>, String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
-            kind: t
-                .get("kind")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
+            kind: read_kind(t.get("kind")),
         })
         .collect();
 
     Ok(summaries)
+}
+
+/// Read a descriptor's `kind`, accepting both wire shapes.
+///
+/// `ToolKind` is an internally tagged enum, so the REST payload carries an
+/// object: `{"type": "native"}`, or `{"type": "mcp_server", ...}`. Reading it
+/// as a bare string yielded an empty value on every tool, which is why the kind
+/// badge never appeared. Some payloads do carry a plain string, so both are
+/// accepted rather than trading one silent empty for another.
+fn read_kind(value: Option<&serde_json::Value>) -> String {
+    match value {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Object(map)) => map
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        _ => String::new(),
+    }
 }
 
 /// Fetches a tool's descriptor via the internal REST API.
@@ -116,11 +131,7 @@ async fn describe_tool_inner(port: u16, name: &str) -> Result<Option<ToolDescrip
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
-                kind: json
-                    .get("kind")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
+                kind: read_kind(json.get("kind")),
                 input_schema: json.get("input_schema").cloned(),
                 output_schema: json.get("output_schema").cloned(),
                 permissions: json
@@ -167,6 +178,38 @@ pub async fn describe_tool(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn test_read_kind_accepts_the_tagged_object_shape() {
+        // GIVEN the shape ToolKind actually serialises to, an internally tagged object
+        let json = serde_json::json!({ "kind": { "type": "mcp_server", "tool_name": "search" } });
+        // WHEN the kind is read
+        let kind = read_kind(json.get("kind"));
+        // THEN the tag is extracted, not an empty string
+        assert_eq!(kind, "mcp_server");
+    }
+
+    #[test]
+    fn test_read_kind_still_accepts_a_bare_string() {
+        // GIVEN a payload that carries the kind as a plain string
+        let json = serde_json::json!({ "kind": "native" });
+        // WHEN the kind is read
+        let kind = read_kind(json.get("kind"));
+        // THEN it is returned unchanged
+        assert_eq!(kind, "native");
+    }
+
+    #[test]
+    fn test_read_kind_is_empty_when_absent_or_unusable() {
+        // GIVEN a payload with no kind, and one where the kind carries no tag
+        let missing = serde_json::json!({});
+        let untagged = serde_json::json!({ "kind": { "other": 1 } });
+        // WHEN each kind is read
+        // THEN both yield an empty string rather than panicking
+        assert_eq!(read_kind(missing.get("kind")), "");
+        assert_eq!(read_kind(untagged.get("kind")), "");
+    }
+
     use super::*;
 
     #[test]

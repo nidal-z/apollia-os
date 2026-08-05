@@ -7,7 +7,6 @@
 //! - [`get_onboarding_state`] - full machine state (new)
 //! - [`advance_onboarding_phase`] - validated phase transition (new)
 //! - [`set_onboarding_profile`] - profile selection (new)
-//! - [`get_onboarding_status`] - backward-compatible completion flag
 //! - [`trigger_onboarding`] - creates an agent-backed chat session
 //! - [`dismiss_onboarding`] - marks onboarding as skipped
 //!
@@ -112,7 +111,7 @@ pub struct OnboardingState {
     pub llm_configured: bool,
     /// `true` when the STT engine has been configured and tested.
     pub stt_configured: bool,
-    /// Topics covered so far (legacy compatibility with `OnboardingStatus`).
+    /// Topics covered so far.
     pub topics_covered: Vec<String>,
     /// `true` when the mandatory name/role fields have been collected.
     pub mandatory_complete: bool,
@@ -175,24 +174,6 @@ impl OnboardingState {
 // ---------------------------------------------------------------------------
 // Legacy public types (serialised to Svelte)
 // ---------------------------------------------------------------------------
-
-/// Onboarding completion status returned to the frontend (backward-compatible).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OnboardingStatus {
-    /// `true` if all 5 topics have been covered.
-    pub completed: bool,
-    /// `true` if the mandatory fields (name, role) have been collected.
-    pub mandatory_complete: bool,
-    /// Topics already covered by the user.
-    pub topics_covered: Vec<String>,
-    /// Completion percentage (0–100).
-    pub completion_pct: u8,
-    /// ISO 8601 timestamp of the last onboarding session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_session_at: Option<String>,
-    /// `true` if the user explicitly dismissed the onboarding.
-    pub skipped: bool,
-}
 
 /// Result of triggering an onboarding session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -470,17 +451,6 @@ pub async fn set_onboarding_profile(
 // ---------------------------------------------------------------------------
 // Tauri commands - legacy
 // ---------------------------------------------------------------------------
-
-/// Returns the current onboarding status (backward-compatible).
-#[tauri::command]
-pub async fn get_onboarding_status(
-    state: State<'_, RuntimeHandle>,
-) -> Result<OnboardingStatus, String> {
-    get_onboarding_status_inner(&state).await.map_err(|e| {
-        tracing::error!(error = %e, "get_onboarding_status failed");
-        e.to_string()
-    })
-}
 
 /// Triggers a full or partial onboarding session.
 ///
@@ -853,145 +823,6 @@ fn get_repo(
         .ok_or(OnboardingError::RepositoryNotInitialized)
 }
 
-/// Scan the onboarding agent's semantic memory and mark every discovered
-/// topic as covered in the user-memory repository.
-///
-/// A missing or unreadable agent store is a silent no-op - the progress bar
-/// simply stays at whatever the repository already knows.
-fn auto_mark_discovered_topics(repo: &UserMemoryRepository, agent_db_path: &std::path::Path) {
-    if !agent_db_path.exists() {
-        return;
-    }
-    let Ok(agent_store) = apollia_memory::store::MemoryStore::open(agent_db_path) else {
-        return;
-    };
-    let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
-    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
-        return;
-    };
-    let mut discovered = std::collections::HashSet::new();
-    for entry in &entries {
-        if let Some(topic) = topic_for_memory_key(&entry.key) {
-            discovered.insert(topic);
-        }
-    }
-    for topic in discovered {
-        let _ = repo.mark_topic_covered(topic);
-    }
-}
-
-/// Maps a memory key written by the onboarding agent to a topic name.
-///
-/// The agent writes keys like `user.name`, `user.tools.ide`, `user.domain.stack`
-/// etc. This function maps them to the five onboarding topics.
-fn topic_for_memory_key(key: &str) -> Option<&'static str> {
-    if key.starts_with("user.name")
-        || key.starts_with("user.role")
-        || key.starts_with("user.languages")
-        || key.starts_with("user.expertise")
-        || key.starts_with("user.industry")
-        || key.starts_with("user.goals")
-    {
-        Some("identity")
-    } else if key.starts_with("user.preferences") {
-        Some("preferences")
-    } else if key.starts_with("user.tools") || key.starts_with("user.tech") {
-        Some("tools")
-    } else if key.starts_with("user.domain") {
-        Some("domain")
-    } else if key.starts_with("user.agents")
-        || key.starts_with("user.challenges")
-        || key.starts_with("user.constraints")
-    {
-        Some("agents")
-    } else {
-        None
-    }
-}
-
-/// Checks whether the mandatory onboarding fields (name, role) have been collected.
-///
-/// Scans the onboarding agent's semantic memory namespace for keys `user.name`
-/// and `user.role` with confidence >= 0.5.
-fn mandatory_fields_collected(agent_db_path: &std::path::Path) -> bool {
-    if !agent_db_path.exists() {
-        return false;
-    }
-    let Ok(store) = apollia_memory::store::MemoryStore::open(agent_db_path) else {
-        return false;
-    };
-    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
-        return false;
-    };
-    let has_name = entries
-        .iter()
-        .any(|e| e.key.starts_with("user.name") && e.confidence >= 0.5);
-    let has_role = entries
-        .iter()
-        .any(|e| e.key.starts_with("user.role") && e.confidence >= 0.5);
-    has_name && has_role
-}
-
-/// Reads onboarding status from UserMemory.
-///
-/// Also scans the `onboarding-agent` semantic memory namespace to auto-detect
-/// covered topics from the keys the agent has written (`user.name`, `user.tools.ide`,
-/// etc.) and marks them in `UserMemoryRepository` so the progress bar advances.
-async fn get_onboarding_status_inner(
-    state: &RuntimeHandle,
-) -> Result<OnboardingStatus, OnboardingError> {
-    let repo = get_repo(state)?;
-
-    // Open the agent's memory store to scan for written keys.
-    let memory_dir = {
-        let home = apollia_core::paths::home_dir_or_temp()
-            .display()
-            .to_string();
-        std::path::PathBuf::from(home)
-            .join(".apollia")
-            .join("memory")
-    };
-    let agent_db_path = memory_dir.join("onboarding-agent.db");
-
-    let status = tokio::task::spawn_blocking(move || {
-        let repo = repo
-            .lock()
-            .map_err(|e| OnboardingError::SessionCreationFailed(format!("mutex poisoned: {e}")))?;
-
-        // Auto-detect covered topics from the agent's semantic memory.
-        auto_mark_discovered_topics(&repo, &agent_db_path);
-
-        let topics_covered = repo
-            .get_covered_topics()
-            .map_err(|_| OnboardingError::RepositoryNotInitialized)?;
-
-        let total = ONBOARDING_TOPICS.len();
-        let covered = topics_covered.len().min(total);
-        let completion_pct = ((covered as f64 / total as f64) * 100.0) as u8;
-        let completed = completion_pct == 100;
-
-        let last_session_at = repo.get_last_onboarding_session().unwrap_or(None);
-
-        let skipped = repo.get_onboarding_skipped().unwrap_or(false);
-
-        let mandatory_complete = mandatory_fields_collected(&agent_db_path);
-
-        Ok::<OnboardingStatus, OnboardingError>(OnboardingStatus {
-            completed,
-            mandatory_complete,
-            topics_covered,
-            completion_pct,
-            last_session_at,
-            skipped,
-        })
-    })
-    .await
-    .map_err(|e| OnboardingError::SessionCreationFailed(format!("spawn_blocking failed: {e}")))?;
-
-    status
-}
-
 /// Writes the active onboarding profile to the onboarding agent's semantic
 /// memory so the Python agent can read it via `ctx.memory.recall()` on its
 /// first conversational turn.
@@ -1028,12 +859,11 @@ fn write_profile_to_agent_memory(profile: &str) {
 
 /// Wipes stale onboarding progress before starting a fresh session.
 ///
-/// Without this, two sources of stale state cause `get_onboarding_status` to
-/// return 100% on session arrival:
+/// Without this, two sources of stale state make a fresh session look already
+/// finished on arrival:
 ///   1. `UserMemoryRepository` keeps `onboarding_topic_*` marks across runs.
 ///   2. The onboarding agent's semantic DB keeps `user.*` entries from prior
-///      conversations (auto-discovery in `get_onboarding_status_inner` then
-///      re-marks every topic on first poll).
+///      conversations, which mark the matching topics as covered again.
 ///
 /// This helper:
 ///   - Forgets every `onboarding_topic_{topic}` entry in the user repo.
@@ -2223,55 +2053,6 @@ mod tests {
     }
 
     #[test]
-    fn test_onboarding_status_serialization() {
-        // GIVEN a complete onboarding status
-        let status = OnboardingStatus {
-            completed: true,
-            mandatory_complete: true,
-            topics_covered: vec![
-                "identity".into(),
-                "preferences".into(),
-                "tools".into(),
-                "domain".into(),
-                "agents".into(),
-            ],
-            completion_pct: 100,
-            last_session_at: Some("2026-06-15T14:30:00Z".into()),
-            skipped: false,
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_string(&status).expect("serialization should succeed");
-
-        // THEN all fields are present
-        assert!(json.contains("\"completed\":true"));
-        assert!(json.contains("\"completion_pct\":100"));
-        assert!(json.contains("\"skipped\":false"));
-        assert!(json.contains("\"last_session_at\":\"2026-06-15T14:30:00Z\""));
-    }
-
-    #[test]
-    fn test_onboarding_status_new_user_serialization() {
-        // GIVEN a new user status
-        let status = OnboardingStatus {
-            completed: false,
-            mandatory_complete: false,
-            topics_covered: vec![],
-            completion_pct: 0,
-            last_session_at: None,
-            skipped: false,
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_string(&status).expect("serialization should succeed");
-
-        // THEN completed is false and last_session_at is absent
-        assert!(json.contains("\"completed\":false"));
-        assert!(json.contains("\"completion_pct\":0"));
-        assert!(!json.contains("last_session_at"));
-    }
-
-    #[test]
     fn test_trigger_result_full_mode() {
         // GIVEN a full onboarding trigger result
         let result = TriggerResult {
@@ -2409,27 +2190,6 @@ mod tests {
         let result = validate_profile("operator");
         // THEN it succeeds - the profile will be injected into agent memory
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_topic_for_memory_key_maps_tier2_keys() {
-        // GIVEN the Tier 2 profile keys the onboarding agent now collects
-        // WHEN mapping each to an onboarding topic
-        // THEN every one resolves to a known topic (keeps completion_pct honest)
-        assert_eq!(topic_for_memory_key("user.goals"), Some("identity"));
-        assert_eq!(topic_for_memory_key("user.domain.sector"), Some("domain"));
-        assert_eq!(topic_for_memory_key("user.tech.proficiency"), Some("tools"));
-        assert_eq!(topic_for_memory_key("user.tech.stack"), Some("tools"));
-        assert_eq!(topic_for_memory_key("user.tools.daily"), Some("tools"));
-        assert_eq!(
-            topic_for_memory_key("user.preferences.language"),
-            Some("preferences")
-        );
-        assert_eq!(topic_for_memory_key("user.agents.domains"), Some("agents"));
-        assert_eq!(
-            topic_for_memory_key("user.constraints.compliance"),
-            Some("agents")
-        );
     }
 
     #[test]

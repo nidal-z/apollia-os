@@ -413,14 +413,6 @@ fn onboarded_flag_path() -> PathBuf {
     home.join(".apollia").join(".onboarded")
 }
 
-/// Checks whether onboarding has already been completed.
-///
-/// Returns `true` if the `~/.apollia/.onboarded` file exists.
-#[tauri::command]
-pub async fn check_onboarded() -> Result<bool, String> {
-    Ok(onboarded_flag_path().exists())
-}
-
 /// Marks onboarding as complete by creating the flag file.
 ///
 /// Creates `~/.apollia/.onboarded` (and the parent directory if needed).
@@ -730,130 +722,6 @@ pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, Str
     Ok(apollia_core::SecurityPosture::detect())
 }
 
-/// Checks whether Python 3 is available on the system.
-///
-/// Runs `python3 --version` and returns `true` if the command succeeds.
-#[tauri::command]
-pub async fn check_python() -> Result<bool, String> {
-    let mut probe = tokio::process::Command::new("python3");
-    apollia_core::subprocess_env::scrub_bundled_python_async(&mut probe);
-    apollia_core::subprocess_window::hide_console_async(&mut probe);
-    let result = probe
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await;
-
-    match result {
-        Ok(status) => Ok(status.success()),
-        Err(_) => Ok(false),
-    }
-}
-
-/// Checks whether at least one LLM backend is configured.
-///
-/// Delegates to `GET /api/v1/llm/status` on the internal REST API and returns
-/// `true` if at least one backend is available.
-#[tauri::command]
-pub async fn check_llm_configured(
-    state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
-) -> Result<bool, String> {
-    let json = super::http_get_json(state.api_port, "/api/v1/llm/status").await;
-
-    match json {
-        Ok(resp) => {
-            let has_backends = resp
-                .get("backends")
-                .and_then(|v| v.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false);
-            Ok(has_backends)
-        }
-        Err(_) => Ok(false),
-    }
-}
-
-/// Checks whether `hello_agent.py` exists in the `agents/` directory.
-///
-/// Searches the current working directory.
-/// Returns the absolute path if found, otherwise `None`.
-#[tauri::command]
-pub async fn check_hello_agent_exists() -> Result<Option<String>, String> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let path = cwd.join("agents").join("hello_agent.py");
-
-    if path.exists() {
-        Ok(Some(path.display().to_string()))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Information about a pre-installed agent discovered in the `agents/` directory.
-#[derive(Debug, Serialize)]
-pub struct AvailableAgent {
-    /// File name without extension (e.g. `"document-analyst"`).
-    pub id: String,
-    /// Absolute path to the `.py` file.
-    pub path: String,
-}
-
-/// Scans the `agents/` directory for Python agent files.
-///
-/// Returns all `.py` files found, excluding `__init__.py` and base classes
-/// (files whose name contains `_base`). Each entry includes the stem as `id`
-/// and the absolute path.
-#[tauri::command]
-pub async fn list_available_agents() -> Result<Vec<AvailableAgent>, String> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let agents_dir = cwd.join("agents");
-
-    if !agents_dir.is_dir() {
-        return Ok(Vec::new());
-    }
-
-    let mut entries = tokio::fs::read_dir(&agents_dir)
-        .await
-        .map_err(|e| format!("failed to read agents directory: {e}"))?;
-
-    let mut agents = Vec::new();
-
-    while let Some(entry) = entries
-        .next_entry()
-        .await
-        .map_err(|e| format!("failed to read directory entry: {e}"))?
-    {
-        let path = entry.path();
-        let Some(ext) = path.extension() else {
-            continue;
-        };
-        if ext != "py" {
-            continue;
-        }
-
-        let file_name = entry.file_name();
-        let name = file_name.to_string_lossy();
-
-        if name == "__init__.py" || name.contains("_base") {
-            continue;
-        }
-
-        let stem = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        agents.push(AvailableAgent {
-            id: stem,
-            path: path.display().to_string(),
-        });
-    }
-
-    agents.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(agents)
-}
-
 /// Result of the local LLM setup operation.
 #[derive(Debug, Serialize)]
 pub struct SetupLlmResult {
@@ -1150,38 +1018,6 @@ mod tests {
         // AND triggers section is absent (migrated to SQLite CRUD)
         let triggers = view.sections.iter().find(|s| s.name == "triggers");
         assert!(triggers.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_list_available_agents_returns_sorted_results() {
-        // GIVEN the agents/ directory exists in the workspace
-        // WHEN listing available agents
-        let result = list_available_agents().await;
-
-        // THEN the command succeeds
-        assert!(result.is_ok());
-        let agents = result.expect("list_available_agents should succeed");
-
-        // AND results are sorted alphabetically by id
-        for window in agents.windows(2) {
-            assert!(
-                window[0].id <= window[1].id,
-                "agents should be sorted: {} <= {}",
-                window[0].id,
-                window[1].id
-            );
-        }
-
-        // AND base class files are excluded
-        assert!(
-            !agents.iter().any(|a| a.id.contains("_base")),
-            "base class files should be excluded"
-        );
-
-        // AND all paths are absolute and end with .py
-        for agent in &agents {
-            assert!(agent.path.ends_with(".py"), "path should end with .py");
-        }
     }
 
     #[tokio::test]

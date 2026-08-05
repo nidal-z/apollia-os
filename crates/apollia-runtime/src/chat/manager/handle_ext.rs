@@ -434,11 +434,25 @@ impl ChatSessionManagerHandle {
     }
 
     /// Orphan all sessions linked to a project (called on project deletion).
+    ///
+    /// Fire and forget: the caller has already deleted the project and must
+    /// not fail on this. A dropped command is traced here, a failed database
+    /// write is traced by the actor.
     pub async fn orphan_project_sessions(&self, project_id: String) {
-        let _ = self
+        let sent = self
             .tx
-            .send(ChatCommand::OrphanProjectSessions { project_id })
+            .send(ChatCommand::OrphanProjectSessions {
+                project_id: project_id.clone(),
+            })
             .await;
+
+        if sent.is_err() {
+            warn!(
+                project_id = %project_id,
+                cause = "chat actor channel closed",
+                "chat.orphan_project_sessions.dropped"
+            );
+        }
     }
 
     pub async fn list_a2a_skills(&self) -> Vec<crate::a2a::SkillListing> {

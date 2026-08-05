@@ -31,6 +31,43 @@ pub struct InstallAgentResponse {
     pub install_path: String,
 }
 
+/// What happened to the live runtime instance while an agent's module was
+/// replaced.
+///
+/// The embedded interpreter keeps the imported module in memory, so writing a
+/// new `.py` over the installed one changes nothing for an agent that is
+/// already running. The replacement therefore stops and restarts it, and this
+/// value is what lets the window say which of the two versions is now serving
+/// tasks instead of announcing a success it cannot vouch for.
+pub mod restart_outcome {
+    /// No live runtime entry: the new module loads at the next start.
+    pub const NOT_RUNNING: &str = "not_running";
+    /// Stopped and started again on the new module.
+    pub const RESTARTED: &str = "restarted";
+    /// The stop was refused: the previous module is still running.
+    pub const STOP_FAILED: &str = "stop_failed";
+    /// Stopped, but it did not come back up: nothing is running.
+    pub const START_FAILED: &str = "start_failed";
+}
+
+/// Response to an agent update.
+///
+/// Distinct from [`InstallAgentResponse`] because an update has an outcome an
+/// install cannot have: a runtime instance that had to be cycled.
+#[derive(Debug, Serialize)]
+pub struct UpdateAgentResponse {
+    /// Unique name of the updated agent.
+    pub name: String,
+    /// Semver version read from the new module's manifest.
+    pub version: String,
+    /// Install path on disk.
+    pub install_path: String,
+    /// One of the [`restart_outcome`] constants.
+    pub restart_outcome: String,
+    /// Raw cause when the stop or the start failed, `None` otherwise.
+    pub restart_error: Option<String>,
+}
+
 /// Skill declared by a worker agent in its manifest.
 #[derive(Debug, Serialize)]
 pub struct AgentSkillView {
@@ -381,13 +418,29 @@ pub async fn start_agent(
     runtime: State<'_, RuntimeHandle>,
     path: String,
 ) -> Result<String, String> {
+    start_agent_inner(runtime.api_port, &path).await
+}
+
+/// Inner logic for [`start_agent`], callable without Tauri `State`.
+async fn start_agent_inner(api_port: u16, path: &str) -> Result<String, String> {
     let body = serde_json::json!({ "agent_path": path });
-    let resp = http_post_json(runtime.api_port, "/api/v1/agents", &body).await?;
+    let resp = http_post_json(api_port, "/api/v1/agents", &body).await?;
 
     resp.get("agent_id")
         .and_then(|v| v.as_str())
         .map(String::from)
         .ok_or_else(|| "missing agent_id in response".to_string())
+}
+
+/// True while the agent still answers tasks.
+///
+/// `Stopping` counts as not running: the transition is already under way and
+/// the registry refuses a second stop, so the caller must not try to cycle it.
+fn is_running(state: &ProcessState) -> bool {
+    matches!(
+        state,
+        ProcessState::Initializing | ProcessState::Active | ProcessState::Degraded
+    )
 }
 
 /// Stops an agent (transition Stopping → Stopped).
@@ -397,9 +450,19 @@ pub async fn start_agent(
 /// EventBus.
 #[tauri::command]
 pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> Result<(), String> {
+    stop_agent_inner(&runtime, &agent_id).await
+}
+
+/// Inner logic for [`stop_agent`], callable without Tauri `State`.
+///
+/// The order is load-bearing: `Stopping` first so the window sees the
+/// transition, then the coordinator leaves the router so no new task is
+/// dispatched, then `Stopped`. Unregistering before the state change would let
+/// a task be routed to a coordinator that is already gone.
+async fn stop_agent_inner(runtime: &RuntimeHandle, agent_id: &str) -> Result<(), String> {
     let entry = runtime
         .registry_handle
-        .get_agent(&agent_id)
+        .get_agent(agent_id)
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("agent not found: {agent_id}"))?;
@@ -646,16 +709,34 @@ pub async fn disable_agent(
 
 /// Updates an installed agent with a new Python file.
 ///
-/// Validates the new module via `AgentLoader`, replaces the file, and updates
-/// the entry in `agents.db`. Emits `RuntimeEvent::AgentInstalled`.
+/// Validates the new module via `AgentLoader`, replaces the file, updates the
+/// entry in `agents.db`, and cycles the runtime instance when there is one.
+///
+/// The cycle is the point of the command, not a courtesy. The embedded
+/// interpreter holds the module it imported at start time, so replacing the
+/// file on disk leaves a running agent serving the previous code: without the
+/// stop and the start, the window would report a new version while the old one
+/// keeps answering. The start drops the cached modules of the agent directory
+/// before importing, so the helpers copied next to the entry file are re-read
+/// too and not only the entry file. When the cycle cannot be completed the
+/// answer says so through `restart_outcome`, and the caller renders the real
+/// situation instead of a success.
+///
+/// Emits `RuntimeEvent::AgentInstalled` once the runtime has settled, so a list
+/// refresh triggered by the event reads the final state and not the gap between
+/// the stop and the start.
+// REASON: four of the six are Tauri-injected State, not a call signature an
+// author picks; splitting them into a bag would only hide the injection.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn update_agent(
     name: String,
     path: String,
+    runtime: State<'_, RuntimeHandle>,
     loader: State<'_, Arc<dyn AgentLoader>>,
     repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
     event_bus: State<'_, EventBusSender>,
-) -> Result<InstallAgentResponse, String> {
+) -> Result<UpdateAgentResponse, String> {
     let source_path = PathBuf::from(&path);
     if !source_path.exists() {
         return Err(format!("file not found: {path}"));
@@ -732,16 +813,69 @@ pub async fn update_agent(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
+    let install_path_str = existing.install_path.to_string_lossy().to_string();
+    let (outcome, restart_error) = restart_after_update(&runtime, &name, &install_path_str).await;
+
     let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentInstalled {
         name: updated.name.clone(),
         version: updated.version.clone(),
     });
 
-    Ok(InstallAgentResponse {
+    Ok(UpdateAgentResponse {
         name: updated.name,
         version: updated.version,
-        install_path: existing.install_path.to_string_lossy().to_string(),
+        install_path: install_path_str,
+        restart_outcome: outcome.to_string(),
+        restart_error,
     })
+}
+
+/// Cycle the runtime instance of *name* so it picks up the module just written.
+///
+/// Returns the [`restart_outcome`] constant and the raw cause of a failure. A
+/// registry lookup that itself fails is reported as "not running" rather than
+/// as a failed restart: nothing was stopped, so the previous instance, if any,
+/// is untouched, and the operator is told the new module applies at the next
+/// start.
+async fn restart_after_update(
+    runtime: &RuntimeHandle,
+    name: &str,
+    install_path: &str,
+) -> (&'static str, Option<String>) {
+    let live_id = match runtime.registry_handle.find_by_name(name).await {
+        Ok(Some(id)) => id,
+        Ok(None) => return (restart_outcome::NOT_RUNNING, None),
+        Err(e) => {
+            tracing::warn!(agent = %name, cause = %e, "agent.update.registry_unreachable");
+            return (restart_outcome::NOT_RUNNING, None);
+        }
+    };
+
+    let running = matches!(
+        runtime.registry_handle.get_agent(live_id.as_str()).await,
+        Ok(Some(ref entry)) if is_running(&entry.process_state)
+    );
+    if !running {
+        return (restart_outcome::NOT_RUNNING, None);
+    }
+
+    if let Err(e) = stop_agent_inner(runtime, live_id.as_str()).await {
+        tracing::warn!(agent = %name, cause = %e, "agent.update.stop_failed");
+        return (restart_outcome::STOP_FAILED, Some(e));
+    }
+
+    // `register` evicts the entry that carries the same manifest name, so the
+    // start replaces the stopped one instead of leaving two rows behind.
+    match start_agent_inner(runtime.api_port, install_path).await {
+        Ok(agent_id) => {
+            tracing::info!(agent = %name, agent_id = %agent_id, "agent.update.restarted");
+            (restart_outcome::RESTARTED, None)
+        }
+        Err(e) => {
+            tracing::warn!(agent = %name, cause = %e, "agent.update.start_failed");
+            (restart_outcome::START_FAILED, Some(e))
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -829,143 +963,6 @@ async fn list_agent_messages_inner(
         Err(e) if e.contains("404") => Ok(vec![]),
         Err(e) => Err(format!("list_agent_messages: {e}")),
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Scaffolding from template
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Template types supported for agent scaffolding.
-const VALID_TEMPLATE_TYPES: &[&str] = &["react", "conversational", "orchestrated"];
-
-/// Validates the agent name: lowercase letters, digits, hyphens. Starts with a
-/// letter, ends with a letter or digit, minimum 2 characters.
-fn is_valid_agent_name(name: &str) -> bool {
-    if name.len() < 2 {
-        return false;
-    }
-    let bytes = name.as_bytes();
-    if !bytes[0].is_ascii_lowercase() {
-        return false;
-    }
-    let last = bytes[bytes.len() - 1];
-    if !last.is_ascii_lowercase() && !last.is_ascii_digit() {
-        return false;
-    }
-    name.bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
-
-/// Result of creating an agent from an SDK template.
-#[derive(Debug, Serialize)]
-pub struct CreateAgentResult {
-    /// Name of the created agent.
-    pub name: String,
-    /// Template type used.
-    pub template_type: String,
-    /// Path of the directory created on disk.
-    pub path: String,
-}
-
-/// Creates a new agent from an SDK template.
-///
-/// Delegates to `python3 -m apollia new` for the actual generation.
-/// Returns the path of the created directory on success.
-#[tauri::command]
-pub async fn create_agent_from_template(
-    name: String,
-    template_type: String,
-) -> Result<CreateAgentResult, String> {
-    if !VALID_TEMPLATE_TYPES.contains(&template_type.as_str()) {
-        return Err(format!(
-            "Type invalide '{}'. Types supportes : {}",
-            template_type,
-            VALID_TEMPLATE_TYPES.join(", ")
-        ));
-    }
-
-    if !is_valid_agent_name(&name) {
-        return Err(
-            "Le nom ne doit contenir que des lettres minuscules, chiffres et tirets".to_string(),
-        );
-    }
-
-    let agents_dir = apollia_data_dir().join("agents");
-    let target_dir = agents_dir.join(&name);
-    if target_dir.exists() {
-        return Err(format!("Un agent '{}' existe deja", name));
-    }
-
-    let mut scaffold = tokio::process::Command::new(sdk_interpreter());
-    apollia_core::subprocess_window::hide_console_async(&mut scaffold);
-    let output = scaffold
-        .args([
-            "-m",
-            "apollia",
-            "new",
-            &name,
-            "--type",
-            &template_type,
-            "--output",
-        ])
-        .arg(&target_dir)
-        .output()
-        .await
-        .map_err(|e| format!("Python execution error: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Echec du scaffolding : {stderr}"));
-    }
-
-    Ok(CreateAgentResult {
-        name,
-        template_type,
-        path: target_dir.display().to_string(),
-    })
-}
-
-/// The interpreter to use when the bundled Python environment is the point.
-///
-/// Two call sites here run the `apollia` SDK, which ships inside the bundle's
-/// site-packages, so they want the bundled interpreter and its `PYTHONHOME`.
-/// They used to reach it as `python3`, which resolves to the *system*
-/// interpreter everywhere except Windows: it only worked when that interpreter
-/// happened to share the bundle's minor version, and crashed on startup
-/// otherwise. `APOLLIA_BUNDLED_PYTHON` is exported at boot with the absolute
-/// path, so the intent is now explicit rather than accidental.
-///
-/// Falls back to `python3` when the variable is absent (a source build with no
-/// bundle), which is the pre-existing behaviour and the only case where the
-/// SDK might come from the system environment instead.
-fn sdk_interpreter() -> std::ffi::OsString {
-    std::env::var_os("APOLLIA_BUNDLED_PYTHON").unwrap_or_else(|| "python3".into())
-}
-
-/// Checks whether the apollia Python SDK is installed.
-///
-/// Attempts to import the `apollia` module via Python and returns `true` if
-/// the import succeeds.
-#[tauri::command]
-pub async fn check_sdk_available() -> Result<bool, String> {
-    let mut probe = tokio::process::Command::new(sdk_interpreter());
-    apollia_core::subprocess_window::hide_console_async(&mut probe);
-    let output = probe
-        .args(["-c", "import apollia; print(apollia.__version__)"])
-        .output()
-        .await
-        .map_err(|e| format!("Python non disponible : {e}"))?;
-
-    Ok(output.status.success())
-}
-
-/// Checks whether an agent name is available (not already in use).
-///
-/// Returns `true` if the `~/.apollia/agents/<name>` directory does not exist.
-#[tauri::command]
-pub async fn check_agent_name_available(name: String) -> Result<bool, String> {
-    let target = apollia_data_dir().join("agents").join(&name);
-    Ok(!target.exists())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1167,66 +1164,81 @@ mod tests {
     }
 
     #[test]
+    fn test_is_running_covers_live_states_only() {
+        // GIVEN every ProcessState variant
+        // WHEN asked whether the agent still answers tasks
+        // THEN only the live ones qualify, Stopping included in the negatives
+        assert!(is_running(&ProcessState::Initializing));
+        assert!(is_running(&ProcessState::Active));
+        assert!(is_running(&ProcessState::Degraded));
+        assert!(!is_running(&ProcessState::Stopping));
+        assert!(!is_running(&ProcessState::Stopped));
+    }
+
+    #[test]
+    fn test_update_agent_response_reports_a_completed_restart() {
+        // GIVEN an update that cycled the running agent
+        let resp = UpdateAgentResponse {
+            name: "mon-agent".to_string(),
+            version: "2.0.0".to_string(),
+            install_path: "/home/user/.apollia/agents/mon-agent/agent.py".to_string(),
+            restart_outcome: restart_outcome::RESTARTED.to_string(),
+            restart_error: None,
+        };
+
+        // WHEN serialized for the window
+        let json = serde_json::to_value(&resp).expect("serialize");
+
+        // THEN the outcome is explicit and no cause is carried
+        assert_eq!(json["restart_outcome"], "restarted");
+        assert!(json["restart_error"].is_null());
+        assert_eq!(json["version"], "2.0.0");
+    }
+
+    #[test]
+    fn test_update_agent_response_keeps_the_restart_cause() {
+        // GIVEN an update whose restart failed after the stop
+        let resp = UpdateAgentResponse {
+            name: "mon-agent".to_string(),
+            version: "2.0.0".to_string(),
+            install_path: "/home/user/.apollia/agents/mon-agent/agent.py".to_string(),
+            restart_outcome: restart_outcome::START_FAILED.to_string(),
+            restart_error: Some("tool resolution failed: missing bash".to_string()),
+        };
+
+        // WHEN serialized for the window
+        let json = serde_json::to_value(&resp).expect("serialize");
+
+        // THEN the raw cause survives the boundary, it is what the operator acts on
+        assert_eq!(json["restart_outcome"], "start_failed");
+        assert_eq!(
+            json["restart_error"],
+            "tool resolution failed: missing bash"
+        );
+    }
+
+    #[test]
+    fn test_restart_outcome_constants_are_distinct() {
+        // GIVEN the four outcomes the window switches on
+        let all = [
+            restart_outcome::NOT_RUNNING,
+            restart_outcome::RESTARTED,
+            restart_outcome::STOP_FAILED,
+            restart_outcome::START_FAILED,
+        ];
+
+        // WHEN collected into a set
+        let unique: std::collections::HashSet<&str> = all.iter().copied().collect();
+
+        // THEN none collapses onto another
+        assert_eq!(unique.len(), all.len());
+    }
+
+    #[test]
     fn test_message_limit_constants() {
         // GIVEN the limit constants
         // THEN they have expected values
         assert_eq!(MAX_MESSAGE_LIMIT, 200);
         assert_eq!(DEFAULT_MESSAGE_LIMIT, 50);
-    }
-
-    #[test]
-    fn test_is_valid_agent_name_accepts_valid_names() {
-        // GIVEN valid agent names
-        // WHEN validated
-        // THEN they are accepted
-        assert!(is_valid_agent_name("my-agent"));
-        assert!(is_valid_agent_name("agent1"));
-        assert!(is_valid_agent_name("my-cool-agent-42"));
-        assert!(is_valid_agent_name("ab"));
-    }
-
-    #[test]
-    fn test_is_valid_agent_name_rejects_invalid_names() {
-        // GIVEN invalid agent names
-        // WHEN validated
-        // THEN they are rejected
-        assert!(!is_valid_agent_name(""));
-        assert!(!is_valid_agent_name("a"));
-        assert!(!is_valid_agent_name("MyAgent"));
-        assert!(!is_valid_agent_name("my agent"));
-        assert!(!is_valid_agent_name("1agent"));
-        assert!(!is_valid_agent_name("agent-"));
-        assert!(!is_valid_agent_name("my_agent"));
-        assert!(!is_valid_agent_name("my-agent!"));
-    }
-
-    #[test]
-    fn test_create_agent_result_serializes() {
-        // GIVEN a CreateAgentResult
-        let result = CreateAgentResult {
-            name: "my-agent".to_string(),
-            template_type: "react".to_string(),
-            path: "/home/user/.apollia/agents/my-agent".to_string(),
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&result).expect("serialize");
-
-        // THEN all fields are present with correct values
-        assert_eq!(json["name"], "my-agent");
-        assert_eq!(json["template_type"], "react");
-        assert!(json["path"]
-            .as_str()
-            .is_some_and(|p| p.contains("my-agent")));
-    }
-
-    #[test]
-    fn test_valid_template_types_constant() {
-        // GIVEN the template type list
-        // THEN it contains exactly the 3 expected types
-        assert_eq!(VALID_TEMPLATE_TYPES.len(), 3);
-        assert!(VALID_TEMPLATE_TYPES.contains(&"react"));
-        assert!(VALID_TEMPLATE_TYPES.contains(&"conversational"));
-        assert!(VALID_TEMPLATE_TYPES.contains(&"orchestrated"));
     }
 }

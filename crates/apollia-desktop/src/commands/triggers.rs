@@ -226,6 +226,9 @@ pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadRe
 // ─── CRUD types & commands ──────────────────────────────────────────────────
 
 /// Full definition of a trigger returned by the CRUD operations.
+///
+/// `source_config` is redacted before it leaves this process: see
+/// [`redact_source_config`].
 #[derive(Debug, Serialize)]
 pub struct TriggerDefinitionView {
     /// Unique trigger identifier.
@@ -240,8 +243,10 @@ pub struct TriggerDefinitionView {
     pub on_busy: String,
     /// Source type: `"cron"`, `"interval"`, etc.
     pub source_type: String,
-    /// JSON configuration of the source.
+    /// JSON configuration of the source, secret material removed.
     pub source_config: serde_json::Value,
+    /// Presence marker replacing the removed secret.
+    pub has_secret: bool,
     /// Input message template.
     pub input_template: Option<String>,
     /// Creation timestamp (ISO 8601).
@@ -296,8 +301,78 @@ pub struct UpdateTriggerRequest {
     pub input_template: Option<String>,
 }
 
+/// Keys of `source_config` that hold secret material.
+///
+/// Currently only the webhook HMAC shared secret.
+const SECRET_SOURCE_KEYS: [&str; 1] = ["secret"];
+
+/// Strips secret material from a `source_config` and reports whether one was there.
+///
+/// The webview never needs the value: changing a schedule does not require the
+/// HMAC secret, and anything handed over IPC lands in the renderer context.
+/// A boolean presence marker is enough for the form to say "already stored,
+/// leave empty to keep it".
+fn redact_source_config(config: &serde_json::Value) -> (serde_json::Value, bool) {
+    let Some(map) = config.as_object() else {
+        return (config.clone(), false);
+    };
+
+    let mut redacted = map.clone();
+    let mut has_secret = false;
+    for key in SECRET_SOURCE_KEYS {
+        if let Some(value) = redacted.remove(key) {
+            has_secret |= value.as_str().is_some_and(|s| !s.is_empty());
+        }
+    }
+
+    (serde_json::Value::Object(redacted), has_secret)
+}
+
+/// True when an update payload targets a webhook and carries no replacement secret.
+///
+/// `PUT /api/v1/triggers/:id` replaces the stored row wholesale and rejects a
+/// webhook whose secret is missing or shorter than the required length, so an
+/// unchanged secret still has to be resent. The webview cannot do that: it no
+/// longer holds the value.
+fn needs_stored_secret(body: &serde_json::Value) -> bool {
+    let Some(source) = body.get("source") else {
+        return false;
+    };
+    if source.get("type").and_then(|v| v.as_str()) != Some("webhook") {
+        return false;
+    }
+    source
+        .get("secret")
+        .and_then(|v| v.as_str())
+        .is_none_or(|s| s.trim().is_empty())
+}
+
+/// Reads the secret currently stored for `id`, `None` when there is none.
+async fn fetch_stored_secret(api_port: u16, id: &str) -> Result<Option<String>, String> {
+    let json = http_get_json(api_port, &format!("/api/v1/triggers/{id}")).await?;
+    Ok(json
+        .pointer("/source_config/secret")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from))
+}
+
+/// Writes `secret` into the `source` object of an update payload.
+fn inject_secret(body: &mut serde_json::Value, secret: String) {
+    if let Some(source) = body.get_mut("source").and_then(|s| s.as_object_mut()) {
+        source.insert("secret".to_string(), serde_json::Value::String(secret));
+    }
+}
+
 /// Parses an API response JSON into a `TriggerDefinitionView`.
 fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
+    let (source_config, has_secret) = redact_source_config(
+        &json
+            .get("source_config")
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+    );
+
     TriggerDefinitionView {
         id: json
             .get("id")
@@ -323,10 +398,8 @@ fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
-        source_config: json
-            .get("source_config")
-            .cloned()
-            .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+        source_config,
+        has_secret,
         input_template: json
             .get("input_template")
             .and_then(|v| v.as_str())
@@ -361,14 +434,26 @@ pub async fn create_trigger(
 /// Updates an existing trigger.
 ///
 /// Delegates to `PUT /api/v1/triggers/:id`.
+///
+/// An empty webhook secret means "keep the stored one". Since the update route
+/// rewrites the whole row, the stored value is read back here and spliced into
+/// the payload, which keeps it inside the host process.
 #[tauri::command]
 pub async fn update_trigger(
     state: State<'_, RuntimeHandle>,
     id: String,
     definition: UpdateTriggerRequest,
 ) -> Result<TriggerDefinitionView, String> {
-    let body = serde_json::to_value(&definition)
+    let mut body = serde_json::to_value(&definition)
         .map_err(|e| format!("failed to serialize request: {e}"))?;
+
+    if needs_stored_secret(&body) {
+        if let Some(secret) = fetch_stored_secret(state.api_port, &id).await? {
+            inject_secret(&mut body, secret);
+            tracing::debug!(trigger_id = %id, "triggers.update.secret_preserved");
+        }
+    }
+
     let path = format!("/api/v1/triggers/{id}");
     let json = http_put_json(state.api_port, &path, &body).await?;
     Ok(parse_trigger_definition(&json))
@@ -376,7 +461,8 @@ pub async fn update_trigger(
 
 /// Fetches the full definition of a trigger by its identifier.
 ///
-/// Delegates to `GET /api/v1/triggers/:id` (CRUD route).
+/// Delegates to `GET /api/v1/triggers/:id` (CRUD route). The webhook secret is
+/// stripped from the response, `has_secret` reports its presence instead.
 #[tauri::command]
 pub async fn get_trigger_definition(
     state: State<'_, RuntimeHandle>,
@@ -531,6 +617,7 @@ mod tests {
             on_busy: "queue".to_string(),
             source_type: "cron".to_string(),
             source_config: serde_json::json!({"expression": "0 8 * * MON"}),
+            has_secret: false,
             input_template: Some("Generate weekly report".to_string()),
             created_at: "2026-03-20T10:00:00Z".to_string(),
             updated_at: "2026-03-20T10:00:00Z".to_string(),
@@ -562,6 +649,7 @@ mod tests {
             on_busy: "drop".to_string(),
             source_type: "file_watch".to_string(),
             source_config: serde_json::json!({"path": "/data/inbox"}),
+            has_secret: false,
             input_template: None,
             created_at: "2026-03-20T08:00:00Z".to_string(),
             updated_at: "2026-03-20T09:00:00Z".to_string(),
@@ -632,5 +720,94 @@ mod tests {
             view.input_template.as_deref(),
             Some("payload: {{trigger.payload}}")
         );
+    }
+
+    #[test]
+    fn test_parsed_definition_hides_the_webhook_secret() {
+        // GIVEN an API response carrying the HMAC secret of a webhook trigger
+        let secret = "d41d8cd98f00b204e9800998ecf8427e";
+        let api_json = serde_json::json!({
+            "id": "inbound-hook",
+            "agent": "intake-agent",
+            "enabled": true,
+            "on_busy": "queue",
+            "source_type": "webhook",
+            "source_config": {"secret": secret, "path": "/hooks/intake"},
+            "input_template": null,
+            "created_at": "2026-03-20T10:00:00Z",
+            "updated_at": "2026-03-20T11:00:00Z"
+        });
+
+        // WHEN parsed into the view sent to the webview
+        let view = parse_trigger_definition(&api_json);
+        let serialized = serde_json::to_string(&view).expect("serialize");
+
+        // THEN the secret is gone, only its presence marker survives
+        assert!(view.source_config.get("secret").is_none());
+        assert!(view.has_secret);
+        assert!(
+            !serialized.contains(secret),
+            "the cleartext secret must not cross the IPC boundary: {serialized}"
+        );
+        // AND the non-secret keys are untouched
+        assert_eq!(view.source_config["path"], "/hooks/intake");
+    }
+
+    #[test]
+    fn test_parsed_definition_reports_no_secret_when_absent() {
+        // GIVEN a cron definition, which holds no secret at all
+        let api_json = serde_json::json!({
+            "id": "daily",
+            "source_type": "cron",
+            "source_config": {"schedule": "0 8 * * MON"},
+        });
+
+        // WHEN parsed
+        let view = parse_trigger_definition(&api_json);
+
+        // THEN the presence marker is false and the config is intact
+        assert!(!view.has_secret);
+        assert_eq!(view.source_config["schedule"], "0 8 * * MON");
+    }
+
+    #[test]
+    fn test_redact_source_config_treats_an_empty_secret_as_absent() {
+        // GIVEN a webhook config whose stored secret is an empty string
+        let config = serde_json::json!({"secret": ""});
+
+        // WHEN redacted
+        let (redacted, has_secret) = redact_source_config(&config);
+
+        // THEN nothing is reported as stored, so the form still demands one
+        assert!(!has_secret);
+        assert!(redacted.get("secret").is_none());
+    }
+
+    #[test]
+    fn test_needs_stored_secret_only_for_a_blank_webhook_secret() {
+        // GIVEN update payloads covering the three interesting shapes
+        let blank = serde_json::json!({"source": {"type": "webhook", "secret": ""}});
+        let missing = serde_json::json!({"source": {"type": "webhook"}});
+        let rotated = serde_json::json!({"source": {"type": "webhook", "secret": "n3w"}});
+        let cron = serde_json::json!({"source": {"type": "cron", "schedule": "0 8 * * MON"}});
+
+        // WHEN each is inspected
+        // THEN only the blank and missing webhook secrets ask for the stored one
+        assert!(needs_stored_secret(&blank));
+        assert!(needs_stored_secret(&missing));
+        assert!(!needs_stored_secret(&rotated));
+        assert!(!needs_stored_secret(&cron));
+    }
+
+    #[test]
+    fn test_inject_secret_fills_the_source_object() {
+        // GIVEN an update payload with a webhook source and no secret
+        let mut body = serde_json::json!({"source": {"type": "webhook"}});
+
+        // WHEN the stored secret is spliced in
+        inject_secret(&mut body, "s3cr3t".to_string());
+
+        // THEN the payload the API receives carries it
+        assert_eq!(body["source"]["secret"], "s3cr3t");
     }
 }

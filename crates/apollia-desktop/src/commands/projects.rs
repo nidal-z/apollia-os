@@ -14,7 +14,6 @@ use std::sync::Arc;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::{
     ProjectDetail, ProjectDocument, ProjectPatch, ProjectRepository, ProjectSummary,
-    ProjectTemplate,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -198,12 +197,15 @@ pub async fn update_project(
 }
 
 /// Deletes a project and its associated documents/providers.
+///
+/// Goes through the runtime deletion path so the chat sessions that referenced
+/// the project lose their dangling `project_id` too.
 #[tauri::command]
 pub async fn delete_project(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
     let repo = get_repo(&state)?;
-    tokio::task::spawn_blocking(move || repo.delete_project(&id))
+    let chat_manager = state.chat_manager.clone();
+    apollia_runtime::projects::delete_project(&repo, chat_manager.as_ref(), &id)
         .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -266,18 +268,6 @@ pub async fn delete_project_document(
         .map_err(|e| format!("spawn_blocking failed: {e}"))?
         .map_err(|e| e.to_string())?;
     Ok(())
-}
-
-/// Lists the available project templates (builtins + custom).
-#[tauri::command]
-pub async fn list_project_templates(
-    state: State<'_, RuntimeHandle>,
-) -> Result<Vec<ProjectTemplate>, String> {
-    let repo = get_repo(&state)?;
-    tokio::task::spawn_blocking(move || repo.list_templates())
-        .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
-        .map_err(|e| e.to_string())
 }
 
 /// Collects a live workspace snapshot for a given project.

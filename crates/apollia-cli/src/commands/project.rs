@@ -371,6 +371,20 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
     home.join(".apollia").join("projects.db")
 }
 
+/// Locate the chat database that goes with the projects database in use.
+///
+/// A caller-supplied projects database has its own sibling `chat.db`, so the
+/// default location is only used when no override is given.
+fn chat_db_beside_projects_db(db: Option<&Path>) -> PathBuf {
+    match db {
+        Some(path) => match path.parent() {
+            Some(dir) => dir.join("chat.db"),
+            None => PathBuf::from("chat.db"),
+        },
+        None => resolve_chat_db(None),
+    }
+}
+
 fn open_repo(db: Option<&Path>, json: bool) -> Option<ProjectRepository> {
     let path = resolve_db(db);
     if let Some(parent) = path.parent() {
@@ -569,6 +583,9 @@ fn run_delete(db: Option<&Path>, id: &str, confirm: bool, json: bool) -> i32 {
     };
     match repo.delete_project(id) {
         Ok(true) => {
+            // No runtime here, so the chat database is reached directly to
+            // clear the project link the deleted rows leave behind.
+            apollia_runtime::projects::orphan_sessions_offline(&chat_db_beside_projects_db(db), id);
             if json {
                 let out = serde_json::json!({"id": id, "deleted": true});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
