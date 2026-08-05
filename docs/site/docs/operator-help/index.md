@@ -24,7 +24,7 @@ actions, and follow what happens.
 - **Get going** : [connect a model](./installation/connecter-un-modele-distant.md), [install an agent](./agents/installer-un-agent.md), [create a project](./projets/creer-un-projet.md).
 - **Talk** : [free conversation and voice dictation](./chat/discuter-avec-votre-ia.md), automatic project context.
 - **Automate** : [schedule a trigger](./automatisations/programmer-un-trigger.md), follow the firing history.
-- **Keep control** : [approve or refuse an action](./controle/approuver-ou-refuser-une-action.md), [set file permissions](./controle/configurer-les-permissions-de-fichiers.md), [choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), [measure an agent with eval](./agents/mesurer-un-agent-avec-eval.md).
+- **Keep control** : [approve or refuse an action](./controle/approuver-ou-refuser-une-action.md), [set file permissions](./controle/configurer-les-permissions-de-fichiers.md), [inspect a tool](./controle/inspecter-un-outil.md), [choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), [measure an agent with eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connect** : wire your tools through the [MCP catalog](./integrations/connecter-un-serveur-mcp.md).
 - **Follow** : [dashboard and timeline](./observabilite/consulter-l-historique-des-taches.md), [LLM costs](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
 - **Maintain** : [update Apollia](./installation/mettre-a-jour-apollia.md), [find your version and your data](./transversal/trouver-sa-version-et-ses-donnees.md).

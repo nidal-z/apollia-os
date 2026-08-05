@@ -19,6 +19,8 @@ Every tool exposed by a connector or an MCP has an **approval policy**:
 
 When you see the popup, you can tick *"Always allow for this project"*. That creates a **persistent rule** which you will find, and can revoke, under **Settings, Permissions**.
 
+There is no MCP-specific approvals screen, and there is no queue of MCP requests to go through. A tool exposed by an MCP server goes through the same gate as a native tool, the one the execution loop opens: the card in the conversation while you are there, the **Inbox** for an agent task that is waiting. Everything the rest of this help centre says about approving an action applies to it unchanged.
+
 ![Approval popup in the chat: the tool title, the exposed parameters, the Allow once and Deny buttons, and the Always allow menu](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
 
 ## Viewing and changing the rules

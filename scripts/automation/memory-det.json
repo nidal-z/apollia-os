@@ -1,5 +1,5 @@
 {
-  "name": "memory-det (memory namespace explorer over the seeded ecosystem, operator + builder, every step green)",
+  "name": "memory-det (memory namespace explorer over the seeded ecosystem, operator + builder; export, import and purge opened at their boundary and cancelled)",
   "stopOnError": false,
   "steps": [
     {
@@ -269,6 +269,179 @@
     {
       "kind": "screenshot",
       "label": "12-entry-sheet-cancelled"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-data-actions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-export-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-purge-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-memory-data-actions (export opens a native save dialog, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-pick"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-mode"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-submit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-memory-import-dialog (no file picked, submit stays disabled)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "replace",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-warning",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-memory-import-replace-warning"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "merge",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-memory-import-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-scope",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-days",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-preview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12f-memory-purge-dialog"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-purge-scope",
+      "value": "episodic",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "memory-purge-days",
+      "text": "3650",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "12g-memory-purge-scoped (3650 days, so the preview counts nothing)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-continue",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12h-memory-purge-confirm (irreversible, cancelled below)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12i-memory-purge-cancelled (nothing was purged)"
     },
     {
       "kind": "click",

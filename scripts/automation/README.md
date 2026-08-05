@@ -89,9 +89,9 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
   mutating controls driven to the boundary). `master-det.json` runs all 21 in one
-  boot and is the release gate (2226 steps). `tour-det` is the newest section:
-  the Getting started band and the guided tour (entry points, step navigation,
-  the anchorless fallback, the exit confirmation, finishing).
+  boot and is the release gate (2421 steps). `tour-det` covers the Getting
+  started band and the guided tour (entry points, step navigation, the
+  anchorless fallback, the exit confirmation, finishing).
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
@@ -104,6 +104,15 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on
 `Qwen3.6-35B-A3B-MXFP4_MOE.gguf` with `CTX=32768 NP=1`.
+
+Eleven surfaces landed after that run and were covered in a later pass: a
+project's agents and documents, the in-place edition of an automation, an
+agent's file replacement and its uninstall, the merged decision history of the
+inbox, the export / import / purge of a memory namespace, the timeline of a
+single task, the journal-wide audit totals, the hook registry, a tool's contract
+sheet, the credential inventory, and the cost alert ceiling. Their steps pass
+`validate.py` but have not been through a runtime round yet, so treat the first
+`master-det` run that includes them as a debugging run, not as a gate.
 
 ## Script contract
 
@@ -160,6 +169,18 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
 - **Screenshots capture the app window by id** (`screencapture -l`), so an editor
   or launcher on top no longer pollutes them. If a capture is ever wrong, check
   the window is a normal (non-minimized) window.
+- **A native file dialog is a dead end.** `memory-export-button`,
+  `memory-import-pick`, `project-doc-attach-btn` and `agent-update-btn` all open
+  an OS picker the runner cannot answer: the click never returns and every later
+  step of the boot fails. Those buttons are asserted present and never clicked.
+  The gesture they start is still covered where it has a DOM half: the import
+  dialog is opened and cancelled, the detach confirms are armed and retired.
+- **An inline confirm may have no cancel testid.** Arming the agent uninstall
+  swaps the header for a confirm panel whose Cancel button carries none, so the
+  only scripted way out is to select another agent, which the route uses to
+  retire the armed state. Same shape wherever a confirm is rendered inline
+  rather than as a dialog: check that the way back is reachable before writing
+  the arming click.
 - **Two HITL surfaces**: file tools show the generic `ApprovalCard`
   (`approval-card-*`, `approval-accept-*`, ...), not the `hitl-fs-modal`
   fast-path. `bash_executor` is auto-refused with no card.

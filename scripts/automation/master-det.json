@@ -1742,6 +1742,82 @@
       "label": "05-agent-detail-overview"
     },
     {
+      "kind": "expect",
+      "testid": "agent-update-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-uninstall-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-agent-update-and-uninstall-actions (update opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05c-agent-uninstall-armed"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "agent-uninstall-memory",
+      "checked": true
+    },
+    {
+      "kind": "screenshot",
+      "label": "05d-agent-uninstall-memory-opted-in (confirm NEVER clicked, nothing removed)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
+    },
+    {
       "kind": "click",
       "testid": "agent-detail-tab-tools",
       "timeoutMs": 2500
@@ -2170,12 +2246,124 @@
     },
     {
       "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "project-agent-add-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-apollia-guide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-project-agents"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "index": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-project-agent-candidate-picked (add NEVER clicked, no link created)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "value": "",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-confirm-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-project-agent-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-cancel-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-project-agent-detach-cancelled (the link survives)"
+    },
+    {
+      "kind": "click",
       "testid": "project-tab-memory",
       "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
       "label": "08-project-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "project-doc-attach-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-project-documents (attach opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08c-project-document-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-cancel-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08d-project-document-detach-cancelled (the document stays attached)"
     },
     {
       "kind": "click",
@@ -2839,6 +3027,30 @@
     },
     {
       "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "automation-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-automations-refreshed"
+    },
+    {
+      "kind": "click",
       "testid": "automations-new-btn"
     },
     {
@@ -3128,6 +3340,124 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "waitFor",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-type-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-enabled"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-automation-edit-loaded (stored definition, cron)"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-advanced-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-id-readonly",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-on-busy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-input-template",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-automation-edit-advanced (identifier immutable on the edit path)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "automation-edit-on-busy",
+      "value": "drop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-secret-generate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret-warning",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10d-automation-edit-secret-rotation-warned"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-cron",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-submit"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10e-automation-edit-cancelled (submit NEVER clicked, the definition is untouched)"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "click",
       "testid": "automation-history-seed-trigger-daily-digest",
       "timeoutMs": 2500
@@ -3361,6 +3691,27 @@
     {
       "kind": "screenshot",
       "label": "05-inbox-pending-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-origin",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-inbox-history-merged (one list, each row tagged with its origin)"
     },
     {
       "kind": "click",
@@ -4362,6 +4713,179 @@
     {
       "kind": "screenshot",
       "label": "12-entry-sheet-cancelled"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-data-actions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-export-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-purge-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-memory-data-actions (export opens a native save dialog, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-pick"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-mode"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-submit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-memory-import-dialog (no file picked, submit stays disabled)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "replace",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-warning",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-memory-import-replace-warning"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "merge",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-memory-import-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-scope",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-days",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-preview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12f-memory-purge-dialog"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-purge-scope",
+      "value": "episodic",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "memory-purge-days",
+      "text": "3650",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "12g-memory-purge-scoped (3650 days, so the preview counts nothing)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-continue",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12h-memory-purge-confirm (irreversible, cancelled below)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12i-memory-purge-cancelled (nothing was purged)"
     },
     {
       "kind": "click",
@@ -5374,6 +5898,76 @@
       "label": "04-operator-timeline-empty"
     },
     {
+      "kind": "waitFor",
+      "testid": "timeline-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-all"
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-task",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-task-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-operator-task-timeline"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "timeline-task-select",
+      "index": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-operator-task-timeline-other-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04d-operator-timeline-back-to-window"
+    },
+    {
       "kind": "click",
       "testid": "observability-tab-llm-costs"
     },
@@ -5446,6 +6040,30 @@
       "label": "08-operator-audit-empty"
     },
     {
+      "kind": "waitFor",
+      "testid": "audit-global-stats",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-events",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-tools",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-agents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-operator-audit-global-stats (journal-wide totals, not the loaded page)"
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip"
     },
@@ -5490,6 +6108,10 @@
     {
       "kind": "expect",
       "testid": "observability-tab-plan-cache"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-hooks"
     },
     {
       "kind": "screenshot",
@@ -5696,6 +6318,34 @@
     {
       "kind": "screenshot",
       "label": "17-builder-plan-cache-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-hooks",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-builder-active-hooks-empty (the seed declares no lifecycle hook)"
     },
     {
       "kind": "click",
@@ -7596,6 +8246,20 @@
       "label": "05-llm-builder-stats"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold-unset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
+    },
+    {
       "kind": "goto",
       "route": "settings"
     },
@@ -8833,6 +9497,91 @@
     },
     {
       "kind": "waitFor",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-identity",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-field-query",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-tool-contract-web-search"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input-raw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tool-contract-raw-input-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credentials",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credential-brave.api_key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-tool-contract-closed"
+    },
+    {
+      "kind": "waitFor",
       "testid": "tool-configure-web_search",
       "timeoutMs": 4000
     },
@@ -9024,6 +9773,48 @@
     {
       "kind": "screenshot",
       "label": "15-web-read-closed-unsaved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credential-row-web_search-brave.api_key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-credential-inventory"
+    },
+    {
+      "kind": "click",
+      "testid": "credentials-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15c-credential-inventory-reloaded"
     },
     {
       "kind": "goto",

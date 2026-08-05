@@ -1,5 +1,5 @@
 {
-  "name": "llm-det (llm backends dashboard + settings panel, operator vs builder, seeded 3 backends, add/edit/delete dialogs cancelled, provider-select reveal, network actions reduced to boundaries)",
+  "name": "llm-det (llm backends dashboard + settings panel, operator vs builder, seeded 3 backends, add/edit/delete dialogs cancelled, provider-select reveal, cost ceiling strip, network actions reduced to boundaries)",
   "stopOnError": false,
   "notes": [
     "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
@@ -144,6 +144,20 @@
     {
       "kind": "screenshot",
       "label": "05-llm-builder-stats"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold-unset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
     },
     {
       "kind": "goto",

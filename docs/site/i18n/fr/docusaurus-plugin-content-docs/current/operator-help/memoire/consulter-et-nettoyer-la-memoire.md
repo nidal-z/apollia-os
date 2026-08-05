@@ -47,6 +47,35 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
    L'entrée disparaît immédiatement et ne reviendra pas.
 
+## Exporter, importer et purger un namespace
+
+Trois boutons sont posés en haut à droite du panneau central, à côté du champ de recherche : **Exporter**, **Importer** et **Purger**. Ils agissent sur le **namespace sélectionné** et restent inactifs tant qu'aucun n'est sélectionné.
+
+### Exporter
+
+Cliquez sur **Exporter**. Une fenêtre d'enregistrement s'ouvre avec un nom déjà proposé (`<namespace>-memory-<date>.json`). Validez, et Apollia écrit un fichier JSON contenant les entrées épisodiques, sémantiques et procédurales du namespace. La confirmation indique combien d'entrées de chaque type ont été écrites, et où.
+
+Rien n'est envoyé nulle part : le fichier arrive exactement là où vous l'avez demandé, sur votre machine.
+
+### Importer
+
+Cliquez sur **Importer**. La fenêtre demande deux choses :
+
+- **Fichier source** : un fichier JSON produit par un export Apollia, choisi via **Choisir un fichier**.
+- **Stratégie** : **Fusionner** ajoute les entrées manquantes et laisse les existantes intactes ; **Remplacer** vide d'abord le namespace, puis charge le fichier.
+
+**Remplacer** affiche un avertissement rouge dans la fenêtre et demande une seconde confirmation (**Vider et importer**) avant toute suppression. Fusionner part directement du bouton **Importer**. La confirmation dit combien d'entrées ont été chargées et sous quelle stratégie, et la liste en dessous se recharge.
+
+### Purger par ancienneté
+
+Cliquez sur **Purger**. C'est la suppression en masse, elle est irréversible, donc elle se fait en deux temps.
+
+1. Choisissez le **type de mémoire** (Tous les types, Épisodique, Sémantique, Procédurale) et l'ancienneté en jours sous **Plus ancien que (jours)**. `0` supprime toutes les entrées du type choisi.
+
+2. Sous les champs, un aperçu indique combien d'entrées listées partiraient. Il est compté sur les entrées que cette page lit, et l'écran le dit : le chiffre exact est celui annoncé une fois la purge exécutée.
+
+3. Cliquez sur **Continuer**, relisez le récapitulatif (type, namespace, ancienneté), puis confirmez avec **Purger**. Un message annonce le nombre d'entrées réellement supprimées.
+
 ## Vérification
 
 L'entrée supprimée n'apparaît plus dans la liste, même après recharge de la page. Une recherche par mot-clé sur cette entrée ne retourne plus de résultat. Le compteur du namespace dans la sidebar et le compteur du type dans le segmented control sont décrémentés.
@@ -56,8 +85,10 @@ L'entrée supprimée n'apparaît plus dans la liste, même après recharge de la
 - **La page est vide** : aucun agent n'a encore généré de mémoire. Lancez une conversation et revenez.
 - **La suppression échoue** : l'agent est en train d'écrire dans la mémoire, attendez quelques secondes et réessayez.
 - **Le namespace attendu n'apparaît pas** : vérifiez que l'agent est bien installé (l'agent doit être listé dans **Agents** pour apparaître sous la catégorie *Agents*, sinon le namespace bascule en *Autres*).
-- **Vous voulez vider tout un namespace ou tout effacer d'un coup** : la suppression en masse depuis l'UI n'est pas encore disponible ; voir [Réinitialiser Apollia (factory reset)](../troubleshooting/reinitialiser-apollia-factory-reset.md) pour la procédure de réinitialisation complète, ou utilisez la CLI : `apollia-os memory clear --agent <NAME> --confirm`.
+- **Vous voulez vider tout un namespace** : utilisez **Purger** avec **Tous les types** et `0` jour. Pour tout effacer d'un coup, voir [Réinitialiser Apollia (factory reset)](../troubleshooting/reinitialiser-apollia-factory-reset.md), ou utilisez la CLI : `apollia-os memory clear --agent <NAME> --confirm`.
+- **L'aperçu de purge annonce moins d'entrées que la purge n'en supprime** : l'aperçu est compté sur la liste que cette page lit, qui s'arrête aux 500 épisodes de conversation les plus récents. Sur un gros namespace, le chiffre réel est plus élevé, et c'est celui annoncé à la fin.
+- **Les boutons Exporter, Importer et Purger sont grisés** : aucun namespace n'est sélectionné. Choisissez-en un dans la sidebar de gauche.
 
-> **Note** : Pour gérer les **outils** disponibles à vos agents (recherche web, lecture de fichiers, etc.), ouvrez **Paramètres → Outils**. La page propose le détail de chaque outil, son activation/désactivation, et sa configuration éventuelle.
+> **Note** : Pour gérer les **outils** disponibles à vos agents (recherche web, lecture de fichiers, etc.), ouvrez **Paramètres → Outils**. La page propose le détail de chaque outil, son activation/désactivation, sa configuration éventuelle et son contrat, voir [Inspecter un outil](../controle/inspecter-un-outil.md).
 
 > **Référence technique :** [Référence Apollia](/reference) - types de mémoire, durées de rétention par défaut, limites.

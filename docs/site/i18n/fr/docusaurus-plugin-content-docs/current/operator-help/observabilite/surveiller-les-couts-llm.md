@@ -26,6 +26,19 @@
 
 6. Sous le graphique, la **légende** liste tous les backends actifs sous forme de **pastilles** affichant le **total cumulé par backend** sur la fenêtre. Permet de comparer la part de chaque fournisseur d'un coup d'œil.
 
+## Le seuil d'alerte, et où le lire
+
+Le graphique dit ce que vous avez dépensé. Il ne dit pas ce que vous avez décidé d'autoriser. Ce plafond, c'est `cost_alert_threshold_usd`, dans la section `[llm]` de `apollia.toml`, et il s'affiche en mode **Builder** uniquement, sur la page **Modèles LLM** de la sidebar, en tête du bloc **Statistiques de session (7 jours)**.
+
+Ce que vous y voyez :
+
+- **Aucun seuil configuré** : une ligne qui le dit, et qui nomme le réglage à ajouter. C'est l'état par défaut, aucun plafond n'est posé à l'installation.
+- **Un seuil configuré** : une bande **Seuil d'alerte de coût** avec un chiffre *dépense sur plafond*, une jauge, et une légende qui nomme la journée jugée. La bande passe en ambre au-delà de 80 % du plafond (*Proche du seuil*) et en rouge au-dessus (*Seuil dépassé*).
+
+Lisez la comparaison pour ce qu'elle est. Le runtime applique ce seuil au **coût cumulé d'une session**, alors que cette surface ne connaît que des totaux journaliers. La bande compare donc la **journée la plus chargée** des 7 derniers jours au plafond, ce qui est une borne supérieure : une journée sous le plafond ne peut pas cacher une session au-dessus. La légende nomme explicitement cette journée.
+
+C'est une alerte, pas un plafond bloquant. Le franchir n'interrompt rien : aucun appel n'est refusé, aucune exécution n'est arrêtée. Le runtime marque le franchissement sur le budget de session qu'il publie, et cette bande le montre du côté des coûts.
+
 ## Vérification
 
 Les chiffres en bas correspondent à votre intuition de la consommation. Les données se rafraîchissent automatiquement environ une fois par minute.

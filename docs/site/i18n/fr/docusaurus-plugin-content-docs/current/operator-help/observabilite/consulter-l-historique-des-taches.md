@@ -52,6 +52,25 @@ Les compteurs se mettent à jour tout seuls : lancez une tâche et *« Au travai
 
 6. Cliquez sur une ligne pour **déplier le payload brut** de l'événement (JSON formaté en monospace, incluant le champ `source` qui indique de quelle base SQLite provient l'événement). Re-cliquez pour replier.
 
+## Suivre une tâche de bout en bout
+
+En haut de l'onglet **Chronologie**, un sélecteur **Portée** propose deux positions :
+
+- **Toute l'activité**, la fenêtre décrite ci-dessus, tous agents et tous types d'événements mélangés.
+- **Une tâche**, qui restreint tout l'onglet à une seule exécution. Une liste **Tâche** apparaît à côté, chaque entrée se lisant *agent · statut · identifiant court*.
+
+En position **Une tâche**, l'onglet affiche la **chronologie de la tâche** : tout ce qu'Apollia a enregistré pour cette exécution, du plus ancien au plus récent, agrégé depuis cinq sources (transitions de statut, étapes de plan, appels au modèle, invocations d'outils, approbations). Chaque ligne porte son icône, son titre et les faits machine qui vont avec : l'outil et sa durée, le code de sortie, le backend et son modèle avec les tokens entrants et sortants et le coût, l'attente avant qu'une approbation soit tranchée. Une étape ou un outil en échec teinte la ligne et porte la mention **Échec**, et un contenu que le runtime a dû couper est signalé comme tronqué.
+
+Vous n'êtes pas obligé de choisir la tâche à la main : le bouton **Voir les logs** d'une exécution en échec, dans l'onglet Activité de la **Boîte de réception**, ouvre cet onglet déjà positionné dessus.
+
+Attention à ne pas confondre. La chronologie de la tâche lit ce qui a été persisté ; l'onglet **Trace** d'une tâche, sur la page **Mon travail**, rejoue le flux d'événements en direct. Deux lectures de la même exécution, depuis deux sources.
+
+## L'onglet Hooks
+
+En mode **Builder**, la barre d'onglets en porte trois de plus, dont **Hooks** : les handlers de cycle de vie enregistrés au démarrage du runtime, lus dans le fichier de configuration. Une ligne par handler, avec son type (`command` ou `http`), les événements auxquels il s'abonne, son timeout et sa cible (la ligne de commande, ou l'URL).
+
+C'est en lecture seule, et c'est un fait de démarrage, pas un flux vivant : le registre est construit une fois depuis la configuration, sans enregistrement dynamique ni rechargement à chaud. Une liste vide signifie qu'aucun hook n'est déclaré, ce qui est un état sain, pas une panne.
+
 ## Vérification
 
 Vous retrouvez vos exécutions récentes dans la fenêtre choisie. Élargir la fenêtre depuis `1h` à `24h` fait apparaître plus d'événements anciens sans rafraîchissement manuel.

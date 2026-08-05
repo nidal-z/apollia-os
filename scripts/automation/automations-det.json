@@ -1,5 +1,5 @@
 {
-  "name": "automations-det (automations page, operator + builder, seeded triggers: asserts table + rows + filters + delete-dialog cancel + history sheet)",
+  "name": "automations-det (automations page, operator + builder, seeded triggers: asserts table + rows + filters + delete-dialog cancel + history sheet + edit dialog driven then cancelled)",
   "stopOnError": false,
   "steps": [
     {
@@ -76,6 +76,30 @@
     {
       "kind": "screenshot",
       "label": "03-automations-table"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "automation-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-automations-refreshed"
     },
     {
       "kind": "click",
@@ -361,6 +385,124 @@
     {
       "kind": "screenshot",
       "label": "10-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-type-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-enabled"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-automation-edit-loaded (stored definition, cron)"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-advanced-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-id-readonly",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-on-busy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-input-template",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-automation-edit-advanced (identifier immutable on the edit path)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "automation-edit-on-busy",
+      "value": "drop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-secret-generate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret-warning",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10d-automation-edit-secret-rotation-warned"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-cron",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-submit"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10e-automation-edit-cancelled (submit NEVER clicked, the definition is untouched)"
     },
     {
       "kind": "click",

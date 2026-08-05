@@ -13,21 +13,23 @@
 
 2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent. C'est la trace immuable de chaque outil invoqué par un agent.
 
-3. Juste en dessous, **quatre indicateurs clés** (KPI) se mettent à jour selon les filtres : **Entrées affichées**, **Outils distincts**, **Échecs** (en rouge si > 0), **Durée moyenne**.
+3. Sous l'encart, une carte **Journal complet** donne trois totaux comptés sur tout le journal : **Invocations enregistrées**, **Outils distincts**, **Agents distincts**. Ils ne bougent pas avec les filtres, et ils ne s'arrêtent pas aux lignes chargées plus bas : ils répondent à « que contient le journal », là où les indicateurs de l'étape suivante répondent à « qu'est-ce que je regarde en ce moment ». Si ces totaux ne peuvent pas être lus, la carte affiche une ligne qui le dit et le tableau en dessous n'est pas affecté.
+
+4. Juste en dessous, **quatre indicateurs clés** (KPI) se mettent à jour selon les filtres : **Entrées affichées**, **Outils distincts**, **Échecs** (en rouge si > 0), **Durée moyenne**.
    ![onglet Piste d'audit - bannière de purpose en haut, 4 KPI, filtres, puis tableau](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
 
-4. Le tableau présente toutes les invocations d'outils tracées, du plus récent au plus ancien. **Cinq colonnes** :
+5. Le tableau présente toutes les invocations d'outils tracées, du plus récent au plus ancien. **Cinq colonnes** :
    - **Horodatage** (date + heure locale)
    - **Outil** (nom technique en monospace : `bash`, `file_write`, `mcp:notion.search`, etc.)
    - **Agent** (nom lisible ; à défaut l'identifiant brut si l'agent n'est plus enregistré)
    - **Durée** (`850ms` ou `2.1s`, ou `-` si non mesuré)
    - **Statut** - badge **Succès** (vert, ✓) ou **Échec** (rouge, ✕). Le statut est déduit du code de sortie *et* de la présence de stderr ; un outil MCP sans code de sortie est considéré OK s'il s'est terminé sans erreur.
 
-5. Affinez la recherche avec les deux sélecteurs au-dessus du tableau :
+6. Affinez la recherche avec les deux sélecteurs au-dessus du tableau :
    - **Outil** - isole les invocations d'un outil précis (la liste se construit à partir des entrées chargées).
    - **Agent** - isole le travail d'un seul agent.
 
-6. Cliquez sur une ligne pour déplier son détail. Selon ce qui a été capturé, trois sections peuvent apparaître :
+7. Cliquez sur une ligne pour déplier son détail. Selon ce qui a été capturé, trois sections peuvent apparaître :
    - **Arguments** - JSON envoyé à l'outil, formaté.
    - **stdout** - sortie standard.
    - **stderr** - sortie d'erreur, affichée en rouge.
@@ -35,7 +37,7 @@
    Si l'invocation n'a rien produit de capturable (outils MCP en lecture seule, outils sans I/O standard…), un message *« Aucun détail disponible »* s'affiche.
    ![ligne dépliée affichant les sections Arguments / stdout / stderr](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
 
-7. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
+8. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
 
    > **L'export et la vérification se font en ligne de commande**, pas depuis
    > l'interface. Voir la section suivante.

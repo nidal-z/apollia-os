@@ -33,6 +33,26 @@
 
 9. To review the run history, click the **⋯** icon on the row (visible on hover) → **View history**. See the page [Track a trigger's history](suivre-l-historique-d-un-trigger.md).
 
+## Modify an existing automation
+
+An automation is edited in place. Changing a schedule no longer means deleting and recreating, which used to invalidate the webhook secret and force the calling service to be reconfigured.
+
+1. On the automation row, click the **⋯** menu → **Edit**. With the row focused from the keyboard, the **E** key does the same.
+
+2. The **Edit trigger** window opens on the stored definition, with the same fields as advanced mode: target assistant, trigger type and its parameters, the **Enabled** toggle, the behaviour when a run is already in progress, and the input template.
+
+3. The **identifier is greyed out**: it addresses the automation and cannot be changed after creation. Everything else is editable, including the trigger type.
+
+4. For a webhook, the stored secret never reaches the window. The field reads *"Secret already stored, leave empty to keep it"*: leave it empty and the current secret stays in place, fill it and it is replaced, which means the calling service has to be reconfigured with the new value.
+
+5. Click **Save**. A confirmation names the automation, the list reloads, and the engine restarts on the new definition.
+
+**An automation declared in `apollia.toml` is not editable here.** The window says so and stops: those triggers run in the engine but have no stored definition to rewrite. Edit the file, then use **Reload config**.
+
+## Reload the configuration file
+
+The **Reload config** button at the top right of the page re-reads `apollia.toml` and restarts the automation engine on it, then reports how many automations are active. Use it after editing the file by hand, it saves restarting the application. The **Refresh** button next to it does something else and much smaller: it re-reads the list the engine already holds.
+
 ## Advanced mode (optional)
 
 For operators who prefer to enter the technical parameters directly (exact cron expression, precise file path, webhook secret…), the wizard offers an **Advanced mode** link at the bottom left. It opens a detailed creation window where you choose:
@@ -69,7 +89,8 @@ The automation shows up in the **Automations** table with:
 - **Apollia did not understand my sentence**: a *"We couldn't understand automatically"* message appears. Rephrase more simply, stating the frequency and the time clearly (e.g. *"Every day at 9am"*).
 - **The Schedule step lists points to clarify**: the orange box at the top lists the calendar ambiguities (for example "missing time"). Type the detail in the refine field and confirm with Enter. If the only thing Apollia did not find is the assistant, you can still move to the next step: the selection happens at the Assistant step.
 - **The "Activate" button is disabled**: something is missing - check that the Schedule step has no calendar ambiguity left and that an assistant is selected.
-- **The immediate run (▶︎ icon) is greyed out**: the automation is paused. Re-enable it from the advanced mode (**Enabled** toggle) or create a new one.
+- **The immediate run (▶︎ icon) is greyed out**: the automation is paused. Resume it from the **⋯** menu on the row, or open **Edit** and turn the **Enabled** toggle back on.
+- **The Edit window refuses to open the automation**: it comes from `apollia.toml`. Change it in the file, then click **Reload config**.
 
 ## Call a webhook from an external service
 

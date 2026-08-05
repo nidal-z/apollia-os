@@ -1,5 +1,5 @@
 {
-  "name": "agents-det (assistants page, operator + builder, deterministic against the seed)",
+  "name": "agents-det (assistants page, operator + builder, deterministic against the seed; file replacement and uninstall opened then retired, never committed)",
   "stopOnError": false,
   "steps": [
     {
@@ -185,6 +185,82 @@
     {
       "kind": "screenshot",
       "label": "05-agent-detail-overview"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-update-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-uninstall-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-agent-update-and-uninstall-actions (update opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05c-agent-uninstall-armed"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "agent-uninstall-memory",
+      "checked": true
+    },
+    {
+      "kind": "screenshot",
+      "label": "05d-agent-uninstall-memory-opted-in (confirm NEVER clicked, nothing removed)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
     },
     {
       "kind": "click",

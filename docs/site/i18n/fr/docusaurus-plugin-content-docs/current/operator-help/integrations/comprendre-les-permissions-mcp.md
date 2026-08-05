@@ -19,6 +19,8 @@ Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** 
 
 Quand vous voyez la popup, vous pouvez cocher *"Toujours autoriser pour ce projet"*. Cela crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
 
+Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, la **Boîte de réception** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
+
 ![Popup d'approbation dans le chat : le titre de l'outil, les paramètres exposés, les boutons Autoriser une fois et Refuser, et le menu Toujours autoriser](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
 
 ## Voir et changer les règles

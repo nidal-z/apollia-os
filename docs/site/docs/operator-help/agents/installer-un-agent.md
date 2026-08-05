@@ -78,12 +78,47 @@ If in doubt, ask the person who delivered the agent.
 
 For the next step, see [Start an agent](demarrer-un-agent.md).
 
+## Replace an agent's file
+
+An installed agent takes a new version of its Python file without being uninstalled first.
+
+1. Open **My Assistants** and select the agent in the left column.
+
+2. At the top right of the detail panel, click **Update**. A file picker opens, filtered on `.py` files, the same one as the install path.
+
+3. Pick the new file. Apollia validates it **before** writing anything: a module the runtime refuses leaves the installed agent exactly as it was.
+
+4. If the agent is running, the header switches to a warning: replacing the file stops it and starts it again on the new version. Confirm with **Replace and restart**, or cancel. A stopped agent skips that step, there is nothing to interrupt.
+
+What is preserved: the install folder, the automatic-start setting and the install date. What changes: the file itself, the `.py` files and the Python sub-folders sitting next to it, and the version, which is read from the new module.
+
+The confirmation message says which version is answering:
+
+- *"… updated to vX. The new version will load the next time it starts."* for an agent that was stopped.
+- *"… updated to vX and restarted on the new version."* when the restart went through.
+
+If the restart failed, a red banner replaces the confirmation and names the case: either the file is installed but the agent could not be stopped, and the **previous** version is still answering, or it was stopped and did not come back up, and nothing is answering. The raw cause sits behind **Technical details** in the banner.
+
+## Remove an agent
+
+1. Open **My Assistants** and select the agent.
+
+2. Click **Uninstall** at the top right. The header turns into a confirmation reading *"Permanently delete '\<name\>'?"*.
+
+3. Tick **Also delete agent memory and data** if its memory is to go with it. Left unticked, the memory stays on disk and shows up under *Other* on the **Memory** page, since the agent that named it is gone.
+
+4. Click **Delete**. The row disappears from the list, the database entry and the install folder go with it.
+
+The two confirmations share the same corner of the header: arming the uninstall drops a replacement file you had just picked, so answer one at a time.
+
 ## If it does not work
 
 - **"The folder must contain an `agent.toml` file"**: you probably selected a parent folder. Open the folder you were delivered and look for the level where `agent.toml` sits - that is the level to select.
 - **Red "Invalid" badge in the preview**: the package descriptor contains an error. The red message under the badge says which one. Send it back to the person who prepared the package, it is their job to fix it.
 - **"The secret must be at least 32 characters"**: your secret is too short. Type (or paste) a longer string.
 - **The installed agent does not appear**: registration failed silently. Open the logs from the card to read the precise error.
+- **The new file is refused on Update**: the banner shows what the loader objected to under **Technical details**. Nothing was written, the agent still runs its previous file. Send the message back to whoever prepared the agent.
+- **After an Update, the agent still behaves like the old version**: read the confirmation again. On a stopped agent the new file only loads at the next start, and a failed restart says so explicitly.
 - **"trigger" warnings on the final screen**: the agent is installed, but some of its triggers could not be activated. Note the detail shown and report it to the person who prepared the package.
 
 > **For technical profiles:** [Apollia reference](/reference) (`agent.toml` format, native tools that can be enabled, structure of a package).

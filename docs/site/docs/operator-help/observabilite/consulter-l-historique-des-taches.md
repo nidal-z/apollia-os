@@ -52,6 +52,25 @@ The counters update on their own: start a task and *"At work"* increments withou
 
 6. Click a row to **expand the raw payload** of the event (JSON formatted in monospace, including the `source` field that tells which SQLite database the event comes from). Click again to collapse.
 
+## Follow one task from end to end
+
+At the top of the **Timeline** tab, a **Scope** selector holds two positions:
+
+- **All activity**, the window described above, every agent and every event type mixed.
+- **One task**, which narrows the whole tab to a single run. A **Task** dropdown appears next to it, each entry reading *agent · status · short identifier*.
+
+In the **One task** position, the tab shows the **Task timeline**: everything Apollia recorded for that run, oldest first, aggregated from five sources (status transitions, plan steps, model calls, tool invocations, approvals). Each row carries its icon, its title and the machine facts that go with it: the tool and its duration, the exit code, the backend and its model with the tokens in and out and the cost, the wait before an approval was answered. A failed step or a failed tool call tints the row and is flagged **Failure**, and a payload the runtime had to cut is marked as truncated.
+
+You do not have to pick the task by hand: the **View logs** button on a failed run in the **Inbox** Activity tab opens this tab already focused on it.
+
+Note what this is not. The task timeline reads what was persisted; the **Trace** tab of a task, on the **My work** page, replays the live event stream instead. Two readings of the same run, from two sources.
+
+## The Hooks tab
+
+In **Builder** mode the tab bar carries three more tabs, one of which is **Hooks**: the lifecycle handlers registered when the runtime started, read from the configuration file. One row per handler, with its type (`command` or `http`), the events it subscribes to, its timeout and its target (the command line, or the URL).
+
+It is read only, and it is a startup fact, not a live feed: the registry is built once from the configuration, with no dynamic registration and no reload on the fly. An empty list means no hook is declared, which is a clean state, not a failure.
+
 ## Verification
 
 You find your recent runs in the chosen window. Widening the window from `1h` to `24h` brings up more older events without a manual refresh.

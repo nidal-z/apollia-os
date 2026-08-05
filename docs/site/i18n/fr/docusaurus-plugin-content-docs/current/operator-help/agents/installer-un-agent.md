@@ -78,12 +78,47 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
 
 Pour la suite, voir [Démarrer un agent](demarrer-un-agent.md).
 
+## Remplacer le fichier d'un agent
+
+Un agent déjà installé accepte une nouvelle version de son fichier Python sans passer par une désinstallation.
+
+1. Ouvrez **Mes assistants** et sélectionnez l'agent dans la colonne de gauche.
+
+2. En haut à droite du panneau de détail, cliquez sur **Mettre à jour**. Un sélecteur de fichiers s'ouvre, filtré sur les fichiers `.py`, le même que pour l'installation.
+
+3. Choisissez le nouveau fichier. Apollia le valide **avant** d'écrire quoi que ce soit : un module que le runtime refuse laisse l'agent installé exactement en l'état.
+
+4. Si l'agent tourne, l'en-tête passe en avertissement : remplacer son fichier l'arrête puis le relance sur la nouvelle version. Confirmez avec **Remplacer et redémarrer**, ou annulez. Un agent arrêté saute cette étape, il n'y a rien à interrompre.
+
+Ce qui est conservé : le dossier d'installation, le démarrage automatique et la date d'installation. Ce qui change : le fichier lui-même, les fichiers `.py` et les sous-dossiers Python situés à côté de lui, et la version, lue dans le nouveau module.
+
+Le message de confirmation dit quelle version répond :
+
+- « *… mis à jour en vX. La nouvelle version sera chargée au prochain démarrage.* » pour un agent qui était arrêté.
+- « *… mis à jour en vX et redémarré sur la nouvelle version.* » quand le redémarrage est passé.
+
+Si le redémarrage a échoué, un bandeau rouge remplace la confirmation et nomme le cas : soit le fichier est installé mais l'agent n'a pas pu être arrêté, et c'est la version **précédente** qui répond toujours, soit il a été arrêté et n'est pas remonté, et plus rien ne répond. La cause brute est derrière **Détails techniques**, dans le bandeau.
+
+## Retirer un agent
+
+1. Ouvrez **Mes assistants** et sélectionnez l'agent.
+
+2. Cliquez sur **Désinstaller** en haut à droite. L'en-tête se transforme en confirmation : « *Supprimer définitivement « nom » ?* ».
+
+3. Cochez **Supprimer aussi la mémoire et les données de l'agent** si sa mémoire doit partir avec lui. Décoché, la mémoire reste sur le disque et se retrouve dans la catégorie *Autres* de la page **Mémoire**, puisque l'agent qui la nommait n'existe plus.
+
+4. Cliquez sur **Supprimer**. La ligne disparaît de la liste, l'entrée en base et le dossier d'installation partent avec elle.
+
+Les deux confirmations occupent le même coin de l'en-tête : armer la désinstallation abandonne un fichier de remplacement que vous veniez de choisir. Répondez à une seule à la fois.
+
 ## Si ça ne marche pas
 
 - **« Le dossier doit contenir un fichier `agent.toml` »** : vous avez sans doute sélectionné un dossier parent. Ouvrez le dossier livré et cherchez à quel niveau se trouve `agent.toml` - c'est ce niveau-là qu'il faut sélectionner.
 - **Badge rouge « Invalide » dans l'aperçu** : le descripteur du package contient une erreur. Le message rouge sous le badge précise laquelle. Renvoyez-le à la personne qui a préparé le package, c'est à elle de le corriger.
 - **« Le secret doit faire au moins 32 caractères »** : votre secret est trop court. Tapez (ou collez) une chaîne plus longue.
 - **L'agent installé n'apparaît pas** : l'enregistrement a échoué silencieusement. Ouvrez les logs depuis la carte pour lire l'erreur précise.
+- **Le nouveau fichier est refusé lors de la mise à jour** : le bandeau montre ce que le chargeur a reproché, sous **Détails techniques**. Rien n'a été écrit, l'agent tourne toujours sur son fichier précédent. Renvoyez le message à la personne qui a préparé l'agent.
+- **Après une mise à jour, l'agent se comporte comme avant** : relisez la confirmation. Sur un agent arrêté, le nouveau fichier n'est chargé qu'au démarrage suivant, et un redémarrage en échec le dit explicitement.
 - **Avertissements « trigger » sur l'écran final** : l'agent est installé, mais certains de ses déclencheurs n'ont pas pu être activés. Notez le détail affiché et signalez-le à la personne qui a préparé le package.
 
 > **Pour les profils techniques :** [Référence Apollia](/reference) (format `agent.toml`, outils natifs activables, structure d'un package).

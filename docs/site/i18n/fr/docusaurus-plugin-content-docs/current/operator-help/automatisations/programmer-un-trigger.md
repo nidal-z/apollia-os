@@ -33,6 +33,26 @@
 
 9. Pour consulter l'historique d'exécution, cliquez sur l'icône **⋯** sur la ligne (visible au hover) → **Voir l'historique**. Voir la page [Suivre l'historique d'un trigger](suivre-l-historique-d-un-trigger.md).
 
+## Modifier une automatisation existante
+
+Une automatisation se modifie sur place. Changer un horaire ne passe plus par une suppression suivie d'une recréation, ce qui invalidait le secret du webhook et obligeait à reconfigurer le service appelant.
+
+1. Sur la ligne de l'automatisation, cliquez sur le menu **⋯** → **Modifier**. Avec la ligne sélectionnée au clavier, la touche **E** fait la même chose.
+
+2. La fenêtre **Modifier le trigger** s'ouvre sur la définition enregistrée, avec les mêmes champs qu'en mode avancé : assistant cible, type de déclencheur et ses paramètres, interrupteur **Activée**, comportement quand une exécution est déjà en cours, et modèle d'entrée.
+
+3. **L'identifiant est grisé** : il adresse l'automatisation et ne peut plus changer après la création. Tout le reste est modifiable, y compris le type de déclencheur.
+
+4. Pour un webhook, le secret enregistré n'arrive jamais dans la fenêtre. Le champ indique « *Secret déjà enregistré, laissez vide pour le conserver* » : laissez-le vide et le secret courant reste en place, remplissez-le et il est remplacé, ce qui oblige à reconfigurer le service appelant avec la nouvelle valeur.
+
+5. Cliquez sur **Enregistrer**. Une confirmation nomme l'automatisation, la liste se recharge, et le moteur redémarre sur la nouvelle définition.
+
+**Une automatisation déclarée dans `apollia.toml` ne se modifie pas ici.** La fenêtre le dit et s'arrête là : ces triggers tournent dans le moteur mais n'ont pas de définition enregistrée à réécrire. Modifiez le fichier, puis utilisez **Recharger la config**.
+
+## Recharger le fichier de configuration
+
+Le bouton **Recharger la config**, en haut à droite de la page, relit `apollia.toml` et redémarre le moteur d'automatisations sur cette base, puis annonce combien d'automatisations sont actives. Utilisez-le après avoir modifié le fichier à la main, cela évite de redémarrer l'application. Le bouton **Actualiser**, juste à côté, fait autre chose et beaucoup plus petit : il relit la liste que le moteur détient déjà.
+
 ## Mode avancé (optionnel)
 
 Pour les opérateurs qui préfèrent saisir directement les paramètres techniques (expression cron exacte, chemin de fichier précis, secret webhook…), le wizard propose un lien **Mode avancé** en bas à gauche. Il ouvre une fenêtre de création détaillée où vous choisissez :
@@ -69,7 +89,8 @@ L'automatisation figure dans la table **Automatisations** avec :
 - **Apollia n'a pas compris ma phrase** : un message *« Nous n'avons pas pu comprendre automatiquement »* apparaît. Reformulez plus simplement en énonçant clairement la fréquence et l'heure (ex. *« Tous les jours à 9 h »*).
 - **L'étape Planifier indique des points à clarifier** : l'encart orange en haut liste les ambiguïtés sur le calendrier (par exemple « heure manquante »). Tapez la précision dans le champ d'ajustement et validez avec Entrée. Si la seule chose qu'Apollia n'a pas trouvée est l'assistant, vous pouvez quand même passer à l'étape suivante : la sélection se fait à l'étape Assistant.
 - **Le bouton "Activer" est désactivé** : il manque une donnée - vérifiez que l'étape Planifier n'a plus d'ambiguïté de calendrier et qu'un assistant est sélectionné.
-- **Le lancement immédiat (icône ▶︎) est grisé** : l'automatisation est en pause. Réactivez-la depuis le mode avancé (interrupteur **Activée**) ou recréez-en une.
+- **Le lancement immédiat (icône ▶︎) est grisé** : l'automatisation est en pause. Reprenez-la depuis le menu **⋯** de la ligne, ou ouvrez **Modifier** et réactivez l'interrupteur **Activée**.
+- **La fenêtre Modifier refuse d'ouvrir l'automatisation** : elle vient de `apollia.toml`. Changez-la dans le fichier, puis cliquez sur **Recharger la config**.
 
 ## Appeler un webhook depuis un service externe
 

@@ -26,6 +26,19 @@
 
 6. Below the chart, the **legend** lists every active backend as **pills** showing the **cumulative total per backend** over the window. Handy to compare each provider's share at a glance.
 
+## The alert threshold, and where to read it
+
+The chart says what you spent. It does not say what you decided to allow. That ceiling is `cost_alert_threshold_usd`, under the `[llm]` section of `apollia.toml`, and it is shown in **Builder** mode only, on the **LLM models** page of the sidebar, at the top of the **Session Statistics (7 days)** block.
+
+What you see there:
+
+- **No threshold configured**: one line saying so, and naming the setting to add. That is the default state, no ceiling is set out of the box.
+- **A threshold configured**: a **Cost alert threshold** strip with a *spend of ceiling* figure, a gauge, and a caption naming the day being judged. The strip turns amber past 80 % of the ceiling (*Close to threshold*) and red above it (*Over threshold*).
+
+Read the comparison for what it is. The runtime applies this threshold to the **accumulated cost of one session**, while this surface only knows daily totals. So the strip compares the **busiest single day** of the last 7 days against the ceiling, which is an upper bound: a day below the ceiling cannot be hiding a session above it. The caption names that day explicitly.
+
+It is an alert, not a cap. Crossing it interrupts nothing: no call is refused, no run is stopped. The runtime flags the crossing on the session budget it publishes, and this strip shows it on the cost side.
+
 ## Verification
 
 The figures at the bottom match your intuition about consumption. The data refreshes automatically about once a minute.

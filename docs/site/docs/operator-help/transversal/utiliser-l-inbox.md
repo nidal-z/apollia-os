@@ -61,7 +61,14 @@ Two actions at the bottom:
 
 ### Recent history
 
-Below the list of pending items, a **Recent history (last 14 days)** section lists the last 50 resolved HITL decisions: ✅ Approved / 🛡 Always approved / ❌ Rejected (with the reason you typed). Read only.
+Below the list of pending items, a **Recent history (last 14 days)** section lists your resolved decisions: ✅ Approved / 🛡 Always approved / ❌ Rejected (with the reason you typed). Read only.
+
+Two origins are merged into that single list, sorted most recent first, up to 50 per origin over the same 14-day window. A badge at the start of each row says which one it is:
+
+- **Chat** - a tool you authorized inside a conversation. The row names the tool and, underneath, the session it belongs to.
+- **Agent task** - an agent task that was suspended waiting for your approval. The row names the agent and, underneath, the task. A task decision is only ever approved or rejected: the runtime stores a plain yes or no for it, with no *always* variant.
+
+If only one of the two origins fails to load, its error is shown above the rows that did answer, rather than replacing the whole section. The section is only replaced by an error box when both fail.
 
 ## The "Activity" tab
 

@@ -13,21 +13,23 @@
 
 2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. It is the immutable trace of every tool invoked by an agent.
 
-3. Just below, **four key indicators** (KPI) update according to the filters: **Entries shown**, **Distinct tools**, **Failures** (red if > 0), **Avg duration**.
+3. Under the callout, a **Full journal** card gives three totals counted over the whole trail: **Recorded invocations**, **Distinct tools**, **Distinct agents**. These do not move with the filters, and they do not stop at the rows loaded below: they answer "what does the journal hold", where the indicators of the next step answer "what am I looking at right now". If those totals cannot be read, the card shows one line saying so and the table below is unaffected.
+
+4. Just below, **four key indicators** (KPI) update according to the filters: **Entries shown**, **Distinct tools**, **Failures** (red if > 0), **Avg duration**.
    ![Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
 
-4. The table lists every traced tool invocation, newest first. **Five columns**:
+5. The table lists every traced tool invocation, newest first. **Five columns**:
    - **Timestamp** (date + local time)
    - **Tool** (technical name in monospace: `bash`, `file_write`, `mcp:notion.search`, and so on)
    - **Agent** (readable name; failing that, the raw identifier if the agent is no longer registered)
    - **Duration** (`850ms` or `2.1s`, or `-` if not measured)
    - **Status** - an **OK** badge (green, ✓) or **Error** (red, ✕). The status is derived from the exit code *and* from the presence of stderr; an MCP tool with no exit code counts as OK if it finished without an error.
 
-5. Narrow the search with the two selectors above the table:
+6. Narrow the search with the two selectors above the table:
    - **Tool** - isolates the invocations of one specific tool (the list is built from the loaded entries).
    - **Agent** - isolates the work of a single agent.
 
-6. Click a row to expand its detail. Depending on what was captured, three sections can appear:
+7. Click a row to expand its detail. Depending on what was captured, three sections can appear:
    - **Arguments** - JSON sent to the tool, formatted.
    - **stdout** - standard output.
    - **stderr** - error output, shown in red.
@@ -35,7 +37,7 @@
    If the invocation produced nothing capturable (read-only MCP tools, tools with no standard I/O…), a *"No details available"* message appears.
    ![expanded row showing the Arguments / stdout / stderr sections](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
 
-7. At the bottom of the table, the **Load more** button extends the list by 50 more entries.
+8. At the bottom of the table, the **Load more** button extends the list by 50 more entries.
 
    > **Export and verification happen on the command line**, not from the
    > interface. See the next section.

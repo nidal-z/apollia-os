@@ -61,7 +61,14 @@ Deux actions en bas :
 
 ### Historique récent
 
-Sous la liste des items en attente, une section **Historique récent (14 jours)** liste les 50 dernières décisions HITL résolues : ✅ Autorisé / 🛡 Toujours autorisé / ❌ Refusé (avec la raison saisie). Lecture seule.
+Sous la liste des items en attente, une section **Historique récent (14 jours)** liste vos décisions résolues : ✅ Autorisé / 🛡 Toujours autorisé / ❌ Refusé (avec la raison saisie). Lecture seule.
+
+Deux origines sont fusionnées dans cette liste unique, triée du plus récent au plus ancien, jusqu'à 50 par origine sur la même fenêtre de 14 jours. Un badge en début de ligne dit laquelle :
+
+- **Chat** : un outil que vous avez autorisé dans une conversation. La ligne nomme l'outil et, en dessous, la session concernée.
+- **Tâche d'agent** : une tâche d'agent qui a été suspendue en attendant votre approbation. La ligne nomme l'agent et, en dessous, la tâche. Une décision sur une tâche est seulement autorisée ou refusée : le runtime n'en garde qu'un oui ou un non, sans variante *toujours*.
+
+Si une seule des deux origines échoue au chargement, son erreur s'affiche au-dessus des lignes qui ont répondu, au lieu de remplacer toute la section. La section n'est remplacée par un encadré d'erreur que si les deux échouent.
 
 ## Onglet "Activité"
 

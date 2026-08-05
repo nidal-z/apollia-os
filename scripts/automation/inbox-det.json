@@ -1,5 +1,5 @@
 {
-  "name": "inbox-det (inbox page, operator + builder, seeded activity + notifications; pending in-memory set empty at cold boot so pending reduced to empty state)",
+  "name": "inbox-det (inbox page, operator + builder, seeded activity + notifications; pending in-memory set empty at cold boot so pending reduced to empty state, merged decision history asserted)",
   "stopOnError": false,
   "steps": [
     { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
@@ -27,6 +27,11 @@
     { "kind": "screenshot", "label": "04-inbox-filter-ask-user" },
     { "kind": "click", "testid": "inbox-filter-all", "timeoutMs": 2500 },
     { "kind": "screenshot", "label": "05-inbox-pending-empty" },
+
+    { "kind": "waitFor", "testid": "inbox-history-list", "timeoutMs": 6000 },
+    { "kind": "waitFor", "testid": "inbox-history-row", "nth": 0, "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "inbox-history-origin", "nth": 0, "timeoutMs": 3000 },
+    { "kind": "screenshot", "label": "05b-inbox-history-merged (one list, each row tagged with its origin)" },
 
     { "kind": "click", "testid": "inbox-tab-activity", "timeoutMs": 2500 },
     { "kind": "screenshot", "label": "06-inbox-tab-activity" },

@@ -23,7 +23,7 @@ garder la main sur les actions sensibles et suivre ce qui se passe.
 - **Demarrer** : [connecter un modele](./installation/connecter-un-modele-distant.md), [installer un agent](./agents/installer-un-agent.md), [creer un projet](./projets/creer-un-projet.md).
 - **Discuter** : [conversation libre et dictee vocale](./chat/discuter-avec-votre-ia.md), contexte projet automatique.
 - **Automatiser** : [programmer un trigger](./automatisations/programmer-un-trigger.md), suivre l'historique des declenchements.
-- **Garder la main** : [approuver ou refuser une action](./controle/approuver-ou-refuser-une-action.md), [configurer les permissions de fichiers](./controle/configurer-les-permissions-de-fichiers.md), [choisir le palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), [mesurer un agent avec eval](./agents/mesurer-un-agent-avec-eval.md).
+- **Garder la main** : [approuver ou refuser une action](./controle/approuver-ou-refuser-une-action.md), [configurer les permissions de fichiers](./controle/configurer-les-permissions-de-fichiers.md), [inspecter un outil](./controle/inspecter-un-outil.md), [choisir le palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), [mesurer un agent avec eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connecter** : brancher vos outils via le [catalogue MCP](./integrations/connecter-un-serveur-mcp.md).
 - **Suivre** : [tableau de bord et chronologie](./observabilite/consulter-l-historique-des-taches.md), [couts LLM](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
 - **Maintenir** : [mettre a jour Apollia](./installation/mettre-a-jour-apollia.md), [retrouver sa version et ses donnees](./transversal/trouver-sa-version-et-ses-donnees.md).

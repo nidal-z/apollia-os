@@ -390,7 +390,7 @@ marked `hand` only because the automaton frames the whole window.
 | 38 | `projets-activer-les-context-providers-3.png` | Click **Preview context** (Workspace Snapshot). | The provider preview with real git diff and file tree content | none; needs `APOLLIA_SEED_PROJECT_ROOT` to be a real git checkout | panel | auto |
 | 39 | `projets-creer-un-projet-1.png` | Projects. | The list, **+ New Project** highlighted top right | none | page | auto |
 | 40 | `projets-creer-un-projet-2.png` | Click + New Project. | The modal: Name, Root folder, Template | name `Client Digest 2027`, template **Developer project**, leave the folder as offered | dialog | auto |
-| 41 | `projets-creer-un-projet-3.png` | Cancel, then click the `Atlas Migration` card. | The detail sheet: Description, Agents (2), Context Providers (3), Documents (2), path | none | dialog | auto |
+| 41 | `projets-creer-un-projet-3.png` | Cancel, then click the `Atlas Migration` row. | The detail pane: header with the agent count and New chat, the six-tab bar (Conversations, Tasks, Agents, Memory, Context, Settings), open on Conversations | none | panel | auto |
 | 42 | `projets-lier-un-projet-a-un-chat-1.png` | Same sheet. | **+ New Chat** highlighted | none | dialog | auto |
 | 43 | `projets-lier-un-projet-a-un-chat-2.png` | Chat → open any conversation → header menu (three dots). | The menu open on **Link to a project** | open `Weekly check-in` | panel | auto |
 | 44 | `projets-lier-un-projet-a-un-chat-3.png` | Back to the project sheet, Chats section. | The linked chats with their titles and dates | none, the seed links two, `Weekly check-in` and `Auditing the legacy documentation set` | dialog | auto |
@@ -458,9 +458,9 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
-| 77 | `observabilite-consulter-l-audit-trail-1.png` | Observability → **Audit Trail**. | Purpose banner, 4 KPIs, filters, then the table. 10 rows, 2 agents, 2 failures | none | panel | auto |
+| 77 | `observabilite-consulter-l-audit-trail-1.png` | Observability → **Audit Trail**. | Purpose banner, the Full journal totals card, 4 KPIs, filters, then the table. 10 rows, 2 agents, 2 failures | none | panel | auto |
 | 78 | `observabilite-consulter-l-audit-trail-2.png` | Expand the failed `bash_executor` row. | Arguments, stdout and stderr sections, all three populated | expand the row whose stderr mentions page 187 | panel | auto |
-| 79 | `observabilite-consulter-l-historique-des-taches-1.png` | Observability → **Timeline**. | KPI strip, filter bar, events grouped by day. ~42 events in the default 1 h window, every chip populated | keep the default **1 h** window | panel | auto |
+| 79 | `observabilite-consulter-l-historique-des-taches-1.png` | Observability → **Timeline**. | Scope selector on **All activity**, KPI strip, filter bar, events grouped by day. ~42 events in the default 1 h window, every chip populated | keep the default **1 h** window, do not switch the scope | panel | auto |
 | 80 | `observabilite-lire-le-digest-quotidien-1.png` | Dashboard, operator mode. | Three cards in a grid, Decisions waiting spanning two columns on the left. Both projects active | none | page | auto |
 | 81 | `observabilite-surveiller-les-couts-llm-1.png` | Observability → **LLM Costs**. | Period selector, 4 KPIs, the stacked bars, the backend legend. 3 backends, 7 populated days | keep the default **7 d** period | panel | auto |
 

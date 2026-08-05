@@ -1,5 +1,5 @@
 {
-  "name": "projects-det (projects page, seeded ecosystem, operator + builder, every step green)",
+  "name": "projects-det (projects page, seeded ecosystem, operator + builder; the agents tab and the documents section drive their detach confirm and cancel it)",
   "stopOnError": false,
   "steps": [
     {
@@ -171,12 +171,124 @@
     },
     {
       "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "project-agent-add-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-apollia-guide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-project-agents"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "index": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-project-agent-candidate-picked (add NEVER clicked, no link created)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "value": "",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-confirm-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-project-agent-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-cancel-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-project-agent-detach-cancelled (the link survives)"
+    },
+    {
+      "kind": "click",
       "testid": "project-tab-memory",
       "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
       "label": "08-project-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "project-doc-attach-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-project-documents (attach opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08c-project-document-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-cancel-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08d-project-document-detach-cancelled (the document stays attached)"
     },
     {
       "kind": "click",
