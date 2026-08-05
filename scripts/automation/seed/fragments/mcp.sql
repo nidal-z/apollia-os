@@ -19,7 +19,7 @@
 --   To make the rows actually appear (sidebar + overview + settings + tools +
 --   individual mcp-tool-* entries), each row spawns the bundled deterministic
 --   stub server files/mcp-stub-server.py, which completes the handshake and
---   advertises a fixed 3-tool catalogue.
+--   advertises a fixed 4-tool catalogue.
 --
 -- Dependency: the stub is launched with /usr/bin/python3, present on any macOS
 --   machine with the Xcode command-line tools (the desktop build toolchain

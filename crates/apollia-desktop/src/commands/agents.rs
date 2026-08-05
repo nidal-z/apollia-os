@@ -458,8 +458,19 @@ pub async fn install_agent(
         .canonicalize()
         .map_err(|e| format!("cannot resolve path {path}: {e}"))?;
 
-    // Validate the Python module.
-    let manifest = loader.load_and_validate(&canonical)?;
+    // Validate the Python module. A rejection here carries the Python error
+    // verbatim (a missing decorator argument, a bad import), which is the only
+    // thing that tells the operator what to change. Log it: without this line
+    // the refusal reached the window as one generic sentence and left nothing
+    // behind on either side.
+    let manifest = loader.load_and_validate(&canonical).map_err(|e| {
+        tracing::warn!(
+            path = %canonical.display(),
+            cause = %e,
+            "agent.install.rejected"
+        );
+        e
+    })?;
 
     let data_dir = apollia_data_dir();
     let agents_dir = data_dir.join("agents").join(&manifest.name);
@@ -670,8 +681,17 @@ pub async fn update_agent(
         .ok_or_else(|| format!("agent '{name}' not found in installed agents"))?
     };
 
-    // Validate the new Python module.
-    let manifest = loader.load_and_validate(&canonical)?;
+    // Validate the new Python module. Same reasoning as the install path: the
+    // Python cause is the actionable part and must survive the boundary.
+    let manifest = loader.load_and_validate(&canonical).map_err(|e| {
+        tracing::warn!(
+            agent = %name,
+            path = %canonical.display(),
+            cause = %e,
+            "agent.update.rejected"
+        );
+        e
+    })?;
 
     // Copy new file to install location.
     std::fs::copy(&canonical, &existing.install_path).map_err(|e| {

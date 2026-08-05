@@ -22,6 +22,7 @@
   } from "$lib/stores/agentPackages";
   import { SplitLayout, ErrorBanner } from "$lib/components/operator";
   import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
   import { createChatSession, installAgent } from "$lib/ipc/agents";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
@@ -51,7 +52,12 @@
   let pkgDetail = $state<AgentPackageDetailView | null>(null);
 
   let installingAgent = $state(false);
-  let installError = $state<string | null>(null);
+  // The humanized error, not just its sentence. Installing an agent fails for
+  // exactly one interesting reason, a Python module the loader refuses, and the
+  // Python cause is the only actionable part. Keeping the string alone reduced
+  // "@agent() missing a required argument: 'version'" to "an unexpected error
+  // stopped this action", which tells the operator nothing to act on.
+  let installError = $state<HumanizedError | null>(null);
   let installPackageOpen = $state(false);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
@@ -156,7 +162,7 @@
       installingAgent = true;
       await installAgent(path);
     } catch (err) {
-      installError = reportError(err, { surface: "inline" }).friendly_message;
+      installError = reportError(err, { surface: "inline" });
     } finally {
       installingAgent = false;
     }
@@ -202,7 +208,23 @@
   <div class="px-8 pt-3">
     <MacSandboxBanner />
     {#if installError}
-      <ErrorBanner message={installError} class="mt-3" />
+      <ErrorBanner class="mt-3" data-testid="agent-install-error">
+        <p class="font-medium">{installError.friendly_message}</p>
+        <p class="text-caption opacity-90">{installError.suggested_action}</p>
+        {#if installError.detail}
+          <details class="mt-2">
+            <summary
+              class="cursor-pointer text-caption opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              data-testid="agent-install-error-details"
+            >
+              {$t("errors.show_details")}
+            </summary>
+            <p class="mt-1.5 break-all font-mono text-code-sm opacity-80">
+              {installError.detail}
+            </p>
+          </details>
+        {/if}
+      </ErrorBanner>
     {/if}
   </div>
 

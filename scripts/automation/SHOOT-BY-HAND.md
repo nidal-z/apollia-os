@@ -131,7 +131,7 @@ yet. Add one and this becomes the seventy-third automated capture.
 ## Session E. An MCP tool approval, one image
 
 Needs `llama-server` on the `PATH` and the seed loaded: it connects two MCP
-servers, `notes` and `filesystem`, six tools between them.
+servers, `notes` and `filesystem`, eight tools between them.
 
 | File | Gesture | What must be on screen | Crop |
 |---|---|---|---|
@@ -147,9 +147,14 @@ indexed and unreachable.
 
 Deferred mode now advertises the whole index when it fits `mcp.tool_search_limit`
 (20 by default), schemas included, and falls back to search-only above that.
-Six tools across two servers is well inside that bound, so the approval popup is
-one prompt away. If the model still refuses, that is a finding, not a shooting
-problem: say so rather than switching the seed to `eager`.
+Eight tools across two servers is well inside that bound, so the approval popup
+is one prompt away. If the model still refuses, that is a finding, not a
+shooting problem: say so rather than switching the seed to `eager`.
+
+The stub gained `read_seed_note` for this row. It used to list three note ids
+and expose no way to open one, so a model that did everything right still ended
+the turn explaining it could not read them, and the second half of the prompt
+was unreachable.
 
 ---
 

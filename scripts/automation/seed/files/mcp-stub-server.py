@@ -40,6 +40,47 @@ INSTRUCTIONS = (
 # Fixed tool catalogue. Each entry is a valid MCP tool definition
 # (name, description, inputSchema). Kept small and stable so the tools tab
 # renders a deterministic count and list.
+# The three demo notes, written to fit the seed's Atlas migration narrative.
+# `list_seed_notes` announces them and `read_seed_note` returns one: a catalogue
+# that lists identifiers nobody can open is what a model reports back as a dead
+# end, and it did, which is how this pair came to exist.
+NOTES = [
+    {
+        "id": "note-1",
+        "title": "Batch 3 conversion failures",
+        "updated": "2026-06-28",
+        "body": (
+            "Seven pages in batch 3 came out of the converter with their tables "
+            "flattened into paragraphs. All seven use a nested table inside a "
+            "callout, which the extractor does not walk. Batch 4 inherits the "
+            "same template, so it will fail the same way until the extractor "
+            "handles nesting."
+        ),
+    },
+    {
+        "id": "note-2",
+        "title": "Link audit, second pass",
+        "updated": "2026-07-02",
+        "body": (
+            "Second pass over the migrated set: 41 links still point at the old "
+            "wiki. 12 of them resolve through a redirect that will be retired "
+            "with the wiki itself, so they are broken on a delay rather than "
+            "broken now. Rewrite those first."
+        ),
+    },
+    {
+        "id": "note-3",
+        "title": "What blocks the batch 4 hand-off",
+        "updated": "2026-07-09",
+        "body": (
+            "Batch 4 cannot ship while the nested-table case from note-1 is "
+            "open: 19 of its 60 pages use that template. Everything else in "
+            "batch 4 is ready. The hand-off note to the client should say so "
+            "plainly rather than announce a date."
+        ),
+    },
+]
+
 TOOLS = [
     {
         "name": "echo",
@@ -54,10 +95,27 @@ TOOLS = [
     },
     {
         "name": "list_seed_notes",
-        "description": "List the fixed demo notes bundled with the seed stub.",
+        "description": (
+            "List the demo notes bundled with the seed stub, with their id, "
+            "title and last-updated date. Read one with read_seed_note."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {},
+        },
+    },
+    {
+        "name": "read_seed_note",
+        "description": "Return the full text of one demo note, by its id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "note_id": {
+                    "type": "string",
+                    "description": "Note identifier, as listed by list_seed_notes.",
+                }
+            },
+            "required": ["note_id"],
         },
     },
     {
@@ -95,7 +153,27 @@ def _handle_tools_call(request_id, params):
         text = str(arguments.get("text", ""))
         payload = f"echo: {text}"
     elif name == "list_seed_notes":
-        payload = "note-1; note-2; note-3"
+        payload = "\n".join(
+            f"{note['id']} - {note['title']} (updated {note['updated']})" for note in NOTES
+        )
+    elif name == "read_seed_note":
+        note_id = str(arguments.get("note_id", ""))
+        note = next((n for n in NOTES if n["id"] == note_id), None)
+        if note is None:
+            known = ", ".join(n["id"] for n in NOTES)
+            return _result(
+                request_id,
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"no note with id '{note_id}'. Known ids: {known}.",
+                        }
+                    ],
+                    "isError": True,
+                },
+            )
+        payload = f"{note['title']} (updated {note['updated']})\n\n{note['body']}"
     elif name == "get_seed_status":
         payload = "status: ok (seed stub)"
     else:

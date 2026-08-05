@@ -39,7 +39,8 @@
       "title": "Une erreur est survenue",
       "friendly_message": "Une erreur inattendue a empêché cette action d'aboutir.",
       "suggested_action": "Réessayez l'action. Si l'échec persiste, consultez les détails ci-dessous."
-    }
+    },
+    "show_details": "Détails techniques"
   },
   "next_steps": {
     "title": "Prochaines étapes",

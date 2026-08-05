@@ -39,7 +39,8 @@
       "title": "Something went wrong",
       "friendly_message": "An unexpected error stopped this action from completing.",
       "suggested_action": "Retry the action. If it keeps failing, check the details below."
-    }
+    },
+    "show_details": "Technical details"
   },
   "next_steps": {
     "title": "Next steps",
