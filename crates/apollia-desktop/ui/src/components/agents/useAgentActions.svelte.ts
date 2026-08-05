@@ -18,7 +18,12 @@ import {
 } from "$lib/stores/agentPackages";
 import { addToast } from "$lib/components/ui/toast/store";
 import { reportError } from "$lib/errors/reportError";
-import { startAgent, stopAgent } from "$lib/ipc/agents";
+import {
+  clearAgentMemory,
+  startAgent,
+  stopAgent,
+  uninstallAgent,
+} from "$lib/ipc/agents";
 import { isActive } from "./agentStatus";
 import type { AgentListItem, AgentPackageListItem } from "$lib/types";
 
@@ -27,6 +32,7 @@ export interface AgentActions {
   isBusy(key: string): boolean;
   toggleAgentRuntime(a: AgentListItem): Promise<void>;
   togglePackageRuntime(pkg: AgentPackageListItem): Promise<void>;
+  uninstall(a: AgentListItem, deleteMemory: boolean): Promise<void>;
 }
 
 export function createAgentActions(): AgentActions {
@@ -89,6 +95,39 @@ export function createAgentActions(): AgentActions {
     }
   }
 
+  /**
+   * Remove an installed agent, optionally taking its memory with it.
+   *
+   * The command already unregisters the runtime entry, so no stop is issued
+   * first. Memory is cleared before the agent goes, because the namespace is
+   * addressed by the agent name and there would be nothing left to name it
+   * with afterwards. A memory failure is reported and does not cancel the
+   * uninstall: the operator asked for the agent to go.
+   */
+  async function uninstall(a: AgentListItem, deleteMemory: boolean): Promise<void> {
+    const key = `agent:${a.name}`;
+    if (busyKeys[key]) return;
+    setBusy(key, true);
+    try {
+      if (deleteMemory) {
+        try {
+          await clearAgentMemory(a.memory_namespace ?? a.name);
+        } catch (err) {
+          reportError(err, { surface: "toast" });
+        }
+      }
+      await uninstallAgent(a.name);
+      // Drop it from the list now rather than waiting for the event round
+      // trip, so the row does not linger under a detail pane that no longer
+      // has anything to show.
+      agents.update((list) => list.filter((x) => x.name !== a.name));
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    } finally {
+      setBusy(key, false);
+    }
+  }
+
   return {
     get busyKeys() {
       return busyKeys;
@@ -96,5 +135,6 @@ export function createAgentActions(): AgentActions {
     isBusy: (key: string) => busyKeys[key] === true,
     toggleAgentRuntime,
     togglePackageRuntime,
+    uninstall,
   };
 }

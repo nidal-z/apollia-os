@@ -58,6 +58,7 @@
   // "@agent() missing a required argument: 'version'" to "an unexpected error
   // stopped this action", which tells the operator nothing to act on.
   let installError = $state<HumanizedError | null>(null);
+  let uninstallConfirmName = $state<string | null>(null);
   let installPackageOpen = $state(false);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
@@ -132,6 +133,19 @@
     selectedName = name;
     apolliaChatSelected = false;
     selectedPackageName = null;
+    if (uninstallConfirmName !== name) uninstallConfirmName = null;
+  }
+
+  /**
+   * Arm the uninstall confirm for an agent, selecting it on the way.
+   *
+   * The sidebar's context menu calls this on a row that may not be the
+   * selected one. Selecting first means the confirm always appears over the
+   * agent it names, rather than deleting from a menu with nothing on screen.
+   */
+  function requestUninstallAgent(agent: AgentListItem): void {
+    selectAgent(agent.name);
+    uninstallConfirmName = agent.name;
   }
   function selectApolliaChat(): void {
     apolliaChatSelected = true;
@@ -251,6 +265,7 @@
         onInstallPackage={() => (installPackageOpen = true)}
         onOpenLogs={openLogs}
         onOpenSettings={openSettings}
+        onRequestUninstallAgent={requestUninstallAgent}
         onUninstallPackage={handleUninstallPkg}
       />
     {/snippet}
@@ -270,6 +285,9 @@
         onNavigateTasks={() => navigateTo("tasks")}
         onSelectAgent={selectAgent}
         onInstallAgent={pickAndInstallAgent}
+        confirmingUninstall={selected !== null && uninstallConfirmName === selected.name}
+        onArmUninstall={() => (uninstallConfirmName = selected?.name ?? null)}
+        onDisarmUninstall={() => (uninstallConfirmName = null)}
         onUninstallPackage={handleUninstallPkg}
       />
     </div>

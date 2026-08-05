@@ -37,6 +37,21 @@ export async function installAgent(path: string): Promise<void> {
   return invoke<void>("install_agent", { path });
 }
 
+/** Remove an installed agent: database row, install directory, runtime entry. */
+export async function uninstallAgent(name: string): Promise<void> {
+  return invoke<void>("uninstall_agent", { name });
+}
+
+/**
+ * Delete every memory entry in a namespace, returning how many were removed.
+ *
+ * Used by the uninstall flow when the operator asks for the agent's data to go
+ * with it. A namespace that was never created answers `0` rather than failing.
+ */
+export async function clearAgentMemory(namespace: string): Promise<number> {
+  return invoke<number>("clear_memory", { namespace, memoryType: null });
+}
+
 /** List memory entries for a declared namespace. */
 export async function listMemoryEntries(
   namespace: string,

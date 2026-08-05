@@ -8,7 +8,7 @@
    * the former whole-card-clickable div (which suppressed a11y lints).
    */
   import { t } from "svelte-i18n";
-  import { Sparkles, Play, Square, ScrollText, Settings } from "lucide-svelte";
+  import { Sparkles, Play, Square, ScrollText, Settings, Trash2 } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
   import { StatusDot } from "$lib/components/operator";
@@ -25,10 +25,18 @@
     onSelect: () => void;
     onOpenLogs: (agentId: string) => void;
     onOpenSettings: (agent: AgentListItem) => void;
+    onRequestUninstall: (agent: AgentListItem) => void;
   }
 
-  let { agent, selected, actions, onSelect, onOpenLogs, onOpenSettings }: Props =
-    $props();
+  let {
+    agent,
+    selected,
+    actions,
+    onSelect,
+    onOpenLogs,
+    onOpenSettings,
+    onRequestUninstall,
+  }: Props = $props();
 
   const running = $derived(isActive(agent));
   const transitioning = $derived(
@@ -63,6 +71,20 @@
       icon: Settings,
       onclick: () => onOpenSettings(agent),
     },
+    // Select first, then arm the confirm in the detail header: a right-click
+    // that deletes an agent outright, without ever showing what is about to
+    // go, is not a gesture to offer for an irreversible action.
+    ...(agent.installed_at !== null
+      ? [
+          {
+            id: "uninstall",
+            label: $t("agents.uninstall"),
+            icon: Trash2,
+            variant: "destructive" as const,
+            onclick: () => onRequestUninstall(agent),
+          },
+        ]
+      : []),
   ]);
 </script>
 

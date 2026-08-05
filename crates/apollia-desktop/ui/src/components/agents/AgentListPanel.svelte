@@ -37,6 +37,7 @@
     onInstallPackage: () => void;
     onOpenLogs: (agentId: string) => void;
     onOpenSettings: (agent: AgentListItem) => void;
+    onRequestUninstallAgent: (agent: AgentListItem) => void;
     onUninstallPackage: (name: string) => void;
   }
 
@@ -57,6 +58,7 @@
     onInstallPackage,
     onOpenLogs,
     onOpenSettings,
+    onRequestUninstallAgent,
     onUninstallPackage,
   }: Props = $props();
 
@@ -151,6 +153,7 @@
             onSelect={() => onSelectAgent(agent.name)}
             {onOpenLogs}
             {onOpenSettings}
+            onRequestUninstall={onRequestUninstallAgent}
           />
         {/each}
       {/if}

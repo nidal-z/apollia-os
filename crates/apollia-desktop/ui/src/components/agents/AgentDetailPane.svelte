@@ -37,6 +37,9 @@
     onNavigateTasks: (taskId: string) => void;
     onSelectAgent: (name: string) => void;
     onInstallAgent: () => void;
+    confirmingUninstall: boolean;
+    onArmUninstall: () => void;
+    onDisarmUninstall: () => void;
     onUninstallPackage: (name: string) => void;
   }
 
@@ -54,6 +57,9 @@
     onNavigateTasks,
     onSelectAgent,
     onInstallAgent,
+    confirmingUninstall,
+    onArmUninstall,
+    onDisarmUninstall,
     onUninstallPackage,
   }: Props = $props();
 </script>
@@ -69,7 +75,14 @@
     onUninstall={onUninstallPackage}
   />
 {:else if selected}
-  <AgentDetailHeader agent={selected} {onStartChat} />
+  <AgentDetailHeader
+    agent={selected}
+    {agentActions}
+    {confirmingUninstall}
+    {onArmUninstall}
+    {onDisarmUninstall}
+    {onStartChat}
+  />
   <AgentDetailTabs
     agent={selected}
     bind:tab={agentDetailTab}

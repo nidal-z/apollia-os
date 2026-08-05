@@ -30,34 +30,39 @@
     return model;
   }
 
-  let firstBackend = $derived($llmBackends[0] ?? null);
+  // The default backend, not the first one listed. An agent's turn is routed
+  // to the default, so naming `[0]` told the operator the wrong model as soon
+  // as the list held more than one and the default was not at the top.
+  let activeBackend = $derived(
+    $llmBackends.find((b) => b.is_default) ?? $llmBackends[0] ?? null,
+  );
 </script>
 
 <section data-testid="agent-llm-section">
   <h3 class="mb-3 text-sm font-medium">{$t('agent_detail.llm_title')}</h3>
 
-  {#if !firstBackend}
+  {#if !activeBackend}
     <p class="text-xs text-muted-foreground">{$t('agent_detail.no_llm')}</p>
   {:else}
     <div class="flex items-start gap-3 rounded-md border px-3 py-2">
-      {#if firstBackend.provider === "llama-cpp"}
+      {#if activeBackend.provider === "llama-cpp"}
         <Cpu size={16} class="mt-0.5 shrink-0 text-muted-foreground" />
       {:else}
         <Cloud size={16} class="mt-0.5 shrink-0 text-muted-foreground" />
       {/if}
 
       <div class="min-w-0 flex-1">
-        <span class="text-sm">{humanizeBackend(firstBackend.provider === "llama-cpp" ? "embedded" : "api", firstBackend.model)}</span>
+        <span class="text-sm">{humanizeBackend(activeBackend.provider === "llama-cpp" ? "embedded" : "api", activeBackend.model)}</span>
 
         {#if $uiMode === "builder"}
           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>{$t('agent_detail.llm_backend')}: {firstBackend.name}</span>
-            <span>{$t('agent_detail.llm_model')}: {firstBackend.model}</span>
+            <span>{$t('agent_detail.llm_backend')}: {activeBackend.name}</span>
+            <span>{$t('agent_detail.llm_model')}: {activeBackend.model}</span>
             <Badge
-              variant={firstBackend.enabled ? "success" : "destructive"}
+              variant={activeBackend.enabled ? "success" : "destructive"}
               class="text-[10px]"
             >
-              {firstBackend.enabled ? "ENABLED" : "DISABLED"}
+              {activeBackend.enabled ? "ENABLED" : "DISABLED"}
             </Badge>
           </div>
         {/if}
