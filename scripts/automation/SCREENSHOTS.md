@@ -194,6 +194,11 @@ an oversight, each is blocked by something the automaton cannot reach:
 | MCP permission prompt | 1 | Needs the model to call an MCP tool, and no prompt makes that deterministic. |
 | Reasoning strip expanded | 1 | Needs one named seeded session opened by name; conversation rows carry no `data-testid` yet. Add one and this becomes automatable. |
 
+Shooting one of the thirteen? Use **`SHOOT-BY-HAND.md`** instead of this file.
+It carries those thirteen alone, grouped by session, with every value written on
+the line rather than behind a note reference, and `check_screenshot_script.py`
+keeps its list equal to what no script produces.
+
 The **How** column of every row says `auto` or `hand`, and it is kept in sync
 with the scripts rather than by hand: `check_screenshot_script.py` compares the
 rows against the pages, and the count above against the labels the two scripts

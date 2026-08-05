@@ -25,6 +25,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "automation" / "SCREENSHOTS.md"
+BY_HAND = REPO_ROOT / "scripts" / "automation" / "SHOOT-BY-HAND.md"
 DOCS = REPO_ROOT / "docs" / "site" / "docs" / "operator-help"
 MIRROR = (
     REPO_ROOT
@@ -220,11 +221,54 @@ def counts_in_prose_match_the_scripts() -> list[str]:
     return problems
 
 
+def by_hand_list_matches_the_scripts() -> list[str]:
+    """SHOOT-BY-HAND.md must name every image no script produces, and only those.
+
+    It is the checklist a maintainer works from, alone, hours into a shooting
+    session. An image missing from it is an image that stays stale with nobody
+    aware; an image listed there that the automaton already takes is half an
+    hour spent redoing what a run had done.
+
+    Both halves have already happened once. The set was 19, then 13, and the
+    prose kept the old number until this check existed.
+    """
+    if not BY_HAND.is_file():
+        return [f"{BY_HAND.name} is missing; it is the hand-shooting checklist"]
+
+    import json as _json
+
+    scripted: set[str] = set()
+    for name in ("screenshots-en", "screenshots-en-llm"):
+        path = REPO_ROOT / "scripts" / "automation" / f"{name}.json"
+        steps = _json.loads(path.read_text(encoding="utf-8"))["steps"]
+        scripted |= {s["label"] + ".png" for s in steps if s.get("kind") == "screenshot"}
+
+    expected = referenced_by_pages() - scripted
+    cited = set(re.findall(r"`([a-z0-9-]+\.png)`", BY_HAND.read_text(encoding="utf-8")))
+
+    problems = []
+    for name in sorted(expected - cited):
+        problems.append(
+            f"{name} is produced by no script and is absent from {BY_HAND.name}: "
+            f"nobody would know to shoot it"
+        )
+    for name in sorted(cited - expected):
+        problems.append(
+            f"{name} is listed in {BY_HAND.name} but a script already produces it: "
+            f"shooting it by hand redoes work a run has done"
+        )
+    return problems
+
+
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
 
-    problems = check() + counts_in_prose_match_the_scripts()
+    problems = (
+        check()
+        + counts_in_prose_match_the_scripts()
+        + by_hand_list_matches_the_scripts()
+    )
     if problems:
         print(f"{len(problems)} problem(s) between SCREENSHOTS.md and the published pages:")
         for p in problems:
