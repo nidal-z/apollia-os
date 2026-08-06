@@ -46,7 +46,7 @@ rewriting the agent, it generates as much work as it saves.
 
 **How.** Duck typing. `hasattr(agent, "manifest") and hasattr(agent, "run")`
 is enough. AgentKit decorators (`@agent`, `@skill`) are optional sugar over
-this contract. See `sdk/AGENTS.md` and ADR-023, ADR-024.
+this contract. See `sdk/AGENTS.md`.
 
 ### 4. Fail fast
 
@@ -110,7 +110,7 @@ serves humans and scripts.
 shell-out around. A CLI that only emits JSON is a CLI that humans hate.
 
 **How.** clap v4 with global `--json`, `--quiet`, `--socket`. Exit codes
-0 success / 1 general / 2 runtime / 3 task / 4 timeout / 5 interrupt. ADR-004.
+0 success / 1 general / 2 runtime / 3 task / 4 timeout / 5 interrupt.
 
 ---
 
@@ -119,7 +119,7 @@ shell-out around. A CLI that only emits JSON is a CLI that humans hate.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       apollia-cli                            │
-│       (ADR-004 noun-verb, exit codes 0-5, --json global)    │
+│       (noun-verb, exit codes 0-5, --json global)            │
 └──────────────────────────┬──────────────────────────────────┘
                            │ HTTP over Unix socket / TCP 7771
 ┌──────────────────────────▼──────────────────────────────────┐
@@ -208,7 +208,7 @@ rationale in `docs/agents/SECURITY.md`.
 Audit log is SQLite, append-only, no deletes. Each tool invocation produces
 a decision record.
 
-Source : `crates/apollia-permissions/`, ADR-015.
+Source : `crates/apollia-permissions/`.
 
 ### SecretStore
 
@@ -223,7 +223,7 @@ Source : `crates/apollia-auth/src/secret_storage.rs`. See
 ### McpClientManager
 
 Actor that owns the pool of MCP clients (stdio, HTTP, SSE backends). Hot
-reload through SQLite triggers. Health probes documented in ADR-018.
+reload through SQLite triggers.
 
 Source : `crates/apollia-mcp/`.
 
@@ -233,7 +233,7 @@ Config-driven backend selection. `[llm.routing]` in the agent TOML drives
 routing. Backends : the embedded `llama-server` (local, upstream llama.cpp),
 Anthropic, OpenAI, Ollama, Vertex.
 
-Source : `crates/apollia-llm/src/router.rs`, ADR-008.
+Source : `crates/apollia-llm/src/router.rs`.
 
 ### SQLite persistence
 
@@ -251,7 +251,7 @@ Source : `crates/apollia-runtime/src/chat/repository.rs`,
 async interop. `RuntimeContext` type contract in `sdk/apollia/types.py`
 plus `sdk/apollia/context/*.py`.
 
-Source : `crates/apollia-aip/`, ADR-002.
+Source : `crates/apollia-aip/`.
 
 ---
 
@@ -270,9 +270,9 @@ When in doubt, the type belongs in the consuming crate.
 
 ---
 
-## Section E : When does a decision require an ADR
+## Section E : When a change has to be written down first
 
-Open an ADR before coding if any of the following applies :
+Update the decisions chapter before coding if any of the following applies :
 
 - Architectural pattern change (new actor, new trait, new persistence backend).
 - New cross-crate type added to `apollia-core`.
@@ -283,46 +283,23 @@ Open an ADR before coding if any of the following applies :
   event type).
 - Deviation from any principle in Section A.
 
-ADR workflow : skill `apollia-adr` generates the skeleton. Format Context /
-Decision / Consequences / Alternatives. Status : Proposed / Accepted /
-Deprecated / Superseded.
+A decision that changes the shape of the system is written into the
+architecture chapter of `docs/site/`, in the present tense, under a stable
+anchor. There is no separate numbered record: a decision worth keeping is worth
+stating as what the system does, and a decision that has been reversed is worth
+deleting rather than superseding.
 
 ---
 
-## Section F : ADR map (load-bearing, must-know)
+## Section F : Where the decisions live
 
-These ADRs are load-bearing. If you touch the area, read the ADR. Titles
-here mirror the `#` heading of each file in `docs/adr/`.
+`docs/site/docs/architecture/08-decisions.md` states every structural decision
+in force, one section per subject, each with a stable anchor. Read the section
+for the area you touch before changing it. If your change contradicts what that
+page says, the page is what has to change first, in the same commit.
 
-| ADR | Subject | Owner area |
-|---|---|---|
-| ADR-002 | PyO3 bridge and trait-based decoupling | apollia-aip |
-| ADR-003 | Sandbox, agent trust model and platform scope | apollia-permissions, security |
-| ADR-004 | CLI design | apollia-cli |
-| ADR-005 | ORIA execution model | apollia-oria |
-| ADR-006 | Tool subsystem and native tools | apollia-tools |
-| ADR-007 | Inference runtime, multi-runner sidecar | apollia-runner, apollia-runtime |
-| ADR-008 | LLM backends, model management and transparency | apollia-llm |
-| ADR-010 | Memory and context architecture | apollia-memory, apollia-core |
-| ADR-012 | Observability and plan feedback | apollia-runtime |
-| ADR-013 | Human-in-the-loop (HITL) | apollia-runtime, apollia-oria |
-| ADR-015 | Permission and tool governance | apollia-permissions |
-| ADR-016 | Secrets, keyring storage and local API auth | apollia-auth |
-| ADR-017 | MCP client, transport and server | apollia-mcp |
-| ADR-018 | MCP OAuth client and orchestration | apollia-auth, apollia-mcp |
-| ADR-021 | Frontend design system and internationalization | apollia-desktop |
-| ADR-023 | Python SDK / AgentKit design | sdk |
-| ADR-024 | SDK runtime contract (ctx) | sdk |
-| ADR-025 | Worker agents and A2A routing | sdk, agents |
-| ADR-026 | Agent install, bundle format and distribution | apollia-workspace |
-| ADR-041 | Inter-agent messaging (durable mailbox) | apollia-runtime, sdk |
-| ADR-042 | Audit-journal global anchor chain | apollia-runtime |
-| ADR-044 | Agent isolation hardening and honest posture reporting | apollia-tools, apollia-core |
-| ADR-047 | Native TLS on the API TCP listener, fail-fast on insecure remote bind | apollia-runtime |
-| ADR-048 | Code executors are never blanket-authorized | apollia-permissions |
-| ADR-049 | Windows is a supported platform for v0.1.0 | workspace-wide |
-
-Full index : `docs/adr/`.
+The English page and its French mirror carry identical anchors, so a link from
+either locale resolves.
 
 ---
 

@@ -41,7 +41,7 @@ tests/cli/
 ### The seed (fixed dataset)
 
 The suite does not build state from scratch; it loads the shared, committed seed
-builder at `scripts/automation/seed/` (one source of truth with the desktop
+builder at `tests/cli/seed/` (one source of truth with the desktop
 automation suite, never a fork). `lib/seed.sh` rebuilds a throwaway `HOME` per
 phase, so the reference fixtures a later assertion depends on are never mutated,
 and the real `~/.apollia` is never touched. Isolation is a `HOME` swap: the CLI
@@ -51,7 +51,7 @@ The builder also accepts a narrative overlay (`APOLLIA_SEED_OVERLAY`), used to
 give the documentation screenshots a coherent usage history. This suite never
 sets it, and the builder never applies one unless asked, so the content asserted
 below is the committed fixture and nothing else. See
-`scripts/automation/seed/README.md`, section Overlay.
+`tests/cli/seed/README.md`, section Overlay.
 
 Seeded content asserted by the tracks (fixed ids, fixed `2026-07-01` data):
 2 projects, 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents

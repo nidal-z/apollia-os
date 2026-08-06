@@ -8,7 +8,8 @@ This crate connects Apollia to MCP servers over three transports (`stdio`,
 `streamable-http`, `sse`). MCP servers are untrusted input: their responses
 cross the trust boundary into the daemon, so every read from a server must be
 bounded and every parse must fail into a typed error, never a panic. See
-ADR-017 (transport) and ADR-018 (OAuth) for the design and its addenda.
+the decisions chapter of the documentation site for the transport and OAuth
+> design.
 
 ---
 
@@ -59,7 +60,7 @@ validated and bounded once, at the session ingestion boundary
 
 Sanitize at ingestion, never at each sink. Every downstream consumer (registry,
 deferred tool-search index, `test_connection` API) reads the already-bounded
-session state, so a new sink needs no extra guard. See ADR-017 (addendum).
+session state, so a new sink needs no extra guard.
 
 ---
 

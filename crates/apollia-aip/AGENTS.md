@@ -102,7 +102,7 @@ The runtime never sees a `PyErr`. It sees `AipError` or a downstream
 
 ## 4. Manifest extraction
 
-Manifests follow ADR-023. The decorator-built manifest is read from the
+The decorator-built manifest is read from the
 class attribute, not by introspecting the methods at every call.
 
 ```rust
@@ -138,8 +138,8 @@ When you add a method, update :
 1. The Protocol in `sdk/apollia/types.py` and the service module in
    `sdk/apollia/context/<service>.py`.
 2. The implementation here.
-3. The relevant ADR if the addition is non-trivial (ADR-024 for the
-   contract, ADR-041 for the mailbox).
+3. The decisions chapter of the documentation site if the addition changes
+   what `ctx` guarantees, or how the mailbox behaves.
 
 ---
 

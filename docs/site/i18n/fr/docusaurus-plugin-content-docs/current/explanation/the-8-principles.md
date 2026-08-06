@@ -50,7 +50,7 @@ agent. Pour le contrat exact que voit un agent, lisez la
 [référence SDK](/reference/sdk).
 
 L'ancien contrat, une méthode `manifest()` suivie d'un `run()` asynchrone, a
-disparu (ADR-023). Le pont refuse tout objet dépourvu de
+disparu (voir [le contrat d'agent](/architecture/decisions#agent-contract)). Le pont refuse tout objet dépourvu de
 `__apollia_dispatch__`, l'attribut que les décorateurs installent, si bien
 qu'un agent écrit à l'ancienne manière ne se charge pas du tout plutôt que de
 fonctionner à moitié.

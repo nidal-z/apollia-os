@@ -350,9 +350,12 @@ python -m apollia new my-agent --type worker
 
 ## Architecture references
 
-- **ADRs** in `docs/adr/` - every architectural decision behind the rebuild
-- **Skills `apollia-agent-forge` + `apollia-worker-forge`** in `.claude/skills/` - Claude Code skills for generating agents
-- **Existing agents** in `agents/` - 17 production agents migrated to AgentKit
+- **The type contract** in `apollia/types.py` and `apollia/context/` - the
+  authority on what `ctx` offers an agent at runtime
+- **Design decisions** in the architecture chapter of the documentation site
+- **Example agents** in `agents/examples/` - the shape a working agent takes
+- **Scaffolding**: `python -m apollia new <name> --type worker` generates a
+  starting point that already satisfies the minimal contract
 
 ## Project structure
 

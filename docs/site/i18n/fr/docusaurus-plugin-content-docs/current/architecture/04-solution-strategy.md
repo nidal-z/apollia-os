@@ -21,7 +21,7 @@ simple convention. Le prix à payer est davantage de plomberie de messages ; le
 gain est l'absence de toute une classe d'interblocages asynchrones et de
 courses de données.
 
-Voir ADR-005 pour le modèle d'exécution ORIA qui s'appuie sur cette base.
+Voir [le modèle d'exécution](/architecture/decisions#execution-model), qui s'appuie sur cette base.
 
 ## L'inférence comme sidecar supervisé
 
@@ -40,7 +40,7 @@ La supervision actuelle assume ses limites : le daemon lance le processus
 d'inférence, mais la surveillance de santé et le redémarrage automatiques ne
 sont pas encore câblés. Voir
 [Risques et dette technique](/architecture/risks-and-technical-debt). La
-décision elle-même est ADR-007.
+Voir [l'inférence locale](/architecture/decisions#local-inference).
 
 ## Un pont PyO3 avec des services découplés par traits
 
@@ -52,7 +52,7 @@ le contrat de l'agent de son implémentation et le rend simulable (mock) pour
 les tests. Côté agent, on ne voit qu'un contexte typé regroupant quinze
 services ; côté Rust, l'implémentation peut évoluer derrière cette façade.
 
-La décision relative au pont est ADR-002 ; le contrat `ctx` est ADR-024 et
+Voir [socle technique et runtime](/architecture/decisions#stack-and-runtime) et [le contrat d'agent](/architecture/decisions#agent-contract) ; `ctx` est
 est documenté dans la [référence du SDK](/reference/sdk).
 
 ## Un contrat machine pour l'intégration hôte
@@ -65,7 +65,7 @@ versionnée (`/api/v1`, les changements cassants étant réservés à un futur
 partir de cette spécification. Un intégrateur pilote un daemon réel sans
 avoir à rétro-ingénierer quoi que ce soit.
 
-C'est l'objet d'ADR-037. La surface générée est la
+Voir [intégration hôte](/architecture/decisions#host-integration). La surface générée est la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api) ; le guide
 pratique est
 [Intégrer via le contrat pilote](/how-to/integrate-via-driving-contract).
@@ -81,6 +81,6 @@ est développé dans
 [Concepts transversaux](/architecture/crosscutting-concepts) et dans le
 [modèle de responsabilité](/explanation/accountability-model).
 
-Les décisions qui encadrent cela sont ADR-015 (gouvernance des permissions et
-des outils), ADR-013 (supervision humaine), et ADR-016 (secrets et
+Les décisions qui encadrent cela sont [le modèle de permissions](/architecture/decisions#permission-model),
+[l'humain dans la boucle](/architecture/decisions#human-in-the-loop), et [secrets et
 authentification API).

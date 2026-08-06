@@ -691,7 +691,7 @@ fn main() {
                 None => chat::run(resume.as_deref(), list, cli.socket, json, no_color).await,
             },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
-            Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
+            Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Resilience { command } => {

@@ -3537,7 +3537,9 @@
       "changelog_title": "Nouveautés",
       "show_details": "Détails techniques",
       "downloading": "Téléchargement de la mise à jour…",
-      "installed": "Mise à jour installée. Redémarrage d'Apollia OS…"
+      "installed": "Mise à jour installée. Redémarrage d'Apollia OS…",
+      "no_channel": "Aucune mise à jour n'a encore été publiée. Cette version est la plus récente disponible.",
+      "open_releases": "Ouvrir la page des versions"
     },
     "planMode": {
       "title": "Toujours planifier",

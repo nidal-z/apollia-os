@@ -191,7 +191,7 @@ check_grep   "llm costs threshold = 0.5" "0.5"       "$BIN" llm costs --get-thre
 check_exit   "llm setup without --local"  1          "$BIN" llm setup --model /tmp/never.gguf
 check_exit   "llm setup --local missing model"  1    "$BIN" llm setup --local --model /definitely/missing.gguf
 
-# ── A.12 tools / model / plan cache / workspace / rollback (offline) ─────────
+# ── A.12 tools / model / plan cache / workspace (offline) ───────────────────
 section "A.12 local services"
 check        "tools list"                            "$BIN" tools list
 check_content "tools list has bash_executor" "bash_executor" "$BIN" tools list
@@ -206,9 +206,6 @@ check        "plan cache clear --force"              "$BIN" plan cache clear --f
 check        "plan cache evict --max-age-days 7"     "$BIN" plan cache evict --max-age-days 7
 check        "workspace status"                      "$BIN" workspace status
 check        "workspace init --force (scratch cwd)"  bash -c "cd '$SCRATCH' && '$BIN' workspace init --force"
-check        "rollback --list"                       "$BIN" rollback --list
-check        "rollback --last-n 1 --dry-run"         "$BIN" rollback --last-n 1 --dry-run
-check_exit   "rollback --dry-run (no target) → 1"  1 "$BIN" rollback --dry-run
 
 # ── A.13 exit-code contract (runtime-bound commands, daemon OFF → 2) ─────────
 section "A.13 exit-code contract (daemon off)"

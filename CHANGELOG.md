@@ -13,13 +13,11 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
   algorithms in the standalone `apollia-loom-models` crate, and a Miri
   undefined-behavior suite over the FFI-adjacent pure helpers in `apollia-aip`.
   Both are dev-only (no runtime dependency) and run as advisory nightly CI jobs.
-  See ADR-043.
 - Formal verification: bounded Kani symbolic proofs of the two cardinal
   invariants, the non-bypassable `StepBudget` (`apollia-oria`) and the mailbox
   lease/ack fence (`apollia-runtime`), each with an in-tree proptest mirror that
   runs under `cargo test`. Dev-only; an advisory nightly `kani` CI job runs the
-  proofs (Kani links its own toolchain via rustup, so it is CI-only). See
-  ADR-046.
+  proofs (Kani links its own toolchain via rustup, so it is CI-only).
 
 ### Changed
 
@@ -32,14 +30,14 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 - Mailbox lease exclusivity (C9-F4): `ack`/`nack` are now fenced on the leasing
   `run_id` via a new `lease_owner` column, so a stale consumer whose lease was
   re-leased to another run can no longer delete or requeue the message the new
-  owner is processing. See ADR-046.
+  owner is processing.
 - `StepBudget` step/tool-call increment used a checked `+` that could panic in
   debug at `u32::MAX`; it now saturates.
 
-## [0.1.0-preview] - 2026-08-03
+## [0.1.0-preview] - Unreleased
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,
-single-maintainer.
+single-maintainer. The date and the tag land when the release is published.
 
 ### Added
 
@@ -59,16 +57,17 @@ single-maintainer.
 **PyO3 bridge (AIP)**
 
 - Native async Rust to Python bridge via `pyo3` and `pyo3-async-runtimes`.
-- Duck-typed agents: any Python object exposing `manifest()` and an async
-  `run()` is AIP-compatible.
+- Decorator-based agent contract: a class carrying `@agent` plus at least one
+  `@skill` or `@on_message` method. The bridge refuses an object without
+  `__apollia_dispatch__`.
 - `ToolProxy`, `MemoryInterface`, and `AIPBridge` exposing the Rust runtime
   to Python.
 - `AgentLoader` trait decoupling the runtime from PyO3.
 
 **LLM**
 
-- LLM router with local quantized backend (`llama-cpp-2`), Anthropic, and
-  OpenAI providers.
+- LLM router serving local GGUF models through an embedded `llama-server`
+  (upstream llama.cpp), alongside Anthropic and OpenAI providers.
 - Meta planner for next-step suggestions, plan caching, and orchestrated
   decision points.
 - Token budget tracking per session with hard and soft limits.
@@ -115,7 +114,8 @@ single-maintainer.
 - Tauri 2 application sharing the runtime and Python interpreter with the
   CLI.
 - Svelte 5 frontend with TypeScript, Vite, Tailwind, Bits UI.
-- Built-in onboarding agent and Apollia coach.
+- Built-in onboarding agent, and a companion that answers from the
+  documentation shipped with the binary.
 
 **CLI**
 
@@ -143,10 +143,9 @@ single-maintainer.
 
 **Documentation**
 
-- Public book (mdBook) with capstone E2E walkthrough.
+- Public documentation site (Docusaurus) with a capstone end-to-end walkthrough.
 - Operator help corpus.
-- Architecture Decision Records.
-- `AGENTS.md` rulebook for AI coding assistants working in the repo.
+- `AGENTS.md` rulebook and the `docs/agents/` engineering corpus.
 
 ### Security
 
@@ -155,5 +154,4 @@ single-maintainer.
   awaiting upstream patches.
 - Private vulnerability reporting via GitHub Security Advisories.
 
-[Unreleased]: https://github.com/Apollia-OS/apollia-os/compare/v0.1.0-preview...HEAD
-[0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview
+[Unreleased]: https://github.com/Apollia-OS/apollia-os/commits/main

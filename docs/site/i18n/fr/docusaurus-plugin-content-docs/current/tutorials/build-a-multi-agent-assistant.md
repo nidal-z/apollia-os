@@ -241,9 +241,6 @@ class WebResearch:
             "linkedin_url": results["results"][0]["url"],
             "key_people": [],
         }
-
-
-agent = WebResearch()
 ```
 
 Chaque skill renvoie un simple `dict` (ou un `TypedDict`, qui est un `dict` à
@@ -336,9 +333,6 @@ class CrmLookup:
 
         history: list[HistoryEntry] = []
         return {"contact_email": contact_email, "history": history}
-
-
-agent = CrmLookup()
 ```
 
 ## Worker 3 : meeting-prep
@@ -425,9 +419,6 @@ class MeetingPrep:
         for theme in themes:
             lines.append(f"- About **{theme}**: ?")
         return {"markdown": "\n".join(lines)}
-
-
-agent = MeetingPrep()
 ```
 
 ## Installer et activer les workers
@@ -540,9 +531,6 @@ class MeetingDirector:
             ],
             max_steps=12,
         )
-
-
-agent = MeetingDirector()
 ```
 
 `emit_thought` diffuse une étape de raisonnement à tout observateur via

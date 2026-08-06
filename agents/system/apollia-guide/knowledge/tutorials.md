@@ -15,9 +15,6 @@ class Hello:
     @on_message
     async def handle(self, message: str, history: list, ctx: Ctx) -> str:
         return f"You said: {message}"
-
-
-agent = Hello()
 ```
 
 ## Install and run an agent from the CLI
@@ -60,9 +57,6 @@ class Notes:
     async def add(self, text: str, ctx: Ctx) -> dict:
         await ctx.memory.record("note", text)
         return {"stored": text}
-
-
-agent = Notes()
 ```
 
 ## Delegate to another agent (A2A)

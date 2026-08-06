@@ -36,7 +36,6 @@ rôle.
 | Chemin | Ce que c'est |
 |---|---|
 | `docs/site/` | Le site de documentation public (Docusaurus, anglais + français, structure Diataxis). Cette page se trouve ici. |
-| `docs/adr/` | Les Architecture Decision Records (ADR) : numérotés, en ajout seul, en anglais. Le registre versionné des décisions techniques significatives et de leur justification. |
 | `docs/agents/` | Le corpus de règles détaillé pour les contributeurs (humains et LLM) : patterns de code, nomenclature, tests, sécurité, et la liste des pratiques interdites. Anglais uniquement. |
 | `docs/internal/` | Planification des releases et notes internes. Ignoré par git et jamais livré, donc tout chemin sous ce répertoire mentionné dans un enregistrement de décision n'est qu'une provenance, pas quelque chose que vous pouvez ouvrir. |
 
@@ -78,13 +77,11 @@ principales :
 | `README.md` | Vue d'ensemble du projet et point d'entrée. |
 | `AGENTS.md` | Le point d'entrée standard pour les assistants de code LLM ; oriente vers le corpus de règles `docs/agents/`. |
 | `CONTRIBUTING.md` | Comment contribuer (workflow, attentes). |
-| `CODE_OF_CONDUCT.md` | Normes de conduite de la communauté. |
+| `.github/CODE_OF_CONDUCT.md` | Normes de conduite de la communauté. GitHub le lit depuis `.github/` comme depuis la racine. |
 | `GOVERNANCE.md` | Comment les décisions sont prises et qui maintient le projet. |
 | `SECURITY.md` | Comment signaler une vulnérabilité, et la politique de versions supportées. |
-| `ROADMAP.md` | Orientation publique et travaux planifiés. |
 | `SPONSORS.md` | Informations sur le financement et le sponsoring. |
 | `CHANGELOG.md` | Registre lisible des changements notables par release. |
-| `llm.txt` | Une description dense et précise du projet, rédigée pour les agents de code IA, afin que leur fenêtre de contexte soit utilisée efficacement et qu'ils fassent moins d'hypothèses erronées. |
 
 ## Licences
 
@@ -112,7 +109,6 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `clippy.toml` | Seuils Clippy : MSRV `1.89`, complexité cognitive `30`, complexité de type `250`, au plus `5` arguments par fonction, et une limite de `800` lignes par fonction. |
 | `rustfmt.toml` | Formatage : édition 2021, `max_width = 100`, imports réordonnés, raccourcis field-init et try, fins de ligne Unix. |
 | `deny.toml` | Politique `cargo-deny` : une liste blanche de licences acceptables, le refus des registres inconnus, un avertissement sur les versions de dépendances dupliquées, et une liste documentée, par release, des avis de sécurité ignorés (chacun avec sa condition de levée). |
-| `mutants.toml` | Configuration de `cargo-mutants` (tests de mutation) : multiplicateurs de timeout, et exclusion des crates qui ne compilent pas isolément (`apollia-desktop`, `tests/`) ainsi que des build scripts. Outillage de qualité des tests, réservé au développement. |
 | `Cross.toml` | Cross-compilation `cross-rs` : les étapes `pre-build` qui installent les bibliothèques système Linux (ALSA, PulseAudio, JACK, CMake, clang) dans le conteneur de build pour les cibles GNU/Linux x86_64 et aarch64. |
 | `sonar-project.properties` | Configuration d'analyse SonarQube (build communautaire local, ne fait pas partie de la release publique) : racines des sources et des tests, exclusions, chemin du rapport Clippy importé, et exemptions documentées par règle. |
 | `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. |
@@ -132,8 +128,6 @@ Leur présence dépend de ce que vous avez exécuté localement.
 
 | Chemin | Ce que c'est |
 |---|---|
-| `CLAUDE.md` | Surcouche de session Claude Code qui importe le corpus de règles. Local uniquement. |
-| `.claude/` | Paramètres de projet Claude Code, skills, et worktrees. |
 | `docs/internal/` | Planification des releases et notes internes. |
 | `target/` | Le répertoire de sortie de build Cargo. |
 | `.venv/`, `.venv-agents/` | Environnements virtuels Python locaux. |

@@ -69,9 +69,6 @@ class DocumentDirector:
             ],
             max_steps=8,
         )
-
-
-agent = DocumentDirector()
 ```
 
 `react` est une fonction libre, pas une méthode de `ctx` : vous lui passez

@@ -265,7 +265,7 @@ llama-qwen:
       if [ -d "$HOME/.apollia.before-seed" ]; then
         echo "  The automation seed is loaded. Your real profile is at" >&2
         echo "  ~/.apollia.before-seed, and the real model with it." >&2
-        echo "  Close the application, then: bash scripts/automation/seed/unload.sh" >&2
+        echo "  Close the application, then: bash tests/cli/seed/unload.sh" >&2
       else
         echo "  That is a placeholder, not a model. Point APOLLIA_LLAMA_MODEL at a real one." >&2
       fi
@@ -316,7 +316,7 @@ desktop-dev-qwen: runners-dev-macos
       if [ -d "$HOME/.apollia.before-seed" ]; then
         echo "  The automation seed is loaded. Your real profile is at" >&2
         echo "  ~/.apollia.before-seed, and the real model with it." >&2
-        echo "  Close the application, then: bash scripts/automation/seed/unload.sh" >&2
+        echo "  Close the application, then: bash tests/cli/seed/unload.sh" >&2
       else
         echo "  That is a placeholder, not a model. Point APOLLIA_LLAMA_MODEL at a real one." >&2
       fi
@@ -357,11 +357,11 @@ desktop-dev-qwen: runners-dev-macos
 # Examples:
 #   just desktop-build x86_64-pc-windows-msvc "cpu vulkan"
 #   just desktop-build aarch64-apple-darwin "cpu metal"
-desktop-build target="{{macos_target}}" runners="{{desktop_runners}}":
+desktop-build target=macos_target runners=desktop_runners:
     cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build --target "{{target}}"
 
 # Build desktop bundle for current host target
-desktop-build-host runners="{{desktop_runners}}":
+desktop-build-host runners=desktop_runners:
     cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build
 
 # -----------------------------------------------------------------------------
@@ -376,18 +376,18 @@ cli-release target="":
 
 # Build CLI + desktop bundle for any rust triple and runner set.
 # Example: just release-desktop x86_64-pc-windows-msvc "cpu cuda"
-release-desktop target runners="{{desktop_runners}}":
+release-desktop target runners=desktop_runners:
     just cli-release {{target}}
     just desktop-build {{target}} "{{runners}}"
 
 # Common release presets (override target and/or runners per command)
-release-macos target="{{macos_target}}" runners="cpu metal":
+release-macos target=macos_target runners="cpu metal":
     just release-desktop {{target}} "{{runners}}"
 
-release-linux target="{{linux_target}}" runners="{{linux_runners}}":
+release-linux target=linux_target runners=linux_runners:
     just release-desktop {{target}} "{{runners}}"
 
-release-windows target="{{windows_target}}" runners="{{windows_runners}}":
+release-windows target=windows_target runners=windows_runners:
     just release-desktop {{target}} "{{runners}}"
 
 # -----------------------------------------------------------------------------
@@ -506,7 +506,7 @@ desktop-dev-automation-seeded script: runners-dev-macos
     mkdir -p "$OUT"
     OUT="$(cd "$OUT" >/dev/null 2>&1 && pwd)"
     SEED_HOME="${APOLLIA_SEED_HOME:-$PWD/.apollia-seed-home}"
-    # The seed builder lives next to the script (scripts/automation/seed/), which
+    # The seed builder lives next to the script (tests/cli/seed/), which
     # may be in a worktree while the app is run from main. Derive it from the script.
     #
     # `env -u APOLLIA_SEED_OVERLAY`: the narrative overlay is for the screenshot

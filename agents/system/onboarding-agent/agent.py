@@ -1391,4 +1391,3 @@ class OnboardingAgent:
 # The `@agent` decorator already exposes a singleton as the module's `agent`
 # attribute; this explicit binding mirrors the example agents and makes the
 # entry point obvious.
-agent = OnboardingAgent()

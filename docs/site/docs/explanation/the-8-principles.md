@@ -44,7 +44,7 @@ rather than pushing them into every agent. For the exact contract an agent sees,
 read the [SDK reference](/reference/sdk).
 
 The earlier contract, a `manifest()` method plus an async `run()`, is gone
-(ADR-023). The bridge refuses any object without `__apollia_dispatch__`, the
+(see [the agent contract](/architecture/decisions#agent-contract)). The bridge refuses any object without `__apollia_dispatch__`, the
 attribute the decorators install, so an agent written the old way does not load
 at all rather than half-working.
 

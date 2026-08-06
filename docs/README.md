@@ -2,8 +2,8 @@
 
 Cette racine `docs/` regroupe la documentation d'Apollia. La documentation
 publique canonique vit dans `docs/site/` (Docusaurus, en + fr), structurée
-selon [Diátaxis](https://diataxis.fr/). Deux corpus committés l'accompagnent :
-les décisions (`docs/adr/`) et le rulebook pour agents IA (`docs/agents/`).
+selon [Diátaxis](https://diataxis.fr/). Le rulebook d'ingénierie
+(`docs/agents/`) l'accompagne.
 
 ---
 
@@ -14,7 +14,7 @@ les décisions (`docs/adr/`) et le rulebook pour agents IA (`docs/agents/`).
 | **Opérateur** (utilisateur Desktop, non-développeur) | accomplir une tâche dans l'app | [`docs/site/` operator-help](./site/docs/operator-help/) |
 | **Développeur découvrant Apollia ou utilisant le SDK Python** | apprendre en faisant, exemples concrets | [`docs/site/` tutorials + how-to](./site/docs/tutorials/) |
 | **Développeur expérimenté** | référence technique | [`docs/site/` reference](./site/docs/reference/) |
-| **Mainteneur** | comprendre une décision passée | [`docs/adr/`](./adr/) |
+| **Mainteneur** | comprendre une décision en vigueur | [`docs/site/` architecture](./site/docs/architecture/) |
 | **LLM / agent IA** | règles de code, conventions, patterns | [`docs/agents/`](./agents/) |
 
 ---
@@ -36,19 +36,10 @@ La doc publique canonique, en + fr, structurée Diátaxis :
 Build : `cd docs/site && npm run build` (garde-fou `onBrokenLinks: throw`).
 Les références machine (CLI / API / SDK) se régénèrent via `docs/site/regen.sh`.
 
-### 🗝️ [`docs/adr/`](./adr/) - Architecture Decision Records
-
-Les décisions architecturales passées. Une par fichier (`ADR-NNN-...md`).
-Format : Context / Decision / Consequences / Alternatives. Statut en tête
-(Proposed / Accepted / Deprecated / Superseded). Append-only : on n'édite pas
-un ADR accepté, on en écrit un nouveau qui le supersede. Anglais.
-
-**Audience** : mainteneur, lecteur curieux du "pourquoi".
-
 ### 🤖 [`docs/agents/`](./agents/) - Règles pour LLM et agents IA
 
-Le rulebook pour tout LLM qui code Apollia (Claude Code, Codex, Cursor, Aider,
-etc.). Anglais. Format AGENTS.md standard. Ton impératif. Point d'entrée
+Le rulebook d'ingénierie du dépôt, lisible par un humain comme par un
+assistant de code. Anglais. Format AGENTS.md standard. Ton impératif. Point d'entrée
 [`AGENTS.md`](../AGENTS.md) à la racine
 pour la navigation.
 
@@ -63,7 +54,7 @@ internes.
 |---|---|
 | Nouvelle API publique | `docs/site/docs/reference/` + doc-comment Rust (rustdoc) |
 | Nouvelle commande CLI | `crates/apollia-cli/AGENTS.md` + `docs/site/docs/reference/cli/` (régénéré) |
-| Décision architecturale | `docs/adr/ADR-NNN.md` (nouveau) |
+| Décision architecturale | `docs/site/docs/architecture/08-decisions.md` + miroir fr |
 | Nouveau pattern de code | `docs/agents/<thématique>.md` |
 | Changement opérateur visible | `docs/site/docs/operator-help/` + tutorial |
 

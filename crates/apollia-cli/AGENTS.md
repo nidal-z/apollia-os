@@ -4,7 +4,7 @@
 > and before editing this crate.
 
 The CLI is the human-facing entry point and the machine-facing scripting
-surface. Both are first-class. Adherence to ADR-004 (noun-verb commands)
+surface. Both are first-class. Adherence to the noun-verb taxonomy
 and to exit code 0-5 semantics is what keeps scripts portable across
 releases.
 
@@ -12,7 +12,7 @@ releases.
 
 ## 1. Command shape
 
-ADR-004, refined by ADR-034 (taxonomy v2). Every command is
+the canonical taxonomy below. Every command is
 `apollia <noun> <verb> [args]`, EXCEPT the bare-verb whitelist below.
 
 ```
@@ -23,7 +23,7 @@ apollia mcp add <name> <url>
 apollia task list --pending-approval
 ```
 
-**Canonical verbs (ADR-034).** One verb per intent:
+**Canonical verbs.** One verb per intent:
 - `show` is the only entity-detail read (absorbs the old `info`, `describe`,
   and entity-`get`).
 - `create` is the only entity-creation verb (absorbs the old `new`).
@@ -44,9 +44,9 @@ apollia task list --pending-approval
 allowed WITHOUT a noun; everything else is strictly noun-verb:
 `start`, `stop`, `status`, `run`, `doctor`, `inspect`, `logs`, `trace`,
 `version`, `digest`, `onboard`. Plus the meta commands `completions`, `guide`,
-`do`, `explain` (ADR-035/036). Adding to this whitelist requires a note here.
+`do`, `explain`. Adding to this whitelist requires a note here.
 
-**Folded / renamed nouns (ADR-034):** `mcp-server` -> `mcp server`,
+**Folded / renamed nouns:** `mcp-server` -> `mcp server`,
 `chat-config` -> `chat config`, `plan-cache` -> `plan cache`, `user-memory` ->
 `profile`; `hitl` removed (use `task list --pending-approval`).
 
@@ -104,7 +104,7 @@ fn test_agent_logs_parse_with_id_and_json() {
 }
 ```
 
-Target : 150+ parsing tests in this crate. Acquired during the Sprint 43
+Target : 150+ parsing tests in this crate. Acquired during the
 CLI sweep. Do not regress.
 
 ---
@@ -112,7 +112,7 @@ CLI sweep. Do not regress.
 ## 5. End-to-end tests
 
 `tests/cli/cli-e2e.sh` at the repo root : an orchestrator over a fixed,
-deterministically-seeded HOME (the shared `scripts/automation/seed` fixture,
+deterministically-seeded HOME (the shared `tests/cli/seed` fixture,
 never its optional narrative overlay), producing
 `tests/cli/report/report.{json,md}`. Three tracks :
 - Track 1 (OFFLINE) : every daemon-free command against the seeded HOME,

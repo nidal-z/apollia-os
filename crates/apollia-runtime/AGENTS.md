@@ -50,7 +50,7 @@ Lag handling : subscribers receive `Lagged(n)` from
 `resubscribe()`, and continue. Never panic on lag.
 
 Adding a new variant is a wire-format change. Document it in
-`docs/site/docs/reference/` (post-L2b) and bump the
+`docs/site/docs/reference/` and bump the
 `EVENTBUS_SCHEMA_VERSION` constant.
 
 ---
@@ -136,8 +136,8 @@ SQLite + `rusqlite` + FTS5. WAL journal mode.
 
 Databases :
 - `~/.apollia/runtime.db` : tasks, audit trail, sessions.
-- `~/.apollia/agents.db` : agent registry (ADR-026).
-- `~/.apollia/governance.db` : permissions, audit (ADR-015).
+- `~/.apollia/agents.db` : agent registry.
+- `~/.apollia/governance.db` : permissions, audit.
 - `~/.apollia/memory/<agent>.db` : per-agent memory (`apollia-memory`).
 
 Migration pattern : `CREATE TABLE IF NOT EXISTS` at first connection

@@ -45,9 +45,6 @@ class Summarizer:
         )
         await ctx.tools.call("file_write", {"path": out_path, "content": response.content})
         return {"summary": response.content, "path": out_path}
-
-
-agent = Summarizer()
 ```
 
 Un test unitaire correspondant, sous forme GIVEN / WHEN / THEN :

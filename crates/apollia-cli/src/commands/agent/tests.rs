@@ -519,7 +519,7 @@ fn test_format_audit_event_row_uses_real_keys() {
     // GIVEN an audit event with the real JSON shape from GET /agents/:id/logs
     let event = serde_json::json!({
         "started_at": "2026-07-01T15:05:32Z",
-        "tool_name": "mcp:yumni/list_criteria",
+        "tool_name": "mcp:filesystem/list_criteria",
         "success": true,
         "duration_ms": 13,
         "task_id": "dcd2713a-0000-4000-8000-000000000000",
@@ -531,7 +531,7 @@ fn test_format_audit_event_row_uses_real_keys() {
     // THEN the real values render (no stray `?` placeholders)
     assert!(!row.contains('?'), "row still has `?` placeholders: {row}");
     assert!(row.contains("2026-07-01T15:05:32Z"));
-    assert!(row.contains("mcp:yumni/list_criteria"));
+    assert!(row.contains("mcp:filesystem/list_criteria"));
     assert!(row.contains("ok"));
     assert!(row.contains("13ms"));
     assert!(row.contains("task=dcd2713a-0000-4000-8000-000000000000"));
@@ -542,7 +542,7 @@ fn test_format_audit_event_row_failed_uses_error_code() {
     // GIVEN a failed audit event carrying an error_code and no duration
     let event = serde_json::json!({
         "started_at": "2026-07-01T15:06:00Z",
-        "tool_name": "mcp:yumni/write",
+        "tool_name": "mcp:filesystem/write",
         "success": false,
         "error_code": "PERMISSION_DENIED",
         "task_id": "abc",

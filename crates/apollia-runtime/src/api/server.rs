@@ -6,7 +6,7 @@
 //! Both listeners use a manual `hyper-util` accept loop (axum 0.7 serves only a
 //! bare `TcpListener` natively, which cannot terminate TLS or accept a Unix
 //! socket). The TCP loop optionally wraps each connection in a `rustls`
-//! `TlsAcceptor` when a certificate is configured (ADR-047).
+//! `TlsAcceptor` when a certificate is configured.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -352,7 +352,7 @@ pub struct APIServerConfig {
     /// TCP listener entirely, so the runtime is reachable only through the Unix
     /// socket (local-trust). Embedded hosts default to `None`; the daemon sets
     /// `Some(port)`. Binding a non-loopback address without an `api_token` is
-    /// refused at startup (ADR-047); a loopback bind without a token is allowed.
+    /// refused at startup; a loopback bind without a token is allowed.
     pub tcp_port: Option<u16>,
     /// Bearer token required on TCP connections.
     ///
@@ -366,9 +366,9 @@ pub struct APIServerConfig {
     /// The Unix socket listener is never subject to token authentication.
     ///
     /// When a non-loopback `bind_addr` is combined with `None`, startup fails
-    /// fast (ADR-047): the daemon refuses to serve a public unauthenticated API.
+    /// fast: the daemon refuses to serve a public unauthenticated API.
     pub api_token: Option<String>,
-    /// PEM certificate chain for native TLS on the TCP listener (ADR-047).
+    /// PEM certificate chain for native TLS on the TCP listener.
     ///
     /// `Some` with [`tls_key_path`](Self::tls_key_path) enables TLS termination
     /// on the TCP listener. `None` keeps the listener cleartext, unchanged from
@@ -428,7 +428,7 @@ pub enum APIServerError {
         source: std::io::Error,
     },
 
-    /// TLS certificate or key could not be loaded (ADR-047).
+    /// TLS certificate or key could not be loaded.
     ///
     /// A daemon configured for TLS fails fast rather than falling back to
     /// cleartext when the certificate or key is missing or malformed.
@@ -440,7 +440,7 @@ pub enum APIServerError {
         reason: String,
     },
 
-    /// A non-loopback TCP bind was configured without a token (ADR-047).
+    /// A non-loopback TCP bind was configured without a token.
     ///
     /// Serving a public interface with no authentication is refused at startup
     /// instead of degrading to an unauthenticated API.
@@ -765,7 +765,7 @@ impl APIServer {
         // Conditionally bind the TCP listener. `None` serves the Unix socket
         // only, closing any unauthenticated TCP exposure for embedded hosts.
         if let Some(tcp_port) = config.tcp_port {
-            // Fail-fast (ADR-047): refuse a non-loopback bind with no token
+            // Fail-fast: refuse a non-loopback bind with no token
             // rather than silently serving a public unauthenticated API.
             if !is_loopback_addr(&config.bind_addr) && config.api_token.is_none() {
                 return Err(APIServerError::InsecureBindWithoutToken {
@@ -774,7 +774,7 @@ impl APIServer {
             }
 
             // Build the TLS acceptor before binding so a bad certificate fails
-            // fast instead of degrading to cleartext (ADR-047).
+            // fast instead of degrading to cleartext.
             let tls_acceptor = match (&config.tls_cert_path, &config.tls_key_path) {
                 (Some(cert), Some(key)) => Some(build_tls_acceptor(cert, key)?),
                 _ => None,
@@ -840,7 +840,7 @@ impl APIServer {
 ///
 /// `localhost` and any address parsing as a loopback IP (`127.0.0.0/8`, `::1`)
 /// are loopback. Anything else, including an unparseable host, is treated as
-/// non-loopback so a token is required (ADR-047, fail-fast).
+/// non-loopback so a token is required (fail-fast).
 fn is_loopback_addr(bind_addr: &str) -> bool {
     if bind_addr.eq_ignore_ascii_case("localhost") {
         return true;
@@ -855,7 +855,7 @@ fn is_loopback_addr(bind_addr: &str) -> bool {
 ///
 /// Uses the ring crypto provider (already vendored) and the PEM helpers from
 /// `rustls-pki-types`, so no additional PEM crate is required. Any IO or parse
-/// failure is a fail-fast [`APIServerError::TlsConfigLoad`] (ADR-047).
+/// failure is a fail-fast [`APIServerError::TlsConfigLoad`].
 fn build_tls_acceptor(
     cert_path: &Path,
     key_path: &Path,

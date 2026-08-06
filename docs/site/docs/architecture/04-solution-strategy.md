@@ -19,7 +19,7 @@ the "one actor, one responsibility" principle becomes an enforced property
 rather than a convention. The trade-off is more message plumbing; the payoff is
 the absence of a whole class of async deadlocks and data races.
 
-See ADR-005 for the ORIA execution model that runs on top of this.
+See [the execution model](/architecture/decisions#execution-model) for the engine that runs on top of this.
 
 ## Inference as a supervised sidecar
 
@@ -35,7 +35,7 @@ supported model architectures.
 The current supervision is honest about its limits: the daemon spawns the
 inference process, but automatic health monitoring and restart are not yet
 wired. See [Risks and technical debt](/architecture/risks-and-technical-debt).
-The decision itself is ADR-007.
+See [local inference](/architecture/decisions#local-inference).
 
 ## A PyO3 bridge with trait-decoupled services
 
@@ -46,7 +46,7 @@ so the agent contract is decoupled from the implementation and can be mocked for
 testing. The agent side sees one typed context with fifteen services; the Rust
 side can evolve behind it.
 
-The bridge decision is ADR-002; the `ctx` contract is ADR-024 and is documented
+See [stack and runtime](/architecture/decisions#stack-and-runtime) and [the agent contract](/architecture/decisions#agent-contract); `ctx` is documented
 in the [SDK reference](/reference/sdk).
 
 ## A machine contract for host integration
@@ -58,7 +58,7 @@ breaking changes reserved for a future `/api/v2`). Typed host SDKs in TypeScript
 and Python are generated from that spec. An integrator drives a real daemon
 without reverse-engineering anything.
 
-This is ADR-037. The generated surface is the [HTTP API reference](/reference/api/apollia-os-runtime-api);
+See [host integration](/architecture/decisions#host-integration). The generated surface is the [HTTP API reference](/reference/api/apollia-os-runtime-api);
 the how-to is [Integrate via the driving contract](/how-to/integrate-via-driving-contract).
 
 ## Governance lives in the runtime, not in the agent
@@ -70,5 +70,6 @@ surprised by their absence. This is what makes autonomy delegable, and it is the
 subject of [Cross-cutting concepts](/architecture/crosscutting-concepts) and the
 [accountability model](/explanation/accountability-model).
 
-The governing decisions are ADR-015 (permission and tool governance), ADR-013
-(human-in-the-loop), and ADR-016 (secrets and API auth).
+The governing decisions are [the permission model](/architecture/decisions#permission-model),
+[human in the loop](/architecture/decisions#human-in-the-loop), and [secrets and API
+authentication](/architecture/decisions#secrets-and-api-auth).

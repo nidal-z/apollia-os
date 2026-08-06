@@ -95,9 +95,6 @@ class Coach:
             ],
         )
         return response.content
-
-
-agent = Coach()
 ```
 
 Three things make this an agent:
@@ -108,9 +105,9 @@ Three things make this an agent:
   fixed: `(self, message, history, ctx)` returning the reply as a string.
 <!-- claim:module-level-agent-attribute-is-the-entry-point -->
 
-- **`agent = Coach()`** at the bottom of the module is what the runtime loads.
-  Every Apollia agent module ends with this line. Use absolute imports
-  (`from apollia import ...`), never relative ones.
+- **A module-level `agent` symbol** is what the runtime loads. You do not write
+  it: `@agent` instantiates the class and binds the instance to the module for
+  you. Use absolute imports (`from apollia import ...`), never relative ones.
 
 Inside the handler, `ctx.llm.complete(...)` sends the conversation to the
 configured backend and returns a response whose `.content` is the generated

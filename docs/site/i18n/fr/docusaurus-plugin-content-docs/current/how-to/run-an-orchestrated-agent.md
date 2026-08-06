@@ -62,9 +62,6 @@ Stay grounded. If you cannot verify a fact, say so explicitly in the briefing.
 @orchestrated(system_prompt=SYSTEM_PROMPT)
 class Briefing:
     pass
-
-
-agent = Briefing()
 ```
 
 C'est un agent complet. Il ne déclare aucune méthode : ORIA exécute la
@@ -114,9 +111,6 @@ class Briefing:
             if "facts" in step_id and text:
                 sections.append(f"- {text}")
         return "## Key facts\n\n" + "\n".join(sections)
-
-
-agent = Briefing()
 ```
 
 `step_results` associe chaque identifiant d'étape (par exemple

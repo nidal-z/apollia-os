@@ -19,8 +19,5 @@ class Echo:
 
     @on_message
     async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
-        ctx.log("info", "echo.received")
+        ctx.logger.info("echo.received")
         return f"echo: {message}"
-
-
-agent = Echo()  # type: ignore[assignment]

@@ -3537,7 +3537,9 @@
       "changelog_title": "What's new",
       "show_details": "Technical details",
       "downloading": "Downloading update…",
-      "installed": "Update installed. Restarting Apollia OS…"
+      "installed": "Update installed. Restarting Apollia OS…",
+      "no_channel": "No update has been published yet. This build is the latest one available.",
+      "open_releases": "Open the releases page"
     },
     "planMode": {
       "title": "Always plan",

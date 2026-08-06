@@ -77,7 +77,7 @@ full picture live in [the agent trust model](/explanation/agent-trust-model).
 <!-- claim:bash-executor-requires-posix-shell -->
 On Windows, `bash_executor` refuses with an error naming the missing
 prerequisite when no POSIX shell is on `PATH`; `cmd.exe` and PowerShell are
-never used, because command validation encodes POSIX shell semantics (ADR-049).
+never used, because command validation encodes POSIX shell semantics.
 One resolved shell both validates and executes every command, on every OS.
 
 <!-- claim:python-executor-locates-windows-interpreter -->

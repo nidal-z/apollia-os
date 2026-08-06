@@ -24,7 +24,7 @@ and executes with the full rights of the runtime process: the filesystem, the
 network, process spawning, and read access to credentials in the keyring. There
 is no OS sandbox around the agent itself, no process-per-agent isolation, and no
 in-language confinement. A malicious or buggy agent can do anything the current
-user can do. This is a deliberate v0.1.0 decision (recorded in ADR-003): the
+user can do. This is a deliberate v0.1.0 decision (see [tools and confinement](/architecture/decisions#tools-and-sandbox)): the
 audience is builders who write or audit the agents they run.
 
 <!-- claim:tool-sandbox-covers-child-processes-only -->
@@ -121,7 +121,7 @@ page and the decision record will be updated to match, never ahead of the code.
 
 ## See also
 
-- ADR-003 records the sandbox and agent-trust decision and its rejected
+- [Tools and confinement](/architecture/decisions#tools-and-sandbox) states the confinement decision and its rejected
   alternatives.
 - [The accountability model](/explanation/accountability-model) covers audit
   and approval in depth.

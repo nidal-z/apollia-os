@@ -53,22 +53,21 @@ cargo fmt --check
 # Docs
 cd docs/site && npm run build
 
-# CLI end-to-end (Phase A local, Phase B opt-in cloud)
+# CLI end-to-end (Track 1 offline, Tracks 2 and 3 opt-in)
 bash tests/cli/cli-e2e.sh
-
-# Desktop end-to-end (dev-only gestural automaton, seeded, macOS)
-lsof -ti :5173 :8899 | xargs kill -9 2>/dev/null
-just desktop-dev-automation-seeded scripts/automation/master-det.json
-# See scripts/automation/README.md for the LLM/destructive runs and maintenance.
 ```
 
-The desktop E2E automaton drives the real Tauri app by `data-testid` (no
-WebDriver on WKWebView). It is dev-only and tree-shaken out of release builds.
-Read `scripts/automation/README.md` before touching a script or the runner:
-validate scripts with `scripts/automation/tools/validate.py`, regenerate
-`master-det` from the per-page scripts with `scripts/automation/tools/regen_master.py`. Adding a new
-UI surface means adding its `data-testid`s and a step to the matching
-`<page>-det.json`, then regenerating `master-det`.
+The CLI end-to-end suite runs against a deterministically seeded, throwaway
+`HOME` built by `tests/cli/seed/build-seed.sh`, so a run never touches
+the real `~/.apollia`. Track 1 is offline and always runs; Tracks 2 and 3 are
+gated by `APOLLIA_REQUIRE_RUNTIME` and `APOLLIA_TEST_MODEL_GGUF`. Read
+`tests/cli/README.md` before changing a track or the fixture: the suite asserts
+the seed's exact row counts, so a fixture change is a suite change.
+
+The desktop UI is covered by Vitest unit tests and by Playwright suites under
+`crates/apollia-desktop/ui/tests/`. There is no WebDriver for WKWebView on
+macOS, so there is no browser-driven end-to-end suite for the Tauri shell; the
+runtime paths it exercises are covered through the CLI suite above.
 
 Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
 `cargo check`. Do not bypass them.
@@ -82,7 +81,7 @@ Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
    prior install.
 3. **Minimal contract** : a class decorated with `@agent`, one `@skill` or one
    `@on_message` async method, and nothing else. The legacy `manifest()` plus
-   `run()` escape hatch is gone (ADR-023): the bridge refuses an object without
+   `run()` escape hatch is gone: the bridge refuses an object without
    `__apollia_dispatch__`.
 4. **Fail fast** : any startup-detectable error is detected at startup.
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
@@ -141,7 +140,7 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 
 - Adding any third-party dependency (Cargo or Python). Each one is a
   sovereignty surface. ADR-justified.
-- Touching an ADR in `docs/adr/` (numbered, append-only).
+- Changing a decision recorded in the architecture chapter of `docs/site/`.
 - Modifying a public API in `apollia-core` (used by every other crate).
 - Touching anything in `docs/internal/` (gitignored, source of truth for
   release planning).
@@ -155,7 +154,7 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 - `from __future__ import annotations` in any module with `TypedDict`.
 - Relative imports in Python (`from .module import X`).
 - em-dash `—` in any prose, comment, or documentation file.
-- `Co-Authored-By: Claude` (or any AI co-author trailer) in commit messages.
+- Any co-author trailer in a commit message. One commit, one author.
 - Mixing French and English in the same file.
 - AI stock phrases ("as an AI", "it's important to note", "il convient de
   noter", etc.).
@@ -172,7 +171,7 @@ conflict. The nearest one wins.
 
 | Path | Scope |
 |---|---|
-| `crates/apollia-cli/AGENTS.md` | CLI binary, ADR-004 noun-verb, exit codes 0-5 |
+| `crates/apollia-cli/AGENTS.md` | CLI binary, noun-verb taxonomy, exit codes 0-5 |
 | `crates/apollia-aip/AGENTS.md` | PyO3 bridge, `Bound<'py, T>`, `pyo3-async-runtimes` |
 | `crates/apollia-mcp/AGENTS.md` | MCP client transports, untrusted-response byte cap |
 | `crates/apollia-oria/AGENTS.md` | ORIA engine, StepBudget, ResilienceLayer, plan cache |
@@ -189,9 +188,10 @@ patterns the global rules do not cover. Document the trigger in its header.
 
 Rules are negotiable. Silent violations are not. Three options, in order:
 
-1. Document an exemption inline (`// SAFETY:`, `# REASON:`, an ADR reference).
+1. Document an exemption inline (`// SAFETY:`, `# REASON:`).
 2. Surface the conflict and propose a rule update.
-3. Open an ADR if the conflict reflects a real architectural shift.
+3. Change the decisions chapter of the documentation site, in the same commit
+   as the code, if the conflict reflects a real architectural shift.
 
 Never circumvent a rule by restating it in vaguer terms.
 

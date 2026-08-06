@@ -287,9 +287,6 @@ class Coach:
             ],
         )
         return response.content
-
-
-agent = Coach()
 ```
 
 - **`@agent(...)`** declares the manifest. `name`, `version`, and `description` are required.
@@ -326,9 +323,6 @@ class Director:
             ],
             max_steps=10,
         )
-
-
-agent = Director()
 ```
 
 `react` delegates the `LLM -> tool(s) -> LLM -> ... -> final answer` cycle to the
@@ -488,6 +482,8 @@ cargo tauri dev
 
 All views update in real time via SSE streams. The system tray shows the pending approval count and supports graceful quit.
 
+**Updates.** Releases are published on [GitHub Releases](https://github.com/Apollia-OS/apollia-os/releases). The desktop app checks that feed only when you ask it to, from Settings, and never in the background. Until a release is published the check reports that there is nothing newer, rather than failing.
+
 ---
 
 ## CLI Reference
@@ -577,10 +573,10 @@ channel for each kind of feedback.
 
 ## Support Apollia OS
 
-Apollia OS is built and maintained by one person, in the open, under a permissive
-license. There is no cloud backend to upsell and no telemetry to monetize. If the
-project is useful to you, or you want to see it reach a stable v1.0, recurring
-support is what keeps the work going.
+Apollia OS is built in the open, under a permissive license. There is no cloud
+backend to upsell and no telemetry to monetize. If the project is useful to you,
+or you want to see it reach a stable v1.0, recurring support is what keeps the
+work going.
 
 - **[Patreon](https://patreon.com/apollia)** - recurring support, with patron-only
   development updates and a vote on what ships next.
@@ -589,8 +585,8 @@ support is what keeps the work going.
 - **[Ko-fi](https://ko-fi.com/apollia)** - a one-time tip, no account or
   subscription required.
 
-Funding goes straight to the public [roadmap](ROADMAP.md): cross-platform CI,
-vision support, and the agent marketplace foundations. Supporters are listed in
+Funding goes straight into the work: cross-platform CI, vision support, and the
+foundations for distributing community agents. Supporters are listed in
 [SPONSORS.md](SPONSORS.md).
 
 This is separate from the commercial side. If you need a custom agent built for

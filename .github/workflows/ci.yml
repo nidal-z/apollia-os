@@ -173,7 +173,7 @@ jobs:
       - name: Build apollia-cli
         run: cargo build -p apollia-cli
       - name: Seed builder self-test
-        run: bash scripts/automation/seed/self-test.sh
+        run: bash tests/cli/seed/self-test.sh
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report

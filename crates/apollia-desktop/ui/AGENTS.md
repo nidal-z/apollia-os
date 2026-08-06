@@ -9,7 +9,7 @@ Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
 + bits-ui + svelte-i18n v4.
 
 Authoritative design reference : `crates/apollia-desktop/ui/src/app.css`
-(HSL custom properties, component layers, ADR-021). This file does not duplicate
+(HSL custom properties, component layers). This file does not duplicate
 that catalogue. It encodes the rules to follow when consuming or extending it.
 
 **No directory tree here, and that is a rule rather than an omission.** The one
@@ -114,7 +114,7 @@ Categories of tokens (see `crates/apollia-desktop/ui/src/app.css` for the full t
   `--info`.
 - **Text** : `--foreground`, `--text-muted`, `--text-success`, `--text-warning`,
   `--text-danger` (A11y-verified contrasts).
-- **Elevation** : ADR-021 elevation tokens with rim lights for dark warmth.
+- **Elevation** : elevation tokens with rim lights for dark warmth.
 - **Gradients** : `--gradient-primary`, `--gradient-surface`,
   `--gradient-accent`.
 - **Glass** : `--glass-border-light`, `--glass-border-dark`, with hover
@@ -301,15 +301,16 @@ field exposed). When fusing duplicated screens or features :
   responsive layout, perf). They do **not** exercise the packaged application.
   Run with `npm run test:perf` and the sibling scripts; the package manager is
   `npm`, not pnpm.
-- **End-to-end on the real application : the gestural automaton** in
-  `scripts/automation/`. macOS has no WebDriver for WKWebView, so the driver
-  injects gestures by `data-testid` into the running Tauri app against a seeded
-  throwaway `HOME`. 37 scripts today. Read `scripts/automation/README.md` before
-  touching one, and regenerate `master-det` with `tools/regen_master.py` after
-  editing a per-page script. Adding a UI surface means adding its `data-testid`s
-  and a step in the matching `<page>-det.json`.
+- **End-to-end on the packaged application : none in this repository.** macOS
+  has no WebDriver for WKWebView, so the Tauri shell cannot be driven by a
+  standard browser harness. The runtime paths behind the UI are covered through
+  `tests/cli/cli-e2e.sh`, which exercises the same commands against a seeded
+  throwaway `HOME`.
 - There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
   write a test that assumes either.
+- Keep `data-testid` on any surface a test drives. They are the only stable
+  handle the UI offers, they cost nothing at runtime, and a renamed one is a
+  silently skipped assertion rather than a failure.
 
 ---
 

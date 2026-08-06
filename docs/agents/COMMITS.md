@@ -25,7 +25,6 @@ feat(apollia-runtime): add EventBus capacity validation
 Capacity outside [64, 65536] now returns ConfigError::InvalidCapacity at
 construction time instead of silently truncating in the broadcast channel.
 
-Refs ADR-012
 ```
 
 ---
@@ -68,7 +67,7 @@ test(apollia-cli): add parsing tests for agent logs
 ```
 docs(book): chapter 8 on declarative orchestration
 docs(wiki): update Architecture-Principes
-docs(adr): ADR-007 multi-runner sidecar
+docs(site): document the multi-runner sidecar
 docs(help): operator article for OAuth setup
 ```
 
@@ -131,10 +130,8 @@ Reproduced with `tests/cli/cli-e2e.sh --stress`.
 Used for cross-references and breaking changes.
 
 ```
-Refs ADR-004
 Refs #142
 Closes #237
-See-also story-094
 BREAKING CHANGE: SecretStore::read now returns Option<Secret>
 ```
 

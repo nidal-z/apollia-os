@@ -63,7 +63,6 @@ CLAIMS_FILE = REPO_ROOT / "docs" / "CLAIMS.toml"
 ANCHOR_ROOTS = [
     REPO_ROOT / "docs" / "site" / "docs",
     REPO_ROOT / "docs" / "site" / "i18n",
-    REPO_ROOT / "docs" / "adr",
 ]
 
 # A re-export names a symbol without reading it, so it must not satisfy
@@ -183,7 +182,7 @@ def check_absent(claim: dict, sources: list[Path]) -> None:
     """The symbol must not appear anywhere in the sources.
 
     Reintroducing a symbol a decision removed is invisible: it compiles, tests
-    pass, and the ADR that recorded the removal keeps saying it is gone.
+    pass, and the page that recorded the removal keeps saying it is gone.
 
     Unlike the other checks this one does **not** call `strip_test_code`, and the
     two err in opposite directions. For `wired`, cutting at the first

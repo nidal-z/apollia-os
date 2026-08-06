@@ -12,6 +12,15 @@ export interface UpdateCheckResult {
   current_version: string;
   new_version?: string | null;
   release_notes?: string | null;
+  /**
+   * The endpoint answered, but publishes no manifest this build can use.
+   *
+   * True on the first public release, before a `latest.json` is attached: the
+   * endpoint returns 404 and the backend reports it as a state rather than as
+   * an error, so a day-one check does not surface a red banner the operator
+   * cannot act on.
+   */
+  channel_unavailable: boolean;
 }
 
 /**

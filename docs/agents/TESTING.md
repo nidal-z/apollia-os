@@ -16,7 +16,7 @@ apply.
 |---|---|---|---|---|---|---|---|
 | **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest + @testing-library/svelte | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
 | **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on the bundle with the Tauri bridge stubbed | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
-| **E2E** | delegated to CLI tests | n/a | the gestural automaton, `scripts/automation/` | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
+| **E2E** | delegated to CLI tests | n/a | none on the packaged app (no WKWebView WebDriver) | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
 | **Property** | `proptest` | `hypothesis` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
 | **Snapshot** | `insta` | `syrupy` | none; no visual baseline suite exists | snapshot CLI human + `--json` output | `insta` on serialized response | event-stream traces | tool outputs |
 | **Benchmark** | `criterion` | `pytest-benchmark` | Lighthouse | `hyperfine` | `wrk` or criterion | criterion ops/sec | n/a |
@@ -27,7 +27,7 @@ apply.
 ## 2. Discipline (applies to every test level)
 
 **GIVEN / WHEN / THEN comments mark each block.** This discipline exposed
-every CLI bug in the Sprint 43 E2E sweep. Do not skip it.
+every argument-parsing defect in the CLI tree. Do not skip it.
 
 ```rust
 #[tokio::test]
@@ -151,9 +151,10 @@ Target : 150+ parsing tests workspace-wide (acquired in the CLI sprint).
 
 ### 5.2 End-to-end (`tests/cli/cli-e2e.sh`)
 
-Orchestrator (bash) over a fixed, deterministically-seeded HOME (the shared
-`scripts/automation/seed` fixture, never its optional narrative overlay), with a
-machine + human report (`tests/cli/report/report.{json,md}`). Three tracks :
+Orchestrator (bash) over a fixed, deterministically-seeded HOME (built by
+`tests/cli/seed/build-seed.sh`, never its optional narrative overlay),
+with a machine + human report (`tests/cli/report/report.{json,md}`). Three
+tracks :
 - **Track 1 (OFFLINE)** : every daemon-free command against the seeded HOME.
   Asserts KNOWN seeded content (not empty states) + the exit-code contract.
   Runs on every PR (`cli-e2e` job in `ci.yml`).
@@ -218,10 +219,11 @@ Rules :
   stubbed. They cover machinery that needs a real browser: dirty state, nav
   guards, hotkey capture, responsive layout, perf. They do **not** exercise the
   packaged application.
-- **E2E on the real application** : the gestural automaton in
-  `scripts/automation/`. macOS has no WebDriver for WKWebView, so the driver
-  injects gestures by `data-testid` into the running Tauri app against a seeded
-  throwaway `HOME`. Read `scripts/automation/README.md` before touching it.
+- **E2E on the packaged application** : none in this repository. macOS has no
+  WebDriver for WKWebView, so the Tauri shell cannot be driven by a standard
+  browser harness. The runtime paths behind the UI are covered through
+  `tests/cli/cli-e2e.sh`, which drives the same commands against a seeded
+  throwaway `HOME`.
 - There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
   write a test that assumes either, and note the package manager is `npm`.
 

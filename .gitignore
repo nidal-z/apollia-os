@@ -61,7 +61,9 @@ docs/specs/
 docs/target/
 # Archived legacy book + gettext translation catalogs (excluded from public repo)
 
-# Claude
+# Coding-assistant session state and per-project tooling. Working method, not
+# product: it describes how the tree is worked on, which nobody needs in order
+# to build or use it.
 .claude/
 CLAUDE.md
 # Dossier de démonstration - fichiers locaux non versionnés
@@ -74,14 +76,14 @@ demo/
 /crates/apollia-desktop/resources/python/*
 !/crates/apollia-desktop/resources/python/.placeholder
 
-# SonarQube local scan artifacts (pre-launch sanitize, chantier G)
+# SonarQube local scan artifacts.
 /.sonar/
 /.scannerwork/
 
-# Private agents kept out of the public repo (per REPO-STATE D-G).
-# Sources of truth live in /Users/<user>/dev/apollia-os-private/agents-internal/.
-# These patterns are belt-and-suspenders: the physical move keeps them off
-# the working tree, the entries below catch accidental re-introduction.
+# Agents that are not part of the public tree. Their sources of truth live in a
+# separate private repository. These patterns are belt-and-suspenders: the
+# physical move keeps them off the working tree, the entries below catch
+# accidental re-introduction.
 /agents/_test_forge/
 /agents/archive-worker/
 /agents/chart-worker/
@@ -90,15 +92,50 @@ demo/
 /agents/veille-ia/
 /agents/xlsx-worker/
 /agents/sanitize-codebase/
-# Client engagement PoC: business referential, eval dataset and scored
-# baselines are covered by the engagement, not by this repository's licence.
-/agents/yumni-classification/
+# Client engagement material: business referential, evaluation dataset and
+# scored baselines are covered by the engagement, not by this repository's
+# licence.
+/agents/*-classification/
 
-# Performance measurement campaigns. The harness in scripts/model-eval is
-# public, its result records are not: each one carries a provenance block with
-# absolute model paths, a machine identifier and OS version. They stay on disk
-# so a later campaign can be compared against them.
-/scripts/model-eval/results/
+# Performance measurement campaigns. A measurement harness and its result
+# records document how the project is worked on, not how the product is built
+# or used, and each record carries absolute model paths, a machine identifier
+# and an OS version.
+/scripts/model-eval/
+
+# Dev-only gestural automaton for the desktop app: 37 driving scripts, its
+# runner, and the screenshot production tooling. Method tooling, not something
+# a reader needs in order to build or use Apollia. Its seeded fixture was not
+# method tooling and now lives with the suite that consumes it, under
+# `tests/cli/seed/`.
+/scripts/automation/
+# The guard that joined the shooting script to the pages it names. It has no
+# input left once the shooting script is out of the tree.
+/scripts/check_screenshot_script.py
+# Narrative overlay for documentation screenshots. The checked-in seed is a test
+# fixture whose exact row counts are asserted; the story the screenshots tell is
+# a separate artifact that lives outside this repository.
+/tests/cli/seed/overlay/
+
+# Dated architecture decision records and their index. The decisions in force
+# are stated in the present tense in docs/site/docs/architecture/08-decisions.md
+# and its French mirror; the dated corpus is a working record of how the project
+# got there, which is planning rather than product.
+/docs/adr/
+/docs/Decisions-Log.md
+
+# Public roadmap. Held back until it is stable enough to be a commitment rather
+# than a sketch: a roadmap that moves every month costs more trust than it buys.
+/ROADMAP.md
+
+# Assistant and browser-automation scratch output.
+/.playwright-mcp/
+/notes/
+/llm.txt
+
+# cargo-mutants configuration. Mutation testing is a development practice, not
+# part of building or using the product.
+/mutants.toml
 
 # Prebuilt STT runner binaries staged for local desktop dev. Opaque
 # executables have no place in a repository that is built from source.
@@ -116,14 +153,6 @@ demo/
 # rather than one per file, so the next note is covered before it is written.
 /RD-*.md
 /TMP-*.md
-
-# Narrative seed overlay. The checked-in seed under scripts/automation/seed is a
-# test fixture: CI and the -det suite assert its exact row counts, so it stays
-# small and stable. The story the documentation screenshots tell is a different
-# artifact, personal to whoever shoots them, and it lives outside the public
-# repository (~/.apollia-seed-overlay by default). This path is the in-tree
-# convenience location for the same thing, ignored for the same reason.
-/scripts/automation/seed/overlay/
 
 # Figma <-> code provenance for the design system. Internal design bookkeeping:
 # it tracks in-flight design work and cites internal planning documents.

@@ -15,7 +15,7 @@
 #     explain). Asserts STRUCTURE only (exit, streaming, timing); the full
 #     input/output is captured into report.md for human review.
 #
-# The seed is the shared, committed fixture at scripts/automation/seed (one
+# The seed is the shared, committed fixture at tests/cli/seed (one
 # source of truth with the desktop automation suite). HOME is swapped per phase;
 # the real ~/.apollia is never touched.
 #
@@ -111,7 +111,7 @@ WALL0=$(/bin/date +%s)
 # ── Banner ─────────────────────────────────────────────────────────────────
 echo "$(bold "Apollia OS CLI E2E suite")"
 echo "  BIN               = $BIN"
-echo "  SEED builder      = $REPO_ROOT/scripts/automation/seed/build-seed.sh"
+echo "  SEED builder      = $REPO_ROOT/tests/cli/seed/build-seed.sh"
 echo "  TEST_GGUF         = $TEST_GGUF ($([[ -f "$TEST_GGUF" ]] && echo present || echo 'absent → Track 3 SKIP'))"
 echo "  REQUIRE_RUNTIME   = $REQUIRE_RUNTIME"
 echo "  REPORT_DIR        = $REPORT_DIR"

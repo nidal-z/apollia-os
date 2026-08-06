@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # tests/cli/lib/seed.sh - build a fresh, throwaway seeded HOME for the CLI E2E
-# suite. Reuses the single shared seed builder (scripts/automation/seed) rather
+# suite. Reuses the single shared seed builder (tests/cli/seed) rather
 # than forking a second fixture set: the seed is the one source of truth for the
 # deterministic Apollia data profile, shared with the desktop automation suite.
 #
@@ -12,7 +12,7 @@
 
 # Absolute path to the shared seed builder, resolved from the repo root.
 _seed_builder() {
-    printf '%s/scripts/automation/seed/build-seed.sh' "$REPO_ROOT"
+    printf '%s/tests/cli/seed/build-seed.sh' "$REPO_ROOT"
 }
 
 # build_seed_home <dest>

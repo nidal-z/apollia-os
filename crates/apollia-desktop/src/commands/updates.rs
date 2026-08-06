@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 use tauri::Emitter;
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Error as UpdaterError, UpdaterExt};
 use thiserror::Error;
 
 /// Possible errors when querying the updater plugin.
@@ -67,6 +67,30 @@ pub struct UpdateCheckResult {
     pub new_version: Option<String>,
     /// Release notes (if `available` is `true`).
     pub release_notes: Option<String>,
+    /// The endpoint answered, but it publishes no manifest this build can use.
+    ///
+    /// True on the first public release, when no `latest.json` is attached yet:
+    /// the endpoint returns 404 and the plugin reports [`UpdaterError::ReleaseNotFound`].
+    /// That is not a failure the operator can act on, so it is reported as a
+    /// state rather than as an error.
+    pub channel_unavailable: bool,
+}
+
+/// Whether this updater error means "no manifest to read", not "the check broke".
+///
+/// The plugin folds a 404 into [`UpdaterError::ReleaseNotFound`]: a non-success
+/// status is logged and dropped, `last_error` stays unset, and the missing
+/// release surfaces at the end of the endpoint loop. A manifest that exists but
+/// omits the running platform lands on the two `Target*NotFound` variants, which
+/// mean the same thing from the operator's side. A transport failure keeps its
+/// own variants and stays a real error, because retrying it can succeed.
+fn is_missing_manifest(err: &UpdaterError) -> bool {
+    matches!(
+        err,
+        UpdaterError::ReleaseNotFound
+            | UpdaterError::TargetNotFound(_)
+            | UpdaterError::TargetsNotFound(_)
+    )
 }
 
 /// Checks whether an update is available on GitHub Releases.
@@ -97,13 +121,25 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult
             current_version,
             new_version: Some(update.version.clone()),
             release_notes: update.body.clone(),
+            channel_unavailable: false,
         }),
         Ok(None) => Ok(UpdateCheckResult {
             available: false,
             current_version,
             new_version: None,
             release_notes: None,
+            channel_unavailable: false,
         }),
+        Err(e) if is_missing_manifest(&e) => {
+            tracing::info!(error = %e, "update.channel_unavailable");
+            Ok(UpdateCheckResult {
+                available: false,
+                current_version,
+                new_version: None,
+                release_notes: None,
+                channel_unavailable: true,
+            })
+        }
         Err(e) => Err(UpdateError::Check(e.to_string()).to_string()),
     }
 }
@@ -163,6 +199,7 @@ mod tests {
             current_version: "0.9.0".to_string(),
             new_version: Some("1.0.0".to_string()),
             release_notes: Some("Bug fixes and improvements".to_string()),
+            channel_unavailable: false,
         };
 
         // WHEN serialized to JSON
@@ -173,6 +210,7 @@ mod tests {
         assert_eq!(json["current_version"], "0.9.0");
         assert_eq!(json["new_version"], "1.0.0");
         assert_eq!(json["release_notes"], "Bug fixes and improvements");
+        assert_eq!(json["channel_unavailable"], false);
     }
 
     #[test]
@@ -183,6 +221,7 @@ mod tests {
             current_version: "1.0.0".to_string(),
             new_version: None,
             release_notes: None,
+            channel_unavailable: false,
         };
 
         // WHEN serialized to JSON
@@ -193,6 +232,32 @@ mod tests {
         assert_eq!(json["current_version"], "1.0.0");
         assert!(json["new_version"].is_null());
         assert!(json["release_notes"].is_null());
+    }
+
+    #[test]
+    fn test_missing_manifest_is_a_state_not_an_error() {
+        // GIVEN the three plugin errors that mean "no manifest to read"
+        let missing = [
+            UpdaterError::ReleaseNotFound,
+            UpdaterError::TargetNotFound("darwin-aarch64".to_string()),
+            UpdaterError::TargetsNotFound(vec!["darwin-aarch64".to_string()]),
+        ];
+
+        // WHEN each is classified
+        // THEN each is reported as a state the operator cannot act on
+        for err in &missing {
+            assert!(is_missing_manifest(err), "{err} should be a state");
+        }
+    }
+
+    #[test]
+    fn test_transport_failure_stays_an_error() {
+        // GIVEN a plugin error that a retry could resolve
+        let err = UpdaterError::Network("connection reset".to_string());
+
+        // WHEN it is classified
+        // THEN it is not folded into the up-to-date path, so the operator can retry
+        assert!(!is_missing_manifest(&err));
     }
 
     #[test]

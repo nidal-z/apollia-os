@@ -32,6 +32,6 @@ not enough?
 
 <!--
 Anything else that might be useful: links to similar features in other
-runtimes, references to ADRs in `docs/adr/`, related issues, screenshots of
+runtimes, related issues, screenshots of
 the desired UX, etc.
 -->

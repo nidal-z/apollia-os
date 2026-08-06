@@ -29,7 +29,7 @@ processus, et l'accès en lecture aux identifiants dans le trousseau
 de l'agent lui-même, aucune isolation par processus dédié par agent, et aucun
 confinement au niveau du langage. Un agent malveillant ou bogué peut faire
 tout ce que l'utilisateur courant peut faire. Il s'agit d'une décision
-délibérée pour la v0.1.0 (consignée dans l'ADR-003) : le public visé est
+délibérée pour la v0.1.0 (voir [outils et confinement](/architecture/decisions#tools-and-sandbox)) : le public visé est
 celui des builders qui écrivent ou auditent les agents qu'ils exécutent.
 
 <!-- claim:tool-sandbox-covers-child-processes-only -->
@@ -157,7 +157,7 @@ le code.
 
 ## Voir aussi
 
-- L'ADR-003 consigne la décision relative au sandbox et à la confiance
+- [Outils et confinement](/architecture/decisions#tools-and-sandbox) énonce la décision relative au confinement et à la confiance
   envers l'agent, ainsi que les alternatives rejetées.
 - [Le modèle de responsabilité](/explanation/accountability-model) couvre
   l'audit et l'approbation en détail.

@@ -44,27 +44,24 @@ Please report security vulnerabilities **privately** through
 rather than as a public issue. The maintainer will respond and coordinate
 disclosure.
 
-## Why pull requests are auto-closed
+## What happens to a pull request
 
-Apollia OS is maintained by a single person. Reviewing a pull request well
-takes time, and accepting an external contribution implies a commitment to
-maintain it. Rather than leave PRs in limbo, the project is explicit: an
-automated workflow closes incoming PRs with a polite message that points
-back to issues.
+External contributions are not open for the `v0.1.x` line. Accepting one
+implies a commitment to maintain it, and the project does not make that
+commitment today.
 
-This is not a personal rejection. If you have a good idea, please open an
-issue describing it. If the maintainer agrees and has bandwidth, the
-implementation will follow on the maintainer's side, with credit in the
-changelog where applicable.
+The policy is enforced by a workflow rather than left to a case-by-case
+decision, so nobody waits on a review that will not come. On a pull request
+from outside the project, it posts a comment pointing back to the issue
+templates, applies the `wontfix-policy` label, and closes the pull request.
 
-If you need a contribution path that does accept external PRs, several other
-agent runtimes welcome them. This project will not, at least for the
-v0.1.x line.
+Open an issue instead. Accepted ideas are implemented on the project's side,
+with credit in the changelog where applicable.
 
 ## Supporting the project
 
-Code contributions are not accepted, but you can still help Apollia OS survive
-and grow. If you want to back the work financially, see the
+Code contributions are not accepted, but you can still help Apollia OS grow.
+If you want to back the work financially, see the
 [Support section of the README](README.md#support-apollia-os) (Patreon, GitHub
 Sponsors, Ko-fi). Funding is the most direct way to influence what gets built
 next.
@@ -73,4 +70,4 @@ next.
 
 All participation in this project, in issues, Discussions, and any other
 space tied to the repository, is governed by the
-[Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+[Contributor Covenant Code of Conduct](.github/CODE_OF_CONDUCT.md).

@@ -7,8 +7,9 @@ The SDK is the contract every Apollia agent depends on. A change here
 propagates to every agent in the wild. Stability and clarity are
 non-negotiable.
 
-Authoritative ADRs : ADR-023, ADR-024, ADR-025 (the 2026-05-19 SDK redesign).
-The `ctx.mail` service follows ADR-041.
+The authority on what `ctx` guarantees is `sdk/apollia/types.py` together with
+`sdk/apollia/context/`. The rationale is in the decisions chapter of the
+documentation site.
 
 ---
 
@@ -58,8 +59,6 @@ class EmailTriage:
     )
     async def triage(self, ctx: Ctx, payload: EmailPayload) -> EmailResult:
         ...
-
-agent = EmailTriage()
 ```
 
 Mandatory shape :
@@ -71,7 +70,7 @@ Mandatory shape :
 
 ---
 
-## 3. `Ctx` protocol (ADR-024)
+## 3. `Ctx` protocol
 
 `Ctx` is the capability bundle the runtime injects. The skill body
 interacts with the world only through `ctx`. The authoritative type
@@ -107,13 +106,13 @@ class Ctx(Protocol):
 | `memory` | `MemoryInterface` | agent-initiated recall and write |
 | `tools` | `ToolProxy` | invoke native and MCP tools |
 | `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
-| `mail` | `MailInterface` | durable, auditable inter-agent mailbox (ADR-041) |
+| `mail` | `MailInterface` | durable, auditable inter-agent mailbox |
 | `datasources` | `DatasourcesInterface` | read declared datasources |
 | `templates` | `TemplatesInterface` | render declared templates |
-| `secrets` | `SecretsInterface` | read-only secret access (ADR-024) |
+| `secrets` | `SecretsInterface` | read-only secret access |
 | `events` | `EventsInterface` | emit and observe runtime events |
 | `logger` | `Logger` | structured logging (`ctx.logger`, not `ctx.log`) |
-| `profile` | `ProfileInterface` | canonical user profile (ADR-011) |
+| `profile` | `ProfileInterface` | canonical user profile |
 | `workspace` | `WorkspaceContext` | workspace paths and metadata |
 | `stt` | `SttInterface` | speech-to-text |
 | `notify` | `NotifyInterface` | desktop and webhook notifications |
@@ -127,13 +126,13 @@ Adding a service or a method to `Ctx` :
 1. Update the Protocol in `sdk/apollia/types.py` and the interface module
    in `sdk/apollia/context/<service>.py`.
 2. Implement in `crates/apollia-aip/`.
-3. Open or update the relevant ADR (ADR-024 for the contract, ADR-041 for
+3. Update the decisions chapter of the documentation site (the agent contract, or
    the mailbox).
 
 `sdk/apollia/types.py` is the contract. If implementation and contract
 diverge, the contract wins and the implementation is broken.
 
-### `ctx.mail` semantics (ADR-041)
+### `ctx.mail` semantics
 
 `ctx.mail` is the durable, at-least-once inter-agent inbox, distinct from
 `ctx.a2a` (synchronous RPC). Backed by a SQLite mailbox with lease-based
@@ -155,7 +154,7 @@ fields); see `crates/apollia-runtime/AGENTS.md` §6.
 
 ---
 
-## 4. TypedDict schemas (ADR-023, ADR-024)
+## 4. TypedDict schemas
 
 Schemas live in `<agent>/schemas.py`. The file must NOT contain
 `from __future__ import annotations`. PEP 563 turns annotations into
@@ -190,7 +189,7 @@ Rules :
 
 ---
 
-## 5. Exceptions (ADR-023)
+## 5. Exceptions
 
 Hierarchy rooted at `AgentError` :
 
@@ -212,7 +211,7 @@ Rules :
 
 ---
 
-## 6. Datasources and templates (ADR-024)
+## 6. Datasources and templates
 
 The runtime loads datasources and templates declared in the agent
 TOML (`[datasources]`, `[templates]`). They are exposed read-only via
@@ -288,7 +287,7 @@ Edit policy :
 | Change | Update |
 |---|---|
 | New decorator | `sdk/README.md`, this file, Wiki reference, Book chapter |
-| New `Ctx` method | `types.py` + `context/<service>.py` + ADR-024 (ADR-041 for `mail`) |
+| New `Ctx` method | `types.py` + `context/<service>.py` + the decisions chapter |
 | New AgentError subclass | this file (§5), Wiki reference, `apollia-aip` dispatcher |
 | TypedDict schema convention change | this file (§4), book chapter, ADR if breaking |
 

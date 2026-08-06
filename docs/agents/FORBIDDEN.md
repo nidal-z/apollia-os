@@ -150,7 +150,7 @@ The three families, and how to recognise a new one:
 - `agents/system/apollia-guide/knowledge/*.md`, also `include_str!`, and
   additionally written to disk at first run. These are what the companion agent
   answers with. Stale content here is a product defect, not a stale document.
-- `scripts/automation/seed/files/**/*.md`, copied by `build-seed.sh` into the
+- `tests/cli/seed/files/**/*.md`, copied by `build-seed.sh` into the
   throwaway `HOME` of the end-to-end automaton. Removing one breaks the suite.
 
 The test is mechanical: `grep -rn '<basename>.md' crates sdk scripts agents
@@ -174,8 +174,9 @@ comma, parenthesis, colon, period, or hyphen `-` instead.
 
 **NEVER mix French and English in the same file.** Each file is one language.
 Current allocation: `docs/site/` is bilingual (en + fr, one language per file),
-`docs/agents/*.md` and `docs/adr/` are English, code doc-comments are English,
-in-code inline comments are French until L2 sanitize.
+`docs/agents/*.md` is English, code doc-comments are English,
+in-code inline comments are being translated to English as each file is
+touched.
 
 **NEVER AI-stock phrases.** Forbidden tokens (non-exhaustive):
 - "as an AI", "as a language model", "I'm here to help", "Certainly!", "I'd be happy
@@ -197,15 +198,20 @@ i += 1;
 i += 1;
 ```
 
-**NEVER `TODO:` or `FIXME:` without a story link.** Format: `TODO(story-NNN):
-short description`.
+**NEVER a bare `TODO:` or `FIXME:`.** A marker with no owner and no condition is
+a marker nobody removes. Format: `TODO(<what has to be true first>): short
+description`, for example `TODO(once the plan cache is persisted): drop the
+in-memory fallback`. Do not use an internal tracker identifier: this tree is
+public and the tracker is not.
 
 **NEVER hardcoded secrets, API keys, tokens, or PII** in any committed file. Use
 `SecretStore` backends (Keyring or AgeFile). See `docs/agents/SECURITY.md`.
 
-**NEVER link to raw ADR files from `docs/site/` public pages.** The ADR corpus
-lives in `docs/adr/` and is not published on the site; cite ADRs by their bare
-identifier (`ADR-018`) instead of a hyperlink.
+**NEVER justify a rule by pointing at a document the reader cannot open.** There
+is no numbered decision record to cite. The decisions in force are stated in the
+architecture chapter of `docs/site/`, under stable anchors; link to the anchor,
+or state the decision inline. A rule whose reason is a dangling identifier is a
+rule nobody can check.
 
 **NEVER CSS values in designer briefs.** The designer knows the charter. Briefs
 describe structure, wording, and intent only.
@@ -213,18 +219,22 @@ describe structure, wording, and intent only.
 **NEVER copy an existing agent in `agents/` as a reference template.** Confidence in
 those agents is low. Sources of truth: the SDK type contract
 (`sdk/apollia/types.py` + `sdk/apollia/context/*.py`), `@agent` / `@skill`
-decorator implementations, and ADR-023 / ADR-024.
+decorator implementations, and the decisions chapter of the documentation
+site.
 
 **NEVER references to internal artifacts in public-facing files.** Specifically, no
-`STORY-NNN`, `sprint-N`, `[Lot N]`, `[Bloc X]` tokens in code comments or in any
-file outside `docs/internal/`.
+internal tracker identifiers, sprint or batch numbers, or planning vocabulary
+in code comments or in any committed file. This tree is public; the planning is
+not.
 
 ---
 
 ## Git and commits
 
-**NEVER `Co-Authored-By: Claude` (or any AI co-author trailer) in commit messages.**
-Apollia commits are authored by Nidal. AI assistance is implicit.
+**NEVER a co-author trailer.** A commit has one author: the person accountable
+for it. Tooling used along the way, of whatever kind, is not a co-author and
+adding it as one makes `git log` a record of process rather than of
+responsibility.
 
 **NEVER skip hooks** (`git commit --no-verify`, `--no-gpg-sign`, etc.) unless the
 user has explicitly asked for it. If a hook fails, fix the underlying issue.
@@ -253,12 +263,14 @@ deviation, its scope, and its expiration condition.
 **NEVER pull request > 800 lines of diff** without an explicit split rationale in
 the description.
 
-**NEVER skip the GIVEN / WHEN / THEN structure in tests.** Comments mark each block.
-Reason: maintains the discipline that exposed every CLI bug in the Sprint 43 E2E
-sweep.
+**NEVER skip the GIVEN / WHEN / THEN structure in tests.** Comments mark each
+block. Reason: naming the precondition separately from the action is what makes
+a test fail for the reason it claims. A CLI sweep written this way surfaced every
+argument-parsing defect in the tree; the same sweep written as bare assertions
+had found none of them.
 
 **NEVER reintroduce `op` as a skill dispatch key in A2A workers.** Full `skill_id`
-propagation is the canonical path (resolved 2026-05-19). See ADR-023 onward.
+propagation is the canonical path.
 
 **NEVER commit with a failing `cargo test --workspace --no-fail-fast`.** The flag is
 part of the rule: without it cargo halts at the first failing test binary and the run

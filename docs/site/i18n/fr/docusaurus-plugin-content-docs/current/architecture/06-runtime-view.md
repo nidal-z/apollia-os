@@ -47,7 +47,7 @@ sequenceDiagram
 L'incrément de budget est câblé dans la boucle de l'acteur, si bien que le
 plafond arrête réellement l'agent. Le critique s'exécute ; l'exécution des
 vérifications shell déclarées par l'agent sous gouvernance est une étape
-ultérieure. Décisions ADR-038 (arguments d'étape) et ADR-039 (vérification et
+ultérieure. Voir [le modèle d'exécution](/architecture/decisions#execution-model) (vérification et
 critique).
 
 <!-- claim:orchestrated-approval-from-manifest -->
@@ -90,7 +90,7 @@ sequenceDiagram
 Le chat, le plan-mode, le HITL, le fork et les enfants, et le
 pause-inject-resume sont câblés. Une nuance : les sessions laissées dans un
 état de traitement ne sont pas rechargées au démarrage, et la reprise les
-ramène à l'état actif. Décisions ADR-031, ADR-032, ADR-022.
+ramène à l'état actif. Voir [le modèle de plan](/explanation/the-plan-model).
 
 ## Scénario C : fédération d'hôte via MCP et REST
 
@@ -137,7 +137,7 @@ sequenceDiagram
 
 Le journal signé et la vérification sont câblés. Le rejeu (ré-exécution et
 comparaison) a été abandonné par décision ; la redevabilité repose sur le
-journal et la vérification. Décision ADR-033 ; le récit correspondant est
+journal et la vérification. Le récit correspondant est
 [le modèle de responsabilité](/explanation/accountability-model).
 
 ## Scénario E : comment un appel d'outil est gouverné dans le chat

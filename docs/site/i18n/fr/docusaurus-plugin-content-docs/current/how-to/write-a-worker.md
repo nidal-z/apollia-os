@@ -80,9 +80,6 @@ class PdfQuickstart:
         from pypdf import PdfReader
 
         return {"page_count": len(PdfReader(path).pages)}
-
-
-agent = PdfQuickstart()
 ```
 
 Remarques sur le contrat :

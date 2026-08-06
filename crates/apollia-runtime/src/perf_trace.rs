@@ -22,9 +22,8 @@
 //! # Field names
 //!
 //! Every name written here comes from the measurement dictionary in
-//! `scripts/model-eval/README.md`, and the JSON record conforms to the
-//! measurement-record schema in the same file. Nothing is invented locally: a
-//! downstream analysis script reads that contract, not this module.
+//! `docs/agents/OBSERVABILITY.md`. Nothing is invented locally: a downstream
+//! analysis reads that contract, not this module.
 
 use std::future::Future;
 use std::sync::{Mutex, OnceLock};

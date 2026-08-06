@@ -17,7 +17,7 @@ OS sandbox around agent code: no process-per-agent isolation, no seccomp, no
 namespaces confining the agent itself. A deliberately malicious or buggy agent
 can read the filesystem, open sockets, spawn processes, and read credentials
 from the keyring, regardless of what it declares in its manifest. This is the
-v0.1.0 trust model recorded in ADR-003, and it is deliberate: the audience is
+recorded v0.1.0 trust model, and it is deliberate: the audience is
 advanced builders who write or audit their own agents.
 
 What this means in practice:
@@ -39,7 +39,7 @@ What this means in practice:
   no confinement at all (no namespaces, no resource limits: `apply_rlimits`
   is an empty no-op off Unix), and `bash_executor` requires a POSIX shell on
   `PATH` (Git Bash, MSYS2 or WSL), refusing with an actionable error without
-  one (ADR-049). See sections 6 and 7.
+  one. See sections 6 and 7.
 
 Never imply, in code, comments, or public docs, that agent code is sandboxed.
 The honest posture is a feature for a regulated adopter; overstating it is a
@@ -112,7 +112,7 @@ Rules :
 
 ## 3. OAuth and token lifecycle
 
-ADR-016 + ADR-018. Apollia supports multi-account OAuth2 PKCE for Google
+Apollia supports multi-account OAuth2 PKCE for Google
 and Microsoft. Tokens are stored via `SecretStore`. Refresh is automatic
 with singleflight to prevent concurrent refresh races.
 
@@ -138,7 +138,7 @@ Rules :
 - Multi-account : one `account_id` per (provider, identity). The
   `account_id` is the index into the secret store.
 
-See `crates/apollia-auth/src/` (OAuth2 PKCE, keyring token storage) and ADR-016.
+See `crates/apollia-auth/src/` (OAuth2 PKCE, keyring token storage).
 
 ---
 
@@ -233,13 +233,13 @@ Audit table is append-only. Never delete a row programmatically.
 Retention is time-based via `[audit].retention_days` in the config, not a
 manual purge command.
 
-ADR-015.
+
 
 ---
 
 ## 6. Filesystem isolation
 
-ADR-015. The file tools (`file_read`, `file_write`, `file_edit`, `file_list`,
+The file tools (`file_read`, `file_write`, `file_edit`, `file_list`,
 `file_glob`, `file_grep`, notebook read/edit) resolve every path against a
 `SandboxRoot` jail and reject escapes. A reversible journal logs every write.
 
@@ -331,7 +331,7 @@ Rules :
 | Crash / DoS via a crafted parser input (LLM output, web content, automation text, tool specs) | `cargo-fuzz` targets on the untrusted-input parsers, char-boundary-safe slicing, panic-free parse contract (see `docs/agents/TESTING.md` 8b) |
 
 The agent trust model and sandbox posture are covered in
-`docs/site/docs/explanation/agent-trust-model.md` and ADR-003.
+`docs/site/docs/explanation/agent-trust-model.md`.
 
 ---
 

@@ -31,7 +31,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 EN = REPO / "docs/site/docs"
 FR = REPO / "docs/site/i18n/fr/docusaurus-plugin-content-docs/current"
-ADR = REPO / "docs/adr"
 RULEBOOK = [REPO / "docs/agents"] + [REPO / p for p in ("AGENTS.md",)]
 
 MARKER = re.compile(r"<!--\s*claim:([a-z0-9-]+)\s*-->")
@@ -61,9 +60,9 @@ def main() -> int:
     claims = tomllib.loads((REPO / "docs/CLAIMS.toml").read_text())["claim"]
     ids = {c["id"] for c in claims}
 
-    en, fr, adr = markers_in(EN), markers_in(FR), markers_in(ADR)
+    en, fr = markers_in(EN), markers_in(FR)
     rule = merge(*(markers_in(p) for p in RULEBOOK))
-    everywhere = merge(en, fr, adr, rule)
+    everywhere = merge(en, fr, rule)
 
     problems: list[str] = []
 
@@ -128,13 +127,10 @@ def main() -> int:
     # exists to remove, and a hardcoded list of zones goes stale the first time
     # someone adds a marker somewhere new.
     zones: dict[str, list[int]] = {}
-    for root, prefix in ((EN, ""), (FR, "i18n/fr "), (ADR, None)):
+    for root, prefix in ((EN, ""), (FR, "i18n/fr ")):
         for path in sorted(root.rglob("*.md")) if root.is_dir() else []:
             rel = path.relative_to(root)
-            if prefix is None:
-                zone = "docs/adr"
-            else:
-                zone = prefix + (rel.parts[0] if len(rel.parts) > 1 else "(root pages)")
+            zone = prefix + (rel.parts[0] if len(rel.parts) > 1 else "(root pages)")
             counts = zones.setdefault(zone, [0, 0])
             counts[0] += 1
             counts[1] += len(MARKER.findall(path.read_text(encoding="utf-8")))

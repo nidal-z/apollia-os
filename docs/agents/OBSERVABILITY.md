@@ -150,10 +150,10 @@ to another when both quote the exact launch line that produced them.
 ### Completion timings
 
 Emitted by `llm.completion.timings`, once per completion, from the engine's own
-per-request `timings` object. Names match the measurement dictionary in
-`scripts/model-eval/README.md` exactly, so a log line and a measurement record
-denote the same quantities without translation. A rate that is undefined reads
-`unset`, never `0`.
+per-request `timings` object. The table below is the naming authority: a field
+means here what it means in every log line and every analysis that reads them,
+and the engine's own key names are deliberately not reused where they would
+mislead. A rate that is undefined reads `unset`, never `0`.
 
 | Field | Type | Meaning |
 |---|---|---|

@@ -34,7 +34,6 @@ entries by role.
 | Path | What it is |
 |---|---|
 | `docs/site/` | The public documentation site (Docusaurus, English + French, Diataxis structure). This page lives here. |
-| `docs/adr/` | Architecture Decision Records: numbered, append-only, English. The committed record of significant technical decisions and their rationale. |
 | `docs/agents/` | The long-form rulebook for contributors (human and LLM): coding patterns, naming, testing, security, and the forbidden-practices list. English only. |
 | `docs/internal/` | Release planning and internal notes. Gitignored and never shipped, so any path under it that appears in a decision record is provenance only, not something you can open. |
 
@@ -75,13 +74,11 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `README.md` | Project overview and entry point. |
 | `AGENTS.md` | The standard entry point for LLM coding assistants; routes to the `docs/agents/` rulebook. |
 | `CONTRIBUTING.md` | How to contribute (workflow, expectations). |
-| `CODE_OF_CONDUCT.md` | Community conduct standards. |
+| `.github/CODE_OF_CONDUCT.md` | Community conduct standards. GitHub reads it from `.github/` as it would from the root. |
 | `GOVERNANCE.md` | How decisions are made and who maintains the project. |
 | `SECURITY.md` | How to report a vulnerability and the supported-versions policy. |
-| `ROADMAP.md` | Public direction and planned work. |
 | `SPONSORS.md` | Funding and sponsorship information. |
 | `CHANGELOG.md` | Human-readable record of notable changes per release. |
-| `llm.txt` | A dense, accurate project description written for AI coding agents, so their context windows are used efficiently and they make fewer wrong assumptions. |
 
 ## Licensing
 
@@ -109,7 +106,6 @@ actually configures in this repository.
 | `clippy.toml` | Clippy thresholds: MSRV `1.89`, cognitive-complexity `30`, type-complexity `250`, at most `5` function arguments, and a `800`-line limit per function. |
 | `rustfmt.toml` | Formatting: edition 2021, `max_width = 100`, reordered imports, field-init and try shorthands, Unix newlines. |
 | `deny.toml` | `cargo-deny` policy: an allowlist of acceptable licenses, denial of unknown registries, a warning on duplicate dependency versions, and a documented, per-release list of ignored security advisories (each with its lift condition). |
-| `mutants.toml` | `cargo-mutants` (mutation testing) config: timeout multipliers, and exclusion of crates that do not build in isolation (`apollia-desktop`, `tests/`) and of build scripts. Dev-only test-quality tooling. |
 | `Cross.toml` | `cross-rs` cross-compilation: `pre-build` steps that install the Linux system libraries (ALSA, PulseAudio, JACK, CMake, clang) into the build container for the x86_64 and aarch64 GNU/Linux targets. |
 | `sonar-project.properties` | SonarQube analysis config (local Community Build, not part of the public release): source and test roots, exclusions, the imported Clippy report path, and documented per-rule exemptions. |
 | `justfile` | `just` task recipes: the canonical commands for building, testing, linting, and running the desktop automaton. |
@@ -129,8 +125,6 @@ locally.
 
 | Path | What it is |
 |---|---|
-| `CLAUDE.md` | Claude Code session overlay that imports the rulebook. Local-only. |
-| `.claude/` | Claude Code project settings, skills, and worktrees. |
 | `docs/internal/` | Release planning and internal notes. |
 | `target/` | The Cargo build output directory. |
 | `.venv/`, `.venv-agents/` | Local Python virtual environments. |

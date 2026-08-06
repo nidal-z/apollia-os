@@ -38,6 +38,15 @@ pub enum UpdateError {
     #[error("an update is already in progress")]
     AlreadyRunning,
 
+    /// The repository publishes no release yet, so there is nothing to compare against.
+    ///
+    /// GitHub answers `/releases/latest` with 404 both when no release exists and
+    /// when every release is a draft or a prerelease. Without this variant the
+    /// first public build reports a bare HTTP 404, which reads as a broken
+    /// install rather than as an empty release feed.
+    #[error("no release has been published yet")]
+    NoRelease,
+
     /// Current executable path could not be determined.
     #[error("could not determine current executable path: {0}")]
     CurrentExe(std::io::Error),
@@ -101,23 +110,30 @@ fn platform_binary_name() -> &'static str {
 
 // ─── Core logic ───────────────────────────────────────────────────────────────
 
-/// Fetches the latest GitHub release and returns the remote version string when
-/// it is strictly newer than the currently running binary, or `None` when already
-/// up to date.
-pub async fn check_update(owner: &str) -> Result<Option<String>, UpdateError> {
+/// Fetches the latest published release, mapping an empty feed to [`UpdateError::NoRelease`].
+///
+/// Shared by `check_update` and `install_update` so both report an empty release
+/// feed the same way.
+async fn fetch_latest_release(owner: &str) -> Result<GithubRelease, UpdateError> {
     let url = format!("{GITHUB_API_BASE}/repos/{owner}/{REPO}/releases/latest");
 
     let client = reqwest::Client::builder()
         .user_agent(concat!("apollia-os-updater/", env!("CARGO_PKG_VERSION")))
         .build()?;
 
-    let release: GithubRelease = client
-        .get(&url)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let response = client.get(&url).send().await?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(UpdateError::NoRelease);
+    }
+
+    Ok(response.error_for_status()?.json().await?)
+}
+
+/// Fetches the latest GitHub release and returns the remote version string when
+/// it is strictly newer than the currently running binary, or `None` when already
+/// up to date.
+pub async fn check_update(owner: &str) -> Result<Option<String>, UpdateError> {
+    let release = fetch_latest_release(owner).await?;
 
     let remote_str = release.tag_name.trim_start_matches('v');
     let remote = semver::Version::parse(remote_str)?;
@@ -153,19 +169,11 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
     }
 
     // ── Fetch release metadata ─────────────────────────────────────────────
-    let url = format!("{GITHUB_API_BASE}/repos/{owner}/{REPO}/releases/latest");
+    let release = fetch_latest_release(owner).await?;
 
     let client = reqwest::Client::builder()
         .user_agent(concat!("apollia-os-updater/", env!("CARGO_PKG_VERSION")))
         .build()?;
-
-    let release: GithubRelease = client
-        .get(&url)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
 
     let remote_str = release.tag_name.trim_start_matches('v');
     let remote = semver::Version::parse(remote_str)?;
@@ -265,15 +273,49 @@ fn resolve_asset(assets: &[GithubAsset], name: &str) -> Result<String, UpdateErr
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 /// Execute `apollia-os update [--check] [--yes]`. Returns a POSIX exit code.
-pub async fn run(args: &UpdateArgs, owner: &str) -> i32 {
+///
+/// An empty release feed is a state, not a failure: `--check` reports it and
+/// exits 0, so a first-day install does not look broken to the operator or to a
+/// script polling the exit code.
+pub async fn run(args: &UpdateArgs, owner: &str, json: bool) -> i32 {
+    let current = env!("CARGO_PKG_VERSION");
+
     if args.check {
-        match check_update(owner).await {
+        let outcome = check_update(owner).await;
+
+        if json {
+            let (available, latest, channel) = match &outcome {
+                Ok(Some(v)) => (true, Some(v.as_str()), true),
+                Ok(None) => (false, None, true),
+                Err(UpdateError::NoRelease) => (false, None, false),
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    return crate::exit_codes::GENERAL_ERROR;
+                }
+            };
+            println!(
+                "{}",
+                serde_json::json!({
+                    "current_version": current,
+                    "update_available": available,
+                    "latest_version": latest,
+                    "channel_available": channel,
+                })
+            );
+            return crate::exit_codes::SUCCESS;
+        }
+
+        match outcome {
             Ok(Some(v)) => {
-                println!("New version available: {v}");
+                println!("Installed: {current}. New version available: {v}");
                 crate::exit_codes::SUCCESS
             }
             Ok(None) => {
-                println!("Already up to date ({}).", env!("CARGO_PKG_VERSION"));
+                println!("Installed: {current}. Already up to date.");
+                crate::exit_codes::SUCCESS
+            }
+            Err(UpdateError::NoRelease) => {
+                println!("Installed: {current}. No release has been published yet.");
                 crate::exit_codes::SUCCESS
             }
             Err(e) => {
@@ -284,6 +326,10 @@ pub async fn run(args: &UpdateArgs, owner: &str) -> i32 {
     } else {
         match install_update(owner, args.yes).await {
             Ok(()) => crate::exit_codes::SUCCESS,
+            Err(UpdateError::NoRelease) => {
+                println!("Installed: {current}. No release has been published yet.");
+                crate::exit_codes::SUCCESS
+            }
             Err(e) => {
                 eprintln!("Error: {e}");
                 crate::exit_codes::GENERAL_ERROR

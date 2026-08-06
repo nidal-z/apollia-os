@@ -41,7 +41,6 @@ BARE_VERBS = {
     "explain",
     "update",
     "review",
-    "rollback",
 }
 
 # Nodes whose subtree we do not enumerate further (interactive/opaque leaves).

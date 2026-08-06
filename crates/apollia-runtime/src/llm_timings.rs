@@ -7,7 +7,7 @@
 //! anything client-side, which no wall-clock measurement can do.
 //!
 //! Field names here follow the measurement dictionary in
-//! `scripts/model-eval/README.md`, which is also the naming authority for the
+//! `docs/agents/OBSERVABILITY.md`, which is the naming authority for the
 //! tracing fields emitted by [`emit_completion_timings`]. The engine's own key
 //! names are deliberately not reused: `prompt_n` counts only the tokens the
 //! engine actually evaluated, excluding cached ones, and a field called

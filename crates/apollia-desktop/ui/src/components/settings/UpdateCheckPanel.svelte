@@ -3,12 +3,16 @@
    * UpdateCheckPanel - the single operator-initiated self-update surface.
    *
    * Drives the real `check_for_update` / `install_update` commands through one
-   * state machine: idle -> checking -> up_to_date | available. Installing an
-   * available update moves to downloading (a live progress bar fed by the
-   * `update-download-progress` event, indeterminate when the backend reports no
-   * total) and then to installed, just before the runtime restarts the app.
-   * Failures are humanized (cause + suggested action) with the raw trace kept
-   * behind a Details disclosure.
+   * state machine: idle -> checking -> up_to_date | available | no_channel.
+   * Installing an available update moves to downloading (a live progress bar fed
+   * by the `update-download-progress` event, indeterminate when the backend
+   * reports no total) and then to installed, just before the runtime restarts
+   * the app. Failures are humanized (cause + suggested action) with the raw
+   * trace kept behind a Details disclosure.
+   *
+   * `no_channel` is the day-one state: the endpoint answers but no release
+   * manifest is attached yet. It is a state, not a failure, so it offers the
+   * releases page rather than a retry the operator cannot win.
    *
    * Nothing runs in the background: a check only fires when the operator asks,
    * in line with the local-first principle.
@@ -19,11 +23,12 @@
    */
   import { onDestroy } from "svelte";
   import { t } from "svelte-i18n";
-  import { Download, CheckCircle2, XCircle, RefreshCw } from "lucide-svelte";
+  import { Download, CheckCircle2, XCircle, RefreshCw, ExternalLink } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
   import SettingsSection from "./SettingsSection.svelte";
+  import { openExternalUrl } from "$lib/utils/externalLink";
   import { humanize, type HumanizedError } from "$lib/errors/humanize";
   import {
     checkForUpdate,
@@ -44,10 +49,14 @@
     | "checking"
     | "up_to_date"
     | "available"
+    | "no_channel"
     | "downloading"
     | "installed"
     | "error";
   type FailedAction = "check" | "install";
+
+  /** Where a build with no update manifest sends the operator instead. */
+  const RELEASES_URL = "https://github.com/Apollia-OS/apollia-os/releases";
 
   let phase = $state<Phase>("idle");
   let currentVersion = $state<string | null>(null);
@@ -90,7 +99,8 @@
       currentVersion = result.current_version;
       newVersion = result.new_version ?? null;
       releaseNotes = result.release_notes ?? null;
-      phase = result.available ? "available" : "up_to_date";
+      if (result.channel_unavailable) phase = "no_channel";
+      else phase = result.available ? "available" : "up_to_date";
     } catch (err) {
       phase = "error";
       failed = { action: "check", error: humanize(err, $t) };
@@ -144,6 +154,26 @@
           <CheckCircle2 size={14} class="text-success" />
           {$t("settings.update.up_to_date")}
         </span>
+        <Button variant="ghost" size="sm" onclick={runCheck} data-testid="update-check-btn">
+          {#snippet icon()}<RefreshCw size={13} />{/snippet}
+          {$t("settings.update.check")}
+        </Button>
+        {#if currentVersion}
+          <span class="ml-auto font-mono text-caption text-muted-foreground">{currentVersion}</span>
+        {/if}
+      {:else if phase === "no_channel"}
+        <span class="text-body-sm text-muted-foreground" data-testid="update-no-channel-label">
+          {$t("settings.update.no_channel")}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => void openExternalUrl(RELEASES_URL)}
+          data-testid="update-releases-link"
+        >
+          {#snippet icon()}<ExternalLink size={13} />{/snippet}
+          {$t("settings.update.open_releases")}
+        </Button>
         <Button variant="ghost" size="sm" onclick={runCheck} data-testid="update-check-btn">
           {#snippet icon()}<RefreshCw size={13} />{/snippet}
           {$t("settings.update.check")}

@@ -86,14 +86,16 @@ class EmailTriage:
         examples=[{"to": "ops@apollia.fr", "subject": "down", "body": "..."}],
     )
     async def triage(self, ctx: Ctx, payload: EmailPayload) -> EmailResult: ...
-
-agent = EmailTriage()
 ```
 
 Rules :
 
-- Module-level `agent = MyClass()` is mandatory in every `.py` agent file.
-  The runtime imports this symbol.
+- The runtime imports a module-level `agent` symbol (`loader.rs` does
+  `getattr("agent")`), but **do not write it by hand**. `@agent` instantiates
+  the class and binds the instance to the defining module
+  (`sdk/apollia/_internal/module_registry.py`). Adding `agent = MyClass()`
+  builds a second instance that overwrites the registered one. It is harmless
+  today, and it is still one line that teaches the wrong contract.
 - Every `@skill` carries at least one realistic `examples=[{...}]` payload.
   AgentKit propagates them into the LLM tool descriptor.
 - `@orchestrated` requires `[llm.routing]` precise in the agent TOML
@@ -102,8 +104,7 @@ Rules :
 - Never share mutable state across skill invocations on `self`. Treat the
   agent as request-scoped.
 
-See `sdk/AGENTS.md` for full validation rules and references to ADR-023
-and ADR-024.
+See `sdk/AGENTS.md` for the full validation rules and the runtime contract.
 
 ---
 

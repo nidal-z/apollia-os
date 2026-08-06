@@ -99,9 +99,6 @@ class Coach:
             ],
         )
         return response.content
-
-
-agent = Coach()
 ```
 
 Trois éléments font de ce code un agent :
@@ -113,9 +110,10 @@ Trois éléments font de ce code un agent :
   réponse sous forme de chaîne de caractères.
 <!-- claim:module-level-agent-attribute-is-the-entry-point -->
 
-- **`agent = Coach()`** en bas du module est ce que le runtime charge. Chaque
-  module d'agent Apollia se termine par cette ligne. Utilisez des imports
-  absolus (`from apollia import ...`), jamais relatifs.
+- **Un symbole `agent` au niveau du module** est ce que le runtime charge. Vous
+  ne l'écrivez pas : `@agent` instancie la classe et lie l'instance au module
+  pour vous. Utilisez des imports absolus (`from apollia import ...`), jamais
+  relatifs.
 
 À l'intérieur du gestionnaire, `ctx.llm.complete(...)` envoie la conversation
 au backend configuré et retourne une réponse dont `.content` est le texte

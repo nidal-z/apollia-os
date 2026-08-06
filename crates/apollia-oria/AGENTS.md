@@ -2,7 +2,7 @@
 
 > Local rules for the ORIA engine (Observer-Reasoner-Actor). Read after
 > the root `AGENTS.md` and before editing this crate. Pair with
-> `docs/agents/ARCHITECTURE.md` §C (StepBudget) and ADR-025.
+> `docs/agents/ARCHITECTURE.md` §C (StepBudget).
 
 ORIA is the reasoning loop. It owns the StepBudget guard, the
 ResilienceLayer (retry policies, circuit breakers), and the plan cache.
@@ -151,7 +151,7 @@ engine only via the per-run `run_options.autonomy_level` (CLI `--autonomy`).
 
 ---
 
-## 6. Pipelines (ADR-025)
+## 6. Pipelines
 
 Pipelines are declarative orchestration over multiple agents, expressed
 in TOML. ORIA executes them via the `pipeline::Runner` :

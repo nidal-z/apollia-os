@@ -715,7 +715,7 @@ export type ToolSandbox = "linux_namespaces" | "dev_no_sandbox";
 /** Modele d'execution du code agent. */
 export type AgentExecution = "in_process_trusted";
 
-/** Posture de securite active, refletee depuis apollia-core (ADR-003). */
+/** Posture de securite active, refletee depuis apollia-core. */
 export interface SecurityPosture {
   platform: string;
   tool_sandbox: ToolSandbox;

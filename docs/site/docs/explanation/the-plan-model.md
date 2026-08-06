@@ -111,7 +111,7 @@ a sequence in its chat plan-mode scenario.
 ## How steps get their arguments
 
 A plan step names a tool, but the tool needs concrete arguments. Apollia resolves
-them with a hybrid contract (ADR-038). At plan time, the reasoner fills structured
+them with a hybrid contract (see [the execution model](/architecture/decisions#execution-model)). At plan time, the reasoner fills structured
 step arguments under a grammar constraint, so the plan already carries typed,
 schema-valid arguments. If a step reaches execution without valid arguments, a
 schema-constrained just-in-time extraction fills them from the step's description.
@@ -121,7 +121,7 @@ structured arguments, rather than passing a blob of text and hoping.
 ## Verifying and correcting the result
 
 A completed orchestrated run is not accepted on faith. The engine runs a
-verification pass (ADR-039): an LLM critic reviews the result and produces a
+verification pass: an LLM critic reviews the result and produces a
 verdict, and that verdict is recorded as a signed event in the audit journal. On
 a failing verdict, the engine re-plans and re-runs, bounded by a small number of
 attempts (the default is two) and drawing on the same shared budget, so

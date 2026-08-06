@@ -44,7 +44,7 @@ sequenceDiagram
 
 The budget increment is wired into the actor loop, so the ceiling actually stops
 the agent. The critic runs; running an agent's declared shell checks under
-governance is a later step. Decisions ADR-038 (step args) and ADR-039
+governance is a later step. See [the execution model](/architecture/decisions#execution-model)
 (verification and critic).
 
 <!-- claim:orchestrated-approval-from-manifest -->
@@ -84,7 +84,7 @@ sequenceDiagram
 
 Chat, plan-mode, HITL, fork and children, and pause-inject-resume are wired. One
 nuance: sessions left in a processing state are not reloaded at boot, and resume
-moves them back to active. Decisions ADR-031, ADR-032, ADR-022.
+moves them back to active. See [the plan model](/explanation/the-plan-model).
 
 ## Scenario C: host federation over MCP and REST
 
@@ -129,7 +129,7 @@ sequenceDiagram
 
 The signed journal and verification are wired. Replay (re-execution and
 comparison) was abandoned by decision; accountability rests on the journal and
-verification. Decision ADR-033; the narrative is
+verification. The narrative is
 [the accountability model](/explanation/accountability-model).
 
 ## Scenario E: how a tool call is governed in chat

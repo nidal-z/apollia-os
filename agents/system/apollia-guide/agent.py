@@ -263,6 +263,3 @@ class ApolliaGuide:
             ctx.logger.warning("apollia-guide dropped an action block with a disallowed route")
 
         return reply
-
-
-agent = ApolliaGuide()

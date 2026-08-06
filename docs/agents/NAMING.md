@@ -223,8 +223,7 @@ Tags : `vMAJOR.MINOR.PATCH`, strict SemVer (`v0.1.0`, `v0.1.0-preview`).
 
 ## 7. ADRs and stories
 
-- ADR filenames : `ADR-NNN-kebab-title.md` in `docs/adr/`.
-  Example : `ADR-023-sdk-agentkit-design.md`.
+  Example : `agent-trust-model.md`.
 - Numbered globally, never reused.
 
 ---

@@ -127,7 +127,7 @@ du chat.
 ## Comment les étapes obtiennent leurs arguments
 
 Une étape de plan nomme un outil, mais l'outil a besoin d'arguments concrets.
-Apollia les résout avec un contrat hybride (ADR-038). Au moment de la
+Apollia les résout avec un contrat hybride (voir [le modèle d'exécution](/architecture/decisions#execution-model)). Au moment de la
 planification, le raisonneur remplit les arguments structurés de l'étape sous
 contrainte de grammaire, si bien que le plan porte déjà des arguments typés et
 valides au regard du schéma. Si une étape arrive à l'exécution sans arguments
@@ -139,7 +139,7 @@ de leur passer un bloc de texte en espérant que ça marche.
 ## Vérifier et corriger le résultat
 
 Une exécution orchestrée terminée n'est pas acceptée sur parole. Le moteur
-effectue une passe de vérification (ADR-039) : un critique LLM examine le
+effectue une passe de vérification : un critique LLM examine le
 résultat et produit un verdict, et ce verdict est enregistré comme événement
 signé dans le journal d'audit. En cas de verdict négatif, le moteur replanifie
 et réexécute, dans la limite d'un petit nombre de tentatives (deux par défaut)

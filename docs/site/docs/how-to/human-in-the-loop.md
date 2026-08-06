@@ -36,9 +36,6 @@ class InvoiceRouter:
                 context={"vendor": vendor, "amount": amount},
             )
         return {"folder": folder}
-
-
-agent = InvoiceRouter()
 ```
 
 The constructor is `NeedHumanInput(prompt: str, context: dict | None = None)`. It is

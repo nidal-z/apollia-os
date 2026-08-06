@@ -30,18 +30,14 @@
 #     buffer size is not).
 #   - Anything under `docs/internal`. Not published.
 #
-# `docs/adr/` IS in scope, and deliberately so, although it is committed rather
-# than published on the site. An ADR is where a capability decision is recorded,
-# and a decision that the code stopped honouring is the same failure as a page
-# that overstates a feature: nothing in the build notices. Four ADRs described a
-# runner that is no longer a dependency, three described a removed agent
-# contract, and none of that surfaced anywhere. Markers may therefore sit in an
-# ADR, and `scripts/check_claims.py` scans `docs/adr/` for them.
-#
-# What stays out of `docs/adr/` scope: the historical record itself. An ADR
-# records what was decided at a date. It is not made false by a later decision,
-# only by a claim inside it that the code never honoured. When a later ADR
-# supersedes it, the fix is an amendment box, not a claim.
+# The decisions chapter of the site is in scope like any other page, and for the
+# same reason: a decision the code stopped honouring is the same failure as a
+# page that overstates a feature, and nothing in the build notices either one. A
+# corpus of dated decision records used to sit beside it, and it accumulated
+# exactly this: entries describing a runner that is no longer a dependency, and
+# entries describing an agent contract that had been removed. Stating decisions
+# in the present tense removes the class of drift, and a marker on the paragraph
+# catches what remains.
 #
 # So this file does not cover "the documentation is correct". It covers one
 # failure mode: **a capability described as active whose code is never reached**.
@@ -348,13 +344,12 @@ evidence = ""
 note = """
 The bridge accepts an agent only when it carries `__apollia_dispatch__`, the
 attribute the `@agent` / `@skill` / `@on_message` decorators install. The
-`manifest()` plus `run()` contract was removed by ADR-023 and the runtime no
-longer calls any dynamic `manifest()`.
+`manifest()` plus `run()` contract was removed and the runtime no longer calls
+any dynamic `manifest()`.
 
 Both the root briefing and the principles page still described the removed
 contract, which is worse than a stale sentence: an author following it writes an
-agent the bridge refuses outright. Three ADRs predating ADR-023 still describe it
-too, and carry no supersession marker.
+agent the bridge refuses outright.
 """
 
 [[claim]]
@@ -538,18 +533,18 @@ id = "supervisor-has-no-restart-machinery"
 scope = "public"
 symbol = "RestartPolicy"
 status = "absent"
-proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+proof = "docs/site/docs/architecture/08-decisions.md"
 evidence = ""
 note = """
-ADR-045 decided that the runtime supervises actors fail-fast then degrades, and
-that the dead restart machinery gets deleted rather than wired. `RestartPolicy`,
-`ChildSpec` and `RestartTracker` are gone.
+The runtime supervises actors fail-fast then degrades, and the dead restart
+machinery was deleted rather than wired. `RestartPolicy`, `ChildSpec` and
+`RestartTracker` are gone.
 
 This is the corpus's one case where the evidence for a decision is an absence,
 and it is the only kind of claim nothing else can guard. A `wired` claim fails
 when a caller disappears; a `not-wired` claim fails when the evidence text moves.
 A removal has no such trace: reintroducing `RestartPolicy` would compile, pass
-every test, and leave ADR-045 quietly saying the opposite. Hence `status =
+every test, and leave the decisions page quietly saying the opposite. Hence `status =
 "absent"`, which fails when the symbol comes back.
 
 `ChildSpec` and `RestartTracker` have their own entries: one symbol per claim, so
@@ -561,10 +556,11 @@ id = "supervisor-has-no-child-spec"
 scope = "public"
 symbol = "ChildSpec"
 status = "absent"
-proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+proof = "docs/site/docs/architecture/08-decisions.md"
 evidence = ""
 note = """
-Second of the three symbols ADR-045 removed. See `supervisor-has-no-restart-machinery`.
+Second of the three symbols removed with the restart machinery. See
+`supervisor-has-no-restart-machinery`.
 """
 
 [[claim]]
@@ -572,10 +568,11 @@ id = "supervisor-has-no-restart-tracker"
 scope = "public"
 symbol = "RestartTracker"
 status = "absent"
-proof = "docs/adr/ADR-045-supervisor-fail-fast-degrade.md"
+proof = "docs/site/docs/architecture/08-decisions.md"
 evidence = ""
 note = """
-Third of the three symbols ADR-045 removed. See `supervisor-has-no-restart-machinery`.
+Third of the three symbols removed with the restart machinery. See
+`supervisor-has-no-restart-machinery`.
 """
 
 # ── Platform posture ─────────────────────────────────────────────────────────
@@ -857,11 +854,16 @@ status = "wired"
 proof = "crates/apollia-aip/src/loader.rs"
 evidence = ""
 note = """
-Every tutorial, every scaffold and every bundled agent ends on `agent = X()`,
-and the loader finds it by name at `loader.rs:170`. Rename what it looks for and
-nothing fails to compile: agents simply stop loading, with an error that points
-at the agent rather than at the loader. This is the first line a reader writes
-and the last one anybody would suspect.
+The loader finds the agent by the name `agent` on the module. Rename what it
+looks for and nothing fails to compile: agents simply stop loading, with an
+error that points at the agent rather than at the loader.
+
+The symbol is bound by `@agent` itself, through `expose_to_module`, not by the
+agent author. The corpus used to teach a hand-written `agent = X()` at the
+bottom of every module, which built a second instance over the registered one.
+That line is gone from the examples and the tutorials; the ones that remain are
+Rust test fixtures that build the manifest by hand, without the decorator, and
+genuinely need it.
 """
 
 [[claim]]
@@ -1054,7 +1056,7 @@ starts with neither `use` nor `//`. `check_selftest.py` pins both forms.
 The client id is public by construction. RFC 8252 section 8.5 states that a
 native application cannot hold a credential confidentially, so the registration
 is a public client with no secret and PKCE carries the security. Embedding it is
-therefore a convenience decision, not a secrets decision. See ADR-053.
+therefore a convenience decision, not a secrets decision.
 
 What this cannot guard, and the order matters because the first item is the one
 that will actually bite. The registration's **redirect platform** is invisible

@@ -81,7 +81,7 @@ et la vue d'ensemble se trouvent dans
 Sur Windows, `bash_executor` refuse avec une erreur qui nomme le prérequis
 manquant lorsqu'aucun shell POSIX n'est présent dans `PATH` ; `cmd.exe` et
 PowerShell ne sont jamais utilisés, car la validation des commandes encode
-la sémantique du shell POSIX (ADR-049). Un seul shell résolu valide et
+la sémantique du shell POSIX. Un seul shell résolu valide et
 exécute chaque commande, sur chaque OS.
 
 <!-- claim:python-executor-locates-windows-interpreter -->

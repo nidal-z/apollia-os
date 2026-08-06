@@ -1,41 +1,46 @@
 # Apollia OS, agent examples
 
-This directory holds small reference agents that mirror the patterns shown
-in the public book. Each example is meant to be read in isolation and used
-as a starting point for your own work.
+Small reference agents, meant to be read in one sitting and copied as the
+starting point for your own work.
 
 ## What is here
 
-| Example | Pattern | Book reference |
-|---|---|---|
-| `hello/` | Minimal `@on_message` echo agent. | Chapter 5, "Your first agent". |
+| Example | Pattern |
+|---|---|
+| `hello/` | The minimal contract: `@agent` plus one `@on_message` handler. |
 
-More examples will land alongside future book chapters. Anything that is
-not strictly an example for a book chapter lives outside this directory and
-is maintained privately by the project author for real-world work.
-
-## How to install an example locally
+## Run it
 
 ```sh
 apollia-os agent install agents/examples/hello
-apollia-os agent list
-apollia-os chat new --agent hello
+apollia-os agent enable hello
+apollia-os run hello "hello from Apollia"
 ```
 
-## How to write your own
+`install` accepts a directory holding a `manifest.toml`, a single `.py` file,
+or a Git URL. Without the `enable` step, `run` fails with
+`agent not found: hello`.
 
-1. Copy one of the examples.
-2. Edit `manifest.toml` to give your agent a name, a version, and a
-   description.
-3. Rename the Python entry file and update `manifest.toml` to point to it.
-4. Implement your handler. The decorators you need (`@agent`, `@on_message`,
-   `@skill`, `@orchestrated`) are documented in the book.
+To talk to it in the chat REPL instead, start the daemon and run
+`apollia-os chat`.
 
-## Where to ask questions
+## Write your own
 
-For usage questions about the SDK or these examples, open a discussion in
-the project's Discussions Q&A. For bugs in an example, open an issue with
-the `bug` label.
+1. Copy `hello/` and rename the directory.
+2. Edit `manifest.toml`: `name`, `version`, `description`, and `entry` if you
+   rename the Python file. The name there and the one in the `@agent`
+   decorator must match.
+3. Replace the handler. Use `@on_message` for a conversational agent, or
+   `@skill` for one that another agent calls by skill name.
+4. Do not write `agent = YourClass()` yourself. `@agent` instantiates the class
+   and binds the instance to the module; adding the line builds a second
+   instance that overwrites the registered one.
 
-For real-world worker development (PDF, Excel, custom SaaS integration,
-domain-specific agents), see the project website at https://apollia.fr.
+The authority on what the runtime hands your agent is the type contract in
+`sdk/apollia/types.py` and `sdk/apollia/context/`. Read it rather than
+inferring from an example: an example shows shape, the types say what is
+guaranteed.
+
+## Questions
+
+Usage questions belong in Discussions Q&A. A defect in an example is an issue.

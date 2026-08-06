@@ -1,7 +1,6 @@
 # Breakpoints responsive - Apollia Desktop
 
 > Source de vérité pour tous les breakpoints utilisés dans `apollia-desktop/ui`.
-> Adossé à l'ADR-021.
 > Toute déviation (breakpoint custom, largeur en px dans le code) est un bug à corriger.
 
 ---
