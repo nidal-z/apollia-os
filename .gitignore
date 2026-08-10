@@ -57,9 +57,8 @@ lcov.info
 # Docs
 docs/internal/
 docs/specs/
-# mdBook build output (generated, never committed)
 docs/target/
-# Archived legacy book + gettext translation catalogs (excluded from public repo)
+docs/backlog/
 
 # Coding-assistant session state and per-project tooling. Working method, not
 # product: it describes how the tree is worked on, which nobody needs in order
@@ -171,3 +170,7 @@ sdk/build/
 
 # CLI E2E suite report output (regenerated each run)
 tests/cli/report/
+
+# Backlog de travail: captures et lots. Voir backlog/README.md pour la raison
+# de ne pas le publier avant l'ouverture des contributions.
+/backlog/

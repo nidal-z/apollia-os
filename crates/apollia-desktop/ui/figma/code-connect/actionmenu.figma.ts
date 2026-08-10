@@ -1,10 +1,12 @@
-// Code Connect · Apollia OS · ActionMenu  (Figma node 62:19)
+// Code Connect · Apollia OS · ActionMenu  (Figma node 360:352)
 // Source: crates/apollia-desktop/ui/src/lib/components/ui/action-menu/ActionMenu.svelte
+// Genere depuis figma/manifest.json. Ne pas editer a la main : reexecuter le
+// generateur apres toute reconstruction du composant dans Figma.
 // Apollia UI is Svelte; this uses the @figma/code-connect HTML parser as the
 // publish-ready Svelte stand-in. See ../README.md for plan/status.
 import figma, { html } from "@figma/code-connect/html"
 
-figma.connect("<DS_FILE>?node-id=62-19", {
+figma.connect("<DS_FILE>?node-id=360-352", {
   props: {
     state: figma.enum("State", { "closed": "closed", "open": "open" }),
   },
