@@ -65,6 +65,16 @@ repos:
         pass_filenames: false
         exclude: 'docs/agents/(FORBIDDEN|DOCS-WRITING)\.md|AGENTS\.md$'
 
+      # Doublon assume du hook ci-dessus, plus les trois regles de PII, domaine
+      # mort et slug perime que la CI porte de son cote. Il existe en script pour
+      # etre lancable hors commit : la phase qui produit la prose ne commite pas,
+      # donc un hook seul ne peut pas l'attraper la ou le defaut nait.
+      - id: check-prose
+        name: prose rules (em-dash, PII, dead domain, stale slug)
+        entry: python3 scripts/check_prose.py
+        language: system
+        pass_filenames: false
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.4.0
     hooks:

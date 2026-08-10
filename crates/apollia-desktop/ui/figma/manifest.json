@@ -7273,11 +7273,11 @@
       "nom": "🖥 Surfaces",
       "id": "538:2"
     },
-    "date": "2026-08-09",
+    "date": "2026-08-10",
     "largeurCanonique": "1440 par 900",
     "principe": "Une surface est un ecran entier, coquille comprise : Sidebar, Topbar, corps de route. Un cadre par etat que le source distingue reellement. Les composants sont instancies depuis les 366 entrees du manifeste, pas redessines.",
-    "cadresPoses": 94,
-    "cadresSurLaPage": 96,
+    "cadresPoses": 140,
+    "cadresSurLaPage": 141,
     "surfacesPosees": [
       {
         "nom": "Dashboard",
@@ -7416,36 +7416,79 @@
         "source": "components/chat/HitlFilesystemModal.svelte",
         "cadres": 5,
         "nodeId": "606:45006"
+      },
+      {
+        "nom": "Automations",
+        "source": "routes/Automations.svelte",
+        "cadres": 5,
+        "nodeId": "539:23409"
+      },
+      {
+        "nom": "Notifications",
+        "source": "routes/Notifications.svelte",
+        "cadres": 4,
+        "nodeId": "675:81446"
+      },
+      {
+        "nom": "Settings",
+        "source": "routes/Settings.svelte",
+        "cadres": 3,
+        "nodeId": "674:51327 (chargement), 674:51592 (garni), 674:51981 (erreur). Page « 🖥 Surfaces » 538:2, bande x=180000, y = 0 / 980 / 1960"
+      },
+      {
+        "nom": "SettingsProfile",
+        "source": "routes/settings/Profile.svelte",
+        "cadres": 5,
+        "nodeId": "675:65239 (chargement), 675:65504 (vide), 675:66022 (garni), 675:66590 (modifications non enregistrées), 675:67162 (dialogue modifications non enregistrées). Page « 🖥 Surfaces » 538:2, bande x=185000, y = 0 / 980 / 1960 / 2940 / 3920"
+      },
+      {
+        "nom": "SettingsAppearance",
+        "source": "routes/settings/Appearance.svelte",
+        "cadres": 2,
+        "nodeId": "674:50537, 674:50929"
+      },
+      {
+        "nom": "SettingsTools",
+        "source": "routes/settings/Tools.svelte",
+        "cadres": 5,
+        "nodeId": "675:67754, 675:68019, 675:68298, 675:68569, 675:69060"
+      },
+      {
+        "nom": "SettingsPermissions",
+        "source": "routes/settings/Permissions.svelte",
+        "cadres": 5,
+        "nodeId": "675:79010 (chargement), 675:79365 (vide), 675:79711 (garni), 675:80333 (formulaire d ajout), 675:80998 (erreur) ; page « 🖥 Surfaces » 538:2, bande x=225000, y=0/1000/2000/3000/4000"
+      },
+      {
+        "nom": "SettingsIntegrations",
+        "source": "routes/settings/Integrations.svelte",
+        "cadres": 4,
+        "nodeId": "677:60557 (chargement), 677:60827 (vide), 677:61101 (garni), 677:61571 (erreur) ; page « 🖥 Surfaces » 538:2, bande x=230000, y=0/1000/2000/3000"
+      },
+      {
+        "nom": "SettingsObservability",
+        "source": "routes/settings/Observability.svelte",
+        "cadres": 4,
+        "nodeId": "675:73481 (garni), 675:73909 (chargement), 675:74178 (erreur de chargement), 675:74461 (confirmation sensible)"
+      },
+      {
+        "nom": "SettingsSystem",
+        "source": "routes/settings/System.svelte",
+        "cadres": 4,
+        "nodeId": "676:59534 (garni), 676:59938 (chargement), 676:60207 (CLI non installee), 676:60613 (erreur des informations systeme)"
+      },
+      {
+        "nom": "SettingsConfiguration",
+        "source": "routes/settings/Configuration.svelte",
+        "cadres": 5,
+        "nodeId": "674:49087 (chargement), 674:49352 (garni), 674:49641 (fichier absent), 674:49930 (vide), 674:50229 (erreur), page « 🖥 Surfaces » 538:2, colonne x=250000, y = 0 / 980 / 1960 / 2940 / 3920"
       }
     ],
     "surfacesRestantes": {
-      "cause": "Quota journalier d appels du serveur MCP Figma epuise. Message verbatim renvoye par use_figma : « You've reached the Figma MCP tool call limit for your Full seat on the Professional plan. Upgrade your seat or plan for more tool calls. » whoami, exempte de quota, confirme un siege Full sur plan Professional, soit 200 appels par jour d apres file://figma/docs/rate-limits-access.md, partages par toute la flotte. Plusieurs agents ont tenu des pauses de 3, 5 et 10 minutes sans deblocage, ce qui exclut la limite par minute.",
-      "liste": [
-        "Notifications",
-        "Settings",
-        "SettingsProfile",
-        "SettingsAppearance",
-        "SettingsTools",
-        "SettingsPermissions",
-        "SettingsIntegrations",
-        "SettingsObservability",
-        "SettingsSystem",
-        "SettingsConfiguration"
-      ],
-      "aCompleter": [
-        "Automations, cadre 539:23409, renomme « Automations / garni (INCOMPLET, coquille et en-tete seuls) ». La coquille, le titre et les deux boutons sont poses et corriges, les deux libelles d exemple « Lancer » du composant Button ont ete remplaces par « Actualiser » et « Créer une automatisation » verbatim. Manquent la table des automatisations et ses lignes, et l etat de la rangee de navigation active, qui montre encore Tableau de bord."
-      ],
-      "echafaudageConserve": "Le cadre 539:21845, « gabarit de coquille, reglages (echafaudage, pas une surface) », en x=228000, est la coquille reutilisable batie par l agent Reglages avant son blocage. Conserve volontairement pour les neuf surfaces de reglages restantes. Son nom dit qu il n est pas une surface.",
-      "reprisePlanifiee": {
-        "date": "2026-08-10 vers 09h42, heure locale",
-        "mecanisme": "tache planifiee b9af5825, a usage unique, dans la session Claude courante. Elle meurt si la session se termine avant : dans ce cas relancer a la main.",
-        "script": "/Users/nidalzoumita/.claude/jobs/92f48504/tmp/wf-etape-d-reste.js",
-        "configuration": "/Users/nidalzoumita/.claude/jobs/92f48504/tmp/etape-d-reste-cfg.json",
-        "relanceManuelle": "Workflow({scriptPath: '/Users/nidalzoumita/.claude/jobs/92f48504/tmp/wf-etape-d-reste.js', args: <contenu de etape-d-reste-cfg.json comme valeur JSON>})",
-        "agents": 6,
-        "surfaces": 11,
-        "disciplineDeQuota": "Douze appels use_figma au maximum par agent. Un seul appel de reconnaissance, un appel d'ecriture par surface qui pose tous ses etats d'un coup, reutilisation du gabarit de coquille 539:21845 par l'aide coquille() du preambule au lieu de rebatir Sidebar et Topbar, deux captures au maximum par surface en groupant les etats dans un cadre temporaire, et arret sans retentative si le message de quota tombe. Estimation : environ 66 appels pour les onze surfaces, contre les 200 du plafond journalier."
-      }
+      "liste": [],
+      "$note": "Les onze surfaces qui restaient au 2026-08-09 ont ete posees le 2026-08-10, en un seul passage de six agents, 46 cadres, 50 appels Figma. Le blocage de quota decrit dans la version precedente de cette clef est leve, et sa cause est conservee dans « causeDuBlocagePrecedent ».",
+      "causeDuBlocagePrecedent": "Quota journalier d appels du serveur MCP Figma epuise. Message verbatim renvoye par use_figma : « You've reached the Figma MCP tool call limit for your Full seat on the Professional plan. Upgrade your seat or plan for more tool calls. » whoami, exempte de quota, confirme un siege Full sur plan Professional, soit 200 appels par jour d apres file://figma/docs/rate-limits-access.md, partages par toute la flotte. Plusieurs agents ont tenu des pauses de 3, 5 et 10 minutes sans deblocage, ce qui exclut la limite par minute.",
+      "echafaudageConserve": "Le cadre 539:21845, « gabarit de coquille, reglages (echafaudage, pas une surface) », en x=228000, est la coquille reutilisable batie par l agent Reglages avant son blocage du 2026-08-09. Les onze surfaces qu il devait servir sont posees. Il reste sur la page comme point de depart pour toute surface de reglages a venir, et son nom dit qu il n est pas une surface."
     },
     "routesHorsPerimetre": [
       "routes/Design.svelte",
@@ -7454,29 +7497,38 @@
       "routes/DesignMotion.svelte"
     ],
     "$noteRoutesHorsPerimetre": "Quatre pages de demonstration interne du systeme de design, pas des surfaces du produit.",
-    "defautsProduitRemontes": 86,
+    "defautsProduitRemontes": 21,
     "triageDesDefauts": {
-      "date": "2026-08-09",
-      "remontes": 86,
-      "dejaCouvertsParUneCapture": 52,
-      "aVerserDansUneCaptureExistante": 20,
-      "nouvellesCategories": 14,
-      "capturesEcrites": [
-        "CAP-061, quatre routes sont nommees differemment par la barre laterale et par le fil d'Ariane, et la route llm porte quatre noms simultanement. Mesure : 14 routes communes, 4 divergentes.",
-        "CAP-062, douze pages de reglages sur quinze affichent en permanence une coche verte et « Tous les changements enregistres » alors qu'elles n'ont aucun chemin d'enregistrement. Mesure : 15 sous-pages, 3 passent onSave, 12 non ; seules Profile, Stt et Observability peuvent porter dirty=true."
+      "date": "2026-08-10",
+      "nouvellesCaptures": [
+        "CAP-068, quatre dates affichees calculees en UTC et non dans le fuseau de l utilisateur",
+        "CAP-069, la recherche Web etiquetee « Cle requise » sur une installation ou elle fonctionne sans cle",
+        "CAP-070, le bouton qui detruit les saisies porte « Annuler », mot employe a 45 endroits pour « ne rien faire »",
+        "CAP-071, le fil d Ariane s arrete a « Parametres » pour les quinze sous-pages de reglages"
       ],
-      "nouvellesCategoriesNonEncoreCapturees": [
-        "La famille tour.band.* du catalogue est ecrite sans accents la ou le reste du catalogue les porte, 19 chaines sur 23.",
-        "Le meme ecran de profil tutoie et vouvoie l'utilisateur, a lignes d'ecart.",
-        "L'etat vide de la route llm demande d'editer apollia.toml alors que le meme ecran sait creer un moteur.",
-        "L'aide du champ Retention d'Observabilite promet qu'une valeur 0 signifie ne jamais purger, alors que min vaut 1 et que setRetention ramene toute saisie inferieure a 1.",
-        "Le bandeau de profil de la route Memoire pointe vers Parametres par une ancre de chemin, alors que l'application n'a pas de routeur de chemin.",
-        "La section paquets de la liste des agents affirme une absence pendant la connexion, parce qu'elle n'est pas gardee par connecting alors que la section assistants l'est.",
-        "L'identifiant de tache remonte toute la chaine des onglets d'agent et est jete au dernier etage.",
-        "La selection automatique d'un projet et la liste rendue ne suivent pas le meme ordre.",
-        "Deux chaines mortes settings.observability.state_on et state_off, et la branche vide de la page Configuration est inatteignable, son producteur ne renvoyant jamais zero section."
+      "ajoutsAUneCaptureExistante": [
+        "CAP-010, trois branches mortes de plus : le filtre « Erreur » d Automations, le rappel ontoggled de NotificationChannelCard, la branche « aucune section » de la page Configuration. Total porte a vingt-quatre."
       ],
-      "$note": "Les defauts deja couverts ou a verser ont ete classes par les agents eux-memes, qui ont grepe le corpus de captures pour le verifier. Les quatorze nouvelles categories ont ete relues une par une ; deux ont ete mesurees sur tout l'arbre et ont donne CAP-061 et CAP-062, les neuf autres sont consignees ici en attente de mesure, et trois etaient des instances des familles existantes."
-    }
+      "dejaCouvertsSansAjout": [
+        "CAP-062 nomme deja Appearance, Configuration, Integrations, Permissions et System : les cinq remontees sur la coche verte permanente sont couvertes.",
+        "CAP-058 producteur 1 est exactement config.rs et ses sept cartes anglaises.",
+        "CAP-059 nomme deja settings.save_shortcut_hint et sa valeur ⌘S.",
+        "CAP-022 nomme deja common.copy comme la seule clef manquante visible a l utilisateur.",
+        "CAP-006 porte deja les litteraux francais hors svelte-i18n.",
+        "CAP-040 porte deja la categorie des libelles et compteurs ecrits a la main.",
+        "CAP-043 porte deja la mise en forme deleguee a toLocaleString."
+      ],
+      "refute": "Un agent a rapporte que les trois chaines de « Sessions actives » mentent en annoncant des autorisations ephemeres, au motif que le runtime les persisterait en SQLite. Verifie a la source : faux. apollia-permissions/src/engine.rs:118-128 documente add_session_rule comme « in memory only, never persisted » et force le scope a Session ; prefix_rule_engine.rs:321-326 fait echouer add_rule avec « session rules must not be persisted » ; cote chat, authorized_tools n est insere que dans la session en memoire et types.rs:65-69 le declare non persiste. Les chaines sont exactes. Aucune capture."
+    },
+    "verificationDuPassage": {
+      "date": "2026-08-10",
+      "methode": "Un appel Figma de lecture sur la page 538:2, puis un appel d ecriture correctif.",
+      "cadresAttendusTrouves": "11 surfaces sur 11, au compte de cadres annonce par chaque agent, toutes en 1440 par 900.",
+      "noeudsHorsCadre": "aucun",
+      "mentionIncomplet": "retiree du nom du cadre Automations",
+      "libellesDExempleDePrimitive": "aucun. Le controle a d abord signale 41 occurrences de « Tableau de bord », toutes refutees : c est nav.sidebar.dashboard, le libelle legitime de la premiere rangee de la barre laterale, que chaque ecran doit montrer. La liste de suspects du controle etait fautive, pas les surfaces.",
+      "defautDeConstructionCorrige": "17 cadres sur 46 portaient la mauvaise rangee de navigation active : SettingsConfiguration en avait deux (Accueil et Parametres), SettingsAppearance, SettingsProfile et SettingsTools n en avaient aucune. Corriges en un appel, puis 46 sur 46 controles conformes."
+    },
+    "$noteEcartDeCadres": "cadresSurLaPage vaut 141 et cadresPoses 140. L ecart de un est le cadre 539:21845, « gabarit de coquille, reglages (echafaudage, pas une surface) », conserve volontairement. Voir surfacesRestantes.echafaudageConserve."
   }
 }
