@@ -1331,3 +1331,19 @@ the value is absolute, rooted in the resolved home, suffixed with
 `DATA_DIR_NAME` and free of any `~`; and the rendering itself is Svelte, which
 this file states up front it cannot reach.
 """
+
+[[claim]]
+id = "rewrite-injects-work-context"
+scope = "public"
+symbol = "WorkContext"
+status = "wired"
+proof = "crates/apollia-llm/src/meta/rewrite_input.rs"
+evidence = "pub struct WorkContext"
+note = """
+Third exception to Principle 6 (memory injection): the prompt rewrite carries
+the Work section of the user profile when the operator triggers it. Four anchors,
+one per page that states the exception: docs/explanation/the-8-principles.md and
+docs/architecture/07-crosscutting-concepts.md, each with its French mirror under
+i18n/fr. The exception lives in the desktop rewrite command, not in the
+assistant's prompt builder, which is what the surrounding prose says.
+"""

@@ -7,7 +7,7 @@
    * traps focus within its root, and persists expansion state to
    * `localStorage` so power users keep their preferred layout.
    */
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import {
@@ -17,7 +17,11 @@
     Sparkles,
     MessageSquare,
     FolderOpen,
+    Wand2,
+    Loader2,
+    Undo2,
   } from "lucide-svelte";
+  import { InputRewriter, fetchWorkContext } from "$lib/chat/rewriteInput";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
   import { LoadingSpinner } from "$lib/components/feedback";
@@ -64,6 +68,14 @@
   // fire-and-forget, so without this the rejection was an unhandled console
   // error with no user feedback.
   let createError = $state<string | null>(null);
+
+  // ── Rewrite input ──────────────────────────────────────────────────────────
+  const rewriter = new InputRewriter();
+  let isRewriting = $state(false);
+  // Mirrors `rewriter.restoreOriginal() !== null` for the template: the class
+  // holds plain fields, so a rune has to carry the "a rewrite happened" fact to
+  // the restore button.
+  let canRestore = $state(false);
   // Whether the free chat starts in plan mode. Seeded from the runtime default
   // so the picker reflects the configured behavior, and applied before the
   // first message so that turn already runs under the plan gate.
@@ -128,6 +140,14 @@
     };
   });
 
+  $effect(() => {
+    // Reset rewriter when prompt is cleared
+    if (prompt.trim() === "") {
+      rewriter.reset();
+      canRestore = false;
+    }
+  });
+
   // ─── Derived ──────────────────────────────────────────────────────────────
   const visibleAgents = $derived(
     $agents.filter((a) => a.agent_type !== "system"),
@@ -150,6 +170,54 @@
       return $t("chat.quickpicker.error_no_llm");
     }
     return $t("chat.quickpicker.error_generic", { values: { error: raw } });
+  }
+
+  async function handleRewrite(): Promise<void> {
+    // GIVEN: rewrite already in progress or empty prompt
+    if (isRewriting || prompt.trim() === "") return;
+
+    // WHEN: rewrite triggered
+    isRewriting = true;
+    createError = null;
+    try {
+      // THEN: fetch Work context from profile
+      const workContext = await fetchWorkContext();
+
+      // THEN: call rewriter
+      const outcome = await rewriter.rewrite(prompt, workContext);
+
+      // WHEN: the runtime had no LLM, or the model answered nothing usable
+      // THEN: say so and leave the prompt as it was
+      if (!outcome.fromLlm) {
+        createError = $t("chat.rewrite.error_no_llm");
+        return;
+      }
+
+      // WHEN: rewrite succeeds
+      // THEN: update prompt
+      prompt = outcome.text;
+      canRestore = rewriter.restoreOriginal() !== null;
+      await tick();
+    } catch (err) {
+      // WHEN: error occurred
+      // THEN: set error message
+      createError = describeCreateError(err);
+    } finally {
+      isRewriting = false;
+    }
+  }
+
+  async function handleRestoreOriginal(): Promise<void> {
+    // GIVEN: a rewrite has been applied at least once
+    const original = rewriter.restoreOriginal();
+    if (original === null) return;
+
+    // WHEN: the operator asks for the text they typed
+    // THEN: put it back, and leave the rewriter armed so a further rewrite
+    // still departs from that same original
+    prompt = original;
+    createError = null;
+    await tick();
   }
 
   async function createFreeChat(initialPrompt?: string, tools?: string[]): Promise<void> {
@@ -324,20 +392,52 @@
     <span class="text-[10px] text-muted-foreground/50">
       {$t("chat.quickpicker.submit_hint")}
     </span>
-    <Button
-      size="sm"
-      onclick={() => createFreeChat(prompt)}
-      disabled={creating || prompt.trim().length === 0}
-      data-testid="quickpicker-submit"
-      class="gap-1.5"
-    >
-      {#if creating}
-        <LoadingSpinner size={12} tone="current" />
-      {:else}
-        <MessageSquare size={12} />
+    <div class="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={handleRewrite}
+        disabled={isRewriting || creating || prompt.trim().length === 0}
+        data-testid="quickpicker-rewrite-button"
+        class="gap-1.5"
+        title={$t("chat.rewrite.button_tooltip")}
+      >
+        {#if isRewriting}
+          <Loader2 size={12} class="animate-spin" />
+        {:else}
+          <Wand2 size={12} />
+        {/if}
+        {$t("chat.rewrite.button_tooltip")}
+      </Button>
+      {#if canRestore}
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={handleRestoreOriginal}
+          disabled={isRewriting || creating}
+          data-testid="quickpicker-rewrite-restore-button"
+          class="gap-1.5"
+          title={$t("chat.rewrite.restore_tooltip")}
+        >
+          <Undo2 size={12} />
+          {$t("chat.rewrite.restore_tooltip")}
+        </Button>
       {/if}
-      {$t("chat.quickpicker.start_free")}
-    </Button>
+      <Button
+        size="sm"
+        onclick={() => createFreeChat(prompt)}
+        disabled={creating || prompt.trim().length === 0}
+        data-testid="quickpicker-submit"
+        class="gap-1.5"
+      >
+        {#if creating}
+          <LoadingSpinner size={12} tone="current" />
+        {:else}
+          <MessageSquare size={12} />
+        {/if}
+        {$t("chat.quickpicker.start_free")}
+      </Button>
+    </div>
   </div>
 
   {#if createError}

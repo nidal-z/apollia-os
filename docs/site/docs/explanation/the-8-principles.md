@@ -74,10 +74,12 @@ injection is convenient and quietly corrosive: it makes a run's inputs opaque an
 its behaviour hard to attribute. Leaving recall to the agent's initiative keeps
 the record of what fed a decision honest.
 
-Two exceptions exist, both confined to the built-in conversational assistant, the
-one behind the chat window. Neither is reachable from a Python agent you install:
-they live in the assistant's own prompt builder and chat manager, and no agent
-execution path goes through either.
+Three exceptions exist, all confined to the built-in conversational assistant, the
+one behind the chat window. None is reachable from a Python agent you install.
+The first two live in the assistant's own prompt builder and chat manager. The
+third lives elsewhere, in the desktop prompt-rewrite command, which never touches
+the assistant's prompt at all: it answers the composer, not a run. No agent
+execution path goes through any of the three.
 
 The first is an operator's decision. At the highest autonomy tier only,
 `long_autonomous`, the assistant appends a short user-persona brief to its system
@@ -98,6 +100,15 @@ for it per session. It buys continuity in a product surface where a user
 reasonably expects to be remembered. It is also the one place in the runtime
 where the "at agent initiative" rule genuinely does not hold, which is why it is
 written here rather than left implicit.
+
+<!-- claim:rewrite-injects-work-context -->
+The third exception is also operator-initiated, and happens only when explicitly
+triggered. When the operator clicks the "Improve prompt" button in a chat
+composer, the rewrite request includes the Work section of their user profile
+(sector, tech stack, daily tools) if it has been filled. This is not automatic
+injection: nothing happens until the operator clicks, and they see the rewritten
+result before choosing to send it. The context helps the rewrite stay grounded in
+the operator's actual environment rather than inventing tools they don't use.
 
 The memory layer itself is exportable and importable, which is why it belongs to
 sovereignty as much as to agency.

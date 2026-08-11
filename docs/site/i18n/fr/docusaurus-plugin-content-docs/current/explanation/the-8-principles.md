@@ -85,11 +85,14 @@ corrosive : elle rend les entrées d'une exécution opaques et son comportement
 difficile à attribuer. Laisser le rappel à l'initiative de l'agent garde
 honnête la trace de ce qui a nourri une décision.
 
-Deux exceptions existent, toutes deux confinées à l'assistant conversationnel
+Trois exceptions existent, toutes confinées à l'assistant conversationnel
 intégré, celui qui se trouve derrière la fenêtre de chat. Aucune n'est
-atteignable depuis un agent Python que vous installez : elles vivent dans le
-générateur de prompt et le gestionnaire de chat propres à l'assistant, et
-aucun chemin d'exécution d'agent ne passe par l'une ou l'autre.
+atteignable depuis un agent Python que vous installez. Les deux premières
+vivent dans le générateur de prompt et le gestionnaire de chat propres à
+l'assistant. La troisième vit ailleurs, dans la commande de réécriture du
+bureau, qui ne touche jamais au prompt de l'assistant : elle répond au
+composeur, pas à une exécution. Aucun chemin d'exécution d'agent ne passe par
+l'une des trois.
 
 La première est une décision de l'opérateur. Au palier d'autonomie le plus
 élevé uniquement, `long_autonomous`, l'assistant ajoute un court brief de
@@ -114,6 +117,17 @@ Cela achète de la continuité dans une surface produit où un utilisateur
 s'attend raisonnablement à être reconnu. C'est aussi le seul endroit du
 runtime où la règle « à l'initiative de l'agent » ne tient réellement pas, et
 c'est pourquoi cela est écrit ici plutôt que laissé implicite.
+
+<!-- claim:rewrite-injects-work-context -->
+La troisième exception est également à l'initiative de l'opérateur, et ne
+survient que lorsqu'elle est explicitement déclenchée. Lorsque l'opérateur
+clique sur le bouton « Améliorer la demande » dans un composeur de chat, la
+requête de réécriture inclut la section Travail de son profil utilisateur
+(secteur, pile technique, outils quotidiens) si elle a été remplie. Ce n'est
+pas une injection automatique : rien ne se produit tant que l'opérateur ne
+clique pas, et il voit le résultat réécrit avant de choisir de l'envoyer. Le
+contexte aide la réécriture à rester ancrée dans l'environnement réel de
+l'opérateur plutôt que d'inventer des outils qu'il n'utilise pas.
 
 La couche mémoire elle-même est exportable et importable, ce qui explique
 qu'elle relève autant de la souveraineté que de l'agentivité.

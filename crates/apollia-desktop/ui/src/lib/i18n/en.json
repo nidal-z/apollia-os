@@ -4424,6 +4424,12 @@
         "executing": "Executing",
         "done": "Done"
       }
+    },
+    "rewrite": {
+      "button_tooltip": "Improve prompt",
+      "restore_tooltip": "Restore original",
+      "error_no_llm": "No LLM configured for rewriting",
+      "error_generic": "Rewrite failed: {error}"
     }
   },
   "transcriptions": {

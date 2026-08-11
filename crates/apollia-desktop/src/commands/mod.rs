@@ -24,6 +24,7 @@ pub mod mcp_coaching;
 pub mod memory;
 pub mod meta_automation;
 pub mod meta_next_steps;
+pub mod meta_rewrite;
 pub mod model_hub;
 pub mod notifications;
 pub mod observability;

@@ -6,6 +6,7 @@
 
 pub mod next_steps;
 pub mod parse_automation;
+pub mod rewrite_input;
 
 pub use next_steps::{
     generate_next_steps, heuristic_fallback as next_steps_fallback, NextStep, NextStepAction,
@@ -14,4 +15,7 @@ pub use next_steps::{
 };
 pub use parse_automation::{
     parse_automation, AgentMatch, Confidence, ParsedAutomation, ParsedSchedule,
+};
+pub use rewrite_input::{
+    rewrite_input, RewriteInputError, RewriteInputRequest, RewriteInputResponse, WorkContext,
 };

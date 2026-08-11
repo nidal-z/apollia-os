@@ -95,14 +95,23 @@ garde l'assemblage du contexte explicite et auditable plutôt que de le
 transformer en effet de bord caché, et c'est un principe délibéré, pas un
 oubli.
 
-L'assistant conversationnel intégré échappe à cette règle, de deux façons :
-une note de profil utilisateur au palier `long_autonomous`, et des résumés de
-sessions passées sur le premier message d'une session de chat libre. Les deux
-vivent dans le constructeur de prompt propre à l'assistant et dans le
-gestionnaire de chat, si bien qu'aucun chemin d'exécution d'agent n'atteint
-l'un ou l'autre, ce qui explique pourquoi le principe tient là où il est
-énoncé. Voir
-[les huit principes](/explanation/the-8-principles).
+L'assistant conversationnel intégré échappe à cette règle, de trois façons :
+une note de profil utilisateur au palier `long_autonomous`, des résumés de
+sessions passées sur le premier message d'une session de chat libre, et la
+section Travail du profil utilisateur lorsque l'opérateur clique sur « Améliorer
+la demande » dans un composeur de chat. Les deux premières vivent dans le
+constructeur de prompt propre à l'assistant et dans le gestionnaire de chat. La
+troisième vit en dehors des deux, dans la commande de réécriture du bureau, qui
+construit son propre prompt ponctuel et rend du texte au composeur plutôt qu'à
+une exécution. Aucun chemin d'exécution d'agent n'atteint l'une des trois, ce
+qui explique pourquoi le principe tient là où il est énoncé.
+
+<!-- claim:rewrite-injects-work-context -->
+La troisième mérite d'être située précisément, car elle est la plus récente et
+la moins visible : la requête de réécriture ne porte la section Travail de
+l'opérateur que lorsque celui-ci la déclenche, et sa sortie arrive dans le
+composeur, où elle peut encore être modifiée ou abandonnée avant tout envoi.
+Voir [les huit principes](/explanation/the-8-principles).
 
 ## Observabilité
 

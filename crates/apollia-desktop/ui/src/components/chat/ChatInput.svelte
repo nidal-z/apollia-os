@@ -13,8 +13,10 @@
 <script lang="ts">
   import { onMount, untrack, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks } from "lucide-svelte";
+  import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks, Wand2, Loader2, Undo2 } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { InputRewriter, fetchWorkContext } from "$lib/chat/rewriteInput";
+  import { addToast } from "$lib/components/ui/toast";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { chatInputAppend } from "$lib/stores/artifacts";
   import {
@@ -118,6 +120,17 @@
   // produced nothing says why instead of ending in silence.
   let sttError = $state<string | null>(null);
   let focused = $state(false);
+
+  // ── Rewrite input ──────────────────────────────────────────────────────────
+  // "Improve prompt" button that rewrites terse input via LLM before sending.
+  // Uses InputRewriter to preserve original text and prevent iteration drift.
+  const rewriter = new InputRewriter();
+  let isRewriting = $state(false);
+  // Mirrors `rewriter.restoreOriginal() !== null` for the template: the class
+  // holds plain fields, so a rune has to carry the "a rewrite happened" fact to
+  // the restore button.
+  let canRestore = $state(false);
+
   let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
   let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
   let suggestionIndex = $state(0);
@@ -317,6 +330,66 @@
     }
   }
 
+  async function handleRewrite(): Promise<void> {
+    // GIVEN: rewrite already in progress
+    if (isRewriting || value.trim() === "") return;
+
+    // WHEN: rewrite triggered
+    isRewriting = true;
+    try {
+      // THEN: fetch Work context from profile
+      const workContext = await fetchWorkContext();
+
+      // THEN: call rewriter
+      const outcome = await rewriter.rewrite(value, workContext);
+
+      // WHEN: the runtime had no LLM, or the model answered nothing usable
+      // THEN: say so and leave the field as it was
+      if (!outcome.fromLlm) {
+        addToast($t("chat.rewrite.error_no_llm"), "error");
+        return;
+      }
+
+      // WHEN: rewrite succeeds
+      // THEN: update value, restore cursor to end, restore focus
+      value = outcome.text;
+      canRestore = rewriter.restoreOriginal() !== null;
+      await tick();
+      if (textareaEl) {
+        textareaEl.selectionStart = value.length;
+        textareaEl.selectionEnd = value.length;
+        textareaEl.focus();
+      }
+    } catch (err) {
+      // WHEN: error occurred
+      // THEN: show error message
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      addToast(
+        $t("chat.rewrite.error_generic", { values: { error: errorMsg } }),
+        "error",
+      );
+    } finally {
+      isRewriting = false;
+    }
+  }
+
+  async function handleRestoreOriginal(): Promise<void> {
+    // GIVEN: a rewrite has been applied at least once
+    const original = rewriter.restoreOriginal();
+    if (original === null) return;
+
+    // WHEN: the operator asks for the text they typed
+    // THEN: put it back, and leave the rewriter armed so a further rewrite
+    // still departs from that same original
+    value = original;
+    await tick();
+    if (textareaEl) {
+      textareaEl.selectionStart = value.length;
+      textareaEl.selectionEnd = value.length;
+      textareaEl.focus();
+    }
+  }
+
   $effect(() => {
     if (!shouldRotate) return;
     const interval = window.setInterval(() => {
@@ -327,6 +400,14 @@
       }, 300);
     }, 4000);
     return () => window.clearInterval(interval);
+  });
+
+  $effect(() => {
+    // Reset rewriter when field is cleared
+    if (value.trim() === "") {
+      rewriter.reset();
+      canRestore = false;
+    }
   });
 
   $effect(() => {
@@ -800,6 +881,34 @@
           <Mic size={16} />
         {/if}
       </button>
+      <button
+        type="button"
+        onclick={handleRewrite}
+        disabled={disabled || isRewriting || value.trim() === ""}
+        class={toolBtn}
+        aria-label={$t("chat.rewrite.button_tooltip")}
+        title={$t("chat.rewrite.button_tooltip")}
+        data-testid="chat-input-rewrite-button"
+      >
+        {#if isRewriting}
+          <Loader2 size={16} class="animate-spin" />
+        {:else}
+          <Wand2 size={16} />
+        {/if}
+      </button>
+      {#if canRestore}
+        <button
+          type="button"
+          onclick={handleRestoreOriginal}
+          disabled={disabled || isRewriting}
+          class={toolBtn}
+          aria-label={$t("chat.rewrite.restore_tooltip")}
+          title={$t("chat.rewrite.restore_tooltip")}
+          data-testid="chat-input-rewrite-restore-button"
+        >
+          <Undo2 size={16} />
+        </button>
+      {/if}
       <button
         type="button"
         onclick={() => toggleTrigger("/")}

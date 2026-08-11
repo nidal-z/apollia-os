@@ -4424,6 +4424,12 @@
         "executing": "Exécution",
         "done": "Terminé"
       }
+    },
+    "rewrite": {
+      "button_tooltip": "Améliorer la demande",
+      "restore_tooltip": "Restaurer l'original",
+      "error_no_llm": "Aucun moteur LLM configuré pour la réécriture",
+      "error_generic": "Échec de réécriture : {error}"
     }
   },
   "transcriptions": {
