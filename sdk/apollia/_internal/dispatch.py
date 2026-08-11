@@ -26,12 +26,12 @@ from apollia._internal.manifest import (
 from apollia.errors import SkillNotFound
 
 __all__ = [
-    "dispatch_task",
-    "dispatch_skill",
     "dispatch_message",
+    "dispatch_skill",
+    "dispatch_task",
     "extract_task_message",
-    "extract_task_skill_id",
     "extract_task_payload",
+    "extract_task_skill_id",
 ]
 
 
@@ -56,7 +56,7 @@ def extract_task_message(task: dict[str, Any]) -> str:
     return ""
 
 
-def _normalize_history(raw: Any) -> list[dict[str, str]]:
+def _normalize_history(raw: object) -> list[dict[str, str]]:
     """Convert AIP task history into the SDK ``Message`` contract.
 
     The runtime serializes conversation history as AIP messages shaped
@@ -156,24 +156,24 @@ def extract_task_payload(task: dict[str, Any]) -> dict[str, Any]:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _logger_from_ctx(ctx: Any) -> logging.Logger | None:
+def _logger_from_ctx(ctx: object) -> logging.Logger | None:
     log = getattr(ctx, "logger", None)
     if isinstance(log, logging.Logger):
         return log
     return None
 
 
-async def _maybe_await(value: Any) -> Any:
+async def _maybe_await(value: object) -> object:
     if inspect.iscoroutine(value):
         return await value
     return value
 
 
 async def dispatch_skill(
-    agent_instance: Any,
+    agent_instance: object,
     skill_id: str,
     payload: dict[str, Any],
-    ctx: Any,
+    ctx: object,
 ) -> dict[str, Any]:
     """Look up a skill, validate the payload, call its handler.
 
@@ -215,10 +215,10 @@ async def dispatch_skill(
 
 
 async def dispatch_message(
-    agent_instance: Any,
+    agent_instance: object,
     message: str,
     history: list[dict[str, Any]] | None,
-    ctx: Any,
+    ctx: object,
 ) -> dict[str, Any]:
     """Call the agent's ``@on_message`` handler.
 
@@ -256,9 +256,9 @@ async def dispatch_message(
 
 
 async def dispatch_task(
-    agent_instance: Any,
+    agent_instance: object,
     task: dict[str, Any],
-    ctx: Any,
+    ctx: object,
 ) -> dict[str, Any]:
     """Top-level dispatcher: route based on the shape of ``task``.
 

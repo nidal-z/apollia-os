@@ -541,9 +541,9 @@ def test_all_valid_autonomy_levels_accepted() -> None:
 def test_valid_autonomy_levels_frozenset_contains_all_four() -> None:
     from apollia.agent import _VALID_AUTONOMY_LEVELS
 
-    assert _VALID_AUTONOMY_LEVELS == {
+    assert {
         "assisted",
         "supervised",
         "bounded_autonomous",
         "long_autonomous",
-    }
+    } == _VALID_AUTONOMY_LEVELS

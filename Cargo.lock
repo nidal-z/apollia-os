@@ -217,7 +217,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "apollia-aip"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "apollia-llm",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-auth"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "age",
  "axum",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-cli"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-connectors"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-auth",
  "apollia-core",
@@ -346,7 +346,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-core"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "async-trait",
  "chrono",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-desktop"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-e2e-tests"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-aip",
  "apollia-core",
@@ -454,7 +454,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-eval"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-llm",
  "async-trait",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-llm"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "async-openai",
@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-mcp"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-auth",
  "apollia-core",
@@ -520,7 +520,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-memory"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "chrono",
@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-notifications"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "apollia-tools",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-oria"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "apollia-llm",
@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-permissions"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "chrono",
@@ -603,11 +603,11 @@ dependencies = [
 
 [[package]]
 name = "apollia-prompts"
-version = "0.1.0"
+version = "0.1.0-preview"
 
 [[package]]
 name = "apollia-runner"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "axum",
  "futures",
@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-runtime"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-auth",
  "apollia-connectors",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-stt"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "cpal",
  "rubato",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-tools"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "aes-gcm",
  "apollia-core",
@@ -724,7 +724,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-triggers"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "apollia-mcp",
@@ -744,7 +744,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-workspace"
-version = "0.1.0"
+version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
  "apollia-llm",

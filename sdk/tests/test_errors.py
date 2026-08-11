@@ -39,8 +39,8 @@ def test_domain_error_minimal() -> None:
 
 
 def test_domain_error_with_details() -> None:
-    err = DomainError("X", "y", {"path": "/tmp/a"})
-    assert err.details == {"path": "/tmp/a"}
+    err = DomainError("X", "y", {"path": "/srv/data/a"})
+    assert err.details == {"path": "/srv/data/a"}
 
 
 def test_need_human_input_defaults_to_empty_context() -> None:

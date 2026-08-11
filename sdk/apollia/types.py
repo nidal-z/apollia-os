@@ -256,39 +256,39 @@ class AIPResult:
 
 # Re-exports utiles
 __all__ = [
+    "A2AInterface",
+    # Legacy
+    "AIPResult",
+    "BudgetView",
     # Ctx surface
     "Ctx",
-    # Multi-modal types
-    "Message",
-    "LlmMessage",
-    "MessageContent",
-    "TextContent",
+    "DatasourcesInterface",
+    "EventsInterface",
     "ImageContent",
     "ImageSourceBase64",
     "ImageSourceUrl",
-    # Vision helpers
-    "text",
-    "image_from_path",
-    "image_from_bytes",
-    "image_from_url",
+    "LlmMessage",
     # Re-exports of the ctx Protocol classes (handy for type hints)
     "LlmProxy",
     "LlmResponse",
-    "MemoryInterface",
-    "ToolProxy",
-    "A2AInterface",
+    "Logger",
     "MailInterface",
     "MailMessage",
-    "DatasourcesInterface",
-    "TemplatesInterface",
-    "SecretsInterface",
-    "EventsInterface",
-    "Logger",
-    "ProfileInterface",
-    "WorkspaceContext",
-    "SttInterface",
+    "MemoryInterface",
+    # Multi-modal types
+    "Message",
+    "MessageContent",
     "NotifyInterface",
-    "BudgetView",
-    # Legacy
-    "AIPResult",
+    "ProfileInterface",
+    "SecretsInterface",
+    "SttInterface",
+    "TemplatesInterface",
+    "TextContent",
+    "ToolProxy",
+    "WorkspaceContext",
+    "image_from_bytes",
+    "image_from_path",
+    "image_from_url",
+    # Vision helpers
+    "text",
 ]

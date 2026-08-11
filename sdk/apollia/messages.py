@@ -38,7 +38,7 @@ def on_message(fn: F) -> F:
         raise AgentConfigError(f"@on_message must decorate a callable, got {type(fn).__name__}")
     if not inspect.iscoroutinefunction(fn):
         raise AgentConfigError(
-            f"@on_message: method '{getattr(fn, '__name__', '?')}' " "must be 'async def'"
+            f"@on_message: method '{getattr(fn, '__name__', '?')}' must be 'async def'"
         )
     setattr(fn, ON_MESSAGE_ATTR, True)
     return fn

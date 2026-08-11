@@ -29,19 +29,19 @@ VALUES
 INSERT INTO installed_agents
     (name, version, install_path, source_path, manifest_json, enabled, installed_at, updated_at)
 VALUES
-    ('onboarding-agent', '2.4.0',
+    ('onboarding-agent', '0.1.0-preview',
      '/__SEED_HOME__/.apollia/agents/onboarding-agent',
      '/__SEED_HOME__/.apollia/agents/onboarding-agent/agent.py',
-     '{"name":"onboarding-agent","version":"2.4.0","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":["permission_rule_add","permission_rule_list"],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
+     '{"name":"onboarding-agent","version":"0.1.0-preview","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":["permission_rule_add","permission_rule_list"],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
      1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO installed_agents
     (name, version, install_path, source_path, manifest_json, enabled, installed_at, updated_at)
 VALUES
-    ('apollia-guide', '0.2.0',
+    ('apollia-guide', '0.1.0-preview',
      '/__SEED_HOME__/.apollia/agents/apollia-guide',
      '/__SEED_HOME__/.apollia/agents/apollia-guide/agent.py',
-     '{"name":"apollia-guide","version":"0.2.0","description":"Conversational coach for Apollia OS: knows product capabilities and suggests actionable deep-links.","tools_required":[],"tools_optional":["navigate","read_memory_namespace","get_user_integrations","get_installed_agents"],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"apollia-guide","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["coach","system","guide"],"skills":[],"execution_mode":"conversational","agent_type":"assistant","examples":["What can Apollia do?","How do I install an agent?"],"limitations":["Guidance only, does not act on your behalf"]}',
+     '{"name":"apollia-guide","version":"0.1.0-preview","description":"Conversational coach for Apollia OS: knows product capabilities and suggests actionable deep-links.","tools_required":[],"tools_optional":["navigate","read_memory_namespace","get_user_integrations","get_installed_agents"],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"apollia-guide","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["coach","system","guide"],"skills":[],"execution_mode":"conversational","agent_type":"assistant","examples":["What can Apollia do?","How do I install an agent?"],"limitations":["Guidance only, does not act on your behalf"]}',
      1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO installed_agents

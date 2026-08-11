@@ -4,7 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "apollia-sdk"
-version = "0.5.0"
+# Tracks the Apollia OS product version: the SDK ships with the runtime and has
+# no release cycle of its own. PEP 440 normalises "-preview" to "rc0", so the
+# built wheel is apollia_sdk-0.1.0rc0; the string here is the one the git tag,
+# the changelog and `apollia.__version__` all use.
+version = "0.1.0-preview"
 description = "Python SDK for Apollia OS agent development"
 # The SDK source runs on Python 3.10+ (no 3.11/3.12-only syntax; the 3.11+
 # typing.Required / NotRequired are imported behind an ImportError fallback in
@@ -49,7 +53,10 @@ reportUnusedImport = "warning"
 reportMissingTypeStubs = "warning"
 
 [tool.ruff]
-target-version = "py312"
+# Must track `requires-python` above, not the interpreter the runtime embeds.
+# On py312 ruff proposes PEP 695 generics (UP047), which are 3.12-only syntax
+# and would break the 3.10 floor the source deliberately holds.
+target-version = "py310"
 line-length = 100
 src = ["apollia", "tests"]
 
@@ -64,13 +71,12 @@ select = [
     "SIM",                # simplify
     "ANN",                # annotations
     "ASYNC",              # async-specific
-    "TCH",                # type-checking
+    "TC",                 # type-checking
     "PT",                 # pytest
     "D",                  # pydocstyle (google)
 ]
 ignore = [
     "D100", "D104",       # missing module/package docstring
-    "ANN101", "ANN102",   # self/cls annotation
     "COM812",             # trailing comma (conflicts with formatter)
     "ISC001",             # implicit string concat (conflicts with formatter)
 ]

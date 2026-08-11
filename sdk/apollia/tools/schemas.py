@@ -15,7 +15,25 @@ descriptor at dispatch time.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
+
+
+class _ToolsDescribe(Protocol):
+    """The single tool-registry method :func:`build_tools_block_from_ctx` needs."""
+
+    async def describe(self, name: str) -> dict[str, Any] | None: ...
+
+
+class _CtxWithTools(Protocol):
+    """Minimal duck type accepted by :func:`build_tools_block_from_ctx`.
+
+    Only ``ctx.tools.describe(name)`` is required. The full
+    :class:`apollia.context.Ctx` Protocol is a superset.
+    """
+
+    @property
+    def tools(self) -> _ToolsDescribe: ...
+
 
 # Common parameter descriptor strings reused across the legacy mirror.
 _SANDBOX_PATH_DESC = "str - relative path inside the sandbox (required)"
@@ -62,7 +80,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "content": "str - full file content to write (required)",
         },
         "example": (
-            '{"path": ".apollia/tasks/user-auth.md", ' '"content": "# TaskSpec: User Auth\\n..."}'
+            '{"path": ".apollia/tasks/user-auth.md", "content": "# TaskSpec: User Auth\\n..."}'
         ),
     },
     "file_edit": {
@@ -78,7 +96,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "new_text": "str - replacement text (required)",
             "replace_all": _BOOL_OPT_FALSE_DESC,
         },
-        "example": ('{"path": "src/main.rs", "old_text": "fn foo()", ' '"new_text": "fn bar()"}'),
+        "example": ('{"path": "src/main.rs", "old_text": "fn foo()", "new_text": "fn bar()"}'),
     },
     "file_list": {
         "description": (
@@ -203,11 +221,11 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         ),
         "parameters": {
             "url": "str - public HTTP/HTTPS URL (required)",
-            "max_chars": "int (optional) - max chars returned in content " "(default 30000)",
-            "include_metadata": "bool (optional, default true) - include " "title and byline",
+            "max_chars": "int (optional) - max chars returned in content (default 30000)",
+            "include_metadata": "bool (optional, default true) - include title and byline",
         },
         "example": (
-            '{"url": "https://www.anthropic.com/news/claude-4-7-release", ' '"max_chars": 20000}'
+            '{"url": "https://www.anthropic.com/news/claude-4-7-release", "max_chars": 20000}'
         ),
     },
     "python_executor": {
@@ -223,7 +241,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     },
     "notebook_read": {
         "description": (
-            "Read a Jupyter notebook (.ipynb). Returns its cell list with " "sources and outputs."
+            "Read a Jupyter notebook (.ipynb). Returns its cell list with sources and outputs."
         ),
         "parameters": {
             "path": "str - relative path to the .ipynb file (required)",
@@ -262,7 +280,7 @@ def describe_tool(tool_name: str) -> str:
                 f"remote agent's manifest defines the expected shape.\n"
                 f'    Example args: {{"task": "<description>", ...}}'
             )
-        return f"  {tool_name}: (no schema available - use empty args {{}} to " f"probe)"
+        return f"  {tool_name}: (no schema available - use empty args {{}} to probe)"
 
     params = "\n".join(f"      {k}: {v}" for k, v in schema["parameters"].items())
     return (
@@ -401,15 +419,10 @@ def render_descriptor(name: str, descriptor: dict[str, Any] | None) -> str:
         params_block = ""
 
     example = _build_example_args(input_schema)
-    return (
-        f"  {name}:\n"
-        f"    Description: {description}\n"
-        f"{params_block}"
-        f"    Example args: {example}"
-    )
+    return f"  {name}:\n    Description: {description}\n{params_block}    Example args: {example}"
 
 
-async def build_tools_block_from_ctx(ctx: Any, tool_names: list[str]) -> str:
+async def build_tools_block_from_ctx(ctx: _CtxWithTools, tool_names: list[str]) -> str:
     """Build the tools section by calling ``ctx.tools.describe(name)``.
 
     This is the preferred path: descriptors are pulled live from the Rust

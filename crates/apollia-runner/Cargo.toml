@@ -1,6 +1,6 @@
 [package]
 name = "apollia-runner"
-version = "0.1.0"
+version = "0.1.0-preview"
 edition = "2021"
 description = "Apollia OS sidecar runner for local speech-to-text (STT) inference"
 license = "MIT OR Apache-2.0"

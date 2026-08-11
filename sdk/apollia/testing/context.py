@@ -41,6 +41,7 @@ class MockA2A:
     """
 
     def __init__(self) -> None:
+        """Start with no configured response and an empty call log."""
         self.invoke_calls: list[tuple[str, dict[str, Any]]] = []
         self.invoke_responses: dict[str, dict[str, Any]] = {}
         self.skill_cards: dict[str, dict[str, Any]] = {}
@@ -52,7 +53,7 @@ class MockA2A:
         input: dict[str, Any] | None = None,
         *,
         timeout_secs: int = 120,  # NOSONAR S1172: Protocol kwarg
-        **kwargs: Any,
+        **kwargs: object,
     ) -> dict[str, Any]:
         """Record the call and return the configured response.
 
@@ -66,12 +67,15 @@ class MockA2A:
         return self.invoke_responses.get(skill_id, {"status": "completed"})
 
     async def discover(self, skill_id: str) -> dict[str, Any] | None:  # NOSONAR S7503
+        """Return the configured skill card, or None if none was set."""
         return self.skill_cards.get(skill_id)
 
     async def list_skills(self) -> list[dict[str, Any]]:  # NOSONAR S7503
+        """Return a copy of the configured ``skills_list``."""
         return list(self.skills_list)
 
     async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:  # NOSONAR S7503
+        """Build a tool descriptor from the configured skill card."""
         card = self.skill_cards.get(skill_id, {})
         return {
             "name": f"a2a__{skill_id.replace('.', '__')}",
@@ -90,14 +94,24 @@ class MockDatasources:
     """
 
     def __init__(self) -> None:
+        """Start with no configured datasource."""
         self.values: dict[str, Any] = {}
 
-    def get(self, name: str) -> Any:
+    # REASON(ANN401): mirrors the `DatasourcesInterface.get` contract, which
+    # returns parsed YAML of an agent-defined shape.
+    def get(self, name: str) -> Any:  # noqa: ANN401
+        """Return the configured value for ``name``.
+
+        Raises:
+            FileNotFoundError: If ``name`` was not pre-configured, mirroring
+                the real loader on an undeclared datasource.
+        """
         if name not in self.values:
             raise FileNotFoundError(f"Datasource '{name}' not configured in mock")
         return self.values[name]
 
     def list_names(self) -> list[str]:
+        """Return the names of the configured datasources."""
         return list(self.values.keys())
 
 
@@ -114,10 +128,16 @@ class MockTemplates:
     """
 
     def __init__(self) -> None:
+        """Start with no configured template and an empty call log."""
         self.templates: dict[str, str] = {}
-        self.render_calls: list[tuple[str, dict[str, Any]]] = []
+        self.render_calls: list[tuple[str, dict[str, object]]] = []
 
-    def render(self, name: str, **context: Any) -> str:
+    def render(self, name: str, **context: object) -> str:
+        """Record the call and substitute ``{{ var }}`` placeholders.
+
+        Raises:
+            FileNotFoundError: If ``name`` was not pre-configured.
+        """
         self.render_calls.append((name, dict(context)))
         if name not in self.templates:
             raise FileNotFoundError(f"Template '{name}' not configured in mock")
@@ -128,6 +148,7 @@ class MockTemplates:
         return result
 
     def list_names(self) -> list[str]:
+        """Return the names of the configured templates."""
         return list(self.templates.keys())
 
 
@@ -139,12 +160,15 @@ class MockSecrets:
     """
 
     def __init__(self) -> None:
+        """Start with no configured secret."""
         self.values: dict[str, str] = {}
 
     def get(self, key: str) -> str | None:
+        """Return the configured secret for ``key``, or None if unset."""
         return self.values.get(key)
 
     def has(self, key: str) -> bool:
+        """Whether ``key`` was pre-configured."""
         return key in self.values
 
 
@@ -156,21 +180,26 @@ class MockEvents:
     """
 
     def __init__(self) -> None:
+        """Start with every event log empty."""
         self.tokens: list[str] = []
         self.thoughts: list[tuple[str, int]] = []
         self.retries: list[tuple[int, str, int]] = []
         self.action_parse_errors: list[tuple[int, str, bool]] = []
 
     def emit_token(self, delta: str) -> None:
+        """Record the token delta in ``tokens``."""
         self.tokens.append(delta)
 
     def emit_thought(self, text: str, *, step: int) -> None:
+        """Record ``(text, step)`` in ``thoughts``."""
         self.thoughts.append((text, step))
 
     def emit_retry(self, *, step: int, reason: str, count: int) -> None:
+        """Record ``(step, reason, count)`` in ``retries``."""
         self.retries.append((step, reason, count))
 
     def emit_action_parse_error(self, *, step: int, raw: str, fatal: bool = False) -> None:
+        """Record ``(step, raw, fatal)`` in ``action_parse_errors``."""
         self.action_parse_errors.append((step, raw, fatal))
 
 
@@ -187,31 +216,52 @@ class MockProfile:
         writable: bool = False,
         initial: dict[str, str] | None = None,
     ) -> None:
+        """Seed the profile and decide whether writes are allowed.
+
+        Args:
+            writable: Whether :meth:`set` and :meth:`update` are permitted.
+            initial: Entries the profile starts with.
+        """
         self._writable = writable
         self._values: dict[str, str] = dict(initial or {})
 
     @property
     def writable(self) -> bool:
+        """Whether writes are permitted on this mock."""
         return self._writable
 
     async def get(self, key: str) -> str | None:  # NOSONAR S7503
+        """Return the seeded value for ``key``, or None if unset."""
         return self._values.get(key)
 
     async def has(self, key: str) -> bool:  # NOSONAR S7503
+        """Whether ``key`` is set."""
         return key in self._values
 
     async def all(self) -> dict[str, str]:  # NOSONAR S7503
+        """Return a copy of every set entry."""
         return dict(self._values)
 
     def schema_keys(self) -> list[str]:
+        """Return the seeded keys, which the mock treats as the schema."""
         return list(self._values.keys())
 
     async def set(self, key: str, value: str) -> None:  # NOSONAR S7503
+        """Write one entry.
+
+        Raises:
+            RuntimeError: If the mock was built with ``writable=False``.
+        """
         if not self._writable:
             raise RuntimeError("MockProfile is read-only (writable=False)")
         self._values[key] = value
 
     async def update(self, entries: dict[str, str]) -> None:  # NOSONAR S7503
+        """Write several entries at once.
+
+        Raises:
+            RuntimeError: If the mock was built with ``writable=False``.
+        """
         if not self._writable:
             raise RuntimeError("MockProfile is read-only (writable=False)")
         self._values.update(entries)
@@ -227,22 +277,27 @@ class MockWorkspace:
     """
 
     def __init__(self) -> None:
+        """Start with no rules content and no section."""
         self.rules_content: str | None = None
         self.section_map: dict[str, str] = {}
 
     @property
     def rules(self) -> str | None:
+        """Configured ``APOLLIA.md`` content, or None."""
         return self.rules_content
 
     @property
     def apollia_md(self) -> str | None:
+        """Same value as :attr:`rules`, mirroring the real Protocol alias."""
         return self.rules_content
 
     def get(self, title: str) -> str | None:
+        """Return the configured section body for ``title``, or None."""
         return self.section_map.get(title)
 
     @property
     def sections(self) -> list[dict[str, str]]:
+        """Return the configured sections as ``{"title", "content"}`` dicts."""
         return [{"title": k, "content": v} for k, v in self.section_map.items()]
 
 
@@ -255,6 +310,7 @@ class MockStt:
     """
 
     def __init__(self) -> None:
+        """Start with an empty response queue and an empty call log."""
         self.transcribe_calls: list[tuple[str, str | None, str | None]] = []
         self.transcribe_responses: list[str] = []
 
@@ -265,12 +321,19 @@ class MockStt:
         language: str | None = None,
         backend: str | None = None,
     ) -> str:
+        """Record the call and pop the next queued transcript.
+
+        Returns:
+            The next queued transcript, or an empty string once the queue is
+            drained.
+        """
         self.transcribe_calls.append((path, language, backend))
         if self.transcribe_responses:
             return self.transcribe_responses.pop(0)
         return ""
 
     async def status(self) -> dict[str, Any]:  # NOSONAR S7503
+        """Report an always-ready mock backend."""
         return {"enabled": True, "model": "mock", "language": None}
 
 
@@ -282,6 +345,7 @@ class MockNotify:
     """
 
     def __init__(self) -> None:
+        """Start with an empty publication log."""
         self.published: list[dict[str, Any]] = []
 
     async def publish(  # NOSONAR S7503 - Protocol contract
@@ -292,6 +356,7 @@ class MockNotify:
         title: str | None = None,
         channel: str | None = None,
     ) -> None:
+        """Record the notification in ``published`` instead of sending it."""
         self.published.append(
             {
                 "message": message,
@@ -317,6 +382,15 @@ class MockBudget:
         elapsed_seconds: float = 0.0,
         wall_clock_remaining: float | None = None,
     ) -> None:
+        """Set the budget the agent under test will observe.
+
+        Args:
+            steps_remaining: Reasoning steps left; ``-1`` means no limit.
+            tool_calls_remaining: Tool calls left; ``-1`` means no limit.
+            elapsed_seconds: Wall-clock seconds already consumed.
+            wall_clock_remaining: Seconds left on the deadline, or None for
+                no deadline.
+        """
         self.steps_remaining = steps_remaining
         self.tool_calls_remaining = tool_calls_remaining
         self.elapsed_seconds = elapsed_seconds
@@ -325,13 +399,13 @@ class MockBudget:
 
 __all__ = [
     "MockA2A",
-    "MockDatasources",
-    "MockTemplates",
-    "MockSecrets",
-    "MockEvents",
-    "MockProfile",
-    "MockWorkspace",
-    "MockStt",
-    "MockNotify",
     "MockBudget",
+    "MockDatasources",
+    "MockEvents",
+    "MockNotify",
+    "MockProfile",
+    "MockSecrets",
+    "MockStt",
+    "MockTemplates",
+    "MockWorkspace",
 ]

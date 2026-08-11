@@ -14,7 +14,7 @@ from apollia.types import Ctx
 
 @agent(
     name="hello",
-    version="0.1.0",
+    version="0.1.0-preview",
     description="Echoes back whatever message you send.",
 )
 class Hello:

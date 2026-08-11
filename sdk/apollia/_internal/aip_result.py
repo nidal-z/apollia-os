@@ -24,9 +24,7 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
-import logging
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from apollia.errors import (
     AgentConfigError,
@@ -37,12 +35,16 @@ from apollia.errors import (
     SkillNotFound,
 )
 
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Callable
+
 __all__ = [
     "completed",
     "failed",
-    "input_required",
-    "from_handler_return",
     "from_exception",
+    "from_handler_return",
+    "input_required",
 ]
 
 
@@ -50,14 +52,14 @@ def _text_part(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
-def _data_part(data: Any) -> dict[str, Any]:
+def _data_part(data: object) -> dict[str, Any]:
     return {"type": "data", "data": data}
 
 
 def completed(
     text: str = "",
     *,
-    data: Any = None,
+    data: object = None,
     artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a ``completed`` AIPResult dict.
@@ -125,7 +127,7 @@ def input_required(
     }
 
 
-def from_handler_return(value: Any) -> dict[str, Any]:
+def from_handler_return(value: object) -> dict[str, Any]:
     """Coerce a handler return value into a ``completed`` AIPResult dict.
 
     Mapping:

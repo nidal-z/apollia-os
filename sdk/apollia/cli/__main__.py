@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from apollia.cli import inspect as inspect_cmd
 from apollia.cli.scaffold import VALID_AGENT_TYPES, _handle_new
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -37,7 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="agent_type",
         choices=VALID_AGENT_TYPES,
         default="react",
-        help=("Agent type (default: react). Use 'worker' for " "domain-specialized Worker Agents."),
+        help=("Agent type (default: react). Use 'worker' for domain-specialized Worker Agents."),
     )
     new_parser.add_argument(
         "--output-dir",

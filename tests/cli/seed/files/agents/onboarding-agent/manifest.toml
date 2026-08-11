@@ -2,7 +2,7 @@
 
 [agent]
 name = "onboarding-agent"
-version = "2.4.0"
+version = "0.1.0-preview"
 description = "First user contact: short calibration on identity, supervision and sovereignty."
 license = "MIT OR Apache-2.0"
 authors = ["Apollia <contact@apollia.fr>"]

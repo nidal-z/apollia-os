@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from apollia._internal.module_registry import expose_to_module, get_module_agent
@@ -20,7 +20,7 @@ def _make_module(name: str) -> types.ModuleType:
 def _make_agent_in_module(module: types.ModuleType) -> tuple[type, Any]:
     class Agent:
         # Simulate the marker set by the @agent decorator.
-        __apollia_manifest__: dict[str, Any] = {"name": "test", "version": "0.0.0"}
+        __apollia_manifest__: ClassVar[dict[str, Any]] = {"name": "test", "version": "0.0.0"}
 
     Agent.__module__ = module.__name__
     setattr(module, Agent.__name__, Agent)
@@ -60,7 +60,7 @@ def test_expose_to_module_different_agent_class_raises() -> None:
     cls_a, instance_a = _make_agent_in_module(module)
 
     class OtherAgent:
-        __apollia_manifest__: dict[str, Any] = {"name": "other", "version": "0.0.0"}
+        __apollia_manifest__: ClassVar[dict[str, Any]] = {"name": "other", "version": "0.0.0"}
 
     OtherAgent.__module__ = module.__name__
     module.OtherAgent = OtherAgent

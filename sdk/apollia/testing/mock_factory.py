@@ -55,6 +55,7 @@ class MockContext:
     """
 
     def __init__(self) -> None:
+        """Wire a fresh mock for every ``ctx`` service surface."""
         self.llm = MockLlmProxy()
         self.memory = MockMemory()
         self.tools = MockToolProxy()
@@ -106,7 +107,7 @@ def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
     instance = agent_cls()
     ctx = MockContext()
 
-    async def invoke_skill(skill_id: str, **kwargs: Any) -> dict[str, Any]:
+    async def invoke_skill(skill_id: str, **kwargs: object) -> dict[str, Any]:
         """Invoke a ``@skill`` handler directly with the mock ctx."""
         return await dispatch_skill(instance, skill_id, kwargs, ctx)
 

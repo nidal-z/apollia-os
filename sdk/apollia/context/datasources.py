@@ -9,7 +9,10 @@ from typing import Any, Protocol, runtime_checkable
 class DatasourcesInterface(Protocol):
     """Runtime access to YAML datasources declared in ``@agent(datasources=(...))``."""
 
-    def get(self, name: str) -> Any:
+    # REASON(ANN401): the return is parsed YAML of a shape only the agent author
+    # knows. `object` would force every caller to cast before indexing, which is
+    # noise on the most common line of an agent. `Any` is the contract here.
+    def get(self, name: str) -> Any:  # noqa: ANN401
         """Load datasource by name.
 
         Returns parsed YAML (``dict`` / ``list`` / ``str`` / ``int`` / ...).
@@ -18,4 +21,6 @@ class DatasourcesInterface(Protocol):
         """
         ...
 
-    def list_names(self) -> list[str]: ...
+    def list_names(self) -> list[str]:
+        """Return the names of every datasource the manifest declares."""
+        ...

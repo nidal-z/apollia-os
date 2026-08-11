@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import inspect
 import sys
-from typing import Any
+from typing import TYPE_CHECKING
 
 from apollia.errors import AgentConfigError
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 __all__ = [
     "expose_to_module",
@@ -20,14 +23,14 @@ __all__ = [
 ]
 
 
-def _resolve_module(cls: type) -> Any:
+def _resolve_module(cls: type) -> ModuleType:
     module = inspect.getmodule(cls)
     if module is None:
         raise AgentConfigError(f"Cannot resolve defining module for class {cls.__name__}")
     return module
 
 
-def expose_to_module(cls: type, instance: Any) -> None:
+def expose_to_module(cls: type, instance: object) -> None:
     """Bind ``instance`` to the ``agent`` attribute of the module that defines ``cls``.
 
     Raises :class:`AgentConfigError` if:
@@ -54,10 +57,12 @@ def expose_to_module(cls: type, instance: Any) -> None:
                 f"Module '{module.__name__}' already declares an 'agent' of "
                 f"class {existing_cls.__name__}; cannot register {cls.__name__}"
             )
-    module.agent = instance
+    # A module has no static ``agent`` attribute; binding one is the whole point
+    # of this function, and the Rust loader reads it back by name.
+    module.agent = instance  # type: ignore[attr-defined]
 
 
-def get_module_agent(module_name: str) -> Any | None:
+def get_module_agent(module_name: str) -> object | None:
     """Return the module-level ``agent`` of ``module_name`` if any.
 
     Test helper. Returns ``None`` if the module isn't loaded or doesn't

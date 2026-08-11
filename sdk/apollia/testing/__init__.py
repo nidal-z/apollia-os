@@ -44,12 +44,10 @@ from apollia.testing.mocks import (
 )
 
 __all__ = [
-    # Factory + main context
-    "mock",
-    "MockContext",
     # Per-surface mocks (advanced usage)
     "MockA2A",
     "MockBudget",
+    "MockContext",
     "MockDatasources",
     "MockEvents",
     "MockLlmProxy",
@@ -62,16 +60,18 @@ __all__ = [
     "MockTemplates",
     "MockToolProxy",
     "MockWorkspace",
-    # AIPResult assertions
-    "assert_result_completed",
-    "assert_result_failed",
-    "assert_result_input_required",
     # Interaction assertions
     "assert_emitted_thought",
     "assert_emitted_token",
     "assert_llm_called",
     "assert_memory_recorded",
+    # AIPResult assertions
+    "assert_result_completed",
+    "assert_result_failed",
+    "assert_result_input_required",
     "assert_skill_called",
     "assert_template_rendered",
     "assert_tool_called",
+    # Factory + main context
+    "mock",
 ]

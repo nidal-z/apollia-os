@@ -1,6 +1,6 @@
-"""Manifest generation from ``@agent``, ``@skill``, ``@on_message`` and
-``@orchestrated`` decorators.
+"""Manifest generation from the agent decorators.
 
+Covers ``@agent``, ``@skill``, ``@on_message`` and ``@orchestrated``.
 The decorators stamp markers on classes and methods.
 This module walks those markers to produce the canonical manifest dict
 consumed by the Rust loader.
@@ -18,13 +18,13 @@ from apollia._internal.inference import (
 from apollia.errors import AgentConfigError
 
 __all__ = [
-    "SKILL_ATTR",
-    "ON_MESSAGE_ATTR",
-    "ORCHESTRATED_ATTR",
     "AGENT_META_ATTR",
     "MANIFEST_ATTR",
-    "SKILLS_REGISTRY_ATTR",
+    "ON_MESSAGE_ATTR",
     "ON_MESSAGE_HANDLER_ATTR",
+    "ORCHESTRATED_ATTR",
+    "SKILLS_REGISTRY_ATTR",
+    "SKILL_ATTR",
     "SkillEntry",
     "build_manifest",
     "collect_skills",
@@ -57,13 +57,13 @@ class SkillEntry:
     """Internal skill registration data attached to an agent class."""
 
     __slots__ = (
-        "skill_id",
-        "handler_name",
+        "dangerous",
         "description",
+        "examples",
+        "handler_name",
         "input_schema",
         "output_schema",
-        "dangerous",
-        "examples",
+        "skill_id",
     )
 
     def __init__(
@@ -91,8 +91,9 @@ class SkillEntry:
 
 
 def _iter_methods(cls: type) -> list[tuple[str, Any]]:
-    """Return ``(name, function)`` tuples for every method of ``cls`` and
-    its MRO, with subclasses overriding base classes (i.e. MRO order).
+    """Return ``(name, function)`` tuples for every method of ``cls``.
+
+    Walks the full MRO, with subclasses overriding base classes.
     """
     seen: set[str] = set()
     result: list[tuple[str, Any]] = []
@@ -108,7 +109,7 @@ def _iter_methods(cls: type) -> list[tuple[str, Any]]:
     return result
 
 
-def _docstring_first_line(fn: Any) -> str:
+def _docstring_first_line(fn: object) -> str:
     """Return the first line/paragraph of a function's docstring.
 
     Used as the fallback description when ``@skill(description=...)`` is

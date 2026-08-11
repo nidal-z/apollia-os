@@ -22,7 +22,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 _SKILL_ID_RE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
 
 
-def _validate_skill_id(skill_id: Any) -> str:
+def _validate_skill_id(skill_id: object) -> str:
     if not isinstance(skill_id, str) or not skill_id:
         raise AgentConfigError("@skill requires a non-empty string skill_id")
     if not _SKILL_ID_RE.match(skill_id):
@@ -48,14 +48,12 @@ def _validate_examples(
         return []
     if not isinstance(examples, list):
         raise AgentConfigError(
-            f"@skill {skill_id!r}: examples must be a list of dicts, "
-            f"got {type(examples).__name__}"
+            f"@skill {skill_id!r}: examples must be a list of dicts, got {type(examples).__name__}"
         )
     for idx, item in enumerate(examples):
         if not isinstance(item, dict):
             raise AgentConfigError(
-                f"@skill {skill_id!r}: examples[{idx}] must be a dict, "
-                f"got {type(item).__name__}"
+                f"@skill {skill_id!r}: examples[{idx}] must be a dict, got {type(item).__name__}"
             )
     # Shallow copy each example to defensively isolate from caller mutations.
     return [dict(ex) for ex in examples]
@@ -106,7 +104,7 @@ def skill(
             )
         if getattr(fn, SKILL_ATTR, None) is not None:
             raise AgentConfigError(
-                f"@skill already applied to method " f"'{getattr(fn, '__name__', '?')}'"
+                f"@skill already applied to method '{getattr(fn, '__name__', '?')}'"
             )
         setattr(
             fn,

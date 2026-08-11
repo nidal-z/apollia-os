@@ -219,6 +219,31 @@ Branch body : kebab-case description (`feat/agents-md-spec`,
 
 Tags : `vMAJOR.MINOR.PATCH`, strict SemVer (`v0.1.0`, `v0.1.0-preview`).
 
+### One version for the whole tree
+
+Apollia OS ships as one artifact, so one version string covers all of it: the
+Rust crates, the Python SDK, the TypeScript runtime client, the desktop UI
+package, and the built-in agents under `agents/system/` and `agents/examples/`.
+A release bumps them together. Do not give a component a lifecycle of its own.
+
+Three deliberate exceptions:
+
+| Where | Value | Why |
+|---|---|---|
+| `crates/apollia-desktop/tauri.conf.json` | `0.1.0-1` | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `0.1.0-1` to the MSI product version `0.1.0.1`; the About screen still reads the pre-release suffix and shows the Preview channel. |
+| `sdk/apollia/cli/scaffold.py`, README examples | `0.1.0` | Templates for agents the user writes. A freshly scaffolded agent starts its own life at `0.1.0`; it is not an Apollia component. |
+| `agents/yumni-classification/` | its own | Client deliverable with its own release cycle. |
+
+The Python SDK is a fourth, softer case: PEP 440 normalises `0.1.0-preview` to
+`0.1.0rc0` in the built distribution metadata, so `pip show apollia-sdk` reports
+`0.1.0rc0`. The source string stays `0.1.0-preview`, which is what the tag, the
+changelog and `apollia.__version__` all use.
+
+Guards: `bundled_versions_track_the_product_version` and
+`embedded_python_decorators_declare_the_bundled_version` in
+`crates/apollia-desktop/src/bundled_agents.rs` fail the build when a built-in
+agent drifts from the crate version.
+
 ---
 
 ## 7. ADRs and stories

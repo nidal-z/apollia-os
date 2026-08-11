@@ -12,8 +12,7 @@ The decorator:
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from apollia._internal.dispatch import dispatch_task
 from apollia._internal.manifest import (
@@ -27,18 +26,21 @@ from apollia._internal.manifest import (
 from apollia._internal.module_registry import expose_to_module
 from apollia.errors import AgentConfigError
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 __all__ = ["agent"]
 
 C = TypeVar("C", bound=type)
 
 
-def _check_required_str(name: str, value: Any) -> str:
+def _check_required_str(name: str, value: object) -> str:
     if not isinstance(value, str) or not value.strip():
         raise AgentConfigError(f"@agent: '{name}' must be a non-empty string")
     return value
 
 
-def _check_string_tuple(name: str, value: Any) -> tuple[str, ...]:
+def _check_string_tuple(name: str, value: object) -> tuple[str, ...]:
     if not isinstance(value, tuple):
         raise AgentConfigError(
             f"@agent: '{name}' must be a tuple of strings, got {type(value).__name__}"
@@ -74,12 +76,12 @@ def _check_init_takes_no_required_args(cls: type) -> None:
             )
 
 
-def _check_optional_str(name: str, value: Any) -> None:
+def _check_optional_str(name: str, value: object) -> None:
     if value is not None and (not isinstance(value, str) or not value):
         raise AgentConfigError(f"@agent: {name!r} must be a non-empty string or None")
 
 
-def _check_optional_dict(name: str, value: Any) -> None:
+def _check_optional_dict(name: str, value: object) -> None:
     if value is not None and not isinstance(value, dict):
         raise AgentConfigError(f"@agent: {name!r} must be a dict or None")
 
@@ -269,7 +271,9 @@ def agent(  # NOSONAR S107: public decorator API surface
         )
 
         # Attach the dispatch hook the Rust bridge will call.
-        async def __apollia_dispatch__(self: Any, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
+        async def __apollia_dispatch__(
+            self: object, task: dict[str, Any], ctx: object
+        ) -> dict[str, Any]:
             return await dispatch_task(self, task, ctx)
 
         __apollia_dispatch__.__qualname__ = f"{cls.__qualname__}.__apollia_dispatch__"

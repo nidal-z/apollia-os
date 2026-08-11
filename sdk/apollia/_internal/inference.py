@@ -30,10 +30,12 @@ Strictness:
 import dataclasses
 import difflib
 import inspect
-import logging
 import typing
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+
+# ``types.UnionType`` only exists on Python 3.10+, which is our minimum.
+from types import UnionType as _UnionType
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 from apollia.errors import PayloadError, SchemaError
@@ -41,17 +43,14 @@ from apollia.errors import PayloadError, SchemaError
 __all__ = [
     "EXCLUDED_PARAM_NAMES",
     "EXCLUDED_TYPE_NAMES",
-    "signature_to_input_schema",
     "annotation_to_schema",
     "return_to_output_schema",
+    "signature_to_input_schema",
     "validate_payload",
 ]
 
 EXCLUDED_PARAM_NAMES: tuple[str, ...] = ("self", "cls", "ctx")
 EXCLUDED_TYPE_NAMES: tuple[str, ...] = ("Ctx",)
-
-# ``types.UnionType`` only exists on Python 3.10+, which is our minimum.
-from types import UnionType as _UnionType
 
 # ``typing.NotRequired`` / ``typing.Required`` (Python 3.11+) are special forms
 # that wrap a TypedDict field type. They carry no runtime schema information of
@@ -72,19 +71,17 @@ except ImportError:  # pragma: no cover
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _is_none_type(tp: Any) -> bool:
+def _is_none_type(tp: object) -> bool:
     return tp is type(None)
 
 
-def _is_union(origin: Any) -> bool:
+def _is_union(origin: object) -> bool:
     if origin is Union:
         return True
-    if origin is _UnionType:
-        return True
-    return False
+    return origin is _UnionType
 
 
-def _is_optional(annotation: Any) -> tuple[bool, Any]:
+def _is_optional(annotation: object) -> tuple[bool, Any]:
     """Return ``(is_optional, inner_type)``.
 
     For ``Optional[T]`` / ``T | None`` returns ``(True, T)``.
@@ -101,10 +98,14 @@ def _is_optional(annotation: Any) -> tuple[bool, Any]:
     if len(args) == 1:
         return True, args[0]
     # Reconstruct a Union[...] without None.
-    return True, Union[tuple(args)]
+    # REASON(UP007): this is a runtime subscription over a computed tuple, not an
+    # annotation. The PEP 604 form would need reduce(operator.or_, args), which
+    # fails on any member that does not implement __or__; Union[...] accepts every
+    # typing object the inference layer can be handed.
+    return True, Union[tuple(args)]  # noqa: UP007
 
 
-def _scalar_schema(tp: Any) -> dict[str, Any] | None:
+def _scalar_schema(tp: object) -> dict[str, Any] | None:
     if tp is str:
         return {"type": "string"}
     if tp is bool:
@@ -239,7 +240,7 @@ def _namedtuple_schema(tp: type) -> dict[str, Any]:
     return schema
 
 
-def _is_namedtuple(tp: Any) -> bool:
+def _is_namedtuple(tp: object) -> bool:
     return (
         isinstance(tp, type)
         and issubclass(tp, tuple)
@@ -248,7 +249,7 @@ def _is_namedtuple(tp: Any) -> bool:
     )
 
 
-def _schema_for_empty_annotation(annotation: Any) -> dict[str, Any] | None:
+def _schema_for_empty_annotation(annotation: object) -> dict[str, Any] | None:
     """Schema for ``empty``, ``Any``, or literal ``None`` annotations."""
     if annotation is inspect.Parameter.empty or annotation is Any:
         return {}
@@ -257,7 +258,7 @@ def _schema_for_empty_annotation(annotation: Any) -> dict[str, Any] | None:
     return None
 
 
-def _schema_for_annotated(annotation: Any) -> dict[str, Any] | None:
+def _schema_for_annotated(annotation: object) -> dict[str, Any] | None:
     """Unwrap ``Annotated[T, "desc", ...]`` into the schema of ``T`` plus desc."""
     if get_origin(annotation) is not Annotated:
         return None
@@ -320,7 +321,7 @@ def _schema_for_dict(args: tuple[Any, ...]) -> dict[str, Any]:
     }
 
 
-def _schema_for_generic_origin(origin: Any, args: tuple[Any, ...]) -> dict[str, Any] | None:
+def _schema_for_generic_origin(origin: object, args: tuple[Any, ...]) -> dict[str, Any] | None:
     """Schema for parameterised generics: Literal, Union, list/tuple/dict."""
     if origin is Literal:
         return _schema_for_literal(args)
@@ -336,7 +337,7 @@ def _schema_for_generic_origin(origin: Any, args: tuple[Any, ...]) -> dict[str, 
     return None
 
 
-def _schema_for_bare_builtin(annotation: Any) -> dict[str, Any] | None:
+def _schema_for_bare_builtin(annotation: object) -> dict[str, Any] | None:
     if annotation is list or annotation is tuple:
         return {"type": "array"}
     if annotation is dict:
@@ -357,7 +358,7 @@ def _schema_for_plain_type(annotation: type) -> dict[str, Any] | None:
     return None
 
 
-def annotation_to_schema(annotation: Any) -> dict[str, Any]:
+def annotation_to_schema(annotation: object) -> dict[str, Any]:
     """Convert a single type annotation to a JSON Schema fragment.
 
     Raises :class:`SchemaError` if the annotation is unsupported.
@@ -411,9 +412,7 @@ def _should_exclude_param(param: inspect.Parameter) -> bool:
     if isinstance(ann_name, str) and ann_name in EXCLUDED_TYPE_NAMES:
         return True
     # Forward reference / stringified annotation.
-    if isinstance(ann, str) and ann in EXCLUDED_TYPE_NAMES:
-        return True
-    return False
+    return bool(isinstance(ann, str) and ann in EXCLUDED_TYPE_NAMES)
 
 
 def signature_to_input_schema(fn: Callable[..., Any]) -> dict[str, Any]:
@@ -487,7 +486,7 @@ def return_to_output_schema(fn: Callable[..., Any]) -> dict[str, Any]:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _python_type_name(value: Any) -> str:
+def _python_type_name(value: object) -> str:
     """Human-friendly Python type name for error messages."""
     if value is None:
         return "null"
@@ -506,7 +505,7 @@ def _python_type_name(value: Any) -> str:
     return type(value).__name__
 
 
-def _format_type_decl(type_decl: Any) -> str:
+def _format_type_decl(type_decl: object) -> str:
     """Render a JSON-Schema type declaration as a readable string."""
     if isinstance(type_decl, list):
         return " | ".join(str(t) for t in type_decl)
@@ -523,7 +522,7 @@ def _suggest(field_name: str, candidates: list[str]) -> str | None:
     return None
 
 
-def _matches_type(value: Any, type_decl: Any) -> bool:
+def _matches_type(value: object, type_decl: object) -> bool:
     """Check that ``value`` matches a JSON-Schema ``type`` declaration."""
     if isinstance(type_decl, list):
         return any(_matches_type(value, t) for t in type_decl)
@@ -545,7 +544,7 @@ def _matches_type(value: Any, type_decl: Any) -> bool:
     return True
 
 
-def _validate_anyof(value: Any, schema: dict[str, Any], path: str) -> None:
+def _validate_anyof(value: object, schema: dict[str, Any], path: str) -> None:
     last_err: PayloadError | None = None
     for sub in schema["anyOf"]:
         try:
@@ -560,7 +559,7 @@ def _validate_anyof(value: Any, schema: dict[str, Any], path: str) -> None:
         )
 
 
-def _validate_type_decl(value: Any, type_decl: Any, path: str) -> None:
+def _validate_type_decl(value: object, type_decl: object, path: str) -> None:
     actual_type = _python_type_name(value)
     raise PayloadError(
         f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, got {actual_type}",
@@ -598,19 +597,19 @@ def _validate_array_value(value: list[Any], schema: dict[str, Any], path: str) -
         _validate_prefix_items(value, prefix_items, path)
 
 
-def _is_array_type(type_decl: Any, value: Any) -> bool:
+def _is_array_type(type_decl: object, value: object) -> bool:
     if type_decl == "array":
         return True
     return isinstance(type_decl, list) and "array" in type_decl and isinstance(value, list)
 
 
-def _is_object_type(type_decl: Any) -> bool:
+def _is_object_type(type_decl: object) -> bool:
     if type_decl == "object":
         return True
     return isinstance(type_decl, list) and "object" in type_decl
 
 
-def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
+def _validate_value(value: object, schema: dict[str, Any], path: str) -> None:
     """Validate ``value`` against ``schema``; raise PayloadError on mismatch."""
     if not schema:
         return  # Any-type, accept everything.
@@ -642,7 +641,7 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
         _validate_object_value(value, schema, path)
 
 
-def _raise_missing_field(req: str, required: Any, field_path: str) -> None:
+def _raise_missing_field(req: str, required: Sequence[str], field_path: str) -> None:
     raise PayloadError(
         f"Missing required field '{field_path}'. Required: {required}.",
         field=field_path,
@@ -660,7 +659,7 @@ def _raise_unexpected_field(key: str, expected: list[str], field_path: str) -> N
     raise PayloadError(msg, field=field_path, details=details)
 
 
-def _check_required_fields(value: dict[str, Any], required: Any, path: str) -> None:
+def _check_required_fields(value: dict[str, Any], required: Sequence[str], path: str) -> None:
     for req in required:
         if req not in value:
             req_path = f"{path}.{req}" if path else req

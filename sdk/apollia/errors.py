@@ -10,13 +10,13 @@ from __future__ import annotations
 from typing import Any
 
 __all__ = [
+    "AgentConfigError",
     "AgentError",
     "DomainError",
     "NeedHumanInput",
     "PayloadError",
     "SchemaError",
     "SkillNotFound",
-    "AgentConfigError",
 ]
 
 
@@ -40,6 +40,13 @@ class DomainError(AgentError):
         message: str,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Build a domain failure.
+
+        Args:
+            code: Stable identifier callers can branch on.
+            message: Human-readable explanation.
+            details: Structured context carried into ``AIPResult.error``.
+        """
         super().__init__(message)
         self.code: str = code
         self.message: str = message
@@ -56,6 +63,12 @@ class NeedHumanInput(AgentError):
     """
 
     def __init__(self, prompt: str, context: dict[str, Any] | None = None) -> None:
+        """Suspend the run and ask the human a question.
+
+        Args:
+            prompt: What the human is being asked.
+            context: State to persist verbatim and restitute on resume.
+        """
         super().__init__(prompt)
         self.prompt: str = prompt
         self.context: dict[str, Any] = context if context is not None else {}
@@ -74,6 +87,13 @@ class PayloadError(AgentError):
         field: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Report a payload that does not match the inferred schema.
+
+        Args:
+            message: What is wrong with the payload.
+            field: Dotted path to the offending field, when one is known.
+            details: Structured context carried into ``AIPResult.error``.
+        """
         super().__init__(message)
         self.message: str = message
         self.field: str | None = field
@@ -88,6 +108,12 @@ class SkillNotFound(AgentError):
     """Requested skill ID is not registered on this agent."""
 
     def __init__(self, skill_id: str, known: list[str] | None = None) -> None:
+        """Report an unknown skill.
+
+        Args:
+            skill_id: The skill that was requested.
+            known: The skills the agent does register, for the error message.
+        """
         super().__init__(f"Skill not found: {skill_id}")
         self.skill_id: str = skill_id
         self.known: list[str] = known if known is not None else []

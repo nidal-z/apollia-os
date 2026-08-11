@@ -33,9 +33,11 @@ responsible for passing plain text (no raw ``[conf:…]`` markers).
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ConfidenceLevel = Literal["high", "medium", "low"]
 SourceType = Literal["web", "document", "tool", "memory", "other"]
@@ -63,6 +65,12 @@ class Citation:
     source_type: SourceType = "other"
 
     def __post_init__(self) -> None:
+        """Reject an identifier or source type the citation markup cannot carry.
+
+        Raises:
+            ValueError: If ``id`` is blank or contains ``[``, ``]`` or ``,``,
+                or if ``source_type`` is not a known value.
+        """
         if not self.id or not self.id.strip():
             raise ValueError("Citation.id must be a non-empty string")
         if "," in self.id or "]" in self.id or "[" in self.id:

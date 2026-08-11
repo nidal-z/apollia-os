@@ -1,6 +1,6 @@
 [package]
 name = "apollia-desktop"
-version = "0.1.0"
+version = "0.1.0-preview"
 edition = "2021"
 description = "Apollia OS - Desktop application (Tauri v2 + embedded runtime)"
 # Inherited rather than restated: the Windows installer reads the publisher and

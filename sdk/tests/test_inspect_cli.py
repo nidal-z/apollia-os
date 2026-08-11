@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import textwrap
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from apollia.cli import inspect as inspect_cmd
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ──────────────────────────────────────────────────────────────────────
 # Fixtures - temporary agent files
@@ -19,7 +22,7 @@ def _write(path: Path, content: str) -> None:
     path.write_text(textwrap.dedent(content), encoding="utf-8")
 
 
-@pytest.fixture()
+@pytest.fixture
 def modern_agent(tmp_path: Path) -> Path:
     """A minimal ``@agent``-decorated worker with one ``@skill``."""
     path = tmp_path / "modern_agent.py"
@@ -57,7 +60,7 @@ def modern_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture()
+@pytest.fixture
 def legacy_agent(tmp_path: Path) -> Path:
     """A legacy agent: top-level ``manifest()`` function + ``agent`` instance
     whose class is *not* decorated with ``@agent``."""
@@ -104,7 +107,7 @@ def legacy_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture()
+@pytest.fixture
 def broken_agent(tmp_path: Path) -> Path:
     """A module that raises at import time."""
     path = tmp_path / "broken_agent.py"
@@ -119,7 +122,7 @@ def broken_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture()
+@pytest.fixture
 def no_agent_module(tmp_path: Path) -> Path:
     """A module that loads cleanly but exposes no agent / manifest."""
     path = tmp_path / "no_agent.py"
@@ -310,9 +313,9 @@ def test_build_parser_registers_inspect() -> None:
     root = argparse.ArgumentParser()
     subs = root.add_subparsers(dest="command")
     inspect_cmd.build_parser(subs)
-    args = root.parse_args(["inspect", "/tmp/some.py", "--json"])
+    args = root.parse_args(["inspect", "/srv/agents/some.py", "--json"])
     assert args.command == "inspect"
-    assert args.agent_path == "/tmp/some.py"
+    assert args.agent_path == "/srv/agents/some.py"
     assert args.json is True
     assert args.func is inspect_cmd.inspect_command
 

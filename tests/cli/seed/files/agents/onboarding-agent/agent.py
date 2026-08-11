@@ -48,10 +48,12 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from apollia import DomainError, agent, on_message
-from apollia.types import Ctx, Message
+
+if TYPE_CHECKING:
+    from apollia.types import Ctx, Message
 
 _logger = logging.getLogger("onboarding-agent")
 
@@ -941,7 +943,7 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
 
 @agent(
     name="onboarding-agent",
-    version="0.1.0",
+    version="0.1.0-preview",
     description=(
         "Premier contact utilisateur - calibrage en 3 questions "
         "(identité, supervision, souveraineté)"

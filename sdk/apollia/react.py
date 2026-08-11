@@ -32,6 +32,7 @@ reasoning + tool-call loop to the Rust-side ``LlmProxy.run_tools`` helper
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from apollia.errors import DomainError
@@ -91,14 +92,12 @@ async def react(
         if events is not None:
             emit_thought = getattr(events, "emit_thought", None)
             if callable(emit_thought):
-                try:
+                # Observability must never break the agent run.
+                with contextlib.suppress(Exception):
                     emit_thought(
                         f"react: entering loop (max_steps={max_steps})",
                         step=0,
                     )
-                except Exception:
-                    # Observability must never break the agent run.
-                    pass
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system},

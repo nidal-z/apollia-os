@@ -7,11 +7,13 @@ when ``@agent`` builds the manifest.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from apollia._internal.manifest import ORCHESTRATED_ATTR
 from apollia.errors import AgentConfigError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = ["orchestrated"]
 

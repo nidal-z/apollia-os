@@ -14,7 +14,7 @@ import json
 from typing import Any
 
 
-def format_as_text(data: Any) -> str:
+def format_as_text(data: object) -> str:
     """Convert an arbitrary value to a human-readable text representation.
 
     Args:
@@ -47,7 +47,7 @@ def format_as_text(data: Any) -> str:
     return str(data)
 
 
-def format_as_markdown(data: Any) -> str:
+def format_as_markdown(data: object) -> str:
     """Convert a value to Markdown.
 
     * ``dict`` → two-column table (Key | Value).
@@ -69,7 +69,7 @@ def format_as_markdown(data: Any) -> str:
     return format_as_text(data)
 
 
-def format_as_json(data: Any, indent: int = 2) -> str:
+def format_as_json(data: object, indent: int = 2) -> str:
     """Serialise a value as indented JSON.
 
     Non-serialisable types are coerced via ``str()`` so that the call

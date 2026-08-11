@@ -8,16 +8,18 @@ either a human-readable summary or a JSON document.
 
 from __future__ import annotations
 
-import argparse
 import importlib.util
 import json
 import sys
 import traceback
 from pathlib import Path
-from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from apollia.errors import AgentConfigError, AgentError
+
+if TYPE_CHECKING:
+    import argparse
+    from types import ModuleType
 
 __all__ = [
     "build_parser",
@@ -93,7 +95,7 @@ def _load_agent_module(path: Path) -> ModuleType:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _coerce_manifest(raw: Any) -> dict[str, Any]:
+def _coerce_manifest(raw: object) -> dict[str, Any]:
     """Coerce a legacy ``manifest()`` return value into a plain dict.
 
     Raises :class:`AgentConfigError` when the value is not a mapping.
@@ -153,7 +155,7 @@ def _extract_agent_data(
     top_manifest = getattr(module, "manifest", None)
     if callable(top_manifest):
         warnings.append(
-            "No `agent` singleton found; using top-level manifest() function " "(legacy layout)."
+            "No `agent` singleton found; using top-level manifest() function (legacy layout)."
         )
         manifest = _coerce_manifest(top_manifest())
         skills_legacy = _skills_from_legacy_manifest(manifest)
@@ -199,7 +201,7 @@ def _skills_from_legacy_manifest(manifest: dict[str, Any]) -> list[dict[str, Any
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _prop_type_label(prop: Any) -> str:
+def _prop_type_label(prop: object) -> str:
     """Pick a short type label out of one JSON Schema property dict."""
     if not isinstance(prop, dict):
         return "any"
@@ -211,7 +213,7 @@ def _prop_type_label(prop: Any) -> str:
     return "any"
 
 
-def _format_schema_brief(schema: Any) -> str:
+def _format_schema_brief(schema: object) -> str:
     """Render a one-line summary of a JSON-Schema-shaped dict.
 
     Falls back to ``(any)`` when the schema is not a typed ``object`` with
@@ -445,7 +447,9 @@ def inspect_command(args: argparse.Namespace) -> int:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def build_parser(subparsers: Any) -> argparse.ArgumentParser:
+def build_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> argparse.ArgumentParser:
     """Register the ``inspect`` sub-command on a parent ``subparsers``.
 
     Returns the created parser so callers can extend it if needed.

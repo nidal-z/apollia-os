@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 from apollia.cli.scaffold import (
@@ -56,7 +57,7 @@ class TestScaffoldAgent:
         assert os.path.basename(agent_path) == "hello_agent.py"
         assert os.path.basename(test_path) == "test_hello_agent.py"
 
-        agent_src = open(agent_path, encoding="utf-8").read()
+        agent_src = Path(agent_path).read_text(encoding="utf-8")
         assert "@agent(" in agent_src
         assert "class HelloAgent:" in agent_src
         assert '"name": "hello"' not in agent_src
@@ -64,7 +65,7 @@ class TestScaffoldAgent:
         assert 'name="hello"' in agent_src
         assert "from apollia import" in agent_src
 
-        test_src = open(test_path, encoding="utf-8").read()
+        test_src = Path(test_path).read_text(encoding="utf-8")
         assert "from hello_agent import HelloAgent" in test_src
         assert "from apollia.testing import mock" in test_src
 
@@ -78,7 +79,7 @@ class TestScaffoldAgent:
         assert os.path.isfile(agent_path)
         assert os.path.basename(agent_path) == "chat_bot_agent.py"
 
-        agent_src = open(agent_path, encoding="utf-8").read()
+        agent_src = Path(agent_path).read_text(encoding="utf-8")
         assert "class ChatBotAgent:" in agent_src
         assert "@on_message" in agent_src
         assert 'name="chat-bot"' in agent_src
@@ -90,7 +91,7 @@ class TestScaffoldAgent:
             output_dir=str(tmp_path),
         )
 
-        agent_src = open(agent_path, encoding="utf-8").read()
+        agent_src = Path(agent_path).read_text(encoding="utf-8")
         assert "class PlannerAgent:" in agent_src
         assert "@orchestrated(system_prompt=" in agent_src
         assert "on_plan_complete" in agent_src
@@ -122,8 +123,8 @@ class TestScaffoldAgent:
                 agent_type=agent_type,
                 output_dir=sub,
             )
-            agent_src = open(agent_path, encoding="utf-8").read()
-            test_src = open(test_path, encoding="utf-8").read()
+            agent_src = Path(agent_path).read_text(encoding="utf-8")
+            test_src = Path(test_path).read_text(encoding="utf-8")
             compile(agent_src, agent_path, "exec")
             compile(test_src, test_path, "exec")
 
@@ -156,7 +157,7 @@ class TestScaffoldWorkerAgent:
             agent_type="worker",
             output_dir=str(tmp_path),
         )
-        src = open(agent_path, encoding="utf-8").read()
+        src = Path(agent_path).read_text(encoding="utf-8")
 
         assert "from apollia import DomainError, agent, skill" in src
         assert "@agent(" in src
@@ -182,7 +183,7 @@ class TestScaffoldWorkerAgent:
             agent_type="worker",
             output_dir=str(tmp_path),
         )
-        src = open(agent_path, encoding="utf-8").read()
+        src = Path(agent_path).read_text(encoding="utf-8")
         compile(src, agent_path, "exec")
 
     def test_scaffold_worker_generated_files_are_valid_python(
@@ -195,5 +196,5 @@ class TestScaffoldWorkerAgent:
             agent_type="worker",
             output_dir=str(tmp_path),
         )
-        compile(open(agent_path, encoding="utf-8").read(), agent_path, "exec")
-        compile(open(test_path, encoding="utf-8").read(), test_path, "exec")
+        compile(Path(agent_path).read_text(encoding="utf-8"), agent_path, "exec")
+        compile(Path(test_path).read_text(encoding="utf-8"), test_path, "exec")

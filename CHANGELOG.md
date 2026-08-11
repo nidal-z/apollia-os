@@ -7,37 +7,19 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-
-- Concurrency verification: abstract Loom models of the runtime actor
-  algorithms in the standalone `apollia-loom-models` crate, and a Miri
-  undefined-behavior suite over the FFI-adjacent pure helpers in `apollia-aip`.
-  Both are dev-only (no runtime dependency) and run as advisory nightly CI jobs.
-- Formal verification: bounded Kani symbolic proofs of the two cardinal
-  invariants, the non-bypassable `StepBudget` (`apollia-oria`) and the mailbox
-  lease/ack fence (`apollia-runtime`), each with an in-tree proptest mirror that
-  runs under `cargo test`. Dev-only; an advisory nightly `kani` CI job runs the
-  proofs (Kani links its own toolchain via rustup, so it is CI-only).
-
-### Changed
-
-- Timing-dependent runtime tests (registry actor-death, router degraded-agent
-  event, router cancel-vs-late-completion) now use event-driven awaits and
-  bounded poll-until-condition instead of fixed sleeps, removing flakiness.
-
-### Fixed
-
-- Mailbox lease exclusivity (C9-F4): `ack`/`nack` are now fenced on the leasing
-  `run_id` via a new `lease_owner` column, so a stale consumer whose lease was
-  re-leased to another run can no longer delete or requeue the message the new
-  owner is processing.
-- `StepBudget` step/tool-call increment used a checked `+` that could panic in
-  debug at `u32::MAX`; it now saturates.
+Nothing yet. Every change made so far lands in the initial preview below.
 
 ## [0.1.0-preview] - Unreleased
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,
 single-maintainer. The date and the tag land when the release is published.
+
+The whole tree carries this version: the twenty-one Rust crates, the Python
+SDK, the built-in agents, and the desktop bundle. The Windows installer reads
+`0.1.0-1` instead, because the MSI product version has to be numeric.
+
+The `Changed` and `Fixed` entries below describe work done inside the preview
+cycle, before anything was published.
 
 ### Added
 
@@ -146,6 +128,33 @@ single-maintainer. The date and the tag land when the release is published.
 - Public documentation site (Docusaurus) with a capstone end-to-end walkthrough.
 - Operator help corpus.
 - `AGENTS.md` rulebook and the `docs/agents/` engineering corpus.
+
+**Verification**
+
+- Concurrency verification: abstract Loom models of the runtime actor
+  algorithms in the standalone `apollia-loom-models` crate, and a Miri
+  undefined-behavior suite over the FFI-adjacent pure helpers in `apollia-aip`.
+  Both are dev-only (no runtime dependency) and run as advisory nightly CI jobs.
+- Formal verification: bounded Kani symbolic proofs of the two cardinal
+  invariants, the non-bypassable `StepBudget` (`apollia-oria`) and the mailbox
+  lease/ack fence (`apollia-runtime`), each with an in-tree proptest mirror that
+  runs under `cargo test`. Dev-only; an advisory nightly `kani` CI job runs the
+  proofs (Kani links its own toolchain via rustup, so it is CI-only).
+
+### Changed
+
+- Timing-dependent runtime tests (registry actor-death, router degraded-agent
+  event, router cancel-vs-late-completion) now use event-driven awaits and
+  bounded poll-until-condition instead of fixed sleeps, removing flakiness.
+
+### Fixed
+
+- Mailbox lease exclusivity (C9-F4): `ack`/`nack` are now fenced on the leasing
+  `run_id` via a new `lease_owner` column, so a stale consumer whose lease was
+  re-leased to another run can no longer delete or requeue the message the new
+  owner is processing.
+- `StepBudget` step/tool-call increment used a checked `+` that could panic in
+  debug at `u32::MAX`; it now saturates.
 
 ### Security
 

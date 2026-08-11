@@ -28,7 +28,7 @@ def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Any | ApiErrorBody | None:
     if response.status_code == 204:
-        response_204 = cast(Any, None)
+        response_204 = cast("Any", None)
         return response_204
 
     if response.status_code == 500:

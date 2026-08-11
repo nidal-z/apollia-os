@@ -25,12 +25,15 @@ const ONBOARDING_AGENT_TOML: &str =
 /// Bundled version, must match the `manifest()["version"]` in the Python file
 /// and the `[agent].version` in `manifest.toml`.
 ///
-/// **Bump this** every time you change `agent.py` or `manifest.toml`.
-/// `provision_onboarding_agent` skips re-extraction when the installed
-/// version equals this constant, so without a bump, the runtime keeps
-/// loading the previously-extracted code from `~/.apollia/agents/…/`
-/// even after a rebuild.
-const ONBOARDING_AGENT_VERSION: &str = "2.4.0";
+/// The built-in agents ship inside the binary and carry the product version
+/// rather than a lifecycle of their own, so this tracks `CARGO_PKG_VERSION`;
+/// `bundled_versions_track_the_product_version` fails the build when it drifts.
+///
+/// `provision_onboarding_agent` skips re-extraction when the installed version
+/// equals this constant. Between two releases the version does not move, so a
+/// local edit to `agent.py` will not be picked up until the extracted copy
+/// under `~/.apollia/agents/…/` is removed.
+const ONBOARDING_AGENT_VERSION: &str = "0.1.0-preview";
 
 /// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
@@ -48,8 +51,9 @@ const APOLLIA_GUIDE_TUTORIALS_MD: &str =
     include_str!("../../../agents/system/apollia-guide/knowledge/tutorials.md");
 
 /// Bundled version, must match `manifest()["version"]` in `agent.py` and
-/// `[agent].version` in `manifest.toml`.
-const APOLLIA_GUIDE_VERSION: &str = "0.2.0";
+/// `[agent].version` in `manifest.toml`. Tracks the product version, same
+/// contract and same caveat as [`ONBOARDING_AGENT_VERSION`].
+const APOLLIA_GUIDE_VERSION: &str = "0.1.0-preview";
 
 /// Ensures the built-in agents are extracted and registered in the repository.
 ///
@@ -427,5 +431,37 @@ mod tests {
         let second = repo.get("onboarding-agent").expect("get").expect("exists");
 
         assert_eq!(first.installed_at, second.installed_at);
+    }
+
+    #[test]
+    fn bundled_versions_track_the_product_version() {
+        // GIVEN the built-in agents, which ship inside the binary and carry the
+        // product version rather than a lifecycle of their own.
+        let product = env!("CARGO_PKG_VERSION");
+
+        // WHEN the bundled constants are compared to it.
+        // THEN neither has drifted.
+        assert_eq!(ONBOARDING_AGENT_VERSION, product);
+        assert_eq!(APOLLIA_GUIDE_VERSION, product);
+    }
+
+    #[test]
+    fn embedded_python_decorators_declare_the_bundled_version() {
+        // GIVEN the two agent sources embedded by `include_str!`. Their
+        // `@agent(version=...)` literal is what the runtime registers, and no
+        // other test reads it: the Rust-side manifests restate the constant.
+        let onboarding = format!("version=\"{ONBOARDING_AGENT_VERSION}\",");
+        let guide = format!("version=\"{APOLLIA_GUIDE_VERSION}\",");
+
+        // WHEN each source is searched for its decorator literal.
+        // THEN both declare the bundled version.
+        assert!(
+            ONBOARDING_AGENT_PY.contains(&onboarding),
+            "onboarding-agent/agent.py must declare {onboarding}"
+        );
+        assert!(
+            APOLLIA_GUIDE_PY.contains(&guide),
+            "apollia-guide/agent.py must declare {guide}"
+        );
     }
 }

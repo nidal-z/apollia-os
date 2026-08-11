@@ -24,7 +24,7 @@ agents only see ``ctx.logger`` returning a standard :class:`logging.Logger`.
 from __future__ import annotations
 
 import logging
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 
 class _CtxWithLog(Protocol):
@@ -54,9 +54,7 @@ class KwargTolerantLogger(logging.Logger):
 
     def _log(self, level: int, msg: object, args: object, **kwargs: object) -> None:  # type: ignore[override]
         extra_fields = {
-            key: kwargs.pop(key)
-            for key in list(kwargs)
-            if key not in self._STD_LOG_KWARGS
+            key: kwargs.pop(key) for key in list(kwargs) if key not in self._STD_LOG_KWARGS
         }
         if extra_fields:
             suffix = " ".join(f"{key}={value!r}" for key, value in extra_fields.items())
@@ -78,7 +76,7 @@ class CtxLogHandler(logging.Handler):
     """
 
     #: Mapping ``logging`` numeric level → Rust ``ctx.log`` level string.
-    LEVEL_MAP: dict[int, str] = {
+    LEVEL_MAP: ClassVar[dict[int, str]] = {
         logging.DEBUG: "debug",
         logging.INFO: "info",
         logging.WARNING: "warn",

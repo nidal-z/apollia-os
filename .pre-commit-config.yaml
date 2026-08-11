@@ -25,10 +25,13 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
+  # Keep this rev in lockstep with the `ruff==` pin of the python-quality job in
+  # .github/workflows/ci.yml. When the two drift, the hook and the CI enforce
+  # different rule sets and a commit that passes locally fails on push.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.15.15
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix"]
         files: ^sdk/
       - id: ruff-format

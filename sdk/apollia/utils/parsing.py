@@ -86,12 +86,12 @@ def _try_repaired_json(target: str) -> dict[str, Any] | None:
 
 
 def extract_json(content: str) -> dict[str, Any]:
-    """Extract the first JSON object from *content*.
+    r"""Extract the first JSON object from *content*.
 
     Tries four strategies in order:
 
     1. Parse the full content as JSON.
-    2. Extract a fenced ``\\`\\`\\`json … \\`\\`\\``` block.
+    2. Extract a fenced ``\`\`\`json … \`\`\``` block.
     3. Find the outermost ``{ … }`` span.
     4. Attempt a heuristic repair of common LLM mistakes
        (unescaped quotes inside long ``content`` / ``new_text`` /
@@ -198,9 +198,9 @@ def _repair_unescaped_quotes_in_long_strings(text: str) -> str | None:
 
 
 def _find_string_close(text: str, open_quote_pos: int) -> int | None:
-    """Locate the logical closing ``"`` of the string opened at *open_quote_pos*.
+    r"""Locate the logical closing ``"`` of the string opened at *open_quote_pos*.
 
-    Scans forward, ignoring ``\\"`` escapes. The closing is the first
+    Scans forward, ignoring ``\"`` escapes. The closing is the first
     ``"`` followed (possibly after whitespace) by ``,``, ``}``, or ``]``
     - any other following character means we're still inside the value
     and the LLM forgot to escape this ``"``.
@@ -224,10 +224,10 @@ def _find_string_close(text: str, open_quote_pos: int) -> int | None:
 
 
 def _escape_inner_unescaped_quotes(value: str) -> str:
-    """Escape every ``"`` in *value* that isn't already preceded by ``\\``.
+    r"""Escape every ``"`` in *value* that isn't already preceded by ``\``.
 
     ``value`` is the raw substring between the opening and closing quotes
-    of a JSON string that failed to parse. We turn ``"`` into ``\\"``
+    of a JSON string that failed to parse. We turn ``"`` into ``\"``
     wherever the character itself is literal (not part of an escape).
     """
     out: list[str] = []
@@ -292,7 +292,10 @@ def extract_xml_tag(content: str, tag: str) -> str | None:
     return None
 
 
-def safe_json_loads(text: str, default: Any = None) -> Any:
+# REASON(ANN401): the return is whatever JSON decoded to, a shape only the caller
+# knows. `object` would force a cast at every call site of a convenience helper
+# whose entire purpose is to remove ceremony.
+def safe_json_loads(text: str, default: object = None) -> Any:  # noqa: ANN401
     """Parse a JSON string, returning *default* on failure.
 
     Unlike :func:`json.loads`, this function never raises.  Useful for
@@ -384,8 +387,7 @@ def validate_action(data: dict[str, Any]) -> dict[str, Any]:
 
     if action_type not in (ACTION_TOOL_CALL, ACTION_FINAL_ANSWER):
         raise ActionParseError(
-            f"'action' must be '{ACTION_TOOL_CALL}' or '{ACTION_FINAL_ANSWER}', "
-            f"got {action_type!r}"
+            f"'action' must be '{ACTION_TOOL_CALL}' or '{ACTION_FINAL_ANSWER}', got {action_type!r}"
         )
 
     if action_type == ACTION_TOOL_CALL and "tool" not in data:

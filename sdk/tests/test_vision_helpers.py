@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from apollia.types import (
@@ -14,6 +14,9 @@ from apollia.types import (
     image_from_url,
     text,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Minimal PNG header (8-byte signature) - enough for ``mimetypes`` and base64.
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -107,7 +110,7 @@ def test_image_from_path_rejects_non_image(tmp_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_mock_llm_proxy_accepts_multimodal_messages() -> None:
     """An agent that sends an ImageContent block through ``ctx.llm.complete``
     must reach the proxy unchanged - the mock records the full message list,

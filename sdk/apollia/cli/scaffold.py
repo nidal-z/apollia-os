@@ -280,9 +280,7 @@ def scaffold_agent(
         FileExistsError: If a target file already exists.
     """
     if agent_type not in VALID_AGENT_TYPES:
-        msg = (
-            f"Invalid agent type '{agent_type}'. " f"Must be one of: {', '.join(VALID_AGENT_TYPES)}"
-        )
+        msg = f"Invalid agent type '{agent_type}'. Must be one of: {', '.join(VALID_AGENT_TYPES)}"
         raise ValueError(msg)
 
     class_name = to_class_name(name)

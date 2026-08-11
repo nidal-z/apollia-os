@@ -1,6 +1,6 @@
 # Apollia Python SDK
 
-> **Apollia AgentKit v0.5.0** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
+> **Apollia AgentKit v0.1.0-preview** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
 The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **14 backend services** (LLM, memory, tools, A2A, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
@@ -21,7 +21,7 @@ Verify:
 
 ```bash
 python -c "import apollia; print(apollia.__version__)"
-# 0.5.0
+# 0.1.0-preview
 ```
 
 ## Quickstart - four canonical patterns

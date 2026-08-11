@@ -30,10 +30,27 @@ class ToolProxy(Protocol):
         self,
         tool_name: str,
         input: dict[str, Any],
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Invoke a tool and return its output.
 
-    def list_tools(self) -> list[str]: ...
+        Args:
+            tool_name: Native tool name, or ``mcp:<server>/<name>`` to route
+                the call to a connected MCP server.
+            input: Payload, validated against the tool input schema.
 
-    async def describe(self, name: str) -> dict[str, Any] | None: ...
+        Returns:
+            The tool output, matching its declared output schema.
+        """
+        ...
 
-    def tool_call_count(self) -> int: ...
+    def list_tools(self) -> list[str]:
+        """Return the names of every tool reachable from this context."""
+        ...
+
+    async def describe(self, name: str) -> dict[str, Any] | None:
+        """Return the descriptor for ``name``, or None if no such tool."""
+        ...
+
+    def tool_call_count(self) -> int:
+        """Return how many tool calls this run has made so far."""
+        ...

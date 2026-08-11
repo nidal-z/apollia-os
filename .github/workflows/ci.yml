@@ -521,7 +521,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - run: pip install ruff pip-audit
+      # Pinned, and kept in lockstep with the ruff-pre-commit rev in
+      # .pre-commit-config.yaml. Unpinned, a new ruff release changes the rule
+      # set under the job and turns a green tree red without a commit.
+      - run: pip install ruff==0.15.15 pip-audit
       - name: ruff format --check
         working-directory: sdk
         run: ruff format --check .

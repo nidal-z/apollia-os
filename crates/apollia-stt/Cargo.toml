@@ -1,6 +1,6 @@
 [package]
 name = "apollia-stt"
-version = "0.1.0"
+version = "0.1.0-preview"
 edition = "2021"
 description = "Apollia OS Speech-to-Text traits, types and repository (the whisper engine lives in the apollia-runner sidecar)"
 license = "MIT OR Apache-2.0"

@@ -33,7 +33,7 @@ class A2AInterface(Protocol):
         input: dict[str, Any] | None = None,
         *,
         timeout_secs: int | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> dict[str, Any]:
         """Invoke an A2A skill and return the full invocation envelope.
 
@@ -64,9 +64,13 @@ class A2AInterface(Protocol):
         """
         ...
 
-    async def discover(self, skill_id: str) -> dict[str, Any] | None: ...
+    async def discover(self, skill_id: str) -> dict[str, Any] | None:
+        """Return the skill card for ``skill_id``, or None if unknown."""
+        ...
 
-    async def list_skills(self) -> list[dict[str, Any]]: ...
+    async def list_skills(self) -> list[dict[str, Any]]:
+        """Return a skill card for every skill reachable from this context."""
+        ...
 
     async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:
         """Return an LLM tool descriptor for an A2A skill.

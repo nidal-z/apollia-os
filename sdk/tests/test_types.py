@@ -80,10 +80,10 @@ def test_import_aipresult_from_types():
 
 
 def test_version():
-    """__version__ is exposed and bumped post-AgentKit rebuild."""
+    """__version__ is exposed and tracks the Apollia OS product version."""
     from apollia import __version__
 
-    assert __version__ == "0.5.0"
+    assert __version__ == "0.1.0-preview"
 
 
 def test_new_public_api_exports():

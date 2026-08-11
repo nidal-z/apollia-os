@@ -26,8 +26,8 @@ def test_each_subprotocol_importable() -> None:
     from apollia.context.events import EventsInterface  # noqa: F401
     from apollia.context.llm import LlmProxy, LlmResponse, TokenUsage  # noqa: F401
     from apollia.context.logger import Logger  # noqa: F401
-    from apollia.context.memory import MemoryInterface  # noqa: F401
     from apollia.context.mail import MailInterface  # noqa: F401
+    from apollia.context.memory import MemoryInterface  # noqa: F401
     from apollia.context.notify import NotifyInterface  # noqa: F401
     from apollia.context.profile import ProfileInterface  # noqa: F401
     from apollia.context.secrets import SecretsInterface  # noqa: F401
@@ -43,7 +43,7 @@ def test_each_subprotocol_importable() -> None:
 
 
 @pytest.mark.parametrize(
-    "module_path,name",
+    ("module_path", "name"),
     [
         ("apollia.context.llm", "LlmProxy"),
         ("apollia.context.llm", "LlmResponse"),

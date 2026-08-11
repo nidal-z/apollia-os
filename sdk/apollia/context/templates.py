@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -13,6 +13,18 @@ class TemplatesInterface(Protocol):
     from the agent package's ``templates/`` directory at task startup.
     """
 
-    def render(self, name: str, **context: Any) -> str: ...
+    def render(self, name: str, **context: object) -> str:
+        """Render a declared template.
 
-    def list_names(self) -> list[str]: ...
+        Args:
+            name: Template name as declared in ``@agent(templates=(...))``.
+            **context: Variables exposed to the template.
+
+        Returns:
+            The rendered text.
+        """
+        ...
+
+    def list_names(self) -> list[str]:
+        """Return the names of every template the manifest declares."""
+        ...

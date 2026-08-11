@@ -1,6 +1,6 @@
 [package]
 name = "apollia-aip"
-version = "0.1.0"
+version = "0.1.0-preview"
 edition = "2021"
 description = "Apollia OS - Agent Interface Protocol bridge (PyO3, Rust <-> Python async via pyo3-async-runtimes)"
 license = "MIT OR Apache-2.0"

@@ -15,6 +15,20 @@ class SttInterface(Protocol):
         *,
         language: str | None = None,
         backend: str | None = None,
-    ) -> str: ...
+    ) -> str:
+        """Transcribe an audio file to text.
 
-    def status(self) -> dict[str, Any]: ...
+        Args:
+            path: Path to the audio file, resolved inside the workspace.
+            language: BCP 47 hint for the spoken language, or None to let the
+                backend detect it.
+            backend: Backend to use, or None for the configured default.
+
+        Returns:
+            The transcript.
+        """
+        ...
+
+    def status(self) -> dict[str, Any]:
+        """Return backend readiness: loaded model, device and sample rate."""
+        ...

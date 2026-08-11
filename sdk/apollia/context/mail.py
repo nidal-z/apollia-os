@@ -11,7 +11,7 @@ This module defines a ``TypedDict``, so it intentionally does not use
 and break ``TypedDict.__required_keys__`` that AgentKit reads at runtime).
 """
 
-from typing import Protocol, TypedDict, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 
 class MailMessage(TypedDict):
@@ -19,7 +19,7 @@ class MailMessage(TypedDict):
 
     message_id: str
     from_agent: str
-    payload: dict
+    payload: dict[str, Any]
     sent_at: str  # RFC3339
 
 
@@ -27,7 +27,7 @@ class MailMessage(TypedDict):
 class MailInterface(Protocol):
     """Durable, at-least-once inter-agent messaging surface."""
 
-    async def send(self, to: str, payload: dict) -> str:
+    async def send(self, to: str, payload: dict[str, Any]) -> str:
         """Post a message to ``to``'s inbox, returning its message id."""
         ...
 

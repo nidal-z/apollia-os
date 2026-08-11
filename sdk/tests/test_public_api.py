@@ -36,7 +36,7 @@ def test_version_is_string() -> None:
     import apollia
 
     assert isinstance(apollia.__version__, str)
-    assert apollia.__version__.startswith("0.5")
+    assert apollia.__version__.startswith("0.1.0")
 
 
 def test_all_contains_expected_names() -> None:

@@ -1,6 +1,6 @@
 {
   "name": "@apollia/runtime-client",
-  "version": "0.1.0",
+  "version": "0.1.0-preview",
   "description": "Typed host-driving client for the Apollia OS runtime API (/api/v1).",
   "license": "MIT OR Apache-2.0",
   "type": "module",

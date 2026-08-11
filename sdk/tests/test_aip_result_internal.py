@@ -5,9 +5,8 @@ from __future__ import annotations
 import base64
 import logging
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
-import pytest
 from apollia._internal.aip_result import (
     completed,
     failed,
@@ -23,6 +22,9 @@ from apollia.errors import (
     SchemaError,
     SkillNotFound,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 # ──────────────────────────── builders ────────────────────────────
 

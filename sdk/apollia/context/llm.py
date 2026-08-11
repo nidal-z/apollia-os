@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     # Runtime import would be circular (apollia.types imports LlmProxy from here);
     # only needed for annotations, which are lazy under `from __future__`.
+    from collections.abc import AsyncIterator
+
     from apollia.types import MapItemResult
 
 
@@ -28,7 +29,9 @@ class LlmResponse(Protocol):
     latency_ms: int
 
     @property
-    def usage(self) -> TokenUsage: ...
+    def usage(self) -> TokenUsage:
+        """Token counts and cost for the call that produced this response."""
+        ...
 
 
 @runtime_checkable
@@ -41,7 +44,9 @@ class LlmProxy(Protocol):
     """
 
     @property
-    def default_backend(self) -> str: ...
+    def default_backend(self) -> str:
+        """Identifier of the backend used when a call names none."""
+        ...
 
     async def complete(
         self,
@@ -51,7 +56,21 @@ class LlmProxy(Protocol):
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
-    ) -> LlmResponse: ...
+    ) -> LlmResponse:
+        """Run a single-shot completion over a message list.
+
+        Args:
+            messages: Chat messages in OpenAI shape, oldest first.
+            backend: Backend to use, or None for :attr:`default_backend`.
+            temperature: Sampling temperature, or None for the backend default.
+            max_tokens: Cap on generated tokens, or None for the backend default.
+            seed: Sampling seed, for reproducible output where the backend
+                supports it.
+
+        Returns:
+            The completed response, with its content, latency and usage.
+        """
+        ...
 
     async def chat(
         self,
@@ -62,7 +81,25 @@ class LlmProxy(Protocol):
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
-    ) -> LlmResponse: ...
+    ) -> LlmResponse:
+        """Run a completion over a system and a user message.
+
+        Convenience wrapper over :meth:`complete` for the common two-message
+        case.
+
+        Args:
+            system: System message.
+            user: User message.
+            backend: Backend to use, or None for :attr:`default_backend`.
+            temperature: Sampling temperature, or None for the backend default.
+            max_tokens: Cap on generated tokens, or None for the backend default.
+            seed: Sampling seed, for reproducible output where the backend
+                supports it.
+
+        Returns:
+            The completed response, with its content, latency and usage.
+        """
+        ...
 
     async def map(
         self,
@@ -120,4 +157,14 @@ class LlmProxy(Protocol):
         text: str,
         *,
         backend: str | None = None,
-    ) -> list[float]: ...
+    ) -> list[float]:
+        """Return the embedding vector for ``text``.
+
+        Args:
+            text: Text to embed.
+            backend: Backend to use, or None for :attr:`default_backend`.
+
+        Returns:
+            The embedding, as a dense vector of floats.
+        """
+        ...

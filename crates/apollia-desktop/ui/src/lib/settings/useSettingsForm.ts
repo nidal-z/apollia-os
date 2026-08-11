@@ -207,4 +207,3 @@ export function registerSettingsForm<T>(
   if (!register) return () => {};
   return register(route, { save: form.save, reset: form.reset });
 }
-

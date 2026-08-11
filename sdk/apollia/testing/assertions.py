@@ -129,8 +129,7 @@ def assert_skill_called(
     elif not calls:
         all_called = [c[0] for c in ctx.a2a.invoke_calls]
         raise AssertionError(
-            f"Skill '{skill_id}' was not invoked via ctx.a2a.invoke "
-            f"(invoked skills: {all_called})"
+            f"Skill '{skill_id}' was not invoked via ctx.a2a.invoke (invoked skills: {all_called})"
         )
 
 
@@ -185,7 +184,7 @@ def assert_llm_called(
             raise AssertionError("Expected LLM to be called, but it was never called")
     elif actual_count != times:
         raise AssertionError(
-            f"Expected LLM to be called {times} times, " f"was called {actual_count} times"
+            f"Expected LLM to be called {times} times, was called {actual_count} times"
         )
 
 
@@ -301,14 +300,14 @@ def _assert_status(result: dict[str, Any], expected: str) -> None:
 
 
 __all__ = [
+    "assert_emitted_thought",
+    "assert_emitted_token",
+    "assert_llm_called",
+    "assert_memory_recorded",
     "assert_result_completed",
     "assert_result_failed",
     "assert_result_input_required",
     "assert_skill_called",
-    "assert_tool_called",
-    "assert_llm_called",
-    "assert_emitted_token",
-    "assert_emitted_thought",
-    "assert_memory_recorded",
     "assert_template_rendered",
+    "assert_tool_called",
 ]

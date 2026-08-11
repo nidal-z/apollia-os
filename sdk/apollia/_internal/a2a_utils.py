@@ -15,7 +15,7 @@ from typing import Any
 __all__ = ["extract_a2a_payload", "extract_skill_id"]
 
 
-def _extract_parts(task: Any) -> list[Any]:
+def _extract_parts(task: object) -> list[Any]:
     """Return the ``input.parts`` list of an AIP task, or an empty list."""
     if isinstance(task, dict):
         parts = task.get("input", {}).get("parts", [])
@@ -27,7 +27,7 @@ def _extract_parts(task: Any) -> list[Any]:
     return parts if isinstance(parts, list) else []
 
 
-def _datapart_dict(part: Any) -> dict[str, Any] | None:
+def _datapart_dict(part: object) -> dict[str, Any] | None:
     """Return the dict payload of a ``DataPart``, or ``None``."""
     if not isinstance(part, dict) or part.get("type") != "data":
         return None
@@ -36,7 +36,7 @@ def _datapart_dict(part: Any) -> dict[str, Any] | None:
     return dict(data) if isinstance(data, dict) else None
 
 
-def _textpart_json_dict(part: Any) -> dict[str, Any] | None:
+def _textpart_json_dict(part: object) -> dict[str, Any] | None:
     """Return the parsed JSON-object payload of a ``TextPart``, or ``None``."""
     if not isinstance(part, dict) or part.get("type") != "text":
         return None
@@ -50,7 +50,7 @@ def _textpart_json_dict(part: Any) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def extract_a2a_payload(task: Any) -> dict[str, Any]:
+def extract_a2a_payload(task: object) -> dict[str, Any]:
     """Read the structured A2A payload from an AIP task.
 
     Prefers the canonical ``DataPart`` (what ``ctx.a2a.invoke`` actually
@@ -78,7 +78,7 @@ def extract_a2a_payload(task: Any) -> dict[str, Any]:
     return {}
 
 
-def extract_skill_id(task: Any) -> str | None:
+def extract_skill_id(task: object) -> str | None:
     """Return the A2A ``skill_id`` invoked for this task, or ``None``.
 
     Populated by the runtime when a task is dispatched through the A2A
@@ -99,10 +99,7 @@ def extract_skill_id(task: Any) -> str | None:
     in the agent's manifest (e.g. ``"chart.bar"``, ``"pdf.read-text"``),
     not just the suffix after the dot. Workers should match on full IDs.
     """
-    if isinstance(task, dict):
-        value = task.get("skill_id")
-    else:
-        value = getattr(task, "skill_id", None)
+    value = task.get("skill_id") if isinstance(task, dict) else getattr(task, "skill_id", None)
     if isinstance(value, str) and value:
         return value
     return None

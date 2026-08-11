@@ -35,6 +35,12 @@ class MockToolProxy:
     """
 
     def __init__(self, responses: dict[str, Any] | None = None) -> None:
+        """Seed the tool responses this mock will serve.
+
+        Args:
+            responses: Mapping of tool name to the dict ``call()`` returns.
+                A tool absent from the mapping raises on call.
+        """
         self.responses: dict[str, Any] = responses or {}
         self.calls: list[tuple[str, dict[str, object]]] = []
 
@@ -111,18 +117,27 @@ class MockLlmResponse:
     """
 
     def __init__(self, data: dict[str, object]) -> None:
+        """Wrap a raw response dict.
+
+        Args:
+            data: The response payload. Its ``text`` or ``content`` entry
+                becomes the ``.content`` attribute.
+        """
         self._data = data
         text = data.get("text") or data.get("content") or ""
         self.content: str = str(text)
         self.text: str = self.content
 
     def get(self, key: str, default: object = None) -> object:
+        """Return the raw payload entry for ``key``, or ``default``."""
         return self._data.get(key, default)
 
     def __getitem__(self, key: str) -> object:
+        """Return the raw payload entry for ``key``."""
         return self._data[key]
 
     def __contains__(self, key: str) -> bool:
+        """Whether the raw payload holds ``key``."""
         return key in self._data
 
 
@@ -139,6 +154,12 @@ class MockLlmProxy:
     """
 
     def __init__(self, responses: list[dict[str, object]] | None = None) -> None:
+        """Queue the responses this mock will serve.
+
+        Args:
+            responses: Response payloads, consumed FIFO by ``complete()``
+                and ``chat()``. An exhausted queue raises on the next call.
+        """
         self.responses: list[dict[str, object]] = list(responses or [])
         self.call_count: int = 0
         self.prompts: list[Any] = []
@@ -153,7 +174,7 @@ class MockLlmProxy:
     async def complete(  # NOSONAR S7503 - Protocol contract
         self,
         messages: list[dict[str, object]] | str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> MockLlmResponse:
         """Consume and return the next queued response.
 
@@ -250,7 +271,9 @@ class MockLlmProxy:
         self.call_count += 1
         results: list[dict[str, Any]] = []
         for index, item in enumerate(items):
-            text_out = str(MockLlmResponse(self.responses.pop(0)).content) if self.responses else item
+            text_out = (
+                str(MockLlmResponse(self.responses.pop(0)).content) if self.responses else item
+            )
             results.append({"index": index, "ok": True, "text": text_out})
         return results
 
@@ -277,13 +300,14 @@ class MockMemory:
 
     Attributes:
         store: In-memory semantic key/value storage.
-        confidences: Per-key confidence scores (0.0–1.0).
+        confidences: Per-key confidence scores, from 0.0 to 1.0.
         episodes: In-memory episodic events.
         operations: Ordered list of ``{"op": ..., ...}`` dicts for
             introspection.
     """
 
     def __init__(self) -> None:
+        """Start with empty semantic, episodic and operation stores."""
         self.store: dict[str, str] = {}
         self.confidences: dict[str, float] = {}
         self.episodes: list[dict[str, Any]] = []
@@ -318,19 +342,22 @@ class MockMemory:
         """
         effective_confidence = confidence if confidence is not None else 1.0
 
-        if confidence is not None and key in self.confidences:
-            if self.confidences[key] > effective_confidence:
-                self.operations.append(
-                    {
-                        "op": "remember",
-                        "key": key,
-                        "value": value,
-                        "source": source,
-                        "confidence": effective_confidence,
-                        "skipped": True,
-                    }
-                )
-                return
+        if (
+            confidence is not None
+            and key in self.confidences
+            and self.confidences[key] > effective_confidence
+        ):
+            self.operations.append(
+                {
+                    "op": "remember",
+                    "key": key,
+                    "value": value,
+                    "source": source,
+                    "confidence": effective_confidence,
+                    "skipped": True,
+                }
+            )
+            return
 
         self.store[key] = value
         self.confidences[key] = effective_confidence
@@ -377,8 +404,8 @@ class MockMemory:
 
 
 __all__ = [
-    "MockToolProxy",
     "MockLlmProxy",
     "MockLlmResponse",
     "MockMemory",
+    "MockToolProxy",
 ]

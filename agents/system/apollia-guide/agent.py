@@ -216,7 +216,7 @@ def _has_only_allowed_routes(raw: str) -> bool:
 
 @agent(
     name="apollia-guide",
-    version="0.2.0",
+    version="0.1.0-preview",
     description=(
         "Conversational coach for Apollia OS: knows the product's real "
         "capabilities and suggests actionable deep-links."

@@ -54,8 +54,12 @@ def test_annotation_any() -> None:
     assert annotation_to_schema(Any) == {}
 
 
+# REASON(UP007/UP045): the `Optional[...]` and `Union[...]` spellings below are the
+# subject under test, not a style lapse. Agents in the wild still write them, and
+# `annotation_to_schema` must map them to the same schema as the PEP 604 forms
+# exercised alongside. Rewriting them to `X | Y` would delete that coverage.
 def test_annotation_optional_str() -> None:
-    schema = annotation_to_schema(Optional[str])
+    schema = annotation_to_schema(Optional[str])  # noqa: UP045
     # Compact form: type stays a plain string; nullable marker exposes null.
     assert schema == {"type": "string", "nullable": True}
 
@@ -66,7 +70,7 @@ def test_annotation_pep604_optional() -> None:
 
 
 def test_annotation_union() -> None:
-    schema = annotation_to_schema(Union[str, int])
+    schema = annotation_to_schema(Union[str, int])  # noqa: UP007
     assert "anyOf" in schema
     assert {"type": "string"} in schema["anyOf"]
     assert {"type": "integer"} in schema["anyOf"]
@@ -533,7 +537,7 @@ def test_annotated_in_signature_surfaces_description() -> None:
 
 def test_optional_compact_nullable_form() -> None:
     """Optional[str] uses the compact ``{type: string, nullable: true}`` form."""
-    schema = annotation_to_schema(Optional[int])
+    schema = annotation_to_schema(Optional[int])  # noqa: UP045
     assert schema == {"type": "integer", "nullable": True}
 
 
@@ -542,7 +546,7 @@ def test_optional_dataclass_nullable_preserves_object_schema() -> None:
     class Cfg:
         a: int
 
-    schema = annotation_to_schema(Optional[Cfg])
+    schema = annotation_to_schema(Optional[Cfg])  # noqa: UP045
     assert schema["type"] == "object"
     assert schema["nullable"] is True
     assert "properties" in schema
@@ -550,7 +554,7 @@ def test_optional_dataclass_nullable_preserves_object_schema() -> None:
 
 def test_union_with_none_nullable() -> None:
     """``T | U | None`` produces ``{anyOf: [...], nullable: true}`` without ``None`` inside."""
-    schema = annotation_to_schema(Union[str, int, None])
+    schema = annotation_to_schema(Union[str, int, None])  # noqa: UP007
     assert schema["nullable"] is True
     assert "anyOf" in schema
     branch_types = {tuple(sorted(b.items())) for b in schema["anyOf"]}
