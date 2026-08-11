@@ -1510,7 +1510,8 @@
           "focused",
           "busy"
         ]
-      }
+      },
+      "coverage": "Entree perimee depuis LOT-002, cloture du 2026-08-11. Le jumeau n a pas ete resynchronise, et voici ce qui a change dans le source sans etre reproduit. Deux boutons ont ete ajoutes a la barre d outils, apres le bouton microphone et avant le bouton d envoi. 1) Bouton de reecriture, permanent, classe toolBtn comme ses voisins, icone Wand2 en taille 16, remplacee par Loader2 anime pendant l appel ; testid chat-input-rewrite-button ; libelle accessible et infobulle chat.rewrite.button_tooltip, « Ameliorer la demande » en francais, « Improve prompt » en anglais ; desactive quand le champ est vide. 2) Bouton de restauration, conditionnel, present seulement apres une premiere reecriture, meme classe toolBtn, icone Undo2 en taille 16 ; testid chat-input-rewrite-restore-button ; infobulle chat.rewrite.restore_tooltip, « Restaurer l original » et « Restore original ». Le jumeau porte trois variantes sur l axe State, rest, focused et busy, et aucune ne montre ces deux boutons ; l axe lui-meme reste juste, l etat busy du composeur n est pas l etat en cours de reecriture. Deux etats visuels nouveaux ne sont donc representes nulle part : la reecriture en cours, ou l icone du premier bouton devient un Loader2 anime et le champ passe en lecture seule, et la reecriture faite, ou le second bouton apparait. A refaire au prochain passage sur ce composant : porter les deux boutons dans les trois variantes existantes, et arbitrer si la reecriture en cours merite une quatrieme valeur d axe plutot qu une surcharge de busy."
     },
     {
       "nodeId": "388:706",
@@ -1745,7 +1746,8 @@
       "name": "QuickPicker",
       "page": "Composants",
       "source": "components/chat/QuickPicker.svelte",
-      "variants": 1
+      "variants": 1,
+      "coverage": "Entree perimee depuis LOT-002, cloture du 2026-08-11. Le jumeau n a pas ete resynchronise, et voici ce qui a change dans le source sans etre reproduit. La rangee d action sous le champ de saisie ne portait que le bouton d envoi ; elle porte maintenant jusqu a trois boutons alignes a gauche de celui-ci, dans un conteneur flex items-center gap-2. 1) Bouton de reecriture, permanent, instance de Button en variante outline, classe gap-1.5, icone Wand2 en taille 12 remplacee par Loader2 anime pendant l appel, suivie du libelle chat.rewrite.button_tooltip ecrit en toutes lettres, « Ameliorer la demande » et « Improve prompt » ; testid quickpicker-rewrite-button. Contrairement a ChatInput, le libelle est visible, pas seulement en infobulle. 2) Bouton de restauration, conditionnel, present seulement apres une premiere reecriture, instance de Button en variante ghost, icone Undo2 en taille 12 sans libelle ; testid quickpicker-rewrite-restore-button ; infobulle chat.rewrite.restore_tooltip. 3) Le bouton d envoi existant, inchange, testid quickpicker-submit. Le jumeau ne porte qu une variante et aucun axe ; les trois etats nouveaux, repos avec un seul bouton de reecriture, reecriture en cours avec le Loader2 et le champ en lecture seule, reecriture faite avec le bouton de restauration, ne sont representes nulle part. A refaire au prochain passage : porter la rangee d action complete, et creer l axe qui manque, l entree n ayant aujourd hui aucun moyen de dire quel etat elle montre."
     },
     {
       "nodeId": "398:1149",
