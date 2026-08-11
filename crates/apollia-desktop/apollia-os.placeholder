@@ -1,0 +1,6 @@
+Placeholder so the `apollia-os*` resource glob of tauri.conf.json matches in a
+tree where no CLI binary has been staged yet, which is every fresh clone and
+every new worktree. crates/apollia-desktop/scripts/bundle-cli.sh stages the real
+`apollia-os` next to this file before a release build; this one is inert, the
+desktop shell resolves the CLI by the exact name `apollia-os` and never by a
+glob (crates/apollia-desktop/src/commands/cli.rs, CLI_BINARY_NAME).

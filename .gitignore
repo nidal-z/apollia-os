@@ -14,6 +14,11 @@
 .apollia/
 apollia.toml.local
 models/
+# The CLI end-to-end seed ships three stub GGUF/GGML files of 4 to 8 KiB, read
+# by tests/cli/seed/build-seed.sh. The generic rule above aims at real models of
+# several hundred megabytes and caught them by accident, which left the case
+# `model list shows 2 seeded gguf` failing in any tree but this one.
+!tests/cli/seed/files/models/
 
 # Python virtualenvs and tooling caches
 .venv/
@@ -30,9 +35,16 @@ htmlcov/
 .tox/
 .nox/
 
-# Desktop build artifacts - staged by scripts/bundle-cli.sh before Tauri build
+# Desktop build artifacts - staged by scripts/bundle-cli.sh before Tauri build.
+# tauri.conf.json declares `apollia-os*` and `python/**/*` as bundle resources,
+# and tauri-build fails the whole workspace when a glob matches nothing. Both
+# keep one tracked placeholder so a fresh clone or worktree compiles, the same
+# trick runners/README.txt already plays for `runners/**/*`. The `python/*` form
+# is required: git refuses to re-include a file whose parent directory is
+# excluded, so `python/` alone could not carry the negation below.
 crates/apollia-desktop/resources/
-crates/apollia-desktop/python/
+crates/apollia-desktop/python/*
+!crates/apollia-desktop/python/.gitkeep
 crates/apollia-desktop/apollia-os
 
 # Dev-only automation harness output (screenshots + report.json)

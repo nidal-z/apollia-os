@@ -69,6 +69,24 @@ lint:
 fmt:
     cargo fmt --all
 
+# Make a linked worktree measure the same repository the main tree measures.
+# Groups are cumulative and there is no default: `just worktree-prep` lists them
+# and exits 1. See scripts/worktree-prep.sh for what each group lays down.
+#
+#   just worktree-prep rust        cargo and the CLI end-to-end suite
+#   just worktree-prep ui docs     the frontend and documentation guards
+#   just worktree-prep full        all three
+worktree-prep *GROUPS:
+    bash scripts/worktree-prep.sh {{GROUPS}}
+
+# Record the verdict of the eight expensive guards in this tree, then compare
+# two records made on the same commit.
+worktree-verdicts OUT:
+    python3 scripts/worktree_verdicts.py --record {{OUT}}
+
+worktree-compare MAIN WORKTREE:
+    python3 scripts/worktree_verdicts.py --compare {{MAIN}} {{WORKTREE}}
+
 # -----------------------------------------------------------------------------
 # Runner sidecar
 # -----------------------------------------------------------------------------

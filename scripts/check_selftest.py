@@ -33,6 +33,7 @@ Usage:
     python3 scripts/check_selftest.py
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -45,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_claims  # noqa: E402
 import check_no_font_cdn as fontcdn  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
+import worktree_verdicts  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -377,19 +379,202 @@ def check_font_cdn_detector_fires() -> None:
     )
 
 
+# ── The worktree verdict comparator ──────────────────────────────────────────
+# Same family, fourth instance, and this one was written knowing the family. A
+# comparator that only read exit codes would call the two `svelte-check` runs
+# equal: 1 in a fresh worktree over 853 files with 2050 fabricated errors, 1 in
+# the main tree over 4943 files with the single real one. It would report a
+# prepared worktree, and every guard verdict read from it afterwards would be a
+# guess. So the negative case is exactly that pair, and it is paired with a
+# positive control, because a comparator that always answered "different" would
+# satisfy the negative half and be worthless.
+#
+# No guard is run here. The fixtures are JSON records in a temporary directory,
+# which is what `--compare` reads.
+
+MATCHING_MEASURES = {
+    "cargo-check": {"exit": 0},
+    "cargo-clippy": {"exit": 0},
+    "cargo-test": {"exit": 101, "binaries": 77, "tests": 4370},
+    "cli-e2e": {"exit": 0, "pass": 154, "fail": 0},
+    "ui-build": {"exit": 0},
+    "svelte-check": {"exit": 1, "files": 4943, "errors": 1},
+    "vitest": {"exit": 0, "tests": 790},
+    "docs-build": {"exit": 0},
+}
+
+
+def _record(tree: str, overrides: dict[str, dict] | None = None) -> dict:
+    """A full record, on one commit, that every guard reports as prepared."""
+    guards = {
+        key: {"prepared": True, "measures": dict(measures), "seconds": 1.0}
+        for key, measures in MATCHING_MEASURES.items()
+    }
+    for key, entry in (overrides or {}).items():
+        guards[key] = entry
+    return {
+        "tree": tree,
+        "head": "6a3f59de06c66c0c7dc6f4222dd381ab2ebc33c5",
+        "porcelain_lines": 0,
+        "python_bundle": f"{tree}/target/python-bundle/aarch64-apple-darwin/python",
+        "guards": guards,
+    }
+
+
+def _compare(root: Path, left: dict, right: dict) -> subprocess.CompletedProcess:
+    (root / "main.json").write_text(json.dumps(left), encoding="utf-8")
+    (root / "worktree.json").write_text(json.dumps(right), encoding="utf-8")
+    return subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "worktree_verdicts.py"),
+            "--compare",
+            str(root / "main.json"),
+            str(root / "worktree.json"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+def check_worktree_comparator() -> None:
+    print("worktree verdicts: two exit codes of 1 are not the same verdict")
+
+    declared = [guard.key for guard in worktree_verdicts.GUARDS]
+    case(
+        "the fixture covers every guard the tool declares",
+        set(declared) == set(MATCHING_MEASURES),
+        f"the tool declares {sorted(declared)} and the fixture covers "
+        f"{sorted(MATCHING_MEASURES)}. A guard absent from both records is "
+        f"absent from the comparison, so it would never produce a gap",
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        unprepared = _record("/main")
+        fresh = _record(
+            "/worktree",
+            {
+                "svelte-check": {
+                    "prepared": True,
+                    "measures": {"exit": 1, "files": 853, "errors": 2050},
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, unprepared, fresh)
+        case(
+            "same exit code, different FILES and ERRORS, is a gap",
+            run.returncode == 1 and "svelte-check" in run.stdout + run.stderr,
+            f"exit {run.returncode} on the pair that decided the shape of this "
+            f"tool: 1 over 853 files with 2050 errors against 1 over 4943 with "
+            f"1. Output:\n{run.stdout}{run.stderr}",
+        )
+
+        run = _compare(root, _record("/main"), _record("/worktree"))
+        case(
+            "positive control: two identical records are conforming",
+            run.returncode == 0,
+            f"exit {run.returncode} on two records that agree on every measure. "
+            f"A comparator that always answers `different` satisfies the case "
+            f"above and states nothing. Output:\n{run.stdout}{run.stderr}",
+        )
+
+        blind = _record(
+            "/worktree",
+            {
+                "svelte-check": {
+                    "prepared": False,
+                    "reason": "svelte-check is not installed",
+                    "probe": "crates/apollia-desktop/ui/node_modules/.bin/svelte-check",
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), blind)
+        case(
+            "a guard recorded as not prepared is never conforming",
+            run.returncode == 1 and "not prepared" in run.stdout + run.stderr,
+            f"exit {run.returncode} on a record where one guard could not run. "
+            f"Zero coverage reported as a pass is the bias this whole file "
+            f"exists to pin. Output:\n{run.stdout}{run.stderr}",
+        )
+
+        # The criterion is "on the same commit as the main tree". Nothing else
+        # in this tool would enforce it, and a comparison across two commits
+        # attributes to the worktree a difference the commit produced.
+        other = _record("/worktree")
+        other["head"] = "0123456789abcdef0123456789abcdef01234567"
+        run = _compare(root, _record("/main"), other)
+        case(
+            "two records on different commits are refused, not compared",
+            run.returncode == 2,
+            f"exit {run.returncode} on two records made on different commits. "
+            f"Comparing them would credit the worktree with a difference the "
+            f"commit produced. Output:\n{run.stdout}{run.stderr}",
+        )
+
+        # `cargo test` is the one guard whose exit code is deliberately outside
+        # the comparison, because a non-deterministic test would otherwise decide
+        # the verdict for a cause foreign to the worktree. Both directions:
+        # the exit code alone is not a gap, the test count alone is.
+        flaky = _record(
+            "/worktree",
+            {
+                "cargo-test": {
+                    "prepared": True,
+                    "measures": {"exit": 0, "binaries": 77, "tests": 4370},
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), flaky)
+        case(
+            "cargo test: a differing exit code alone is not a gap",
+            run.returncode == 0,
+            f"exit {run.returncode} while both trees ran 77 binaries and 4370 "
+            f"tests and only the exit code differed. That is the flaky test "
+            f"taking the criterion hostage, which the framing ruled out. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        died = _record(
+            "/worktree",
+            {
+                "cargo-test": {
+                    "prepared": True,
+                    "measures": {"exit": 101, "binaries": 0, "tests": 0},
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), died)
+        case(
+            "cargo test: the same exit code over 0 binaries is a gap",
+            run.returncode == 1,
+            f"exit {run.returncode} while one tree ran 4370 tests and the other "
+            f"ran none, both exiting 101. That is exactly the fresh-worktree "
+            f"verdict this tool exists to separate from a real run. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
     check_zero_coverage_is_reported()
     check_font_cdn_detector_fires()
+    print()
+    check_worktree_comparator()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nfour properties hold: neither a comment nor a re-export is a use, "
-        "zero coverage says so, and the font guard fires on a dirty tree"
+        "\nfive properties hold: neither a comment nor a re-export is a use, "
+        "zero coverage says so, the font guard fires on a dirty tree, and two "
+        "equal exit codes over different measures are not the same verdict"
     )
     return 0
 

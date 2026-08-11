@@ -36,6 +36,11 @@ echo "==> Building Python bundle for target ${TARGET}..."
 # will pick up whatever's here.
 rm -rf "${STAGING}/python"
 cp -R "${REPO_ROOT}/target/python-bundle/${TARGET}/python" "${STAGING}/python"
+# `python/.gitkeep` is tracked, and it is what makes the `python/**/*` resource
+# glob of tauri.conf.json match in a tree where no bundle has been staged yet.
+# The rm above deletes it, which would leave the working tree dirty after every
+# desktop build. Same role runners/README.txt plays for `runners/**/*`.
+touch "${STAGING}/python/.gitkeep"
 
 # Executable suffix and Python layout, both target-dependent. Computed here
 # because the CLI copy below needs the suffix, and the previous code only derived
