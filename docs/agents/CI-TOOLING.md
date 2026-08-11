@@ -252,6 +252,43 @@ cargo build --workspace
 cargo test --workspace --no-fail-fast
 ```
 
+### Linked worktrees need one command first
+
+A `git worktree` receives only what git tracks, and four of the expensive gates
+read paths that git does not carry. Left unprepared, they do not merely fail:
+`npx svelte-check` exits 1 over 853 files and 2050 errors instead of 4943 files
+and 1 error, which reads as a repository regression and is not one.
+
+```sh
+git worktree add --detach ../wt-topic HEAD
+cd ../wt-topic
+just worktree-prep rust          # Python bundle link + the CLI binary
+just worktree-prep ui docs       # npm ci where a gate needs it
+just worktree-prep full          # all three
+```
+
+Groups are cumulative and there is no default: `just worktree-prep` with no
+argument lists them and exits 1. A default would be a guess, and the guess is
+what costs the false verdict above. `rust` links `target/Resources/python` to
+the bundle of the main working tree, which the recipe resolves through git and
+prints as an absolute path, and it builds `apollia-os` because
+`tests/cli/cli-e2e.sh` resolves that binary and never builds it.
+
+To check that a worktree measures what the main tree measures, record both and
+compare. The comparison is on each guard's characteristic measure, not on the
+exit code alone, and it refuses two records made on different commits:
+
+```sh
+just worktree-verdicts /tmp/main.json        # from the main working tree
+just worktree-verdicts /tmp/wt.json          # from the worktree
+just worktree-compare /tmp/main.json /tmp/wt.json
+```
+
+A guard whose precondition is missing is recorded as `not prepared` and never
+counts as agreeing. Read `scripts/worktree-prep.sh` for what each group lays
+down; it is the one place to update when a gate starts reading a new untracked
+path.
+
 ---
 
 ## 8. When the rules block you
