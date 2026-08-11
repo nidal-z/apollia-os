@@ -55,9 +55,9 @@ async def send_email(
 methods (PEP 698), `LiteralString` for params that must be literal
 (injection safety).
 
-**Type check** : `pyright --strict` on `sdk/` and `agents/`. `mypy --strict`
-is acceptable in repos that depend on Django or SQLAlchemy plugins. Apollia
-defaults to `pyright`.
+**Type check** : `mypy --strict` on `sdk/apollia`, configured by
+`[tool.mypy] strict = true` in `sdk/pyproject.toml` and run from `sdk/`. It is
+the only type checker the tree configures or invokes.
 
 ---
 

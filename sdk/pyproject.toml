@@ -44,14 +44,6 @@ include = ["apollia*"]
 [tool.mypy]
 strict = true
 
-[tool.pyright]
-include = ["apollia"]
-pythonVersion = "3.12"
-strict = ["apollia/**"]
-reportMissingImports = "error"
-reportUnusedImport = "warning"
-reportMissingTypeStubs = "warning"
-
 [tool.ruff]
 # Must track `requires-python` above, not the interpreter the runtime embeds.
 # On py312 ruff proposes PEP 695 generics (UP047), which are 3.12-only syntax

@@ -181,7 +181,7 @@ else
         "$APP"
 
     echo "    ==> Signature verification"
-    codesign --verify --verbose=2 "$APP" || true
+    codesign --verify --verbose=2 "$APP"
     echo "    ✓ Codesigning completed"
 
     cd "$PROJECT_ROOT"

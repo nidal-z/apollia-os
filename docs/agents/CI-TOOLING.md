@@ -35,7 +35,7 @@ what the tools actually read. What follows is the part a file cannot tell you.
 | `rustfmt.toml` | `cargo fmt --check` in CI, `cargo fmt` to apply |
 | `clippy.toml` | `cargo clippy --workspace --all-targets -- -D warnings` |
 | `rust-toolchain.toml` | `rustup` picks it up inside the repo |
-| `sdk/pyproject.toml` | `ruff format --check`, `ruff check`, `pyright sdk/apollia` |
+| `sdk/pyproject.toml` | `ruff format --check`, `ruff check`, `cd sdk && mypy apollia` |
 
 **`imports_granularity` and `group_imports` are deliberately absent from
 `rustfmt.toml`.** Both are nightly-only. Keeping them forced the whole tree to
@@ -57,8 +57,9 @@ pinned version by hand or accept fmt and clippy drift against CI.
 
 **Ruff runs a curated subset rather than `select = ["ALL"]`**, so its warnings
 stay actionable. Expand it when the codebase is clean for the current set.
-`pyright` is the gate; `mypy` is acceptable as a secondary checker and is not
-one.
+`mypy --strict` is the type gate, and the only one: `strict = true` sits under
+`[tool.mypy]` in `sdk/pyproject.toml`, and the `python-types` job runs
+`mypy apollia` from `sdk/`. No second type checker is configured or invoked.
 
 ---
 

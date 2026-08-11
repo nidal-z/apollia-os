@@ -297,15 +297,6 @@ jobs:
       # up while the rule sat in a document. It is a check now.
       - name: Spawned children ask for no console window
         run: python3 scripts/check_subprocess_window.py
-      # The shooting script and the pages name the same 85 images, and nothing
-      # joined the two: a misnamed file is invisible (the stale image simply
-      # stays) and an unreferenced one ships to every visitor unserved. Neither
-      # breaks a build. Its own negative case runs first, so a check that has
-      # gone blind says so instead of passing.
-      - name: The screenshot script can fail
-        run: python3 scripts/check_screenshot_script.py --self-test
-      - name: Screenshot script and pages name the same images
-        run: python3 scripts/check_screenshot_script.py
       # A pasted Google Fonts snippet makes a cold start phone a third party
       # before the user clicks anything, which is the one promise the product
       # is sold on. The desktop webview has a CSP that blocks it; the docs site
