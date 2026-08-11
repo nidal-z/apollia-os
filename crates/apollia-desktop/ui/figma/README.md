@@ -33,7 +33,7 @@ checkable without any Figma plan:
 Checking the link needs no Figma access at all:
 
 ```sh
-cd /Users/nidalzoumita/dev/apollia-v2
+cd "$(git rev-parse --show-toplevel)"
 python3 -c "
 import json, os
 m = json.load(open('crates/apollia-desktop/ui/figma/manifest.json'))

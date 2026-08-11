@@ -7066,7 +7066,7 @@
       "corrige": [
         "OnboardingWelcome, neuf chaines remises verbatim depuis onboarding_welcome.*, quatre icones rendues en carre plein remplacees par les vraies, selecteur de langue integre au composant"
       ],
-      "outil": "/Users/nidalzoumita/.claude/jobs/92f48504/tmp/verif-chaines.py, prend un JSON {section: [textes]} et rend les chaines absentes du source",
+      "outil": "verif-chaines.py, prend un JSON {section: [textes]} et rend les chaines absentes du source",
       "reste": "les sections operator, integrations, observability, tasks, stt, memory, llm, notifications, triggers, project, permissions, projects, automations, lib-feedback n'ont pas encore ete passees au controle",
       "passeComplete": {
         "date": "2026-08-08",
@@ -7085,8 +7085,8 @@
       "statut": "FAITE",
       "date": "2026-08-08",
       "cause": "les douze agents ont echoue au lancement sur la limite de session, remise a 21h50 Europe/Paris. Verifie dans Figma apres coup : 288 composants, 1162 variantes, zero noeud hors section, zero echafaudage dans les bandes de travail x >= 599000, zero cadre libre portant un nom de composant. Le fichier est intact.",
-      "script": "/Users/nidalzoumita/.claude/jobs/92f48504/tmp/wf-reprise.js",
-      "relance": "Workflow({scriptPath: '/Users/nidalzoumita/.claude/jobs/92f48504/tmp/wf-reprise.js', resumeFromRunId: 'wf_d095bec6-080', args: <les memes lots>}) : aucun agent n'a abouti, la reprise repart donc de zero et non d'un cache.",
+      "script": "wf-reprise.js",
+      "relance": "Workflow({scriptPath: 'wf-reprise.js', resumeFromRunId: 'wf_d095bec6-080', args: <les memes lots>}) : aucun agent n'a abouti, la reprise repart donc de zero et non d'un cache.",
       "composants": [
         "OnboardingProfileSelector",
         "OnboardingChatStep",
