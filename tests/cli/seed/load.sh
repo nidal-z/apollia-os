@@ -83,6 +83,18 @@ mkdir -p "$(dirname "$APOLLIA_DIR")"
 # `~/.config/apollia` would be a side effect unload.sh could not undo.
 mv "$STAGE/.apollia" "$APOLLIA_DIR"
 
+# Check the seed that was just put in place, not the profile that used to be
+# here: that one has been moved to $BACKUP_DIR fifteen lines above. This is the
+# moment the defect the checker exists for is born, since the rows were baked in
+# the staging directory that this script deletes on its way out.
+if ! bash "$HERE/self-test-paths.sh" "$APOLLIA_DIR"; then
+  echo "" >&2
+  echo "The seed that was just loaded names paths that do not exist." >&2
+  echo "Your own profile is intact at $BACKUP_DIR." >&2
+  echo "Put it back with: bash tests/cli/seed/unload.sh" >&2
+  exit 1
+fi
+
 echo ""
 echo "Seed loaded. Launch the desktop application normally."
 if [ -n "${APOLLIA_SEED_OVERLAY:-}" ]; then

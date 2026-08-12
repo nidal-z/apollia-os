@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 #
 # Self-test for the seed builder. Runs in a few seconds, needs only sqlite3, and
-# guards the three ways this builder has silently produced a wrong fixture:
+# guards the four ways this builder has silently produced a wrong fixture:
 #
 #   1. an overlay that is asked for and quietly not applied,
 #   2. an overlay that leaks into the runs which must never see one (CI, the
 #      just recipes, the -det suite whose counts are assertions),
 #   3. a memory fixture whose file name and namespace column disagree, which
-#      renders an empty namespace with no error anywhere.
+#      renders an empty namespace with no error anywhere,
+#   4. a seed whose rows name absolute paths that do not exist, which empties a
+#      screen instead of raising anything.
 #
 # Each case is written GIVEN / WHEN / THEN. Run it directly:
 #
 #   bash tests/cli/seed/self-test.sh
+#
+# `-e` is deliberately absent: it would stop the run at the first failing case
+# and destroy the count this script exists to produce. The exit code is posted
+# explicitly at the bottom instead.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,6 +30,16 @@ FAIL=0
 
 ok() { PASS=$((PASS + 1)); echo "  ok   $1"; }
 ko() { FAIL=$((FAIL + 1)); echo "  FAIL $1"; }
+
+# Print the end of a build log. The logs live under a directory the EXIT trap
+# removes, so naming their path told a CI reader nothing they could act on: the
+# run that produced three databases out of seventeen said only "see
+# /tmp/tmp.XXXX/base.log", and the parse errors that explained it were never
+# printed anywhere.
+log_tail() {
+  echo "       ---- last 20 lines of $(basename "$1") ----"
+  tail -n 20 "$1" | sed -e 's/^/       /'
+}
 
 expect_eq() {
   local label=$1 want=$2 got=$3
@@ -42,7 +58,8 @@ BASE="$WORK/base"
 if env -u APOLLIA_SEED_OVERLAY bash "$BUILDER" "$BASE" >"$WORK/base.log" 2>&1; then
   ok "base build succeeds"
 else
-  ko "base build succeeds (see $WORK/base.log)"
+  ko "base build succeeds"
+  log_tail "$WORK/base.log"
 fi
 
 schema_count=$(find "$HERE/schemas" -name '*.sql' | wc -l | tr -d ' ')
@@ -110,7 +127,8 @@ WITH="$WORK/with-overlay"
 if APOLLIA_SEED_OVERLAY="$OV" bash "$BUILDER" "$WITH" >"$WORK/overlay.log" 2>&1; then
   ok "overlay build succeeds"
 else
-  ko "overlay build succeeds (see $WORK/overlay.log)"
+  ko "overlay build succeeds"
+  log_tail "$WORK/overlay.log"
 fi
 
 if [ -f "$WITH/.apollia/selftest_extra.db" ]; then
@@ -178,11 +196,52 @@ watched=$(sqlite3 "$WORK/aliased/.apollia/triggers_def.db" \
   "SELECT COUNT(*) FROM trigger_definitions WHERE source_config LIKE '%/Users/seed-operator/%';")
 expect_eq "the home alias reaches the seeded rows" "1" "$watched"
 
+# ---------------------------------------------------------------------------
+# GIVEN the base seed built above, in the directory it was built for
+# WHEN  every absolute path its databases name is resolved on disk
+# THEN  all of them exist
+#
+# Added after the agents vanished from a loaded seed: the files were in place,
+# agents.db named a staging directory that load.sh had deleted, and nothing
+# logged an error.
+# ---------------------------------------------------------------------------
+PATHS="$HERE/self-test-paths.sh"
+if bash "$PATHS" "$BASE/.apollia" >"$WORK/paths-base.log" 2>&1; then
+  ok "a freshly built seed names only paths that exist"
+else
+  ko "a freshly built seed names only paths that exist"
+  log_tail "$WORK/paths-base.log"
+fi
+
+# ---------------------------------------------------------------------------
+# GIVEN a seed built into a staging directory WITHOUT the home alias, then
+#       moved, which is load.sh's gesture stripped of its one precaution
+# WHEN  the same path check runs on the moved result
+# THEN  it fails, because the rows still name the staging directory
+#
+# This is the case that keeps the check above from being decoration. A detector
+# only ever run on a healthy subject proves the sweep happened, not that the
+# detector works.
+# ---------------------------------------------------------------------------
+STAGE="$WORK/stage"
+MOVED="$WORK/moved"
+env -u APOLLIA_SEED_OVERLAY bash "$BUILDER" "$STAGE" >/dev/null 2>&1
+mkdir -p "$MOVED"
+mv "$STAGE/.apollia" "$MOVED/.apollia"
+if bash "$PATHS" "$MOVED/.apollia" >/dev/null 2>&1; then
+  ko "a seed built without the home alias and moved is caught"
+else
+  ok "a seed built without the home alias and moved is caught"
+fi
+
 echo
 echo "seed self-test: $PASS passed, $FAIL failed"
-[ "$FAIL" -eq 0 ]
 
-# Every absolute path a seeded database names must exist. Added after the
-# agents vanished from a loaded seed: the files were in place, agents.db named a
-# staging directory that load.sh had deleted, and nothing logged an error.
-bash "$(dirname "$0")/self-test-paths.sh" "${SEED_DATA:-$HOME/.apollia}"
+# Explicit, and the last thing this script does. The count used to be computed
+# and then thrown away: `set -e` is absent, so the bare test that closed the
+# script was not its exit status, and whatever ran after it decided the verdict.
+# The run that reported `15 passed, 0 failed` and exited 1 is what that costs.
+if [ "$FAIL" -eq 0 ]; then
+  exit 0
+fi
+exit 1

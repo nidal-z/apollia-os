@@ -62,10 +62,20 @@ expand_seed_paths() {
       -e "s|__APOLLIA_SEED_HOME__|$HOME_ALIAS|g"
 }
 
-# Apply a schema dump to a DB. `sqlite_sequence` is a reserved internal table
-# SQLite auto-manages; the dumps include its CREATE line, which errors on replay.
+# Apply a schema dump to a DB, dropping the lines SQLite reserves for itself.
+#
+# `sqlite_sequence` is a reserved internal table SQLite auto-manages; the dumps
+# include its CREATE line, which errors on replay.
+#
+# The shadow tables of an FTS5 virtual table (`<name>_fts_data`, `_idx`,
+# `_content`, `_docsize`, `_config`) are the same case: the CREATE VIRTUAL TABLE
+# line a few lines above builds them, and the dump names them too. sqlite3
+# 3.40.1 replayed those lines without complaining, 3.45.1 and later refuse them
+# with `object name reserved for internal use` and, under `set -e`, the build
+# dies on the third database out of seventeen. That is what made every CI run of
+# this seed produce three databases and a self-test reporting twelve failures.
 apply_schema() {
-  grep -v 'CREATE TABLE sqlite_sequence' "$1" | sqlite3 "$2"
+  grep -vE "CREATE TABLE sqlite_sequence|CREATE TABLE IF NOT EXISTS .[A-Za-z_]+_fts_(data|idx|content|docsize|config)." "$1" | sqlite3 "$2"
 }
 
 echo "==> seed HOME: $SEED_HOME"
@@ -75,7 +85,13 @@ else
   echo "==> overlay:   none (checked-in seed only)"
 fi
 rm -rf "$SEED_HOME"
-mkdir -p "$DATA" "$CFG" "$DATA/agents" "$DATA/memory" "$DATA/models" "$DATA/venvs"
+# `Downloads` is not part of the profile: it is the directory the seeded
+# filesystem trigger watches (fragments/triggers_def.sql). On the human path the
+# alias names the operator's own home, where it already exists; on the automated
+# path the home is a throwaway one, and a trigger watching a directory nobody
+# creates is a fixture naming something that is not there.
+mkdir -p "$DATA" "$CFG" "$DATA/agents" "$DATA/memory" "$DATA/models" "$DATA/venvs" \
+         "$SEED_HOME/Downloads"
 
 # 1) Databases: schema then fragment (fragment is INSERTs only).
 #    A DB with a schema but no fragment is created empty (still valid).

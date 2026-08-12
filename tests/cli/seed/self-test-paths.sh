@@ -10,10 +10,24 @@
 # error, the screens were just empty.
 #
 # Usage: bash tests/cli/seed/self-test-paths.sh <SEED_DATA_DIR>
-#   e.g. bash tests/cli/seed/self-test-paths.sh ~/.apollia
+#
+# The directory is required, and there is no default. Its two callers both pass
+# an explicit one: self-test.sh names the seed it has just built under its own
+# throwaway directory, load.sh names the profile directory it has just moved the
+# seed into. A default would put an operator's real profile under a checker that
+# opens every database it finds, which is exactly what the fallback this
+# argument replaces used to do.
 set -euo pipefail
 
-DATA="${1:-$HOME/.apollia}"
+if [ $# -lt 1 ]; then
+  echo "usage: bash tests/cli/seed/self-test-paths.sh <SEED_DATA_DIR>" >&2
+  echo "       no default: name the seed directory to check." >&2
+  # 2, not 1: 1 means paths are missing, this means nothing was measured, and an
+  # exit code that says "I checked nothing" must never read as "all is well".
+  exit 2
+fi
+
+DATA="$1"
 if [ ! -d "$DATA" ]; then
   echo "no data directory at $DATA" >&2
   exit 1

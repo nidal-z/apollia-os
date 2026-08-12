@@ -24,12 +24,19 @@ works underneath. The seed directory is rebuilt from nothing on every run, so it
 is always clean.
 
 To load the fixture into your own profile for manual inspection, `load.sh` backs
-up what is there and `unload.sh` puts it back.
+up what is there and `unload.sh` puts it back. Once the seed is in place,
+`load.sh` checks that every absolute path it names exists, and stops rather than
+leave you with a seed that looks loaded and shows empty screens; your own
+profile is still in `~/.apollia.before-seed` at that point.
 
 ## Layout
 
 - `schemas/<db>.sql` : authoritative DDL, dumped from a live migrated app. The
-  builder strips the reserved `sqlite_sequence` line before applying.
+  builder strips the lines SQLite reserves for itself before applying: the
+  `sqlite_sequence` table, and the shadow tables of every FTS5 virtual table
+  (`<name>_fts_data`, `_idx`, `_content`, `_docsize`, `_config`). A dump names
+  both, and both are built by something else, so replaying them is an error from
+  sqlite3 3.45.1 onwards, where 3.40.1 let them through.
 - `fragments/<db>.sql` : INSERT-only seed rows per DB. A schema with no fragment
   is created empty.
 - `files/` : on-disk artifacts copied verbatim into `<SEED_HOME>/.apollia/` :
@@ -47,8 +54,16 @@ up what is there and `unload.sh` puts it back.
   MCP stub path).
 - `self-test.sh` : a few seconds, sqlite3 only. Asserts the base row counts CI
   depends on, that an overlay is applied when asked for and never otherwise,
-  that a missing overlay stops the build, and that every memory file stem
-  resolves to its own rows. Runs in the `cli-e2e` CI job.
+  that a missing overlay stops the build, that every memory file stem resolves
+  to its own rows, and that the paths a seed names exist. That last one is
+  checked in both directions: on the seed just built, which must pass, and on a
+  seed built without the home alias and then moved, which must fail. Its exit
+  code is the count it prints. Runs in the `cli-e2e` CI job.
+- `self-test-paths.sh` : resolves every absolute path the seeded databases name.
+  Takes the directory to check as a required argument, and exits 2 when called
+  without one, so "nothing was measured" never reads as "all is well". Called by
+  `self-test.sh` on the seed it builds, and by `load.sh` on the seed it lays
+  down.
 
 ## Environment
 
