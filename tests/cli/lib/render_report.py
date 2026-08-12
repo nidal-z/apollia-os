@@ -22,18 +22,23 @@ def read_rows(path):
         if not line:
             continue
         parts = line.split("\t")
-        while len(parts) < 5:
+        while len(parts) < 6:
             parts.append("")
-        track, label, verdict, exit_code, dur = parts[:5]
-        rows.append(
-            {
-                "track": track,
-                "label": label,
-                "verdict": verdict,
-                "exit": _int(exit_code),
-                "duration_ms": _int(dur),
-            }
-        )
+        track, label, verdict, exit_code, dur, detail = parts[:6]
+        row = {
+            "track": track,
+            "label": label,
+            "verdict": verdict,
+            "exit": _int(exit_code),
+            "duration_ms": _int(dur),
+        }
+        # Only a row that has a detail carries the key. A passing run keeps the
+        # shape it has always had instead of gaining 154 empty strings, and the
+        # absence of the key is what makes "no detail on a green row" a property
+        # a reader can check by looking.
+        if detail:
+            row["detail"] = detail
+        rows.append(row)
     return rows
 
 
@@ -73,6 +78,14 @@ def _int(s):
         return 0
 
 
+def _longest_run(text, ch):
+    best = run = 0
+    for c in text:
+        run = run + 1 if c == ch else 0
+        best = max(best, run)
+    return best
+
+
 def render_md(rows, caps, totals):
     out = []
     out.append("# Apollia OS CLI E2E report\n")
@@ -100,6 +113,17 @@ def render_md(rows, caps, totals):
         out.append("\n## Failures\n")
         for r in fails:
             out.append(f"- `{r['label']}` (track {r['track']}, exit {r['exit']})")
+            # The detail belongs here and not only in report.json: the last line
+            # the suite prints is the path of this file, so this is the artifact
+            # a reader is actually sent to. The detail is a single line by the
+            # time it arrives; the fence is sized past any backtick run in it.
+            detail = r.get("detail")
+            if detail:
+                fence = "`" * max(3, _longest_run(detail, "`") + 1)
+                out.append("")
+                out.append(f"  {fence}")
+                out.append(f"  {detail}")
+                out.append(f"  {fence}")
 
     # Justified skips.
     skips = [r for r in rows if r["verdict"] == "SKIP"]

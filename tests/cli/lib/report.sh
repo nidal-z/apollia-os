@@ -27,11 +27,56 @@ report_init() {
 # _sanitize <string> -> strips tabs and newlines (keeps rows one-per-line).
 _sanitize() { printf '%s' "$1" | /usr/bin/tr '\t\n' '  '; }
 
-# _report_row <track> <label> <verdict> <exit> <dur_ms>
+# _redact <string> -> replaces the three machine-specific roots with stable
+# tokens, then drops a root fragment left at the end by truncation.
+#
+# The report directory is git-ignored, so scripts/check_prose.py never sees it,
+# and CI uploads it as an artifact from a public repository. A raw failure detail
+# carries two machine-specific roots: the repository path through $BIN, and the
+# macOS user id that mktemp puts inside $RUN_TMP.
+#
+# Order is imposed, not cosmetic: REPO_ROOT lives under the real HOME both here
+# and on the Linux runner, so substituting HOME first would leave nothing for the
+# REPO_ROOT pass to match.
+#
+# The trailing-fragment pass closes a hole the substitutions cannot: the detail
+# is truncated where it is built and redacted here, so a cut landing inside a
+# root leaves a prefix no substitution recognises any more. A cut is always at
+# the end of the string, so the fragment can only be a trailing proper prefix of
+# a root, and dropping it loses nothing the cut had not already destroyed.
+_redact() {
+    local s=$1 root frag n best=""
+    [[ -n "${RUN_TMP:-}" ]]   && s=${s//"$RUN_TMP"/\$RUN_TMP}
+    [[ -n "${REPO_ROOT:-}" ]] && s=${s//"$REPO_ROOT"/\$REPO}
+    [[ -n "${REAL_HOME:-}" ]] && s=${s//"$REAL_HOME"/\$HOME}
+    for root in "${RUN_TMP:-}" "${REPO_ROOT:-}" "${REAL_HOME:-}"; do
+        n=$(( ${#root} - 1 ))
+        while [[ $n -gt ${#best} ]]; do
+            frag=${root:0:n}
+            if [[ "$s" == *"$frag" ]]; then
+                best=$frag
+                break
+            fi
+            n=$(( n - 1 ))
+        done
+    done
+    [[ -n "$best" ]] && s=${s%"$best"}
+    printf '%s' "$s"
+}
+
+# _report_row <track> <label> <verdict> <exit> <dur_ms> [detail]
+#
+# The detail column is written only when the caller has one, which today means
+# only a failure. A passing row carries no detail, so render_report.py leaves the
+# key out entirely rather than emitting 154 empty strings into a green report.
 _report_row() {
     [[ -n "${REPORT_ROWS:-}" ]] || return 0
-    printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$(_sanitize "$1")" "$(_sanitize "$2")" "$3" "$4" "${5:-0}" >>"$REPORT_ROWS"
+    local detail=${6:-}
+    if [[ -n "$detail" ]]; then
+        detail=$(_sanitize "$(_redact "$detail")")
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(_sanitize "$1")" "$(_sanitize "$2")" "$3" "$4" "${5:-0}" "$detail" >>"$REPORT_ROWS"
 }
 
 # _report_capture <label> <exit> <dur_ms> <chunks> <first_ms> <input> <cap_file>

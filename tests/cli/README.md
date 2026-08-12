@@ -83,11 +83,26 @@ is unreachable; the skip and its reason are recorded in the report.
 
 ## The report
 
-`report.json` carries every assertion (`track`, `label`, `verdict`, `exit`) and
-the Track 3 captures (`input`, `output`, `stream_chunks`, `first_chunk_ms`,
-`duration_ms`). `report.md` renders a coverage-by-track table, the failures, the
-justified skips, and a **Non-deterministic captures** section that surfaces each
-LLM command's input/output/streaming for human review.
+`report.json` carries every assertion (`track`, `label`, `verdict`, `exit`,
+`duration_ms`) and the Track 3 captures (`input`, `output`, `stream_chunks`,
+`first_chunk_ms`, `duration_ms`). `report.md` renders a coverage-by-track table,
+the failures, the justified skips, and a **Non-deterministic captures** section
+that surfaces each LLM command's input/output/streaming for human review.
+
+A failing assertion carries one field more, `detail`: the expectation, the
+command that was run, and the head of the observed output. A passing or skipped
+row has no `detail` key at all, so a green report keeps the shape it always had.
+The same string appears under its bullet in the **Failures** section of
+`report.md`, which is the file the last line of a run points you at.
+
+Three machine-specific roots are replaced in the detail before it is written,
+`$RUN_TMP`, `$REPO` and `$HOME`. The report directory is git-ignored, so the
+prose guard never scans it, and CI uploads it as an artifact. Two runs on two
+machines therefore produce comparable details.
+
+`APOLLIA_TEST_VERBOSE` keeps its own use: it prints the detail as the run goes,
+which is the only trace left when a run is interrupted before it finalizes its
+report, since the working directory holding the buffered rows goes with it.
 
 ## Justified skips (never automated)
 

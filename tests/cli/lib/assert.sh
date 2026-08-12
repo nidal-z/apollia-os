@@ -29,13 +29,22 @@ _now_ms() {
     fi
 }
 
+# _record_fail <label> <detail> [exit] [dur_ms]
+#
+# Every recorded failure produces a report row, including the ones the
+# orchestrator records outside any assertion (a seed that would not build, a
+# daemon that never came up). Those used to bump the counter without ever
+# reaching _report_row, so the artifact announced a failing summary over an empty
+# assertion list. Recording here rather than adding calls next to each of them
+# also means the next caller someone writes gets its row without knowing.
 _record_fail() {
-    local label=$1 detail=$2
+    local label=$1 detail=$2 rc=${3:-1} dur=${4:-0}
     FAIL=$((FAIL + 1))
     FAILED_LABELS+=("$label")
     if [[ "${VERBOSE:-0}" == "1" ]]; then
         printf '    %s\n' "$detail"
     fi
+    _report_row "$CURRENT_TRACK" "$label" FAIL "$rc" "$dur" "$detail"
 }
 
 _pass() {
@@ -48,8 +57,7 @@ _pass() {
 _fail() {
     local label=$1 detail=$2 rc=${3:-1} dur=${4:-0}
     printf '  %s %s\n' "$(red ✗)" "$label"
-    _record_fail "$label" "$detail"
-    _report_row "$CURRENT_TRACK" "$label" FAIL "$rc" "$dur"
+    _record_fail "$label" "$detail" "$rc" "$dur"
 }
 
 # check "label" cmd args...   → expect exit 0.
@@ -114,7 +122,7 @@ check_json_field() {
     if [[ $rc -eq 0 && "$got" == "$expected" ]]; then
         _pass "$label" "$expr=$got" "$dur"
     else
-        _fail "$label" "expected $expr=$expected got '$got' rc=$rc | out: ${out:0:200}" "$rc" "$dur"
+        _fail "$label" "expected $expr=$expected got '$got' rc=$rc | cmd: $* | out: ${out:0:200}" "$rc" "$dur"
     fi
 }
 

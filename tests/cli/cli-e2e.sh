@@ -122,7 +122,10 @@ echo "  REPORT_DIR        = $REPORT_DIR"
 echo
 echo "$(bold "═══ Track 1 - OFFLINE (seeded HOME, no daemon) ═══")"
 SEED1="$RUN_TMP/seed-offline"
-if build_seed_home "$SEED1"; then
+# The builder's diagnostic is captured rather than let through, so the recorded
+# detail carries the reason instead of nothing, and echoed back so an operator
+# watching the run still reads it.
+if seed_err=$(build_seed_home "$SEED1" 2>&1); then
     export HOME="$SEED1"
     CURRENT_TRACK="offline"
     # shellcheck source=tracks/track1_offline.sh
@@ -130,7 +133,8 @@ if build_seed_home "$SEED1"; then
     export HOME="$REAL_HOME"
 else
     echo "$(red "FAIL"): could not build the seeded HOME for Track 1." >&2
-    _record_fail "seed build (Track 1)" ""
+    printf '%s\n' "$seed_err" >&2
+    _record_fail "seed build (Track 1)" "$seed_err"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -140,7 +144,7 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
     echo
     echo "$(bold "═══ Track 2 - RUNTIME (daemon on seeded HOME) ═══")"
     SEED2="$RUN_TMP/seed-runtime"
-    if build_seed_home "$SEED2"; then
+    if seed_err=$(build_seed_home "$SEED2" 2>&1); then
         export HOME="$SEED2"
         MODEL_READY=0
         if [[ -f "$TEST_GGUF" ]]; then
@@ -181,12 +185,20 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
             "$BIN" --socket "$SOCK" stop >/dev/null 2>&1 || true
             DAEMON_PID=""
         else
-            _record_fail "daemon start" "see $RUN_TMP/daemon.log"
-            echo "--- daemon.log (tail) ---"; /usr/bin/tail -30 "$RUN_TMP/daemon.log" 2>/dev/null; echo "--- end ---"
+            # The detail carries the log, not its path: $RUN_TMP is removed by
+            # the EXIT trap before anyone reads the report.
+            daemon_tail=$(/usr/bin/tail -30 "$RUN_TMP/daemon.log" 2>/dev/null)
+            # CURRENT_TRACK is still `offline` here: the runtime assignment sits
+            # further down, past the branch that only a successful boot reaches.
+            CURRENT_TRACK="runtime"
+            _record_fail "daemon start" "daemon.log (tail): $daemon_tail"
+            echo "--- daemon.log (tail) ---"; printf '%s\n' "$daemon_tail"; echo "--- end ---"
         fi
         export HOME="$REAL_HOME"
     else
-        _record_fail "seed build (Track 2)" ""
+        printf '%s\n' "$seed_err" >&2
+        CURRENT_TRACK="runtime"
+        _record_fail "seed build (Track 2)" "$seed_err"
     fi
 else
     echo

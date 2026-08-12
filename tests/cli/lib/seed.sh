@@ -31,8 +31,13 @@ build_seed_home() {
         return 1
     fi
     # The builder derives the data dir from its argument and rebuilds it clean.
+    #
+    # The diagnostic carries the tail of the log rather than its path: the log
+    # lives under $RUN_TMP, which the orchestrator's EXIT trap removes, so a
+    # reader sent to the path finds nothing there.
     if ! bash "$builder" "$dest" >"$dest.buildlog" 2>&1; then
-        echo "seed build failed; see $dest.buildlog" >&2
+        echo "seed build failed; last lines of the builder log:" >&2
+        /usr/bin/tail -20 "$dest.buildlog" >&2
         return 1
     fi
     return 0

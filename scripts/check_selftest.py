@@ -24,6 +24,10 @@ properties rather than the fixes:
      `check_no_font_cdn.py` guards a promise no CSP covers on the documentation
      site, and its whole tree is compliant today, so a green line proves the
      scan ran, not that the detector works. Both directions are asserted here.
+  4. A guard that reports a red says why. The CLI E2E suite computed the cause
+     of every failed assertion and threw it away before writing its artifact,
+     which is the same bias one step further on: the reader who cannot resolve
+     the red falls back on believing the green.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -559,6 +563,162 @@ def check_worktree_comparator() -> None:
         )
 
 
+# ── The CLI E2E failure detail ───────────────────────────────────────────────
+# Fifth instance, and the same bias read from the other end. Here the artifact
+# does not claim a success it has not earned; it reports a failure it cannot
+# explain, which a reader resolves the same way, by believing the green part.
+#
+# Six assertion sites in tests/cli/lib/assert.sh build a detail carrying the
+# expectation, the command and the head of the observed output. `_fail` printed
+# it under a verbose flag no automatic caller sets, and never passed it to
+# `_report_row`, so an uploaded report.json named a failing label with no cause.
+# Three more sites recorded a failure without producing a row at all, and a run
+# rendered a summary announcing one failure over an empty assertion list.
+#
+# The property is pinned on the libraries alone. `check_selftest.py` runs in the
+# `prose-guard` job, a bare checkout with no cargo build, and `cli-e2e.sh` exits
+# 1 before its first assertion when it finds no binary, so a case that drove the
+# real suite could never be green there. Recording inside `_record_fail` rather
+# than beside each of its callers is what makes a library-level pilot sufficient.
+#
+# The two redaction cases are not decoration. The report directory is git-ignored
+# so the prose guard never scans it, and CI uploads it from what will be a public
+# repository. The adversarial one pins the interaction that the borne alone would
+# miss: truncation happens where the detail is built, redaction where it is
+# recorded, so a cut landing inside a root leaves a fragment no substitution
+# matches any more, and the fragment is a personal-path pattern in its own right.
+
+SELFTEST_HOME = "/Users/selftest-operator"
+SELFTEST_REPO = SELFTEST_HOME + "/dev/apollia-selftest"
+
+# Padding + a root, cut at the 300 characters check() keeps, leaves the first 12
+# characters of the root behind. On this tree that length is exactly the personal
+# filesystem path that check_prose.py refuses, which is why the cut is what makes
+# the fragment dangerous rather than merely untidy. The pattern is not spelled out
+# here for the same reason check_prose.py spells its own with a bracket class: a
+# file that quotes it fails the rule it is describing, as this comment did on its
+# first draft.
+PILOT = r"""
+set -uo pipefail
+
+LIB_DIR="__LIB_DIR__"
+RUN_TMP="__RUN_TMP__"
+REPO_ROOT="__REPO_ROOT__"
+REAL_HOME="__REAL_HOME__"
+
+# shellcheck source=/dev/null
+source "$LIB_DIR/assert.sh"
+# shellcheck source=/dev/null
+source "$LIB_DIR/report.sh"
+
+PASS=0; FAIL=0; SKIP=0; FAILED_LABELS=()
+CURRENT_TRACK="selftest"
+report_init "$RUN_TMP"
+
+check "green case" /usr/bin/true
+check "red case" /bin/bash -c 'printf "%s\n" "needle-on-output"; exit 3'
+
+_record_fail "outside any assertion" \
+    "run=$RUN_TMP/scratch1 bin=$REPO_ROOT/target/debug/apollia-os home=$REAL_HOME/.apollia"
+
+PAD=$(printf '%288s' '' | /usr/bin/tr ' ' 'x')
+check "cut lands inside a root" \
+    /bin/bash -c 'printf "%s%s" "$1" "$2"; exit 4' _ "$PAD" "$REAL_HOME"
+
+report_finalize "$RUN_TMP/report.json" "$RUN_TMP/report.md" "$PASS" "$FAIL" "$SKIP" 0 \
+    || { echo "PILOT: report_finalize failed" >&2; exit 9; }
+exit 0
+"""
+
+
+def _run_pilot(run_tmp: Path) -> tuple[dict, subprocess.CompletedProcess]:
+    script = (
+        PILOT.replace("__LIB_DIR__", str(REPO_ROOT / "tests" / "cli" / "lib"))
+        .replace("__RUN_TMP__", str(run_tmp))
+        .replace("__REPO_ROOT__", SELFTEST_REPO)
+        .replace("__REAL_HOME__", SELFTEST_HOME)
+    )
+    path = run_tmp / "pilot.sh"
+    path.write_text(script, encoding="utf-8")
+    run = subprocess.run(["bash", str(path)], capture_output=True, text=True)
+    out = run_tmp / "report.json"
+    payload = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {}
+    return payload, run
+
+
+def check_e2e_failure_detail() -> None:
+    print("CLI E2E report: a failure carries its cause, a pass carries none")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        run_tmp = Path(tmp)
+        payload, run = _run_pilot(run_tmp)
+        rows = {r["label"]: r for r in payload.get("assertions", [])}
+        raw = json.dumps(payload, ensure_ascii=False)
+        context = (
+            f"pilot exit {run.returncode}, rows {sorted(rows)}.\n"
+            f"stdout:\n{run.stdout}\nstderr:\n{run.stderr}"
+        )
+
+        red = rows.get("red case", {})
+        detail = red.get("detail", "")
+        case(
+            "a failing assertion records the command and the output",
+            red.get("verdict") == "FAIL"
+            and "needle-on-output" in detail
+            and "/bin/bash" in detail,
+            f"detail {detail!r}. Six sites build this string and one of them "
+            f"stopped handing it over, which is the whole regression: a report "
+            f"that names a failing label and no cause. {context}",
+        )
+
+        green = rows.get("green case", {})
+        case(
+            "a passing assertion records no detail at all",
+            green.get("verdict") == "PASS" and "detail" not in green,
+            f"green row {green!r}. A fix that writes the detail on every row "
+            f"satisfies the case above and drowns the artifact, so the absence "
+            f"is asserted, not the emptiness. {context}",
+        )
+
+        outside = rows.get("outside any assertion", {})
+        case(
+            "a failure recorded outside any assertion still produces a row",
+            outside.get("verdict") == "FAIL" and outside.get("detail"),
+            f"row {outside!r}. Three callers in cli-e2e.sh record a failure "
+            f"without going through an assertion, and a run of theirs rendered "
+            f"a summary of one failure over an empty list. {context}",
+        )
+
+        roots = (str(run_tmp), SELFTEST_REPO, SELFTEST_HOME)
+        case(
+            "the three roots are replaced, in the order that makes it work",
+            not any(root in raw for root in roots)
+            and "$REPO" in outside.get("detail", ""),
+            f"detail {outside.get('detail')!r}. The report directory is "
+            f"git-ignored, so the prose guard never sees it, and CI uploads it. "
+            f"The $REPO token is what proves the order held: the repository "
+            f"lives under the real HOME, so substituting HOME first would leave "
+            f"the repository pass nothing to match. {context}",
+        )
+
+        cut = rows.get("cut lands inside a root", {})
+        cut_detail = cut.get("detail", "")
+        leaked = [
+            SELFTEST_HOME[:n]
+            for n in range(4, len(SELFTEST_HOME) + 1)
+            if SELFTEST_HOME[:n] in raw
+        ]
+        case(
+            "a cut landing inside a root leaves no fragment behind",
+            bool(cut_detail) and not leaked,
+            f"fragments still in the report: {leaked!r}, detail {cut_detail!r}. "
+            f"The detail is truncated where it is built and redacted where it is "
+            f"recorded, so a cut inside a root defeats the substitution and "
+            f"manufactures the exact pattern the redaction exists to remove. "
+            f"{context}",
+        )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
@@ -566,15 +726,19 @@ def main() -> int:
     check_font_cdn_detector_fires()
     print()
     check_worktree_comparator()
+    print()
+    check_e2e_failure_detail()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nfive properties hold: neither a comment nor a re-export is a use, "
-        "zero coverage says so, the font guard fires on a dirty tree, and two "
-        "equal exit codes over different measures are not the same verdict"
+        "\nsix properties hold: neither a comment nor a re-export is a use, "
+        "zero coverage says so, the font guard fires on a dirty tree, two "
+        "equal exit codes over different measures are not the same verdict, "
+        "and a failed assertion reaches the artifact with its cause while a "
+        "passing one adds nothing to it"
     )
     return 0
 
