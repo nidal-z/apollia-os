@@ -21,6 +21,7 @@ source of truth at runtime.
 | `Cargo.toml` (root) | `[workspace.dependencies]`, `[workspace.lints]`, `[workspace.package]` |
 | `package.json` (desktop UI) | Node tooling, scripts |
 | `.github/workflows/*.yml` | CI pipelines |
+| `scripts/linux-check.sh` + `scripts/linux-check.Dockerfile` | ask the Linux question locally, in a container, before pushing |
 
 ---
 
@@ -251,6 +252,45 @@ pre-commit install --hook-type commit-msg
 cargo build --workspace
 cargo test --workspace --no-fail-fast
 ```
+
+### Ask the Linux question before you push
+
+Every local gate above runs on the platform that measures. In August 2026 the
+workspace stopped compiling on Linux for a week while every one of them stayed
+green: a `setrlimit` type that is `c_int` on the Apple libc and `c_uint` on
+glibc. Four CI jobs went red, three more were skipped behind `needs: clippy`,
+and the macOS test job was one of the three. Being the platform that measures
+protects from nothing.
+
+```sh
+just linux-check              # x86_64-unknown-linux-gnu, the release target
+just linux-check arm          # aarch64-unknown-linux-gnu, native on Apple Silicon
+```
+
+It runs `cargo clippy --workspace --all-targets --locked -- -D warnings` in a
+container, on the working tree mounted read-only, with `CARGO_TARGET_DIR` in a
+volume so the host `target/` is never touched. It is clippy and not check
+because on the very tree it was written against, `cargo check` returned 0 where
+clippy returned 101, on dead-code enum variants behind a `cfg`.
+
+Three exit codes, and the third one is the point:
+
+| Code | Meaning |
+|---|---|
+| 0 | the tree compiles on the measured target |
+| 1 | the tree does not compile; cargo's output above is the verdict |
+| 2 | nothing was measured: no docker, daemon down, image not built, unknown argument, or a container reporting a different triple |
+
+2 is distinct from 1 so "I could not measure" is never read as "the tree is
+fine". The daemon is deliberately not started for you.
+
+Every run prints the perimeter it measured before it measures it: image,
+platform, triple read out of the container with `rustc -vV`, release preset,
+workspace member count read from `cargo metadata`, and what it does not cover
+(the other Linux triple, both Windows triples, and the feature presets). Requires
+a running Docker daemon and roughly 7.5 GB of image and volumes per
+architecture; without one, read the verdict of the `Clippy` job of
+`.github/workflows/ci.yml` on a pushed branch instead.
 
 ### Linked worktrees need one command first
 
