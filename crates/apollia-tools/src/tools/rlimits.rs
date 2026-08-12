@@ -76,13 +76,13 @@ pub fn apply_rlimits(cmd: &mut std::process::Command, limits: ResourceLimits) {
     // cannot violate Rust aliasing.
     unsafe {
         cmd.pre_exec(move || {
-            set_one(libc::RLIMIT_CPU, cpu)?;
+            set_one(libc::RLIMIT_CPU as u64, cpu)?;
             // RLIMIT_AS is Linux-only: macOS returns EINVAL when setting it.
             #[cfg(target_os = "linux")]
-            set_one(libc::RLIMIT_AS, address_space)?;
-            set_one(libc::RLIMIT_NOFILE, nofile)?;
+            set_one(libc::RLIMIT_AS as u64, address_space)?;
+            set_one(libc::RLIMIT_NOFILE as u64, nofile)?;
             if let Some(n) = nproc {
-                set_one(libc::RLIMIT_NPROC, n)?;
+                set_one(libc::RLIMIT_NPROC as u64, n)?;
             }
             Ok(())
         });
@@ -98,8 +98,14 @@ pub fn apply_rlimits(_cmd: &mut std::process::Command, _limits: ResourceLimits) 
 /// Sets a single soft-and-hard resource limit via `setrlimit`.
 ///
 /// Called only from the `pre_exec` hook above; must stay async-signal-safe.
+///
+/// `resource` is taken as `u64` and cast at the call boundary because the type
+/// of the `RLIMIT_*` constants is platform-dependent: `c_int` on Apple targets,
+/// `__rlimit_resource_t` (a `c_uint`) on linux-gnu, `c_int` again on linux-musl.
+/// Widening here keeps that matrix inside `libc` instead of duplicating it in a
+/// `cfg` ladder we would have to extend for every new target.
 #[cfg(unix)]
-fn set_one(resource: libc::c_int, value: u64) -> std::io::Result<()> {
+fn set_one(resource: u64, value: u64) -> std::io::Result<()> {
     let rlim = libc::rlimit {
         rlim_cur: value as libc::rlim_t,
         rlim_max: value as libc::rlim_t,
@@ -107,7 +113,7 @@ fn set_one(resource: libc::c_int, value: u64) -> std::io::Result<()> {
     // SAFETY: `resource` is a valid RLIMIT_* constant and `rlim` is a fully
     // initialized stack value borrowed only for this call. See the caller's
     // SAFETY note for the async-signal-safety invariant.
-    let rc = unsafe { libc::setrlimit(resource, &rlim) };
+    let rc = unsafe { libc::setrlimit(resource as _, &rlim) };
     if rc != 0 {
         return Err(std::io::Error::last_os_error());
     }

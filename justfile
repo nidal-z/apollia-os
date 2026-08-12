@@ -69,6 +69,16 @@ lint:
 fmt:
     cargo fmt --all
 
+# Check that this tree compiles on Linux, from a machine that is not Linux.
+# Runs the blocking Clippy gate of CI inside a container against the working
+# tree, mounted read-only. Exits 2, not 0, when the Docker daemon is absent.
+#
+#   just linux-check              x86_64-unknown-linux-gnu, the release target
+#   just linux-check arm          aarch64-unknown-linux-gnu, faster on Apple
+#                                 Silicon, both its presets are allow_fail
+linux-check arch="x86":
+    bash scripts/linux-check.sh {{arch}}
+
 # Make a linked worktree measure the same repository the main tree measures.
 # Groups are cumulative and there is no default: `just worktree-prep` lists them
 # and exits 1. See scripts/worktree-prep.sh for what each group lays down.

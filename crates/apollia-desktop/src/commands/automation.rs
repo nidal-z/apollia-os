@@ -26,13 +26,19 @@ pub enum AutomationError {
         #[source]
         source: std::io::Error,
     },
+    // The three capture variants are built only inside `mod capture`, which is
+    // macOS-only: without the gate they are dead code everywhere else and
+    // `-D warnings` rejects the build. Mirror image of `UnsupportedPlatform`.
+    #[cfg(target_os = "macos")]
     #[error("main window not found")]
     NoWindow,
+    #[cfg(target_os = "macos")]
     #[error("window geometry unavailable: {0}")]
     Geometry(String),
     #[cfg(not(target_os = "macos"))]
     #[error("screen capture is only supported on macOS")]
     UnsupportedPlatform,
+    #[cfg(target_os = "macos")]
     #[error("screencapture failed: {0}")]
     Capture(String),
     #[error("could not prepare output dir {path}: {source}")]
