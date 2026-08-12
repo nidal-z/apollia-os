@@ -35,8 +35,11 @@ profile is still in `~/.apollia.before-seed` at that point.
   builder strips the lines SQLite reserves for itself before applying: the
   `sqlite_sequence` table, and the shadow tables of every FTS5 virtual table
   (`<name>_fts_data`, `_idx`, `_content`, `_docsize`, `_config`). A dump names
-  both, and both are built by something else, so replaying them is an error from
-  sqlite3 3.45.1 onwards, where 3.40.1 let them through.
+  both, and both are built by something else. Whether replaying the shadow
+  tables is an error depends on the sqlite3 build rather than on how recent it
+  is: measured on the unfiltered dump, 3.40.1 and 3.51.0 accept those lines,
+  3.45.1 and 3.46.1 refuse them. The builder strips them either way, so no
+  caller has to know which one it has.
 - `fragments/<db>.sql` : INSERT-only seed rows per DB. A schema with no fragment
   is created empty.
 - `files/` : on-disk artifacts copied verbatim into `<SEED_HOME>/.apollia/` :

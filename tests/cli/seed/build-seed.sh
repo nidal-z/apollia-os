@@ -69,11 +69,16 @@ expand_seed_paths() {
 #
 # The shadow tables of an FTS5 virtual table (`<name>_fts_data`, `_idx`,
 # `_content`, `_docsize`, `_config`) are the same case: the CREATE VIRTUAL TABLE
-# line a few lines above builds them, and the dump names them too. sqlite3
-# 3.40.1 replayed those lines without complaining, 3.45.1 and later refuse them
-# with `object name reserved for internal use` and, under `set -e`, the build
-# dies on the third database out of seventeen. That is what made every CI run of
-# this seed produce three databases and a self-test reporting twelve failures.
+# line a few lines above builds them, and the dump names them too.
+#
+# Whether replaying them is an error depends on the sqlite3 build, and not in a
+# way you can predict from the version number. Replaying the unfiltered
+# chat.sql, four versions measured: 3.40.1 accepts, 3.45.1 refuses, 3.46.1
+# refuses, 3.51.0 accepts. So this is not a "from version X onwards" rule and no
+# caller should treat it as one. Where it refuses, the message is `object name
+# reserved for internal use`, and under `set -e` the build dies on the third
+# database out of seventeen: that is what made every CI run of this seed produce
+# three databases and a self-test reporting twelve failures.
 apply_schema() {
   grep -vE "CREATE TABLE sqlite_sequence|CREATE TABLE IF NOT EXISTS .[A-Za-z_]+_fts_(data|idx|content|docsize|config)." "$1" | sqlite3 "$2"
 }
