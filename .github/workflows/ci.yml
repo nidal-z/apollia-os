@@ -33,8 +33,8 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege default. Only `audit` escalates (checks: write) to post its
-# annotations; every other job runs read-only.
+# Least-privilege default. Only the docs deploy job escalates (pages,
+# id-token) to publish; every other job runs read-only.
 permissions:
   contents: read
 
@@ -202,18 +202,6 @@ jobs:
         run: npm test
 
   # ── Security / dependencies ──────────────────────────────────────────────
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      contents: read
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   deny:
     name: Dependency Check
     runs-on: ubuntu-latest
@@ -404,6 +392,9 @@ jobs:
       - run: python3 scripts/check_claims.py
 
   # ── Link check : catches broken local doc links (offline, no external flake) ─
+  # Scope: the four root files only. Links under docs/site are routes the
+  # Docusaurus build resolves at render time, so their judge is the docs-build
+  # job below (onBrokenLinks: throw), not a file-level checker.
   links:
     name: Doc Link Check
     runs-on: ubuntu-latest
@@ -411,8 +402,28 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/site/docs/**/*.md' 'docs/site/i18n/**/*.md'"
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md"
           fail: true
+
+  # ── Docs build : Docusaurus build on every PR (onBrokenLinks: throw) ───────
+  # Judge of the internal links of docs/site, routes and markdown links alike.
+  # Build-only: the hosting provider builds and publishes the site itself.
+  docs-build:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/site/package-lock.json
+      - name: Install dependencies
+        working-directory: docs/site
+        run: npm ci
+      - name: Build site (onBrokenLinks throw)
+        working-directory: docs/site
+        run: npm run build
 
   # ── Unused dependencies : keeps the Cargo graph honest ─────────────────────
   machete:
@@ -465,9 +476,20 @@ jobs:
       - name: Fuzz each target briefly over its seed corpus
         run: |
           set -euo pipefail
+          # --target is load-bearing: install-action ships cargo-fuzz as a
+          # statically linked musl binary, and cargo-fuzz defaults its build
+          # target to its own compile-time triple. Without the flag the build
+          # targets x86_64-unknown-linux-musl and dies on `libc` ("sanitizer
+          # is incompatible with statically linked libc", "can't find crate
+          # for `core`") before any objective runs.
           for t in parse_automation confidence_parser gbnf web_read_extract truncation; do
             echo "::group::fuzz $t"
-            cargo +nightly fuzz run "$t" fuzz/corpus/"$t" fuzz/seeds/"$t" \
+            # fuzz/corpus/ is gitignored (fuzz/.gitignore), so a fresh checkout
+            # has no corpus directory, and libFuzzer refuses to start when a
+            # corpus argument names a directory that does not exist.
+            mkdir -p fuzz/corpus/"$t"
+            cargo +nightly fuzz run --target x86_64-unknown-linux-gnu \
+              "$t" fuzz/corpus/"$t" fuzz/seeds/"$t" \
               -- -max_total_time=60 -rss_limit_mb=4096
             echo "::endgroup::"
           done

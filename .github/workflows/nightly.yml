@@ -9,7 +9,7 @@
 #   - python-tests     : suite AIP gated PyO3 (agents Python via le pont)
 #   - feature-matrix   : sanity-check des features GPU sur apollia-llm/stt
 #   - coverage         : rapport coverage HTML/LCOV (heavy)
-#   - deep-audit       : cargo audit avec advisory DB rechargée
+#   - deep-audit       : cargo-deny check all avec advisory DB rechargée
 #   - loom             : modeles Loom d'entrelacement des actors (advisory)
 #   - miri             : detection UB sur les helpers purs proches du FFI (advisory)
 #   - kani             : preuves symboliques bornees des invariants cardinaux (advisory)
@@ -46,8 +46,7 @@ env:
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# Least-privilege default. Only `deep-audit` escalates (checks: write) to post
-# its annotations; every other job runs read-only.
+# Least-privilege default. Every job runs read-only.
 permissions:
   contents: read
 
@@ -382,20 +381,14 @@ jobs:
 
   # ── Deep audit (re-télécharge la DB pour catcher les advisories récentes) ──
   deep-audit:
-    name: Deep Security Audit
+    name: Deep Dependency Check
     if: |
       github.event_name == 'schedule' ||
       github.event.inputs.job == 'all' ||
       github.event.inputs.job == 'deep-audit'
     runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      contents: read
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       - name: cargo-deny full check
         uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
         with:
@@ -570,9 +563,20 @@ jobs:
       - name: Fuzz each target (deep)
         run: |
           set -euo pipefail
+          # --target is load-bearing: install-action ships cargo-fuzz as a
+          # statically linked musl binary, and cargo-fuzz defaults its build
+          # target to its own compile-time triple. Without the flag the build
+          # targets x86_64-unknown-linux-musl and dies on `libc` ("sanitizer
+          # is incompatible with statically linked libc", "can't find crate
+          # for `core`") before any objective runs.
           for t in parse_automation confidence_parser gbnf web_read_extract truncation; do
             echo "::group::fuzz $t"
-            cargo +nightly fuzz run "$t" fuzz/corpus/"$t" fuzz/seeds/"$t" \
+            # fuzz/corpus/ is gitignored (fuzz/.gitignore), so a fresh checkout
+            # has no corpus directory, and libFuzzer refuses to start when a
+            # corpus argument names a directory that does not exist.
+            mkdir -p fuzz/corpus/"$t"
+            cargo +nightly fuzz run --target x86_64-unknown-linux-gnu \
+              "$t" fuzz/corpus/"$t" fuzz/seeds/"$t" \
               -- -max_total_time=600 -rss_limit_mb=4096 || true
             echo "::endgroup::"
           done

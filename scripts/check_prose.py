@@ -11,9 +11,11 @@ carried an em-dash through conception, where the lot file explicitly claimed the
 prose added no em-dash, and nothing between the claim and the commit could tell
 the difference.
 
-Scans tracked files only, which is what a clean CI checkout sees. Ignored trees
-such as internal notes hold prose that follows its own conventions and would
-otherwise report as failures that no commit could ever produce.
+Scans the union of tracked files and untracked files git does not ignore, so
+the file a lot creates before its first commit is judged in the phase that
+produces it. Ignored trees such as internal notes stay out: they hold prose
+that follows its own conventions and would otherwise report as failures that
+no commit could ever produce.
 
 Exit code 0 when clean, 1 when a rule fires.
 """
@@ -27,10 +29,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 EM_DASH = chr(0x2014)
 
-# The em-dash rule applies to prose the reader meets, not to the files that have
-# to quote the character in order to forbid it.
-EM_DASH_SUFFIXES = (".md", ".rs", ".py", ".svelte")
-EM_DASH_EXEMPT = re.compile(r"docs/agents/(FORBIDDEN|DOCS-WRITING)\.md$|(^|/)AGENTS\.md$")
+# The em-dash rule applies to every inventoried file, except the files that
+# have to quote the character in order to forbid it.
+EM_DASH_EXEMPT = re.compile(
+    r"docs/agents/(FORBIDDEN|DOCS-WRITING)\.md$"
+    r"|(^|/)AGENTS\.md$"
+    r"|^\.github/workflows/ci\.yml$"
+)
 
 # Bracket classes keep each pattern from matching its own literal text here.
 PATTERNS = [
@@ -49,27 +54,35 @@ PATTERNS = [
 ]
 
 
-def tracked_files() -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    return [p for p in out.split("\0") if p]
+def inventoried_files() -> list[str]:
+    def ls_files(*args: str) -> list[str]:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        return [p for p in out.split("\0") if p]
+
+    tracked = ls_files()
+    seen = set(tracked)
+    untracked = [
+        p for p in ls_files("--others", "--exclude-standard") if p not in seen
+    ]
+    return tracked + untracked
 
 
 def scan() -> list[str]:
     findings: list[str] = []
-    for rel in tracked_files():
+    for rel in inventoried_files():
         path = REPO_ROOT / rel
         try:
             body = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
 
-        check_em_dash = rel.endswith(EM_DASH_SUFFIXES) and not EM_DASH_EXEMPT.search(rel)
+        check_em_dash = not EM_DASH_EXEMPT.search(rel)
 
         for number, line in enumerate(body.splitlines(), start=1):
             if check_em_dash and EM_DASH in line:

@@ -120,7 +120,7 @@ Actual structure :
 6. `python-quality` : `ruff format --check` + `ruff check` + `pip-audit` on `sdk/`
 7. `python-types` : `mypy apollia` (strict)
 8. `coverage` : `cargo llvm-cov --workspace --fail-under-lines $COVERAGE_FLOOR`
-9. `audit` / `deny` : `rustsec/audit-check` + `cargo-deny check` (full)
+9. `deny` : `cargo-deny check advisories bans licenses sources`
 10. `vitest` (frontend), `prose-guard`, `links` (lychee)
 
 Non-blocking (`continue-on-error`) advisory jobs :
@@ -206,8 +206,7 @@ Signing and attestation are confined to the final `release` job, the only job
 that escalates the token to `id-token: write` + `attestations: write` (plus the
 `contents: write` needed to publish). Every workflow defaults to
 `permissions: contents: read` at the top level; jobs escalate only what they
-need (`audit` / `deep-audit` add `checks: write`). Verification commands for
-consumers live in `SECURITY.md`.
+need. Verification commands for consumers live in `SECURITY.md`.
 
 ---
 
