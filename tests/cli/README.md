@@ -73,7 +73,7 @@ is unreachable; the skip and its reason are recorded in the report.
 
 | Var | Default | Effect |
 |---|---|---|
-| `APOLLIA_BIN` | `target/release/apollia-os` (fallback `target/debug`) | binary under test |
+| `APOLLIA_BIN` | `target/release/apollia-os` (fallback `target/debug`) | binary under test. A relative path is resolved against the calling directory; a path that is not executable makes the suite exit 2 without running an assertion |
 | `APOLLIA_REQUIRE_RUNTIME` | `0` | `1` runs Tracks 2 and 3 |
 | `APOLLIA_TEST_MODEL_GGUF` | `~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf` | real model for Track 3; absent → Track 3 SKIP, never FAIL |
 | `APOLLIA_TEST_REVIEW` | `0` | `1` captures `review .` in Track 3 (slow) |

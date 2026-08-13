@@ -423,7 +423,7 @@ The flag matters: cargo otherwise stops at the first failing test binary, and a 
 that covered a third of the suite reads exactly like a full green one.
 Pre-commit hook enforces this locally. Do not bypass.
 
-Sequence : `cargo fmt --check` -> `cargo clippy --workspace -- -D warnings`
+Sequence : `cargo fmt --all --check` -> `cargo clippy --workspace -- -D warnings`
 -> `cargo nextest run --workspace` -> `cargo test --doc` -> `pytest` ->
 `pnpm test` (desktop) -> `bash tests/cli/cli-e2e.sh` (Track 1, offline).
 

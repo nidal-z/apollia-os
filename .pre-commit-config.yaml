@@ -41,7 +41,7 @@ repos:
     hooks:
       - id: rustfmt
         name: rustfmt
-        entry: cargo fmt --check
+        entry: cargo fmt --all --check
         language: system
         types: [rust]
         pass_filenames: false

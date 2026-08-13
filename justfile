@@ -62,35 +62,39 @@ test-python:
 
 # Full lint
 lint:
-    cargo fmt --check
+    cargo fmt --all --check
     cargo clippy --workspace -- -D warnings
 
 # Format code
 fmt:
     cargo fmt --all
 
-# Check that this tree compiles on Linux, from a machine that is not Linux.
 # Runs the blocking Clippy gate of CI inside a container against the working
 # tree, mounted read-only. Exits 2, not 0, when the Docker daemon is absent.
 #
 #   just linux-check              x86_64-unknown-linux-gnu, the release target
 #   just linux-check arm          aarch64-unknown-linux-gnu, faster on Apple
 #                                 Silicon, both its presets are allow_fail
+
+# Check that this tree compiles on Linux, from a machine that is not Linux.
 linux-check arch="x86":
     bash scripts/linux-check.sh {{arch}}
 
-# Make a linked worktree measure the same repository the main tree measures.
 # Groups are cumulative and there is no default: `just worktree-prep` lists them
 # and exits 1. See scripts/worktree-prep.sh for what each group lays down.
 #
 #   just worktree-prep rust        cargo and the CLI end-to-end suite
 #   just worktree-prep ui docs     the frontend and documentation guards
 #   just worktree-prep full        all three
+
+# Make a linked worktree measure the same repository the main tree measures.
 worktree-prep *GROUPS:
     bash scripts/worktree-prep.sh {{GROUPS}}
 
-# Record the verdict of the eight expensive guards in this tree, then compare
-# two records made on the same commit.
+# `worktree-compare` reads two such records, and refuses them unless they were
+# made on the same commit.
+
+# Record the verdict of the eight expensive guards in this tree.
 worktree-verdicts OUT:
     python3 scripts/worktree_verdicts.py --record {{OUT}}
 
@@ -132,9 +136,6 @@ runners-dev-macos:
 desktop-ui-install:
     cd crates/apollia-desktop/ui && npm ci
 
-# Link PyO3 against the SAME interpreter setup_bundled_python will resolve at
-# run time.
-#
 # Without this a dev build links whatever libpython the host resolves, pyenv
 # here, while main.rs points PYTHONHOME at the bundle in target/python-bundle.
 # Two different CPython builds, so the interpreter cannot find its own standard
@@ -145,6 +146,12 @@ desktop-ui-install:
 # The automation recipes already did this, which is why they loaded four agents
 # while `desktop-dev-qwen` loaded none. Same block, hoisted so every dev entry
 # point gets it.
+#
+# It exits 1 when it has laid down nothing, the way scripts/worktree-prep.sh
+# does for the same resolution. Its four callers read its standard output, so
+# an exit 0 let them carry on with no interpreter and no link.
+
+# Link PyO3 against the interpreter setup_bundled_python resolves at run time.
 _bundle-python:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -153,10 +160,10 @@ _bundle-python:
       if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
     done
     if [ -z "$BUNDLE_ROOT" ]; then
-      echo "warning: no Python bundle in target/python-bundle or target/debug." >&2
-      echo "         Agents will fail to load at boot. Build one with:" >&2
-      echo "         bash packaging/build-python-bundle.sh" >&2
-      exit 0
+      echo "error: no Python bundle in target/python-bundle or target/debug." >&2
+      echo "       Agents will fail to load at boot. Build one with:" >&2
+      echo "       bash packaging/build-python-bundle.sh" >&2
+      exit 1
     fi
     # The bundle is relocatable but its sysconfig still names its build path, so
     # PyO3 emits `-L /install/lib` and the link fails on "library 'python3.13'
@@ -177,10 +184,8 @@ desktop-dev:
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
-      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
-    fi
+    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
     cd crates/apollia-desktop && cargo tauri dev
 
 # macOS dev shortcut: ensure metal+cpu runners then start desktop
@@ -188,13 +193,10 @@ desktop-dev-macos: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
-      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
-    fi
+    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
-# Start a local llama-server as the external OpenAI-compat backend (:8899).
 # Launched WITH --jinja so tool-calling is template-driven (native); a server
 # started without --jinja falls back to a tool grammar it may fail to parse.
 # `-c` is the TOTAL context, split across the `-np` parallel slots, so the usable
@@ -202,6 +204,8 @@ desktop-dev-macos: runners-dev-macos
 # conversation the whole CTX at no extra KV-cache cost (memory tracks CTX, not NP).
 # The model is a POSITIONAL argument (not `model=...`): just llama-server /path/to/model.gguf
 # Or export APOLLIA_LLAMA_MODEL. Override context via env: CTX=65536 NP=1 just llama-server ...
+
+# Start a local llama-server as the external OpenAI-compat backend (:8899).
 llama-server model=llama_model port=llama_port:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -226,19 +230,18 @@ llama-server model=llama_model port=llama_port:
     exec "$LLAMA_BIN" -m "{{model}}" -ngl 999 -c "${CTX:-32768}" -np "${NP:-1}" -cb \
       --flash-attn on --jinja --host 127.0.0.1 --port "{{port}}"
 
-# macOS dev with the external llama-server (:8899) + desktop together.
 # Starts llama-server (--jinja) in the background, waits for /health, then runs
 # the desktop with RUST_LOG=debug. Kills the server on exit. The model is a
 # POSITIONAL argument: just desktop-dev-llama /path/to/model.gguf (or export
 # APOLLIA_LLAMA_MODEL). For the baked-in Qwen dev model, use `just desktop-dev-qwen`.
+
+# macOS dev with the external llama-server (:8899) + desktop together.
 desktop-dev-llama model=llama_model: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
-      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
-    fi
+    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
     if [ -z "{{model}}" ]; then
       echo "set a model: just desktop-dev-llama /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
       exit 1
@@ -270,11 +273,13 @@ desktop-dev-llama model=llama_model: runners-dev-macos
     echo "✅ llama-server ready on :{{llama_port}} (log: $SLOG)"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
-# Dedicated dev backend: local Qwen3.6-35B-A3B MoE on :8899, tuned for a single
-# desktop conversation (NP=1) with a large context and the exact tool-calling flags.
+# Tuned for a single desktop conversation (NP=1) with a large context and the
+# exact tool-calling flags.
 # Defaults to ~/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf; override the model via
 # APOLLIA_LLAMA_MODEL and context/slots/port via CTX / NP / PORT env. Server only:
 # run the desktop separately (or `just desktop-dev-qwen` for both).
+
+# Dedicated dev backend: local Qwen3.6-35B-A3B MoE on :8899.
 llama-qwen:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -318,17 +323,16 @@ llama-qwen:
       --flash-attn on --jinja --chat-template-kwargs '{"enable_thinking":false}' \
       --host 127.0.0.1 --port "$PORT"
 
-# Dedicated: Qwen dev backend (llama-qwen, background) + desktop together on macOS.
 # Waits for /health, runs the desktop with RUST_LOG=debug, kills the server on exit.
 # Same env overrides as `llama-qwen`.
+
+# Dedicated: Qwen dev backend (llama-qwen, background) + desktop together on macOS.
 desktop-dev-qwen: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    if [ -n "$BUNDLE_ROOT" ] && [ -d "$BUNDLE_ROOT" ]; then
-      export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
-    fi
+    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
     MODEL="${APOLLIA_LLAMA_MODEL:-$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf}"
     if [ ! -f "$MODEL" ]; then
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
@@ -379,12 +383,13 @@ desktop-dev-qwen: runners-dev-macos
     echo "✅ llama-server ready on :$PORT (log: $SLOG)"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
-# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS).
 # `runners` selects which apollia-runner-{backend} sidecars are staged and
 # which llama-server GPU build is bundled (first gpu backend in the list wins).
 # Examples:
 #   just desktop-build x86_64-pc-windows-msvc "cpu vulkan"
 #   just desktop-build aarch64-apple-darwin "cpu metal"
+
+# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS).
 desktop-build target=macos_target runners=desktop_runners:
     cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build --target "{{target}}"
 
@@ -402,8 +407,9 @@ cli-build:
 cli-release target="":
     if [ -n "{{target}}" ]; then cargo build -p apollia-cli --release --target "{{target}}"; else cargo build -p apollia-cli --release; fi
 
-# Build CLI + desktop bundle for any rust triple and runner set.
 # Example: just release-desktop x86_64-pc-windows-msvc "cpu cuda"
+
+# Build CLI + desktop bundle for any rust triple and runner set.
 release-desktop target runners=desktop_runners:
     just cli-release {{target}}
     just desktop-build {{target}} "{{runners}}"
@@ -435,10 +441,11 @@ clean:
 # Desktop test automaton (dev-only gestural runner)
 # -----------------------------------------------------------------------------
 
-# Run a gestural automation script against the real desktop app. Captures + a
-# report.json land in .apollia-automation/ (gitignored). macOS prompts for
-# Screen Recording once on the first capture.
+# Captures + a report.json land in .apollia-automation/ (gitignored). macOS
+# prompts for Screen Recording once on the first capture.
 # Usage: just desktop-dev-automation scripts/automation/master-det.json
+
+# Run a gestural automation script against the real desktop app.
 desktop-dev-automation script: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
@@ -455,13 +462,15 @@ desktop-dev-automation script: runners-dev-macos
       APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=debug cargo tauri dev
 
-# Same as desktop-dev-automation, plus a background llama-server (--jinja, :8899)
-# for real inference (chat / HITL / A2A scripts need a live backend). The model
-# is the 2nd positional arg (or export APOLLIA_LLAMA_MODEL). Usage:
+# The background server is there for real inference (chat / HITL / A2A scripts
+# need a live backend). The model is the 2nd positional arg (or export
+# APOLLIA_LLAMA_MODEL). Usage:
 # just desktop-dev-automation-llama scripts/automation/chat-llm.json /path/to/model.gguf
 # Context/slots default to ctx=131072 np=1 (aligned with desktop-dev-qwen so a real
 # chat prompt fits the slot; np=8/ctx=16384 gave 2048 tokens/slot and a 400 overflow).
 # Override via CTX / NP env.
+
+# Same as desktop-dev-automation, plus a background llama-server (--jinja, :8899).
 desktop-dev-automation-llama script model=llama_model: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
@@ -514,14 +523,15 @@ desktop-dev-automation-llama script model=llama_model: runners-dev-macos
       APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=debug cargo tauri dev
 
-# Seeded variant: builds an isolated, fully-populated data ecosystem (SQLite DBs
-# + agents + memory + models + config) under a throwaway HOME, then runs the app
-# pointed at it so the det scripts find data (projects, triggers, permissions,
-# tasks, backends, memory, installed models, mcp servers, transcriptions...).
+# The ecosystem is SQLite DBs + agents + memory + models + config, so the det
+# scripts find data (projects, triggers, permissions, tasks, backends, memory,
+# installed models, mcp servers, transcriptions...).
 # The real ~/.apollia profile is NOT touched. Only HOME is swapped; the build
 # toolchain env (CARGO_HOME / RUSTUP_HOME) is preserved so cargo/rustc still work.
 # Seed dir defaults to $PWD/.apollia-seed-home (override via APOLLIA_SEED_HOME).
 # Usage: just desktop-dev-automation-seeded scripts/automation/master-det.json
+
+# Seeded variant: the app runs against a throwaway, fully-populated HOME.
 desktop-dev-automation-seeded script: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail
@@ -597,8 +607,6 @@ desktop-dev-automation-seeded script: runners-dev-macos
       HOME="$SEED_HOME" APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=info cargo tauri dev
 
-# Screenshot runs: seeded WITH the narrative overlay.
-#
 # `desktop-dev-automation-seeded` deliberately strips APOLLIA_SEED_OVERLAY,
 # because the overlay changes row counts and would make the assertion suites
 # read as product regressions. Screenshots want the opposite: the narrative is
@@ -607,6 +615,8 @@ desktop-dev-automation-seeded script: runners-dev-macos
 # remember, which is how the two ended up conflated in the first place.
 #
 # Usage: just desktop-screenshots scripts/automation/screenshots-en.json
+
+# Screenshot runs: seeded WITH the narrative overlay.
 desktop-screenshots script:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -622,11 +632,13 @@ desktop-screenshots script:
     APOLLIA_SEED_SHOOTING=1 APOLLIA_SEED_OVERLAY="$OVERLAY" \
       just desktop-dev-automation-seeded "{{script}}"
 
-# Seeded + llama-server (for the -llama scripts). The app runs under the seeded
-# HOME, but llama-server loads the REAL model from the real home (the seed's
-# models/ holds tiny placeholder GGUFs, not a runnable model). Model = 2nd arg
-# or $APOLLIA_LLAMA_MODEL, default the real Qwen dev model.
+# The app runs under the seeded HOME, but llama-server loads the REAL model from
+# the real home (the seed's models/ holds tiny placeholder GGUFs, not a runnable
+# model). Model = 2nd arg or $APOLLIA_LLAMA_MODEL, default the real Qwen dev
+# model.
 # Usage: just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json
+
+# Seeded + llama-server, for the -llama scripts.
 desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     #!/usr/bin/env bash
     set -euo pipefail

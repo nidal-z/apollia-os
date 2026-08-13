@@ -577,7 +577,7 @@ def check_worktree_comparator() -> None:
 #
 # The property is pinned on the libraries alone. `check_selftest.py` runs in the
 # `prose-guard` job, a bare checkout with no cargo build, and `cli-e2e.sh` exits
-# 1 before its first assertion when it finds no binary, so a case that drove the
+# 2 before its first assertion when it finds no binary, so a case that drove the
 # real suite could never be green there. Recording inside `_record_fail` rather
 # than beside each of its callers is what makes a library-level pilot sufficient.
 #

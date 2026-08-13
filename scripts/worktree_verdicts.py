@@ -24,9 +24,11 @@ compared, guard by guard.
 
 `cargo test` is the other special case, and its measure is deliberately not its
 exit code. A fresh worktree exits 101 in ten seconds without having compiled
-anything, which is 0 binaries and 0 tests; a complete tree exits 101 in ninety
-nine seconds having run 4370 tests across 80 binaries, because one test is
-non-deterministic. Comparing exit codes would call those equal, and comparing
+anything, so no summary line is printed at all and nothing is measured; a
+complete tree exits 101 in ninety nine seconds having run 4370 tests across 80
+binaries, because one test is non-deterministic. A summary line reporting zero
+executed tests is a third thing again, a tree whose tests are all `#[ignore]`,
+and it is a measure. Comparing exit codes would call those equal, and comparing
 the set of failed tests would make this tool hostage to that flaky test for a
 cause that has nothing to do with the worktree. The number of test binaries and
 the number of tests executed separate "died at the build" from "ran, and one
@@ -37,6 +39,12 @@ a state file believes and a probe measures. A guard whose precondition is
 missing is recorded as `not prepared`, never as a verdict: a wrong verdict is
 worse than an absent one, which is the whole subject of this tool.
 
+A measure has a third state, for the same reason. A guard that ran but whose
+characteristic measure could not be extracted records None on that key and
+reads `not measured` in the table, where the reader looks for its value. Two
+trees that measured nothing are not two trees that agree, and the comparison
+tests that state before it tests equality.
+
 Usage:
     python3 scripts/worktree_verdicts.py --record <output.json>
     python3 scripts/worktree_verdicts.py --compare <main.json> <worktree.json>
@@ -44,9 +52,10 @@ Usage:
 Exit codes:
     --record    0 once the eight lines are recorded, whatever they say. It is a
                 measurement, not a verdict.
-    --compare   0 when every guard matches, 1 on a difference or on a guard
-                recorded as not prepared, 2 when it refuses to compare at all
-                (the two records are not on the same commit).
+    --compare   0 when every guard matches, 1 on a difference, on a guard
+                recorded as not prepared, or on a measure that was never
+                extracted, 2 when it refuses to compare at all (the two records
+                are not on the same commit).
 """
 
 import argparse
@@ -67,7 +76,7 @@ def strip(text: str) -> str:
     return ANSI.sub("", text)
 
 
-def measure_exit(_: str, code: int) -> dict[str, int]:
+def measure_exit(_: str, code: int) -> dict[str, int | None]:
     return {"exit": code}
 
 
@@ -80,40 +89,46 @@ TEST_SUMMARY = re.compile(
 )
 
 
-def measure_cargo_test(output: str, code: int) -> dict[str, int]:
+def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
     """Test binaries that reported a result, and tests they executed.
 
     Ignored tests are counted out: they are compiled and skipped, so counting
     them would let a `#[ignore]` added on one side hide a test that stopped
     running on the other.
+
+    No summary line at all means nothing was measured, and that is not the same
+    as a tree whose tests are all `#[ignore]`: the second one reported, and it
+    reported zero. `summaries` empty is the discriminant, not the total.
     """
     summaries = TEST_SUMMARY.findall(output)
+    if not summaries:
+        return {"exit": code, "binaries": None, "tests": None}
     executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
     return {"exit": code, "binaries": len(summaries), "tests": executed}
 
 
-def measure_cli_e2e(output: str, code: int) -> dict[str, int]:
+def measure_cli_e2e(output: str, code: int) -> dict[str, int | None]:
     passed = re.search(r"^\s*PASS\s*:\s*(\d+)\s*$", output, re.M)
     failed = re.search(r"^\s*FAIL\s*:\s*(\d+)\s*$", output, re.M)
     return {
         "exit": code,
-        "pass": int(passed.group(1)) if passed else -1,
-        "fail": int(failed.group(1)) if failed else -1,
+        "pass": int(passed.group(1)) if passed else None,
+        "fail": int(failed.group(1)) if failed else None,
     }
 
 
-def measure_svelte_check(output: str, code: int) -> dict[str, int]:
+def measure_svelte_check(output: str, code: int) -> dict[str, int | None]:
     done = re.search(r"COMPLETED (\d+) FILES (\d+) ERRORS", output)
     return {
         "exit": code,
-        "files": int(done.group(1)) if done else -1,
-        "errors": int(done.group(2)) if done else -1,
+        "files": int(done.group(1)) if done else None,
+        "errors": int(done.group(2)) if done else None,
     }
 
 
-def measure_vitest(output: str, code: int) -> dict[str, int]:
+def measure_vitest(output: str, code: int) -> dict[str, int | None]:
     total = re.search(r"^\s*Tests\s+.*\((\d+)\)\s*$", output, re.M)
-    return {"exit": code, "tests": int(total.group(1)) if total else -1}
+    return {"exit": code, "tests": int(total.group(1)) if total else None}
 
 
 class Probe:
@@ -160,23 +175,23 @@ class Guard:
         return None
 
 
-def render_exit(m: dict[str, int]) -> str:
+def render_exit(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}"
 
 
-def render_cargo_test(m: dict[str, int]) -> str:
+def render_cargo_test(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst"
 
 
-def render_cli_e2e(m: dict[str, int]) -> str:
+def render_cli_e2e(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}, PASS {m['pass']}, FAIL {m['fail']}"
 
 
-def render_svelte_check(m: dict[str, int]) -> str:
+def render_svelte_check(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}, {m['files']} FILES, {m['errors']} ERR"
 
 
-def render_vitest(m: dict[str, int]) -> str:
+def render_vitest(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}, {m['tests']} tests"
 
 
@@ -231,7 +246,7 @@ GUARDS = [
             Probe(
                 ("target/release/apollia-os", "target/debug/apollia-os"),
                 "no apollia-os binary. The suite builds nothing itself and "
-                "exits 1 without running a single case. Run: bash "
+                "exits 2 without running a single case. Run: bash "
                 "scripts/worktree-prep.sh rust",
             ),
         ),
@@ -375,9 +390,21 @@ def load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def unmeasured(entry: dict) -> bool:
+    """True when the guard ran but one of its measures was never extracted.
+
+    The key stays in the record and carries None. Dropping it instead would
+    make two records that measured nothing compare equal, since both sides
+    would answer None to `.get`, which is the defect this state exists to end.
+    """
+    return any(value is None for value in entry.get("measures", {}).values())
+
+
 def cell(entry: dict, guard: Guard) -> str:
     if not entry.get("prepared", False):
         return "not prepared"
+    if unmeasured(entry):
+        return "not measured"
     return guard.render(entry["measures"])
 
 
@@ -412,6 +439,7 @@ def compare(left_path: Path, right_path: Path) -> int:
 
     gaps: list[str] = []
     unprepared: list[str] = []
+    unextracted: list[str] = []
 
     for guard in GUARDS:
         left_entry = left["guards"].get(guard.key, {})
@@ -422,6 +450,12 @@ def compare(left_path: Path, right_path: Path) -> int:
         if not left_entry.get("prepared", False) or not right_entry.get("prepared", False):
             mark = "?"
             unprepared.append(guard.label)
+        elif unmeasured(left_entry) or unmeasured(right_entry):
+            # Tested before equality, and deliberately so: two records that
+            # extracted nothing would otherwise compare equal and read as
+            # conformity.
+            mark = "?"
+            unextracted.append(guard.label)
         else:
             same = all(
                 left_entry["measures"].get(k) == right_entry["measures"].get(k)
@@ -451,11 +485,23 @@ def compare(left_path: Path, right_path: Path) -> int:
             "A guard that could not run states nothing about the two trees.",
             file=sys.stderr,
         )
+    if unextracted:
+        print(
+            f"{len(unextracted)} guard(s) ran without their measure being extracted:",
+            file=sys.stderr,
+        )
+        for label in unextracted:
+            print(f"  {label}", file=sys.stderr)
+        print(
+            "A measure that was never extracted states nothing about the two "
+            "trees either, and two absences are not an agreement.",
+            file=sys.stderr,
+        )
     if gaps:
         print(f"{len(gaps)} guard(s) answer a different verdict:", file=sys.stderr)
         for gap in gaps:
             print(f"  {gap}", file=sys.stderr)
-    if unprepared or gaps:
+    if unprepared or unextracted or gaps:
         return 1
     print("the eight guards answer the same verdict in both trees")
     return 0

@@ -34,9 +34,10 @@
 # instead costs 122 MB and is the escape hatch if the bundle is ever replaced
 # under a running worktree.
 #
-# `just _bundle-python` is deliberately not reused: it exits 0 after printing a
-# warning when it has laid down nothing, and its two callers read its standard
-# output rather than its exit code.
+# `just _bundle-python` is deliberately not reused: it resolves the bundle of
+# the tree it runs in, and this script needs the bundle of the main working
+# tree, which is the whole point of a linked worktree. The two now agree on
+# what to answer when they find nothing, and both return 1.
 #
 # Usage:
 #     bash scripts/worktree-prep.sh rust

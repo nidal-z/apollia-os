@@ -30,7 +30,8 @@
 #   APOLLIA_TEST_VERBOSE     0|1 (default 0). Dump stdout/stderr on FAIL.
 #   APOLLIA_E2E_REPORT_DIR   report output dir. Default: tests/cli/report.
 #
-# Exit code: 0 when every assertion passed, 1 otherwise.
+# Exit code: 0 when every assertion passed, 1 when one failed, 2 when the suite
+# refused to start and measured nothing (no binary to run).
 
 set -uo pipefail
 
@@ -42,14 +43,27 @@ TRACK_DIR="$SCRIPT_DIR/tracks"
 
 # ── Resolve binary ─────────────────────────────────────────────────────────
 if [[ -n "${APOLLIA_BIN:-}" ]]; then
+    # Resolved against the directory the suite was invoked from, once, here.
+    # One assertion runs the binary after a `cd` (workspace init --force,
+    # tracks/track1_offline.sh), and a relative path stops resolving there. The
+    # suite then reported 153 PASS and a single FAIL naming that assertion,
+    # which is a red pointing at the wrong thing: the input was malformed, not
+    # the command under test.
     BIN=$APOLLIA_BIN
+    [[ "$BIN" == /* ]] || BIN="$PWD/$BIN"
+    if [[ ! -x "$BIN" ]]; then
+        echo "REFUSING: APOLLIA_BIN resolves to $BIN, which is not executable." >&2
+        echo "          No assertion was run. Build with \`cargo build -p apollia-cli\`, or point APOLLIA_BIN at a binary." >&2
+        exit 2
+    fi
 elif [[ -x "$REPO_ROOT/target/release/apollia-os" ]]; then
     BIN="$REPO_ROOT/target/release/apollia-os"
 elif [[ -x "$REPO_ROOT/target/debug/apollia-os" ]]; then
     BIN="$REPO_ROOT/target/debug/apollia-os"
 else
-    echo "FAIL: apollia-os binary not found. Build with \`cargo build -p apollia-cli\` or set APOLLIA_BIN." >&2
-    exit 1
+    echo "REFUSING: apollia-os binary not found. Build with \`cargo build -p apollia-cli\` or set APOLLIA_BIN." >&2
+    echo "          No assertion was run." >&2
+    exit 2
 fi
 
 REAL_HOME=$HOME

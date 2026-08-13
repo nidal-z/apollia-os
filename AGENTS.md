@@ -48,7 +48,7 @@ cargo clippy -p apollia-<crate> -- -D warnings
 # Full sweep (before commit and in CI)
 cargo test --workspace --all-features --no-fail-fast
 cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --check
+cargo fmt --all --check
 
 # Docs
 cd docs/site && npm run build

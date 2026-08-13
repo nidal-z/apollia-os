@@ -33,7 +33,7 @@ what the tools actually read. What follows is the part a file cannot tell you.
 | File | Run it with |
 |---|---|
 | `.editorconfig` | your editor, automatically |
-| `rustfmt.toml` | `cargo fmt --check` in CI, `cargo fmt` to apply |
+| `rustfmt.toml` | `cargo fmt --all --check` to check, `cargo fmt --all` to apply |
 | `clippy.toml` | `cargo clippy --workspace --all-targets -- -D warnings` |
 | `rust-toolchain.toml` | `rustup` picks it up inside the repo |
 | `sdk/pyproject.toml` | `ruff format --check`, `ruff check`, `cd sdk && mypy apollia` |
