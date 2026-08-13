@@ -512,6 +512,22 @@ async fn run_revoke(provider: &str, account: &str, confirm: bool, json: bool) ->
     let Some(auth) = open_auth_manager(json) else {
         return exit_codes::GENERAL_ERROR;
     };
+    revoke_and_report(&auth, provider_id, account, json).await
+}
+
+/// Revoke the stored token and map the outcome to an exit code.
+///
+/// Revoking an account with no stored token exits [`exit_codes::SUCCESS`]:
+/// the storage contract is idempotent (`MultiAccountStorage::delete` returns
+/// `Ok(())` even if the token was already gone). Split from [`run_revoke`] so
+/// the exit-code mapping is testable against an isolated [`AuthManager`],
+/// without the platform keyring or the real `~/.apollia` index.
+async fn revoke_and_report(
+    auth: &AuthManager,
+    provider_id: ConnectorProvider,
+    account: &str,
+    json: bool,
+) -> i32 {
     let account_id = AccountId::new(account.to_string());
     match auth.revoke(provider_id, &account_id).await {
         Ok(()) => {
@@ -1073,6 +1089,34 @@ mod tests {
     async fn revoke_without_confirm_returns_error() {
         let code = run_revoke("google", "x@example.com", false, true).await;
         assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[tokio::test]
+    async fn revoke_absent_account_exits_success() {
+        // GIVEN an auth manager over an isolated index file and the mock
+        // keyring (process-global builder; no other test in this binary
+        // touches a keyring entry, so no ordering dependence), holding no
+        // token for the account
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let dir = tempfile::tempdir().unwrap();
+        let storage = apollia_auth::multi_account::MultiAccountStorage::with_index_path(
+            dir.path().join("idx.json"),
+        );
+        let auth = AuthManager::with_storage(storage);
+
+        // WHEN revoking an account that was never connected
+        let code = revoke_and_report(
+            &auth,
+            ConnectorProvider::Google,
+            "absent@example.invalid",
+            true,
+        )
+        .await;
+
+        // THEN the documented idempotent contract decides the exit code
+        // ("Returns Ok(()) even if the token was already gone",
+        // MultiAccountStorage::delete): success, not an error
+        assert_eq!(code, exit_codes::SUCCESS);
     }
 
     #[tokio::test]

@@ -339,6 +339,23 @@ mod tests {
         McpStdioServer::new(make_dispatcher())
     }
 
+    /// Returns `true` if the platform can actually execute shell commands
+    /// through the bash executor's sandbox. On Linux without `CAP_SYS_ADMIN`
+    /// (e.g. GitHub Actions runners), `unshare --pid --mount` fails with EPERM
+    /// inside the spawned child, so the tool call reports the sandbox failure
+    /// as the command's own output: tests asserting on that output must be
+    /// skipped gracefully. Mirrors `can_run_shell` in `bash_executor`.
+    fn can_run_sandbox() -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            apollia_core::SecurityPosture::detect().unshare_available
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            true
+        }
+    }
+
     // initialize
 
     #[tokio::test]
@@ -416,6 +433,10 @@ mod tests {
 
     #[tokio::test]
     async fn mcp_server_calls_bash_executor() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let server = make_server();
         let req = McpRequest::CallTool {

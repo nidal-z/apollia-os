@@ -407,6 +407,23 @@ mod tests {
         }
     }
 
+    /// Returns `true` if the platform can actually execute code through the
+    /// python executor's sandbox. On Linux without `CAP_SYS_ADMIN` (e.g.
+    /// GitHub Actions runners), `unshare --pid --mount` fails with EPERM
+    /// inside the spawned child, so the dispatch reports the sandbox failure
+    /// as the program's own output: tests asserting on that output must be
+    /// skipped gracefully. Mirrors `can_run_shell` in `bash_executor`.
+    fn can_run_sandbox() -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            apollia_core::SecurityPosture::detect().unshare_available
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            true
+        }
+    }
+
     fn chat_tools_config(data_dir: &std::path::Path) -> std::sync::Arc<ChatToolsConfig> {
         std::sync::Arc::new(ChatToolsConfig {
             data_dir: data_dir.to_path_buf(),
@@ -424,6 +441,10 @@ mod tests {
     //      virtualenv rather than a per-session one
     #[tokio::test]
     async fn test_chat_dispatcher_runs_python_without_prior_provisioning() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let data_dir = tempfile::tempdir().expect("tempdir");
         let sandbox = tempfile::tempdir().expect("tempdir");

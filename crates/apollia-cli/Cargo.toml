@@ -72,6 +72,10 @@ open               = { workspace = true }
 [dev-dependencies]
 tempfile = "3"
 rusqlite = { workspace = true }
+# Mock credential store only: pins the `connector revoke` exit-code contract
+# without touching the platform keyring. Already a workspace dependency
+# (apollia-auth), not a new sovereignty surface.
+keyring = { workspace = true }
 
 [lints]
 workspace = true

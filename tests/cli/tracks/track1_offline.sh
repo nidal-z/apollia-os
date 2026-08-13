@@ -150,7 +150,22 @@ check        "connector drive folder set"            "$BIN" connector drive fold
 check        "connector drive folder reset"          "$BIN" connector drive folder reset alice@example.invalid
 check        "connector drive folder picked list"    "$BIN" connector drive folder picked list alice@example.invalid
 check        "connector drive folder picked remove"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id
-check_exit   "connector revoke (absent account) → 1" 1 "$BIN" connector revoke google alice@example.invalid --confirm
+# Revoking an absent account exits 0: the storage contract is idempotent
+# ("Returns Ok(()) even if the token was already gone",
+# crates/apollia-auth/src/multi_account.rs, delete). The same contract is
+# pinned by a unit test on run_revoke (commands/connector.rs), so a platform
+# whose keyring cannot answer under a swapped HOME (macOS: no default
+# keychain) records a justified SKIP, never a verdict about the environment.
+# NoEntry surfacing as an error is deliberately NOT skipped: on a platform
+# that answers, it is a product regression against the contract and fails.
+revoke_out=$("$BIN" connector revoke google alice@example.invalid --confirm 2>&1); revoke_rc=$?
+if [[ $revoke_rc -eq 0 ]]; then
+    _pass "connector revoke (absent account) → 0 (idempotent)"
+elif printf '%s' "$revoke_out" | /usr/bin/grep -qE "Platform secure storage failure|Couldn't access platform secure storage"; then
+    skip "connector revoke (absent account) → 0 (idempotent)" "platform keyring unreachable under swapped HOME - contract pinned by the run_revoke unit test"
+else
+    _fail "connector revoke (absent account) → 0 (idempotent)" "expected 0 got $revoke_rc | out: ${revoke_out:0:300}" "$revoke_rc"
+fi
 
 # ── A.9 mcp (offline: list + approvals/secret/oauth; add/remove need runtime) ─
 section "A.9 mcp"

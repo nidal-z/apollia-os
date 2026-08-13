@@ -303,6 +303,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "indicatif",
+ "keyring",
  "open",
  "pyo3",
  "reqwest 0.12.28",

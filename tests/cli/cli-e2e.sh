@@ -77,6 +77,14 @@ REPORT_DIR="${APOLLIA_E2E_REPORT_DIR:-$SCRIPT_DIR/report}"
 # Hermetic secret storage (keyring is unreachable from a sub-shell on macOS).
 export APOLLIA_TOKEN_STORAGE="${APOLLIA_TOKEN_STORAGE:-file}"
 export APOLLIA_TOKEN_PASSPHRASE="${APOLLIA_TOKEN_PASSPHRASE:-cli-e2e-test-passphrase}"
+# Hermetic config resolution. `config show` resolves $XDG_CONFIG_HOME before
+# ~/.config (resolve_path, crates/apollia-cli/src/commands/config.rs), and the
+# suite only swaps HOME, so a host-set XDG_CONFIG_HOME points every config
+# assertion at a directory outside the seed and flips its verdict. With the
+# variable dropped, resolution falls back to $HOME/.config, which follows the
+# per-track HOME swaps into the seeded tree (build-seed.sh writes the seeded
+# apollia.toml there as well as under ~/.apollia).
+unset XDG_CONFIG_HOME
 # Keep INFO tracing off stdout so JSON-emitting commands stay parseable.
 export RUST_LOG="${RUST_LOG:-error}"
 

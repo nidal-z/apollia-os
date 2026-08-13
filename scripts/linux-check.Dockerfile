@@ -8,13 +8,21 @@
 FROM rust:1.95-bookworm
 
 # The system dependency list of the "Install system deps" step of the blocking
-# Clippy job, .github/workflows/ci.yml:76-82, plus python3-dev.
+# Clippy job, .github/workflows/ci.yml:76-82, plus python3-dev and
+# python3-venv.
 #
 # python3-dev is not in that list because the GitHub runner image already ships
 # the CPython headers and .so that PyO3 0.24 needs: apollia-aip enables the
 # `auto-initialize` feature (Cargo.toml:214), so the crate links against
 # libpython at check time. A bare rust:1.95-bookworm has python3 and no
 # headers, so the workspace fails to link without this line.
+#
+# python3-venv is absent from that list for the same reason: the runner's
+# python3 creates virtualenvs out of the box, while Debian strips ensurepip
+# into a separate package, so `python3 -m venv` fails on the bare image. The
+# python_executor tests provision a venv before running code; without this
+# line they fail on VenvCreationFailed here while passing on the runner, and
+# the container stops reproducing what CI measures.
 #
 # This is the ninth hand-written copy of that list in this repository and
 # nothing confronts it with the eight in ci.yml, three of which already
@@ -26,7 +34,7 @@ RUN apt-get update -qq \
         libssl-dev libxdo-dev \
         libasound2-dev libpulse-dev libjack-jackd2-dev \
         cmake clang pkg-config \
-        python3-dev \
+        python3-dev python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # rust-toolchain.toml pins 1.95.0 with four components, and rustup honours that

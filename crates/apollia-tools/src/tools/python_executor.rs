@@ -723,6 +723,23 @@ mod tests {
         std::env::temp_dir().join("apollia_test_venv")
     }
 
+    /// Returns `true` if the platform can actually execute scripts through our
+    /// `build_command` path. On Linux without `CAP_SYS_ADMIN` (e.g. GitHub
+    /// Actions runners), `unshare --pid --mount` fails with EPERM inside the
+    /// spawned child, so `run()` returns `Ok` with the sandbox failure as the
+    /// program's own output: tests asserting on that output must be skipped
+    /// gracefully. Mirrors `can_run_shell` in `bash_executor`.
+    fn can_run_sandbox() -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            apollia_core::SecurityPosture::detect().unshare_available
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            true
+        }
+    }
+
     /// Helper: creates a PythonExecutor, skipping the test if no system Python is available.
     macro_rules! make_executor {
         ($agent_id:expr) => {
@@ -736,6 +753,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_print_returns_stdout() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = make_executor!("test-agent-ac1");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -756,6 +777,10 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_address_space_limit_blocks_large_allocation() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN a python executor (rlimits use v0 defaults: 2 GiB address space)
         let executor = make_executor!("test-agent-as-cap");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -795,6 +820,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_import_missing_package_returns_nonzero_exit() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN: venv with no extra packages
         let executor = make_executor!("test-agent-ac3");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -819,6 +848,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_timeout_kills_python_process() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = make_executor!("test-agent-ac4");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -870,6 +903,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_isolation_between_agents() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN: two executors for different agents, both with empty venvs
         let executor_a = make_executor!("test-agent-isolation-a");
         let executor_b = make_executor!("test-agent-isolation-b");
@@ -1074,6 +1111,10 @@ mod tests {
     // THEN the interpreter is created on the way and the code executes
     #[tokio::test]
     async fn test_run_creates_the_virtualenv_on_first_execution() {
+        if !can_run_sandbox() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let tmp = tempfile::tempdir().expect("tempdir");
         let executor = match PythonExecutor::new("apollia:chat:first-run", tmp.path()) {
