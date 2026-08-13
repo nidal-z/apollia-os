@@ -17,7 +17,7 @@ Durable, at-least-once inter-agent messaging surface.
 #### `send`
 
 ```python
-async def send(self, to: str, payload: dict) -> str
+async def send(self, to: str, payload: dict[str, Any]) -> str
 ```
 
 Post a message to ``to``'s inbox, returning its message id.
@@ -80,5 +80,5 @@ A message pulled from an agent's durable inbox.
 | --- | --- | --- |
 | `message_id` | `str` |  |
 | `from_agent` | `str` |  |
-| `payload` | `dict` |  |
+| `payload` | `dict[str, Any]` |  |
 | `sent_at` | `str` |  |

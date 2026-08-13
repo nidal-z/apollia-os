@@ -28,11 +28,41 @@ propagates cancellation to the Rust backend.
 async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None) -> LlmResponse
 ```
 
+Run a single-shot completion over a message list.
+
+Args:
+    messages: Chat messages in OpenAI shape, oldest first.
+    backend: Backend to use, or None for :attr:`default_backend`.
+    temperature: Sampling temperature, or None for the backend default.
+    max_tokens: Cap on generated tokens, or None for the backend default.
+    seed: Sampling seed, for reproducible output where the backend
+        supports it.
+
+Returns:
+    The completed response, with its content, latency and usage.
+
 #### `chat`
 
 ```python
 async def chat(self, system: str, user: str, *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None) -> LlmResponse
 ```
+
+Run a completion over a system and a user message.
+
+Convenience wrapper over :meth:`complete` for the common two-message
+case.
+
+Args:
+    system: System message.
+    user: User message.
+    backend: Backend to use, or None for :attr:`default_backend`.
+    temperature: Sampling temperature, or None for the backend default.
+    max_tokens: Cap on generated tokens, or None for the backend default.
+    seed: Sampling seed, for reproducible output where the backend
+        supports it.
+
+Returns:
+    The completed response, with its content, latency and usage.
 
 #### `map`
 
@@ -79,6 +109,15 @@ Cancellation propagates to the Rust backend on iterator close.
 ```python
 async def embed(self, text: str, *, backend: str | None=None) -> list[float]
 ```
+
+Return the embedding vector for ``text``.
+
+Args:
+    text: Text to embed.
+    backend: Backend to use, or None for :attr:`default_backend`.
+
+Returns:
+    The embedding, as a dense vector of floats.
 
 ### `TokenUsage`
 

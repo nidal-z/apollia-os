@@ -32,3 +32,5 @@ Returns the secret value, or ``None`` if not configured.
 ```python
 def has(self, key: str) -> bool
 ```
+
+Whether ``key`` resolved to a value at task startup.

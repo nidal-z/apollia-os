@@ -40,8 +40,22 @@ Agent reasoning trace (ReAct observability).
 def emit_retry(self, *, step: int, reason: str, count: int) -> None
 ```
 
+Signal that the current step is being retried.
+
+Args:
+    step: Zero-based index of the step being retried.
+    reason: Why the retry happens, in one short phrase.
+    count: How many attempts this step has now consumed.
+
 #### `emit_action_parse_error`
 
 ```python
 def emit_action_parse_error(self, *, step: int, raw: str, fatal: bool=False) -> None
 ```
+
+Signal that a model action could not be parsed.
+
+Args:
+    step: Zero-based index of the step that produced the action.
+    raw: The unparsable model output, kept verbatim for diagnosis.
+    fatal: Whether the run stops here rather than retrying.

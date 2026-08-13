@@ -31,3 +31,5 @@ agent manifest.
 ```python
 def list_names(self) -> list[str]
 ```
+
+Return the names of every datasource the manifest declares.

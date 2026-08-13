@@ -24,11 +24,23 @@ native ``apollia-tools`` registry.
 async def call(self, tool_name: str, input: dict[str, Any]) -> dict[str, Any]
 ```
 
+Invoke a tool and return its output.
+
+Args:
+    tool_name: Native tool name, or ``mcp:<server>/<name>`` to route
+        the call to a connected MCP server.
+    input: Payload, validated against the tool input schema.
+
+Returns:
+    The tool output, matching its declared output schema.
+
 #### `list_tools`
 
 ```python
 def list_tools(self) -> list[str]
 ```
+
+Return the names of every tool reachable from this context.
 
 #### `describe`
 
@@ -36,11 +48,15 @@ def list_tools(self) -> list[str]
 async def describe(self, name: str) -> dict[str, Any] | None
 ```
 
+Return the descriptor for ``name``, or None if no such tool.
+
 #### `tool_call_count`
 
 ```python
 def tool_call_count(self) -> int
 ```
+
+Return how many tool calls this run has made so far.
 
 ### `ToolDescriptor`
 

@@ -28,11 +28,15 @@ declare ``@agent(user_memory_write=True)``.  Calling :meth:`set` or
 async def get(self, key: str) -> str | None
 ```
 
+Return the profile value for ``key``, or None if unset.
+
 #### `has`
 
 ```python
 async def has(self, key: str) -> bool
 ```
+
+Whether ``key`` is set on the profile.
 
 #### `all`
 
@@ -40,11 +44,15 @@ async def has(self, key: str) -> bool
 async def all(self) -> dict[str, str]
 ```
 
+Return every set profile entry.
+
 #### `schema_keys`
 
 ```python
 def schema_keys(self) -> list[str]
 ```
+
+Return the keys the profile schema declares, set or not.
 
 #### `set`
 
@@ -52,8 +60,18 @@ def schema_keys(self) -> list[str]
 async def set(self, key: str, value: str) -> None
 ```
 
+Write a single profile entry.
+
+Raises:
+    RuntimeError: If the context is not writable.
+
 #### `update`
 
 ```python
 async def update(self, entries: dict[str, str]) -> None
 ```
+
+Write several profile entries at once.
+
+Raises:
+    RuntimeError: If the context is not writable.
