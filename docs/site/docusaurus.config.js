@@ -11,13 +11,16 @@ const config = {
   // ui/public/logo.svg. Source of truth: crates/apollia-desktop/icons/logo.svg.
   favicon: 'img/favicon.png',
 
-  // This host is not just where the site is published: the desktop binary now
+  // This host is not just where the site is published: the desktop binary
   // links into it from About and from Help, so it is a runtime dependency of
-  // shipped screens, not only of CI. It still needs the org-side setup the
-  // Pages job records (Pages environment active, custom domain bound). Until
-  // that is confirmed live, those in-app links resolve to nothing, which is the
-  // same dead-link failure the retired repository wiki produced. Nothing
-  // catches it here: lychee runs `--offline` and never resolves the host.
+  // shipped screens. Publication follows the same model as the showcase site:
+  // the hosting provider builds and publishes the site itself on every push,
+  // so no CI job in this repository deploys it. The console-side setup
+  // (project created, domain bound) is a human gesture outside this tree.
+  // Until it is confirmed live, those in-app links resolve to nothing, which
+  // is the same dead-link failure the retired repository wiki produced.
+  // Nothing catches it here: lychee runs `--offline` and never resolves the
+  // host.
   url: 'https://docs.apollia.fr',
   baseUrl: '/',
 

@@ -71,6 +71,17 @@ repos:
         language: system
         pass_filenames: false
 
+      # Blocks a commit that breaks the documentation build. The second branch
+      # of the filter is measured, not guessed: docusaurus.config.js reads
+      # ../../clients/openapi.json, so a spec change can break the site without
+      # touching docs/site/.
+      - id: docs-site-build
+        name: docs site build (onBrokenLinks throw)
+        entry: bash -c 'cd docs/site && npm run build'
+        language: system
+        files: ^(docs/site/|clients/openapi\.json$)
+        pass_filenames: false
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.4.0
     hooks:
