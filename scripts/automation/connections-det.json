@@ -1,0 +1,842 @@
+{
+  "name": "connections-det (integrations page, operator + builder, deterministic against the seeded MCP ecosystem)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-connections-route-operator"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-active",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-attention",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-error",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-idle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-sidebar-status-filters"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tabbar",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-native-google-accounts"
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-capabilities",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-capabilities",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-native-google-capabilities"
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-native-google-settings"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-native-microsoft-accounts"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-cancel-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-oauth-dialog-ext-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-reconnect-btn",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-mcp-overview-operator"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-mcp-test-ext-boundary-operator"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-tools",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-list",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "mcp-tool-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "mcp-tool-",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-mcp-tools-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-init-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-call-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-mcp-settings-editor"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-mcp-disconnect-confirm-cancel-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-all",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-installed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-installed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-catalogue-discover-live-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-name-input",
+      "text": "automation-demo-mcp"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-transport-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "custom-mcp-transport-select",
+      "value": "stdio",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-command-input",
+      "text": "npx"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-args-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-args-input",
+      "text": "-y @modelcontextprotocol/server-filesystem /tmp"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-env-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-env-input",
+      "text": "DEMO=1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-approval-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "custom-mcp-approval-toggle",
+      "checked": false
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-custom-mcp-stdio"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "custom-mcp-approval-toggle",
+      "checked": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "custom-mcp-transport-select",
+      "value": "streamable-http",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "custom-mcp-url-input",
+      "text": "https://mcp.example.com/v1",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-custom-mcp-http"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "custom-mcp-transport-select",
+      "value": "stdio",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-command-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-custom-mcp-stdio-revert"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-custom-mcp-install-boundary-no-click"
+    },
+    {
+      "kind": "click",
+      "testid": "custom-mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-custom-mcp-test-ext-boundary"
+    },
+    {
+      "kind": "press",
+      "testid": "custom-mcp-name-input",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-connections-route-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-capabilities",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-capabilities",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-native-capabilities-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "native-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-native-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-mcp-overview-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "23-mcp-test-builder-technical-detail"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-tools",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-list",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-mcp-tools-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-init-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-call-timeout",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "25-mcp-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "26-catalogue-discover-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "27-custom-mcp-builder"
+    },
+    {
+      "kind": "press",
+      "testid": "custom-mcp-name-input",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-integrations",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-integrations-oauth",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-card-google",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-card-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "28-settings-integrations-oauth"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "29-clean-exit-operator"
+    }
+  ],
+  "notes": [
+    "Detail tabs and the catalogue sheet keep the last selected tab across a selection change: the operator pass leaves the MCP detail on Settings and the catalogue on Custom, so the builder pass re-selects mcp-detail-tab-overview and catalogue-tab-discover before asserting their bodies (mcp-tools-count / catalogue-list)."
+  ]
+}

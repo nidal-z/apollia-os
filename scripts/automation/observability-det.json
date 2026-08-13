@@ -1,0 +1,584 @@
+{
+  "name": "observability-det (observability surface, operator gated + builder full; only llm-costs populated, task timeline driven per task, journal-wide audit totals and the hook registry asserted)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-observability-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tabbar"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-timeline"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-llm-costs"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-audit-trail"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-operator-tabs-gated-3"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-timeline"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-agent-filter",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "timeline-agent-filter",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-operator-timeline-controls"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-kpis",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-operator-timeline-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-all"
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-task",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-task-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-operator-task-timeline"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "timeline-task-select",
+      "index": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-operator-task-timeline-other-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04d-operator-timeline-back-to-window"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-llm-costs"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-chart",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "period-selector",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-operator-llm-costs"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-costs-kpis",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-costs-chart-svg-wrapper",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-costs-legend",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-operator-llm-costs-data"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-audit-trail"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-purpose",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-operator-audit-purpose"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-stats",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-trail-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-operator-audit-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-stats",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-events",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-tools",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-agents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-operator-audit-global-stats (journal-wide totals, not the loaded page)"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-timeline"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-llm-costs"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-audit-trail"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-delegation"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-plan-cache"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-hooks"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-builder-tabs-full-5"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-timeline"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-kpis",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-builder-timeline-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-llm-costs"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-chart",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "period-selector",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "period-30d"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-builder-costs-30d"
+    },
+    {
+      "kind": "click",
+      "testid": "period-365d"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-builder-costs-365d"
+    },
+    {
+      "kind": "click",
+      "testid": "period-90d"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "period-14d"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "period-7d"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-costs-kpis",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-costs-legend",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-builder-costs-7d-data"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-audit-trail"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-purpose",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-stats",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-trail-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-builder-audit-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-delegation"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delegation-tree",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-builder-delegation"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delegation-task-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "delegation-task-select",
+      "index": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delegation-root",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delegation-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-builder-delegation-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-plan-cache"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-stats",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "empty-state-plan-cache",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-builder-plan-cache-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-hooks",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-builder-active-hooks-empty (the seed declares no lifecycle hook)"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-back-operator"
+    }
+  ]
+}

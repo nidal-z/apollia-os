@@ -1,0 +1,247 @@
+{
+  "name": "dashboard-det (dashboard page, operator + builder, deterministic against the seed)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-dashboard-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-page"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-cta-projects"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-cta-new-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-bento",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-dashboard-bento"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-recent-see-all"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-activity-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-dashboard-activity"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-projects-see-all"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-dashboard-agents-pending-best-effort"
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-cta-projects",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-cta-projects-nav"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-pinned-projects",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-project-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-dashboard-projects-populated"
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-projects-see-all"
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-cta-new-chat",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-cta-new-chat-nav"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-recent-see-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-recent-see-all-nav"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-dashboard-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-bento",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-activity-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-project-",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-dashboard-builder-agent-tech-best-effort"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-back-operator"
+    }
+  ]
+}

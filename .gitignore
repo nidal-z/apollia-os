@@ -114,12 +114,6 @@ demo/
 # and an OS version.
 /scripts/model-eval/
 
-# Dev-only gestural automaton for the desktop app: 37 driving scripts, its
-# runner, and the screenshot production tooling. Method tooling, not something
-# a reader needs in order to build or use Apollia. Its seeded fixture was not
-# method tooling and now lives with the suite that consumes it, under
-# `tests/cli/seed/`.
-/scripts/automation/
 # The guard that joined the shooting script to the pages it names. It has no
 # input left once the shooting script is out of the tree.
 /scripts/check_screenshot_script.py
@@ -152,10 +146,6 @@ demo/
 # executables have no place in a repository that is built from source.
 /crates/apollia-desktop/runners/*
 !/crates/apollia-desktop/runners/README.txt
-
-# Local SonarQube scan configuration (points at a localhost server, not part
-# of the public release surface).
-/sonar-project.properties
 
 # Working documents for in-flight engineering programs, never committed.
 # Working notes kept at the repository root: R&D programmes and pre-release test

@@ -1,0 +1,98 @@
+{
+  "name": "coach-llm",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-coach-ready"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Comment cr\u00e9er un agent ?"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-coach-asking"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "coach_answer"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-coach-answer"
+    }
+  ]
+}

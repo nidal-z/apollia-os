@@ -1,0 +1,495 @@
+{
+  "name": "nav-det (app chrome: sidebar nav + topbar + user menu + command palette, operator + builder, builder-cluster gating asserted)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against components/app/{Sidebar,Topbar,UserMenu}.svelte + ui/command/{Command,CommandItem}.svelte + keyboard/globalShortcuts.ts.",
+    "Builder cluster (nav-llm, nav-transcriptions, sidebar-builder-separator, sidebar-builder-cluster-label) renders only when uiMode === 'builder' (Sidebar.svelte {#if isBuilder}). In operator mode it is asserted ABSENT via waitGone.",
+    "Command palette items carry interpolated ids `command-item-{action-id}` (CommandItem.svelte); the old exact `command-item` no longer exists, so a generic item is matched via testidPrefix.",
+    "topbar-search click dispatches Cmd+K, which globalShortcuts.ts TOGGLES; a second click closes the palette.",
+    "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
+    "topbar-agents-at-work renders only when running tasks > 0 (data-dependent) and topbar-sidebar-toggle only when sidebarState === 'drawer' (mobile viewport). Both are observed by screenshot only, never hard-asserted."
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar"
+    },
+    {
+      "kind": "expect",
+      "testid": "topbar"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-sidebar-operator"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-automations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-nav-primary-secondary-walked"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-llm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-builder-separator",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-operator-no-builder-cluster"
+    },
+    {
+      "kind": "expect",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "command-item",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-command-palette-open"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-command-palette-closed"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-topbar-right-cluster"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-topbar-inbox"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-topbar-settings"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-user-menu"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-user-menu-content",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "user-menu-settings"
+    },
+    {
+      "kind": "expect",
+      "testid": "user-menu-shortcuts"
+    },
+    {
+      "kind": "expect",
+      "testid": "user-menu-reset-onboarding"
+    },
+    {
+      "kind": "expect",
+      "testid": "user-menu-about"
+    },
+    {
+      "kind": "expect",
+      "testid": "user-menu-quit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-user-menu-open"
+    },
+    {
+      "kind": "click",
+      "testid": "user-menu-about"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-user-menu-about"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-user-menu"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-user-menu-content",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "user-menu-shortcuts"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-user-menu-shortcuts"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-builder-separator",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-llm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-sidebar-builder-cluster"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-nav-llm-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-nav-transcriptions-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-nav-settings-builder"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-builder-separator",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-back-operator"
+    }
+  ]
+}

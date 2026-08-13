@@ -1,0 +1,195 @@
+{
+  "name": "hitl-critical",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Ecris le texte \"couverture\" dans le fichier tmp/hitl-refuse.txt."
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-card-"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-approval-open-inbox"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-critical-approval-card"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-always-toggle-"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-scope-menu-",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-session-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-agent-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-project-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-scope-global-"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-approval-scope-menu"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-refuse-"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-reject-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-approval-reject-dialog"
+    },
+    {
+      "kind": "fill",
+      "testid": "inbox-reject-reason",
+      "text": "Refused during the automation coverage run."
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-reject-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-critical-refused"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Ecris \"salut\" dans un fichier tmp/demo.txt."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 90000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "approval-card-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-accept-",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-refuse-",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-always-toggle-",
+      "nth": 0
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-file-write-approval"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-accept-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-file-write-accepted"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-hitl-complete"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "name": "chat-sanity (create a conversation, one turn via awaitTurn)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Combien font 17 x 23 ?"
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-quickpicker-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "01-math"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "math"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-answer"
+    }
+  ]
+}

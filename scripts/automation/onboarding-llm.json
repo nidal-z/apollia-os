@@ -1,0 +1,205 @@
+{
+  "name": "onboarding-llm",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-welcome-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-card-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-onb-ai-setup"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-skip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-step",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-bootstrap",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-onb-bootstrap"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-onb-bootstrap-streaming"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-banner",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-chat-phase"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-onb-chat-phase-calibration"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "bootstrap_reply"
+    },
+    {
+      "kind": "sendChat",
+      "text": "My name is Nidal and I'm a software engineer."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-onb-tier1-name-during"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "tier1_name"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-onb-pips-after-name"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Approve only critical actions."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "tier1_hitl"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-onb-pips-after-hitl"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Everything must stay on my machine, local only."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "tier1_sovereignty"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-onb-pips-after-sovereignty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-finish-early",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-onb-finish-early"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-finish-early"
+    },
+    {
+      "kind": "sleep",
+      "ms": 1200
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-onb-finalization-best-effort"
+    }
+  ]
+}

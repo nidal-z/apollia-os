@@ -1,0 +1,183 @@
+{
+  "name": "onboarding-full",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-onb-welcome"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-lang-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-lang-en"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-onb-lang-en"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-lang-fr"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-onb-lang-fr"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-skip"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-welcome-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-card-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-card-builder"
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-both"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-onb-profile-selector"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-onb-back-welcome"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-welcome-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-card-operator"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-section",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "expect",
+      "testid": "stt-section"
+    },
+    {
+      "kind": "expect",
+      "testid": "stt-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-onb-ai-setup"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-onb-ai-setup-back"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-card-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-onb-ai-setup-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-skip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-step",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-onb-chat-no-llm"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-skip-optional"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip-optional"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-onb-skip-optional"
+    }
+  ],
+  "notes": [
+    "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which drops only the remaining optional questions and still routes to the permissions phase. Abandoning there would skip permissions entirely, so the button is deliberately not the same one.",
+    "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase."
+  ]
+}
