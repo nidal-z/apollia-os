@@ -29,6 +29,7 @@ function rule(partial: Partial<PermissionRuleDto>): PermissionRuleDto {
     action: "allow",
     scope: "global",
     project_path: null,
+    agent_id: null,
     expires_at: null,
     created_at: "2026-04-20T10:00:00Z",
     created_by: null,
