@@ -232,7 +232,7 @@ Three deliberate exceptions:
 |---|---|---|
 | `crates/apollia-desktop/tauri.conf.json` | `0.1.0-1` | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `0.1.0-1` to the MSI product version `0.1.0.1`; the About screen still reads the pre-release suffix and shows the Preview channel. |
 | `sdk/apollia/cli/scaffold.py`, README examples | `0.1.0` | Templates for agents the user writes. A freshly scaffolded agent starts its own life at `0.1.0`; it is not an Apollia component. |
-| `agents/yumni-classification/` | its own | Client deliverable with its own release cycle. |
+| A client deliverable under its own out-of-tree directory | its own | Not an Apollia component. It ships on the client's cycle, not on the product's. |
 
 The Python SDK is a fourth, softer case: PEP 440 normalises `0.1.0-preview` to
 `0.1.0rc0` in the built distribution metadata, so `pip show apollia-sdk` reports
