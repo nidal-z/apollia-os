@@ -949,19 +949,6 @@ export interface AgentMessage {
 
 // ─── User Profile ───────────────────────────────────────────────────
 
-/** Canonical schema field exposed by get_profile_schema. */
-export interface ProfileFieldView {
-  key: string;
-  label_fr: string;
-  label_en: string;
-  help_fr: string;
-  help_en: string;
-  section: "identity" | "work" | "preferences" | "constraints";
-  sensitive: boolean;
-  field_type: "text" | "long_text" | "select";
-  options: string[];
-}
-
 /** A single profile entry returned by get_profile. */
 export interface ProfileEntryView {
   key: string;

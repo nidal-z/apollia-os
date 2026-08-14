@@ -156,7 +156,7 @@ pub struct OauthCompletedAccount {
     pub granted_scopes: Vec<String>,
 }
 
-/// Account metadata returned by `oauth_list_accounts`.
+/// Account metadata returned by `oauth_get_status`.
 #[derive(Debug, Clone, Serialize)]
 pub struct OauthAccountInfo {
     /// Provider id.
@@ -368,26 +368,6 @@ pub async fn oauth_complete_flow(
         account_id: account_id.0,
         granted_scopes: token.scopes,
     })
-}
-
-/// List the connected accounts for `provider`.
-#[tauri::command]
-pub async fn oauth_list_accounts(
-    provider: String,
-) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-    let manager = auth_manager().await?;
-    let accounts = manager
-        .list_accounts(provider_id)
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-    Ok(accounts
-        .into_iter()
-        .map(|a| OauthAccountInfo {
-            provider: provider_id.id().to_owned(),
-            account_id: a.0,
-        })
-        .collect())
 }
 
 /// Revoke (forget) the token for `(provider, account_id)`.
@@ -766,146 +746,6 @@ pub async fn oauth_list_drive_folders() -> Result<Vec<DriveFolderStatus>, Integr
         });
     }
     Ok(out)
-}
-
-/// Session payload returned to the renderer so the Picker JS can boot.
-/// All fields are required for `gapi.client.init` + `google.picker.PickerBuilder`.
-#[derive(Debug, Clone, Serialize)]
-pub struct GoogleDrivePickerSession {
-    /// Fresh OAuth access token (refreshed via AuthManager if needed).
-    pub access_token: String,
-    /// Google Cloud project number, used as the Picker `appId`.
-    /// Extracted from the OAuth client id (`<project>-<hash>.apps.googleusercontent.com`).
-    pub app_id: String,
-    /// Public Google API key with Picker + Drive APIs enabled.
-    pub api_key: String,
-    /// Google account id the session targets (typically the user's email).
-    pub account_id: String,
-}
-
-/// One picked folder as exposed to the frontend / agents.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PickedFolderView {
-    pub id: String,
-    pub name: String,
-    pub mime_type: String,
-}
-
-/// Prepare a Google Drive Picker session for the connected Google
-/// account. Resolves the access token (refreshing on demand), the API
-/// key (env / file / build-time chain), and the project number derived
-/// from the OAuth client id. The renderer uses these values to boot
-/// the Picker JS widget.
-///
-/// `account_id` may be omitted; when `None`, the first connected
-/// Google account is used.
-#[tauri::command]
-pub async fn oauth_google_picker_session(
-    account_id: Option<String>,
-) -> Result<GoogleDrivePickerSession, IntegrationsError> {
-    let manager = auth_manager().await?;
-    let resolved_account = match account_id {
-        Some(id) if !id.trim().is_empty() => AccountId::new(id),
-        _ => {
-            let accounts = manager
-                .list_accounts(ConnectorProvider::Google)
-                .await
-                .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-            accounts.into_iter().next().ok_or_else(|| {
-                IntegrationsError::Auth("no Google account connected - sign in first".into())
-            })?
-        }
-    };
-
-    let api_key = ConnectorProvider::Google.resolve_api_key().ok_or_else(|| {
-        IntegrationsError::Auth(
-            "Google API key missing - set it in Settings → Integrations → Expert Mode \
-             (Google Cloud → Credentials → API keys, restricted to Picker + Drive APIs)"
-                .into(),
-        )
-    })?;
-    // The picker session resolves a token, which may trigger a refresh; a
-    // refresh posts to the same token endpoint as the initial exchange and
-    // needs the same credentials.
-    ensure_credentials(ConnectorProvider::Google)?;
-    let client_id = ConnectorProvider::Google
-        .resolve_client_id()
-        .ok_or_else(|| IntegrationsError::OauthClientNotConfigured("google".into()))?;
-    let app_id = client_id.split('-').next().unwrap_or("").to_string();
-    if app_id.is_empty() {
-        return Err(IntegrationsError::Auth(
-            "could not derive project number from client_id".into(),
-        ));
-    }
-
-    // Resolve a valid token (singleflight refresh inside AuthManager).
-    let provider_config = apollia_auth::build_google_provider(&[]);
-    let token = manager
-        .get_valid_token(
-            ConnectorProvider::Google,
-            &resolved_account,
-            &provider_config,
-        )
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-
-    Ok(GoogleDrivePickerSession {
-        access_token: token.access_token,
-        app_id,
-        api_key,
-        account_id: resolved_account.0,
-    })
-}
-
-/// List the folders the user has already picked for a Google account.
-#[tauri::command]
-pub async fn oauth_list_picked_drive_folders(
-    account_id: String,
-) -> Result<Vec<PickedFolderView>, IntegrationsError> {
-    let folders = apollia_auth::drive_prefs::list_picked_folders("google", account_id.trim());
-    Ok(folders
-        .into_iter()
-        .map(|f| PickedFolderView {
-            id: f.id,
-            name: f.name,
-            mime_type: f.mime_type,
-        })
-        .collect())
-}
-
-/// Append a folder to the user's picker-grant list. Idempotent: same id
-/// twice just refreshes the cached name.
-#[tauri::command]
-pub async fn oauth_add_picked_drive_folder(
-    account_id: String,
-    folder_id: String,
-    folder_name: String,
-    mime_type: Option<String>,
-) -> Result<(), IntegrationsError> {
-    let folder = apollia_auth::drive_prefs::PickedFolder {
-        id: folder_id.trim().to_string(),
-        name: folder_name.trim().to_string(),
-        mime_type: mime_type
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| "application/vnd.google-apps.folder".to_string()),
-    };
-    apollia_auth::drive_prefs::add_picked_folder("google", account_id.trim(), folder)
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
-}
-
-/// Remove a folder from the picker-grant list. No-op when not present.
-/// Doesn't revoke Apollia's actual `drive.file` access at Google (the
-/// user does that via drive.google.com/drive/u/0/apps); we only stop
-/// listing the folder to agents.
-#[tauri::command]
-pub async fn oauth_remove_picked_drive_folder(
-    account_id: String,
-    folder_id: String,
-) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::remove_picked_folder("google", account_id.trim(), folder_id.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
 }
 
 /// Persist the Drive folder path for one Google account.

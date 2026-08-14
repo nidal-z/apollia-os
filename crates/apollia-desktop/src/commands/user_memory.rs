@@ -1,7 +1,6 @@
 //! Tauri IPC commands for the user profile and conversation statistics.
 //!
 //! Surface:
-//! - [`get_profile_schema`]: the canonical `PROFILE_SCHEMA` for UI rendering.
 //! - [`get_profile`]: schema entries + extras for the Settings → Profile page.
 //! - [`set_profile_entry`]: upsert (always `WrittenBy::User`).
 //! - [`delete_profile_entry`]: remove a single entry by key.
@@ -10,7 +9,6 @@
 
 use std::sync::Arc;
 
-use apollia_memory::profile_schema::{ProfileFieldType, PROFILE_SCHEMA};
 use apollia_memory::user_memory::{ProfileEntry, UserMemoryRepository, WrittenBy};
 use apollia_runtime::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
 use apollia_runtime::embedded::RuntimeHandle;
@@ -20,29 +18,6 @@ use tauri::State;
 // ---------------------------------------------------------------------------
 // View types serialised to the Svelte frontend
 // ---------------------------------------------------------------------------
-
-/// A canonical schema field exposed to the UI.
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileFieldView {
-    /// Storage key (`name`, `agents.hitl`, ...).
-    pub key: String,
-    /// French label.
-    pub label_fr: String,
-    /// English label.
-    pub label_en: String,
-    /// French inline help.
-    pub help_fr: String,
-    /// English inline help.
-    pub help_en: String,
-    /// UI section (`identity`, `work`, `preferences`, `constraints`).
-    pub section: String,
-    /// `true` for fields whose change warrants a "rerun onboarding" notice.
-    pub sensitive: bool,
-    /// Input control to render (`text`, `long_text`, `select`).
-    pub field_type: String,
-    /// Allowed values for `select` fields; empty otherwise.
-    pub options: Vec<String>,
-}
 
 /// A single profile entry formatted for the frontend.
 #[derive(Debug, Clone, Serialize)]
@@ -57,7 +32,8 @@ pub struct ProfileEntryView {
     pub created_at: String,
     /// ISO 8601 last-update timestamp.
     pub updated_at: String,
-    /// `true` when the key matches a canonical [`PROFILE_SCHEMA`] entry.
+    /// `true` when the key matches a canonical
+    /// [`apollia_memory::profile_schema::PROFILE_SCHEMA`] entry.
     pub in_schema: bool,
 }
 
@@ -128,14 +104,6 @@ fn profile_entry_to_view(entry: &ProfileEntry) -> ProfileEntryView {
     }
 }
 
-fn field_type_tag(t: ProfileFieldType) -> &'static str {
-    match t {
-        ProfileFieldType::Text => "text",
-        ProfileFieldType::LongText => "long_text",
-        ProfileFieldType::Select => "select",
-    }
-}
-
 fn count_cross_session_refs(system_prompt: &str) -> usize {
     let marker = "## Previous conversations (for reference)";
     if !system_prompt.contains(marker) {
@@ -147,26 +115,6 @@ fn count_cross_session_refs(system_prompt: &str) -> usize {
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
-
-/// Returns the canonical profile schema declared in
-/// [`apollia_memory::profile_schema::PROFILE_SCHEMA`].
-#[tauri::command]
-pub async fn get_profile_schema() -> Result<Vec<ProfileFieldView>, String> {
-    Ok(PROFILE_SCHEMA
-        .iter()
-        .map(|f| ProfileFieldView {
-            key: f.key.to_owned(),
-            label_fr: f.label_fr.to_owned(),
-            label_en: f.label_en.to_owned(),
-            help_fr: f.help_fr.to_owned(),
-            help_en: f.help_en.to_owned(),
-            section: f.section.tag().to_owned(),
-            sensitive: f.sensitive,
-            field_type: field_type_tag(f.field_type).to_owned(),
-            options: f.options.iter().map(|s| (*s).to_owned()).collect(),
-        })
-        .collect())
-}
 
 /// Returns the user profile (schema entries + extras) for the
 /// Settings → Profile page.
@@ -337,13 +285,6 @@ mod tests {
     #[test]
     fn cross_session_refs_without_marker() {
         assert_eq!(count_cross_session_refs("Hi"), 0);
-    }
-
-    #[test]
-    fn field_type_tag_maps_correctly() {
-        assert_eq!(field_type_tag(ProfileFieldType::Text), "text");
-        assert_eq!(field_type_tag(ProfileFieldType::LongText), "long_text");
-        assert_eq!(field_type_tag(ProfileFieldType::Select), "select");
     }
 
     #[test]

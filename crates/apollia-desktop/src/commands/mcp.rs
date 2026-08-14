@@ -4,9 +4,7 @@
 //! servers, and directly to [`McpRegistryClient`] and [`SecretStore`] for
 //! registry discovery and secret management.
 
-use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpServerConfig;
-use apollia_mcp::discovery;
 use apollia_mcp::manager::{
     McpConnectionTestResult, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
 };
@@ -24,32 +22,6 @@ use crate::mcp::registry_client::{
 use crate::mcp::secret_store::SecretStore;
 
 use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, http_put_json};
-
-/// Apply enrichment `remote_headers` as fallback on remotes that have no headers.
-///
-/// Publisher registry data is preferred (primary source); this fallback is only
-/// activated when the registry entry omits the `headers` field for a remote that
-/// the enrichment knows about. Keeps curated connectors installable even when the
-/// registry is incomplete, without preventing future registry-sourced improvements.
-fn apply_remote_header_fallback(remotes: &mut [RegistryRemote], enrichment: &ConnectorEnrichment) {
-    if enrichment.remote_headers.is_empty() {
-        return;
-    }
-    for remote in remotes.iter_mut() {
-        if remote.headers.is_empty() {
-            remote.headers = enrichment
-                .remote_headers
-                .iter()
-                .map(|h| RegistryRemoteHeader {
-                    name: h.name.clone(),
-                    description: h.description.clone(),
-                    is_required: h.is_required,
-                    is_secret: h.is_secret,
-                })
-                .collect();
-        }
-    }
-}
 
 /// Infer a category from a server's name and description using keyword matching.
 ///
@@ -979,93 +951,6 @@ pub async fn fetch_mcp_curated(
     Ok(result)
 }
 
-/// Fetch fresh detail for a single MCP server directly from the registry.
-///
-/// Used by the wizard when the server's remote auth headers are absent from
-/// the bulk-cached catalogue. Skips the local cache so the result is always
-/// current - auth requirements are defined by the publisher, not by Apollia.
-#[tauri::command]
-pub async fn refresh_mcp_server_detail(
-    registry: State<'_, McpRegistryClient>,
-    state: State<'_, RuntimeHandle>,
-    server_name: String,
-) -> Result<Option<RegistryServerView>, String> {
-    let raw = registry
-        .fetch_server_by_name(&server_name)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let Some(raw_server) = raw else {
-        return Ok(None);
-    };
-
-    let enrichments = load_builtin_enrichments();
-    let enrichment_by_pkg: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
-        enrichments
-            .iter()
-            .map(|e| (e.package_identifier.as_str(), e))
-            .collect();
-    let enrichment_by_name: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
-        enrichments
-            .iter()
-            .flat_map(|e| e.registry_names.iter().map(move |name| (name.as_str(), e)))
-            .collect();
-
-    let installed_names: std::collections::HashSet<String> =
-        match http_get_json(state.api_port, "/api/v1/mcp/servers").await {
-            Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|s| s.name)
-                .collect(),
-            Err(_) => std::collections::HashSet::new(),
-        };
-
-    let mut view = RegistryServerView::from(raw_server);
-
-    let matched = enrichment_by_name
-        .get(view.name.as_str())
-        .copied()
-        .or_else(|| {
-            view.packages.as_ref().and_then(|pkgs| {
-                pkgs.iter()
-                    .find_map(|pkg| enrichment_by_pkg.get(pkg.identifier.as_str()).copied())
-            })
-        });
-
-    if let Some(enrichment) = matched {
-        view.trust_level = trust_level_str(&enrichment.trust_level);
-        view.category = Some(enrichment.category.clone());
-        view.enrichment = Some(ConnectorEnrichmentView {
-            operator_label: enrichment
-                .operator_label
-                .get("en")
-                .cloned()
-                .unwrap_or_default(),
-            category: enrichment.category.clone(),
-            icon_name: enrichment.icon_name.clone(),
-            trust_level: enrichment.trust_level.clone(),
-            auth_help_url: enrichment.auth_help_url.clone(),
-            auth_help_text: enrichment
-                .auth_help_text
-                .as_ref()
-                .and_then(|m| m.get("en").cloned()),
-            auth_help_i18n_key: enrichment.auth_help_i18n_key.clone(),
-            default_requires_approval: enrichment.default_requires_approval,
-            oauth_pre_registered_client_id_env: enrichment
-                .oauth_pre_registered_client_id_env
-                .clone(),
-        });
-        apply_remote_header_fallback(&mut view.remotes, enrichment);
-    }
-
-    if installed_names.contains(&view.name) {
-        view.is_installed = true;
-    }
-
-    Ok(Some(view))
-}
-
 /// Store a secret in the OS keychain for an MCP server environment variable.
 ///
 /// The secret is stored under the composite key `"{server_name}:{env_var}"`.
@@ -1108,93 +993,6 @@ pub async fn delete_mcp_secret(
 ) -> Result<(), String> {
     let key = SecretStore::key_for(&server_name, &env_var);
     secret_store.delete(&key).map_err(|e| e.to_string())
-}
-
-/// Default path of the MCP approvals SQLite file.
-fn mcp_approvals_db_path() -> Result<std::path::PathBuf, String> {
-    let home = apollia_core::paths::home_string_or_err()
-        .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
-    Ok(std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("mcp_approvals.db"))
-}
-
-/// Discover MCP servers available on the local network via mDNS.
-///
-/// Runs a 3-second scan for `_apollia-mcp._tcp.local.`.
-/// Returns a list of discovered servers with their name, addresses, port, and tools.
-#[tauri::command]
-pub async fn discover_mcp_servers() -> Result<Vec<serde_json::Value>, String> {
-    let discovered = discovery::discover_mcp_servers()
-        .await
-        .map_err(|e| format!("mDNS discovery failed: {e}"))?;
-
-    Ok(discovered
-        .into_iter()
-        .map(|s| {
-            serde_json::json!({
-                "name": s.name,
-                "addresses": s.addresses,
-                "port": s.port,
-                "tools": s.tools,
-            })
-        })
-        .collect())
-}
-
-/// List pending MCP tool approvals.
-///
-/// Reads from `~/.apollia/mcp_approvals.db` and returns the entries awaiting
-/// a human decision.
-#[tauri::command]
-pub async fn list_mcp_tool_pending_approvals() -> Result<Vec<serde_json::Value>, String> {
-    let db_path = mcp_approvals_db_path()?;
-
-    if !db_path.exists() {
-        return Ok(vec![]);
-    }
-
-    let store = McpApprovalStore::open(&db_path, 0)
-        .map_err(|e| format!("failed to open approvals store: {e}"))?;
-
-    let pending = store
-        .list_pending()
-        .map_err(|e| format!("failed to list pending approvals: {e}"))?;
-
-    Ok(pending
-        .into_iter()
-        .map(|entry| {
-            serde_json::json!({
-                "id": entry.id,
-                "server_name": entry.server_name,
-                "tool_name": entry.tool_name,
-                "requested_at": entry.requested_at,
-                "status": entry.status,
-            })
-        })
-        .collect())
-}
-
-/// Revoke an MCP approval for a specific server and tool.
-///
-/// Removes the approval from `~/.apollia/mcp_approvals.db`.
-/// Returns `true` if an entry was removed, `false` if no matching entry existed.
-#[tauri::command]
-pub async fn revoke_mcp_tool_approval(server: String, tool: String) -> Result<bool, String> {
-    let db_path = mcp_approvals_db_path()?;
-
-    if !db_path.exists() {
-        return Ok(false);
-    }
-
-    let store = McpApprovalStore::open(&db_path, 0)
-        .map_err(|e| format!("failed to open approvals store: {e}"))?;
-
-    store
-        .revoke(&server, &tool)
-        .map_err(|e| format!("failed to revoke approval: {e}"))?;
-
-    Ok(true)
 }
 
 // ─── MCP HTTP OAuth IPC ──────────────────────────────────────────────────────
@@ -1366,16 +1164,6 @@ pub fn mcp_oauth_store_client_id(env_var: String, value: String) -> Result<(), S
         .map_err(|e| format!("keychain write failed: {e}"))
 }
 
-/// Remove a persisted OAuth client id (Settings panel "reset" button).
-#[tauri::command]
-pub fn mcp_oauth_clear_client_id(env_var: String) -> Result<(), String> {
-    let store = apollia_auth::select_secret_store()
-        .map_err(|e| format!("secret store unavailable: {e}"))?;
-    store
-        .delete(MCP_CLIENT_ID_SERVICE, &env_var)
-        .map_err(|e| format!("keychain delete failed: {e}"))
-}
-
 fn load_stored_client_id(env_var: &str) -> Option<String> {
     let store = apollia_auth::select_secret_store().ok()?;
     store.get(MCP_CLIENT_ID_SERVICE, env_var).ok().flatten()
@@ -1545,37 +1333,5 @@ mod tests {
         let key = SecretStore::key_for("slack", "SLACK_BOT_TOKEN");
         // THEN the key follows the "{server}:{env_var}" convention
         assert_eq!(key, "slack:SLACK_BOT_TOKEN");
-    }
-
-    // ── discover_mcp_servers produces correct JSON shape ─────────────────────
-
-    #[test]
-    fn test_discovered_server_json_shape() {
-        // GIVEN a discovered server mapped to JSON (as done inside discover_mcp_servers)
-        let server_json = serde_json::json!({
-            "name": "my-mcp-server._apollia-mcp._tcp.local",
-            "addresses": ["192.168.1.42"],
-            "port": 8765,
-            "tools": ["search", "query"],
-        });
-
-        // WHEN the fields are accessed
-        // THEN they match the expected shape
-        assert_eq!(server_json["port"], 8765);
-        assert!(server_json["addresses"].is_array());
-        assert!(server_json["tools"].is_array());
-    }
-
-    // ── revoke_mcp_tool_approval returns false when db absent ─────────────────
-
-    #[test]
-    fn test_mcp_approvals_db_path_contains_apollia() {
-        // GIVEN/WHEN the default DB path is computed
-        let result = mcp_approvals_db_path();
-
-        // THEN it resolves to a path under .apollia
-        assert!(result.is_ok());
-        let path = result.expect("path");
-        assert!(path.to_str().expect("utf8").contains(".apollia"));
     }
 }

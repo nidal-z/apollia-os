@@ -5,7 +5,6 @@
 //! - [`get_hf_model`]: full metadata for a HuggingFace model
 //! - [`start_model_download`]: downloads a GGUF file
 //! - [`cancel_model_download`]: cancels an in-progress download
-//! - [`list_model_downloads`]: lists active downloads
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -218,14 +217,6 @@ pub async fn cancel_model_download(
         .await
         .cancel(&download_id)
         .map_err(|e| format!("cancel failed: {e}"))
-}
-
-/// Returns the list of active download IDs.
-#[tauri::command]
-pub async fn list_model_downloads(
-    manager: State<'_, SharedDownloadManager>,
-) -> Result<Vec<String>, String> {
-    Ok(manager.lock().await.active_ids())
 }
 
 // ─────────────────────────────────────────────

@@ -204,24 +204,6 @@ pub async fn list_artifacts(session_id: String) -> Result<Vec<Artifact>, String>
     })
 }
 
-/// Load a single artifact by id.
-#[tauri::command]
-pub async fn get_artifact(id: String) -> Result<Option<Artifact>, String> {
-    with_conn(|conn| {
-        let mut stmt = conn
-            .prepare(&format!(
-                "SELECT {SELECT_COLS} FROM chat_artifacts WHERE id = ?1"
-            ))
-            .map_err(|e| format!("get_artifact prepare: {e}"))?;
-
-        match stmt.query_row(params![id], row_to_artifact) {
-            Ok(a) => Ok(Some(a)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(format!("get_artifact query: {e}")),
-        }
-    })
-}
-
 /// Update the content and/or title of an artifact.
 #[tauri::command]
 pub async fn update_artifact(

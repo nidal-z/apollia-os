@@ -58,13 +58,6 @@ pub struct FireResult {
     pub task_id: String,
 }
 
-/// Result of reloading the configuration.
-#[derive(Debug, Serialize)]
-pub struct ReloadResult {
-    /// Number of active triggers after the reload.
-    pub reloaded: u64,
-}
-
 /// Lists all configured triggers with their status.
 ///
 /// Delegates to `GET /api/v1/triggers` on the internal REST API.
@@ -208,19 +201,6 @@ pub async fn get_trigger_logs(
         .collect();
 
     Ok(result)
-}
-
-/// Reloads the trigger configuration from apollia.toml.
-///
-/// Delegates to `POST /api/v1/triggers/reload`.
-#[tauri::command]
-pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadResult, String> {
-    let body = serde_json::json!({});
-    let json = http_post_json(state.api_port, "/api/v1/triggers/reload", &body).await?;
-
-    let reloaded = json.get("reloaded").and_then(|v| v.as_u64()).unwrap_or(0);
-
-    Ok(ReloadResult { reloaded })
 }
 
 // ─── CRUD types & commands ──────────────────────────────────────────────────
@@ -592,18 +572,6 @@ mod tests {
 
         // THEN task_id is present
         assert_eq!(json["task_id"], "task-abc");
-    }
-
-    #[test]
-    fn test_reload_result_serializes() {
-        // GIVEN a ReloadResult
-        let result = ReloadResult { reloaded: 5 };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&result).expect("serialize");
-
-        // THEN reloaded count is correct
-        assert_eq!(json["reloaded"], 5);
     }
 
     #[test]
