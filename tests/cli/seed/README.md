@@ -1,9 +1,11 @@
 # Seed fixture for the CLI end-to-end suite
 
 A deterministic, isolated Apollia data profile built from scratch, so the suite
-asserts known content instead of empty states. The real `~/.apollia` profile is
-never touched: everything runs under a throwaway `HOME` whose `.apollia` is
-fully seeded.
+asserts known content instead of empty states. The suites run under a throwaway
+`HOME` whose `.apollia` is fully seeded, and never write to the real
+`~/.apollia`; the one deliberate exception is the manual path, `load.sh` and
+`unload.sh`, which installs the seed into the real profile for a hands-on
+session and backs the previous profile up at `~/.apollia.before-seed`.
 
 ## Run it
 

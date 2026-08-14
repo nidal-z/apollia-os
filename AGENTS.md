@@ -58,8 +58,10 @@ bash tests/cli/cli-e2e.sh
 ```
 
 The CLI end-to-end suite runs against a deterministically seeded, throwaway
-`HOME` built by `tests/cli/seed/build-seed.sh`, so a run never touches
-the real `~/.apollia`. Track 1 is offline and always runs; Tracks 2 and 3 are
+`HOME` built by `tests/cli/seed/build-seed.sh`, so a run never writes to
+the real `~/.apollia`; when `APOLLIA_TEST_MODEL_GGUF` is unset, Track 3 reads
+one file from it (the default model GGUF), read-only. Track 1 is offline and
+always runs; Tracks 2 and 3 are
 gated by `APOLLIA_REQUIRE_RUNTIME` and `APOLLIA_TEST_MODEL_GGUF`. Read
 `tests/cli/README.md` before changing a track or the fixture: the suite asserts
 the seed's exact row counts, so a fixture change is a suite change.
@@ -87,10 +89,11 @@ Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
    between actors.
 6. **Memory at agent initiative** : never inject memory context into an agent's
-   prompt. Two exceptions, both inside the built-in conversational assistant and
-   unreachable from an agent execution path: a user-persona brief at the
-   `long_autonomous` tier, and past session summaries on the first message of a
-   free chat. See `docs/site/docs/explanation/the-8-principles.md`.
+   prompt. Three exceptions, all unreachable from an agent execution path: two
+   inside the built-in conversational assistant (a user-persona brief at the
+   `long_autonomous` tier, past session summaries on the first message of a
+   free chat), and one in the desktop prompt-rewrite command (the user profile
+   work context). See `docs/site/docs/explanation/the-8-principles.md`.
 7. **Non-negotiable safeguards** : `StepBudget` enforced by the runtime, never
    bypassable.
 8. **Human CLI, machine API** : `--json` global, TTY auto-detected.
