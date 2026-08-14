@@ -78,6 +78,17 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
+    accepted_cron_schedule(schedule).map(|_| ())
+}
+
+/// Returns the schedule in the form `cron::Schedule::from_str` accepts verbatim.
+///
+/// An already-parseable expression is returned unchanged; a 5-field expression
+/// is normalized by prepending the seconds field. Rejecting instead of
+/// returning is what [`validate_cron`] used to do with the normalized string,
+/// and the runtime reader (`sources/cron.rs`) then failed on the stored
+/// 5-field original: the validator accepted a value the reader refused.
+fn accepted_cron_schedule(schedule: &str) -> Result<String, TriggerDefinitionError> {
     if schedule.is_empty() {
         return Err(TriggerDefinitionError::ValidationError(
             "cron schedule is required".to_string(),
@@ -85,7 +96,7 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
     }
 
     if cron::Schedule::from_str(schedule).is_ok() {
-        return Ok(());
+        return Ok(schedule.to_string());
     }
 
     // Normalize 5 to 6 fields (prepend the seconds field).
@@ -93,7 +104,7 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
     if field_count == 5 {
         let normalized = format!("0 {schedule}");
         if cron::Schedule::from_str(&normalized).is_ok() {
-            return Ok(());
+            return Ok(normalized);
         }
     }
 
@@ -105,6 +116,33 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
     Err(TriggerDefinitionError::ValidationError(format!(
         "invalid cron expression: {reason}"
     )))
+}
+
+/// Returns `source_config` in the form the runtime readers accept verbatim.
+///
+/// The SQLite write path persists this value: a cron `schedule` is stored in
+/// the form `cron::Schedule::from_str` accepts, so the reader in
+/// `sources/cron.rs` never rejects what the validator accepted. Non-cron
+/// sources are returned unchanged.
+pub(crate) fn normalized_source_config(
+    source_type: &str,
+    config: &serde_json::Value,
+) -> Result<serde_json::Value, TriggerDefinitionError> {
+    if source_type != "cron" {
+        return Ok(config.clone());
+    }
+
+    let schedule = config
+        .get("schedule")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let accepted = accepted_cron_schedule(schedule)?;
+
+    let mut normalized = config.clone();
+    if let Some(obj) = normalized.as_object_mut() {
+        obj.insert("schedule".to_string(), serde_json::Value::String(accepted));
+    }
+    Ok(normalized)
 }
 
 /// Validates a periodic interval (`every` field).

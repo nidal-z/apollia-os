@@ -15,6 +15,7 @@
   import AgentLlmInfo from "./AgentLlmInfo.svelte";
   import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
   import { Card } from "$lib/components/ui/card";
+  import { canStartAgent, type RuntimeState } from "./agentDetailActions";
 
   interface Props {
     agent: AgentListItem;
@@ -24,8 +25,6 @@
   }
 
   let { agent, open, onclose, onlogs }: Props = $props();
-
-  type RuntimeState = "active" | "degraded" | "stopped" | "initializing" | "stopping";
 
   const STATUS_CONFIG: Record<
     RuntimeState,
@@ -49,7 +48,7 @@
   const config = $derived(runtimeStatus ? STATUS_CONFIG[runtimeStatus] : null);
   const isInstalled = $derived(agent.installed_at !== null);
   const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
-  const isLoaded = $derived(runtimeStatus !== null);
+  const showStart = $derived(canStartAgent(runtimeStatus, isInstalled, agent.install_path));
   const showMessagesSection = $derived(agent.supports_a2a === true && $uiMode === "builder");
   const allTools = $derived([
     ...agent.tools_required.map((t) => ({ name: t, required: true })),
@@ -138,7 +137,7 @@
             </Button>
             <Button size="sm" variant="outline" onclick={() => { confirmVisible = false; }}>{$t('common.cancel')}</Button>
           {:else}
-            {#if !isLoaded && isInstalled && agent.install_path}
+            {#if showStart}
               <Button size="sm" onclick={handleStart} disabled={startLoading} data-testid="agent-detail-start-btn" class="gap-1">
                 <Play size={12} /> {startLoading ? $t('agents.starting_agent') : $t('agents.start')}
               </Button>

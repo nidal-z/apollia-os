@@ -268,10 +268,13 @@ fn replace_unknown_vars(mut s: String) -> String {
     s
 }
 
-/// Parses an interval string in the format `"30m"`, `"1h"`, `"6h"` or `"1d"`.
+/// Parses an interval string in the format `"30s"`, `"30m"`, `"1h"`, `"6h"` or `"1d"`.
 ///
 /// Returns [`TriggerDefinitionError::InvalidInterval`] when the format is invalid.
-/// Recognized units are: `m` (minutes), `h` (hours), `d` (days).
+/// Recognized units are: `s` (seconds), `m` (minutes), `h` (hours), `d` (days).
+/// The `s` unit is part of the producer contract: the natural-language parser
+/// (`apollia-llm` `parse_automation`) emits `"Ns"` for dictated second-based
+/// intervals.
 pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
     // Handle "ms" (milliseconds) before single-char suffixes to avoid ambiguity
     if let Some(s) = value.strip_suffix("ms") {
@@ -283,7 +286,9 @@ pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
         return Ok(Duration::from_millis(n));
     }
 
-    let (num_str, multiplier) = if let Some(s) = value.strip_suffix('m') {
+    let (num_str, multiplier) = if let Some(s) = value.strip_suffix('s') {
+        (s, 1u64)
+    } else if let Some(s) = value.strip_suffix('m') {
         (s, 60u64)
     } else if let Some(s) = value.strip_suffix('h') {
         (s, 3_600u64)

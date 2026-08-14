@@ -422,8 +422,10 @@ async fn test_update_trigger() {
     let (get_status, get_resp) = http_get(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(get_status, 200);
     let source_config = &get_resp["source_config"];
+    // A 5-field expression is persisted in the 6-field form the cron reader
+    // accepts verbatim (leading seconds field).
     assert_eq!(
-        source_config["schedule"], "30 * * * *",
+        source_config["schedule"], "0 30 * * * *",
         "schedule should be updated: {get_resp}"
     );
 

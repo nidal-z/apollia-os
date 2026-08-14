@@ -4,6 +4,7 @@ import {
   estimateNextRun,
   formatNextRun,
   computeSuccessRate,
+  stripSecondsField,
 } from "./humanize";
 
 describe("humanizeSchedule - cron", () => {
@@ -67,6 +68,39 @@ describe("humanizeSchedule - cron", () => {
 
   it("falls back when the expression has fewer than 5 fields", () => {
     expect(humanizeSchedule("cron", "broken", "en").isCustom).toBe(true);
+  });
+});
+
+describe("humanizeSchedule - cron persisted with a seconds field", () => {
+  // GIVEN the 6-field form the runtime persists for scheduler presets
+  // WHEN humanized THEN the label matches the 5-field original.
+  it("recognises every 15 minutes behind a zero seconds field", () => {
+    expect(humanizeSchedule("cron", "0 */15 * * * *", "en").label).toBe("Every 15 minutes");
+    expect(humanizeSchedule("cron", "0 */15 * * * *", "fr").label).toBe("Toutes les 15 minutes");
+  });
+
+  it("recognises a daily time behind a zero seconds field", () => {
+    expect(humanizeSchedule("cron", "0 30 14 * * *", "en").label).toBe("Every day at 14:30");
+    expect(humanizeSchedule("cron", "0 30 14 * * *", "fr").label).toBe("Tous les jours à 14h30");
+  });
+
+  it("keeps a 6-field expression with non-zero seconds custom", () => {
+    expect(humanizeSchedule("cron", "30 */15 * * * *", "en").isCustom).toBe(true);
+  });
+
+  it("estimates the next run behind a zero seconds field", () => {
+    // GIVEN a daily 08:00 schedule in 6-field form and a 06:00 clock
+    const now = new Date(2026, 7, 13, 6, 0, 0);
+    // WHEN estimating THEN the next run is 08:00 the same day
+    const next = estimateNextRun("cron", "0 0 8 * * *", null, now);
+    expect(next?.getHours()).toBe(8);
+    expect(next?.getDate()).toBe(13);
+  });
+
+  it("stripSecondsField leaves 5-field and non-zero-seconds expressions untouched", () => {
+    expect(stripSecondsField("*/15 * * * *")).toBe("*/15 * * * *");
+    expect(stripSecondsField("30 */15 * * * *")).toBe("30 */15 * * * *");
+    expect(stripSecondsField("0 */15 * * * *")).toBe("*/15 * * * *");
   });
 });
 

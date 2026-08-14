@@ -261,7 +261,9 @@ impl TriggerDefinitionRepository {
     pub fn insert(&self, def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
         validation::validate_trigger(def)?;
 
-        let source_config_json = serde_json::to_string(&def.source_config).map_err(|e| {
+        let source_config =
+            validation::normalized_source_config(&def.source_type, &def.source_config)?;
+        let source_config_json = serde_json::to_string(&source_config).map_err(|e| {
             TriggerDefinitionError::ValidationError(format!("invalid source_config JSON: {e}"))
         })?;
 
@@ -303,7 +305,9 @@ impl TriggerDefinitionRepository {
     ) -> Result<(), TriggerDefinitionError> {
         validation::validate_trigger(def)?;
 
-        let source_config_json = serde_json::to_string(&def.source_config).map_err(|e| {
+        let source_config =
+            validation::normalized_source_config(&def.source_type, &def.source_config)?;
+        let source_config_json = serde_json::to_string(&source_config).map_err(|e| {
             TriggerDefinitionError::ValidationError(format!("invalid source_config JSON: {e}"))
         })?;
 
@@ -556,6 +560,60 @@ mod tests {
         assert!(
             matches!(result, Err(TriggerDefinitionError::NotFound(ref id)) if id == "trigger-2"),
             "expected NotFound on double delete, got: {result:?}"
+        );
+    }
+
+    // --- Desktop write path: 5-field cron persisted in the reader's form --
+
+    #[test]
+    fn test_insert_five_field_cron_persists_schedule_the_reader_accepts() {
+        use std::str::FromStr;
+
+        // GIVEN a 5-field scheduler-preset expression, as the desktop sends it
+        let (_dir, repo) = open_test_repo();
+        let def = make_cron_def("bureau-15m", "agent", "*/15 * * * *");
+
+        // WHEN insert then get
+        repo.insert(&def).expect("insert");
+        let got = repo.get("bureau-15m").expect("get").expect("exists");
+
+        // THEN the stored schedule parses verbatim with the runtime reader's parser
+        let stored = got
+            .source_config
+            .get("schedule")
+            .and_then(|v| v.as_str())
+            .expect("schedule present");
+        assert_eq!(stored, "0 */15 * * * *");
+        assert!(
+            cron::Schedule::from_str(stored).is_ok(),
+            "stored schedule must be accepted verbatim by Schedule::from_str: {stored:?}"
+        );
+    }
+
+    #[test]
+    fn test_update_five_field_cron_persists_schedule_the_reader_accepts() {
+        use std::str::FromStr;
+
+        // GIVEN an existing trigger with a directly parseable schedule
+        let (_dir, repo) = open_test_repo();
+        let def = make_cron_def("bureau-daily", "agent", "0 0 8 * * MON *");
+        repo.insert(&def).expect("insert");
+
+        // WHEN update with a 5-field expression, as the desktop sends it
+        let updated_def = make_cron_def("bureau-daily", "agent", "30 8 * * *");
+        repo.update("bureau-daily", &updated_def).expect("update");
+
+        // THEN the stored schedule parses verbatim with the runtime reader's parser
+        let got = repo.get("bureau-daily").expect("get").expect("exists");
+        let stored = got
+            .source_config
+            .get("schedule")
+            .and_then(|v| v.as_str())
+            .expect("schedule present");
+        assert_eq!(stored, "0 30 8 * * *");
+        assert!(
+            cron::Schedule::from_str(stored).is_ok(),
+            "stored schedule must be accepted verbatim by Schedule::from_str: {stored:?}"
         );
     }
 

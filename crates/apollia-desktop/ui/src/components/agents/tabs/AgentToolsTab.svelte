@@ -1,14 +1,16 @@
 <script lang="ts">
   /**
    * AgentToolsTab - the declared tools list. Each tool shows its scope, whether
-   * it is required or optional, and a warning badge when it is sensitive
-   * (writes, sends, or deletes) and will ask for confirmation on each call.
+   * it is required or optional, and a warning badge when the runtime asks for
+   * a human confirmation on each call (the dispatcher's HITL natives, plus
+   * external tools that send or delete).
    */
   import { t } from "svelte-i18n";
   import { Zap } from "lucide-svelte";
   import { Card } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import type { AgentListItem } from "$lib/types";
+  import { isSensitiveTool } from "../sensitiveTools";
 
   interface Props {
     agent: AgentListItem;
@@ -20,12 +22,6 @@
     ...agent.tools_required.map((id) => ({ id, required: true })),
     ...agent.tools_optional.map((id) => ({ id, required: false })),
   ]);
-
-  function isSensitive(id: string): boolean {
-    return (
-      id.startsWith("fs.write") || id.includes("send") || id.includes("delete")
-    );
-  }
 
   function scopeOf(id: string): string {
     return id.split(/[._]/)[0] || "tool";
@@ -64,7 +60,7 @@
           </div>
         </div>
         <Badge size="sm" variant="neutral">{scopeOf(tool.id)}</Badge>
-        {#if isSensitive(tool.id)}
+        {#if isSensitiveTool(tool.id)}
           <Badge size="sm" variant="warning">{$t("agents.tool_ask_each_time")}</Badge>
         {/if}
       </div>

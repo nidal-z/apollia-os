@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import { Input } from "$lib/components/ui/input";
   import { TimePicker } from "$lib/components/ui/date-picker";
+  import { stripSecondsField } from "$lib/automations/humanize";
 
   interface Props {
     value: string;
@@ -57,15 +58,18 @@
 
   function initFromValue(expr: string) {
     if (!expr) return;
-    const p = detectPreset(expr);
+    // The runtime persists scheduler presets in 6-field form (leading seconds
+    // field); the builder reasons in the 5-field form it emits.
+    const fiveField = stripSecondsField(expr);
+    const p = detectPreset(fiveField);
     preset = p;
     rawCron = expr;
     if (p === "daily") {
-      const [min, hour] = expr.split(" ").map(Number);
+      const [min, hour] = fiveField.split(" ").map(Number);
       const l = utcToLocal(hour, min);
       dailyTime = `${pad(l.hh)}:${pad(l.mm)}`;
     } else if (p === "weekly") {
-      const parts = expr.split(" ");
+      const parts = fiveField.split(" ");
       const l = utcToLocal(Number(parts[1]), Number(parts[0]));
       weeklyTime = `${pad(l.hh)}:${pad(l.mm)}`;
       const utcDays = parts[4].split(",").map(Number);

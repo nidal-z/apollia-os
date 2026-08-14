@@ -1,3 +1,43 @@
+<script lang="ts" module>
+  /**
+   * Pure phase logic for the card, exported so the transition the header and
+   * the button render can be pinned by unit tests without a DOM.
+   *
+   * Two flags drive the card. `recording` means the mic captures; `busy` means
+   * an IPC round-trip or the transcription result is pending. The phases they
+   * encode: listening while the mic captures, transcribing from Stop (or while
+   * Start settles) until `stt-transcribed` or a dictation failure lands.
+   */
+  export interface SttTestFlags {
+    recording: boolean;
+    busy: boolean;
+  }
+
+  /**
+   * Flags once the stop call is acknowledged: the capture is over, only the
+   * text is pending. Dropping `recording` here is what moves the header and
+   * the button off the listening state while the pipeline transcribes.
+   */
+  export function flagsAfterStop(): SttTestFlags {
+    return { recording: false, busy: true };
+  }
+
+  /** A transcription or failure event belongs to this card only mid-test. */
+  export function testInFlight(flags: SttTestFlags): boolean {
+    return flags.recording || flags.busy;
+  }
+
+  /** The header announces listening only while the mic actually captures. */
+  export function showsListening(flags: SttTestFlags): boolean {
+    return flags.recording;
+  }
+
+  /** The button announces transcribing from Stop until the result arrives. */
+  export function showsTranscribing(flags: SttTestFlags): boolean {
+    return flags.busy && !flags.recording;
+  }
+</script>
+
 <script lang="ts">
   /**
    * SttTestCard - the live dictation self-test, the one expressive focal of the
@@ -43,6 +83,9 @@
   let bars = $state<number[]>(Array(BAR_COUNT).fill(IDLE));
   let history = Array(BAR_COUNT).fill(IDLE);
 
+  const listening = $derived(showsListening({ recording, busy }));
+  const transcribing = $derived(showsTranscribing({ recording, busy }));
+
   // Guide line height, measured from the meter floor: -80 dB floor, 0 dB ceiling.
   const thresholdPercent = $derived(
     Math.min(100, Math.max(0, ((silenceThresholdDb + 80) / 80) * 100)),
@@ -65,7 +108,12 @@
     try {
       if (recording) {
         await stopTourRecording();
-        // busy stays true until the transcription event arrives.
+        // The capture is over; only the text is pending. The card leaves the
+        // listening state now, and busy holds until the transcription event
+        // arrives.
+        const after = flagsAfterStop();
+        recording = after.recording;
+        busy = after.busy;
       } else {
         result = null;
         failure = null;
@@ -89,7 +137,7 @@
       if (recording) pushLevel(event.payload);
     }).then((fn) => (cancelled ? fn() : unlisteners.push(fn)));
     void listen<{ text?: string } | string>("stt-transcribed", (event) => {
-      if (!recording) return;
+      if (!testInFlight({ recording, busy })) return;
       result =
         typeof event.payload === "string" ? event.payload : (event.payload?.text ?? "");
       failure = null;
@@ -98,7 +146,7 @@
       resetMeter();
     }).then((fn) => (cancelled ? fn() : unlisteners.push(fn)));
     void listen(DICTATION_FAILED_EVENT, (event) => {
-      if (!recording && !busy) return;
+      if (!testInFlight({ recording, busy })) return;
       failure = $t(failureMessageKey(readFailureReason(event.payload)));
       result = null;
       recording = false;
@@ -119,7 +167,7 @@
   <div class="flex items-center justify-between gap-3">
     <div class="flex items-center gap-2.5">
       <span
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors {recording
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors {listening
           ? 'bg-destructive/10 text-destructive ring-2 ring-destructive/20 motion-safe:animate-pulse'
           : 'bg-primary/10 text-primary'}"
         aria-hidden="true"
@@ -128,21 +176,21 @@
       </span>
       <div class="min-w-0">
         <div class="text-label-md text-foreground">
-          {recording ? $t("settings.stt.test.listening") : $t("settings.stt.test.label")}
+          {listening ? $t("settings.stt.test.listening") : $t("settings.stt.test.label")}
         </div>
         <div class="text-caption text-muted-foreground">{$t("settings.stt.test.hint")}</div>
       </div>
     </div>
     <Button
-      variant={recording ? "destructive" : "default"}
+      variant={listening ? "destructive" : "default"}
       size="sm"
-      loading={busy && !recording}
-      disabled={disabled || (busy && !recording)}
+      loading={transcribing}
+      disabled={disabled || transcribing}
       onclick={toggle}
-      data-testid={recording ? "stt-test-stop" : "stt-test-start"}
+      data-testid={listening ? "stt-test-stop" : "stt-test-start"}
     >
       {#snippet icon()}
-        {#if recording}
+        {#if listening}
           <Square size={13} strokeWidth={2} />
         {:else if !busy}
           {#if result !== null}
@@ -152,9 +200,9 @@
           {/if}
         {/if}
       {/snippet}
-      {#if recording}
+      {#if listening}
         {$t("settings.stt.test.stop")}
-      {:else if busy}
+      {:else if transcribing}
         {$t("settings.stt.test.transcribing")}
       {:else if result !== null}
         {$t("settings.stt.test.redo")}
@@ -171,7 +219,7 @@
     <div class="flex h-12 w-full items-center gap-0.5">
       {#each bars as h, i (i)}
         <span
-          class="min-w-0 flex-1 rounded-full transition-[height] duration-75 {recording
+          class="min-w-0 flex-1 rounded-full transition-[height] duration-75 {listening
             ? 'bg-primary-gradient'
             : 'bg-muted-foreground/40'}"
           style="height: {Math.round(h * 100)}%"
@@ -179,7 +227,7 @@
       {/each}
     </div>
 
-    {#if recording}
+    {#if listening}
       <div
         class="pointer-events-none absolute inset-x-0 border-t border-dashed border-warning/70"
         style="bottom: {thresholdPercent}%"
@@ -190,7 +238,7 @@
           {$t("settings.stt.test.threshold_label", { values: { db: silenceThresholdDb } })}
         </span>
       </div>
-    {:else if result === null && failure === null}
+    {:else if !transcribing && result === null && failure === null}
       <div class="absolute inset-0 grid place-items-center text-caption text-muted-foreground">
         {$t("settings.stt.test.idle_hint")}
       </div>

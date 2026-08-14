@@ -19,6 +19,7 @@
     stopAgent,
   } from "$lib/ipc/agents";
   import { isActive } from "../agentStatus";
+  import { showStartButton } from "./startVisibility";
   import AgentLlmInfo from "../AgentLlmInfo.svelte";
   import AgentMessagesPanel from "../AgentMessagesPanel.svelte";
   import type { AgentListItem } from "$lib/types";
@@ -44,7 +45,7 @@
 
   const installed = $derived(agent.installed_at !== null);
   const running = $derived(isActive(agent));
-  const loaded = $derived(agent.runtime_status !== null);
+  const startVisible = $derived(showStartButton(agent));
 
   async function handleStart(): Promise<void> {
     if (!agent.install_path) return;
@@ -114,7 +115,7 @@
       </div>
     {:else}
       <div class="flex flex-wrap items-center gap-2">
-        {#if !loaded && installed && agent.install_path}
+        {#if startVisible}
           <Button
             size="sm"
             variant="primary-solid"

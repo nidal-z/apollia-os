@@ -473,6 +473,7 @@ name = "apollia-llm"
 version = "0.1.0-preview"
 dependencies = [
  "apollia-core",
+ "apollia-triggers",
  "async-openai",
  "async-trait",
  "chrono",

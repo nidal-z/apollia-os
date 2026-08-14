@@ -33,6 +33,16 @@ function pad(n: string | number): string {
 }
 
 /**
+ * Drops the leading seconds field from a 6-field cron expression when that
+ * field is `0`, which is the form the runtime persists for a 5-field
+ * expression. Display helpers and the schedule builder reason in 5 fields.
+ */
+export function stripSecondsField(expr: string): string {
+  const parts = expr.trim().split(/\s+/);
+  return parts.length === 6 && parts[0] === "0" ? parts.slice(1).join(" ") : expr;
+}
+
+/**
  * Formats a hour/minute pair in French operator vocabulary (`8h`, `8h30`).
  * Drops the minutes when they are zero, matching the operator's mental model.
  */
@@ -129,7 +139,7 @@ function matchMonthly(parts: readonly string[], loc: Locale): string | null {
 }
 
 function humanizeCron(expr: string, loc: Locale): string | null {
-  const trimmed = expr.trim();
+  const trimmed = stripSecondsField(expr).trim();
   const exact = CRON_EXACT[trimmed];
   if (exact) return exact[loc];
 
@@ -312,7 +322,7 @@ function intervalToMs(config: string): number | null {
  * Returns null for any expression not also covered by `humanizeCron`.
  */
 function estimateCronNextRun(config: string, now: Date): Date | null {
-  const parts = config.trim().split(/\s+/);
+  const parts = stripSecondsField(config).trim().split(/\s+/);
   if (parts.length < 5) return null;
   const [minuteRaw, hourRaw, dayOfMonth, month, dayOfWeek] = parts;
   if (dayOfMonth !== "*" || month !== "*") return null;

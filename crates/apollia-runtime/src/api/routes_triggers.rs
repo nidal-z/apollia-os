@@ -1073,6 +1073,88 @@ mod tests {
         assert!(json["created_at"].as_str().is_some_and(|s| !s.is_empty()));
     }
 
+    // ── POST with a 5-field scheduler preset → persisted normalized ─────
+
+    #[tokio::test]
+    async fn test_create_trigger_five_field_cron_persists_normalized_schedule() {
+        // GIVEN an empty repository
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        // WHEN POST with the 5-field expression the desktop 15-minute preset emits
+        let body = cron_trigger_body("bureau-15m", "rapport-agent", "*/15 * * * *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // THEN the persisted row, re-read through GET, carries the 6-field form
+        // (the apollia-triggers repository test proves Schedule::from_str
+        // accepts exactly this form verbatim)
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/triggers/bureau-15m")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert_eq!(
+            json["source_config"]["schedule"].as_str(),
+            Some("0 */15 * * * *")
+        );
+    }
+
+    // ── PUT with a 5-field scheduler preset → persisted normalized ──────
+
+    #[tokio::test]
+    async fn test_update_trigger_five_field_cron_persists_normalized_schedule() {
+        // GIVEN an existing trigger with a directly parseable schedule
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let create_body = cron_trigger_body("bureau-daily", "rapport-agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(create_body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN PUT with the 5-field expression the desktop daily preset emits
+        let update_body = serde_json::json!({
+            "agent": "rapport-agent",
+            "source": {
+                "type": "cron",
+                "schedule": "30 8 * * *"
+            }
+        })
+        .to_string();
+        let req = Request::builder()
+            .method("PUT")
+            .uri("/api/v1/triggers/bureau-daily")
+            .header("content-type", "application/json")
+            .body(Body::from(update_body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 200 and the persisted definition carries the 6-field form
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert_eq!(
+            json["source_config"]["schedule"].as_str(),
+            Some("0 30 8 * * *")
+        );
+    }
+
     // ── PUT /api/v1/triggers/:id → 200 ──────────────────────────────────
 
     #[tokio::test]
