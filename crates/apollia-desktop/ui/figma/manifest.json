@@ -1070,7 +1070,8 @@
       "name": "OperatorBreadcrumb",
       "page": "Primitives",
       "source": "lib/components/layout/OperatorBreadcrumb.svelte",
-      "variants": 1
+      "variants": 1,
+      "coverage": "Composant de la generation initiale, sans reprise structurelle. Desynchronise par LOT-021, le 2026-08-16, fidelite non retablie, sur deux points. (1) La trace n'est plus buildTrail(currentRoute) seul mais buildBreadcrumbSegments(currentRoute, settingsSubRoute), nouveau module lib/navigation/breadcrumbSegments.ts : sur la route settings le fil porte un troisieme segment, la sous-page ouverte, en feuille non cliquable dont la clef vient de la famille settings.nav.*, celle qu'emploie deja la colonne de navigation de routes/Settings.svelte. Les quinze sous-pages de SETTINGS_SUB_ROUTES sont concernees, la valeur de depart etant appearance. La variante unique du jumeau montre la forme a deux segments, Apollia puis Parametres, qui est l'etat d'avant. (2) Les libelles que le fil resout ont change sur quatre routes, le mot de la barre laterale ayant ete retenu partout : nav.dashboard passe de Tableau de bord a Accueil, nav.agents de Agents a Assistants, nav.tasks de Taches a Mon travail, nav.llm de LLM a Modeles LLM, et en anglais Dashboard devient Home, Tasks devient My work, LLM devient LLM models. Mesure sur les deux catalogues apres le lot : les valeurs Tableau de bord, Dashboard, Modeles IA et AI Models n'existent plus nulle part. Le fil peint donc dans le jumeau des mots que le produit ne rend plus. Les entrees Sidebar et Sidebar / NavRow ne sont pas touchees, la barre laterale lisant nav.sidebar.*, famille que le lot ne modifie pas."
     },
     {
       "nodeId": "375:1007",
@@ -7533,6 +7534,16 @@
       "libellesDExempleDePrimitive": "aucun. Le controle a d abord signale 41 occurrences de « Tableau de bord », toutes refutees : c est nav.sidebar.dashboard, le libelle legitime de la premiere rangee de la barre laterale, que chaque ecran doit montrer. La liste de suspects du controle etait fautive, pas les surfaces.",
       "defautDeConstructionCorrige": "17 cadres sur 46 portaient la mauvaise rangee de navigation active : SettingsConfiguration en avait deux (Accueil et Parametres), SettingsAppearance, SettingsProfile et SettingsTools n en avaient aucune. Corriges en un appel, puis 46 sur 46 controles conformes."
     },
-    "$noteEcartDeCadres": "cadresSurLaPage vaut 141 et cadresPoses 140. L ecart de un est le cadre 539:21845, « gabarit de coquille, reglages (echafaudage, pas une surface) », conserve volontairement. Voir surfacesRestantes.echafaudageConserve."
+    "$noteEcartDeCadres": "cadresSurLaPage vaut 141 et cadresPoses 140. L ecart de un est le cadre 539:21845, « gabarit de coquille, reglages (echafaudage, pas une surface) », conserve volontairement. Voir surfacesRestantes.echafaudageConserve.",
+    "desynchronisation": [
+      {
+        "lot": "LOT-021",
+        "date": "2026-08-16",
+        "fideliteRetablie": false,
+        "cequiAChange": "Une surface est un ecran entier, coquille comprise, donc chacun des 140 cadres porte la Topbar et son fil d Ariane. Deux changements les traversent tous. (1) Les libelles de navigation resolus par le fil ont change sur quatre routes : Tableau de bord devient Accueil, Agents devient Assistants, Taches devient Mon travail, LLM devient Modeles LLM, et cote anglais Dashboard devient Home, Tasks devient My work, LLM devient LLM models. Mesure sur les deux catalogues apres le lot : les valeurs Tableau de bord, Dashboard, Modeles IA et AI Models n existent plus nulle part, le jumeau peint donc des mots que le produit ne rend plus. (2) Sur la route settings le fil porte desormais un troisieme segment, la sous-page ouverte en feuille non cliquable ; les cadres de reglages montrent la forme a deux segments, qui est l etat d avant.",
+        "cequiNestPasReproduit": "Aucun cadre n a ete repeint. Les 140 cadres gardent les anciens libelles de fil et la forme a deux segments sur les surfaces de reglages.",
+        "noteSurUneClefDejaFausse": "verificationDuPassage.libellesDExempleDePrimitive attribue 41 occurrences de « Tableau de bord » a nav.sidebar.dashboard, presente comme le libelle legitime de la premiere rangee de la barre laterale. Cette attribution etait deja fausse avant LOT-021 : sur le commit de base 1cad8717, nav.sidebar.dashboard vaut Accueil et c est nav.dashboard, la clef du fil d Ariane, qui valait Tableau de bord. Defaut anterieur au lot, capture et non corrige ici."
+      }
+    ]
   }
 }
