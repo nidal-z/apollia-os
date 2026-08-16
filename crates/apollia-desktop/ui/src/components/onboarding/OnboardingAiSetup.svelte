@@ -1,3 +1,83 @@
+<script module lang="ts">
+  /**
+   * Which regions of the AI-setup step render, given what the scan found and
+   * what the operator has already done.
+   *
+   * Both sections used to decide their branches inline in the template, and the
+   * means of adding an engine lived inside the "nothing found" branch: one
+   * `.gguf` anywhere on disk, or a first successful import, closed the door
+   * that had just been used. The voice section had no branch at all for
+   * "models present, dictation off", so it rendered an empty section. The
+   * branches are pure data, so they are decided here and stay node-testable.
+   */
+
+  /** Render state of the language-engine section. */
+  export interface LlmSectionView {
+    /** The "drop a model in these folders" hint. */
+    showEmptyHint: boolean;
+    /** The list of GGUF files the scan found on disk. */
+    showDetectedList: boolean;
+    /** The row naming the engine wired up during this session. */
+    showSuccessRow: boolean;
+    /** Import from disk, curated catalogue, HuggingFace search. */
+    showAddMeans: boolean;
+  }
+
+  /** Render state of the speech-recognition section. */
+  export interface SttSectionView {
+    /** The "no voice model found" hint. */
+    showEmptyHint: boolean;
+    /** The list of Whisper models the scan found on disk. */
+    showDetectedList: boolean;
+    /** Import a voice model from disk. */
+    showAddMean: boolean;
+    /** The curated Whisper models offered for download. */
+    showCuratedList: boolean;
+    /** Hotkey capture, microphone picker and live test. */
+    showHotkeyBlock: boolean;
+  }
+
+  /**
+   * Decide the language-engine regions.
+   *
+   * `showAddMeans` is unconditional: an operator who already owns one engine is
+   * the operator most likely to want a second one, and onboarding is the only
+   * guided moment where the three ways of adding one are shown together.
+   */
+  export function llmSectionView(
+    detectedCount: number,
+    configuredInSession: boolean,
+  ): LlmSectionView {
+    return {
+      showEmptyHint: detectedCount === 0 && !configuredInSession,
+      showDetectedList: detectedCount > 0,
+      showSuccessRow: configuredInSession,
+      showAddMeans: true,
+    };
+  }
+
+  /**
+   * Decide the speech-recognition regions.
+   *
+   * The list and the import button do not depend on the dictation toggle: the
+   * toggle says whether dictation runs, not whether the section exists. Only
+   * the hotkey and live-test block, which drives a running dictation, keeps the
+   * toggle as a condition.
+   */
+  export function sttSectionView(
+    detectedCount: number,
+    dictationEnabled: boolean,
+  ): SttSectionView {
+    return {
+      showEmptyHint: detectedCount === 0,
+      showDetectedList: detectedCount > 0,
+      showAddMean: true,
+      showCuratedList: detectedCount === 0,
+      showHotkeyBlock: detectedCount > 0 && dictationEnabled,
+    };
+  }
+</script>
+
 <script lang="ts">
   /**
    * Onboarding step 3 - AI Setup.
@@ -346,6 +426,9 @@
    * already registered in the runtime.
    */
   const hasUsableLlm = $derived(llmSuccess || $llmBackends.length > 0);
+
+  const llmView = $derived(llmSectionView(ggufModels.length, llmSuccess));
+  const sttView = $derived(sttSectionView(whisperModels.length, sttEnabled));
 
   // ─── Effects ──────────────────────────────────────────────────────────────
 
@@ -864,13 +947,54 @@
         {/if}
       </div>
 
-      {#if ggufModels.length === 0 && !llmSuccess}
+      {#if llmView.showEmptyHint}
         <p class="empty-hint" data-testid="llm-empty-hint">
           {$t("onboarding.ai_setup.llm_empty_prefix")}
           <code>~/.apollia/models/</code> {$t("common.or")} <code>~/Downloads/</code>{$t("onboarding.ai_setup.llm_empty_suffix")}
           <Button variant="ghost" size="sm" class="inline-link" onclick={loadData}>{$t("onboarding.ai_setup.rescan")}</Button>.
         </p>
+      {/if}
 
+      {#if llmView.showSuccessRow}
+        <div class="success-row" data-testid="llm-success">
+          <div class="success-icon-sm"><Check size={13} strokeWidth={2.5} /></div>
+          <span class="success-filename">{selectedGguf?.filename}</span>
+        </div>
+      {/if}
+
+      {#if llmView.showDetectedList}
+        <ul class="model-list" data-testid="llm-model-list">
+          {#each ggufModels as model (model.path)}
+            <li>
+              <button
+                class="model-row"
+                class:is-selected={selectedGguf?.path === model.path && llmConfiguring}
+                onclick={() => selectGgufModel(model)}
+                disabled={llmConfiguring || llmSuccess}
+                data-testid="llm-model-row"
+              >
+                <div class="model-icon">
+                  {#if selectedGguf?.path === model.path && llmConfiguring}
+                    <Spinner size={13} />
+                  {:else}
+                    <Cpu size={13} strokeWidth={1.75} />
+                  {/if}
+                </div>
+                <div class="model-info">
+                  <span class="model-name">{model.filename}</span>
+                  <span class="model-meta">{model.size_human}</span>
+                </div>
+                {#if model.recommended}
+                  <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
+                {/if}
+                <ChevronRight size={13} class="text-muted-foreground/50" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if llmView.showAddMeans}
         <div class="load-model-row">
           <Button
             variant="default"
@@ -1024,49 +1148,16 @@
           </div>
         {/if}
 
-        {#if llmDownloadError}
-          <p class="inline-error" role="alert" data-testid="llm-download-error">
-            <AlertCircle size={12} />{llmDownloadError}
-          </p>
-        {/if}
-      {:else if llmSuccess}
-        <div class="success-row" data-testid="llm-success">
-          <div class="success-icon-sm"><Check size={13} strokeWidth={2.5} /></div>
-          <span class="success-filename">{selectedGguf?.filename}</span>
-        </div>
-      {:else}
-        <ul class="model-list" data-testid="llm-model-list">
-          {#each ggufModels as model (model.path)}
-            <li>
-              <button
-                class="model-row"
-                class:is-selected={selectedGguf?.path === model.path && llmConfiguring}
-                onclick={() => selectGgufModel(model)}
-                disabled={llmConfiguring || llmSuccess}
-                data-testid="llm-model-row"
-              >
-                <div class="model-icon">
-                  {#if selectedGguf?.path === model.path && llmConfiguring}
-                    <Spinner size={13} />
-                  {:else}
-                    <Cpu size={13} strokeWidth={1.75} />
-                  {/if}
-                </div>
-                <div class="model-info">
-                  <span class="model-name">{model.filename}</span>
-                  <span class="model-meta">{model.size_human}</span>
-                </div>
-                {#if model.recommended}
-                  <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
-                {/if}
-                <ChevronRight size={13} class="text-muted-foreground/50" />
-              </button>
-            </li>
-          {/each}
-        </ul>
-        {#if llmError}
-          <p class="inline-error" role="alert" data-testid="llm-error"><AlertCircle size={12} />{llmError}</p>
-        {/if}
+      {/if}
+
+      {#if llmDownloadError}
+        <p class="inline-error" role="alert" data-testid="llm-download-error">
+          <AlertCircle size={12} />{llmDownloadError}
+        </p>
+      {/if}
+
+      {#if llmError}
+        <p class="inline-error" role="alert" data-testid="llm-error"><AlertCircle size={12} />{llmError}</p>
       {/if}
     </section>
 
@@ -1090,75 +1181,13 @@
         </p>
       {/if}
 
-      {#if whisperModels.length === 0}
+      {#if sttView.showEmptyHint}
         <p class="empty-hint" data-testid="stt-empty-hint">
           {$t("onboarding.ai_setup.stt_empty_hint")}
         </p>
+      {/if}
 
-        <div class="load-model-row">
-          <Button
-            variant="default"
-            size="sm"
-            onclick={loadSttModelFile}
-            disabled={importingStt}
-            loading={importingStt}
-            data-testid="stt-load-model-btn"
-          >
-            <Upload size={12} strokeWidth={2} />
-            {$t("onboarding.ai_setup.load_model")}
-          </Button>
-        </div>
-
-        {#if sttDownloadId}
-          <div class="download-block" data-testid="stt-download-progress">
-            <div class="dl-header">
-              <span class="dl-filename">{sttDownloadingModel?.filename ?? "…"}</span>
-              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelSttDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
-                <X size={12} strokeWidth={2} />
-              </Button>
-            </div>
-            <ProgressBar
-              value={sttDownloadProgress ? dlPct(sttDownloadProgress) : undefined}
-              size="sm"
-              variant="primary"
-            />
-            {#if sttDownloadProgress}
-              <div class="dl-meta">
-                <span>{dlBytes(sttDownloadProgress)}</span>
-                <span>{dlSpeed(sttDownloadProgress.speed_bps)}</span>
-              </div>
-            {/if}
-          </div>
-        {:else}
-          <div class="curated-divider"><span>{$t("onboarding.ai_setup.whisper_models")}</span></div>
-          <ul class="model-list" data-testid="curated-stt-list">
-            {#each availableSttModels as model (model.filename)}
-              <li>
-                <button type="button" class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
-                  <div class="model-icon model-icon-stt"><Download size={12} strokeWidth={1.75} /></div>
-                  <div class="model-info">
-                    <span class="model-name">{model.name}</span>
-                    <span class="model-meta">
-                      {model.size_label} · {$t(model.quality_key)} ·
-                      <span class="model-lang">{$t(model.lang_key)}</span>
-                    </span>
-                  </div>
-                  {#if model.filename === recommendedStt?.filename}
-                    <span class="badge-recommended badge-recommended-stt">{$t("onboarding.ai_setup.recommended")}</span>
-                  {/if}
-                  <ChevronRight size={13} class="text-muted-foreground/50" />
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-
-        {#if sttDownloadError}
-          <p class="inline-error" role="alert" data-testid="stt-download-error">
-            <AlertCircle size={12} />{sttDownloadError}
-          </p>
-        {/if}
-      {:else if sttEnabled}
+      {#if sttView.showDetectedList}
         <ul class="model-list" data-testid="whisper-model-list">
           {#each whisperModels as model (model.path)}
             <li>
@@ -1185,7 +1214,75 @@
             </li>
           {/each}
         </ul>
+      {/if}
 
+      {#if sttView.showAddMean}
+        <div class="load-model-row">
+          <Button
+            variant="default"
+            size="sm"
+            onclick={loadSttModelFile}
+            disabled={importingStt}
+            loading={importingStt}
+            data-testid="stt-load-model-btn"
+          >
+            <Upload size={12} strokeWidth={2} />
+            {$t("onboarding.ai_setup.load_model")}
+          </Button>
+        </div>
+      {/if}
+
+      {#if sttDownloadId}
+        <div class="download-block" data-testid="stt-download-progress">
+          <div class="dl-header">
+            <span class="dl-filename">{sttDownloadingModel?.filename ?? "…"}</span>
+            <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelSttDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
+              <X size={12} strokeWidth={2} />
+            </Button>
+          </div>
+          <ProgressBar
+            value={sttDownloadProgress ? dlPct(sttDownloadProgress) : undefined}
+            size="sm"
+            variant="primary"
+          />
+          {#if sttDownloadProgress}
+            <div class="dl-meta">
+              <span>{dlBytes(sttDownloadProgress)}</span>
+              <span>{dlSpeed(sttDownloadProgress.speed_bps)}</span>
+            </div>
+          {/if}
+        </div>
+      {:else if sttView.showCuratedList}
+        <div class="curated-divider"><span>{$t("onboarding.ai_setup.whisper_models")}</span></div>
+        <ul class="model-list" data-testid="curated-stt-list">
+          {#each availableSttModels as model (model.filename)}
+            <li>
+              <button type="button" class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
+                <div class="model-icon model-icon-stt"><Download size={12} strokeWidth={1.75} /></div>
+                <div class="model-info">
+                  <span class="model-name">{model.name}</span>
+                  <span class="model-meta">
+                    {model.size_label} · {$t(model.quality_key)} ·
+                    <span class="model-lang">{$t(model.lang_key)}</span>
+                  </span>
+                </div>
+                {#if model.filename === recommendedStt?.filename}
+                  <span class="badge-recommended badge-recommended-stt">{$t("onboarding.ai_setup.recommended")}</span>
+                {/if}
+                <ChevronRight size={13} class="text-muted-foreground/50" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if sttDownloadError}
+        <p class="inline-error" role="alert" data-testid="stt-download-error">
+          <AlertCircle size={12} />{sttDownloadError}
+        </p>
+      {/if}
+
+      {#if sttView.showHotkeyBlock}
         <!-- ── Raccourci (capture clavier) + Test live ────────────────── -->
         <div class="stt-hotkey-block" data-testid="stt-hotkey-block">
           <div class="hotkey-row">
