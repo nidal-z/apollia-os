@@ -6991,8 +6991,9 @@
   "notBuilt": [
     {
       "source": "components/onboarding/OnboardingAiSetup.svelte",
-      "lines": 2143,
-      "why": "le plus gros composant de l'arbre. Son etat depend de quatre sources asynchrones (modeles GGUF sur disque, catalogue distant, telechargement en cours, modeles Whisper) et son rendu compte plus de trente branches. Une reproduction fidele demande sa propre passe. Le modal le represente par un marque-place nomme."
+      "lines": 2240,
+      "why": "le plus gros composant de l'arbre. Son etat depend de quatre sources asynchrones (modeles GGUF sur disque, catalogue distant, telechargement en cours, modeles Whisper) et son rendu compte plus de trente branches. Une reproduction fidele demande sa propre passe. Le modal le represente par un marque-place nomme.",
+      "changeNonReproduit": "LOT-018, le 2026-08-16. Les regions de l'etape ne se decident plus dans le gabarit mais dans deux fonctions pures du bloc script module, llmSectionView et sttSectionView. Trois consequences visibles qu'aucun marque-place ne reproduit : les trois moyens d'ajouter un moteur (import disque, catalogue organise, recherche HuggingFace) sont rendus sans condition, la ou ils etaient enfermes dans la branche liste vide ; le moyen d'ajout de la section vocale l'est aussi ; et la section vocale rend toujours sa liste de modeles detectes, dictee activee ou non, la ou une branche manquante la laissait vide. Le marque-place nomme reste la seule representation du composant, la fidelite n'est pas retablie."
     },
     {
       "source": "components/companion/CompanionContextProvider.svelte",
