@@ -1,3 +1,27 @@
+<script lang="ts" module>
+  /** The one field `selectAllTools` reads off a tool. */
+  export interface NamedTool {
+    name: string;
+  }
+
+  /**
+   * Adds the tools currently listed to the selection, and removes none.
+   *
+   * The list is filtered by the search box, so the tools it does not show are
+   * not on screen to be judged. Replacing the selection with the visible names
+   * would silently unselect them, which is destruction with no confirmation and
+   * no trace: the button says "select all", so it selects.
+   */
+  export function selectAllTools(
+    current: ReadonlySet<string>,
+    listed: readonly NamedTool[],
+  ): Set<string> {
+    const next = new Set(current);
+    for (const tool of listed) next.add(tool.name);
+    return next;
+  }
+</script>
+
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
@@ -119,7 +143,7 @@
   }
 
   function selectAll(): void {
-    allowedTools = new Set(filteredTools.map((t) => t.name));
+    allowedTools = selectAllTools(allowedTools, filteredTools);
   }
 
   function selectNone(): void {

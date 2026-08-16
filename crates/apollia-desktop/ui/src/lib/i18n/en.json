@@ -1601,6 +1601,8 @@
       "col_agent": "Agent",
       "col_created": "Created",
       "revoke": "Revoke",
+      "revoke_confirm_title": "Revoke this rule?",
+      "revoke_confirm_body": "The rule on \"{tool}\" will be removed. The tool will ask for approval again on its next use. This cannot be undone.",
       "revoke_all": "Revoke all",
       "revoke_all_confirm_title": "Revoke all permission rules?",
       "revoke_all_confirm_body": "This will revoke every persistent permission. Tools will ask for approval again on their next use.",
@@ -3151,7 +3153,12 @@
         "key_placeholder": "Key (e.g. prefs.schedule)",
         "value_placeholder": "Value",
         "edit": "Edit fact",
-        "copy_value": "Copy value"
+        "copy_value": "Copy value",
+        "delete_dialog": {
+          "title": "Delete this fact?",
+          "message": "The fact \"{key}\" will be forgotten. This cannot be undone.",
+          "confirm": "Delete fact"
+        }
       }
     },
     "profile_subtitle": "What the system knows about you. This information helps agents adapt to your context.",
@@ -3720,7 +3727,7 @@
     },
     "all_saved": "All changes saved",
     "save": "Save",
-    "reset": "Cancel",
+    "reset": "Discard",
     "save_hint": "to save",
     "save_shortcut_hint": "⌘S",
     "appearance": {

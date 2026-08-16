@@ -1601,6 +1601,8 @@
       "col_agent": "Agent",
       "col_created": "Créée",
       "revoke": "Révoquer",
+      "revoke_confirm_title": "Révoquer cette règle ?",
+      "revoke_confirm_body": "La règle sur « {tool} » sera supprimée. L'outil redemandera une approbation à sa prochaine utilisation. Cette action ne peut pas être annulée.",
       "revoke_all": "Tout révoquer",
       "revoke_all_confirm_title": "Révoquer toutes les règles de permission ?",
       "revoke_all_confirm_body": "Toutes les permissions persistantes seront révoquées. Les outils redemanderont une approbation à leur prochaine utilisation.",
@@ -3151,7 +3153,12 @@
         "key_placeholder": "Clé (ex. prefs.horaires)",
         "value_placeholder": "Valeur",
         "edit": "Éditer le fait",
-        "copy_value": "Copier la valeur"
+        "copy_value": "Copier la valeur",
+        "delete_dialog": {
+          "title": "Supprimer ce fait ?",
+          "message": "Le fait « {key} » sera oublié. Cette action ne peut pas être annulée.",
+          "confirm": "Supprimer le fait"
+        }
       }
     },
     "profile_subtitle": "Ce que le système sait de vous. Ces informations aident les agents à s'adapter à votre contexte.",
@@ -3720,7 +3727,7 @@
     },
     "all_saved": "Tous les changements enregistrés",
     "save": "Enregistrer",
-    "reset": "Annuler",
+    "reset": "Abandonner",
     "save_hint": "pour enregistrer",
     "save_shortcut_hint": "⌘S",
     "appearance": {

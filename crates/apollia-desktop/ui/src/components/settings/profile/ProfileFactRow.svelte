@@ -1,15 +1,63 @@
+<script lang="ts" module>
+  import { isDestructiveKey } from "$lib/components/ui/dialog/destructiveGate";
+
+  /** What the row's keyboard map can trigger. Neither entry destroys. */
+  export interface FactRowKeyActions {
+    startEdit: () => void;
+    requestDelete: () => void;
+  }
+
+  /** The subset of `KeyboardEvent` the row's keyboard map reads. */
+  export interface FactRowKeyEvent {
+    key: string;
+    preventDefault: () => void;
+  }
+
+  /**
+   * The row's keyboard map: Enter edits, Delete and Backspace *request* a
+   * deletion. The request opens a confirmation, it does not delete, which is
+   * the whole point of routing the keystroke through here.
+   */
+  export function onFactRowKeydown(
+    event: FactRowKeyEvent,
+    editing: boolean,
+    actions: FactRowKeyActions,
+  ): void {
+    if (editing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      actions.startEdit();
+      return;
+    }
+    if (isDestructiveKey(event.key)) {
+      event.preventDefault();
+      actions.requestDelete();
+    }
+  }
+</script>
+
 <script lang="ts">
   /**
    * ProfileFactRow - one memory fact: key + provenance + value, with inline
    * edit, hover actions, and a right-click context menu (edit / copy / delete).
    * Owns its own edit state; persistence hits the profile store immediately and
    * the parent list is updated through `onUpdated` / `onDeleted`.
+   *
+   * The three delete paths (keystroke, trash button, menu entry) all open the
+   * same confirmation; only its confirm button reaches `deleteProfileEntry`.
    */
   import { t } from "svelte-i18n";
   import { Brain, Pencil, Trash2, Copy, Check, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import {
+    cancelDestruction,
+    commitDestruction,
+    createDestructiveGate,
+    requestDestruction,
+  } from "$lib/components/ui/dialog/destructiveGate";
   import { reportError } from "$lib/errors/reportError";
   import { setProfileEntry, deleteProfileEntry, type ProfileEntryView } from "$lib/ipc/profile";
   import ProfileSourceBadge from "./ProfileSourceBadge.svelte";
@@ -25,6 +73,7 @@
   let editing = $state(false);
   let editValue = $state("");
   let busy = $state(false);
+  let deleteGate = $state(createDestructiveGate());
 
   function startEdit(): void {
     editValue = fact.value;
@@ -51,6 +100,10 @@
     } finally {
       busy = false;
     }
+  }
+
+  function askRemove(): void {
+    requestDestruction(deleteGate);
   }
 
   async function remove(): Promise<void> {
@@ -91,19 +144,12 @@
       label: $t("common.delete"),
       icon: Trash2,
       variant: "destructive",
-      onclick: () => void remove(),
+      onclick: askRemove,
     },
   ]);
 
   function onKeydown(e: KeyboardEvent): void {
-    if (editing) return;
-    if (e.key === "Enter") {
-      e.preventDefault();
-      startEdit();
-    } else if (e.key === "Delete" || e.key === "Backspace") {
-      e.preventDefault();
-      void remove();
-    }
+    onFactRowKeydown(e, editing, { startEdit, requestDelete: askRemove });
   }
 </script>
 
@@ -183,7 +229,7 @@
           variant="ghost"
           size="icon-sm"
           loading={busy}
-          onclick={() => void remove()}
+          onclick={askRemove}
           class="text-muted-foreground hover:text-destructive"
           aria-label={$t("common.delete")}
           data-testid="profile-fact-delete"
@@ -194,3 +240,17 @@
     {/if}
   </div>
 </ContextMenu>
+
+<ConfirmDialog
+  open={deleteGate.open}
+  onclose={() => cancelDestruction(deleteGate)}
+  onconfirm={() => void commitDestruction(deleteGate, remove)}
+  title={$t("settings.profile.memory.delete_dialog.title")}
+  message={$t("settings.profile.memory.delete_dialog.message", {
+    values: { key: fact.key },
+  })}
+  confirmLabel={$t("settings.profile.memory.delete_dialog.confirm")}
+  cancelLabel={$t("common.cancel")}
+  loading={busy}
+  data-testid="profile-fact-delete-confirm"
+/>

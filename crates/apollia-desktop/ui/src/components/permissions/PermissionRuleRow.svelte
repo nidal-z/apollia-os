@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  import { isDestructiveKey } from "$lib/components/ui/dialog/destructiveGate";
+
   /**
    * Formats a wire instant as the machine's local calendar date, in the
    * locale's numeric order. The wire carries UTC; a rule expiring today must
@@ -13,6 +15,27 @@
       day: "2-digit",
     });
   }
+
+  /** The subset of `KeyboardEvent` the row's keyboard map reads. */
+  export interface RuleRowKeyEvent {
+    key: string;
+    preventDefault: () => void;
+  }
+
+  /**
+   * The row's keyboard map: Delete and Backspace *request* a revocation.
+   * The request opens a confirmation, it does not revoke.
+   */
+  export function onRuleRowKeydown(
+    event: RuleRowKeyEvent,
+    busy: boolean,
+    requestRevoke: () => void,
+  ): void {
+    if (busy) return;
+    if (!isDestructiveKey(event.key)) return;
+    event.preventDefault();
+    requestRevoke();
+  }
 </script>
 
 <script lang="ts">
@@ -23,7 +46,12 @@
    * decision does not rely on badge colour alone. All labels flow through
    * `$t()`; the code-executor invariant is surfaced with a dedicated badge.
    * Right-click (or the Menu key) opens a context menu (duplicate / revoke);
-   * Delete revokes the focused row. Roving focus is driven by the parent list.
+   * Delete asks to revoke the focused row. Roving focus is driven by the parent
+   * list.
+   *
+   * The three revoke paths (keystroke, button, menu entry) all open the same
+   * confirmation, so both parents (persistent rules and chat rules) inherit it
+   * without repeating it.
    */
   import { locale, t } from "svelte-i18n";
   import {
@@ -39,6 +67,13 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ContextMenu } from "$lib/components/ui/context-menu";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import {
+    cancelDestruction,
+    commitDestruction,
+    createDestructiveGate,
+    requestDestruction,
+  } from "$lib/components/ui/dialog/destructiveGate";
   import type { ActionMenuItem } from "$lib/components/ui/action-menu";
   import { isCodeExecutor } from "$lib/ipc/permissions";
   import type {
@@ -54,6 +89,12 @@
   }
 
   let { rule, busy = false, onRevoke, onDuplicate }: Props = $props();
+
+  let revokeGate = $state(createDestructiveGate());
+
+  function askRevoke(): void {
+    requestDestruction(revokeGate);
+  }
 
   const SCOPE_KEY: Record<PermissionRuleScope, string> = {
     session: "settings.permissions.session_badge",
@@ -107,17 +148,14 @@
       icon: Trash2,
       variant: "destructive",
       disabled: busy,
-      onclick: () => onRevoke(rule),
+      onclick: askRevoke,
       testid: "permission-rule-revoke-menu",
     });
     return items;
   });
 
   function onKeydown(event: KeyboardEvent): void {
-    if ((event.key === "Delete" || event.key === "Backspace") && !busy) {
-      event.preventDefault();
-      onRevoke(rule);
-    }
+    onRuleRowKeydown(event, busy, askRevoke);
   }
 </script>
 
@@ -220,7 +258,7 @@
         class="h-7 px-2 text-caption"
         disabled={busy}
         loading={busy}
-        onclick={() => onRevoke(rule)}
+        onclick={askRevoke}
         data-testid="permission-rule-revoke"
       >
         {#snippet icon()}<Trash2 size={12} aria-hidden="true" />{/snippet}
@@ -229,3 +267,17 @@
     </div>
   </div>
 </ContextMenu>
+
+<ConfirmDialog
+  open={revokeGate.open}
+  onclose={() => cancelDestruction(revokeGate)}
+  onconfirm={() => void commitDestruction(revokeGate, () => onRevoke(rule))}
+  title={$t("permissions.rules.revoke_confirm_title")}
+  message={$t("permissions.rules.revoke_confirm_body", {
+    values: { tool: rule.tool_name },
+  })}
+  confirmLabel={$t("permissions.rules.revoke")}
+  cancelLabel={$t("common.cancel")}
+  loading={busy}
+  data-testid="permission-rule-revoke-confirm"
+/>

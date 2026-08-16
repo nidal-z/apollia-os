@@ -142,7 +142,7 @@
       </span>
       <div class="ml-auto flex items-center gap-2">
         <Button
-          variant="ghost"
+          variant="destructive"
           size="sm"
           disabled={!dirty || saving}
           onclick={() => onReset?.()}
