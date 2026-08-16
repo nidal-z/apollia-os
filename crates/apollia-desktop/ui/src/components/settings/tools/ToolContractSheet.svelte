@@ -13,7 +13,7 @@
    * creation date are displayed. Last use is deliberately absent, see
    * `$lib/ipc/governance`.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import {
     Braces,
     KeyRound,
@@ -393,7 +393,7 @@
                 <span class="font-mono text-body-sm text-foreground">{credential.key_name}</span>
                 <span class="text-overline text-muted-foreground">
                   {$t("settings.tool_credentials.created", {
-                    values: { date: formatRelativeTime(credential.created_at) },
+                    values: { date: formatRelativeTime(credential.created_at, $locale ?? "en") },
                   })}
                 </span>
               </li>

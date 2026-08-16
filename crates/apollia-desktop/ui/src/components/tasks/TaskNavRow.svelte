@@ -6,7 +6,7 @@
    * agent + relative-time line, and a compact status badge. Selection state is
    * driven by the parent.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { ListRow } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { formatRelativeTime } from "$lib/utils";
@@ -40,7 +40,7 @@
     <div class="text-body-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
       <span>{task.agent_name || task.agent_id}</span>
       <span class="opacity-60">·</span>
-      <span>{formatRelativeTime(task.created_at)}</span>
+      <span>{formatRelativeTime(task.created_at, $locale ?? "en")}</span>
     </div>
   </div>
   <Badge size="sm" variant={meta.variant} class="shrink-0">

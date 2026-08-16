@@ -8,7 +8,7 @@
    * (SmartOutput prose for operator, raw handled inside SmartOutput / error
    * mono block), and Trace defers to ExecutionTrace's own operator/builder split.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { XCircle } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
@@ -166,7 +166,7 @@
         </div>
         <div class="flex items-baseline gap-3">
           <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.created")}</dt>
-          <dd class="text-foreground/85">{formatDate(task.created_at)}</dd>
+          <dd class="text-foreground/85">{formatDate(task.created_at, $locale ?? "en")}</dd>
         </div>
         <div class="flex items-baseline gap-3">
           <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.duration")}</dt>

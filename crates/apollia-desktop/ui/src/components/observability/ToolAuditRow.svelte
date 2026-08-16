@@ -3,7 +3,7 @@
   // Extracted verbatim from AuditTrailTable so the table stays focused on the
   // row dispatch. Expansion state is owned by the parent; this row reports
   // clicks through `ontoggle`.
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
   import { CheckCircle2, XCircle, ChevronDown, Copy, Braces, Search } from "lucide-svelte";
   import { cn } from "$lib/utils";
@@ -39,7 +39,7 @@
 
   function formatTimestamp(iso: string): string {
     if (!iso) return "";
-    return new Date(iso).toLocaleString();
+    return new Date(iso).toLocaleString($locale ?? "en");
   }
 
   function formatDuration(ms: number | null): string {

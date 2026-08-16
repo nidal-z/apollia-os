@@ -2,7 +2,7 @@
   // Audit row dedicated to a single plan mutation.
   // No IPC: receives the already-mapped entry and computes its diff locally.
   // Reuses the plan-review diff grammar (added / modified / removed) for color.
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import {
     PlusCircle,
     Pencil,
@@ -67,7 +67,7 @@
   data-testid="plan-mutation-row-{entry.ordinal}"
 >
   <td class="px-5 py-2.5 text-caption text-muted-foreground tabular-nums whitespace-nowrap align-top">
-    {entry.ts ? new Date(entry.ts).toLocaleString() : ""}
+    {entry.ts ? new Date(entry.ts).toLocaleString($locale ?? "en") : ""}
   </td>
   <td class="px-3 py-2.5 align-top" colspan={5}>
     <div class="flex items-start gap-2.5">

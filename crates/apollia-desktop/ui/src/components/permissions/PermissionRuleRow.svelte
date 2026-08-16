@@ -1,3 +1,20 @@
+<script lang="ts" module>
+  /**
+   * Formats a wire instant as the machine's local calendar date, in the
+   * locale's numeric order. The wire carries UTC; a rule expiring today must
+   * not read as yesterday.
+   */
+  export function formatDate(value: string, loc: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(loc, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  }
+</script>
+
 <script lang="ts">
   /**
    * PermissionRuleRow - one permission rule as a premium, bordered row.
@@ -8,7 +25,7 @@
    * Right-click (or the Menu key) opens a context menu (duplicate / revoke);
    * Delete revokes the focused row. Roving focus is driven by the parent list.
    */
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import {
     ShieldCheck,
     ShieldX,
@@ -58,24 +75,18 @@
   const isAllow = $derived(rule.action === "allow");
   const executor = $derived(isCodeExecutor(rule.tool_name));
 
-  function formatDate(value: string): string {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toISOString().slice(0, 10);
-  }
-
   const expiration = $derived.by(() => {
     if (rule.scope === "session")
       return $t("settings.permissions.session_expire_hint");
     if (!rule.expires_at) return $t("settings.permissions.rule_permanent");
     return $t("settings.permissions.rule_expires", {
-      values: { date: formatDate(rule.expires_at) },
+      values: { date: formatDate(rule.expires_at, $locale ?? "en") },
     });
   });
 
   const created = $derived(
     $t("settings.permissions.rule_created", {
-      values: { date: formatDate(rule.created_at) },
+      values: { date: formatDate(rule.created_at, $locale ?? "en") },
     }),
   );
 

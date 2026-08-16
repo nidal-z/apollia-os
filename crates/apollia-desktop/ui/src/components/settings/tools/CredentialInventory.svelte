@@ -14,7 +14,7 @@
    * metadata only, and `$lib/ipc/governance` narrows the payload a second time.
    */
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { KeyRound, RotateCw } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { ErrorBanner } from "$lib/components/operator";
@@ -117,7 +117,7 @@
           </span>
           <span class="ml-auto text-overline text-muted-foreground">
             {$t("settings.tool_credentials.created", {
-              values: { date: formatRelativeTime(entry.created_at) },
+              values: { date: formatRelativeTime(entry.created_at, $locale ?? "en") },
             })}
           </span>
         </li>

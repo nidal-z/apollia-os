@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { formatCost, formatMs, toTimelineRow } from "./TaskTimeline.svelte";
+import { formatMs, toTimelineRow } from "./TaskTimeline.svelte";
+import { formatCost } from "$lib/format";
 import { isTaskTimelineEvent, type TaskTimelineEvent } from "$lib/ipc/tasks";
 
 // DOM rendering is exercised by the gestural E2E layer (vitest runs in `node`).

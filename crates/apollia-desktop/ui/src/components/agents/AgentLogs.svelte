@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { fly } from "svelte/transition";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
@@ -102,12 +102,12 @@
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(isoDate).toLocaleDateString();
+    return new Date(isoDate).toLocaleDateString($locale ?? "en");
   }
 
   function formatAbsoluteTime(isoDate: string): string {
     if (!isoDate) return "";
-    return new Date(isoDate).toLocaleString();
+    return new Date(isoDate).toLocaleString($locale ?? "en");
   }
 
   async function fetchTasks() {

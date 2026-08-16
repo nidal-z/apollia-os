@@ -103,19 +103,24 @@ export function buildInboxItems(
   );
 }
 
-export function toPendingRows(items: InboxItem[], untitled: string): PendingRow[] {
+export function toPendingRows(
+  items: InboxItem[],
+  untitled: string,
+  locale: string,
+): PendingRow[] {
   return items.map((item) => ({
     id: item.id,
     type: "approval" as InboxType,
     title: item.summary || untitled,
     agent: item.agentName,
-    timestamp: formatRelativeTime(item.suspendedAt),
+    timestamp: formatRelativeTime(item.suspendedAt, locale),
   }));
 }
 
 export function toDeliverableRows(
   tasks: TaskLike[],
   todayStartIso: string,
+  locale: string,
   limit = 4,
 ): DeliverableRow[] {
   return tasks
@@ -124,11 +129,11 @@ export function toDeliverableRows(
     .map((tk) => ({
       id: tk.id,
       name: tk.agent_name,
-      time: formatRelativeTime(tk.created_at),
+      time: formatRelativeTime(tk.created_at, locale),
     }));
 }
 
-export function toActivityRows(tasks: TaskLike[], limit = 4): ActivityRow[] {
+export function toActivityRows(tasks: TaskLike[], locale: string, limit = 4): ActivityRow[] {
   return [...tasks]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, limit)
@@ -136,7 +141,7 @@ export function toActivityRows(tasks: TaskLike[], limit = 4): ActivityRow[] {
       id: tk.id,
       name: tk.agent_name,
       status: tk.status,
-      time: formatRelativeTime(tk.created_at),
+      time: formatRelativeTime(tk.created_at, locale),
     }));
 }
 
@@ -144,6 +149,7 @@ export function toProjectRows(
   projects: ProjectLike[],
   limit: number,
   last24hIso: string,
+  locale: string,
 ): ProjectRow[] {
   return [...projects]
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -153,6 +159,6 @@ export function toProjectRows(
       name: p.name,
       description: p.description ?? undefined,
       status: (p.updated_at >= last24hIso ? "active" : "pause") as ProjectStatus,
-      lastActivity: formatRelativeTime(p.updated_at),
+      lastActivity: formatRelativeTime(p.updated_at, locale),
     }));
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { tasks } from "$lib/stores/tasks";
@@ -30,6 +30,7 @@
     toActivityRows,
     toProjectRows,
   } from "../components/dashboard/dashboardData";
+  import { formatDayHeadline } from "$lib/format";
 
   const PENDING_BLOCK_LIMIT = 5;
   const PINNED_PROJECTS_LIMIT = 6;
@@ -61,7 +62,9 @@
   // ── View rows (shaping delegated to dashboardData) ────────────────────────
   const totalPending = $derived($pendingCount + $pendingChatApprovalCount);
   const inboxItems = $derived(buildInboxItems($pendingApprovals, $pendingChatApprovals));
-  const pendingRows = $derived(toPendingRows(inboxItems, $t("dashboard.pending_untitled")));
+  const pendingRows = $derived(
+    toPendingRows(inboxItems, $t("dashboard.pending_untitled"), $locale ?? "en"),
+  );
 
   const todayStartIso = $derived.by(() => {
     const d = new Date();
@@ -72,9 +75,11 @@
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
 
-  const deliverableRows = $derived(toDeliverableRows($tasks, todayStartIso));
-  const activityRows = $derived(toActivityRows($tasks));
-  const projectRows = $derived(toProjectRows($projects, PINNED_PROJECTS_LIMIT, last24hIso));
+  const deliverableRows = $derived(toDeliverableRows($tasks, todayStartIso, $locale ?? "en"));
+  const activityRows = $derived(toActivityRows($tasks, $locale ?? "en"));
+  const projectRows = $derived(
+    toProjectRows($projects, PINNED_PROJECTS_LIMIT, last24hIso, $locale ?? "en"),
+  );
 
   const agentsAtWork = $derived(
     $agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"),
@@ -88,15 +93,7 @@
     return $t("dashboard.greeting_evening");
   });
 
-  const todayLabel = $derived.by(() => {
-    try {
-      return new Date()
-        .toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
-        .toUpperCase();
-    } catch {
-      return "";
-    }
-  });
+  const todayLabel = $derived(formatDayHeadline(new Date(), $locale ?? "en"));
 
   const headlineTitle = $derived.by(() => {
     if (totalPending > 0) {

@@ -16,7 +16,8 @@
    * never left guessing which spend is being judged.
    */
   import { onMount, onDestroy } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
+  import { formatCost } from "$lib/format";
   import { AlertTriangle, Gauge } from "lucide-svelte";
   import { getCostAlertThreshold } from "$lib/ipc/llm";
   import { getLlmDailyCosts } from "$lib/ipc/llmCosts";
@@ -76,15 +77,9 @@
     }
   }
 
-  function formatCost(value: number): string {
-    if (value === 0) return "$0.00";
-    if (value < 0.01) return `$${value.toFixed(4)}`;
-    return `$${value.toFixed(2)}`;
-  }
-
   function formatDay(dateStr: string): string {
     const day = new Date(`${dateStr}T12:00:00`);
-    return day.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return day.toLocaleDateString($locale ?? "en", { month: "short", day: "numeric" });
   }
 
   // A hand-edited `cost_alert_threshold_usd = 0` is a ceiling of zero for the

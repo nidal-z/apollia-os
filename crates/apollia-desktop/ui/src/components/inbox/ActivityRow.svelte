@@ -6,7 +6,7 @@
    * label via `eventLabelKey`, and exposes a "Voir les logs" link that
    * jumps to the most-relevant page for follow-up.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { AlertTriangle, XCircle, Zap, type Icon } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { eventLabelKey } from "$lib/notifications/event-labels";
@@ -69,7 +69,7 @@
         {$t(eventLabelKey(entry.event_name))}
       </span>
       <span class="shrink-0 text-[11px] text-muted-foreground">
-        {formatRelativeTime(entry.sent_at)}
+        {formatRelativeTime(entry.sent_at, $locale ?? "en")}
       </span>
     </div>
     {#if entry.task_id}

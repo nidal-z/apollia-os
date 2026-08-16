@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
+  import { formatCost } from "$lib/format";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { getLlmCostStats } from "$lib/ipc/llm";
@@ -26,12 +27,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function formatCost(value: number): string {
-    if (value === 0) return "$0.00";
-    if (value < 0.01) return `$${value.toFixed(4)}`;
-    return `$${value.toFixed(2)}`;
   }
 
   function formatTokens(value: number): string {

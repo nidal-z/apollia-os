@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Clock, Database, Cog, Copy, Trash2, X, Check, Sparkles } from "lucide-svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Sheet, SheetHeader, SheetContent, SheetFooter } from "$lib/components/ui/sheet";
   import type { MemoryEntry } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
@@ -45,7 +45,7 @@
   );
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString($locale ?? "en", {
       year: "numeric",
       month: "short",
       day: "numeric",

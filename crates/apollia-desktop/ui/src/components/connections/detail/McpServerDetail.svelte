@@ -7,7 +7,7 @@
    * header status reflects live health via the `server` prop plus a local test
    * verdict override, cleared on the next `McpServerHealthChanged` event.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Spinner } from "$lib/components/ui/progress";
   import { TabBar } from "$lib/components/ui/tabs";
   import { formatRelativeTime } from "$lib/utils";
@@ -68,7 +68,9 @@
   const displayStatus = $derived(statusFromHealth(displayHealth));
   const sync = $derived(syncDescriptor(server.last_call_at));
   const lastActivityLabel = $derived(
-    mcpDetail?.status.last_call_at ? formatRelativeTime(mcpDetail.status.last_call_at) : null,
+    mcpDetail?.status.last_call_at
+      ? formatRelativeTime(mcpDetail.status.last_call_at, $locale ?? "en")
+      : null,
   );
 
   function deriveApprovalLevel(requiresApproval: boolean): ApprovalLevel {

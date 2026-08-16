@@ -24,8 +24,12 @@ export function parseTimestampMs(iso: string): number {
   return new Date(normalized).getTime();
 }
 
-/** Format an ISO date string as a relative time string (e.g. "30s ago", "5m ago"). */
-export function formatRelativeTime(isoDate: string): string {
+/**
+ * Format an ISO date string as a relative time string (e.g. "30s ago",
+ * "5m ago"). Dates older than a week render as a full date in `locale`,
+ * the application language fed by the caller (`$locale ?? "en"`).
+ */
+export function formatRelativeTime(isoDate: string, locale: string): string {
   if (!isoDate) return "-";
   const then = parseTimestampMs(isoDate);
   if (Number.isNaN(then)) return "-";
@@ -38,7 +42,7 @@ export function formatRelativeTime(isoDate: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(isoDate).toLocaleDateString();
+  return new Date(isoDate).toLocaleDateString(locale);
 }
 
 /** Format a duration in milliseconds as a human-readable string. */

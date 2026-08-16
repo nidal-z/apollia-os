@@ -1,7 +1,36 @@
+<script lang="ts" module>
+  /** Local-calendar day key, YYYY-MM-DD in the machine's timezone. */
+  export function localDayKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Day key of a wire timestamp. The wire carries UTC; grouping must follow
+   * the machine's calendar, or an event at 01:00 local files under yesterday.
+   * An unparsable input keeps its raw date prefix.
+   */
+  export function dayKeyOf(timestamp: string): string {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? timestamp.slice(0, 10) : localDayKey(date);
+  }
+
+  /** Classifies a day key against the local calendar for the group markers. */
+  export function dayGroupKind(yyyyMmDd: string, now: Date): "today" | "yesterday" | "other" {
+    if (yyyyMmDd === localDayKey(now)) return "today";
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (yyyyMmDd === localDayKey(yesterday)) return "yesterday";
+    return "other";
+  }
+</script>
+
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { fly } from "svelte/transition";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { GlobalTimelineEvent } from "$lib/types";
   import { getGlobalTimeline } from "$lib/ipc/timeline";
   import { rowIn } from "$lib/design/listMotion";
@@ -136,7 +165,7 @@
   let groupedEvents = $derived.by(() => {
     const groups = new Map<string, GlobalTimelineEvent[]>();
     for (const e of filteredEvents) {
-      const day = e.timestamp.slice(0, 10); // YYYY-MM-DD
+      const day = dayKeyOf(e.timestamp);
       const list = groups.get(day) ?? [];
       list.push(e);
       groups.set(day, list);
@@ -145,12 +174,11 @@
   });
 
   function dayLabel(yyyyMmDd: string): string {
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    if (yyyyMmDd === today) return $t("observability.timeline_group_today");
-    if (yyyyMmDd === yesterday) return $t("observability.timeline_group_yesterday");
+    const kind = dayGroupKind(yyyyMmDd, new Date());
+    if (kind === "today") return $t("observability.timeline_group_today");
+    if (kind === "yesterday") return $t("observability.timeline_group_yesterday");
     const d = new Date(yyyyMmDd + "T12:00:00");
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString($locale ?? "en", {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -195,7 +223,7 @@
   function formatTimestamp(iso: string): string {
     if (!iso) return "";
     const d = new Date(iso);
-    return d.toLocaleTimeString(undefined, {
+    return d.toLocaleTimeString($locale ?? "en", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",

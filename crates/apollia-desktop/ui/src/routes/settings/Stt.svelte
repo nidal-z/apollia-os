@@ -9,7 +9,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Activity, Info, RefreshCw } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -156,7 +156,7 @@
     if (lastStatusRefresh === null) return $t("settings.stt.status_never");
     const deltaSec = Math.round((lastStatusRefresh - now) / 1000);
     try {
-      const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+      const rtf = new Intl.RelativeTimeFormat($locale ?? "en", { numeric: "auto" });
       const abs = Math.abs(deltaSec);
       const [value, unit] =
         abs < 60

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Card } from "$lib/components/ui/card";
   import { Mailbox, ArrowRight } from "lucide-svelte";
   import { listMailboxMessages, type MailboxMessageRow } from "$lib/ipc/mailbox";
@@ -32,7 +32,7 @@
     if (!iso) return "";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, {
+    return d.toLocaleString($locale ?? "en", {
       day: "2-digit",
       month: "short",
       hour: "2-digit",

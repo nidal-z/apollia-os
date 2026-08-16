@@ -1,5 +1,6 @@
 <script lang="ts" module>
   import type { TaskTimelineEvent } from "$lib/ipc/tasks";
+  import { formatCost } from "$lib/format";
 
   /** Visual family of a row: drives the icon and the accent token. */
   export type TimelineRowTone = "task" | "step" | "tool" | "llm" | "hitl";
@@ -38,11 +39,6 @@
   export function formatMs(ms: number): string {
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
-  }
-
-  /** Formats a USD cost, keeping sub-cent calls readable. */
-  export function formatCost(usd: number): string {
-    return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
   }
 
   /**
@@ -239,7 +235,7 @@
    * approvals) into one list sorted oldest first. Complementary to the Trace
    * tab of a task, which replays the live `runtime_events` stream instead.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import {
     Bot,
     ClipboardList,
@@ -308,7 +304,7 @@
 
   function formatTimestamp(iso: string): string {
     if (!iso) return "";
-    return new Date(iso).toLocaleTimeString(undefined, {
+    return new Date(iso).toLocaleTimeString($locale ?? "en", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",

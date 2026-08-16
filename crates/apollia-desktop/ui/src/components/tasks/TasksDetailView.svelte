@@ -7,7 +7,7 @@
    * tab bar, and the tab panes. The selected task is the expressive focal point,
    * carried by the ringed avatar and the live overview card in the panes.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Plus, RefreshCw, Pause, Timer, Calendar, Trash2 } from "lucide-svelte";
   import {
     DetailHeader,
@@ -141,7 +141,7 @@
       </span>
       <span class="inline-flex items-center gap-1 text-body-xs text-muted-foreground">
         <Calendar size={11} />
-        {formatDate(task.created_at)}
+        {formatDate(task.created_at, $locale ?? "en")}
       </span>
     {/snippet}
     {#snippet actions()}

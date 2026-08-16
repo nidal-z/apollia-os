@@ -78,7 +78,7 @@
     const s: ParsedSchedule | undefined = parsed?.schedule ?? undefined;
     if (!s) return null;
     try {
-      return new Date(s.next_run_at).toLocaleString($locale ?? undefined);
+      return new Date(s.next_run_at).toLocaleString($locale ?? "en");
     } catch {
       return s.next_run_at;
     }

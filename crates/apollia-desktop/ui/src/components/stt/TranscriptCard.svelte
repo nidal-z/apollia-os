@@ -7,7 +7,7 @@
    * roving-tabindex list row: it is focusable and answers C / E / Delete when
    * focused. Builder mode reveals the raw engine metadata.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Mic, FileAudio, Plug, Copy, Download, Trash2 } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { EntityCard } from "$lib/components/operator";
@@ -131,7 +131,9 @@
 
       {#snippet body()}
         <div class="flex flex-wrap items-center gap-2 text-body-xs text-muted-foreground/70">
-          <span data-testid="transcript-time">{formatRelativeTime(transcript.created_at)}</span>
+          <span data-testid="transcript-time"
+            >{formatRelativeTime(transcript.created_at, $locale ?? "en")}</span
+          >
           <span aria-hidden="true">&middot;</span>
           <span class="tabular-nums" data-testid="transcript-duration">
             {formatDuration(transcript.audio_duration_ms)}

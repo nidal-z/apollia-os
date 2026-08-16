@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import type { TaskSummary } from "$lib/types";
   import { tasks, openNewTaskRequested } from "$lib/stores/tasks";
@@ -95,7 +95,7 @@
       agent: task.agent_name || task.agent_id,
       status: STATUS_MAP[task.status] ?? "queued",
       progress: PROGRESS[task.status] ?? 0,
-      started: formatRelativeTime(task.created_at),
+      started: formatRelativeTime(task.created_at, $locale ?? "en"),
     };
   }
 

@@ -10,8 +10,11 @@ export function formatDurationLong(ms: number | undefined | null): string {
   return `${mins}m ${secs}s`;
 }
 
-/** Locale date-time, or `-` for an empty ISO string. */
-export function formatDate(iso: string): string {
+/**
+ * Date-time in the application language (`locale` is the caller's
+ * `$locale ?? "en"`), or `-` for an empty ISO string.
+ */
+export function formatDate(iso: string, locale: string): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleString(locale);
 }

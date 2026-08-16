@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { formatRelativeTime } from "$lib/utils";
 
   import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
@@ -81,7 +81,7 @@
   let notificationsError = $state<unknown>(null);
   let channelsError = $state<unknown>(null);
 
-  const relTime = (iso: string) => formatRelativeTime(iso);
+  const relTime = (iso: string) => formatRelativeTime(iso, $locale ?? "en");
 
   const allItems = $derived.by<InboxItem[]>(() => {
     const tr = $t as Translate;

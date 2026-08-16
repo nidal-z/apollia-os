@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Avatar } from "$lib/components/ui/avatar";
   import type { MessageGroup } from "$lib/chat/groupMessages";
   import ChatMessageBubble from "./ChatMessageBubble.svelte";
@@ -43,7 +43,7 @@
 
   const headerTime = $derived.by(() => {
     const date = new Date(group.startedAt);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });
   });
 </script>
 

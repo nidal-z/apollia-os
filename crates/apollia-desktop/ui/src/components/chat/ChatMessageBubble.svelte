@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
@@ -48,7 +48,7 @@
 
   const formattedTime = $derived.by(() => {
     const date = new Date(message.created_at);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });
   });
 
   // Split the turn's tool calls: pending/authorized ones drive the always-

@@ -1,9 +1,26 @@
+<script lang="ts" module>
+  /**
+   * Formats a decision instant as the machine's wall-clock HH:MM. The wire
+   * carries UTC; the operator reads local time. `h23` keeps the fixed-width
+   * audit column at five characters in every locale.
+   */
+  export function formatTime(value: string, loc: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleTimeString(loc, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  }
+</script>
+
 <script lang="ts">
   /**
    * AuditSection - read-only tail of the immutable permission-decision log.
    */
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import { ScrollText } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import SettingsSection from "../settings/SettingsSection.svelte";
@@ -13,11 +30,6 @@
   onMount(() => {
     void loadAudit();
   });
-
-  function formatTime(value: string): string {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(11, 16);
-  }
 
   function decisionClass(decision: string): string {
     if (decision === "allow") return "text-success";
@@ -40,7 +52,7 @@
     <ul class="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 text-caption">
       {#each $auditEntries.slice(0, 20) as entry (entry.id)}
         <li class="grid grid-cols-[3rem_8rem_1fr_8rem] items-center gap-2 px-3 py-1.5">
-          <span class="font-mono text-muted-foreground tabular-nums">{formatTime(entry.decided_at)}</span>
+          <span class="font-mono text-muted-foreground tabular-nums">{formatTime(entry.decided_at, $locale ?? "en")}</span>
           <span class="font-medium">{entry.tool_name}</span>
           <span class={decisionClass(entry.decision)}>
             {entry.decision}{#if entry.scope}<span class="text-muted-foreground"> · {entry.scope}</span>{/if}{#if entry.rule_id}<span class="text-muted-foreground"> · {$t("settings.permissions.audit_rule_ref", { values: { id: entry.rule_id } })}</span>{/if}

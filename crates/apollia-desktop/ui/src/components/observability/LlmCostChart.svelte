@@ -1,6 +1,34 @@
+<script lang="ts" module>
+  // TODO(once a shared display-formatting module exists): fold this duplicate
+  // of TimelineGlobal's localDayKey into it.
+  /** Local-calendar day key, YYYY-MM-DD in the machine's timezone. */
+  function localDayKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Builds the YYYY-MM-DD axis covering the window, inclusive of today, in
+   * the machine's local calendar. Serializing through UTC here shifted the
+   * whole axis by the timezone offset around midnight.
+   */
+  export function buildDateAxis(windowDays: number, now: Date): string[] {
+    const dates: string[] = [];
+    for (let i = windowDays - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      dates.push(localDayKey(d));
+    }
+    return dates;
+  }
+</script>
+
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
+  import { formatCost } from "$lib/format";
   import type { LlmDailyCostEntry } from "$lib/types";
   import { getLlmDailyCosts } from "$lib/ipc/llmCosts";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -51,17 +79,7 @@
     Object.fromEntries(backends.map((b, i) => [b, CHART_CSS_VARS[i % CHART_CSS_VARS.length]])),
   );
 
-  /** Build the YYYY-MM-DD axis covering the active window, inclusive of today. */
-  let dateLabels = $derived.by(() => {
-    const dates: string[] = [];
-    const now = new Date();
-    for (let i = windowDays - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().slice(0, 10));
-    }
-    return dates;
-  });
+  let dateLabels = $derived(buildDateAxis(windowDays, new Date()));
 
   /** When the window grows, individual day labels overlap. We thin them: keep
    *  one tick every Nth day, always keep the first and last. */
@@ -71,12 +89,12 @@
 
   function shortDayLabel(dateStr: string): string {
     const d = new Date(dateStr + "T12:00:00");
-    return d.toLocaleDateString(undefined, { weekday: "short" });
+    return d.toLocaleDateString($locale ?? "en", { weekday: "short" });
   }
 
   function shortDateLabel(dateStr: string): string {
     const d = new Date(dateStr + "T12:00:00");
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString($locale ?? "en", { month: "short", day: "numeric" });
   }
 
   let barData = $derived(
@@ -124,12 +142,6 @@
     if (backendTotals.length === 0) return null;
     return [...backendTotals].sort((a, b) => b.cost - a.cost)[0];
   });
-
-  function formatCost(value: number): string {
-    if (value === 0) return "$0.00";
-    if (value < 0.01) return `$${value.toFixed(4)}`;
-    return `$${value.toFixed(2)}`;
-  }
 
   let yScale = $derived.by(() => {
     const niceMax = niceUpperBound(maxCost);

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Plus, Search } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
   import {
@@ -326,7 +326,7 @@
   function fmtTime(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });
   }
 
   function previewText(s: string, max = 160): string {

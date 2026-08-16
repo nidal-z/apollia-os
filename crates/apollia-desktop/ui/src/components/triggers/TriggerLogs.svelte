@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { fly } from "svelte/transition";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { TriggerLogEntry } from "$lib/types";
   import { formatRelativeTime } from "$lib/utils";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
@@ -88,7 +88,7 @@
 
   function formatAbsoluteTime(isoDate: string): string {
     if (!isoDate) return "";
-    return new Date(isoDate).toLocaleString();
+    return new Date(isoDate).toLocaleString($locale ?? "en");
   }
 
   async function fetchLogs() {
@@ -245,7 +245,7 @@
                   class="text-caption text-muted-foreground/40 shrink-0"
                   title={formatAbsoluteTime(entry.fired_at)}
                 >
-                  {formatRelativeTime(entry.fired_at)}
+                  {formatRelativeTime(entry.fired_at, $locale ?? "en")}
                 </span>
               </div>
 

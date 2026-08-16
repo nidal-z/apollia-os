@@ -3,7 +3,7 @@
    * PackageOverviewTab - install metadata for a package: install date, source
    * path, and author (when the loaded detail is available).
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Clock, FolderOpen, Users } from "lucide-svelte";
   import { Card } from "$lib/components/operator";
   import type { AgentPackageDetailView, AgentPackageListItem } from "$lib/types";
@@ -25,7 +25,7 @@
       <Clock size={11} />
       <span>
         {$t("agents.installed_on", {
-          values: { date: new Date(pkg.installed_at).toLocaleDateString() },
+          values: { date: new Date(pkg.installed_at).toLocaleDateString($locale ?? "en") },
         })}
       </span>
     </div>

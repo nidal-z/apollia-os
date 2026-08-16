@@ -4,11 +4,43 @@
   Detects known fields (title, summary, action_items, etc.) and renders them
   with appropriate formatting. Falls back to pre-formatted text for non-JSON.
   Toggle allows switching between formatted and raw views.
-
-  Smart output renderer (JSON → vue formatée)
 -->
+<script lang="ts" module>
+  /** Render one list item: objects serialize to JSON, never `[object Object]`. */
+  function stringifyItem(item: unknown): string {
+    if (typeof item === "object" && item !== null) return JSON.stringify(item);
+    return String(item);
+  }
+
+  /** Coerce a value to a flat string array for list renderers. */
+  export function toStringArray(val: unknown): string[] {
+    if (Array.isArray(val)) return val.map(stringifyItem);
+    if (typeof val === "string") return [val];
+    return [stringifyItem(val)];
+  }
+
+  /**
+   * Format a date string in the given display locale (the caller's
+   * `$locale ?? "en"`), returning the original on failure.
+   */
+  export function formatDateLocal(val: unknown, locale: string): string {
+    const str = String(val);
+    try {
+      const d = new Date(str);
+      if (isNaN(d.getTime())) return str;
+      return d.toLocaleDateString(locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return str;
+    }
+  }
+</script>
+
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { cn } from "$lib/utils";
   import { uiMode } from "$lib/stores/mode";
   import JsonViewer from "./JsonViewer.svelte";
@@ -128,29 +160,6 @@
     return [...known, ...unknown];
   }
 
-  /** Coerce a value to a flat string array for list renderers. */
-  function toStringArray(val: unknown): string[] {
-    if (Array.isArray(val)) return val.map(String);
-    if (typeof val === "string") return [val];
-    return [String(val)];
-  }
-
-  /** Format a date string locally, returning the original on failure. */
-  function formatDateLocal(val: unknown): string {
-    const str = String(val);
-    try {
-      const d = new Date(str);
-      if (isNaN(d.getTime())) return str;
-      return d.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      return str;
-    }
-  }
-
   /** Pretty-print a value for generic key/value display. */
   function formatGenericValue(val: unknown): string {
     if (val === null || val === undefined) return "-";
@@ -254,7 +263,7 @@
         {:else if renderer === "date"}
           <div class="flex items-center gap-2 text-sm">
             <span class="text-muted-foreground">{humanizeKey(key)}:</span>
-            <span data-testid="smart-output-date">{formatDateLocal(value)}</span>
+            <span data-testid="smart-output-date">{formatDateLocal(value, $locale ?? "en")}</span>
           </div>
         {:else if renderer === "inline_list"}
           <div class="space-y-1" data-testid="smart-output-inline-list">
