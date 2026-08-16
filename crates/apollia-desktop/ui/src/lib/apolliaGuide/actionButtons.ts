@@ -9,8 +9,9 @@
  * prompt-injected links, both the action kind AND the payload shape are
  * validated before a button is rendered.
  *
- * The route allowlist mirrors `agent.py::_ALLOWED_ROUTES`. Parsing and
- * execution are now client-side; the agent is the source of the block.
+ * The route allowlist is the enforced counterpart of
+ * `agent.py::_ALLOWED_ROUTES`: the agent proposes, this file decides. Parsing
+ * and execution are now client-side; the agent is the source of the block.
  */
 import { navigateTo, type Route } from "$lib/stores/navigation";
 
@@ -79,9 +80,10 @@ export function parseApolliaActions(content: string): {
 }
 
 /**
- * Allowlist of routes the coach is allowed to deep-link to. Mirrors the
- * `_ALLOWED_ROUTES` set in `agent.py` - routes absent from this list are
- * dropped silently.
+ * Allowlist of routes the coach is allowed to deep-link to. `agent.py` keeps
+ * its own `_ALLOWED_ROUTES` list, but this map is the one enforced: routes
+ * absent from it are dropped silently. `/onboarding` is deliberately absent,
+ * onboarding is a modal, not a route.
  */
 const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/dashboard": "dashboard",
@@ -92,7 +94,6 @@ const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/automations": "automations",
   "/integrations": "integrations",
   "/inbox": "inbox",
-  "/onboarding": "onboarding",
   "/llm": "llm",
   "/triggers": "automations",
   "/memory": "memory",

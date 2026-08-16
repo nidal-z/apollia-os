@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * LlmBackendCard - one backend on the top-level "AI Models" surface.
+   * LlmBackendCard - one backend on the top-level "LLM models" surface.
    *
    * Operator mode shows a humanized title, a single cost badge, a plain-language
    * status line, and (on failure) a humanized reason. Builder mode shows the raw

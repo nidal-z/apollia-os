@@ -202,7 +202,7 @@
     "open_sessions": "Open sessions"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Home",
     "home": "Home",
     "my_assistants": "My Assistants",
     "my_triggers": "My Triggers",
@@ -213,12 +213,12 @@
     "infrastructure": "Infrastructure",
     "data": "Data",
     "agents": "Agents",
-    "tasks": "Tasks",
+    "tasks": "My work",
     "approvals": "Approvals",
     "inbox": "Inbox",
     "inbox_operator": "Inbox",
     "inbox_builder": "Inbox",
-    "llm": "LLM",
+    "llm": "LLM models",
     "triggers": "Triggers",
     "automations": "Automations",
     "builder_cluster": "Inspection",
@@ -1837,7 +1837,7 @@
   },
   "llm": {
     "title": "LLM Backends",
-    "title_operator": "AI Models",
+    "title_operator": "LLM models",
     "subtitle": "AI models powering your assistants",
     "empty": "No LLM backend configured. Edit apollia.toml to add a backend.",
     "empty_title": "No LLM backend configured",

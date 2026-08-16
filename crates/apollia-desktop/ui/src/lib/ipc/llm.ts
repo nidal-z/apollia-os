@@ -1,6 +1,6 @@
 // Typed IPC wrappers for the LLM surface.
 //
-// Centralises every `invoke` the top-level "AI Models" page and its cards
+// Centralises every `invoke` the top-level "LLM models" page and its cards
 // need, so `.svelte` files never call `invoke` directly (frontend rule). The
 // cost-breakdown call already lives in `./llmCosts.ts`; this module covers the
 // backend list, ping, default selection, engine reload and deletion.

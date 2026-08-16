@@ -8,19 +8,22 @@
    *   - green: runtime heartbeat is healthy AND at least one LLM backend is enabled
    *   - amber: runtime is healthy but no LLM backend is connected
    *   - red:   runtime heartbeat is missing or reconnecting
-   * The trail derives from `currentRoute` via `routeMeta`.
+   * The trail derives from `currentRoute` via `routeMeta`, plus the open
+   * settings sub-page (`settingsSubRoute`) as a leaf on the settings route.
    *
    * Promoted from `components/layout/Breadcrumb.svelte`. Status dot shadows
    * are now driven by the `--shadow-status-*` tokens in app.css.
    */
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo } from "$lib/stores/navigation";
-  import { buildTrail, routeMeta, homeRouteFor } from "$lib/navigation/routeMeta";
+  import { homeRouteFor } from "$lib/navigation/routeMeta";
+  import { buildBreadcrumbSegments } from "$lib/navigation/breadcrumbSegments";
   import { uiMode } from "$lib/stores/mode";
+  import { settingsSubRoute } from "$lib/stores/settings";
   import { runtimeHealth } from "$lib/stores/runtimeHealth";
   import { readyLlmBackends } from "$lib/stores/llm";
 
-  const trail = $derived(buildTrail($currentRoute));
+  const trail = $derived(buildBreadcrumbSegments($currentRoute, $settingsSubRoute));
 
   type StatusLevel = "ok" | "warn" | "down";
   const status = $derived.by<{ level: StatusLevel; key: string }>(() => {
@@ -67,13 +70,11 @@
     Apollia
   </button>
 
-  {#each trail as route, i (route)}
-    {@const meta = routeMeta[route]}
-    {#if meta}
+  {#each trail as segment, i (segment.labelKey)}
     {@const isLast = i === trail.length - 1}
-    {@const Icon = meta.icon}
+    {@const Icon = segment.icon}
     <span class="text-muted-foreground/50" aria-hidden="true">/</span>
-    {#if isLast}
+    {#if isLast || segment.route === null}
       <span
         aria-current="page"
         class="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground"
@@ -81,20 +82,20 @@
         {#if Icon}
           <Icon size={12} strokeWidth={1.75} class="text-primary shrink-0" aria-hidden="true" />
         {/if}
-        <span class="truncate">{$t(meta.labelKey)}</span>
+        <span class="truncate">{$t(segment.labelKey)}</span>
       </span>
     {:else}
+      {@const target = segment.route}
       <button
         type="button"
         class="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 rounded"
-        onclick={() => navigateTo(route)}
+        onclick={() => navigateTo(target)}
       >
         {#if Icon}
           <Icon size={12} strokeWidth={1.75} aria-hidden="true" />
         {/if}
-        <span>{$t(meta.labelKey)}</span>
+        <span>{$t(segment.labelKey)}</span>
       </button>
-    {/if}
     {/if}
   {/each}
 </nav>

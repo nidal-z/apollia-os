@@ -55,7 +55,6 @@ export const routeMeta: Record<Route, RouteMeta> = {
   notifications: { labelKey: "nav.notifications", parent: null, icon: Bell },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
-  onboarding: { labelKey: "nav.onboarding", parent: null },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },
   "design-empty-states": { labelKey: "topbar.route.design_empty_states", parent: "design", icon: Paintbrush },
