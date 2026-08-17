@@ -291,6 +291,16 @@ jobs:
       # has nothing, so the gate lives here.
       - name: No web font is fetched from a third party
         run: python3 scripts/check_no_font_cdn.py
+      # Tauri camel-cases the name of every command argument before looking it
+      # up, and never falls back to snake_case. A key it does not find makes it
+      # reject the whole call, so a single wrong spelling ships a surface that
+      # fails at every execution and says nothing. Two of them lived in the
+      # tree at once, one of them frozen green by a unit test. Nothing read
+      # the two sides of that contract together until this.
+      - name: Every invoke call carries the argument keys Tauri reads
+        run: |
+          python3 scripts/check_tauri_ipc_args.py --selftest
+          python3 scripts/check_tauri_ipc_args.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

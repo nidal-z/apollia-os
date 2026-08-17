@@ -145,11 +145,41 @@ describe("companionStore - updateContext", () => {
     // WHEN context is updated
     await companionStore.updateContext("tasks");
 
-    // THEN update_chat_session IPC is called with the new context as system prompt
+    // THEN update_chat_session IPC is called with the new context as system
+    // prompt, under the argument key Tauri actually reads. Tauri camel-cases
+    // the names of command arguments, so `session_id: String` is looked up as
+    // `sessionId`. The nested `update` payload stays snake_case, its Rust type
+    // carrying no `rename_all`.
     expect(mockedInvoke).toHaveBeenCalledWith("update_chat_session", {
-      session_id: "sess-1",
+      sessionId: "sess-1",
       update: { system_prompt: "Tasks context.", tools: null, llm_backend: null },
     });
+  });
+
+  test("no argument key reaches update_chat_session in snake_case", async () => {
+    // GIVEN an active companion session
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "create_companion_session")
+        return Promise.resolve({ session_id: "sess-1" });
+      if (cmd === "get_companion_context")
+        return Promise.resolve("Agents context.");
+      return Promise.resolve(null);
+    });
+    await companionStore.createSession("tasks");
+
+    // WHEN context is updated
+    await companionStore.updateContext("agents");
+
+    // THEN the argument object carries `sessionId` and never `session_id`:
+    // a key Tauri does not find makes it reject the whole call, so the wrong
+    // spelling is not a default value, it is a dead surface.
+    const call = mockedInvoke.mock.calls.find(
+      ([cmd]) => cmd === "update_chat_session",
+    );
+    expect(call).toBeDefined();
+    const args = call?.[1] as Record<string, unknown>;
+    expect(Object.keys(args)).toContain("sessionId");
+    expect(Object.keys(args)).not.toContain("session_id");
   });
 });
 

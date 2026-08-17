@@ -399,8 +399,12 @@ function createCompanionStore() {
           return { ...s, currentRoute: route, currentContext: text };
         });
         if (currentSessionId) {
+          // Tauri camel-cases the names of command arguments before looking
+          // them up, so the key must be `sessionId`. The nested `update`
+          // payload keeps snake_case: `UpdateSessionRequest` carries no
+          // `rename_all`, and serde reads its fields as declared.
           await invoke("update_chat_session", {
-            session_id: currentSessionId,
+            sessionId: currentSessionId,
             update: { system_prompt: text, tools: null, llm_backend: null },
           });
         }
