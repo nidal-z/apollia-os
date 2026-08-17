@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- No remote font link here, ever. Inter Tight, Inter and JetBrains Mono are
-       bundled through @fontsource and imported from src/main.ts, so a fresh
-       launch contacts nobody. A <link> to a font CDN would leak the IP,
-       User-Agent, Accept-Language and launch cadence of every user on startup,
-       which contradicts the sovereignty guarantee the product is sold on. -->
+  <!-- No remote font link here, ever. Inter Tight and JetBrains Mono are
+       bundled through @fontsource and imported from src/main.ts, latin and
+       latin-ext subsets only, so a fresh launch contacts nobody. A <link> to a
+       font CDN would leak the IP, User-Agent, Accept-Language and launch
+       cadence of every user on startup, which contradicts the sovereignty
+       guarantee the product is sold on. -->
   <title>Apollia OS</title>
   <script>
     (function() {

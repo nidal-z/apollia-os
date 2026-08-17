@@ -156,7 +156,7 @@
     height: 100%;
     background: var(--bg);
     border-radius: var(--radius);
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     user-select: none;
     -webkit-user-select: none;
   }

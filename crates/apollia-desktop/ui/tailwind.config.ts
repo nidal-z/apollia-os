@@ -17,9 +17,13 @@ const config: Config = {
       "2xl": "1536px",
     },
     extend: {
+      // Every name here must be bundled by src/main.ts or come from the
+      // system. A second rank that is itself bundled can never be reached:
+      // the first rank cannot fail to load. No serif stack is declared, so
+      // the serif utility resolves to Tailwind's system default rather than
+      // to a typeface the installer does not carry.
       fontFamily: {
-        sans: ["Inter Tight", "Inter", ...defaultTheme.fontFamily.sans],
-        serif: ["Instrument Serif", "Cormorant Garamond", "Georgia", "serif"],
+        sans: ["Inter Tight", ...defaultTheme.fontFamily.sans],
         mono: ["JetBrains Mono", "IBM Plex Mono", "ui-monospace", "monospace"],
       },
       // Display type scale - hero titles & empty-state headlines.
