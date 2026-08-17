@@ -226,15 +226,17 @@ Rust crates, the Python SDK, the TypeScript runtime client, the desktop UI
 package, and the built-in agents under `agents/system/` and `agents/examples/`.
 A release bumps them together. Do not give a component a lifecycle of its own.
 
-Three deliberate exceptions:
+Two deliberate exceptions:
 
 | Where | Value | Why |
 |---|---|---|
 | `crates/apollia-desktop/tauri.conf.json` | `0.1.0-1` | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `0.1.0-1` to the MSI product version `0.1.0.1`; the About screen still reads the pre-release suffix and shows the Preview channel. |
 | `sdk/apollia/cli/scaffold.py`, README examples | `0.1.0` | Templates for agents the user writes. A freshly scaffolded agent starts its own life at `0.1.0`; it is not an Apollia component. |
-| A client deliverable under its own out-of-tree directory | its own | Not an Apollia component. It ships on the client's cycle, not on the product's. |
 
-The Python SDK is a fourth, softer case: PEP 440 normalises `0.1.0-preview` to
+The rule covers what ships in this tree. An agent that is not an Apollia
+component carries its own version, and nothing here governs it.
+
+The Python SDK is a third, softer case: PEP 440 normalises `0.1.0-preview` to
 `0.1.0rc0` in the built distribution metadata, so `pip show apollia-sdk` reports
 `0.1.0rc0`. The source string stays `0.1.0-preview`, which is what the tag, the
 changelog and `apollia.__version__` all use.
