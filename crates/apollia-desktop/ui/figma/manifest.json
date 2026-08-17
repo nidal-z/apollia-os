@@ -1056,7 +1056,16 @@
           "loading",
           "empty"
         ]
-      }
+      },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "La valeur par defaut de emptyLabel n est plus le litteral anglais No data mais un repli sur le catalogue : la propriete vaut undefined et le rendu est emptyLabel ?? $t(\"common.no_data\") (DataTable.svelte:136). La cle rend « Aucune donnée » en francais et « No data » en anglais. Les deux seuls sites de montage, components/llm/LlmStats.svelte et components/notifications/NotificationLog.svelte, ne passent pas la propriete : ils voient le repli.",
+          "cequiNestPasReproduit": "La variante Variant=empty du jumeau porte toujours le mot anglais No data. Le jumeau est peint en francais, elle devrait donc lire « Aucune donnée ». Aucun cadre n a ete repeint."
+        }
+      ]
     },
     {
       "nodeId": "374:1021",
@@ -1085,7 +1094,16 @@
           "warning",
           "info"
         ]
-      }
+      },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "Deux points, dont un seul est visible. (1) La valeur par defaut de retryLabel n est plus le litteral anglais Retry : la propriete vaut undefined et le rendu est retryLabel ?? $t(\"common.retry\") (ErrorBanner.svelte:72), cle qui rend « Réessayer » en francais et « Retry » en anglais. La propriete reste optionnelle, un appelant qui passe son libelle le garde. (2) L attribut aria-label de la croix de rejet passe de Dismiss a $t(\"a11y.dismiss\") (ErrorBanner.svelte:79), « Masquer » en francais : un attribut d accessibilite n a pas de porteur dans le jumeau, ce point ne le desynchronise pas.",
+          "cequiNestPasReproduit": "Les trois variantes du jumeau portent toujours le bouton etiquete Retry. Le jumeau est peint en francais, elles devraient lire « Réessayer ». Aucun cadre n a ete repeint."
+        }
+      ]
     },
     {
       "nodeId": "375:1039",
@@ -1145,7 +1163,16 @@
           "warning",
           "destructive"
         ]
-      }
+      },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "Les valeurs par defaut des deux boutons ne sont plus les litteraux anglais Confirm et Cancel : les deux proprietes valent undefined et le rendu est cancelLabel ?? $t(\"common.cancel\") (ConfirmDialog.svelte:44) et confirmLabel ?? $t(\"common.confirm\") (:55). Les deux cles rendent « Annuler » et « Confirmer » en francais, « Cancel » et « Confirm » en anglais. Les proprietes restent optionnelles, un appelant qui passe son libelle le garde.",
+          "cequiNestPasReproduit": "Les trois variantes du jumeau portent toujours les mots anglais Cancel et Confirm. Le jumeau est peint en francais, elles devraient lire « Annuler » et « Confirmer ». Aucun cadre n a ete repeint."
+        }
+      ]
     },
     {
       "nodeId": "376:1157",
@@ -1477,7 +1504,16 @@
           "pill",
           "footer"
         ]
-      }
+      },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "La jauge des deux variantes n est plus le litteral Ctx {ctxLabel} · Budget {pct}% ecrit dans le balisage mais $t(\"chat.context_gauge\"). La cle rend « Ctx {ctx} · Budget {budget} % » en francais, avec l espace avant le signe pourcent qu impose la typographie francaise, et « Ctx {ctx} · Budget {budget}% » en anglais. L ecart visible est cette espace.",
+          "cequiNestPasReproduit": "Les deux variantes du jumeau collent le signe pourcent au nombre. Le jumeau est peint en francais, elles devraient porter l espace. Aucun cadre n a ete repeint."
+        }
+      ]
     },
     {
       "nodeId": "388:507",
@@ -2664,7 +2700,16 @@
           "no-turn"
         ]
       },
-      "note": "textes utilisateur en dur et tailles text-[10px] / text-[11px] reproduits tels quels, voir CAP-005 et CAP-006."
+      "note": "textes utilisateur en dur et tailles text-[10px] / text-[11px] reproduits tels quels, voir CAP-005 et CAP-006.",
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "Les cinq textes que la note ci-dessus donne comme ecrits en dur ne le sont plus. Le titre passe a $t(\"memory.injected_title\"), et les quatre phrases a $t(\"memory.injected_no_turn\"), $t(\"common.loading\"), $t(\"memory.injected_empty\") et $t(\"memory.injected_principle\"). Trois des cinq rendent en francais exactement le mot d avant. Deux changent, et sur un caractere chacune : la variante state=loading passait de « Chargement… » avec des points de suspension typographiques a « Chargement... » avec trois points, et la phrase de principe passait de « Principe&nbsp;6 » avec une espace insecable a « Principe 6 » avec une espace ordinaire.",
+          "cequiNestPasReproduit": "Aucune variante n a ete repeinte : state=loading porte encore les points de suspension typographiques et la phrase de principe l espace insecable. La note qui precede reste vraie du jumeau et fausse du source : la moitie de son motif, les textes utilisateur en dur, n existe plus au source. Elle est conservee telle quelle pour que la raison d etre du jumeau reste datable, la partie tailles text-[10px] / text-[11px] et CAP-005 etant toujours vraie des deux cotes."
+        }
+      ]
     },
     {
       "nodeId": "429:3023",
@@ -2786,6 +2831,15 @@
           "custom"
         ]
       },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "La ligne d aide sous le champ d expression n est plus le litteral anglais Standard cron syntax: min hour day month weekday mais $t(\"triggers.cron_syntax_hint\") (CronBuilder.svelte:213). La cle rend « Syntaxe cron standard : min heure jour mois jour-semaine » en francais. Les sept puces de jour ne changent pas : DAYS_LABEL (:17) porte toujours [\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\"], rendues en boutons a :180-190 a cote du libelle francais $t(\"triggers.cron_on_days\") a :179. C est l arbitrage A2 du lot, confirme a la validation le 2026-08-17 : le constat reste un site de GRP-002 et n est pas traduit ici.",
+          "cequiNestPasReproduit": "La variante preset=custom du jumeau, seule a porter le paragraphe d aide, garde la phrase anglaise. Le jumeau est peint en francais, elle devrait lire « Syntaxe cron standard : min heure jour mois jour-semaine ». Les sept puces de jour restent fideles, le source ne les a pas traduites. Aucun cadre n a ete repeint."
+        }
+      ],
       "coverage": "Reprise structurelle du 2026-08-08, verdict complete. Cinq ecarts. (1) L'axe preset du source porte six valeurs (PRESETS, CronBuilder.svelte:132-139 : 15m, 30m, hourly, daily, weekly, custom) ; le jumeau n'en avait que quatre, preset=15m et preset=30m manquaient alors que le source les distingue par la puce active. (2) Le calque de selection « tint --primary @10 » etait pose sur les six puces de chaque variante, alors que le source ne teinte que la puce active (classe conditionnelle bg-primary/10 lignes 149-151) : toutes les puces se lisaient comme selectionnees. Meme defaut sur les sept puces de jour (lignes 179-182) alors que l'etat par defaut weeklyDays ligne 22 est Mon-Fri actifs, Sat et Sun inactifs. 22 calques de teinte retires. (3) L'instance TimePicker faisait 220 de large alors que le source impose class=\"w-32\", soit 128, lignes 163-167 et 191-195. (4) Variante custom : le source empile l'Input pleine largeur (lignes 202-207) puis le paragraphe d'aide (lignes 208-210), tous deux enfants du conteneur space-y-3 ; le jumeau les posait cote a cote dans un cadre horizontal, avec l'Input reduit a 137. Le cadre « detail » etait de plus fige a 32 de haut, ce qui coupait le paragraphe. (5) Variante hourly : un cadre « detail » vide de 16 de haut alors que le source ne rend aucun bloc de detail pour 15m, 30m ni hourly. Ajoute : variante preset=15m ; variante preset=30m ; calque tint sur la puce active des deux nouvelles variantes. Reste : Trois chaines viennent du source en anglais en dur et non de fr.json : le placeholder « 0 8 * * MON-FRI » (ligne 204), la ligne d'aide « Standard cron syntax: min hour day month weekday » (ligne 209) et DAYS_LABEL Mon..Sun (ligne 16). Reproduites verbatim ; c'est un ecart du produit, signale et non corrige. Resynchronise le 2026-08-14 apres LOT-016 : le builder relit la forme persistee a six champs via stripSecondsField (humanize.ts:40), aucun changement de rendu, le jumeau reste fidele ; les citations de lignes de cette entree sont decalees de +4 par cet ajout."
     },
     {
@@ -6001,6 +6055,15 @@
           "warn"
         ]
       },
+      "desynchronisation": [
+        {
+          "lot": "LOT-022",
+          "date": "2026-08-17",
+          "fideliteRetablie": false,
+          "cequiAChange": "Les deux touches etiquetees Enter ne portent plus ce litteral mais $t(\"chat.hints.key_enter\") (InputHints.svelte, la ligne d envoi et la ligne de saut de ligne). La cle rend « Entrée » en francais et « Enter » en anglais. La touche ⇧ ne change pas.",
+          "cequiNestPasReproduit": "Les trois variantes du jumeau portent toujours le mot Enter sur les deux touches concernees. Le jumeau est peint en francais, elles devraient lire « Entrée », qui est aussi plus large que le mot anglais et deborde de la largeur des cadres de touche poses a la main. Aucun cadre n a ete repeint. L ecart deja note plus bas au titre de CAP-022, les deux chaines de chat.rate_limit absentes de fr.json, est independant de ce lot et n a pas bouge."
+        }
+      ],
       "coverage": "3 variantes sur les 4 combinaisons de Statut (2) x Tone (2). La quatrieme, Statut=absent avec Tone=warn, n a pas de rendu distinct : sans pastille, le ton n a aucun porteur. Largeur de reference 640 px : le composant n a pas de largeur propre dans le produit, il prend celle du composeur (ChatInput.svelte:867) ; 640 px rend visible le justify-between entre la colonne des rappels et la pastille de statut. Defauts reproduits : sans categorie existante, bg-warning-subtle n existe pas (tailwind.config.ts:155-158 ne declare pour warning que DEFAULT et foreground, app.css ne definit aucune classe de ce nom), la variante Tone=warn ne recoit donc que la couleur de texte --warning et aucun fond ; sans categorie existante, les quatre touches sont des kbd stylises a la main alors que KeyboardHint (371:930), Keycap (341:8) et Keycap settings (414:1494) existent deja et qu aucune ne correspond a ces dimensions, d ou quatre cadres libres. CAP-004 et CAP-005 : text-[10px], text-[9px], py-[1px], hors echelle (le palier le plus bas est overline a 10,5 px) ; tailles ecrites en dur, aucun style de texte lie. CAP-022, regle par LOT-024 le 2026-08-17 : chat.rate_limit.too_fast_countdown et chat.rate_limit.too_many_countdown existent desormais dans fr.json, « Attendez {s} s avant de renvoyer » et « Limite de debit atteinte, reessayez dans {s} s », et le repli anglais code en dur a ete retire du site d'appel, ChatInput.svelte:184-188. Le jumeau n'a pas ete resynchronise : les deux variantes Statut=present portent encore les chaines anglaises verbatim, ce qui n'est plus ce que le produit affiche en francais. CAP-010 : Statut=present avec Tone=neutral est inatteignable en l etat (refreshRateState, ChatInput.svelte:163-179, met toujours la chaine et warn ensemble ou null et neutral ensemble) ; conservee parce que le contrat de props l autorise. Substitution : bg-muted/50 des touches pose en calque tint absolu ; text-muted-foreground/50 herite de la racine rendu par l opacite du noeud de texte. Non reproductible : truncate sur la colonne des rappels, et mt-1 qui appartient a la relation avec le composeur."
     },
     {
@@ -7544,6 +7607,14 @@
         "cequiAChange": "Une surface est un ecran entier, coquille comprise, donc chacun des 140 cadres porte la Topbar et son fil d Ariane. Deux changements les traversent tous. (1) Les libelles de navigation resolus par le fil ont change sur quatre routes : Tableau de bord devient Accueil, Agents devient Assistants, Taches devient Mon travail, LLM devient Modeles LLM, et cote anglais Dashboard devient Home, Tasks devient My work, LLM devient LLM models. Mesure sur les deux catalogues apres le lot : les valeurs Tableau de bord, Dashboard, Modeles IA et AI Models n existent plus nulle part, le jumeau peint donc des mots que le produit ne rend plus. (2) Sur la route settings le fil porte desormais un troisieme segment, la sous-page ouverte en feuille non cliquable ; les cadres de reglages montrent la forme a deux segments, qui est l etat d avant.",
         "cequiNestPasReproduit": "Aucun cadre n a ete repeint. Les 140 cadres gardent les anciens libelles de fil et la forme a deux segments sur les surfaces de reglages.",
         "noteSurUneClefDejaFausse": "verificationDuPassage.libellesDExempleDePrimitive attribue 41 occurrences de « Tableau de bord » a nav.sidebar.dashboard, presente comme le libelle legitime de la premiere rangee de la barre laterale. Cette attribution etait deja fausse avant LOT-021 : sur le commit de base 1cad8717, nav.sidebar.dashboard vaut Accueil et c est nav.dashboard, la clef du fil d Ariane, qui valait Tableau de bord. Defaut anterieur au lot, capture et non corrige ici."
+      },
+      {
+        "lot": "LOT-022",
+        "date": "2026-08-17",
+        "fideliteRetablie": false,
+        "cequiAChange": "Le lot fait passer par le catalogue toute chaine de copie ecrite dans le frontend. Sur les 34 fichiers de son diff, sept composants voient leur texte francais change, et ce sont eux qui traversent les cadres de surface. Les mesures sont prises sur fr.json et en.json apres le lot. (1) ConfirmDialog rend « Annuler » et « Confirmer » la ou le jumeau peint Cancel et Confirm ; il est monte depuis douze fichiers, dont routes/Projects.svelte, routes/Tasks.svelte, routes/Notifications.svelte, routes/settings/ModelHub.svelte et routes/settings/Observability.svelte. (2) ErrorBanner rend « Réessayer » la ou le jumeau peint Retry ; 32 fichiers le montent. (3) DataTable rend « Aucune donnée » la ou le jumeau peint No data, sur les surfaces Llm et Notifications, ses deux seuls sites de montage. (4) InputHints rend « Entrée » la ou le jumeau peint Enter, sur les cadres Chat par ChatInput.svelte. (5) ContextIndicator rend « Budget N % » avec une espace la ou le jumeau colle le signe pourcent, sur les cadres Chat par ChatConversation.svelte. (6) CronBuilder rend « Syntaxe cron standard : min heure jour mois jour-semaine » la ou le jumeau peint la phrase anglaise, sur les cadres Automations par AutomationDefinitionForm.svelte et CreateTriggerDialog.svelte. (7) TraceEventCard, qui n a pas d entree de composant dans ce manifeste, rend « L agent a tenté d utiliser {tool}, l action a été bloquée. » la ou le jumeau peint la phrase anglaise, sur les cadres Observability par ExecutionTrace.svelte. Ce qui ne change pas, mesure et non suppose : FormField garde « (facultatif) », OnboardingProfileSelector garde « Builder », MessageRenderer garde « Sources », ConversationRow garde ses cinq libelles ; et les onze autres composants du diff ne changent qu un attribut aria-label ou n ajoutent qu une directive <!-- i18n-ignore -->, ni l un ni l autre n ayant de porteur dans le jumeau.",
+        "cequiNestPasReproduit": "Aucun cadre n a ete repeint. Les cadres qui portent une des sept formes ci-dessus montrent le mot d avant, en anglais alors que le jumeau est peint en francais.",
+        "cequiNestPasMesure": "Le decompte cadre par cadre n a pas ete pris. Ce qui est mesure est la liste des sites de montage dans le source, nommee ci-dessus ; savoir lequel des 140 cadres peint effectivement un ConfirmDialog ou un ErrorBanner demanderait une lecture du fichier Figma que cette cloture n a pas faite."
       }
     ]
   }
