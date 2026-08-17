@@ -24,7 +24,7 @@ reality.
 | **Runtime budget from config** | The step ceiling is enforced with a safe default, but reading that ceiling from `apollia.toml` at runtime is still to wire. |
 | **Inbound MCP server** | Apollia as an MCP client is solid across three transports. The inbound MCP server (Apollia exposing itself) is partial: stdio only. |
 | **Triggers** | Cron, interval, one-shot, and file-watch sources are wired. The webhook trigger source is a no-op stub. There is no email or Slack trigger. |
-| **Copilot / meta-LLM layer** | The "more transparent than a cloud assistant" ambition is roughly a third wired. Of the meta commands, only Next Steps is a live LLM call end to end; the coach engine is real but has no UI wired to it, and the rest are heuristics or templates. The contracts are in place; the secondary LLM is largely still to connect. |
+| **Copilot / meta-LLM layer** | The "more transparent than a cloud assistant" ambition is roughly a third wired. Of the meta commands, only Next Steps is a live LLM call end to end; the coach engine is real and the connector wizard reaches it at its coaching step, and the rest are heuristics or templates. The contracts are in place; the secondary LLM is largely still to connect. |
 | **Streaming usage** | Token streaming is real, but the stream's done event carries no usage figures. |
 
 ## Missing or dead code

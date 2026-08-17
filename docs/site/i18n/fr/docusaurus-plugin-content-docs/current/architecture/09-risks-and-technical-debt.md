@@ -25,7 +25,7 @@ commentaire du code exagère la réalité.
 | **Budget d'exécution depuis la configuration** | Le plafond d'étapes est appliqué avec une valeur par défaut sûre, mais la lecture de ce plafond depuis `apollia.toml` au moment de l'exécution reste à câbler. |
 | **Serveur MCP entrant** | Apollia en tant que client MCP est solide sur trois transports. Le serveur MCP entrant (Apollia s'exposant lui-même) est partiel : stdio uniquement. |
 | **Déclencheurs** | Les sources cron, intervalle, ponctuelle et surveillance de fichiers sont câblées. La source de déclenchement webhook est un stub no-op. Il n'existe ni déclencheur email ni déclencheur Slack. |
-| **Copilote / couche méta-LLM** | L'ambition d'être « plus transparent qu'un assistant cloud » est câblée à environ un tiers. Parmi les commandes méta, seule Next Steps constitue un appel LLM réel de bout en bout ; le moteur de coaching est réel mais n'a aucune interface qui lui soit câblée, et le reste relève d'heuristiques ou de modèles. Les contrats sont en place ; le LLM secondaire reste, pour l'essentiel, à connecter. |
+| **Copilote / couche méta-LLM** | L'ambition d'être « plus transparent qu'un assistant cloud » est câblée à environ un tiers. Parmi les commandes méta, seule Next Steps constitue un appel LLM réel de bout en bout ; le moteur de coaching est réel et l'assistant d'ajout d'un connecteur l'atteint à son étape de coaching, et le reste relève d'heuristiques ou de modèles. Les contrats sont en place ; le LLM secondaire reste, pour l'essentiel, à connecter. |
 | **Usage du streaming** | Le streaming des tokens est réel, mais l'événement `done` du flux ne transporte aucun chiffre d'usage. |
 
 ## Absent ou code mort
