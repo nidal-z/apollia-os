@@ -106,6 +106,7 @@
     "finalize": "Finaliser",
     "finalizing": "Finalisation…",
     "error_details": "Détails",
+    "copy": "Copier",
     "relative": {
       "just_now": "à l'instant",
       "minutes": "il y a {n} min",
@@ -3002,6 +3003,7 @@
     "cli_uninstall": "Désinstaller la CLI",
     "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": {
+      "title": "Profil",
       "intro": "Enrichis ton profil progressivement. Plus Apollia te connaît, plus elle peut te proposer des automatisations pertinentes. Aucune donnée ne quitte ta machine.",
       "enrichment": {
         "title": "Complète ton profil",
@@ -4169,6 +4171,10 @@
     "ask_user_answered": "{count} réponse(s) envoyée(s)",
     "ask_user_skipped_label": "Question passée",
     "ask_user_skip_default": "Utiliser la valeur par défaut",
+    "ask_user_qa_label": "Questions et réponses",
+    "ask_user_pending": "En attente…",
+    "you": "Vous",
+    "assistant": "Assistant",
     "config_no_instructions": "Aucune instruction définie",
     "config_no_tools": "Aucun outil disponible",
     "config_authorized": "autorisé",
@@ -4201,7 +4207,9 @@
     },
     "rate_limit": {
       "too_fast": "Ralentissez…",
-      "too_many": "Trop de messages - respirez"
+      "too_many": "Trop de messages - respirez",
+      "too_fast_countdown": "Attendez {s} s avant de renvoyer",
+      "too_many_countdown": "Limite de débit atteinte, réessayez dans {s} s"
     },
     "attachments": {
       "add": "Joindre un fichier",
@@ -4338,7 +4346,17 @@
       "group_expand": "Afficher {n} étapes supplémentaires",
       "group_collapse": "Masquer les étapes",
       "input_label": "Entrée",
-      "output_label": "Sortie"
+      "output_label": "Sortie",
+      "target_label": "Cible",
+      "command_label": "Commande",
+      "result_label": "Résultat",
+      "error_label": "Erreur",
+      "running_hint": "En cours…",
+      "toggle_thought": "Afficher ou masquer le détail du raisonnement"
+    },
+    "retry": {
+      "badge_title": "{n} réessais",
+      "timeline_label": "{n} tentatives"
     },
     "activity": {
       "toggle": "Afficher l'activité de l'agent",

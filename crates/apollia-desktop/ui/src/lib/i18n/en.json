@@ -106,6 +106,7 @@
     "finalize": "Finalize",
     "finalizing": "Finalizing…",
     "error_details": "Details",
+    "copy": "Copy",
     "relative": {
       "just_now": "just now",
       "minutes": "{n} min ago",
@@ -3002,6 +3003,7 @@
     "cli_uninstall": "Uninstall CLI",
     "cli_needs_privilege": "Administrator privileges required.",
     "profile": {
+      "title": "Profile",
       "intro": "Build your profile gradually. The more Apollia knows you, the more relevant the automations it can suggest. No data leaves your machine.",
       "enrichment": {
         "title": "Complete your profile",
@@ -4169,6 +4171,10 @@
     "ask_user_answered": "{count} answer(s) submitted",
     "ask_user_skipped_label": "Skipped",
     "ask_user_skip_default": "Skip with default",
+    "ask_user_qa_label": "Questions & answers",
+    "ask_user_pending": "Pending…",
+    "you": "You",
+    "assistant": "Assistant",
     "config_no_instructions": "No instructions defined",
     "config_no_tools": "No tools available",
     "config_authorized": "authorized",
@@ -4201,7 +4207,9 @@
     },
     "rate_limit": {
       "too_fast": "Slow down…",
-      "too_many": "Too many messages - take a breath"
+      "too_many": "Too many messages - take a breath",
+      "too_fast_countdown": "Wait {s}s before sending again",
+      "too_many_countdown": "Rate limit reached, retry in {s}s"
     },
     "attachments": {
       "add": "Attach file",
@@ -4338,7 +4346,17 @@
       "group_expand": "Show {n} more steps",
       "group_collapse": "Hide steps",
       "input_label": "Input",
-      "output_label": "Output"
+      "output_label": "Output",
+      "target_label": "Target",
+      "command_label": "Command",
+      "result_label": "Result",
+      "error_label": "Error",
+      "running_hint": "Running…",
+      "toggle_thought": "Toggle reasoning details"
+    },
+    "retry": {
+      "badge_title": "{n} retries",
+      "timeline_label": "{n} attempts"
     },
     "activity": {
       "toggle": "Show agent activity",

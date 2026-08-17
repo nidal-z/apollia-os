@@ -37,8 +37,8 @@
   const showHeader = $derived(group.role === "assistant");
 
   const displayName = $derived.by(() => {
-    if (isUser) return $t("chat.you", { default: "You" });
-    return agentName ?? $t("chat.assistant", { default: "Assistant" });
+    if (isUser) return $t("chat.you");
+    return agentName ?? $t("chat.assistant");
   });
 
   const headerTime = $derived.by(() => {

@@ -489,7 +489,7 @@
         {#if askUserPairs}
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-              <span>{$t("chat.ask_user_qa_label", { default: "Questions & answers" })}</span>
+              <span>{$t("chat.ask_user_qa_label")}</span>
               {#if askUserCounts}
                 <span class="text-muted-foreground/50 normal-case tracking-normal">
                   · {askUserCounts.answered}/{askUserCounts.total}
@@ -507,7 +507,7 @@
                   <p class="pl-2 border-l-2 {pair.skipped ? 'border-muted-foreground/30 italic text-muted-foreground' : 'border-success/40 text-foreground'}">
                     {pair.skipped
                       ? $t("chat.ask_user_skipped_label", { default: "Skipped" })
-                      : (pair.answerText || $t("chat.ask_user_pending", { default: "Pending…" }))}
+                      : (pair.answerText || $t("chat.ask_user_pending"))}
                   </p>
                 </li>
               {/each}
@@ -600,14 +600,14 @@
         {:else}
           {#if operatorTargetLine}
             <p class="text-foreground/80">
-              <span class="text-muted-foreground/70">{$t("chat.reasoning.target_label", { default: "Target" })}:</span>
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.target_label")}:</span>
               <span class="font-mono text-[10.5px]">{operatorTargetLine}</span>
             </p>
           {/if}
           {#if bashDisplay !== null}
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-                <span>{$t("chat.reasoning.command_label", { default: "Command" })}</span>
+                <span>{$t("chat.reasoning.command_label")}</span>
                 <Separator variant="inline" />
               </div>
               <pre
@@ -619,14 +619,14 @@
           {/if}
           {#if operatorOutputSummary}
             <p class="text-foreground/85">
-              <span class="text-muted-foreground/70">{$t("chat.reasoning.result_label", { default: "Result" })}:</span>
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.result_label")}:</span>
               {operatorOutputSummary}
             </p>
           {/if}
           {#if item.output !== null && isError}
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-destructive/70">
-                <span>{$t("chat.reasoning.error_label", { default: "Error" })}</span>
+                <span>{$t("chat.reasoning.error_label")}</span>
                 <span class="h-px flex-1 bg-destructive/30"></span>
               </div>
               <p class="text-destructive">
@@ -636,9 +636,7 @@
           {/if}
           {#if isRunning && !rationale && !operatorTargetLine && !bashDisplay && !httpDisplay}
             <p class="italic text-muted-foreground/70">
-              {$t("chat.reasoning.running_hint", {
-                default: "Running…",
-              })}
+              {$t("chat.reasoning.running_hint")}
             </p>
           {/if}
         {/if}
@@ -662,9 +660,7 @@
       type="button"
       class="chat-ft-head"
       aria-expanded={expanded}
-      aria-label={$t("chat.reasoning.toggle_thought", {
-        default: "Toggle reasoning details",
-      })}
+      aria-label={$t("chat.reasoning.toggle_thought")}
       onclick={toggle}
     >
       <span class="chat-ft-chev" aria-hidden="true">›</span>

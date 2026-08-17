@@ -65,7 +65,7 @@
     toolChain = [],
   }: Props = $props();
 
-  const displayName = $derived(agentName ?? $t("chat.assistant", { default: "Assistant" }));
+  const displayName = $derived(agentName ?? $t("chat.assistant"));
 
   const blocks = $derived(parseStream(text));
   const activeThinking = $derived(isActiveThinking(blocks));

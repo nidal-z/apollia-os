@@ -182,11 +182,9 @@
       rateBlockedReason = check.reason ?? null;
       rateStatus = check.reason === "too_fast"
         ? $t("chat.rate_limit.too_fast_countdown", {
-            default: "Wait {s}s before sending again",
             values: { s: Math.ceil(rateBlockedMs / 1000) },
           })
         : $t("chat.rate_limit.too_many_countdown", {
-            default: "Rate limit reached - retry in {s}s",
             values: { s: Math.ceil(rateBlockedMs / 1000) },
           });
       rateTone = "warn";

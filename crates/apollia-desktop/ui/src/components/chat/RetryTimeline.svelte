@@ -66,7 +66,6 @@
       class="inline-flex items-center gap-1 rounded-full bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
       data-testid="retry-badge"
       title={$t("chat.retry.badge_title", {
-        default: "{n} retries",
         values: { n: retryCount },
       })}
     >
@@ -84,7 +83,6 @@
         <RotateCcw class="h-3 w-3" />
         <span>
           {$t("chat.retry.timeline_label", {
-            default: "{n} attempts",
             values: { n: visible.length },
           })}
         </span>

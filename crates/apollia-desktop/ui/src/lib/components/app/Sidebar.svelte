@@ -339,7 +339,7 @@
     <div class="mt-1">
       <span
         class="avatar-warm flex h-7 w-7 items-center justify-center rounded-lg text-primary-foreground shadow-elev-1"
-        title={$t("settings.profile.title", { default: "Profil" })}
+        title={$t("settings.profile.title")}
       ><User size={14} /></span>
     </div>
   </aside>
