@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { cn } from "$lib/utils";
   import { Check, type Icon } from "lucide-svelte";
 
@@ -39,7 +40,7 @@
   style={orientation === "horizontal"
     ? `grid-template-columns: repeat(${steps.length}, minmax(0, 1fr));`
     : undefined}
-  aria-label="Progress"
+  aria-label={$t("a11y.progress")}
 >
   {#each steps as step, i}
     {@const state = stateOf(i)}

@@ -11,6 +11,7 @@
   import { cn } from "$lib/utils";
   import type { Snippet } from "svelte";
   import type { Icon } from "lucide-svelte";
+  import { t } from "svelte-i18n";
 
   export interface ActionMenuItem {
     /** Stable identifier (used for keying + telemetry). */
@@ -38,7 +39,7 @@
     body?: Snippet<[{ close: () => void }]>;
     /** Custom trigger snippet. Defaults to a kebab icon button. */
     triggerSlot?: Snippet<[Record<string, unknown>]>;
-    /** Accessible label for the default trigger button. */
+    /** Accessible label for the default trigger button. Falls back to `a11y.actions_menu`. */
     triggerLabel?: string;
     /** Popover alignment. */
     align?: "start" | "center" | "end";
@@ -55,7 +56,7 @@
     items,
     body,
     triggerSlot,
-    triggerLabel = "Actions",
+    triggerLabel,
     align = "end",
     side = "bottom",
     class: className = "",
@@ -76,7 +77,7 @@
         type="button"
         {...triggerProps}
         class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-        aria-label={triggerLabel}
+        aria-label={triggerLabel ?? $t("a11y.actions_menu")}
         data-testid={testid}
       >
         <MoreVertical size={14} strokeWidth={1.75} aria-hidden="true" />

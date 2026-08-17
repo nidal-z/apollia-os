@@ -210,7 +210,7 @@
       oninput={(e) => onRawCronChange((e.target as HTMLInputElement).value)}
     />
     <p class="text-caption text-muted-foreground">
-      Standard cron syntax: min hour day month weekday
+      {$t("triggers.cron_syntax_hint")}
     </p>
   {/if}
 </div>

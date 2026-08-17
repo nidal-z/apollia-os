@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { MarkdownContent } from "$lib/components/ui/markdown";
   import AssertionInline from "./AssertionInline.svelte";
   import CitationFootnote from "./CitationFootnote.svelte";
@@ -85,10 +86,10 @@
     {#if orderedCitations.length > 0}
       <aside
         class="rounded-md border border-border/40 bg-muted/20 p-2"
-        aria-label="Citations"
+        aria-label={$t("chat.citations_aria")}
       >
         <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Sources
+          {$t("chat.activity.sources")}
         </p>
         <ol class="space-y-1">
           {#each orderedCitations as c (c.id)}

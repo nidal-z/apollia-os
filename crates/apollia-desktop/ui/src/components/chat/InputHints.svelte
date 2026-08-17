@@ -22,9 +22,9 @@
   data-testid="chat-input-hints"
 >
   <div class="flex items-center gap-2 truncate">
-    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">Enter</kbd> {$t("chat.hints.send")}</span>
+    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.send")}</span>
     <span aria-hidden="true">·</span>
-    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">⇧</kbd> + <kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">Enter</kbd> {$t("chat.hints.newline")}</span>
+    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">⇧</kbd> + <kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.newline")}</span>
     <span aria-hidden="true">·</span>
     <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">/</kbd> {$t("chat.hints.commands")}</span>
   </div>

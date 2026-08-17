@@ -50,7 +50,7 @@
 </script>
 
 <nav
-  aria-label="Breadcrumb"
+  aria-label={$t("a11y.breadcrumb")}
   class="flex min-w-0 items-center gap-2 text-code-sm"
   data-testid="topbar-breadcrumb"
 >

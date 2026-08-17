@@ -89,7 +89,10 @@
           })}
         </span>
       </div>
-      <ol class="mt-1 flex h-1.5 w-full gap-0.5" aria-label="retry timeline">
+      <ol
+        class="mt-1 flex h-1.5 w-full gap-0.5"
+        aria-label={$t("chat.retry_timeline_aria")}
+      >
         {#each visible as a (a.attempt_number)}
           <li
             class="h-full flex-1 rounded-sm {segmentClass(a)}"

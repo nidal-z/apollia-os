@@ -219,7 +219,7 @@
                 <th
                   scope="col"
                   class="section-meta text-right px-5 py-3 w-8"
-                  aria-label="expand"
+                  aria-label={$t("observability.table.expand")}
                 ></th>
               </tr>
             </thead>

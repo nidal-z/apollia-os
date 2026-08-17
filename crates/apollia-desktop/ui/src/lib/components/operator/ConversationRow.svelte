@@ -231,7 +231,7 @@
             class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {isActive
               ? 'opacity-100'
               : 'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'}"
-            aria-label="Actions"
+            aria-label={$t("a11y.actions_menu")}
             data-testid="conversation-row-menu-button"
           >
             <MoreHorizontal size={12} />
@@ -249,7 +249,7 @@
                 class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
                 data-testid="conversation-row-delete-confirm-btn"
               >
-                <Check size={11} /> Confirmer
+                <Check size={11} /> {$t("common.confirm")}
               </Button>
               <Button variant="ghost" size="sm"
                 type="button"
@@ -257,7 +257,7 @@
                 class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 data-testid="conversation-row-delete-cancel-btn"
               >
-                <X size={11} /> Annuler
+                <X size={11} /> {$t("common.cancel")}
               </Button>
             </div>
           {:else}
@@ -271,7 +271,7 @@
                     class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
                     data-testid="conversation-row-menu-configure"
                   >
-                    <Settings2 size={12} /> Configuration
+                    <Settings2 size={12} /> {$t("chat.conversation_configure")}
                   </button>
                 </li>
               {/if}
@@ -284,7 +284,7 @@
                     class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
                     data-testid="conversation-row-menu-rename"
                   >
-                    <Edit3 size={12} /> Renommer
+                    <Edit3 size={12} /> {$t("chat.rename_session")}
                   </button>
                 </li>
               {/if}
@@ -297,7 +297,7 @@
                     class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
                     data-testid="conversation-row-menu-delete"
                   >
-                    <Trash2 size={12} /> Supprimer
+                    <Trash2 size={12} /> {$t("common.delete")}
                   </button>
                 </li>
               {/if}

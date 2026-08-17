@@ -122,7 +122,7 @@
           <Code2 size={22} strokeWidth={1.75} />
         {/if}
       </div>
-      <h3 class="card-title">Builder</h3>
+      <h3 class="card-title">{$t("onboarding.profile_selector.builder_title")}</h3>
       <p class="card-desc">
         {$t("onboarding.profile_selector.builder_desc")}
       </p>

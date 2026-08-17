@@ -66,6 +66,7 @@
         <label for="llm-delete-confirm" class="text-xs font-medium text-foreground">
           {$t("settings.llm.delete_type_prompt")}
         </label>
+        <!-- i18n-ignore: literal token compared at LlmDeleteDialog.svelte:30 -->
         <Input
           id="llm-delete-confirm"
           type="text"

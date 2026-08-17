@@ -8,6 +8,7 @@
    */
   import type { Snippet } from "svelte";
   import { AlertTriangle, Info, XCircle, RefreshCw, X } from "lucide-svelte";
+  import { t } from "svelte-i18n";
 
   type Tone = "danger" | "warning" | "info";
 
@@ -16,7 +17,7 @@
     tone?: Tone;
     /** Optional retry handler; renders a Retry button. */
     onretry?: () => void;
-    /** Label for the retry button (defaults to "Retry"). */
+    /** Label for the retry button. Falls back to `common.retry` from the catalogue. */
     retryLabel?: string;
     /** Whether a retry is in progress (spins the icon, disables the button). */
     loading?: boolean;
@@ -32,7 +33,7 @@
     message,
     tone = "danger",
     onretry,
-    retryLabel = "Retry",
+    retryLabel,
     loading = false,
     ondismiss,
     children,
@@ -68,14 +69,14 @@
       class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-current/30 px-2.5 py-1 text-[11.5px] font-medium transition-colors hover:bg-current/10 disabled:opacity-50"
     >
       <RefreshCw size={11} class={loading ? "animate-spin" : ""} />
-      {retryLabel}
+      {retryLabel ?? $t("common.retry")}
     </button>
   {/if}
   {#if ondismiss}
     <button
       type="button"
       onclick={ondismiss}
-      aria-label="Dismiss"
+      aria-label={$t("a11y.dismiss")}
       class="shrink-0 opacity-60 transition-opacity hover:opacity-100"
     >
       <X size={13} />

@@ -10,6 +10,7 @@
   import { Button } from "$lib/components/ui/button";
   import { cn } from "$lib/utils";
   import type { Snippet } from "svelte";
+  import { t } from "svelte-i18n";
 
   interface Props {
     title: string;
@@ -22,7 +23,7 @@
     actions?: Snippet;
     /** Close handler - when provided, the × button is rendered. */
     onclose?: () => void;
-    /** Accessible label for the close button. Defaults to "Close". */
+    /** Accessible label for the close button. Falls back to `a11y.close`. */
     closeLabel?: string;
     /** Optional override of the heading id (for `aria-labelledby` on the sheet root). */
     titleId?: string;
@@ -36,7 +37,7 @@
     titleSlot,
     actions,
     onclose,
-    closeLabel = "Close",
+    closeLabel,
     titleId,
     class: className = "",
   }: Props = $props();
@@ -72,7 +73,7 @@
         variant="ghost"
         size="icon-sm"
         onclick={onclose}
-        aria-label={closeLabel}
+        aria-label={closeLabel ?? $t("a11y.close")}
         data-testid="sheet-close"
       >
         <X size={16} strokeWidth={1.75} />

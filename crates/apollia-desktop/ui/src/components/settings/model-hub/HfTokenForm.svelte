@@ -38,6 +38,7 @@
     </a>
   </p>
   <div class="flex items-center gap-2">
+    <!-- i18n-ignore: Hugging Face token prefix, not copy -->
     <Input
       type="password"
       size="sm"

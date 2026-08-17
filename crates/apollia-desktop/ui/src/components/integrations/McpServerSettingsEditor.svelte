@@ -391,6 +391,7 @@
         <label for="mcp-settings-url" class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.server_url")}
         </label>
+        <!-- i18n-ignore: example endpoint URL -->
         <input
           id="mcp-settings-url"
           type="url"

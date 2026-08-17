@@ -101,6 +101,7 @@
         <div
           class="mt-2.5 text-[11px] text-success-a11y font-medium inline-flex items-center gap-1"
         >
+          <!-- i18n-ignore: component has no mount site in the tree, removal pending -->
           <Check size={11} /> Tout est traité
         </div>
       {/if}

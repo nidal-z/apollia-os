@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { Assertion, Citation } from "$lib/chat/confidenceParser";
   import { Button } from "$lib/components/ui/button";
 
@@ -50,7 +51,9 @@
 >
   <span
     class="inline-flex items-baseline gap-1 border-b border-dotted {levelClass.replace('bg-', 'decoration-')}"
-    aria-label="confidence: {assertion.confidence}"
+    aria-label={$t("chat.assertion_confidence_aria", {
+      values: { level: assertion.confidence },
+    })}
   >
     <span
       class="inline-block h-[6px] w-[6px] rounded-full border {levelClass}"
@@ -72,7 +75,9 @@
           onblur={() => onCitationHover(null)}
           onclick={() => onCitationClick(cid)}
           title={cite?.title ?? cid}
-          aria-label="Citation {n}: {cite?.title ?? cid}"
+          aria-label={$t("chat.assertion_citation_aria", {
+            values: { number: n, title: cite?.title ?? cid },
+          })}
           data-testid="assertion-cite-{cid}"
         >
           {n}

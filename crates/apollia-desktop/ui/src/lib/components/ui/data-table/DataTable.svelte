@@ -3,6 +3,7 @@
   import { cn } from "$lib/utils";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { Column, SortDirection } from "./types";
+  import { t } from "svelte-i18n";
 
   interface Props {
     data: T[];
@@ -10,6 +11,7 @@
     rowKey: (row: T) => string;
     onrowclick?: (row: T) => void;
     loading?: boolean;
+    /** Text shown when `data` is empty. Falls back to `common.no_data`. */
     emptyLabel?: string;
     class?: string;
   }
@@ -20,7 +22,7 @@
     rowKey,
     onrowclick,
     loading = false,
-    emptyLabel = "No data",
+    emptyLabel,
     class: className = "",
   }: Props = $props();
 
@@ -131,7 +133,7 @@
             class="px-4 py-10 text-center text-sm text-muted-foreground"
             data-testid="data-table-empty"
           >
-            {emptyLabel}
+            {emptyLabel ?? $t("common.no_data")}
           </td>
         </tr>
       {:else}

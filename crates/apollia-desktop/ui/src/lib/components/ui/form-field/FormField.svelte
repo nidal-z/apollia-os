@@ -13,6 +13,7 @@
    */
   import { cn } from "$lib/utils";
   import type { Snippet } from "svelte";
+  import { t } from "svelte-i18n";
 
   interface Props {
     /** Visible label. Pass empty string to render no label. */
@@ -27,7 +28,7 @@
     required?: boolean;
     /** Visual `(optional)` after the label. */
     optional?: boolean;
-    /** Text rendered next to the label when `optional` is true. Default "(facultatif)". */
+    /** Text rendered next to the label when `optional` is true. Falls back to `common.optional_label`. */
     optionalLabel?: string;
     /** Override class on the outer wrapper. */
     class?: string;
@@ -49,7 +50,7 @@
     error,
     required = false,
     optional = false,
-    optionalLabel = "(facultatif)",
+    optionalLabel,
     class: className = "",
     labelClass = "",
     inline = false,
@@ -77,7 +78,7 @@
         {#if required}
           <span class="text-destructive" aria-hidden="true">*</span>
         {:else if optional}
-          <span class="ml-1 text-[10px] font-normal text-muted-foreground">{optionalLabel}</span>
+          <span class="ml-1 text-[10px] font-normal text-muted-foreground">{optionalLabel ?? $t("common.optional_label")}</span>
         {/if}
       </label>
       {#if labelTrailing}

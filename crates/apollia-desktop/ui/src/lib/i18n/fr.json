@@ -93,6 +93,8 @@
     "back": "Retour",
     "next": "Suivant",
     "optional": "optionnel",
+    "optional_label": "(facultatif)",
+    "no_data": "Aucune donnée",
     "workspace": "Espace de travail",
     "thought": "Réflexion",
     "na": "N/A",
@@ -199,7 +201,10 @@
     "back_shortcut": "Précédent (⌘[)",
     "forward_shortcut": "Suivant (⌘])",
     "logo_alt": "Apollia",
-    "open_sessions": "Ouvrir les sessions"
+    "open_sessions": "Ouvrir les sessions",
+    "filter_bar": "Filtres",
+    "breadcrumb": "Fil d'Ariane",
+    "progress": "Progression"
   },
   "nav": {
     "dashboard": "Accueil",
@@ -1967,7 +1972,8 @@
       "confirm": "Supprimer"
     },
     "technical_details": "Détails techniques",
-    "edit": "Modifier"
+    "edit": "Modifier",
+    "status_filters_aria": "Filtres de statut"
   },
   "triggers": {
     "title": "Triggers",
@@ -2097,7 +2103,8 @@
     "field_secret_rotate_warning": "L'enregistrement remplace le secret : le service appelant devra être reconfiguré avec la nouvelle valeur.",
     "edit_load_error": "Ce trigger n'a pas pu être chargé.",
     "edit_not_editable_title": "Ce trigger ne se modifie pas ici.",
-    "edit_not_editable_hint": "Il provient du fichier de configuration apollia.toml, pas des triggers enregistrés par Apollia. Modifiez-le dans ce fichier, puis rechargez la configuration."
+    "edit_not_editable_hint": "Il provient du fichier de configuration apollia.toml, pas des triggers enregistrés par Apollia. Modifiez-le dans ce fichier, puis rechargez la configuration.",
+    "cron_syntax_hint": "Syntaxe cron standard : min heure jour mois jour-semaine"
   },
   "memory": {
     "title": "Mémoire",
@@ -2255,7 +2262,11 @@
         "confirm_yes": "Purger",
         "done": "{count, plural, =0 {Aucune entrée supprimée.} one {1 entrée supprimée.} other {# entrées supprimées.}}"
       }
-    }
+    },
+    "injected_title": "Mémoire injectée",
+    "injected_no_turn": "Aucun tour actif.",
+    "injected_empty": "L'agent n'a injecté aucune mémoire pour ce tour.",
+    "injected_principle": "Principe 6 - la mémoire n'est jamais injectée automatiquement."
   },
   "notifications": {
     "title": "Notifications",
@@ -2425,7 +2436,8 @@
     "show_raw": "Voir brut",
     "hide_raw": "Masquer le brut",
     "expand": "Déplier",
-    "collapse": "Replier"
+    "collapse": "Replier",
+    "tool_denied_operator": "L'agent a tenté d'utiliser {tool}, l'action a été bloquée."
   },
   "observability": {
     "title": "Tout ce que font vos agents, en clair.",
@@ -2549,7 +2561,8 @@
       "exit": "Sortie",
       "status": "Statut",
       "arguments": "Arguments",
-      "no_details": "Aucune donnée détaillée disponible."
+      "no_details": "Aucune donnée détaillée disponible.",
+      "expand": "Déplier"
     },
     "plan_mutation": {
       "title": "Mutation de plan",
@@ -3986,7 +3999,8 @@
       "builder_bullet_3": "Permissions granulaires par agent",
       "builder_examples": "Ex : Dev, Data, Infra, IA",
       "back": "← Retour",
-      "both": "Je suis les deux → mode Builder"
+      "both": "Je suis les deux → mode Builder",
+      "builder_title": "Builder"
     }
   },
   "agent_detail": {
@@ -4182,7 +4196,8 @@
     "hints": {
       "send": "pour envoyer",
       "newline": "pour un saut de ligne",
-      "commands": "pour les commandes"
+      "commands": "pour les commandes",
+      "key_enter": "Entrée"
     },
     "rate_limit": {
       "too_fast": "Ralentissez…",
@@ -4437,7 +4452,13 @@
       "restore_tooltip": "Restaurer l'original",
       "error_no_llm": "Aucun moteur LLM configuré pour la réécriture",
       "error_generic": "Échec de réécriture : {error}"
-    }
+    },
+    "citations_aria": "Citations",
+    "assertion_confidence_aria": "confiance : {level}",
+    "assertion_citation_aria": "Citation {number} : {title}",
+    "context_gauge": "Ctx {ctx} · Budget {budget} %",
+    "retry_timeline_aria": "Chronologie des tentatives",
+    "conversation_configure": "Configuration"
   },
   "transcriptions": {
     "title": "Transcriptions",

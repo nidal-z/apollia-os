@@ -53,7 +53,9 @@
       >
         <Gauge size={10} />
         <span class="tabular-nums">
-          Ctx {ctxLabel} · Budget {Math.round(budgetPct)}%
+          {$t("chat.context_gauge", {
+            values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
+          })}
         </span>
       </button>
     {:else}
@@ -64,7 +66,9 @@
       >
         <Gauge size={10} />
         <span class="tabular-nums">
-          Ctx {ctxLabel} · Budget {Math.round(budgetPct)}%
+          {$t("chat.context_gauge", {
+            values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
+          })}
         </span>
       </div>
     {/if}

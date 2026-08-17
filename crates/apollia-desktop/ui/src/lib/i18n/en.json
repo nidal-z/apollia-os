@@ -93,6 +93,8 @@
     "back": "Back",
     "next": "Next",
     "optional": "optional",
+    "optional_label": "(optional)",
+    "no_data": "No data",
     "workspace": "Workspace",
     "thought": "Thought",
     "na": "N/A",
@@ -199,7 +201,10 @@
     "back_shortcut": "Back (⌘[)",
     "forward_shortcut": "Forward (⌘])",
     "logo_alt": "Apollia",
-    "open_sessions": "Open sessions"
+    "open_sessions": "Open sessions",
+    "filter_bar": "Filters",
+    "breadcrumb": "Breadcrumb",
+    "progress": "Progress"
   },
   "nav": {
     "dashboard": "Home",
@@ -1967,7 +1972,8 @@
       "confirm": "Delete"
     },
     "technical_details": "Technical details",
-    "edit": "Edit"
+    "edit": "Edit",
+    "status_filters_aria": "Status filters"
   },
   "triggers": {
     "title": "Triggers",
@@ -2097,7 +2103,8 @@
     "field_secret_rotate_warning": "Saving replaces the secret: the calling service must be reconfigured with the new value.",
     "edit_load_error": "This trigger could not be loaded.",
     "edit_not_editable_title": "This trigger cannot be edited here.",
-    "edit_not_editable_hint": "It comes from the apollia.toml configuration file, not from the triggers Apollia stores itself. Edit it there, then reload the configuration."
+    "edit_not_editable_hint": "It comes from the apollia.toml configuration file, not from the triggers Apollia stores itself. Edit it there, then reload the configuration.",
+    "cron_syntax_hint": "Standard cron syntax: min hour day month weekday"
   },
   "memory": {
     "title": "Memory",
@@ -2255,7 +2262,11 @@
         "confirm_yes": "Purge",
         "done": "{count, plural, =0 {No entry removed.} one {1 entry removed.} other {# entries removed.}}"
       }
-    }
+    },
+    "injected_title": "Injected memory",
+    "injected_no_turn": "No active turn.",
+    "injected_empty": "The agent injected no memory for this turn.",
+    "injected_principle": "Principle 6 - memory is never injected automatically."
   },
   "notifications": {
     "title": "Notifications",
@@ -2425,7 +2436,8 @@
     "show_raw": "Show raw",
     "hide_raw": "Hide raw",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "tool_denied_operator": "The agent tried to use {tool}, and the action was blocked."
   },
   "observability": {
     "title": "Everything your agents do, in plain sight.",
@@ -2549,7 +2561,8 @@
       "exit": "Exit",
       "status": "Status",
       "arguments": "Arguments",
-      "no_details": "No detailed data available."
+      "no_details": "No detailed data available.",
+      "expand": "Expand"
     },
     "plan_mutation": {
       "title": "Plan mutation",
@@ -3986,7 +3999,8 @@
       "builder_bullet_3": "Granular per-agent permissions",
       "builder_examples": "e.g.: Dev, Data, Infra, AI",
       "back": "← Back",
-      "both": "I'm both → Builder mode"
+      "both": "I'm both → Builder mode",
+      "builder_title": "Builder"
     }
   },
   "agent_detail": {
@@ -4182,7 +4196,8 @@
     "hints": {
       "send": "to send",
       "newline": "for new line",
-      "commands": "for commands"
+      "commands": "for commands",
+      "key_enter": "Enter"
     },
     "rate_limit": {
       "too_fast": "Slow down…",
@@ -4437,7 +4452,13 @@
       "restore_tooltip": "Restore original",
       "error_no_llm": "No LLM configured for rewriting",
       "error_generic": "Rewrite failed: {error}"
-    }
+    },
+    "citations_aria": "Citations",
+    "assertion_confidence_aria": "confidence: {level}",
+    "assertion_citation_aria": "Citation {number}: {title}",
+    "context_gauge": "Ctx {ctx} · Budget {budget}%",
+    "retry_timeline_aria": "Retry timeline",
+    "conversation_configure": "Configuration"
   },
   "transcriptions": {
     "title": "Transcriptions",

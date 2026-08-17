@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { getInjectedMemoryEntries } from "$lib/ipc/memory";
   import { Sheet, SheetHeader, SheetContent } from "$lib/components/ui/sheet";
   import type { InjectedEntry } from "$lib/types";
@@ -61,7 +62,7 @@
 </script>
 
 <Sheet {open} {onclose} width="md">
-  <SheetHeader title="Mémoire injectée" class="px-4 py-3 items-center">
+  <SheetHeader title={$t("memory.injected_title")} class="px-4 py-3 items-center">
     {#snippet leading()}
       <Brain size={14} class="text-primary" />
     {/snippet}
@@ -80,20 +81,20 @@
   <SheetContent padding="flush" class="px-4 py-3" data-testid="injected-memory-sheet">
     {#if !turnId}
       <p class="text-[11px] italic text-muted-foreground/60">
-        Aucun tour actif.
+        {$t("memory.injected_no_turn")}
       </p>
     {:else if loading}
-      <p class="text-[11px] text-muted-foreground/60">Chargement…</p>
+      <p class="text-[11px] text-muted-foreground/60">{$t("common.loading")}</p>
     {:else if error}
       <p class="text-[11px] text-destructive" data-testid="injected-memory-error">
         {error}
       </p>
     {:else if entries.length === 0}
       <p class="text-[11px] italic text-muted-foreground/60">
-        L'agent n'a injecté aucune mémoire pour ce tour.
+        {$t("memory.injected_empty")}
       </p>
       <p class="mt-2 text-[10px] text-muted-foreground/50">
-        Principe&nbsp;6 - la mémoire n'est jamais injectée automatiquement.
+        {$t("memory.injected_principle")}
       </p>
     {:else}
       <ul class="flex flex-col gap-2">

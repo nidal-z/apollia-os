@@ -22,6 +22,7 @@
   import { cn } from "$lib/utils";
   import StatusDot from "./StatusDot.svelte";
   import type { Snippet } from "svelte";
+  import { t } from "svelte-i18n";
 
   interface Props {
     chips: FilterChip[];
@@ -34,6 +35,7 @@
     /** When set, each chip gets `data-testid="{prefix}-{chip.key}"` (preserves e2e selectors). */
     testidPrefix?: string;
     class?: string;
+    /** Accessible name of the chip tablist. Falls back to `a11y.filter_bar`. */
     "aria-label"?: string;
     "data-testid"?: string;
   }
@@ -46,7 +48,7 @@
     rightSlot,
     testidPrefix,
     class: className = "",
-    "aria-label": ariaLabel = "Filtres",
+    "aria-label": ariaLabel,
     "data-testid": testid,
   }: Props = $props();
 
@@ -61,7 +63,7 @@
   )}
   data-testid={testid}
 >
-  <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label={ariaLabel}>
+  <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label={ariaLabel ?? $t("a11y.filter_bar")}>
     {#each chips as f (f.key)}
       {@const isActive = activeKey === f.key}
       <button

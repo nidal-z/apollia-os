@@ -131,6 +131,7 @@
             {$t("memory.value_label")}
             {#if prettyValue.isJson}
               <span class="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-px text-overline font-medium normal-case tracking-normal text-muted-foreground">
+                <!-- i18n-ignore: data-format name, identical in every locale -->
                 JSON
               </span>
             {/if}

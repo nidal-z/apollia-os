@@ -264,7 +264,7 @@
       }))}
       activeKey={activeFilter}
       onchange={(key) => (activeFilter = key as Filter)}
-      aria-label="Filtres de statut"
+      aria-label={$t("automations.status_filters_aria")}
       testidPrefix="automations-filter"
       data-testid="automations-filter-bar"
     />

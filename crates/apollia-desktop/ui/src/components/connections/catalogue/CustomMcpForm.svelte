@@ -147,6 +147,7 @@
     {#if form.transport === "stdio"}
       <label class="block text-label-sm font-medium text-foreground">
         {$t("connections.custom_command_label")}
+        <!-- i18n-ignore: executable names and a filesystem path -->
         <Input
           type="text"
           class="mt-1 font-mono"
@@ -170,6 +171,7 @@
     {:else}
       <label class="block text-label-sm font-medium text-foreground">
         {$t("connections.custom_url_label")}
+        <!-- i18n-ignore: example endpoint URL -->
         <Input
           type="url"
           class="mt-1 font-mono"

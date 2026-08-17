@@ -251,7 +251,7 @@
     <div class="min-w-0 flex-1">
       <div class="text-body-xs text-foreground">
         {#if skin === "operator"}
-          The agent tried to use {toolName} but it was blocked.
+          {$t("trace.tool_denied_operator", { values: { tool: toolName } })}
         {:else}
           <span class="font-mono">{toolName}</span> denied - {reason}
           {#if event.payload.detail}
