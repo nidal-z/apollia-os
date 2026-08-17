@@ -54,7 +54,7 @@ This step calibrates Apollia to your hardware and your sovereignty preferences. 
 Three possible paths, depending on your situation:
 
 1. **Models already present on the machine.** If you have already placed a `.gguf` file in `~/.apollia/models/` or `~/Downloads/`, Apollia detects it automatically. Click the matching row to configure it in one click.
-2. **Recommended models to download.** If no GGUF is found, Apollia displays a curated list of Qwen3 models (4B, 8B, 14B, 30B-A3B) filtered by your RAM, with a **Recommended** badge on the most relevant one. Click the row to start the download - a progress bar with the throughput in MB/s appears, and you can cancel at any time.
+2. **Recommended models to download.** Apollia displays a curated list of Qwen3 models (4B, 8B, 14B, 30B-A3B) filtered by your RAM, with a **Recommended** badge on the most relevant one. The list stays available whether or not a GGUF was already found, and after a first model has been configured. Click the row to start the download - a progress bar with the throughput in MB/s appears, and you can cancel at any time.
 3. **HuggingFace search.** The **Search on HuggingFace** button opens a built-in mini browser: type a model name, expand the available GGUF files, and click to download the one that matches your RAM (files are tagged *fits* / *might fit* / *too large*).
 4. **Cloud provider.** The **Use a cloud provider** button closes the window and takes you to the **LLM Backends** settings page to plug in Anthropic, OpenAI or Ollama. Once a backend is added, the onboarding flow reopens automatically at this same step.
 
