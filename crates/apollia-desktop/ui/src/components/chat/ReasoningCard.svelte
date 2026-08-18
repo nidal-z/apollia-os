@@ -13,7 +13,7 @@
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { JSON_LINE_THRESHOLD } from "$lib/chat/reasoning";
-  import { formatDurationSeconds } from "$lib/chat/duration";
+  import { formatSecondsLocalized } from "$lib/chat/duration";
   import ReasoningCardShell from "./ReasoningCardShell.svelte";
   import { t, locale } from "svelte-i18n";
   import {
@@ -398,7 +398,7 @@
     <Check class="h-3 w-3 text-success" />
     {#if duration != null}
       <span class="text-[11px] tabular-nums text-muted-foreground"
-        >{formatDurationSeconds(duration, $locale ?? "en")} s</span
+        >{formatSecondsLocalized(duration, $locale ?? "en")} s</span
       >
     {/if}
   {:else if item.status === "error" || item.status === "rejected"}

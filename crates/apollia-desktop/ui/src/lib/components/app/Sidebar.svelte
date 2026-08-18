@@ -254,7 +254,6 @@
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
           aria-label={label}
-          title={label}
           data-nav-item="true"
           data-testid="nav-{item.route}"
         >
@@ -271,7 +270,11 @@
             </span>
           {/if}
         </button>
-        <!-- Tooltip -->
+        <!--
+          Tooltip. The rail entries carry `aria-label` and no `title`: a native
+          `title` would draw a second label, in the system chrome and after the
+          system delay, over the one below.
+        -->
         <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
@@ -291,7 +294,6 @@
             onclick={() => navigate(item.route)}
             aria-current={isActive ? "page" : undefined}
             aria-label={label}
-            title={label}
             data-nav-item="true"
             data-testid="nav-{item.route}"
           >
@@ -321,7 +323,6 @@
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
           aria-label={label}
-          title={label}
           data-testid="nav-{item.route}"
         >
           {#if isActive}

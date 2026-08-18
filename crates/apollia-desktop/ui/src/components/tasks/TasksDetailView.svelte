@@ -24,7 +24,8 @@
   import { BuilderOnly } from "$lib/components/shared";
   import type { TaskSummary } from "$lib/types";
   import { statusMeta } from "./taskStatus";
-  import { formatDurationLong, formatDate } from "./taskFormat";
+  import { formatDate } from "./taskFormat";
+  import { formatDuration } from "$lib/utils";
   import TaskNavRow from "./TaskNavRow.svelte";
   import TasksDetailPanes from "./TasksDetailPanes.svelte";
 
@@ -137,7 +138,7 @@
     {#snippet footer()}
       <span class="inline-flex items-center gap-1 text-body-xs text-muted-foreground">
         <Timer size={11} />
-        {formatDurationLong(task.duration_ms)}
+        {formatDuration(task.duration_ms)}
       </span>
       <span class="inline-flex items-center gap-1 text-body-xs text-muted-foreground">
         <Calendar size={11} />

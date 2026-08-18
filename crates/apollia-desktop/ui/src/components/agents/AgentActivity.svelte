@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
+  import { formatDuration } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
   import { createIdentityGuard } from "$lib/utils/identityGuard";
@@ -27,12 +28,6 @@
     input_required: "outline",
     canceled: "secondary",
   };
-
-  function formatDuration(ms: number | undefined): string {
-    if (ms === undefined || ms === null) return "-";
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
 
   function formatRelativeTime(isoDate: string): string {
     if (!isoDate) return "-";

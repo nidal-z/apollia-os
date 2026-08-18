@@ -3,6 +3,7 @@
   // Extracted verbatim from AuditTrailTable so the table stays focused on data
   // orchestration. The parent computes `stats`; this strip only renders it.
   import { t } from "svelte-i18n";
+  import { formatDuration } from "$lib/utils";
 
   interface AuditStats {
     entries: number;
@@ -17,11 +18,6 @@
 
   let { stats }: Props = $props();
 
-  function formatDuration(ms: number | null): string {
-    if (ms === null || ms === undefined) return "-";
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
 </script>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="audit-stats">

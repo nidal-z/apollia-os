@@ -181,10 +181,10 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {#each TYPES as type (type.id)}
         {@const IconCmp = type.icon}
-        <Button variant="ghost" size="sm"
+        <Button variant="ghost" size="auto"
           type="button"
           onclick={() => selectType(type.id)}
-          class="flex items-start gap-3 px-3.5 py-3 rounded-lg cursor-pointer text-left bg-surface-1 border border-border hover:border-primary/40 transition-colors"
+          class="flex w-full items-start justify-start whitespace-normal gap-3 px-3.5 py-3 rounded-lg cursor-pointer text-left bg-surface-1 border border-border hover:border-primary/40 transition-colors"
           data-testid="provider-type-{type.id}"
         >
           <div class="shrink-0 w-8 h-8 rounded-md inline-flex items-center justify-center bg-primary/10 text-primary">

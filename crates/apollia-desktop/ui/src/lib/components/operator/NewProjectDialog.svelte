@@ -106,10 +106,10 @@
         <div class="grid grid-cols-2 gap-2.5">
           {#each templates as tpl}
             {@const isActive = (selectedId ?? templates[0]?.id) === tpl.id}
-            <Button variant="ghost" size="sm"
+            <Button variant="ghost" size="auto"
               type="button"
               onclick={() => (selectedId = tpl.id)}
-              class="px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
+              class="w-full flex-col items-stretch whitespace-normal px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
                 ? 'bg-primary/10 border-2 border-primary'
                 : 'bg-surface-1 border border-border hover:border-primary/40'}"
               data-testid="new-project-template-{tpl.id}"

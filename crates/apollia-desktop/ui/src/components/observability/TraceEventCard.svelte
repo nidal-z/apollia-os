@@ -27,6 +27,7 @@
     XCircle,
   } from "lucide-svelte";
   import type { RuntimeEventDto } from "$lib/trace";
+  import { formatDuration } from "$lib/utils";
   import { describeToolCall } from "$lib/utils/bashDescriber";
   import { Spinner } from "$lib/components/ui/progress";
 
@@ -57,11 +58,6 @@
   }
 
   /** Short-form duration for operator skin (e.g. "412 ms", "1.8 s"). */
-  function fmtDuration(ms: number): string {
-    if (ms < 1000) return `${ms} ms`;
-    return `${(ms / 1000).toFixed(1)} s`;
-  }
-
   /** Truncate UTF-8 string by chars (display only). */
   function truncChars(s: string, n: number): string {
     const chars = Array.from(s);
@@ -184,7 +180,7 @@
               </span>
             {:else if durationMs !== null && skin === "builder"}
               <span class="font-mono text-caption text-muted-foreground shrink-0">
-                · {fmtDuration(durationMs)}
+                · {formatDuration(durationMs)}
               </span>
             {/if}
           {/if}

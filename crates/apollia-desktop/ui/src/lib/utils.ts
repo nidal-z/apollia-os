@@ -45,7 +45,7 @@ export function formatRelativeTime(isoDate: string, locale: string): string {
   return new Date(isoDate).toLocaleDateString(locale);
 }
 
-/** Format a duration in milliseconds as a human-readable string. */
+/** The one rendering of a millisecond duration: `418ms`, `1.4s`, `1m 30s`. */
 export function formatDuration(ms: number | undefined | null): string {
   if (ms === undefined || ms === null) return "-";
   if (ms < 1000) return `${ms}ms`;
@@ -53,4 +53,23 @@ export function formatDuration(ms: number | undefined | null): string {
   const mins = Math.floor(ms / 60_000);
   const secs = Math.floor((ms % 60_000) / 1000);
   return `${mins}m ${secs}s`;
+}
+
+/**
+ * Format a running count of whole seconds as a coarse clock: `45s`, `3m 20s`,
+ * `1h 5m`.
+ *
+ * This is not `formatDuration` under another name. It takes seconds rather
+ * than milliseconds, it drops the sub-second precision a live counter cannot
+ * carry, and it folds minutes into hours, which a task duration never needs.
+ * It exists for elapsed-time readouts that tick while the user watches them.
+ */
+export function formatElapsedClock(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (mins < 60) return secs === 0 ? `${mins}m` : `${mins}m ${secs}s`;
+  const hours = Math.floor(mins / 60);
+  const restMins = mins % 60;
+  return restMins === 0 ? `${hours}h` : `${hours}h ${restMins}m`;
 }

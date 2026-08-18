@@ -19,7 +19,7 @@
   import ReasoningCard from "./ReasoningCard.svelte";
   import { buildLiveSequence } from "$lib/chat/reasoning";
   import type { LiveRow, LiveToolStep, ReasoningItem } from "$lib/chat/reasoning";
-  import { formatDurationSeconds } from "$lib/chat/duration";
+  import { formatSecondsLocalized } from "$lib/chat/duration";
   import { parseStream, isThinking as isActiveThinking, answerText } from "$lib/chat/streamParser";
   import { resolveToolDisplay, humanizeToolName } from "$lib/tools/tool-display";
 
@@ -147,7 +147,7 @@
                 >{toolLabel(row.name)}</span>
                 {#if row.durationMs && row.durationMs > 0}
                   <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50"
-                    >{formatDurationSeconds(row.durationMs, $locale ?? "en")} s</span
+                    >{formatSecondsLocalized(row.durationMs, $locale ?? "en")} s</span
                   >
                 {/if}
               </div>

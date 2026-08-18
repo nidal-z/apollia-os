@@ -27,6 +27,7 @@
     Gauge,
   } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
+  import { formatElapsedClock } from "$lib/utils";
   import { Spinner } from "$lib/components/ui/progress";
   import type {
     ChatSessionDetail,
@@ -147,16 +148,6 @@
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   });
-
-  function formatDuration(total: number): string {
-    if (total < 60) return `${total}s`;
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    if (m < 60) return s === 0 ? `${m}m` : `${m}m ${s}s`;
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return rm === 0 ? `${h}h` : `${h}h ${rm}m`;
-  }
 
   async function startEdit(): Promise<void> {
     if (sessionStatus === "closed") return;
@@ -503,7 +494,7 @@
     {/if}
     <span class="inline-flex items-center gap-1" data-testid="chat-header-meta-duration">
       <Clock size={10} class="shrink-0" />
-      <span>{formatDuration(elapsedSeconds)}</span>
+      <span>{formatElapsedClock(elapsedSeconds)}</span>
     </span>
     {#if linkedProject}
       <button

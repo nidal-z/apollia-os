@@ -6,7 +6,7 @@
   import { t, locale } from "svelte-i18n";
   import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
   import { CheckCircle2, XCircle, ChevronDown, Copy, Braces, Search } from "lucide-svelte";
-  import { cn } from "$lib/utils";
+  import { cn, formatDuration } from "$lib/utils";
   import { addToast } from "$lib/components/ui/toast";
   import type { AuditTrailEntry } from "$lib/types";
 
@@ -40,12 +40,6 @@
   function formatTimestamp(iso: string): string {
     if (!iso) return "";
     return new Date(iso).toLocaleString($locale ?? "en");
-  }
-
-  function formatDuration(ms: number | null): string {
-    if (ms === null || ms === undefined) return "-";
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
   }
 
   async function writeClipboard(text: string, okKey: string): Promise<void> {

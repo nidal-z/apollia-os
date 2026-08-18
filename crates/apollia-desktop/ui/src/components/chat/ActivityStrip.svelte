@@ -17,7 +17,7 @@
   import { Sparkles, ChevronRight } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { quintOut } from "svelte/easing";
-  import { formatDurationSeconds } from "$lib/chat/duration";
+  import { formatSecondsLocalized } from "$lib/chat/duration";
 
   interface Props {
     /** Optional disclosed body. Omitted, the strip is a static summary line. */
@@ -69,7 +69,7 @@
   // Locale-aware seconds, one decimal (e.g. "3,2" in fr, "3.2" in en).
   const durationLabel = $derived.by<string>(() => {
     if (live || durationMs <= 0) return "";
-    return formatDurationSeconds(durationMs, $locale ?? "en");
+    return formatSecondsLocalized(durationMs, $locale ?? "en");
   });
 </script>
 

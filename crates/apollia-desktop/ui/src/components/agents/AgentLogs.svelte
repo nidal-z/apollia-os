@@ -3,6 +3,7 @@
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
+  import { formatDuration } from "$lib/utils";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -83,12 +84,6 @@
 
   function shortId(id: string): string {
     return id.slice(0, 8);
-  }
-
-  function formatDuration(ms: number | undefined): string {
-    if (ms === undefined || ms === null) return "-";
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
   }
 
   function formatRelativeTime(isoDate: string): string {

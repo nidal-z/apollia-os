@@ -18,7 +18,8 @@
   import ExecutionTrace from "../observability/ExecutionTrace.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
   import StreamingCursor from "../chat/StreamingCursor.svelte";
-  import { formatDurationLong, formatDate } from "./taskFormat";
+  import { formatDate } from "./taskFormat";
+  import { formatDuration } from "$lib/utils";
 
   interface Props {
     task: TaskSummary;
@@ -170,7 +171,7 @@
         </div>
         <div class="flex items-baseline gap-3">
           <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.duration")}</dt>
-          <dd class="text-foreground/85 tabular-nums">{formatDurationLong(task.duration_ms)}</dd>
+          <dd class="text-foreground/85 tabular-nums">{formatDuration(task.duration_ms)}</dd>
         </div>
       </dl>
     </Card>

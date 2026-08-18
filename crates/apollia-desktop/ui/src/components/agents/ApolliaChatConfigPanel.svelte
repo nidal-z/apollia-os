@@ -291,10 +291,10 @@
         {#each filteredTools as tool (tool.name)}
           {@const checked = allowedTools.has(tool.name)}
           <li>
-            <Button variant="ghost" size="sm"
+            <Button variant="ghost" size="auto"
               type="button"
               onclick={() => toggleTool(tool.name)}
-              class="flex w-full items-start gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-2"
+              class="flex w-full items-start justify-start whitespace-normal gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-2"
               data-testid="apollia-chat-tool-row"
               data-tool-name={tool.name}
               data-checked={checked}
