@@ -20,7 +20,7 @@
 
 4. Each row in the list already carries the essentials - no need to click to open a detail view:
    - **Status** (on the left) - see the list below.
-   - Execution **duration** (e.g. `850ms`, `2.4s`).
+   - Execution **duration** (e.g. `850ms`, `2.4s`, `1m 30s` past the minute).
    - **Relative timestamp** (e.g. `5min ago`) - hover it to see the exact date and time.
    - **Input received** - the request that triggered the task.
    - **Result** or **Error** - the output produced, or the error message if the task failed.

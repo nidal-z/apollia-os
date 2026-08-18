@@ -22,7 +22,7 @@
    - **Timestamp** (date + local time)
    - **Tool** (technical name in monospace: `bash`, `file_write`, `mcp:notion.search`, and so on)
    - **Agent** (readable name; failing that, the raw identifier if the agent is no longer registered)
-   - **Duration** (`850ms` or `2.1s`, or `-` if not measured)
+   - **Duration** (`850ms`, `2.1s`, or `1m 30s` past the minute, or `-` if not measured)
    - **Status** - an **OK** badge (green, ✓) or **Error** (red, ✕). The status is derived from the exit code *and* from the presence of stderr; an MCP tool with no exit code counts as OK if it finished without an error.
 
 6. Narrow the search with the two selectors above the table:

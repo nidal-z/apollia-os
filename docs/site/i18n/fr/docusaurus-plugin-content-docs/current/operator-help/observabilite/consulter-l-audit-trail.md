@@ -22,7 +22,7 @@
    - **Horodatage** (date + heure locale)
    - **Outil** (nom technique en monospace : `bash`, `file_write`, `mcp:notion.search`, etc.)
    - **Agent** (nom lisible ; à défaut l'identifiant brut si l'agent n'est plus enregistré)
-   - **Durée** (`850ms` ou `2.1s`, ou `-` si non mesuré)
+   - **Durée** (`850ms`, `2.1s`, ou `1m 30s` au-delà de la minute, ou `-` si non mesuré)
    - **Statut** - badge **Succès** (vert, ✓) ou **Échec** (rouge, ✕). Le statut est déduit du code de sortie *et* de la présence de stderr ; un outil MCP sans code de sortie est considéré OK s'il s'est terminé sans erreur.
 
 6. Affinez la recherche avec les deux sélecteurs au-dessus du tableau :

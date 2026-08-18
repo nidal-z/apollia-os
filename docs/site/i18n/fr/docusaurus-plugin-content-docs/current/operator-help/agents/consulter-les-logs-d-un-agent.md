@@ -20,7 +20,7 @@
 
 4. Chaque ligne de la liste contient déjà l'essentiel - pas besoin de cliquer pour ouvrir un détail :
    - **Statut** (à gauche) - voir la liste ci-dessous.
-   - **Durée** d'exécution (ex. `850ms`, `2.4s`).
+   - **Durée** d'exécution (ex. `850ms`, `2.4s`, `1m 30s` au-delà de la minute).
    - **Horodatage relatif** (ex. `5min ago`) - survolez-le pour voir la date et l'heure exactes.
    - **Entrée reçue** - la demande qui a déclenché la tâche.
    - **Résultat** ou **Erreur** - la sortie produite, ou le message d'erreur si la tâche a échoué.
