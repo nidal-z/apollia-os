@@ -11,6 +11,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Button } from "$lib/components/ui/button";
   import SettingsSection from "../SettingsSection.svelte";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     token: string;
@@ -32,6 +33,7 @@
       href="https://huggingface.co/settings/tokens"
       target="_blank"
       rel="noopener noreferrer"
+      onclick={handleExternalLinkClick}
       class="inline-flex items-center gap-1 text-primary hover:underline"
     >
       huggingface.co/settings/tokens <ExternalLink size={12} />

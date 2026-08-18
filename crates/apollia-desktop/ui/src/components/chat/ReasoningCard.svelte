@@ -26,6 +26,7 @@
     Sparkles,
   } from "lucide-svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { Spinner } from "$lib/components/ui/progress";
   import {
     resolveToolDisplay,
@@ -740,6 +741,7 @@
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
+          onclick={handleExternalLinkClick}
           class="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
         >
           <span class="font-mono">{hostname(item.url)}</span>

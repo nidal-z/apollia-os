@@ -5,6 +5,7 @@
   import type { PackagePreview, InstallPackageResponse, TriggerConfigOverride, TriggerPreview } from "$lib/types";
   import { previewPackage, installPackage } from "$lib/stores/agentPackages";
   import { agentInstallPrefs } from "$lib/stores/agentInstallPrefs";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -397,7 +398,13 @@
 
       <p class="text-[10px] text-muted-foreground leading-relaxed">
         {$t("agents.install.deps_venv_note")}
-        {$t("agents.install.deps_provenance_prefix")} <a href="https://pypi.org" class="underline">pypi.org</a>.
+        {$t("agents.install.deps_provenance_prefix")} <a
+          href="https://pypi.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          onclick={handleExternalLinkClick}
+          class="underline">pypi.org</a
+        >.
       </p>
 
       {#if installError}

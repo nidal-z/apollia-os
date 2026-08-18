@@ -13,6 +13,7 @@
   import { ErrorBanner } from "$lib/components/operator";
   import { Disclosure } from "$lib/components/ui/disclosure";
   import { humanize } from "$lib/errors/humanize";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     /** Raw error (string / Error / unknown) to humanize. */
@@ -64,6 +65,7 @@
             href={humanized.learn_more_url}
             target="_blank"
             rel="noreferrer"
+            onclick={handleExternalLinkClick}
             class="inline-flex items-center gap-1 text-caption text-primary underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <ExternalLink size={12} aria-hidden="true" />

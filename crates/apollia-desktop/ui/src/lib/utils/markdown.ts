@@ -12,6 +12,7 @@
  */
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
+import { openExternalUrl, resolveExternalHref } from "$lib/utils/externalLink";
 
 function escapeHtml(text: string): string {
   return text
@@ -72,6 +73,29 @@ const ALLOWED_ATTR = [
   "stroke-width", "stroke-linecap", "stroke-linejoin",
   "x", "y", "rx", "d",
 ];
+
+/**
+ * Click delegation for the anchors the `link` renderer above injects.
+ *
+ * Those anchors reach the page through `{@html}`, so no Svelte component
+ * owns them and `onclick={handleExternalLinkClick}` cannot be attached to
+ * them one by one. Every container that renders `renderMarkdown` output has
+ * to call this from its own click handler, before any other branch returns,
+ * or the link is dead: the packaged webview ignores `target="_blank"`.
+ *
+ * Returns `true` when the click was routed to `openExternalUrl`, so the
+ * caller can stop handling it.
+ */
+export function handleMarkdownLinkClick(event: MouseEvent): boolean {
+  const origin = event.target as Element | null;
+  const anchor = origin?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!anchor) return false;
+  const href = resolveExternalHref(event, anchor);
+  if (href === null) return false;
+  event.preventDefault();
+  void openExternalUrl(href);
+  return true;
+}
 
 export function renderMarkdown(raw: string): string {
   if (!raw) return "";

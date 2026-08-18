@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ExternalLink, FileText, Wrench, Brain, Globe } from "lucide-svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     number: number;
@@ -52,6 +53,7 @@
           href={citation.url}
           target="_blank"
           rel="noopener noreferrer"
+          onclick={handleExternalLinkClick}
           class="truncate font-medium hover:underline"
         >
           {citation.title}

@@ -4,6 +4,7 @@
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import type { McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     open: boolean;
@@ -45,6 +46,7 @@
             href={docsUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onclick={handleExternalLinkClick}
             class="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             data-testid="connection-error-docs"
           >

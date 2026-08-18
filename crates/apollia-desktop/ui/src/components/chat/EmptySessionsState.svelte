@@ -8,6 +8,7 @@
   import { t } from "svelte-i18n";
   import { MessageSquare } from "lucide-svelte";
   import { EmptyState } from "$lib/components/layout";
+  import { openExternalUrl } from "$lib/utils/externalLink";
 
   interface Props {
     /** Opens the QuickPicker. */
@@ -17,10 +18,8 @@
   let { onnewChat }: Props = $props();
 
   function openGettingStarted(): void {
-    window.open(
+    void openExternalUrl(
       "https://docs.apollia.fr/operator-help/chat/discuter-avec-votre-ia",
-      "_blank",
-      "noreferrer",
     );
   }
 </script>

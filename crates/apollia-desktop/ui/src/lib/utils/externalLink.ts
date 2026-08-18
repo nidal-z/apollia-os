@@ -46,6 +46,48 @@ export async function openExternalUrl(url: string): Promise<void> {
 }
 
 /**
+ * Decide which URL a click on `anchor` should hand to the opener, or `null`
+ * when the click must be left to the browser.
+ *
+ * Returns `null` for a modified click (meta/ctrl/shift/alt or a non-left
+ * button), for an anchor with no href, and for a same-origin anchor so
+ * in-app routing is never hijacked.
+ *
+ * Shared by the two entry points below so every call site applies the same
+ * policy: the per-anchor handler, and the delegation used for anchors that
+ * no component owns.
+ */
+export function resolveExternalHref(
+  event: MouseEvent,
+  anchor: HTMLAnchorElement,
+): string | null {
+  // Respect modified clicks (open-in-new-window etc.) - the user explicitly
+  // wants the browser shortcut behaviour, don't override.
+  if (
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    event.button !== 0
+  ) {
+    return null;
+  }
+  const href = anchor.href;
+  if (!href) return null;
+  // Skip in-app navigation (same-origin anchor) so internal routing isn't
+  // hijacked. Only true external URLs go through the opener.
+  try {
+    const target = new URL(href);
+    if (target.origin === globalThis.location.origin) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return href;
+}
+
+/**
  * Svelte click handler that intercepts a plain `<a href>` click and routes
  * it through the opener plugin. Designed to be assigned with
  * `onclick={handleExternalLinkClick}` on the anchor.
@@ -56,29 +98,8 @@ export async function openExternalUrl(url: string): Promise<void> {
 export function handleExternalLinkClick(
   event: MouseEvent & { currentTarget: EventTarget & HTMLAnchorElement },
 ): void {
-  // Respect modified clicks (open-in-new-window etc.) - the user explicitly
-  // wants the browser shortcut behaviour, don't override.
-  if (
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey ||
-    event.button !== 0
-  ) {
-    return;
-  }
-  const href = event.currentTarget.href;
-  if (!href) return;
-  // Skip in-app navigation (same-origin anchor) so internal routing isn't
-  // hijacked. Only true external URLs go through the opener.
-  try {
-    const target = new URL(href);
-    if (target.origin === globalThis.location.origin) {
-      return;
-    }
-  } catch {
-    return;
-  }
+  const href = resolveExternalHref(event, event.currentTarget);
+  if (href === null) return;
   event.preventDefault();
   void openExternalUrl(href);
 }

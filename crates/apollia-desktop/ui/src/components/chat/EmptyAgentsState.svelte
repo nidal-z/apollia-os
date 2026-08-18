@@ -10,6 +10,7 @@
   import { Bot, BookOpen } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { navigateTo } from "$lib/stores/navigation";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     /** Deep-link target for the documentation link (defaults to the help center). */
@@ -39,6 +40,7 @@
       href={docsHref}
       target="_blank"
       rel="noreferrer"
+      onclick={handleExternalLinkClick}
       class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]
         text-muted-foreground hover:text-foreground
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"

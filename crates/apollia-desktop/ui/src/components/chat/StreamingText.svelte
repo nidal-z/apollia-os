@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { renderMarkdown } from "$lib/utils/markdown";
+  import { handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
   import "$lib/components/ui/markdown/markdown-prose.css";
   import { t } from "svelte-i18n";
   import StreamingCursor from "./StreamingCursor.svelte";
@@ -18,6 +18,11 @@
   let { text, status = "streaming" }: Props = $props();
 
   async function handleClick(event: MouseEvent): Promise<void> {
+    // Outbound links first: the anchors are injected markup, so this
+    // container is the only place that can route them to the opener. The
+    // copy-button branch below returns early and would swallow the click.
+    if (handleMarkdownLinkClick(event)) return;
+
     const target = event.target as HTMLElement;
     const copyBtn = target.closest("[data-copy-code]") as HTMLElement | null;
     if (!copyBtn) return;

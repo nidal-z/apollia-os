@@ -10,6 +10,7 @@
   import { Banner } from "$lib/components/ui/banner";
   import { Input } from "$lib/components/ui/input";
   import { Spinner } from "$lib/components/ui/progress";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     providerShort: string;
@@ -46,7 +47,14 @@
 
   <p class="text-caption text-muted-foreground">
     {$t("connections.oauth_window_not_opened")}
-    <a class="text-primary underline" href={authUrl} target="_blank" rel="noopener noreferrer" data-testid="oauth-open-url-link">
+    <a
+      class="text-primary underline"
+      href={authUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onclick={handleExternalLinkClick}
+      data-testid="oauth-open-url-link"
+    >
       {$t("connections.oauth_open_url_manually")}</a
     >.
   </p>

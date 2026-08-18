@@ -8,6 +8,7 @@
   import { onMount } from "svelte";
   import { fetchLinkPreview, type LinkPreview } from "$lib/chat/linkPreview";
   import { ExternalLink } from "lucide-svelte";
+  import { handleExternalLinkClick, openExternalUrl } from "$lib/utils/externalLink";
 
   interface Props {
     url: string;
@@ -35,11 +36,7 @@
   }
 
   function openInBrowser(): void {
-    try {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      // Non-fatal.
-    }
+    void openExternalUrl(url);
   }
 </script>
 
@@ -48,6 +45,7 @@
     href={url}
     target="_blank"
     rel="noopener noreferrer"
+    onclick={handleExternalLinkClick}
     class="inline-flex items-center gap-1 text-primary hover:underline break-all"
     data-testid="link-preview-fallback"
   >

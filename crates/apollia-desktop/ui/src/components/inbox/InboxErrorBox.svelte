@@ -15,6 +15,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Disclosure } from "$lib/components/ui/disclosure";
   import { humanize, type ErrorTranslate } from "$lib/errors/humanize";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
 
   interface Props {
     /** Raw error (string / Error / unknown) - always surfaced, never hidden. */
@@ -63,6 +64,7 @@
           href={humanized.learn_more_url}
           target="_blank"
           rel="noreferrer"
+          onclick={handleExternalLinkClick}
         >
           {$t("inbox.error.learn_more")}
         </a>
