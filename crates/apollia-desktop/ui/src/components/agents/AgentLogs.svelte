@@ -23,6 +23,7 @@
     Copy,
   } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
+  import { createIdentityGuard } from "$lib/utils/identityGuard";
 
   interface Props {
     agentId: string;
@@ -110,17 +111,25 @@
     return new Date(isoDate).toLocaleString($locale ?? "en");
   }
 
+  // The sheet keeps its instance across assistants, and the agent it shows can
+  // change while a listing is in flight: only the listing still aimed at the
+  // assistant on screen may write.
+  const agentGuard = createIdentityGuard(() => agentId);
+
   async function fetchTasks() {
+    const ticket = agentGuard.begin();
     loading = true;
     error = null;
     try {
       const result: TaskSummary[] = await invoke("list_tasks", { filter: { agent_id: agentId } });
+      if (!ticket.current) return;
       taskList = result.slice(0, FETCH_LIMIT);
     } catch (err: unknown) {
+      if (!ticket.current) return;
       error = err instanceof Error ? err.message : String(err);
       taskList = [];
     } finally {
-      loading = false;
+      if (ticket.current) loading = false;
     }
   }
 

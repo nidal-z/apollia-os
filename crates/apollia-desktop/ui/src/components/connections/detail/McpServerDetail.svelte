@@ -11,6 +11,7 @@
   import { Spinner } from "$lib/components/ui/progress";
   import { TabBar } from "$lib/components/ui/tabs";
   import { formatRelativeTime } from "$lib/utils";
+  import { createIdentityGuard } from "$lib/utils/identityGuard";
   import McpDetailHeader from "./McpDetailHeader.svelte";
   import McpOverviewTab from "./McpOverviewTab.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
@@ -77,17 +78,26 @@
     return requiresApproval ? "ask" : "auto";
   }
 
+  // The detail comes back after a round-trip to the runtime, and the sidebar
+  // stays clickable meanwhile: without this guard the answer for the server the
+  // operator just left lands under the name of the one just picked.
+  const serverGuard = createIdentityGuard(() => server.name);
+
   async function fetchDetail(name: string): Promise<void> {
+    const ticket = serverGuard.begin();
     loading = true;
     error = null;
     try {
-      mcpDetail = await getMcpServerDetail(name);
-      approvalLevel = deriveApprovalLevel(mcpDetail.config.requires_approval);
+      const detail = await getMcpServerDetail(name);
+      if (!ticket.current) return;
+      mcpDetail = detail;
+      approvalLevel = deriveApprovalLevel(detail.config.requires_approval);
     } catch (err: unknown) {
+      if (!ticket.current) return;
       error = messageOf(err);
       mcpDetail = null;
     } finally {
-      loading = false;
+      if (ticket.current) loading = false;
     }
   }
 

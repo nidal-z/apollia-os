@@ -29,6 +29,7 @@
   import { parseStream } from "$lib/chat/streamParser";
   import { computeScrollFollow } from "$lib/chat/scrollFollow";
   import { createSubscriptionGuard } from "$lib/utils/subscriptionGuard";
+  import { createIdentityGuard } from "$lib/utils/identityGuard";
   import ChatInput from "./ChatInput.svelte";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
@@ -535,28 +536,47 @@
     closeSessionBuffer(sessionId);
   });
 
+  // Every read below ends in `applySessionDetail`, which overwrites the whole
+  // conversation and pushes it into the global `currentSession` store. Reloading
+  // a history takes long enough for the operator to pick another conversation
+  // meanwhile, so a read that is no longer aimed at the selected session must
+  // write nothing, neither on screen nor in the store.
+  const sessionGuard = createIdentityGuard(() => sessionId);
+
   async function loadSession(): Promise<void> {
+    const ticket = sessionGuard.begin();
     loading = true; loadError = null;
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      if (!ticket.current) return;
       applySessionDetail(detail);
-    } catch (err: unknown) { loadError = err instanceof Error ? err.message : String(err); }
-    finally { loading = false; await tick(); scrollToBottom(true); }
+    } catch (err: unknown) {
+      if (!ticket.current) return;
+      loadError = err instanceof Error ? err.message : String(err);
+    }
+    finally {
+      if (ticket.current) { loading = false; await tick(); scrollToBottom(true); }
+    }
   }
 
   async function refreshSession(): Promise<void> {
+    const ticket = sessionGuard.begin();
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      if (!ticket.current) return;
       applySessionDetail(detail); scrollToBottom();
     } catch { /* Session may have been deleted */ }
   }
 
   async function finalizeStreaming(): Promise<void> {
+    const ticket = sessionGuard.begin();
     await new Promise((r) => setTimeout(r, 80));
+    if (!ticket.current) return;
     isStreaming = false; isProcessing = false; tokenBuffer = ""; liveToolChain = [];
     clearGlobalBuffer(sessionId);
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      if (!ticket.current) return;
       applySessionDetail(detail); scrollToBottom();
     } catch { /* Session may have been deleted */ }
   }

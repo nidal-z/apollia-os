@@ -4,6 +4,7 @@
   import type { TaskSummary } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
+  import { createIdentityGuard } from "$lib/utils/identityGuard";
 
   interface Props {
     agentId: string;
@@ -47,21 +48,28 @@
     return `${diffDays}d ago`;
   }
 
+  // The panel instance survives a change of assistant, so a listing that comes
+  // back late must not paint the previous assistant's tasks under the new name.
+  const agentGuard = createIdentityGuard(() => agentId);
+
   async function fetchTasks() {
+    const ticket = agentGuard.begin();
     loading = true;
     error = null;
     try {
       const result: TaskSummary[] = await invoke("list_tasks", {
         filter: { agent_id: agentId },
       });
+      if (!ticket.current) return;
       taskList = result
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .slice(0, RECENT_LIMIT);
     } catch (err: unknown) {
+      if (!ticket.current) return;
       error = err instanceof Error ? err.message : String(err);
       taskList = [];
     } finally {
-      loading = false;
+      if (ticket.current) loading = false;
     }
   }
 

@@ -254,6 +254,7 @@
   import { getTaskTimeline } from "$lib/ipc/tasks";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
+  import { createIdentityGuard } from "$lib/utils/identityGuard";
 
   interface Props {
     /** Task whose timeline is read. */
@@ -284,16 +285,25 @@
 
   const rows = $derived(events.map(toTimelineRow));
 
+  // The task is picked from a select right above the panel, so a second choice
+  // can land while the first timeline is still being read. Only the read still
+  // aimed at the selected task may write, error included.
+  const taskGuard = createIdentityGuard(() => taskId);
+
   async function load(id: string): Promise<void> {
+    const ticket = taskGuard.begin();
     loading = true;
     try {
-      events = await getTaskTimeline(id);
+      const loaded = await getTaskTimeline(id);
+      if (!ticket.current) return;
+      events = loaded;
       errState = null;
     } catch (err: unknown) {
+      if (!ticket.current) return;
       events = [];
       errState = reportError(err, { surface: "inline" });
     } finally {
-      loading = false;
+      if (ticket.current) loading = false;
     }
   }
 
