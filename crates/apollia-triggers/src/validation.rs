@@ -88,7 +88,13 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
 /// returning is what [`validate_cron`] used to do with the normalized string,
 /// and the runtime reader (`sources/cron.rs`) then failed on the stored
 /// 5-field original: the validator accepted a value the reader refused.
-fn accepted_cron_schedule(schedule: &str) -> Result<String, TriggerDefinitionError> {
+///
+/// This is the single 5-to-6 normalization of the tree. Both entry points run
+/// it: the SQLite write path through [`normalized_source_config`], and the
+/// `[[triggers]]` TOML parser through `toml_config::normalize_cron`. A second
+/// copy would let the two doors accept different sets of expressions, and the
+/// runtime reader only accepts the six-field form.
+pub(crate) fn accepted_cron_schedule(schedule: &str) -> Result<String, TriggerDefinitionError> {
     if schedule.is_empty() {
         return Err(TriggerDefinitionError::ValidationError(
             "cron schedule is required".to_string(),

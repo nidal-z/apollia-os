@@ -1,13 +1,12 @@
 //! TOML parsing of the `[[triggers]]` section from the contents of `apollia.toml`.
 //!
-//! Used by `apollia-runtime` for hot reload via `POST /api/v1/triggers/reload`
-//! without depending on `apollia-cli` (which would create a circular dependency).
+//! Used by `apollia-cli` when installing an agent package, to read the
+//! `[[triggers]]` declared by the package before they are inserted in SQLite.
 //!
 //! Validation is fail-fast: any configuration error is detected before the
 //! definitions are handed to the [`TriggerEngine`].
 
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use serde::Deserialize;
 
@@ -223,28 +222,17 @@ fn validate_trigger_source(
 }
 
 /// Validates and normalizes a cron expression (5 or 6 fields).
+///
+/// Delegates to [`crate::validation::accepted_cron_schedule`], which the SQLite
+/// write path also runs on every insert and update. This wrapper exists only to
+/// attach the trigger identifier the TOML error carries and the canonical
+/// function does not know about.
 fn normalize_cron(id: &str, schedule: &str) -> Result<String, TriggerTomlError> {
-    if cron::Schedule::from_str(schedule).is_ok() {
-        return Ok(schedule.to_string());
-    }
-    let field_count = schedule.split_whitespace().count();
-    if field_count == 5 {
-        let normalized = format!("0 {schedule}");
-        if cron::Schedule::from_str(&normalized).is_ok() {
-            return Ok(normalized);
+    crate::validation::accepted_cron_schedule(schedule).map_err(|e| {
+        TriggerTomlError::InvalidTrigger {
+            id: id.to_string(),
+            reason: e.to_string(),
         }
-    }
-    let reason = cron::Schedule::from_str(schedule)
-        .err()
-        .map(|e| e.to_string())
-        .unwrap_or_else(|| "invalid cron expression".to_string());
-    Err(TriggerTomlError::InvalidTrigger {
-        id: id.to_string(),
-        reason: TriggerDefinitionError::InvalidCronSchedule {
-            schedule: schedule.to_string(),
-            reason,
-        }
-        .to_string(),
     })
 }
 
@@ -318,6 +306,8 @@ fn expand_tilde(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -401,5 +391,118 @@ secret = ""
             msg.contains("crm-sync"),
             "message doit contenir 'crm-sync': {msg}"
         );
+    }
+
+    // --- The two doors to the cron normalization -------------------------
+
+    /// Normalizes a cron expression through the `apollia agent install` door:
+    /// the `[[triggers]]` TOML parser of this module.
+    fn schedule_through_toml(id: &str, schedule: &str) -> Result<String, String> {
+        let toml = format!(
+            "[[triggers]]\n\
+             id = \"{id}\"\n\
+             agent = \"rapport-agent\"\n\
+             enabled = true\n\
+             on_busy = \"queue\"\n\
+             input_template = \"Rapport\"\n\
+             [triggers.source]\n\
+             type = \"cron\"\n\
+             schedule = \"{schedule}\"\n"
+        );
+        let defs = parse_triggers_from_toml_str(&toml).map_err(|e| e.to_string())?;
+        let def = defs
+            .into_iter()
+            .next()
+            .ok_or_else(|| "no trigger parsed".to_string())?;
+        match def.source {
+            TriggerSourceConfig::Cron { schedule } => Ok(schedule),
+            other => Err(format!("not a cron source: {other:?}")),
+        }
+    }
+
+    /// Normalizes a cron expression through the SQLite door: the write path
+    /// every surface that persists a trigger goes through.
+    fn schedule_through_repository(id: &str, schedule: &str) -> Result<String, String> {
+        let dir = tempfile::TempDir::new().map_err(|e| e.to_string())?;
+        let repo = crate::definition_repository::TriggerDefinitionRepository::open(
+            &dir.path().join("triggers.db"),
+        )
+        .map_err(|e| e.to_string())?;
+        let def = crate::definition_repository::TriggerDefinitionRow {
+            id: id.to_string(),
+            agent: Some("rapport-agent".to_string()),
+            enabled: true,
+            on_busy: crate::definition_repository::OnBusy::Queue,
+            source_type: "cron".to_string(),
+            source_config: serde_json::json!({ "schedule": schedule }),
+            input_template: Some("Rapport".to_string()),
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        repo.insert(&def).map_err(|e| e.to_string())?;
+        let stored = repo
+            .get(id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "trigger not stored".to_string())?;
+        stored
+            .source_config
+            .get("schedule")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| "stored schedule missing".to_string())
+    }
+
+    #[test]
+    fn test_both_cron_doors_agree_on_verdict_form_and_reason() {
+        // GIVEN expressions covering the 5-to-6 normalization, the forms
+        // already accepted verbatim, and the rejections
+        let cases = [
+            "0 8 * * MON",
+            "*/5 * * * *",
+            "30 2 1 * *",
+            "0 0 8 * * MON",
+            "0 0 8 * * MON *",
+            "",
+            "not a cron",
+            "99 99 99 99 99",
+            "0 8 * *",
+        ];
+
+        for (index, schedule) in cases.iter().enumerate() {
+            let id = format!("cross-{index}");
+
+            // WHEN the same expression goes through both doors
+            let via_toml = schedule_through_toml(&id, schedule);
+            let via_repository = schedule_through_repository(&id, schedule);
+
+            // THEN the verdict is the same
+            assert_eq!(
+                via_toml.is_ok(),
+                via_repository.is_ok(),
+                "verdicts diverge on {schedule:?}: toml={via_toml:?}, repository={via_repository:?}"
+            );
+
+            // THEN on acceptance the normalized form is the same, and the
+            // runtime reader of `sources/cron.rs` accepts it verbatim
+            if let (Ok(from_toml), Ok(from_repository)) = (&via_toml, &via_repository) {
+                assert_eq!(
+                    from_toml, from_repository,
+                    "normalized forms diverge on {schedule:?}"
+                );
+                assert!(
+                    cron::Schedule::from_str(from_toml).is_ok(),
+                    "the runtime reader would refuse {from_toml:?}"
+                );
+            }
+
+            // THEN on rejection the reason reported is the same one, the TOML
+            // door only prefixing the trigger identifier
+            if let (Err(from_toml), Err(from_repository)) = (&via_toml, &via_repository) {
+                assert!(
+                    from_toml.contains(from_repository.as_str()),
+                    "reasons diverge on {schedule:?}: toml={from_toml:?}, repository={from_repository:?}"
+                );
+            }
+        }
     }
 }
