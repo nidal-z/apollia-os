@@ -215,8 +215,9 @@ Highlights :
 - `rust-version = "1.89"` is the MSRV. Tested in CI.
 - Features are additive and kebab-case. `default = []` is documented when
   it includes optional functionality.
-- Adding a new dependency : require an ADR if the dep is heavy (>100k LoC),
-  GPL-licensed, or replaces an in-tree solution.
+- Adding a new dependency : if the dep is heavy (>100k LoC), GPL-licensed, or
+  replaces an in-tree solution, state the decision in
+  `docs/site/docs/architecture/08-decisions.md` first.
 
 ---
 
@@ -301,6 +302,5 @@ Detailed rules in `docs/agents/DOCS-WRITING.md`.
 
 ## 9. When the rules block you
 
-Either document an exemption inline (`// SAFETY:`, `// REASON:`, ADR
-reference) or surface the conflict to the user before silently bending the
-rule.
+Either document an exemption inline (`// SAFETY:`, `// REASON:`) or surface
+the conflict to the user before silently bending the rule.

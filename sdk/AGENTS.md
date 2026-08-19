@@ -220,7 +220,9 @@ the `ctx.datasources` and `ctx.templates` services.
 Rules :
 - Agents never write to datasources. The runtime owns the lifecycle.
 - Templates are Jinja2-style strings with limited filters (`upper`,
-  `lower`, `length`). Custom filters require an ADR.
+  `lower`, `length`). A custom filter is a contract change: state it in
+  `docs/site/docs/architecture/08-decisions.md` under `#agent-contract`
+  first.
 
 ---
 
@@ -230,9 +232,8 @@ Marks a skill that ORIA drives step-by-step (LLM in the loop). The
 agent body is a single function; ORIA decides when to call tools, when
 to ask the LLM, when to stop.
 
-Requires `[llm.routing]` precise in the agent TOML (ADR feedback from
-2026-05-21). The router needs a deterministic backend per orchestrated
-skill.
+Requires `[llm.routing]` precise in the agent TOML. The router needs a
+deterministic backend per orchestrated skill.
 
 `cache_plan=True` opt-in for cacheable plans (see
 `crates/apollia-oria/AGENTS.md` §4).
@@ -289,15 +290,18 @@ Edit policy :
 | New decorator | `sdk/README.md`, this file, Wiki reference, Book chapter |
 | New `Ctx` method | `types.py` + `context/<service>.py` + the decisions chapter |
 | New AgentError subclass | this file (§5), Wiki reference, `apollia-aip` dispatcher |
-| TypedDict schema convention change | this file (§4), book chapter, ADR if breaking |
+| TypedDict schema convention change | this file (§4), book chapter, the `#agent-contract` section of the decisions chapter if breaking |
 
 ---
 
 ## 12. When the rules block you
 
-- Need a new decorator : open an ADR. Decorators are contract.
-- Need to add a runtime dependency to an agent : open an ADR. Each one
-  is a sovereignty surface.
+- Need a new decorator : state it in the `#agent-contract` section of
+  `docs/site/docs/architecture/08-decisions.md` first. Decorators are
+  contract.
+- Need to add a runtime dependency to an agent : state the decision in
+  `docs/site/docs/architecture/08-decisions.md` first. Each one is a
+  sovereignty surface.
 - Need to break compatibility (rename a decorator, change a schema
-  field semantics) : open an ADR, ship under a feature flag with
-  documented sunset.
+  field semantics) : rewrite `#agent-contract` in the same commit, and
+  ship under a feature flag with documented sunset.

@@ -71,8 +71,11 @@ The desktop UI is covered by Vitest unit tests and by Playwright suites under
 macOS, so there is no browser-driven end-to-end suite for the Tauri shell; the
 runtime paths it exercises are covered through the CLI suite above.
 
-Pre-commit hooks run `ruff format`, `ruff check`, `rustfmt`, `clippy`, and
-`cargo check`. Do not bypass them.
+Pre-commit hooks guard every commit, and `.pre-commit-config.yaml` is the list
+to read rather than a copy to trust: it holds more than formatting and lints,
+the prose rules and the documentation-site build among them. Two of its entries
+run elsewhere, `clippy` on push and the commit-message convention at
+`commit-msg`. Do not bypass any of them.
 
 ---
 
@@ -142,7 +145,8 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 ## ASK FIRST
 
 - Adding any third-party dependency (Cargo or Python). Each one is a
-  sovereignty surface. ADR-justified.
+  sovereignty surface, and the decision is stated in
+  `docs/site/docs/architecture/08-decisions.md` before it lands.
 - Changing a decision recorded in the architecture chapter of `docs/site/`.
 - Modifying a public API in `apollia-core` (used by every other crate).
 - Touching anything in `docs/internal/` (gitignored, source of truth for

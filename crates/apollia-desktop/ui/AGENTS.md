@@ -198,9 +198,14 @@ and tokens.
 
 ## 6. Tauri IPC
 
-The desktop UI calls into the Rust backend through Tauri commands, 285 of them
-at last count. Do not memorise a number: read
-`grep -rc '#\[tauri::command\]' crates/apollia-desktop/src`. Patterns here :
+The desktop UI calls into the Rust backend through Tauri commands. Do not
+memorise their number, read it from the tree, and read the right one.
+`grep -rc '#\[tauri::command\]' crates/apollia-desktop/src`, summed over its
+per-file lines, counts the definitions. What the application actually exposes is
+the `tauri::generate_handler![` list in `crates/apollia-desktop/src/main.rs`.
+The two figures differ whenever a command is `#[cfg]`-gated per target: the
+attribute then appears once per target, and the registration once in total.
+Patterns here :
 
 ```ts
 import { invoke } from "@tauri-apps/api/core";
@@ -293,7 +298,14 @@ field exposed). When fusing duplicated screens or features :
 
 ## 11. Testing
 
-- Unit : Vitest. Component tests via `@testing-library/svelte`.
+- **Unit : Vitest**, `npm test` from `crates/apollia-desktop/ui/`.
+  `vitest.config.ts` sets `environment: "node"` and
+  `include: ["src/**/*.test.ts"]`, and `package.json` carries neither a DOM
+  environment nor a rendering library, so a test that mounts a component
+  cannot run here. Test a component by exporting the logic under test from
+  its `<script module>` block and asserting on that export, the way
+  `src/components/observability/TaskTimeline.test.ts` does. Anything that
+  needs a rendered tree is a Playwright test, below.
 - **Browser tests : Playwright**, in `crates/apollia-desktop/ui/tests/`, run
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed through `window.__TAURI_INTERNALS__.invoke`. They cover UI machinery

@@ -340,9 +340,13 @@ The agent trust model and sandbox posture are covered in
 - Need to log a value that looks sensitive : extract a non-sensitive
   identifier and log that.
 - Need to call an external service from a new code path : route through
-  `apollia-tools` HTTP wrapper or open an ADR for a new wrapper category.
+  `apollia-tools` HTTP wrapper, or state a new wrapper category in
+  `docs/site/docs/architecture/08-decisions.md` under `#tools-and-sandbox`
+  first.
 - Need to add a new secret kind : define its `(service, user)` naming
   convention, update the `SecretStore` doc-comment, and document the key
   naming in this file.
 - Need to bypass profile gating for a legitimate reason : the answer is
-  no. Open an ADR if you genuinely believe a bypass is required.
+  no. If you genuinely believe a bypass is required, the `#permission-model`
+  section of `docs/site/docs/architecture/08-decisions.md` is what has to
+  change first.

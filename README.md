@@ -550,7 +550,7 @@ crates/
 sdk/                     # Python SDK (the `apollia` package)
 clients/                 # Generated client SDKs + example agents (echo_agent.py, demo_driver.py)
 agents/                  # Example agents (examples/hello/agent.py)
-docs/                    # Documentation (Docusaurus site, ADRs, LLM rulebook)
+docs/                    # Documentation (Docusaurus site, LLM rulebook)
 tests/                   # End-to-end integration tests
 scripts/                 # Tooling and desktop E2E automation
 ```

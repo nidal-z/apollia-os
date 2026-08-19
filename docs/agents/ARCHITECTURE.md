@@ -4,8 +4,8 @@
 > and pointers into the codebase. Read this first when starting on the project.
 
 Authoritative source for the principles : `docs/site/docs/explanation/the-8-principles.md`.
-This file is the English LLM-facing summary plus the canonical patterns and
-the ADR map.
+This file is the English LLM-facing summary plus the canonical patterns, and it
+points at where the decisions in force are stated (Section F).
 
 ---
 

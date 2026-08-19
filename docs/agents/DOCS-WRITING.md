@@ -25,14 +25,15 @@ Each corpus does its job and only its job.
   signature. No tutorials, no opinions.
 - The Help is operator-focused : one article per task the user wants to
   accomplish, no internal vocabulary.
-- The ADR holds the decision, the alternatives, the consequences. No
-  tutorial content, no reference content.
+- The decisions chapter (`docs/site/docs/architecture/08-decisions.md`)
+  states every structural decision in force, in the present tense, under a
+  stable anchor. No tutorial content, no reference content.
 - The Agents corpus encodes rules an LLM must follow. No tutorial, no
   reference table (cite the Wiki instead).
 
 When in doubt about where new content belongs, the question is : "what
 mode is this in?" Tutorial -> Book. Reference -> Wiki. How-to -> Help.
-Decision -> ADR. Rule -> Agents.
+Decision -> decisions chapter. Rule -> Agents.
 
 ---
 
@@ -204,7 +205,7 @@ When you make a change that crosses a corpus boundary :
 |---|---|
 | New public Rust API | `docs/site/docs/reference/`, doc-comment on the item |
 | New CLI sub-command | `crates/apollia-cli/AGENTS.md`, `docs/site/docs/reference/cli/` (regenerated) |
-| New ADR | Add to `docs/Decisions-Log.md`, optionally cited from the relevant ADR map (`docs/agents/ARCHITECTURE.md` §F) |
+| New structural decision | A section under a stable anchor in `docs/site/docs/architecture/08-decisions.md`, plus its French mirror under `docs/site/i18n/fr/docusaurus-plugin-content-docs/current/architecture/08-decisions.md` with the same anchor |
 | New tracing field | `docs/agents/OBSERVABILITY.md` table |
 | New design token | `app.css`, `tailwind.config.ts` (the full design-system reference is internal) |
 | Behavior change visible in operator UI | `docs/site/docs/operator-help/` article + tutorial |

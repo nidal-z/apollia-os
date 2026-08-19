@@ -1,7 +1,8 @@
 # NAMING
 
-> Naming conventions across Rust, Python, files, branches, ADRs, events,
-> tracing fields, and HTTP routes. Read this before introducing any new name.
+> Naming conventions across Rust, Python, files, branches, decision anchors,
+> events, tracing fields, and HTTP routes. Read this before introducing any new
+> name.
 
 Consistent names are the cheapest form of documentation. They survive
 refactors, translate cleanly to other languages, and let LLMs predict the
@@ -248,10 +249,17 @@ agent drifts from the crate version.
 
 ---
 
-## 7. ADRs and stories
+## 7. Decision anchors
 
-  Example : `agent-trust-model.md`.
-- Numbered globally, never reused.
+Structural decisions live in `docs/site/docs/architecture/08-decisions.md`, one
+section per subject. The name of a decision is its anchor.
+
+- Kebab-case, explicit, written next to the heading :
+  `## Budget and safeguards {#budget-and-safeguards}`.
+- Names the subject, not the verdict. `#permission-model`, not
+  `#we-chose-deny-by-default`.
+- Stable once published. Reword the heading freely, keep the anchor, because
+  the rulebook and the French mirror both link to it.
 
 ---
 

@@ -53,7 +53,9 @@ Rules :
   (`OriaError::InvalidBudget`).
 
 If you find yourself wanting to "just bypass the budget for this one
-case", the answer is no. Open an ADR.
+case", the answer is no. The rule in force is stated in
+`docs/site/docs/architecture/08-decisions.md` under `#budget-and-safeguards`,
+and any change to it starts by rewriting that section.
 
 ---
 
@@ -167,8 +169,9 @@ budget = { max_steps = 10, max_duration_secs = 60 }
 Rules :
 - The director is always an ORIA agent. Workers may be ORIA agents or
   pure A2A workers (see `agents/`).
-- Mode : `fan-out` (parallel), `sequential`, `conditional`. New modes
-  require an ADR.
+- Mode : `fan-out` (parallel), `sequential`, `conditional`. A new mode is
+  stated in `docs/site/docs/architecture/08-decisions.md` under
+  `#execution-model` before it is implemented.
 - HITL gates can be inserted between stages via
   `[pipeline.X.stages.Y].requires_approval = true`.
 
@@ -200,6 +203,7 @@ Rules :
 
 - Need a new resilience pattern (exponential jitter, hedge requests) :
   add it as a `RetryPolicy` variant, default `None`, opt-in per backend.
-- Need a new pipeline mode : ADR first.
+- Need a new pipeline mode : the `#execution-model` section of
+  `docs/site/docs/architecture/08-decisions.md` changes first.
 - Need to inspect the budget mid-task for diagnostics : add a
   `BudgetSnapshot` event, never expose mutable access.

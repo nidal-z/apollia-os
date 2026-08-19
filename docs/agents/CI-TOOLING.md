@@ -41,8 +41,9 @@ what the tools actually read. What follows is the part a file cannot tell you.
 **`imports_granularity` and `group_imports` are deliberately absent from
 `rustfmt.toml`.** Both are nightly-only. Keeping them forced the whole tree to
 be formatted by a nightly rustfmt that stable CI could never reproduce, so the
-fmt gate failed on every file. Edition stays at 2021; moving to 2024 is a
-separate ADR and its own PR.
+fmt gate failed on every file. Edition stays at 2021; moving to 2024
+rewrites `#stack-and-runtime` in
+`docs/site/docs/architecture/08-decisions.md` and takes its own PR.
 
 **Two version numbers, and confusing them wastes an afternoon.** The build and
 gate toolchain is pinned in `rust-toolchain.toml`, and every blocking Rust job
@@ -81,10 +82,15 @@ fails the build on that shape. The full explanation is in
 
 ## 4. Pre-commit hooks
 
-`.pre-commit-config.yaml` is the source; read it there. What it runs, in one
-line: the usual hygiene hooks plus `detect-private-key` and a 500 KB file cap,
-`ruff` and `ruff-format` on Python, `rustfmt`, `clippy -D warnings` and
-`cargo check` on the workspace, and `conventional-pre-commit` on the message.
+`.pre-commit-config.yaml` is the source; read it there. What it runs at commit
+time, in one line: the usual hygiene hooks plus `detect-private-key` and a
+500 KB file cap, `ruff-check` and `ruff-format` on `sdk/`, `rustfmt` and
+`cargo check` on the workspace, `check-prose` on the five prose rules, and
+`docs-site-build` when `docs/site/` or `clients/openapi.json` changes.
+
+Two entries are not commit-time hooks, and reading the list as one is how a
+contributor gets surprised: `clippy -D warnings` is staged on `pre-push`, and
+`conventional-pre-commit` judges the message at `commit-msg`.
 
 ```sh
 pre-commit install && pre-commit install --hook-type commit-msg

@@ -14,7 +14,7 @@ apply.
 
 |  | Rust crates | Python SDK | Tauri desktop | CLI | HTTP API | Actor mesh | LLM / MCP backends |
 |---|---|---|---|---|---|---|---|
-| **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest + @testing-library/svelte | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
+| **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest, `node` environment, no DOM (see §7) | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
 | **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on the bundle with the Tauri bridge stubbed | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
 | **E2E** | delegated to CLI tests | n/a | none on the packaged app (no WKWebView WebDriver) | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
 | **Property** | `proptest` | `hypothesis` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
@@ -212,8 +212,15 @@ Rules :
 
 ## 7. Desktop tests
 
-- **Component tests** : Vitest + `@testing-library/svelte`. Co-located in
-  `*.test.ts` next to the component.
+- **Unit tests** : Vitest, `npm test` from `crates/apollia-desktop/ui/`,
+  co-located in `*.test.ts` next to the unit they cover. `vitest.config.ts`
+  sets `environment: "node"` and `include: ["src/**/*.test.ts"]`, and
+  `package.json` carries neither a DOM environment nor a rendering library, so
+  a test that mounts a component cannot run here. Cover a component by
+  exporting the logic under test from its `<script module>` block and
+  asserting on that export, the way
+  `src/components/observability/TaskTimeline.test.ts` does. Anything that
+  needs a rendered tree is a Playwright test.
 - **Browser tests** : Playwright, in `crates/apollia-desktop/ui/tests/`, run
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed. They cover machinery that needs a real browser: dirty state, nav
@@ -228,7 +235,7 @@ Rules :
   write a test that assumes either, and note the package manager is `npm`.
 
 Rules :
-- A component test must not call Tauri IPC. Mock the IPC wrapper instead.
+- A Vitest test must not call Tauri IPC. Mock the IPC wrapper instead.
 - An E2E test does call Tauri IPC. It runs against a built app with a
   scratch profile (`APOLLIA_HOME=$(mktemp -d)`).
 
@@ -431,8 +438,9 @@ Sequence : `cargo fmt --all --check` -> `cargo clippy --workspace -- -D warnings
 
 ## 13. When the rules block you
 
-- Test is genuinely flaky : open an ADR explaining the source of
-  non-determinism and the mitigation. Never `#[ignore]` without an ADR.
+- Test is genuinely flaky : write the source of non-determinism and the
+  mitigation in a comment on the test itself. Never `#[ignore]` a test
+  without naming, on the spot, what has to be true for it to run again.
 - Need to test private internals : restructure to expose a `pub(crate)`
   facade for the test. Do not reach into private modules.
 - Long-running test : mark `@pytest.mark.slow` or `#[ignore]` with a

@@ -2,7 +2,8 @@
 
 > NEVER list. Read this file before writing any code or documentation for Apollia.
 > Each rule has a reason and a correct example. Violating a rule without a documented
-> exemption (ADR or inline `// SAFETY:` / `# REASON:` comment) is a regression.
+> exemption (an inline `// SAFETY:` / `# REASON:` comment, or a decision stated
+> in the architecture chapter of `docs/site/`) is a regression.
 
 ---
 
@@ -106,9 +107,10 @@ from my_agent.schemas import EmailPayload
 
 **NEVER Pydantic when TypedDict suffices.** Apollia agents are stdlib-only by default.
 Use Pydantic only when runtime validation of external API responses is unavoidable,
-and justify it in an ADR.
+and state the reason inline with a `# REASON:` comment.
 
-**NEVER add a third-party dependency without an ADR.** Workers and agents are
+**NEVER add a third-party dependency without a decision stated in
+`docs/site/docs/architecture/08-decisions.md`.** Workers and agents are
 stdlib-only by default. Each dep is a sovereignty surface and a maintenance liability.
 
 **NEVER `from typing import *`.** Import explicit symbols.
@@ -257,8 +259,9 @@ accidental inclusion of `.env`, credentials, lockfiles, build artifacts.
 ## Architecture and workflow
 
 **NEVER violate the 8 non-negotiable principles** (see
-`docs/agents/ARCHITECTURE.md` Section A) without an ADR that documents the
-deviation, its scope, and its expiration condition.
+`docs/agents/ARCHITECTURE.md` Section A) without a section in
+`docs/site/docs/architecture/08-decisions.md` that documents the deviation, its
+scope, and its expiration condition.
 
 **NEVER pull request > 800 lines of diff** without an explicit split rationale in
 the description.
@@ -286,7 +289,7 @@ ship the feature or remove the code.
 
 If a rule above seems wrong for your current task, do not silently violate it. Either:
 
-1. Document an exemption inline (`// SAFETY:`, `# REASON:`, ADR reference), or
+1. Document an exemption inline (`// SAFETY:`, `# REASON:`), or
 2. Stop, surface the conflict to the user, and propose a rule update.
 
 Rules are negotiable. Silent violations are not.

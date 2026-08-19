@@ -35,9 +35,17 @@ with its scope and the condition under which it ends.
 
 ## Quality gates
 
-Quality is enforced by automation rather than by a review committee: CI runs
-formatting, Clippy, the full test suite, `cargo audit`, and `cargo deny` on
-every change, with cross-platform and coverage checks on a nightly schedule.
+Quality is enforced by automation rather than by a review committee. Every push
+to `main` and every pull request runs the gates declared in
+[.github/workflows/ci.yml](.github/workflows/ci.yml): formatting, Clippy, the
+test suites, the repository's own guards on prose and capability claims, a
+line-coverage floor, and `cargo deny`, which answers the advisory, bans,
+licenses and sources questions in one pass. Heavier work runs on a weekly
+schedule from [.github/workflows/nightly.yml](.github/workflows/nightly.yml):
+cross-platform end-to-end runs, mutation testing, and a full dependency check.
+
+Those two files are the source. This page names families rather than a list,
+because a list copied into prose is wrong the day a gate is added or removed.
 A rule that is not a gate is a rule that drifts, so the invariants that matter
 are checks rather than paragraphs.
 

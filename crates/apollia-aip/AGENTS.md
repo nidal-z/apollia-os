@@ -204,4 +204,6 @@ Each step has a tracing span :
   Python contract is authoritative.
 - pyo3 API surface changed (new release) : pin the version, update via
   one focused PR, never bundle pyo3 upgrade with feature work.
-- Manifest format change : open an ADR. Manifests are an API surface.
+- Manifest format change : state the new shape in
+  `docs/site/docs/architecture/08-decisions.md` under
+  `#agent-contract` first. Manifests are an API surface.

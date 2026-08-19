@@ -5,8 +5,8 @@
 > `agents/<name>/AGENTS.md` if present.
 
 Apollia is stdlib-only by default. Every third-party dependency in an agent or
-worker is a sovereignty surface and a maintenance liability. Justify each one
-in an ADR.
+worker is a sovereignty surface and a maintenance liability. State each one in
+`docs/site/docs/architecture/08-decisions.md` before adding it.
 
 ---
 
@@ -99,7 +99,7 @@ Rules :
 - Every `@skill` carries at least one realistic `examples=[{...}]` payload.
   AgentKit propagates them into the LLM tool descriptor.
 - `@orchestrated` requires `[llm.routing]` precise in the agent TOML
-  (sovereign config, see ADR-... and the SDK book).
+  (sovereign config, see `sdk/AGENTS.md` §7).
 - Never decorate a non-async method. Skills are always `async def`.
 - Never share mutable state across skill invocations on `self`. Treat the
   agent as request-scoped.
@@ -225,6 +225,7 @@ Detailed conventions in `docs/agents/TESTING.md`.
 
 ## 9. When the rules block you
 
-Document the exemption inline (`# REASON:` comment, ADR reference) or
-surface the conflict before silently bending the rule. Adding a Python
-dependency without an ADR is the most common temptation here. Resist.
+Document the exemption inline (`# REASON:` comment) or surface the
+conflict before silently bending the rule. Adding a Python dependency
+without stating the decision first is the most common temptation here.
+Resist.

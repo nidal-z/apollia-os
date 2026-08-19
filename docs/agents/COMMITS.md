@@ -111,7 +111,8 @@ Optional. When present :
 
 - Wrap at 72 characters.
 - Explain the **why**, not the what. The diff shows the what.
-- Reference the constraint, incident, or ADR that motivates the change.
+- Reference the constraint or incident that motivates the change, or the
+  anchor in `docs/site/docs/architecture/08-decisions.md` that states it.
 
 Example body :
 
@@ -252,7 +253,6 @@ None.  // or describe
 
 ## Related
 
-Refs ADR-NNN
 Closes #N
 ```
 

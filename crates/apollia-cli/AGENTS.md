@@ -82,7 +82,9 @@ mode and emits compact output. `--json` forces JSON regardless of TTY.
 | 4 | timeout |
 | 5 | interrupt (SIGINT / SIGTERM during a long-running command) |
 
-A new exit code requires an ADR. Scripts depend on this mapping.
+A new exit code is a contract change: state it in
+`docs/site/docs/architecture/08-decisions.md` under `#cli` before adding it.
+Scripts depend on this mapping.
 
 ---
 
@@ -208,7 +210,8 @@ specific error type. `anyhow` is forbidden everywhere except `main`.
 
 - Need a new noun : open the discussion before implementing. Nouns are
   long-lived contract.
-- Need a different exit code semantic : open an ADR. Scripts depend on
-  this.
+- Need a different exit code semantic : change the `#cli` section of
+  `docs/site/docs/architecture/08-decisions.md` first, in the same commit.
+  Scripts depend on this.
 - Need a non-trivial computation in the CLI : it probably belongs in the
   runtime. Push it there and call.
