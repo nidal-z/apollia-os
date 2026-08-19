@@ -139,9 +139,12 @@ Memory is read at the agent's initiative. The runtime never injects memory
 content into an agent's prompt. An agent that wants context asks for it, which
 keeps the prompt something the agent author controls and can reason about.
 
-Two exceptions exist, both inside the built-in conversational assistant and
-unreachable from an agent execution path: a user-persona brief at the longest
-autonomy tier, and past session summaries on the first message of a free chat.
+Three exceptions exist, and none of them is reachable from an agent execution
+path. Two are inside the built-in conversational assistant: a user-persona brief
+at the longest autonomy tier, and past session summaries on the first message of
+a free chat. The third is outside the assistant, in the desktop prompt-rewrite
+command, which carries the Work section of the user profile into its own one-shot
+prompt and returns text to the composer rather than to a run.
 
 ## Local inference {#local-inference}
 

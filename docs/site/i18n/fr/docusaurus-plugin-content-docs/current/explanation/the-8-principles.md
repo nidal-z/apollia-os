@@ -85,14 +85,13 @@ corrosive : elle rend les entrées d'une exécution opaques et son comportement
 difficile à attribuer. Laisser le rappel à l'initiative de l'agent garde
 honnête la trace de ce qui a nourri une décision.
 
-Trois exceptions existent, toutes confinées à l'assistant conversationnel
-intégré, celui qui se trouve derrière la fenêtre de chat. Aucune n'est
-atteignable depuis un agent Python que vous installez. Les deux premières
-vivent dans le générateur de prompt et le gestionnaire de chat propres à
-l'assistant. La troisième vit ailleurs, dans la commande de réécriture du
-bureau, qui ne touche jamais au prompt de l'assistant : elle répond au
-composeur, pas à une exécution. Aucun chemin d'exécution d'agent ne passe par
-l'une des trois.
+Trois exceptions existent, et aucune n'est atteignable depuis un agent Python
+que vous installez. Les deux premières sont confinées à l'assistant
+conversationnel intégré, celui qui se trouve derrière la fenêtre de chat, et
+vivent dans son générateur de prompt et son gestionnaire de chat. La troisième
+vit ailleurs, dans la commande de réécriture du bureau, qui ne touche jamais au
+prompt de l'assistant : elle répond au composeur, pas à une exécution. Aucun
+chemin d'exécution d'agent ne passe par l'une des trois.
 
 La première est une décision de l'opérateur. Au palier d'autonomie le plus
 élevé uniquement, `long_autonomous`, l'assistant ajoute un court brief de

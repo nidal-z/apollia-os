@@ -128,10 +128,23 @@ locally.
 | `docs/internal/` | Release planning and internal notes. |
 | `target/` | The Cargo build output directory. |
 | `.venv/`, `.venv-agents/` | Local Python virtual environments. |
-| `.apollia-automation/`, `.apollia-seed-home/` | Throwaway state produced by the desktop end-to-end automaton (a seeded, disposable `HOME` so the real `~/.apollia` is never touched). |
+| `.apollia-automation/`, `.apollia-seed-home/` | Throwaway state produced by the desktop end-to-end automaton, which runs the app against a seeded, disposable `HOME` (see the note below). |
 | `.pytest_cache/`, `.ruff_cache/` | Tool caches. |
 | `.DS_Store` | macOS Finder metadata. |
 
 `AGENTS.local.md` and `AGENTS.override.md` are also gitignored by convention
 (per-machine and per-session contributor overrides); they may not exist in a
 given checkout.
+
+**What the seeded `HOME` covers.** The two recipes that build it,
+`desktop-dev-automation-seeded` and `desktop-dev-automation-seeded-llama`, swap
+`HOME` for the throwaway copy before they launch the app, so the app under test
+reads and writes that copy only, never the real `~/.apollia` profile. The
+recipes still reach into the real home in two places. Both resolve `CARGO_HOME`
+and `RUSTUP_HOME` from it (`~/.cargo`, `~/.rustup`) before the swap, so the
+build uses the toolchain and the crate cache you already have rather than an
+empty one under the seed. And the `-llama` recipe, the one that drives a real
+model, reads one file from the real profile, the model GGUF under
+`~/.apollia/models/`, because the seed carries placeholder GGUF files rather
+than a runnable model. Both points are written in the recipes themselves, in
+the `justfile`.

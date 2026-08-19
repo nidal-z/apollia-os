@@ -51,7 +51,7 @@ This step calibrates Apollia to your hardware and your sovereignty preferences. 
 
 #### LLM section (required)
 
-Three possible paths, depending on your situation:
+Four possible paths, depending on your situation:
 
 1. **Models already present on the machine.** If you have already placed a `.gguf` file in `~/.apollia/models/` or `~/Downloads/`, Apollia detects it automatically. Click the matching row to configure it in one click.
 2. **Recommended models to download.** Apollia displays a curated list of Qwen3 models (4B, 8B, 14B, 30B-A3B) filtered by your RAM, with a **Recommended** badge on the most relevant one. The list stays available whether or not a GGUF was already found, and after a first model has been configured. Click the row to start the download - a progress bar with the throughput in MB/s appears, and you can cancel at any time.

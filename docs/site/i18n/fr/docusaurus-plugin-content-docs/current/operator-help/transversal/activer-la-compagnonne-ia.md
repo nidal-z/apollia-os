@@ -17,7 +17,7 @@
 
    Rien ne s'ouvre tant qu'aucun fournisseur d'IA n'est prêt.
 
-   ![Le tableau de bord, au moment où le panneau Aide Apollia va s'ouvrir](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
+   ![L'écran Accueil, au moment où le panneau Aide Apollia va s'ouvrir](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
 2. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
 

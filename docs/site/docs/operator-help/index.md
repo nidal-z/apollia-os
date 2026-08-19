@@ -15,7 +15,7 @@ actions, and follow what happens.
 ## Where to start
 
 - [Follow the guided tour](./transversal/suivre-la-visite-guidee.md), six short
-  tours launched from the "Getting started" band on the dashboard.
+  tours launched from the "Getting started" band on the Home screen.
 - [Set up your profile](./installation/configurer-votre-profil.md), the initial flow.
 - [Connect a remote model](./installation/connecter-un-modele-distant.md), wire a cloud provider or an Ollama server.
 
@@ -26,7 +26,7 @@ actions, and follow what happens.
 - **Automate** : [schedule a trigger](./automatisations/programmer-un-trigger.md), follow the firing history.
 - **Keep control** : [approve or refuse an action](./controle/approuver-ou-refuser-une-action.md), [set file permissions](./controle/configurer-les-permissions-de-fichiers.md), [inspect a tool](./controle/inspecter-un-outil.md), [choose an autonomy tier](./agents/choisir-un-palier-d-autonomie.md), [measure an agent with eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connect** : wire your tools through the [MCP catalog](./integrations/connecter-un-serveur-mcp.md).
-- **Follow** : [dashboard and timeline](./observabilite/consulter-l-historique-des-taches.md), [LLM costs](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
+- **Follow** : [Home and timeline](./observabilite/consulter-l-historique-des-taches.md), [LLM costs](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
 - **Maintain** : [update Apollia](./installation/mettre-a-jour-apollia.md), [find your version and your data](./transversal/trouver-sa-version-et-ses-donnees.md).
 - **When something jams** : [diagnosing the common cases](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), a silent AI, a stuck agent, a refused action, dictation that produces nothing.
 

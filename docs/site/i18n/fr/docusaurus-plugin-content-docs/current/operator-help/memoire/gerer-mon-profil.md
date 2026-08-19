@@ -73,7 +73,7 @@ C'est l'option à choisir si vous voulez juste « repasser le questionnaire de c
 
 Dans **Paramètres → Zone de danger** (entrée distincte de la sidebar Paramètres), le bouton **Réinitialiser l'onboarding** relance le parcours guidé sans effacer ce qui est déjà renseigné. Utile si vous voulez juste re-télécharger un modèle, recalibrer une intégration ou voir les écrans de bienvenue à nouveau.
 
-Il a un effet de bord que la fenêtre ne mentionne pas : il remet aussi les visites guidées à zéro. Les six parcours repartent de leur première étape et la bande **Prise en main** réapparaît sur le tableau de bord, alors que la fenêtre annonce qu'aucune donnée n'est supprimée.
+Il a un effet de bord que la fenêtre ne mentionne pas : il remet aussi les visites guidées à zéro. Les six parcours repartent de leur première étape et la bande **Prise en main** réapparaît sur l'écran Accueil, alors que la fenêtre annonce qu'aucune donnée n'est supprimée.
 
 ### C - Effacer toutes les mémoires (profil + agents + projets)
 

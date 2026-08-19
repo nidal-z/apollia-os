@@ -151,10 +151,13 @@ La mémoire est lue à l'initiative de l'agent. Le runtime n'injecte jamais de
 contenu mémoire dans le prompt d'un agent. Un agent qui veut du contexte le
 demande, ce qui garde le prompt sous le contrôle de l'auteur de l'agent.
 
-Deux exceptions existent, toutes deux à l'intérieur de l'assistant
-conversationnel intégré et inatteignables depuis un chemin d'exécution d'agent :
-un brief de persona utilisateur au palier d'autonomie le plus long, et les
-résumés de sessions passées au premier message d'une conversation libre.
+Trois exceptions existent, et aucune n'est atteignable depuis un chemin
+d'exécution d'agent. Deux vivent à l'intérieur de l'assistant conversationnel
+intégré : un brief de persona utilisateur au palier d'autonomie le plus long, et
+les résumés de sessions passées au premier message d'une conversation libre. La
+troisième vit en dehors de l'assistant, dans la commande de réécriture du bureau,
+qui porte la section Travail du profil utilisateur dans son propre prompt ponctuel
+et rend du texte au composeur plutôt qu'à une exécution.
 
 ## Inférence locale {#local-inference}
 

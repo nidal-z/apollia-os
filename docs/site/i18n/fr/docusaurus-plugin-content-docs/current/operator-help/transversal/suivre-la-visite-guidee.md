@@ -12,7 +12,7 @@ relancer à tout moment.
 
 ## La bande « Prise en main »
 
-Elle occupe le haut du **Tableau de bord**, l'écran sur lequel Apollia s'ouvre.
+Elle occupe le haut de l'**Accueil**, l'écran sur lequel Apollia s'ouvre.
 Elle affiche cinq jalons, chacun lié à une visite :
 
 | Jalon | Ce qu'il propose | Il se coche quand |
@@ -62,7 +62,7 @@ la garder si vous préférez.
 
 **Elle n'est pas perdue pour autant.** Pour la faire revenir, ouvrez
 **Réglages > Aide** et choisissez **Revoir la prise en main**. Vous êtes ramené
-au tableau de bord avec la bande rétablie, et les visites sont de nouveau à un
+à l'écran Accueil avec la bande rétablie, et les visites sont de nouveau à un
 clic.
 
 ## Repartir de zéro

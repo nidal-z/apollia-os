@@ -342,7 +342,7 @@ only opens once per profile reload.
 
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
-| 12 | `transversal-activer-la-compagnonne-ia-1.png` | Dashboard. Do not press anything yet. | The dashboard as it is, before the Companion opens. There is no sidebar button for it: `Cmd+/` and the palette are the only ways in | none | page | auto |
+| 12 | `transversal-activer-la-compagnonne-ia-1.png` | Home. Do not press anything yet. | The Home screen as it is, before the Companion opens. There is no sidebar button for it: `Cmd+/` and the palette are the only ways in | none | page | auto |
 | 13 | `transversal-activer-la-compagnonne-ia-2.png` | Press `Cmd+/`. | The Apollia Help panel, its welcome message, the input area | do not type | panel | auto |
 | 14 | `transversal-naviguer-au-clavier-command-palette-1.png` | From any screen, `Cmd+K`. | The palette, search field at the top, grouped suggestions below | leave the field empty | dialog | auto |
 | 15 | `transversal-naviguer-au-clavier-command-palette-2.png` | Settings → Shortcuts. | Search bar, shortcuts grouped by category | leave the search empty | panel | auto |
@@ -461,7 +461,7 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 | 77 | `observabilite-consulter-l-audit-trail-1.png` | Observability → **Audit Trail**. | Purpose banner, the Full journal totals card, 4 KPIs, filters, then the table. 10 rows, 2 agents, 2 failures | none | panel | auto |
 | 78 | `observabilite-consulter-l-audit-trail-2.png` | Expand the failed `bash_executor` row. | Arguments, stdout and stderr sections, all three populated | expand the row whose stderr mentions page 187 | panel | auto |
 | 79 | `observabilite-consulter-l-historique-des-taches-1.png` | Observability → **Timeline**. | Scope selector on **All activity**, KPI strip, filter bar, events grouped by day. ~42 events in the default 1 h window, every chip populated | keep the default **1 h** window, do not switch the scope | panel | auto |
-| 80 | `observabilite-lire-le-digest-quotidien-1.png` | Dashboard, operator mode. | Three cards in a grid, Decisions waiting spanning two columns on the left. Both projects active | none | page | auto |
+| 80 | `observabilite-lire-le-digest-quotidien-1.png` | Home, operator mode. | Three cards in a grid, Decisions waiting spanning two columns on the left. Both projects active | none | page | auto |
 | 81 | `observabilite-surveiller-les-couts-llm-1.png` | Observability → **LLM Costs**. | Period selector, 4 KPIs, the stacked bars, the backend legend. 3 backends, 7 populated days | keep the default **7 d** period | panel | auto |
 
 ## Troubleshooting

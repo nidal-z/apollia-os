@@ -73,7 +73,7 @@ This is the option to pick if you only want to "take the configuration questionn
 
 In **Settings → Danger Zone** (a separate entry in the Settings sidebar), the **Reset Onboarding** button restarts the guided flow without erasing what is already filled in. Useful if you only want to re-download a model, recalibrate an integration, or see the welcome screens again.
 
-It has one side effect the dialog does not mention: it also clears the guided tours. All six tour progressions go back to zero and the **Getting started** band comes back on the dashboard, even though the dialog says no data is deleted.
+It has one side effect the dialog does not mention: it also clears the guided tours. All six tour progressions go back to zero and the **Getting started** band comes back on the Home screen, even though the dialog says no data is deleted.
 
 ### C - Erase all memories (profile + agents + projects)
 

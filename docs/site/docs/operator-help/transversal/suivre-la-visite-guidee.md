@@ -12,7 +12,7 @@ them again at any time.
 
 ## The "Getting started" band
 
-It sits at the top of the **Dashboard**, the screen Apollia opens on. It shows
+It sits at the top of **Home**, the screen Apollia opens on. It shows
 five milestones, each tied to a tour:
 
 | Milestone | What it offers | It gets ticked when |
@@ -62,8 +62,8 @@ panel that outlives discovery becomes noise. A button lets you keep it if you
 prefer.
 
 **It is not lost for all that.** To bring it back, open **Settings > Help** and
-choose **Revisit getting started**. You are taken back to the dashboard with the
-band restored, and the tours are one click away again.
+choose **Revisit getting started**. You are taken back to the Home screen with
+the band restored, and the tours are one click away again.
 
 ## Starting over
 

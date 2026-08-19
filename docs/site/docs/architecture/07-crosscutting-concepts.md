@@ -83,15 +83,14 @@ agent recalls when it decides to, through `ctx.memory`. This keeps context
 assembly explicit and auditable rather than a hidden side effect, and it is a
 deliberate principle, not an omission.
 
-The built-in conversational assistant is outside that rule, in three ways: a
-user-persona brief at the `long_autonomous` tier, past session summaries on
-the first message of a free chat session, and the Work section of the user
-profile when the operator clicks "Improve prompt" in a chat composer. The first
-two live in the assistant's own prompt builder and chat manager. The third lives
-outside both, in the desktop prompt-rewrite command, which builds its own
-one-shot prompt and returns text to the composer rather than to a run. No agent
-execution path reaches any of the three, which is why the principle holds where
-it is stated.
+Three paths are outside that rule: a user-persona brief at the `long_autonomous`
+tier, past session summaries on the first message of a free chat session, and the
+Work section of the user profile when the operator clicks "Improve prompt" in a
+chat composer. The first two live in the built-in conversational assistant, in
+its own prompt builder and chat manager. The third lives outside the assistant,
+in the desktop prompt-rewrite command, which builds its own one-shot prompt and
+returns text to the composer rather than to a run. No agent execution path
+reaches any of the three, which is why the principle holds where it is stated.
 
 <!-- claim:rewrite-injects-work-context -->
 The third one is worth naming precisely, because it is the newest and the least

@@ -14,7 +14,7 @@ garder la main sur les actions sensibles et suivre ce qui se passe.
 ## Par ou commencer
 
 - [Suivre la visite guidee](./transversal/suivre-la-visite-guidee.md), six visites
-  courtes lancees depuis la bande « Prise en main » du tableau de bord.
+  courtes lancees depuis la bande « Prise en main » de l'ecran Accueil.
 - [Configurer votre profil](./installation/configurer-votre-profil.md), le parcours initial.
 - [Connecter un modele distant](./installation/connecter-un-modele-distant.md), brancher un fournisseur cloud ou un serveur Ollama.
 
@@ -25,7 +25,7 @@ garder la main sur les actions sensibles et suivre ce qui se passe.
 - **Automatiser** : [programmer un trigger](./automatisations/programmer-un-trigger.md), suivre l'historique des declenchements.
 - **Garder la main** : [approuver ou refuser une action](./controle/approuver-ou-refuser-une-action.md), [configurer les permissions de fichiers](./controle/configurer-les-permissions-de-fichiers.md), [inspecter un outil](./controle/inspecter-un-outil.md), [choisir le palier d'autonomie](./agents/choisir-un-palier-d-autonomie.md), [mesurer un agent avec eval](./agents/mesurer-un-agent-avec-eval.md).
 - **Connecter** : brancher vos outils via le [catalogue MCP](./integrations/connecter-un-serveur-mcp.md).
-- **Suivre** : [tableau de bord et chronologie](./observabilite/consulter-l-historique-des-taches.md), [couts LLM](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
+- **Suivre** : [Accueil et chronologie](./observabilite/consulter-l-historique-des-taches.md), [couts LLM](./observabilite/surveiller-les-couts-llm.md), [audit trail](./observabilite/consulter-l-audit-trail.md).
 - **Maintenir** : [mettre a jour Apollia](./installation/mettre-a-jour-apollia.md), [retrouver sa version et ses donnees](./transversal/trouver-sa-version-et-ses-donnees.md).
 - **Si ca coince** : [diagnostic des cas frequents](./troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md), IA muette, agent bloque, action refusee, dictee KO.
 

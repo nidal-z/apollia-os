@@ -10,25 +10,25 @@
 
 | You are looking for… | Go to… |
 |---|---|
-| A **snapshot of right now**: what is waiting for your decision, what has just been delivered, what is running | The **Dashboard**, the application home screen (section below). |
+| A **snapshot of right now**: what is waiting for your decision, what has just been delivered, what is running | **Home**, the screen Apollia opens on (section below). |
 | The history of **one specific agent** (statuses, durations, task input/output) | **My Assistants → Logs** - see [View an agent's logs](../agents/consulter-les-logs-d-un-agent.md). |
 | A **specific event** (an LLM call, a tool run, an approval) over a time window | **Observability → Timeline** (this page). |
 | A **tool invocation** with its inputs and outputs | **Observability → Audit Trail** - see [Read the audit trail](consulter-l-audit-trail.md). |
 
-## The dashboard, for the present moment
+## Home, for the present moment
 
 This is the screen the application opens on. Where the timeline answers
-"what happened", the dashboard answers "where do things stand now".
+"what happened", Home answers "where do things stand now".
 
 Three cards side by side, and an activity strip below:
 
 - **Decisions waiting** *(the widest one, on the left)*: the actions waiting for your approval. Counter in the header, compact list of the first items, and a *"See all →"* link to the **Inbox**.
-- **Ready deliverables**: recently completed tasks. Clicking a row opens the **Tasks** tab.
+- **Ready deliverables**: recently completed tasks. Clicking a row opens the **My work** page.
 - **At work**: the agents currently active. Clicking one opens the agent detail.
 
-![dashboard in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
+![the Home screen in operator mode, three cards in a grid, Decisions waiting on the left spanning two columns](/img/operator-help/observabilite-lire-le-digest-quotidien-1.png)
 
-Below the cards, **Recent activity** lists the latest tasks across all statuses as mini-cards, and leads to the **Tasks** page.
+Below the cards, **Recent activity** lists the latest tasks across all statuses as mini-cards, and leads to the **My work** page.
 
 The counters update on their own: start a task and *"At work"* increments without a manual refresh. If everything stays empty although an agent has just run, the real-time connection has probably dropped; quit and reopen the application.
 
@@ -48,7 +48,7 @@ The counters update on their own: start a task and *"At work"* increments withou
 5. Events are **grouped by day** with a header ("Today", "Yesterday" or the full date) and a counter on the right. Each row shows:
    - A **coloured dot** + **lucide icon** matching the type (ClipboardList for Task, Wrench for Tool, Bot for LLM, Hand for Approval, Brain for Memory, Link2 for Delegation, AlertTriangle for Error).
    - The **readable title** *"Task → completed"*, *"Tool: bash (2.1 s)"*, *"LLM: claude-sonnet-4 · $0.42"*…
-   - A type **badge**, the **agent**, the exact **timestamp** (HH:MM:SS) **and** the relative age (*"3 min ago"*).
+   - A type **badge**, the **agent**, the exact **timestamp** to the second, in the form your application language uses, **and** the relative age (*"3 min ago"*).
 
 6. Click a row to **expand the raw payload** of the event (JSON formatted in monospace, including the `source` field that tells which SQLite database the event comes from). Click again to collapse.
 

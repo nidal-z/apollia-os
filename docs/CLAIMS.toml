@@ -299,19 +299,22 @@ status = "wired"
 proof = "crates/apollia-core/src/config/autonomy.rs"
 evidence = ""
 note = """
-Principle 6 said memory is never injected automatically. Two paths in the
-built-in assistant do inject. `long_autonomous` sets `inject_memory: true`, read
-in the react loop and applied by the prompt builder, which appends a persona
-brief. Separately, and not gated by any tier, the chat manager appends past
-session summaries on the first message of a free session, see
-`cross-session-recall-injects-summaries`.
+Principle 6 said memory is never injected automatically. Three paths do inject,
+and only two of them sit in the built-in assistant. `long_autonomous` sets
+`inject_memory: true`, read in the react loop and applied by the prompt builder,
+which appends a persona brief. Separately, and not gated by any tier, the chat
+manager appends past session summaries on the first message of a free session,
+see `cross-session-recall-injects-summaries`. The third sits outside the
+assistant: the desktop prompt-rewrite command carries the Work section of the
+user profile into its own one-shot system prompt, see
+`rewrite-injects-work-context`.
 
-The invariant survives, because both are confined to the built-in assistant and
-no agent execution path reaches either. What was wrong is the wording, which
-claimed more than the code delivers, and which named only the first of the two.
-This claim guards the boundary: if `inject_memory` is ever read outside the
-built-in assistant, or if a lower tier turns it on, one of the eight principles
-becomes false and the sentence has to change with it.
+The invariant survives, because no agent execution path reaches any of the
+three. What was wrong is the wording, which claimed more than the code delivers,
+and which named only the first. This claim guards the boundary: if
+`inject_memory` is ever read outside the built-in assistant, or if a lower tier
+turns it on, one of the eight principles becomes false and the sentence has to
+change with it.
 """
 
 [[claim]]

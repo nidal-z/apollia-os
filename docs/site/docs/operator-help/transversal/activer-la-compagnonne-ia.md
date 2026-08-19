@@ -17,7 +17,7 @@
 
    Nothing opens as long as no AI provider is ready.
 
-   ![The dashboard, with the Apollia Help panel about to open](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
+   ![The Home screen, with the Apollia Help panel about to open](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
 2. A **floating panel** opens, docked to the right of the screen by default. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
 

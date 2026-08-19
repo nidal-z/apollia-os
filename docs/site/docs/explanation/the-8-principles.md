@@ -74,9 +74,9 @@ injection is convenient and quietly corrosive: it makes a run's inputs opaque an
 its behaviour hard to attribute. Leaving recall to the agent's initiative keeps
 the record of what fed a decision honest.
 
-Three exceptions exist, all confined to the built-in conversational assistant, the
-one behind the chat window. None is reachable from a Python agent you install.
-The first two live in the assistant's own prompt builder and chat manager. The
+Three exceptions exist, and none is reachable from a Python agent you install.
+The first two are confined to the built-in conversational assistant, the one
+behind the chat window, and live in its own prompt builder and chat manager. The
 third lives elsewhere, in the desktop prompt-rewrite command, which never touches
 the assistant's prompt at all: it answers the composer, not a run. No agent
 execution path goes through any of the three.

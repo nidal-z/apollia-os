@@ -131,10 +131,24 @@ Leur présence dépend de ce que vous avez exécuté localement.
 | `docs/internal/` | Planification des releases et notes internes. |
 | `target/` | Le répertoire de sortie de build Cargo. |
 | `.venv/`, `.venv-agents/` | Environnements virtuels Python locaux. |
-| `.apollia-automation/`, `.apollia-seed-home/` | État jetable produit par l'automate de bout en bout du desktop (un `HOME` ensemencé et jetable, de sorte que le véritable `~/.apollia` n'est jamais touché). |
+| `.apollia-automation/`, `.apollia-seed-home/` | État jetable produit par l'automate de bout en bout du desktop, qui exécute l'application sur un `HOME` ensemencé et jetable (voir la note ci-dessous). |
 | `.pytest_cache/`, `.ruff_cache/` | Caches d'outils. |
 | `.DS_Store` | Métadonnées du Finder macOS. |
 
 `AGENTS.local.md` et `AGENTS.override.md` sont eux aussi ignorés par git par
 convention (surcharges de contributeur par machine et par session) ; ils
 peuvent ne pas exister dans une copie de travail donnée.
+
+**Ce que le `HOME` ensemencé couvre.** Les deux recettes qui le construisent,
+`desktop-dev-automation-seeded` et `desktop-dev-automation-seeded-llama`,
+remplacent `HOME` par la copie jetable avant de lancer l'application, de sorte
+que l'application testée ne lit et n'écrit que cette copie, jamais le profil
+`~/.apollia` réel. Les recettes atteignent quand même le répertoire personnel
+réel en deux endroits. Toutes deux y résolvent `CARGO_HOME` et `RUSTUP_HOME`
+(`~/.cargo`, `~/.rustup`) avant le remplacement, pour que la compilation
+utilise la chaîne d'outils et le cache de crates déjà présents plutôt qu'un
+cache vide sous la graine. Et la recette `-llama`, celle qui pilote un vrai
+modèle, lit un fichier du profil réel, le GGUF du modèle sous
+`~/.apollia/models/`, parce que la graine porte des GGUF de remplacement et non
+un modèle exécutable. Ces deux points sont écrits dans les recettes elles-mêmes,
+dans le `justfile`.
