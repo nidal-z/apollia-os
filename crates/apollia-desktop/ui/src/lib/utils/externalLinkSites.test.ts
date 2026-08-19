@@ -9,11 +9,11 @@ import { describe, it, expect } from "vitest";
  * nothing at all. Thirteen such sites had accumulated across eight screens
  * before this guard existed, and nothing in the tree could tell.
  *
- * The rule mirrors the acceptance criterion of the batch that closed them:
- * every file under `src/` carrying an outbound-open marker must also name
- * one of the two opener entry points. No exception, including the injected
- * markup of `lib/utils/markdown.ts`, whose click delegation puts
- * `openExternalUrl` in that file too.
+ * The rule this guard holds is stated here in full: every file under `src/`
+ * carrying an outbound-open marker must also name one of the two opener
+ * entry points. No exception, including the injected markup of
+ * `lib/utils/markdown.ts`, whose click delegation puts `openExternalUrl` in
+ * that file too.
  */
 
 const MARKERS = ['target="_blank"', "window.open(", 'href="http'];

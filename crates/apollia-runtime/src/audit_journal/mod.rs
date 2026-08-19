@@ -62,7 +62,7 @@ mod tests {
         std::env::temp_dir().join(format!("apollia_journal_sign_{}.db", uuid::Uuid::new_v4()))
     }
 
-    // AC-1: an entry is signed and the signature persists
+    // An entry is signed and the signature persists
     #[tokio::test]
     async fn test_ac1_entry_signed_and_persisted() {
         // GIVEN a journal opened with a signer whose key is present
@@ -129,7 +129,7 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
-    // AC-2 warn-and-continue: a missing key opens an unsigned journal
+    // Warn-and-continue: a missing key opens an unsigned journal
     #[tokio::test]
     async fn test_ac2_warn_and_continue_on_missing_key() {
         // GIVEN a store with no key and the warn-and-continue policy
@@ -160,7 +160,7 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
-    // AC-2 fail-hard: a missing key refuses to open (error case)
+    // Fail-hard: a missing key refuses to open (error case)
     #[tokio::test]
     async fn test_ac2_fail_hard_on_missing_key() {
         // GIVEN a store with no key and the fail-hard policy

@@ -57,7 +57,7 @@ réutilise les mêmes tokens et les mêmes composants, donc il ne peut pas diver
 
 Six étapes. À chaque étape, le prompt à donner à Claude est dans la section 8.
 
-1. **Cadrer.** Tu décris la feature (user story, écrans, états attendus:
+1. **Cadrer.** Tu décris la feature (besoin utilisateur, écrans, états attendus:
    vide / chargement / erreur / succès). Claude reformule et liste les écrans.
 2. **Vérifier la couverture.** Claude lit `figma/MAPPING.md` et la page Audit:
    les composants nécessaires existent-ils déjà? Si un composant manque, on passe

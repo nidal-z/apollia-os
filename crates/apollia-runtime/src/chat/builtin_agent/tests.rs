@@ -2912,7 +2912,7 @@ fn bash_call_model() -> Arc<MockReActModel> {
     })
 }
 
-/// AC-2: a deny decision blocks the invocation and records a refusal,
+/// A deny decision blocks the invocation and records a refusal,
 /// without ever calling the tool invoker.
 #[tokio::test]
 async fn test_pretooluse_deny_blocks_invocation() {
@@ -2990,7 +2990,7 @@ async fn test_pretooluse_deny_blocks_invocation() {
     tool_registry.shutdown().await;
 }
 
-/// AC-1: an allow decision lets the invocation proceed normally.
+/// An allow decision lets the invocation proceed normally.
 #[tokio::test]
 async fn test_pretooluse_allow_lets_tool_run() {
     // GIVEN a model that emits one authorized bash_executor call
@@ -3205,7 +3205,7 @@ impl CompletionModel for CapturingModel {
     }
 }
 
-/// AC-1: a PostToolUse injection is appended as a system message and is
+/// A PostToolUse injection is appended as a system message and is
 /// visible in the LLM request on the following turn.
 #[tokio::test]
 async fn test_posttooluse_injection_reaches_next_turn() {

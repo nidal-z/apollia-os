@@ -269,7 +269,7 @@ mod tests {
         }
     }
 
-    // AC-4: the replay backend hands out captured responses in ordinal order.
+    // The replay backend hands out captured responses in ordinal order.
     #[tokio::test]
     async fn test_replay_backend_consumes_in_ordinal_order() {
         // GIVEN a backend over three captured responses

@@ -27,7 +27,7 @@ const SOURCE_ROOT = resolve(HERE, "../..");
  * plain function in script, the `get`-wrapped store outside a component, and
  * the `labelKey` family carried as component props or route metadata. The key
  * is never spelled out here as a quoted literal inside one of those forms: the
- * scan of CAP-022 reads comments too, and a worked example in prose would come
+ * scan below reads comments too, and a worked example in prose would come
  * back as a call site nothing renders.
  *
  * The negative lookbehind on the second form is what keeps `api.set("a.b")`

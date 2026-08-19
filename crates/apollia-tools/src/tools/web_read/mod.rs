@@ -11,8 +11,8 @@
 //! `apollia.toml -> [tools].web_read = true`.
 //!
 //! Fetched content is **attacker-controlled**: it feeds back into the LLM's
-//! context. Treat it as data, not instructions. A follow-up story will wire
-//! an output-side prompt-injection scanner.
+//! context. Treat it as data, not instructions. No output-side
+//! prompt-injection scanner is wired today.
 
 pub mod error;
 pub(crate) mod ssrf;

@@ -1,5 +1,5 @@
 <!--
-  Slash-command autocomplete dropdown (B.4).
+  Slash-command autocomplete dropdown.
 
   Rendered absolutely above the ChatInput textarea when the user types
   a leading `/`. Keyboard-navigable: ↑ / ↓ moves the selection, Enter /

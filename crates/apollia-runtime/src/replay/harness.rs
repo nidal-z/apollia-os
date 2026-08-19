@@ -414,7 +414,7 @@ mod tests {
         ReplayHarness::from_bundle(run, bundle)
     }
 
-    // AC-1: a run whose tool calls all match their captured outputs is identical.
+    // A run whose tool calls all match their captured outputs is identical.
     #[tokio::test]
     async fn test_replay_identical_run_returns_identical_report() {
         // GIVEN one tool turn (calls c1/bash) then a final text turn
@@ -433,7 +433,7 @@ mod tests {
         assert!(matches!(report, ReplayReport::Identical), "got {report:?}");
     }
 
-    // AC-2: a tool output missing for a reached step yields Failed with the step.
+    // A tool output missing for a reached step yields Failed with the step.
     #[tokio::test]
     async fn test_replay_incomplete_trace_returns_failed_with_step() {
         // GIVEN an LLM turn that calls a tool but no captured ToolOutput exists
@@ -456,7 +456,7 @@ mod tests {
         }
     }
 
-    // AC-3: every divergence is reported, with no short-circuit.
+    // Every divergence is reported, with no short-circuit.
     #[tokio::test]
     async fn test_replay_divergence_reports_all_differences() {
         // GIVEN two tool turns whose captured outputs name a different tool
@@ -520,7 +520,7 @@ mod tests {
         entry(run, ordinal, JournalEntryKind::PlanMutation, snap)
     }
 
-    // AC-2: a run whose produced plan stream matches its trace has no plan divergence.
+    // A run whose produced plan stream matches its trace has no plan divergence.
     #[tokio::test]
     async fn test_replay_identical_plan_no_divergence() {
         // GIVEN an LLM final turn plus three captured plan mutations
@@ -544,7 +544,7 @@ mod tests {
         assert!(matches!(report, ReplayReport::Identical), "got {report:?}");
     }
 
-    // AC-3: a differing produced plan mutation is reported as a divergence, exhaustively.
+    // A differing produced plan mutation is reported as a divergence, exhaustively.
     #[tokio::test]
     async fn test_replay_plan_divergence_reported() {
         // GIVEN captured ModifyStep at ordinal 1, but the run produced AddStep there
@@ -583,7 +583,7 @@ mod tests {
         }
     }
 
-    // AC-4: a produced plan mutation past the captured trace yields IncompleteTrace.
+    // A produced plan mutation past the captured trace yields IncompleteTrace.
     #[tokio::test]
     async fn test_replay_incomplete_plan_trace_failed() {
         // GIVEN one captured plan mutation but the run produced two

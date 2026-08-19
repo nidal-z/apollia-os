@@ -50,8 +50,8 @@
   const selectedTools = $derived(Array.from(enabledTools));
 
   // Validation.
-  // step_budget is persisted client-side (per-session localStorage) until
-  // backend enforcement lands in a follow-up story; validation still applies.
+  // step_budget is persisted client-side (per-session localStorage); no
+  // backend enforcement exists today, and validation still applies.
   const systemPromptError = $derived.by(() => {
     if (systemPrompt.length > 4000) return $t("chat.config.errors.system_prompt_too_long");
     return null;

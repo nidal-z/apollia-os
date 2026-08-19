@@ -231,7 +231,8 @@ impl BuiltInChatAgent {
     ) -> bool {
         // On an inject-driven resume turn, the runtime (not the model) is the
         // source of truth for provenance: stamp UserInject + the operator reason
-        // onto any step the agent adds or modifies, so AC-1 holds regardless of
+        // onto any step the agent adds or modifies, so the provenance holds
+        // regardless of
         // what the LLM emitted in the `step` payload.
         let stamped;
         let args = match (injection, call.name.as_str()) {

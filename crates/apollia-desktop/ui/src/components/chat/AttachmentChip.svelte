@@ -1,5 +1,5 @@
 <!--
-  Preview chip for a pending chat attachment (B.4).
+  Preview chip for a pending chat attachment.
 
   Rendered above the textarea when one or more files are queued. Clicking
   the × removes the attachment from the pending list. Images show a 20 px

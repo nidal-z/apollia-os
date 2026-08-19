@@ -156,7 +156,7 @@ review. The trailer is forbidden.
 ## 8. One commit, one logical unit
 
 A commit is :
-- One user story or one logical sub-task.
+- One user-facing change or one logical sub-task.
 - Either a single feature, a single fix, or a single refactor. Not a
   combination.
 

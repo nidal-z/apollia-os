@@ -166,7 +166,7 @@ mod tests {
         HmacSigner::from_key_bytes(seed.to_vec()).expect("build signer")
     }
 
-    // AC-1: a signature is produced and is stable for the same payload and key
+    // A signature is produced and is stable for the same payload and key
     #[test]
     fn test_sign_roundtrip_and_verify() {
         // GIVEN a signer with a test key
@@ -182,7 +182,7 @@ mod tests {
         assert!(s.verify(payload, &sig));
     }
 
-    // AC-3: the secret key does not appear in debug output
+    // The secret key does not appear in debug output
     #[test]
     fn test_signing_key_not_leaked_in_debug() {
         // GIVEN a signer
@@ -195,7 +195,7 @@ mod tests {
         assert!(dump.contains(s.key_id()));
     }
 
-    // AC-5: verifying with a different key fails
+    // Verifying with a different key fails
     #[test]
     fn test_verification_fails_with_wrong_key() {
         // GIVEN a signature produced with key K1

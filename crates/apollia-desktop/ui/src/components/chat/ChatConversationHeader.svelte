@@ -48,7 +48,7 @@
     sessionAgentName: string | null;
     sessionStatus: "active" | "processing" | "closed";
     /** "libre" mode has Free/Auto variants driven by tools + system prompt -
-     *  surface a simple Libre/Auto label for operator persona (B.5). */
+     *  surface a simple Libre/Auto label for operator persona. */
     autoMode?: boolean;
     hideConfig?: boolean;
     collapseActions?: boolean;

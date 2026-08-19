@@ -13,8 +13,8 @@
 
 Q=("$BIN" --socket "$SOCK")   # convenience prefix
 
-# ── B.1 seeded runtime reads (content assertions) ───────────────────────────
-section "B.1 seeded runtime reads"
+# ── seeded runtime reads (content assertions) ───────────────────────────────
+section "seeded runtime reads"
 check         "status (daemon on)"                 "${Q[@]}" status
 check_json    "status --json"                      "${Q[@]}" status --json
 check_content "status shows active seeded agents" "active"  "${Q[@]}" status
@@ -46,8 +46,8 @@ check_json    "model hardware --json"              "${Q[@]}" model hardware --js
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
-# ── B.2 mcp (seeded live servers) ───────────────────────────────────────────
-section "B.2 mcp (runtime)"
+# ── mcp (seeded live servers) ───────────────────────────────────────────────
+section "mcp (runtime)"
 check         "mcp show seed-mcp-fs"               "${Q[@]}" mcp show seed-mcp-fs
 check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show seed-mcp-fs
 check         "mcp test seed-mcp-fs"               "${Q[@]}" mcp test seed-mcp-fs
@@ -60,8 +60,8 @@ check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show seed-mcp
 skip          "mcp add <name>" "needs a single-binary MCP server; a bad command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 skip          "mcp server / mcp oauth discover" "long-running stdio JSON-RPC server / live network discovery"
 
-# ── B.3 tools / audit ───────────────────────────────────────────────────────
-section "B.3 tools / audit"
+# ── tools / audit ───────────────────────────────────────────────────────────
+section "tools / audit"
 check         "tools list (daemon on)"             "${Q[@]}" tools list
 check_json    "tools list --json"                  "${Q[@]}" tools list --json
 check         "tools show bash_executor"           "${Q[@]}" tools show bash_executor
@@ -82,8 +82,8 @@ check         "audit verify (empty journal ok)"    "${Q[@]}" audit verify
 check_exit    "audit anchor (empty journal) → 1" 1 "${Q[@]}" audit anchor
 check         "audit export"                        "${Q[@]}" audit export --output "$RUN_TMP/audit.json" --limit 100
 
-# ── B.4 triggers CRUD (target: seeded apollia-chat) ─────────────────────────
-section "B.4 triggers CRUD"
+# ── triggers CRUD (target: seeded apollia-chat) ─────────────────────────────
+section "triggers CRUD"
 check         "trigger create cron"                "${Q[@]}" trigger create t-e2e --agent apollia-chat --kind cron --detail "@daily"
 check         "trigger status t-e2e"               "${Q[@]}" trigger status t-e2e
 check         "trigger disable t-e2e"              "${Q[@]}" trigger disable t-e2e
@@ -99,8 +99,8 @@ check         "trigger delete t-int"               "${Q[@]}" trigger delete t-in
 check         "trigger delete t-fw"                "${Q[@]}" trigger delete t-fw --confirm
 check         "trigger delete t-wh"                "${Q[@]}" trigger delete t-wh --confirm
 
-# ── B.5 notify CRUD ─────────────────────────────────────────────────────────
-section "B.5 notify CRUD"
+# ── notify CRUD ─────────────────────────────────────────────────────────────
+section "notify CRUD"
 check         "notify events get"                  "${Q[@]}" notify events get
 check         "notify events set"                  "${Q[@]}" notify events set task.completed task.failed
 check         "notify create webhook"              "${Q[@]}" notify create --kind webhook --id e2e-hook --label "E2E" --url "https://example.invalid/notify"
@@ -111,8 +111,8 @@ check         "notify logs --last 5"               "${Q[@]}" notify logs --last 
 check         "notify delete e2e-hook"             "${Q[@]}" notify delete e2e-hook --confirm
 check         "notify delete e2e-desk"             "${Q[@]}" notify delete e2e-desk --confirm
 
-# ── B.6 llm backends CRUD (metadata; no model needed) ───────────────────────
-section "B.6 llm backends CRUD"
+# ── llm backends CRUD (metadata; no model needed) ───────────────────────────
+section "llm backends CRUD"
 check         "llm backends list"                  "${Q[@]}" llm backends list
 check         "llm backends show local-qwen"       "${Q[@]}" llm backends show local-qwen
 check         "llm backends create e2e2"           "${Q[@]}" llm backends create e2e2 --provider openai --model gpt-4o-mini --timeout-sec 60
@@ -125,8 +125,8 @@ check_json    "llm status --json"                  "${Q[@]}" llm status --json
 check         "llm costs"                           "${Q[@]}" llm costs
 check         "llm reload"                          "${Q[@]}" llm reload
 
-# ── B.7 stt / resilience / plan cache / chat --list ─────────────────────────
-section "B.7 stt / resilience / plan cache"
+# ── stt / resilience / plan cache / chat --list ─────────────────────────────
+section "stt / resilience / plan cache"
 check_exit    "stt status (engine off) → 1"  1     "${Q[@]}" stt status
 check         "stt model list"                      "${Q[@]}" stt model list
 check         "stt config get"                      "${Q[@]}" stt config get
@@ -146,10 +146,10 @@ check         "plan cache stats (daemon on)"       "${Q[@]}" plan cache stats
 check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0
 check         "chat --list (daemon on)"            "${Q[@]}" chat --list
 
-# ── B.7b task lifecycle (submit to a seeded auto-started agent, no model) ────
+# ── task lifecycle (submit to a seeded auto-started agent, no model) ─────────
 # apollia-chat auto-starts; a submitted task exercises the read commands even
 # while it sits in `working` (no model wired in Track 2), then we cancel it.
-section "B.7b task lifecycle"
+section "task lifecycle"
 TRUN=$("${Q[@]}" run apollia-chat "ping" --detach --json 2>/dev/null)
 TID=$(printf '%s' "$TRUN" | /usr/bin/python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('task_id') or d.get('id',''))" 2>/dev/null)
 if [[ -n "$TID" ]]; then
@@ -168,8 +168,8 @@ else
 fi
 skip          "task resume --approve/--reject" "needs a task suspended in input_required; the model-free stub never suspends"
 
-# ── B.8 agent lifecycle (stub agent; degrades to skip if runner unavailable) ─
-section "B.8 agent lifecycle (stub)"
+# ── agent lifecycle (stub agent; degrades to skip if runner unavailable) ─────
+section "agent lifecycle (stub)"
 HELLO_PY="$RUN_TMP/hello.py"
 /bin/cat >"$HELLO_PY" <<'PYEOF'
 """E2E stub agent for cli-e2e.sh."""
@@ -208,7 +208,7 @@ check         "agent create scaffold --type react" "$BIN" agent create e2e-scaff
 check         "agent uninstall e2e-hello"          "${Q[@]}" agent uninstall e2e-hello
 skip          "agent repair / agent package uninstall" "repair re-provisions a packaged agent's venv; uninstall needs the bundle (seed-office-pack is show-only here)"
 
-# ── B.9 eval (report offline; run needs a model → Track 3) ──────────────────
-section "B.9 eval"
+# ── eval (report offline; run needs a model → Track 3) ──────────────────────
+section "eval"
 check         "eval report (empty jsonl)"          bash -c "printf '' > '$RUN_TMP/eval.jsonl'; '$BIN' --socket '$SOCK' eval report '$RUN_TMP/eval.jsonl'"
 skip          "eval run <suite>" "runs the agent against a real model; covered as a capture in Track 3 when a model is wired"

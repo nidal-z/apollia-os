@@ -90,7 +90,7 @@
 </script>
 
 <div class="space-y-6" data-testid="wizard-step-coaching">
-  <!-- Approval level (C.I.11) -->
+  <!-- Approval level -->
   <section aria-labelledby="coaching-approval-heading" class="space-y-2">
     <div>
       <h3
@@ -122,7 +122,7 @@
     {/if}
   </section>
 
-  <!-- Post-install coaching (C.I.14) -->
+  <!-- Post-install coaching -->
   <section aria-labelledby="coaching-examples-heading" class="space-y-3">
     <div>
       <h3

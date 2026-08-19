@@ -139,7 +139,7 @@
   );
   let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
   let userScrolledUp = $state(false);
-  /** B.8 - floating "jump to latest" button visibility + unread count. */
+  /** Floating "jump to latest" button visibility + unread count. */
   let showScrollToBottom = $state(false);
   let unreadWhileScrolled = $state(0);
   let tokenBuffer = $state("");
@@ -170,7 +170,7 @@
       addToast($t("chat.planMode.toggleError"), "error");
     }
   }
-  /** Guards the one-shot inheritance of the global plan-mode default (AC-2). */
+  /** Guards the one-shot inheritance of the global plan-mode default. */
   let planDefaultApplied = $state(false);
 
   /** Pending tool approval - shown inline when the LLM requests a tool call. */
@@ -480,7 +480,7 @@
     ));
   });
 
-  // Track new messages that land while the user is scrolled up (B.8).
+  // Track new messages that land while the user is scrolled up.
   let lastSeenMessageCount = $state(0);
   $effect(() => {
     const count = messages.length;
@@ -651,7 +651,7 @@
   }
 
   /**
-   * Applies the global "always plan" default to a brand-new session once (AC-2).
+   * Applies the global "always plan" default to a brand-new session once.
    *
    * A session is "new" when it has no user message yet. The default is applied
    * a single time per mount through `set_plan_mode`; the per-session header chip
@@ -709,7 +709,7 @@
     });
   }
 
-  /** Scroll observer (B.8). Pauses the follow when the user moves up, shows the
+  /** Scroll observer. Pauses the follow when the user moves up, shows the
    *  floating button once they are well above the bottom, and resets the unread
    *  counter on catch-up. */
   function handleScroll(): void {

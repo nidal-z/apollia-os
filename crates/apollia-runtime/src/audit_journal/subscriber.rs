@@ -744,7 +744,7 @@ mod tests {
         serde_json::from_value(draft.payload.clone()).expect("snapshot payload")
     }
 
-    // AC-1 / AC-3: ordinal increases within a run, contiguous from 0
+    // The ordinal increases within a run, contiguous from 0
     #[test]
     fn test_llm_capture_assigns_increasing_ordinal() {
         // GIVEN a fresh ordinal map and a run with two captured responses
@@ -762,7 +762,7 @@ mod tests {
         assert!(!snapshot_of(&first).stream_truncated);
     }
 
-    // AC-3: two runs keep independent ordinal sequences
+    // Two runs keep independent ordinal sequences
     #[test]
     fn test_step_ordinal_independent_per_run() {
         // GIVEN two distinct runs whose captures are interleaved
@@ -783,7 +783,7 @@ mod tests {
         assert_eq!(snapshot_of(&b1).step_ordinal, 1);
     }
 
-    // AC-2: an interrupted stream is captured with the flag, not dropped
+    // An interrupted stream is captured with the flag, not dropped
     #[test]
     fn test_truncated_stream_captured_with_flag() {
         // GIVEN a captured response flagged as truncated with partial text
@@ -812,7 +812,7 @@ mod tests {
         assert!(ordinals.is_empty());
     }
 
-    // AC-1 (595): a completed tool call maps to a ToolOutput entry
+    // A completed tool call maps to a ToolOutput entry
     #[test]
     fn test_tool_output_capture_maps_with_ordinal() {
         // GIVEN a captured tool output for a run
@@ -838,7 +838,7 @@ mod tests {
         assert_eq!(snap.status, "success");
     }
 
-    // AC-2 (595): a clock read maps to a ClockSample entry
+    // A clock read maps to a ClockSample entry
     #[test]
     fn test_clock_sample_capture_maps_with_ordinal() {
         // GIVEN a captured clock reading
@@ -859,7 +859,7 @@ mod tests {
         assert_eq!(snap.timestamp_ms, 1_700_000_000_123);
     }
 
-    // AC-3 (595): an un-captured random draw is journaled with captured=false
+    // An un-captured random draw is journaled with captured=false
     #[test]
     fn test_uncaptured_random_journaled_with_flag() {
         // GIVEN a random draw flagged as un-captured (a capture bug)
@@ -954,7 +954,7 @@ mod tests {
         (session.to_string(), run.as_str().to_string())
     }
 
-    // AC-1: a PlanUpdated for an open run is appended with an increasing ordinal
+    // A PlanUpdated for an open run is appended with an increasing ordinal
     #[test]
     fn test_plan_mutation_appended_with_ordinal() {
         // GIVEN a session bound to a run and two consecutive plan mutations
@@ -997,7 +997,7 @@ mod tests {
         assert_eq!(first.run_id, run.as_str());
     }
 
-    // AC-2: two runs keep independent plan-ordinal sequences when interleaved
+    // Two runs keep independent plan-ordinal sequences when interleaved
     #[test]
     fn test_plan_ordinal_independent_per_run() {
         // GIVEN two sessions each bound to its own run
@@ -1028,7 +1028,7 @@ mod tests {
         assert_eq!(plan_snapshot_of(&b1).ordinal, 1);
     }
 
-    // AC-5: a PlanUpdated for a session with no open run is dropped cleanly
+    // A PlanUpdated for a session with no open run is dropped cleanly
     #[test]
     fn test_plan_updated_without_run_dropped_cleanly() {
         // GIVEN no session-run binding for the event's session

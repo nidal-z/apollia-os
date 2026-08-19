@@ -26,7 +26,7 @@ FROM rust:1.95-bookworm
 #
 # This is the ninth hand-written copy of that list in this repository and
 # nothing confronts it with the eight in ci.yml, three of which already
-# diverge. Captured as CAP-115, out of the scope of the lot that wrote it.
+# diverge. Tracked out of the scope of the lot that wrote it.
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends \
         libwebkit2gtk-4.1-dev libgtk-3-dev \

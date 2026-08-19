@@ -208,7 +208,7 @@ function toPhase(value: unknown, fallback: PlanPhase): PlanPhase {
 /**
  * Projects one bridge envelope onto the store for `activeSessionId`.
  *
- * Events for any other session are ignored (AC-1). Exported for unit tests.
+ * Events for any other session are ignored. Exported for unit tests.
  */
 export function dispatchChatPlan(
   event: TauriRuntimeEvent,

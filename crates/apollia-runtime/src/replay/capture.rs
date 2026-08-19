@@ -578,7 +578,7 @@ mod tests {
         }
     }
 
-    // AC-1: the plan cursor returns snapshots in ordinal order and exhausts cleanly
+    // The plan cursor returns snapshots in ordinal order and exhausts cleanly
     #[test]
     fn test_plan_cursor_next_in_ordinal_order() {
         // GIVEN three PlanMutation entries at ordinals 0,1,2 (out of slice order)
@@ -604,7 +604,7 @@ mod tests {
         assert!(cursor.is_exhausted());
     }
 
-    // AC-6: a hole in the plan ordinals is reported as an OrdinalGap (no panic)
+    // A hole in the plan ordinals is reported as an OrdinalGap (no panic)
     #[test]
     fn test_plan_cursor_ordinal_gap_errors() {
         // GIVEN plan entries at ordinals 0,1,3 (the step 2 entry is missing)

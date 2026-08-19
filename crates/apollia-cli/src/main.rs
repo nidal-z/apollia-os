@@ -971,7 +971,7 @@ mod tests {
 
     #[test]
     fn test_cli_run_plan_and_alternatives_conflict() {
-        // GIVEN run with both --plan and --alternatives (AC-7)
+        // GIVEN run with both --plan and --alternatives
         let result = Cli::try_parse_from([
             "apollia-os",
             "run",

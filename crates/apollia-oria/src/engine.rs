@@ -533,7 +533,6 @@ impl ORIAEngine {
             ExecutionMode::Direct => {
                 // Direct mode via AIPAgent not yet implemented here.
                 // Callers should use execute_direct() with an AgentRunner.
-                // Will be connected in a follow-up story.
                 AIPResult::failed(
                     "DIRECT_MODE_NOT_AVAILABLE_VIA_AIP_AGENT",
                     "Direct mode requires an AgentRunner - use execute_direct() directly",

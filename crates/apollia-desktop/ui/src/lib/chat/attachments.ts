@@ -1,5 +1,5 @@
 /**
- * Pending chat attachments (B.4).
+ * Pending chat attachments.
  *
  * A queued attachment travels to the model in exactly one of two forms, and
  * the form is decided at intake rather than at send time:

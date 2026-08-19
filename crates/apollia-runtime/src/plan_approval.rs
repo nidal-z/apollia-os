@@ -87,7 +87,7 @@ impl PlanApprovalHandle {
 mod tests {
     use super::*;
 
-    // AC-1: approval unblocks the gate.
+    // Approval unblocks the gate.
     #[tokio::test]
     async fn test_approve_unblocks_gate() {
         // GIVEN a registered gate
@@ -101,7 +101,7 @@ mod tests {
         assert!(matches!(decision, PlanGateDecision::Approved));
     }
 
-    // AC-2: an unknown run id yields a structured error.
+    // An unknown run id yields a structured error.
     #[test]
     fn test_approve_unknown_run_id_returns_error() {
         // GIVEN an empty registry
@@ -113,7 +113,7 @@ mod tests {
         assert!(matches!(result, Err(ApprovalError::UnknownRunId { .. })));
     }
 
-    // AC-3: a second decision for an already-resolved gate errors cleanly.
+    // A second decision for an already-resolved gate errors cleanly.
     #[tokio::test]
     async fn test_double_approve_returns_error() {
         // GIVEN a gate that was just approved

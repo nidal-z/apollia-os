@@ -88,7 +88,7 @@ impl PendingPlanGates {
 mod tests {
     use super::*;
 
-    // AC-5: two concurrent gates resolve independently.
+    // Two concurrent gates resolve independently.
     #[tokio::test]
     async fn test_two_concurrent_gates_independent() {
         // GIVEN two gates registered for distinct run ids
@@ -115,7 +115,7 @@ mod tests {
         assert!(!gates.decide("unknown", PlanGateDecision::Approved));
     }
 
-    // AC-3: dropping the receiver makes decide report a closed channel.
+    // Dropping the receiver makes decide report a closed channel.
     #[tokio::test]
     async fn test_decide_after_receiver_dropped_returns_false() {
         // GIVEN a registered gate whose receiver is dropped

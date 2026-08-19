@@ -4,7 +4,7 @@
    *
    * Reflects the active session's plan-mode state and toggles it through the
    * `set_plan_mode` command (via `$lib/ipc/planMode`). Optimistic: it flips
-   * immediately and reverts to the real state if the command fails (AC-5).
+   * immediately and reverts to the real state if the command fails.
    *
    * Operator persona shows the icon + colored state only; Builder persona adds
    * a textual label next to the icon.
