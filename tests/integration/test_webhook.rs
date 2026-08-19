@@ -9,6 +9,7 @@
 //!
 //! Pattern : serveur TCP réel (port éphémère) + requêtes HTTP brutes.
 
+use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -186,16 +187,11 @@ async fn build_webhook_state(
     (state, submit_count)
 }
 
-/// Démarre un `APIServer` sur un port éphémère.
+/// Démarre un `APIServer` sur un port réservé hors du pool éphémère.
 ///
 /// Retourne `(handle, port, socket_path)`.
 async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u16, PathBuf) {
-    // Port 0 → OS choisit un port libre
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind port 0 failed");
-    let port = listener.local_addr().expect("local_addr failed").port();
-    drop(listener); // Libérer le listener temporaire
+    let port = reserve_port();
 
     let id = &uuid::Uuid::new_v4().to_string()[..8];
     let socket_path = PathBuf::from(format!("/tmp/ap-webhook-{id}.sock"));

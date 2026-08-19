@@ -100,7 +100,6 @@ source "$LIB_DIR/seed.sh"
 RUN_TMP=$(/usr/bin/mktemp -d -t apollia-cli-e2e.XXXXXX)
 DAEMON_PID=""
 SOCK="$RUN_TMP/apollia.sock"
-FREE_PORT=$(/usr/bin/python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()" 2>/dev/null || echo "0")
 
 cleanup() {
     local rc=${1:-0}
@@ -176,10 +175,25 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
             # the source model to 0 bytes (copy-onto-itself hazard).
             seed_wire_real_model "$SEED2" "$TEST_GGUF" && MODEL_READY=1
         fi
-        "$BIN" start --socket "$SOCK" --port "$FREE_PORT" >"$RUN_TMP/daemon.log" 2>&1 &
+        # `--port 0` leaves the port choice to the process that will hold it:
+        # the kernel assigns one to the daemon's own listener, so there is no
+        # window in which a third party can take it. Picking a port here and
+        # passing the number would reopen that window, and the window spanned
+        # the whole offline track, since the number was read before the banner
+        # and bound only after Track 1 finished. Any process consuming
+        # ephemeral ports meanwhile won it, and the suite then failed on
+        # "daemon start" for a reason foreign to the product: `failed to bind
+        # TCP on port <n>: Address already in use`, or, when the winner was
+        # listening, the false `runtime already running on localhost:<n>`.
+        # Nothing in the suite talks to the TCP port; every assertion goes
+        # through --socket, so the number never has to be known.
+        "$BIN" start --socket "$SOCK" --port 0 >"$RUN_TMP/daemon.log" 2>&1 &
         DAEMON_PID=$!
         if wait_for_socket "$SOCK" 30; then
-            _pass "daemon started + socket ready" "pid=$DAEMON_PID port=$FREE_PORT"
+            # The port is deliberately not reported: the suite never learns the
+            # number, and printing the requested 0 where a reader looks for the
+            # bound port would state a value nothing measured.
+            _pass "daemon started + socket ready" "pid=$DAEMON_PID port=assigned by the kernel"
             # When a real model is boot-loaded, wait for it to answer before any
             # track runs, so LLM-metadata commands never race the model load.
             if [[ "$MODEL_READY" == "1" ]]; then

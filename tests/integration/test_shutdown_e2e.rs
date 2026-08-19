@@ -3,6 +3,7 @@
 //! Tests the full shutdown sequence: drain in-progress tasks → stop agents →
 //! stop actors in reverse order. Uses a mock backend to avoid Python dependency.
 
+use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -132,11 +133,6 @@ fn temp_socket_path() -> PathBuf {
     PathBuf::from(format!("/tmp/ap-e2e-{}.sock", id))
 }
 
-async fn free_port() -> u16 {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    l.local_addr().unwrap().port()
-}
-
 // Task drains successfully before shutdown completes
 #[tokio::test]
 async fn test_shutdown_drains_active_tasks() {
@@ -176,7 +172,7 @@ async fn test_shutdown_drains_active_tasks() {
 
     // Set up minimal API server for ShutdownController
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -281,7 +277,7 @@ async fn test_shutdown_stops_all_agents() {
         .unwrap();
 
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -376,7 +372,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -493,7 +489,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         .unwrap();
 
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),

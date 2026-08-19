@@ -10,6 +10,7 @@
 //! Submit by manifest name (not UUID) returns 202
 //! TCP port and Unix socket are released after test
 
+use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -58,12 +59,6 @@ impl ExecutionBackend for MockBackend {
 }
 
 // --- Test helpers ---
-
-/// Bind to port 0 to get a free ephemeral port from the OS.
-async fn free_port() -> u16 {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    l.local_addr().unwrap().port()
-}
 
 /// Generate a unique Unix socket path in /tmp.
 fn temp_socket_path() -> PathBuf {
@@ -119,7 +114,7 @@ fn build_app_state() -> AppState<MockBackend> {
 
 /// Start an APIServer on a free port. Returns (handle, tcp_port, socket_path).
 async fn start_test_server() -> (APIServerHandle, u16, PathBuf) {
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let state = build_app_state();
     let config = APIServerConfig {

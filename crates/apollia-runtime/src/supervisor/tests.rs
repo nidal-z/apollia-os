@@ -3,7 +3,7 @@ use super::bundled::{auto_load_bundled_agents, native_tool_descriptors};
 
 use super::*;
 use crate::coordinator::ExecutionBackend;
-use crate::test_support::poll_until_async;
+use crate::test_support::{poll_until_async, reserve_port};
 use apollia_core::{AIPResult, AIPTask, RuntimeEvent, TaskStatus};
 use std::future::Future;
 use std::path::PathBuf;
@@ -124,12 +124,6 @@ async fn test_boot_without_mcp_toml_ok() {
     assert!(config.servers.is_empty());
 }
 
-/// Find a free TCP port.
-async fn free_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    listener.local_addr().unwrap().port()
-}
-
 /// Create a short unique temp socket path (macOS SUN_LEN limit).
 fn temp_socket_path() -> PathBuf {
     let id = &uuid::Uuid::new_v4().to_string()[..8];
@@ -173,7 +167,7 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
 #[tokio::test]
 async fn test_startup_sequence_all_ready() {
     // GIVEN a configured Supervisor
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     let supervisor = Supervisor::new(config);
@@ -203,7 +197,7 @@ async fn test_startup_sequence_all_ready() {
 #[tokio::test]
 async fn test_all_ready_event_emitted() {
     // GIVEN a configured Supervisor
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     let supervisor = Supervisor::new(config);
@@ -244,7 +238,7 @@ async fn test_all_ready_event_emitted() {
 #[tokio::test]
 async fn test_handles_accessible_after_start() {
     // GIVEN a Supervisor started successfully
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     let supervisor = Supervisor::new(config);
@@ -311,7 +305,7 @@ async fn test_startup_timeout_rollback() {
     // GIVEN a port already in use (bind will fail, not timeout, but tests the
     // error path). Bind an OS-assigned port and KEEP the listener, so the
     // supervisor's bind of the same port fails deterministically. Using
-    // free_port() here would release the port before the re-bind, letting a
+    // reserve_port() here would release the port before the re-bind, letting a
     // concurrent test win it under load.
     let _listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = _listener.local_addr().unwrap().port();
@@ -402,7 +396,7 @@ async fn test_watch_exits_on_shutdown_requested() {
 #[tokio::test]
 async fn test_start_without_llm_config_succeeds() {
     // GIVEN a Supervisor with no [llm] section
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -529,7 +523,7 @@ async fn test_app_state_clone_with_llm_router_none() {
 #[tokio::test]
 async fn test_supervisor_starts_with_zero_triggers() {
     // GIVEN a config with no triggers
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -598,7 +592,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
 #[tokio::test]
 async fn test_no_notifications_section_starts_ok() {
     // GIVEN a config with no [notifications] section
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -666,7 +660,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
     use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
 
     // GIVEN a triggers_def.db pre-filled with 1 trigger
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let tmp_dir = tempfile::tempdir().expect("tempdir");
     let db_path = tmp_dir.path().join("triggers_def.db");
@@ -748,7 +742,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
 #[tokio::test]
 async fn test_story187_boot_empty_dbs() {
     // GIVEN an empty directory (no pre-existing DB)
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     let supervisor = Supervisor::new(config);
@@ -935,7 +929,7 @@ fn test_seed_no_op_when_user_memory_missing() {
 #[tokio::test]
 async fn test_story187_appstate_contains_repos() {
     // GIVEN a Supervisor with an empty directory
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let tmp_dir = tempfile::tempdir().expect("tempdir");
     let config = SupervisorConfig {
@@ -1098,7 +1092,7 @@ async fn test_autoload_enabled_agents() {
     repo.save(&test_installed_agent("agent-c", false))
         .expect("save c (disabled)");
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1137,7 +1131,7 @@ async fn test_autoload_skips_disabled() {
     repo.save(&test_installed_agent("disabled-agent", false))
         .expect("save disabled");
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1179,7 +1173,7 @@ async fn test_autoload_corrupted_agent_continues() {
     corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
     repo.save(&corrupted).expect("save corrupted");
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1213,7 +1207,7 @@ async fn test_autoload_no_agents_no_error() {
     // GIVEN an empty database
     let repo = open_test_repo();
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1246,7 +1240,7 @@ async fn test_autoload_no_agents_no_error() {
 #[tokio::test]
 async fn test_autoload_none_repository_skips() {
     // GIVEN a config without agent_repository
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     // agent_repository is already None in test_config
@@ -1286,7 +1280,7 @@ async fn test_autoload_empty_packages_agent_is_active() {
     repo.save(&test_installed_agent("no-pkg-agent", true))
         .expect("save agent");
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1339,7 +1333,7 @@ async fn test_autoload_bad_package_agent_is_degraded() {
     good_agent.install_path = PathBuf::from("/tmp/agents/good-agent/good-agent.py");
     repo.save(&good_agent).expect("save good agent");
 
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1404,7 +1398,7 @@ async fn test_autoload_bad_package_agent_is_degraded() {
 #[tokio::test]
 async fn test_first_launch_emits_onboarding_required() {
     // GIVEN a fresh Supervisor with empty UserMemory (no entries)
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     let supervisor = Supervisor::new(config);
@@ -1437,7 +1431,7 @@ async fn test_first_launch_emits_onboarding_required() {
 #[tokio::test]
 async fn test_subsequent_launch_no_onboarding_event() {
     // GIVEN a Supervisor whose UserMemory already contains entries
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
 

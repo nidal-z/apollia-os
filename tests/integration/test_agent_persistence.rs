@@ -10,6 +10,7 @@
 //! corrupted agent does not block boot (graceful degradation)
 //! update replaces file and manifest in DB
 
+use apollia_e2e_tests::reserve_port;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -221,14 +222,6 @@ fn test_supervisor_config(
     }
 }
 
-/// Get a free TCP port from the OS.
-async fn free_port() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind ephemeral port");
-    listener.local_addr().expect("local addr").port()
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,7 +240,7 @@ async fn test_install_persist_reload_cycle() {
 
     // WHEN the Supervisor starts with the same agents.db
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
@@ -291,7 +284,7 @@ async fn test_disabled_agent_not_loaded_at_boot() {
 
     // WHEN the Supervisor starts
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
@@ -357,7 +350,7 @@ async fn test_uninstall_removes_files_and_db() {
 
     // AND Supervisor at boot does not attempt to load this agent
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
@@ -403,7 +396,7 @@ async fn test_corrupted_agent_graceful_degradation() {
 
     // Subscribe to events before starting Supervisor
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
@@ -506,7 +499,7 @@ async fn test_update_replaces_file_and_manifest() {
 
     // AND when Supervisor boots, it loads the updated agent
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 

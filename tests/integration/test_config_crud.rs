@@ -13,6 +13,7 @@
 //! Boot with pre-populated DB → subsystems load definitions
 //! Boot with empty DB → no errors, empty lists
 
+use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -88,14 +89,6 @@ impl TaskSubmitter for MockTaskSubmitter {
 }
 
 // ─── Test helpers ───────────────────────────────────────────────────────────
-
-/// Bind to port 0 to get a free ephemeral port from the OS.
-async fn free_port() -> u16 {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind to port 0");
-    l.local_addr().expect("local_addr").port()
-}
 
 /// Generate a unique Unix socket path in /tmp.
 fn temp_socket_path() -> PathBuf {
@@ -175,7 +168,7 @@ async fn start_test_server_with_repos(
     triggers_db: &Path,
     notifications_db: &Path,
 ) -> (APIServerHandle, u16, PathBuf) {
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let state = build_app_state_with_repos(triggers_db, notifications_db).await;
     let config = APIServerConfig {

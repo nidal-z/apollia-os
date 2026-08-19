@@ -12,6 +12,7 @@
 //! Close session (DELETE → 409 on subsequent message)
 //! Budget exhausted (infinite tool loop → ChatError)
 
+use apollia_e2e_tests::reserve_port;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::path::PathBuf;
@@ -180,14 +181,6 @@ impl ExecutionBackend for MockBackend {
 
 // ─── Test helpers ───────────────────────────────────────────────────────────
 
-/// Bind to port 0 to get a free ephemeral port from the OS.
-async fn free_port() -> u16 {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind to port 0");
-    l.local_addr().expect("local_addr").port()
-}
-
 /// Generate a unique Unix socket path in /tmp.
 fn temp_socket_path() -> PathBuf {
     let id = &uuid::Uuid::new_v4().to_string()[..8];
@@ -298,7 +291,7 @@ async fn start_chat_server(
     PathBuf,
     tokio::sync::broadcast::Receiver<RuntimeEvent>,
 ) {
-    let port = free_port().await;
+    let port = reserve_port();
     let socket_path = temp_socket_path();
     let (state, event_rx) = build_chat_app_state(mock_model, budget_config);
     let config = APIServerConfig {

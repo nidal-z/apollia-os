@@ -7,6 +7,7 @@
 //! - HTTP server that never responds → `NotifError::WebhookFailed`
 //!   returned in < 2 s (non-blocking, no crash).
 
+use apollia_e2e_tests::reserve_port;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -159,13 +160,12 @@ async fn test_ac6_webhook_payload_verified() {
 ///       et le runtime continue sans crash
 #[tokio::test]
 async fn test_ac7_webhook_timeout_returns_error() {
-    // GIVEN - find a free port, then immediately drop the listener so nobody listens.
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind must succeed");
-    let port = listener.local_addr().expect("local_addr").port();
-    // Drop the listener - subsequent TCP connects to this port will be refused.
-    drop(listener);
+    // GIVEN - a port nobody listens on, so a TCP connect to it is refused. This
+    // is the inverse requirement of the servers in this suite, the number must
+    // stay free rather than be taken, and it holds for the same reason:
+    // reserve_port() draws outside the ephemeral pool, so no third party is
+    // handed this port and starts accepting on it while the test runs.
+    let port = reserve_port();
 
     let channel = make_channel(&format!("http://127.0.0.1:{port}"));
     let notif = make_input_required_notification();

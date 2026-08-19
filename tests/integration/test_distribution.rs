@@ -6,6 +6,7 @@
 //!
 //! Pas de Python requis - utilise StubAgentLoader et InstantBackend.
 
+use apollia_e2e_tests::reserve_port;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -163,14 +164,6 @@ fn supervisor_config(
     }
 }
 
-/// Retourne un port TCP libre alloué par le système.
-async fn free_port() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind ephemeral port");
-    listener.local_addr().expect("local addr").port()
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 /// Au premier boot, les 4 agents bundled sont auto-installés puis enregistrés.
@@ -182,7 +175,7 @@ async fn test_bundled_agents_auto_installed() {
     let bundled_dir = write_bundled_manifest(&tmp);
 
     let repo = AgentRepository::open(&db_path).expect("open repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = supervisor_config(&tmp, port, Some(repo), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 
@@ -239,7 +232,7 @@ async fn test_bundled_agents_skip_existing() {
     }
 
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = free_port().await;
+    let port = reserve_port();
     let config = supervisor_config(&tmp, port, Some(repo2), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 

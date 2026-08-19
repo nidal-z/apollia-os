@@ -1022,7 +1022,7 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
-    use crate::test_support::poll_until_async;
+    use crate::test_support::{poll_until_async, reserve_port};
     use apollia_core::{AIPResult, AIPTask, TaskStatus};
     use std::future::Future;
     use std::pin::Pin;
@@ -1154,12 +1154,6 @@ mod tests {
         assert_eq!(code, axum::http::StatusCode::SERVICE_UNAVAILABLE);
     }
 
-    /// Find a free TCP port by binding to port 0.
-    async fn free_port() -> u16 {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        listener.local_addr().unwrap().port()
-    }
-
     /// Create a unique temp socket path.
     fn temp_socket_path() -> PathBuf {
         let id = uuid::Uuid::new_v4();
@@ -1193,7 +1187,7 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_listener_binds_successfully() {
         // GIVEN a free port
-        let port = free_port().await;
+        let port = reserve_port();
         let socket_path = temp_socket_path();
         let state = test_app_state();
         let config = APIServerConfig {
@@ -1222,7 +1216,7 @@ mod tests {
     async fn test_tcp_port_none_serves_unix_only() {
         // GIVEN a config with no TCP port (embedded local-trust default)
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1241,7 +1235,11 @@ mod tests {
         let resp = http_get_via_unix(&socket_path).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
-        // AND no TCP listener was bound: the port can be freshly bound
+        // AND no TCP listener was bound: the port can be freshly bound. This is
+        // the inverse requirement of every other port in this module, the number
+        // must stay free rather than be taken, and it holds for the same reason:
+        // reserve_port() draws outside the ephemeral pool, so nobody is handed
+        // this port while the assertion runs.
         let rebind = TcpListener::bind(("127.0.0.1", port)).await;
         assert!(
             rebind.is_ok(),
@@ -1257,7 +1255,7 @@ mod tests {
     async fn test_tcp_token_required_when_configured() {
         // GIVEN a server bound on TCP with a bearer token
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let token = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         let state = test_app_state();
         let config = APIServerConfig {
@@ -1375,7 +1373,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
         std::fs::write(&key_path, TEST_TLS_KEY_PEM).unwrap();
 
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1434,7 +1432,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
     async fn test_non_loopback_bind_without_token_is_refused() {
         // GIVEN a non-loopback bind with no token
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1464,7 +1462,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
     async fn test_loopback_bind_without_token_is_allowed() {
         // GIVEN a loopback bind with no token
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1488,7 +1486,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
     async fn test_non_loopback_bind_with_token_is_allowed() {
         // GIVEN a non-loopback bind with a token
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1512,7 +1510,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
     async fn test_unix_socket_listener_binds_successfully() {
         // GIVEN a temporary socket path
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1543,7 +1541,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
         std::fs::write(&socket_path, b"stale").unwrap();
         assert!(socket_path.exists());
 
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1571,7 +1569,7 @@ HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
     async fn test_shutdown_stops_server() {
         // GIVEN a started APIServer
         let socket_path = temp_socket_path();
-        let port = free_port().await;
+        let port = reserve_port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),

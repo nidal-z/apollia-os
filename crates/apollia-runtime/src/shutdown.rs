@@ -366,6 +366,7 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
+    use crate::test_support::reserve_port;
     use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, TaskStatus};
     use std::future::Future;
     use std::path::PathBuf;
@@ -527,10 +528,7 @@ mod tests {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
 
         let socket_path = temp_socket_path();
-        let port = {
-            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            l.local_addr().unwrap().port()
-        };
+        let port = reserve_port();
 
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -678,10 +676,7 @@ mod tests {
 
         // Build a minimal controller (no API server needed for drain test)
         let socket_path = temp_socket_path();
-        let port = {
-            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            l.local_addr().unwrap().port()
-        };
+        let port = reserve_port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -803,10 +798,7 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = {
-            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            l.local_addr().unwrap().port()
-        };
+        let port = reserve_port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -923,10 +915,7 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = {
-            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            l.local_addr().unwrap().port()
-        };
+        let port = reserve_port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1132,10 +1121,7 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = {
-            let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            l.local_addr().unwrap().port()
-        };
+        let port = reserve_port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),

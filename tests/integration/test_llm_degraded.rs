@@ -8,6 +8,7 @@
 //!
 //! Aucune dépendance Python - CI OK.
 
+use apollia_e2e_tests::reserve_port;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
@@ -62,16 +63,6 @@ fn temp_socket_path() -> PathBuf {
     PathBuf::from(format!("/tmp/ap-llm-deg-{id}.sock"))
 }
 
-async fn free_port() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind on port 0 should succeed");
-    listener
-        .local_addr()
-        .expect("local_addr should be available")
-        .port()
-}
-
 // ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
@@ -86,7 +77,7 @@ async fn test_runtime_starts_without_llm_router() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
 
     let state = AppState {
         router_handle: router,
@@ -238,7 +229,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = free_port().await;
+    let port = reserve_port();
 
     let state = AppState {
         router_handle: router,
