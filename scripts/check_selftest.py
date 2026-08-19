@@ -28,6 +28,10 @@ properties rather than the fixes:
      of every failed assertion and threw it away before writing its artifact,
      which is the same bias one step further on: the reader who cannot resolve
      the red falls back on believing the green.
+  5. A rule carrying a named exemption reports when the exemption grows. The
+     tracker-reference rule of `check_prose.py` excuses exactly one path, and a
+     green run alone cannot tell one excused path from five. The exemption is
+     therefore driven from both sides, like the detector it belongs to.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -50,6 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_claims  # noqa: E402
 import check_no_font_cdn as fontcdn  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
+import check_prose  # noqa: E402
 import worktree_verdicts  # noqa: E402
 
 FAILURES: list[str] = []
@@ -381,6 +386,109 @@ def check_font_cdn_detector_fires() -> None:
         f"app covered: {covers_app}, site covered: {covers_site}. The promise is "
         f"broken by whichever of the two nobody scanned",
     )
+
+
+# ── The prose tracker-reference rule ─────────────────────────────────
+# Fifth instance of the same family, and the tree it guards was made clean by
+# the very change that added it, so a green run proves the sweep walked 2456
+# files and nothing about the detector. The rule is therefore driven on a
+# temporary tree: `scan(root, files)` takes both, so no repository state, no
+# `git init` and no network are involved.
+#
+# Fixture discipline is not optional here. `check_prose.py` inventories this
+# file, so a fixture spelled in clear text makes the guard fail on its own
+# self-test. Every fixture below is composed from fragments for the same reason
+# the comment at the end of this file gives for the personal-path pattern.
+
+TRACKED_SAMPLE = "see " + "CAP" + "-149 before touching the boundary"
+CLEAN_SAMPLE = "see the capture on the boundary before touching it"
+DIRTY_NAME = "tests/integration/test_" + "sprint" + "_28_config.rs"
+CLEAN_NAME = "tests/integration/test_system_config_and_routing.rs"
+TWIN_MANIFEST = "crates/apollia-desktop/ui/figma/manifest.json"
+
+
+def _prose_tree(tmp: Path, files: dict[str, bytes]) -> list[str]:
+    for rel, blob in files.items():
+        path = tmp / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+    return list(files)
+
+
+def check_prose_tracker_rule() -> None:
+    print("prose guard: the tracker rule fires, and its one exemption is bounded")
+
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        files = _prose_tree(
+            tmp,
+            {
+                "docs/dirty.md": TRACKED_SAMPLE.encode("utf-8"),
+                "docs/clean.md": CLEAN_SAMPLE.encode("utf-8"),
+                TWIN_MANIFEST: TRACKED_SAMPLE.encode("utf-8"),
+                "docs/shot.png": b"\x89PNG\r\n\x1a\n\xff\xfe" + TRACKED_SAMPLE.encode("utf-8"),
+                DIRTY_NAME: CLEAN_SAMPLE.encode("utf-8"),
+                CLEAN_NAME: CLEAN_SAMPLE.encode("utf-8"),
+            },
+        )
+
+        found = check_prose.scan(tmp, files)
+        hits = {f.split(":")[0] for f in found}
+
+        case(
+            "flags a tracker reference in a file body",
+            any(f.startswith("docs/dirty.md:1:") for f in found),
+            f"the rule stayed silent on the shape it exists to catch. "
+            f"findings: {found!r}",
+        )
+        case(
+            "stays silent on the same sentence without the reference",
+            "docs/clean.md" not in hits,
+            f"a compliant line was reported. A guard that fails on compliant "
+            f"input gets switched off, and then guards nothing. "
+            f"findings: {found!r}",
+        )
+        case(
+            "skips a file the decoder rejects",
+            "docs/shot.png" not in hits,
+            f"a byte match inside an undecodable file was reported. Six such "
+            f"files exist under the documentation site, and none of them can "
+            f"be corrected. findings: {found!r}",
+        )
+        case(
+            "flags the vocabulary carried by a file name",
+            any(f == f"{DIRTY_NAME}: " + check_prose.RULES[-1].label + ", in the file name" for f in found),
+            f"the name pass reported nothing, so a file could satisfy the rule "
+            f"in its body and carry it in its name. findings: {found!r}",
+        )
+        case(
+            "stays silent on a name that carries none",
+            CLEAN_NAME not in hits,
+            f"the name pass flagged a compliant path. findings: {found!r}",
+        )
+        case(
+            "the named exemption is honoured",
+            TWIN_MANIFEST not in hits,
+            f"the one excused path was reported, so the rule cannot be kept "
+            f"green while the twin manifest is out of scope. findings: {found!r}",
+        )
+
+        # Negative control on the exemption itself, the shape `check_no_font_cdn`
+        # uses on its roots. Without it, one excused path grows to five and
+        # nothing says so.
+        rules = check_prose.RULES
+        try:
+            check_prose.RULES = rules[:-1] + [rules[-1]._replace(exempt=None)]
+            widened = {f.split(":")[0] for f in check_prose.scan(tmp, files)}
+            case(
+                "negative control: dropping the exemption is reported, not tolerated",
+                TWIN_MANIFEST in widened,
+                "the excused path stayed silent with its exemption removed, so "
+                "the exemption assertion above proves nothing about the list it "
+                "is meant to bound",
+            )
+        finally:
+            check_prose.RULES = rules
 
 
 # ── The worktree verdict comparator ──────────────────────────────────────────
@@ -725,6 +833,8 @@ def main() -> int:
     check_zero_coverage_is_reported()
     check_font_cdn_detector_fires()
     print()
+    check_prose_tracker_rule()
+    print()
     check_worktree_comparator()
     print()
     check_e2e_failure_detail()
@@ -734,11 +844,12 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nsix properties hold: neither a comment nor a re-export is a use, "
-        "zero coverage says so, the font guard fires on a dirty tree, two "
-        "equal exit codes over different measures are not the same verdict, "
-        "and a failed assertion reaches the artifact with its cause while a "
-        "passing one adds nothing to it"
+        "\nseven properties hold: neither a comment nor a re-export is a use, "
+        "zero coverage says so, the font guard fires on a dirty tree, the "
+        "prose tracker rule fires and its one exemption is bounded from both "
+        "sides, two equal exit codes over different measures are not the same "
+        "verdict, and a failed assertion reaches the artifact with its cause "
+        "while a passing one adds nothing to it"
     )
     return 0
 

@@ -239,23 +239,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - name: No em-dash in prose
-        run: |
-          if grep -rnP "—" \
-               --include="*.md" --include="*.rs" --include="*.py" --include="*.svelte" \
-               --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . \
-             | grep -vE 'docs/agents/(FORBIDDEN|DOCS-WRITING)\.md|(^|/)AGENTS\.md:'; then
-            echo "::error::em-dash (U+2014) found in prose; use a hyphen, comma, or colon"
-            exit 1
-          fi
-      - name: No PII path, dead domain, or stale GitHub slug
-        run: |
-          rc=0
-          # Bracket classes keep these patterns from matching their own literal text in this file.
-          grep -rnE '/Users/nida[l]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
-          grep -rnE 'apollia[.]dev' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
-          grep -rnE 'github[.]com/(nidal-z|nidalzoumit[a])/' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
-          [ "$rc" = 0 ] || { echo "::error::PII / dead domain / stale slug found"; exit 1; }
+      # The repository's own guard, not a transcription of it. This job used
+      # to carry a grep copy of three of its four rules, and the copy judged
+      # a different tree: it restricted the em-dash search to four suffixes,
+      # leaving 846 of the 2454 tracked files (393 TypeScript, 100 JSON, 44
+      # TOML) to cross the last boundary before publication unjudged, and it
+      # read the working directory where the guard reads the git inventory.
+      # A rule that exists as a script is not rewritten in a workflow file;
+      # the boundary invokes the script.
+      - name: Prose rules, the same guard the pre-commit hook runs
+        run: python3 scripts/check_prose.py
       # Runs before the checks it covers. Two of them independently counted a
       # symbol named in a doc-comment as a live call site, always in the
       # direction that declares a dead capability alive. This pins that case on a

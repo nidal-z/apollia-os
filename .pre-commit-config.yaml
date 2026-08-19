@@ -61,12 +61,13 @@ repos:
         types: [rust]
         pass_filenames: false
 
-      # Porte les quatre regles de prose : tiret cadratin, PII, domaine mort et
-      # slug perime. Il existe en script pour etre lancable hors commit : la
-      # phase qui produit la prose ne commite pas, donc un hook seul ne peut pas
-      # l'attraper la ou le defaut nait.
+      # Porte les cinq regles de prose : tiret cadratin, PII, domaine mort,
+      # slug perime et renvoi de suivi interne. Il existe en script pour etre
+      # lancable hors commit : la phase qui produit la prose ne commite pas,
+      # donc un hook seul ne peut pas l'attraper la ou le defaut nait. Le
+      # travail Prose Guard de la chaine lance ce meme script.
       - id: check-prose
-        name: prose rules (em-dash, PII, dead domain, stale slug)
+        name: prose rules (em-dash, PII, dead domain, stale slug, tracker ref)
         entry: python3 scripts/check_prose.py
         language: system
         pass_filenames: false
