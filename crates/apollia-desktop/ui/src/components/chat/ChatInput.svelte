@@ -15,7 +15,11 @@
   import { t } from "svelte-i18n";
   import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks, Wand2, Loader2, Undo2 } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { InputRewriter, fetchWorkContext } from "$lib/chat/rewriteInput";
+  import {
+    InputRewriter,
+    fetchWorkContext,
+    type RewriteFallback,
+  } from "$lib/chat/rewriteInput";
   import { addToast } from "$lib/components/ui/toast";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { chatInputAppend } from "$lib/stores/artifacts";
@@ -26,10 +30,13 @@
   } from "$lib/stt/dictationFailure";
   import { ChatRateLimiter } from "$lib/chat/rateLimit";
   import {
+    type AttachmentCandidate,
     type PendingAttachment,
     attachmentId,
     classifyKind,
+    intakeAttachment,
     readAsBase64,
+    refusalMessageKey,
     INLINE_MAX_BYTES,
   } from "$lib/chat/attachments";
   import {
@@ -328,6 +335,25 @@
     }
   }
 
+  /**
+   * The sentence the operator reads when no rewrite happened.
+   *
+   * Four situations reach here and only the first two mean "you have no engine".
+   * Sending all four to `error_no_llm` told a user whose model had just timed
+   * out to go configure one they already had.
+   */
+  function rewriteFallbackMessage(fallback: RewriteFallback): string {
+    switch (fallback) {
+      case "noRouter":
+      case "noBackend":
+        return $t("chat.rewrite.error_no_llm");
+      case "callFailed":
+        return $t("chat.rewrite.error_call_failed");
+      case "emptyAnswer":
+        return $t("chat.rewrite.error_empty_answer");
+    }
+  }
+
   async function handleRewrite(): Promise<void> {
     // GIVEN: rewrite already in progress
     if (isRewriting || value.trim() === "") return;
@@ -341,10 +367,10 @@
       // THEN: call rewriter
       const outcome = await rewriter.rewrite(value, workContext);
 
-      // WHEN: the runtime had no LLM, or the model answered nothing usable
-      // THEN: say so and leave the field as it was
-      if (!outcome.fromLlm) {
-        addToast($t("chat.rewrite.error_no_llm"), "error");
+      // WHEN: no rewrite happened, whichever of the four reasons stopped it
+      // THEN: name that reason and leave the field as it was
+      if (outcome.fallback !== null) {
+        addToast(rewriteFallbackMessage(outcome.fallback), "error");
         return;
       }
 
@@ -682,7 +708,7 @@
     const list = Array.from(files);
     for (const file of list) {
       const kind = classifyKind(file.type, file.name);
-      const att: PendingAttachment = {
+      const candidate: AttachmentCandidate = {
         id: attachmentId(),
         name: file.name,
         mime: file.type || "application/octet-stream",
@@ -690,20 +716,36 @@
         kind,
       };
       if (kind === "image") {
-        att.previewUrl = URL.createObjectURL(file);
+        candidate.previewUrl = URL.createObjectURL(file);
       }
-      try {
-        if (file.size <= INLINE_MAX_BYTES) {
-          att.base64 = await readAsBase64(file);
-        } else {
-          // Desktop drop events expose `path` on the File (Tauri). Fallback to name.
-          const anyFile = file as unknown as { path?: string };
-          if (anyFile.path) att.absolutePath = anyFile.path;
+      // Desktop drop events expose `path` on the File (Tauri); a paperclip
+      // pick never does. The path is taken whatever the size, because it is
+      // the only form an image can travel under. Intake still prefers the
+      // inline payload for everything else, so a dropped small text file
+      // keeps travelling as text and needs no approval.
+      const anyFile = file as unknown as { path?: string };
+      if (anyFile.path) candidate.absolutePath = anyFile.path;
+
+      if (kind !== "image" && file.size <= INLINE_MAX_BYTES) {
+        try {
+          candidate.base64 = await readAsBase64(file);
+        } catch {
+          candidate.readFailed = true;
         }
-      } catch (err) {
-        console.warn("attachment read failed", err);
       }
-      attachments = [...attachments, att];
+
+      const intake = intakeAttachment(candidate);
+      if (!intake.accepted) {
+        // The file is dropped rather than queued: a chip the send would not
+        // carry is what let a silently unusable turn leave the composer.
+        if (candidate.previewUrl) URL.revokeObjectURL(candidate.previewUrl);
+        addToast(
+          $t(refusalMessageKey(intake.reason), { values: { name: intake.name } }),
+          "error",
+        );
+        continue;
+      }
+      attachments = [...attachments, intake.attachment];
     }
   }
 

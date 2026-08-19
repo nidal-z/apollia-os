@@ -2062,6 +2062,7 @@
     "cron_preset_custom": "Custom schedule",
     "cron_at_time": "At",
     "cron_on_days": "On",
+    "cron_weekly_no_day": "Pick at least one day: a weekly schedule with no day ticked has no time to run.",
     "interval_unit_minutes": "minutes",
     "interval_unit_hours": "hours",
     "interval_unit_days": "days",
@@ -4183,7 +4184,13 @@
     },
     "attachments": {
       "add": "Attach file",
-      "remove": "Remove attachment"
+      "remove": "Remove attachment",
+      "refused": {
+        "read_failed": "{name} could not be read, so it was not attached.",
+        "image_not_supported": "{name} is an image: pictures cannot be read by the local engine. Drag the file in to send its path instead.",
+        "too_large_without_path": "{name} is over 512 kB, and a file picked this way carries no path. Drag it into the conversation to attach it.",
+        "binary_not_text": "{name} is not a text file: its bytes carry no readable text, so nothing useful could be sent. Drag it into the conversation to send its path instead."
+      }
     },
     "resources": {
       "menu_label": "MCP resources",
@@ -4439,6 +4446,8 @@
       "button_tooltip": "Improve prompt",
       "restore_tooltip": "Restore original",
       "error_no_llm": "No LLM configured for rewriting",
+      "error_call_failed": "The rewrite engine failed or timed out. Your text is unchanged.",
+      "error_empty_answer": "The rewrite engine returned nothing usable. Your text is unchanged.",
       "error_generic": "Rewrite failed: {error}"
     },
     "citations_aria": "Citations",

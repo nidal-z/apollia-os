@@ -33,7 +33,7 @@
   import ChatInput from "./ChatInput.svelte";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
-  import type { PendingAttachment } from "$lib/chat/attachments";
+  import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
   import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -750,23 +750,9 @@
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
     // authoritative tool-side ingestion happens via the filesystem HITL flow.
-    let payload = content;
-    if (attachments.length > 0) {
-      const parts: string[] = [];
-      if (content.trim()) parts.push(content);
-      for (const att of attachments) {
-        if (att.base64 && att.kind !== "image") {
-          parts.push(`\n<attachment name="${att.name}" mime="${att.mime}" size="${att.size}">\n${decodeBase64Utf8(att.base64)}\n</attachment>`);
-        } else if (att.absolutePath) {
-          parts.push(`\n<attachment name="${att.name}" path="${att.absolutePath}" size="${att.size}" />`);
-        } else if (att.kind === "image" && att.base64) {
-          parts.push(`\n<attachment name="${att.name}" mime="${att.mime}" encoding="base64">${att.base64}</attachment>`);
-        } else {
-          parts.push(`\n<attachment name="${att.name}" size="${att.size}" />`);
-        }
-      }
-      payload = parts.join("");
-    }
+    // The composer refuses anything that fits neither form, so the rendering
+    // below is total and never emits a tag without content nor path.
+    const payload = composeUserPayload(content, attachments);
 
     const tempMsg: ChatMessageView = {
       id: `temp-${Date.now()}`, role: "user", content: payload,
@@ -855,16 +841,6 @@
     }
     return null;
   });
-
-  function decodeBase64Utf8(b64: string): string {
-    try {
-      const bin = atob(b64);
-      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    } catch {
-      return b64;
-    }
-  }
 
   // Bumped by `/rename` to ask the header to open its inline title editor.
   // The browser prompt() is unavailable in the Tauri webview, so /rename used to

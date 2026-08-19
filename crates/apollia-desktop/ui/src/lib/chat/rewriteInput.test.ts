@@ -36,9 +36,9 @@ describe('InputRewriter', () => {
 
 			// Mock responses for three successive rewrites
 			mockInvoke
-				.mockResolvedValueOnce({ rewrittenText: 'First rewrite result', fromLlm: true })
-				.mockResolvedValueOnce({ rewrittenText: 'Second rewrite result', fromLlm: true })
-				.mockResolvedValueOnce({ rewrittenText: 'Third rewrite result', fromLlm: true });
+				.mockResolvedValueOnce({ rewrittenText: 'First rewrite result', fallback: null })
+				.mockResolvedValueOnce({ rewrittenText: 'Second rewrite result', fallback: null })
+				.mockResolvedValueOnce({ rewrittenText: 'Third rewrite result', fallback: null });
 
 			// WHEN: first rewrite with "original input"
 			const result1 = await rewriter.rewrite('original input', null);
@@ -95,7 +95,7 @@ describe('InputRewriter', () => {
 
 			mockInvoke.mockResolvedValueOnce({
 				rewrittenText: 'Rewritten with context',
-				fromLlm: true
+				fallback: null
 			});
 
 			// WHEN: rewrite with work context
@@ -124,7 +124,7 @@ describe('InputRewriter', () => {
 
 			mockInvoke.mockResolvedValueOnce({
 				rewrittenText: 'Rewritten without context',
-				fromLlm: true
+				fallback: null
 			});
 
 			// WHEN: rewrite with null context
@@ -152,7 +152,7 @@ describe('InputRewriter', () => {
 
 			mockInvoke.mockResolvedValueOnce({
 				rewrittenText: 'Rewritten with partial context',
-				fromLlm: true
+				fallback: null
 			});
 
 			// WHEN: rewrite with partial context
@@ -173,31 +173,50 @@ describe('InputRewriter', () => {
 		});
 	});
 
-	describe('Volet 5: no LLM available', () => {
-		it('should report fromLlm false and hand back the untouched text', async () => {
+	describe('Volet 5: no rewrite happened, and the reason survives the IPC hop', () => {
+		it('should hand back the untouched text with the reason that stopped it', async () => {
 			// GIVEN: a runtime with no LLM, which echoes the input back
 			const rewriter = new InputRewriter();
-			mockInvoke.mockResolvedValueOnce({ rewrittenText: 'fix bug', fromLlm: false });
+			mockInvoke.mockResolvedValueOnce({ rewrittenText: 'fix bug', fallback: 'noBackend' });
 
 			// WHEN: rewrite called
 			const result = await rewriter.rewrite('fix bug', null);
 
-			// THEN: the caller can tell no rewrite happened, and the text is unchanged
-			expect(result.fromLlm).toBe(false);
+			// THEN: the caller can tell no rewrite happened, and why
+			expect(result.fallback).toBe('noBackend');
 			expect(result.text).toBe('fix bug');
 		});
 
-		it('should report fromLlm true when the model produced the rewrite', async () => {
+		it('should report a null fallback when the model produced the rewrite', async () => {
 			// GIVEN: a runtime with an LLM
 			const rewriter = new InputRewriter();
-			mockInvoke.mockResolvedValueOnce({ rewrittenText: 'Fix the bug', fromLlm: true });
+			mockInvoke.mockResolvedValueOnce({ rewrittenText: 'Fix the bug', fallback: null });
 
 			// WHEN: rewrite called
 			const result = await rewriter.rewrite('fix bug', null);
 
 			// THEN: the caller sees a genuine rewrite
-			expect(result.fromLlm).toBe(true);
+			expect(result.fallback).toBeNull();
 			expect(result.text).toBe('Fix the bug');
+		});
+
+		it('should carry each of the four reasons through unchanged', async () => {
+			// GIVEN: the four situations the backend can report
+			const reasons = ['noRouter', 'noBackend', 'callFailed', 'emptyAnswer'] as const;
+			const seen: (string | null)[] = [];
+
+			// WHEN: each one comes back from the command
+			for (const reason of reasons) {
+				const rewriter = new InputRewriter();
+				mockInvoke.mockResolvedValueOnce({ rewrittenText: 'fix bug', fallback: reason });
+				const result = await rewriter.rewrite('fix bug', null);
+				seen.push(result.fallback);
+			}
+
+			// THEN: the composer receives four distinct reasons, so no single
+			// message can stand for all four
+			expect(seen).toEqual(['noRouter', 'noBackend', 'callFailed', 'emptyAnswer']);
+			expect(new Set(seen).size).toBe(4);
 		});
 	});
 
@@ -205,7 +224,7 @@ describe('InputRewriter', () => {
 		it('should return original text after rewrites', async () => {
 			// GIVEN: InputRewriter with completed rewrites
 			const rewriter = new InputRewriter();
-			mockInvoke.mockResolvedValue({ rewrittenText: 'Rewritten', fromLlm: true });
+			mockInvoke.mockResolvedValue({ rewrittenText: 'Rewritten', fallback: null });
 
 			await rewriter.rewrite('original', null);
 			await rewriter.rewrite('something else', null);
@@ -233,7 +252,7 @@ describe('InputRewriter', () => {
 		it('should clear all state', async () => {
 			// GIVEN: InputRewriter with rewrite history
 			const rewriter = new InputRewriter();
-			mockInvoke.mockResolvedValue({ rewrittenText: 'Rewritten', fromLlm: true });
+			mockInvoke.mockResolvedValue({ rewrittenText: 'Rewritten', fallback: null });
 
 			await rewriter.rewrite('original', null);
 			expect(rewriter.restoreOriginal()).toBe('original');

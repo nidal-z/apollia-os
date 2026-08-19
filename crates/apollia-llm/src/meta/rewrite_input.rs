@@ -10,10 +10,12 @@
 //!   button. This is the third exception to Principle 6 (memory injection):
 //!   the rewrite request includes the Work section of the user profile when
 //!   filled, but only when the operator explicitly triggers it.
-//! - **Graceful fallback**: any LLM error or timeout returns the original
-//!   text unchanged with `from_llm: false`. A reasoning model that spends its
-//!   whole budget inside a `<think>` block leaves nothing usable behind, which
-//!   is the same case.
+//! - **Graceful fallback, and it says which one**: any LLM error or timeout
+//!   returns the original text unchanged, tagged with the [`RewriteFallback`]
+//!   that produced it. A reasoning model that spends its whole budget inside a
+//!   `<think>` block leaves nothing usable behind, and that is a different
+//!   fallback from an engine that was never configured: the caller must be able
+//!   to tell the operator which of the two happened.
 //! - **No iteration drift**: the frontend always passes the first original
 //!   input, never a prior rewrite, so successive rewrites don't compound.
 
@@ -77,13 +79,34 @@ pub struct RewriteInputRequest {
     pub work_context: Option<WorkContext>,
 }
 
-/// Result returned to the caller. `from_llm` is `true` when the LLM path
-/// succeeded; `false` when we fell back to returning the original text.
+/// Why no rewrite happened.
+///
+/// One variant per place [`rewrite_input`] gives up, so the caller renders a
+/// message that names the real cause instead of the one that happens to be
+/// first in the list. A single boolean collapsed these onto "no engine
+/// configured", which is false for two of the three.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RewriteFallback {
+    /// The router holds no backend under its default name, so nothing was
+    /// called. This is the only variant that means "configure an engine".
+    NoBackend,
+    /// The backend answered with an error, or the call passed
+    /// [`CALL_TIMEOUT`]. The engine exists and was reached.
+    CallFailed,
+    /// The backend answered, and nothing was left once the reasoning blocks
+    /// were removed. The engine exists, was reached, and produced text.
+    EmptyAnswer,
+}
+
+/// Result returned to the caller. `fallback` is `None` when the LLM path
+/// succeeded, and carries the reason when we fell back to returning the
+/// original text.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RewriteInputResponse {
     pub rewritten_text: String,
-    pub from_llm: bool,
+    pub fallback: Option<RewriteFallback>,
 }
 
 /// Errors surfaced by [`rewrite_input`]. The caller should not abort on
@@ -216,17 +239,18 @@ fn build_system_prompt(req: &RewriteInputRequest) -> String {
 /// Rewrite a user's input prompt to make it clearer and more actionable.
 ///
 /// Always returns a `RewriteInputResponse`. On any LLM failure, timeout, or
-/// empty response, the original text is returned unchanged with `from_llm: false`.
+/// empty response, the original text is returned unchanged, carrying the
+/// [`RewriteFallback`] that says which of the three happened.
 pub async fn rewrite_input(
     router: &Arc<LlmRouter>,
     request: RewriteInputRequest,
 ) -> RewriteInputResponse {
     // GIVEN: no backend configured
     let Some(backend) = router.get(None) else {
-        // THEN: return original text
+        // THEN: return original text, and say the engine is missing
         return RewriteInputResponse {
             rewritten_text: request.original_text,
-            from_llm: false,
+            fallback: Some(RewriteFallback::NoBackend),
         };
     };
 
@@ -248,10 +272,10 @@ pub async fn rewrite_input(
     let response = match tokio::time::timeout(CALL_TIMEOUT, call).await {
         Ok(Ok(r)) => r,
         _ => {
-            // THEN: timeout or error, return original
+            // THEN: timeout or error, return original, and say the call failed
             return RewriteInputResponse {
                 rewritten_text: request.original_text,
-                from_llm: false,
+                fallback: Some(RewriteFallback::CallFailed),
             };
         }
     };
@@ -262,17 +286,17 @@ pub async fn rewrite_input(
     let rewritten = stripped.trim();
     // WHEN: empty response, including one that was nothing but reasoning
     if rewritten.is_empty() {
-        // THEN: return original
+        // THEN: return original, and say the answer held nothing usable
         return RewriteInputResponse {
             rewritten_text: request.original_text,
-            from_llm: false,
+            fallback: Some(RewriteFallback::EmptyAnswer),
         };
     }
 
     // THEN: success
     RewriteInputResponse {
         rewritten_text: rewritten.to_string(),
-        from_llm: true,
+        fallback: None,
     }
 }
 
@@ -327,6 +351,46 @@ mod tests {
         fn model_id(&self) -> &str {
             "canned"
         }
+    }
+
+    /// Backend that fails every call, the reachable-but-broken engine.
+    struct FailingBackend;
+
+    #[async_trait::async_trait]
+    impl crate::types::CompletionModel for FailingBackend {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::InferenceError(
+                "upstream refused the call".to_owned(),
+            ))
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError(
+                "upstream refused the call".to_owned(),
+            ))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "failing"
+        }
+
+        fn model_id(&self) -> &str {
+            "failing"
+        }
+    }
+
+    fn router_failing() -> Arc<LlmRouter> {
+        let mut backends: HashMap<String, Arc<dyn crate::types::CompletionModel>> = HashMap::new();
+        backends.insert("failing".to_owned(), Arc::new(FailingBackend));
+        Arc::new(LlmRouter::with_backends(backends, "failing"))
     }
 
     fn router_answering(content: &str) -> Arc<LlmRouter> {
@@ -444,7 +508,7 @@ mod tests {
         );
         assert!(!response.rewritten_text.contains("<think>"));
         assert!(!response.rewritten_text.contains("</think>"));
-        assert!(response.from_llm);
+        assert_eq!(response.fallback, None);
     }
 
     #[tokio::test]
@@ -459,9 +523,91 @@ mod tests {
         // WHEN: rewriting
         let response = rewrite_input(&router, request).await;
 
-        // THEN: the operator's text is handed back untouched, flagged as not rewritten
+        // THEN: the operator's text is handed back untouched, and the reason
+        // says the engine answered, not that it is missing
         assert_eq!(response.rewritten_text, "fix bug login");
-        assert!(!response.from_llm);
+        assert_eq!(response.fallback, Some(RewriteFallback::EmptyAnswer));
+    }
+
+    #[tokio::test]
+    async fn test_rewrite_input_reports_no_backend_when_the_router_is_empty() {
+        // GIVEN: a router holding no backend at all
+        let router = Arc::new(LlmRouter::empty());
+        let request = RewriteInputRequest {
+            original_text: "fix bug login".to_string(),
+            work_context: None,
+        };
+
+        // WHEN: rewriting
+        let response = rewrite_input(&router, request).await;
+
+        // THEN: the fallback names the missing engine, the one case where
+        // telling the operator to configure one is true
+        assert_eq!(response.rewritten_text, "fix bug login");
+        assert_eq!(response.fallback, Some(RewriteFallback::NoBackend));
+    }
+
+    #[tokio::test]
+    async fn test_rewrite_input_reports_call_failed_when_the_backend_errors() {
+        // GIVEN: a backend that exists and refuses the call
+        let router = router_failing();
+        let request = RewriteInputRequest {
+            original_text: "fix bug login".to_string(),
+            work_context: None,
+        };
+
+        // WHEN: rewriting
+        let response = rewrite_input(&router, request).await;
+
+        // THEN: the fallback says the call failed, not that no engine exists
+        assert_eq!(response.rewritten_text, "fix bug login");
+        assert_eq!(response.fallback, Some(RewriteFallback::CallFailed));
+    }
+
+    #[tokio::test]
+    async fn test_the_three_fallbacks_are_distinguishable_from_one_another() {
+        // GIVEN: the three ways the routine gives up, each on its own router
+        let request = || RewriteInputRequest {
+            original_text: "fix bug login".to_string(),
+            work_context: None,
+        };
+        let no_backend = rewrite_input(&Arc::new(LlmRouter::empty()), request()).await;
+        let call_failed = rewrite_input(&router_failing(), request()).await;
+        let empty_answer = rewrite_input(&router_answering("<think>cut off here"), request()).await;
+
+        // WHEN: the three reasons are collected
+        let reasons = [
+            no_backend.fallback,
+            call_failed.fallback,
+            empty_answer.fallback,
+        ];
+
+        // THEN: no two of them carry the same reason, so no single message can
+        // stand for all three
+        assert_eq!(reasons[0], Some(RewriteFallback::NoBackend));
+        assert_eq!(reasons[1], Some(RewriteFallback::CallFailed));
+        assert_eq!(reasons[2], Some(RewriteFallback::EmptyAnswer));
+        assert_ne!(reasons[0], reasons[1]);
+        assert_ne!(reasons[1], reasons[2]);
+        assert_ne!(reasons[0], reasons[2]);
+    }
+
+    #[test]
+    fn test_fallback_serialises_to_the_token_the_composer_switches_on() {
+        // GIVEN: the three fallbacks and the success case
+        let cases = [
+            (Some(RewriteFallback::NoBackend), "\"noBackend\""),
+            (Some(RewriteFallback::CallFailed), "\"callFailed\""),
+            (Some(RewriteFallback::EmptyAnswer), "\"emptyAnswer\""),
+            (None, "null"),
+        ];
+
+        // WHEN: each is serialised the way the IPC layer sends it
+        // THEN: the wire token is the one the composer branches on
+        for (fallback, expected) in cases {
+            let json = serde_json::to_string(&fallback).expect("fallback serialises");
+            assert_eq!(json, expected);
+        }
     }
 
     #[test]

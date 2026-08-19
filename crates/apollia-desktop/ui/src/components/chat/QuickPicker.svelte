@@ -21,7 +21,11 @@
     Loader2,
     Undo2,
   } from "lucide-svelte";
-  import { InputRewriter, fetchWorkContext } from "$lib/chat/rewriteInput";
+  import {
+    InputRewriter,
+    fetchWorkContext,
+    type RewriteFallback,
+  } from "$lib/chat/rewriteInput";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
   import { LoadingSpinner } from "$lib/components/feedback";
@@ -172,6 +176,24 @@
     return $t("chat.quickpicker.error_generic", { values: { error: raw } });
   }
 
+  /**
+   * The sentence the operator reads when no rewrite happened.
+   *
+   * Same four situations as the chat composer, same rule: only the first two
+   * mean the engine is missing.
+   */
+  function rewriteFallbackMessage(fallback: RewriteFallback): string {
+    switch (fallback) {
+      case "noRouter":
+      case "noBackend":
+        return $t("chat.rewrite.error_no_llm");
+      case "callFailed":
+        return $t("chat.rewrite.error_call_failed");
+      case "emptyAnswer":
+        return $t("chat.rewrite.error_empty_answer");
+    }
+  }
+
   async function handleRewrite(): Promise<void> {
     // GIVEN: rewrite already in progress or empty prompt
     if (isRewriting || prompt.trim() === "") return;
@@ -186,10 +208,10 @@
       // THEN: call rewriter
       const outcome = await rewriter.rewrite(prompt, workContext);
 
-      // WHEN: the runtime had no LLM, or the model answered nothing usable
-      // THEN: say so and leave the prompt as it was
-      if (!outcome.fromLlm) {
-        createError = $t("chat.rewrite.error_no_llm");
+      // WHEN: no rewrite happened, whichever of the four reasons stopped it
+      // THEN: name that reason and leave the prompt as it was
+      if (outcome.fallback !== null) {
+        createError = rewriteFallbackMessage(outcome.fallback);
         return;
       }
 

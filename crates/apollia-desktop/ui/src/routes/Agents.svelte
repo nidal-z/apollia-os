@@ -24,6 +24,7 @@
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import { createChatSession, installAgent } from "$lib/ipc/agents";
+  import { startAgentChat } from "$lib/agents/startAgentChat";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
@@ -201,15 +202,19 @@
     }
   }
 
+  // Routing on a failed creation dropped the operator onto an empty
+  // conversation with no agent behind it: the id the chat route waits for was
+  // never produced, and nothing said so.
   async function startChatWithAgent(agentName: string): Promise<void> {
-    try {
-      const request: CreateSessionRequest = { mode: "agent", agent_name: agentName };
-      const session: ChatSessionSummary = await createChatSession(request);
-      pendingChatSessionId.set(session.id);
-    } catch {
-      // Fall through to the chat route even if session creation failed.
-    }
-    navigateTo("chat");
+    const request: CreateSessionRequest = { mode: "agent", agent_name: agentName };
+    await startAgentChat({
+      createSession: (): Promise<ChatSessionSummary> => createChatSession(request),
+      rememberSession: (sessionId) => pendingChatSessionId.set(sessionId),
+      report: (err) => {
+        reportError(err, { surface: "toast", testid: "agent-chat-start-error" });
+      },
+      navigate: () => navigateTo("chat"),
+    });
   }
 
   function openLogs(agentId: string): void {

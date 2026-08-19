@@ -2062,6 +2062,7 @@
     "cron_preset_custom": "Planification personnalisée",
     "cron_at_time": "À",
     "cron_on_days": "Les",
+    "cron_weekly_no_day": "Choisissez au moins un jour : une planification hebdomadaire sans jour coché n'a aucun moment où se déclencher.",
     "interval_unit_minutes": "minutes",
     "interval_unit_hours": "heures",
     "interval_unit_days": "jours",
@@ -4183,7 +4184,13 @@
     },
     "attachments": {
       "add": "Joindre un fichier",
-      "remove": "Retirer la pièce jointe"
+      "remove": "Retirer la pièce jointe",
+      "refused": {
+        "read_failed": "{name} n'a pas pu être lu, il n'a donc pas été joint.",
+        "image_not_supported": "{name} est une image : le moteur local ne sait pas lire une image. Déposez le fichier par glisser pour envoyer son chemin.",
+        "too_large_without_path": "{name} dépasse 512 ko, et un fichier choisi de cette façon ne porte aucun chemin. Déposez-le dans la conversation pour le joindre.",
+        "binary_not_text": "{name} n'est pas un fichier texte : ses octets ne portent aucun texte lisible, rien d'utile ne serait envoyé. Déposez-le dans la conversation pour envoyer son chemin."
+      }
     },
     "resources": {
       "menu_label": "Ressources MCP",
@@ -4439,6 +4446,8 @@
       "button_tooltip": "Améliorer la demande",
       "restore_tooltip": "Restaurer l'original",
       "error_no_llm": "Aucun moteur LLM configuré pour la réécriture",
+      "error_call_failed": "Le moteur de réécriture a échoué ou dépassé le délai. Votre texte est inchangé.",
+      "error_empty_answer": "Le moteur de réécriture n'a rien rendu d'exploitable. Votre texte est inchangé.",
       "error_generic": "Échec de réécriture : {error}"
     },
     "citations_aria": "Citations",

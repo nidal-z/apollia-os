@@ -37,22 +37,32 @@ interface RewriteInputRequest {
 	workContext?: WorkContext | null;
 }
 
+/**
+ * Why no rewrite happened.
+ *
+ * Mirrors `RewriteFallbackIpc` in
+ * `crates/apollia-desktop/src/commands/meta_rewrite.rs`. Only the first two
+ * mean the operator has no engine to configure; the last two mean the engine
+ * answered, and telling them to go set one up would be false.
+ */
+export type RewriteFallback = 'noRouter' | 'noBackend' | 'callFailed' | 'emptyAnswer';
+
 interface RewriteInputResponse {
 	rewrittenText: string;
-	fromLlm: boolean;
+	fallback: RewriteFallback | null;
 }
 
 /**
  * Outcome of a rewrite call.
  *
- * `fromLlm` is `false` when the runtime had no LLM available, or when the model
- * answered with nothing usable. In that case `text` is the original text
- * returned unchanged, and the caller must tell the operator that no rewrite
- * happened instead of silently pretending one did.
+ * `fallback` is `null` when the model produced the rewrite. Otherwise `text` is
+ * the original text returned unchanged, and `fallback` says which of the four
+ * situations stopped the rewrite, so the caller renders the message that names
+ * the real cause instead of one message for all four.
  */
 export interface RewriteOutcome {
 	text: string;
-	fromLlm: boolean;
+	fallback: RewriteFallback | null;
 }
 
 export class InputRewriter {
@@ -69,7 +79,7 @@ export class InputRewriter {
 	 *
 	 * @param currentText The text currently in the composer field
 	 * @param workContext User's Work section from profile, if filled
-	 * @returns The rewritten text together with whether the LLM produced it
+	 * @returns The rewritten text together with the fallback that stopped it, if any
 	 * @throws Error if rewrite fails (caller should catch and display toast)
 	 */
 	async rewrite(currentText: string, workContext: WorkContext | null): Promise<RewriteOutcome> {
@@ -96,8 +106,8 @@ export class InputRewriter {
 			// WHEN: response received
 			this.state = 'idle';
 
-			// THEN: return the text and whether the LLM actually produced it
-			return { text: response.rewrittenText, fromLlm: response.fromLlm };
+			// THEN: return the text and the reason no rewrite happened, if any
+			return { text: response.rewrittenText, fallback: response.fallback ?? null };
 		} catch (error) {
 			// WHEN: error occurred
 			// THEN: set error state and throw

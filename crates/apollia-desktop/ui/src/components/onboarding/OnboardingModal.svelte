@@ -32,6 +32,10 @@
     dismissOnboarding,
     getOnboardingState,
   } from "$lib/ipc/onboarding";
+  import { skipOnboarding } from "$lib/onboarding/skipOnboarding";
+  import { reportError } from "$lib/errors/reportError";
+  import type { HumanizedError } from "$lib/errors/humanize";
+  import { ErrorBanner } from "$lib/components/operator";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingProfileSelector from "./OnboardingProfileSelector.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
@@ -60,6 +64,10 @@
   // Bumped by the footer during the chat step to ask the chat to skip the
   // remaining OPTIONAL questions and move forward to the permissions phase.
   let chatSkipSignal = $state(0);
+  // Why inline and not a toast: the overlay sits at `z-index: 80` and the
+  // toast container at `--z-toast: 40` (`app.css`), so a toast fired from
+  // inside this modal is painted underneath it.
+  let skipError = $state<HumanizedError | null>(null);
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
@@ -100,13 +108,18 @@
     });
   }
 
+  // Skipping is what writes `onboarding_skipped`, and that flag is the one
+  // `App.svelte` re-reads at launch to decide whether this modal opens again.
+  // Closing on a failed write claimed a skip the backend never recorded.
   async function handleSkip(): Promise<void> {
-    try {
-      await dismissOnboarding();
-    } catch {
-      // best-effort; closing anyway
-    }
-    onclose();
+    skipError = null;
+    await skipOnboarding({
+      dismiss: dismissOnboarding,
+      report: (err) => {
+        skipError = reportError(err, { surface: "inline" });
+      },
+      close: onclose,
+    });
   }
 
   // On mount, snap to the step that matches the persisted backend phase.
@@ -222,6 +235,28 @@
         </div>
       {/key}
     </div>
+
+    {#if skipError}
+      <div class="onboarding-card-notice">
+        <ErrorBanner data-testid="onboarding-skip-error">
+          <p class="font-medium">{skipError.friendly_message}</p>
+          <p class="text-caption opacity-90">{skipError.suggested_action}</p>
+          {#if skipError.detail}
+            <details class="mt-2">
+              <summary
+                class="cursor-pointer text-caption opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                data-testid="onboarding-skip-error-details"
+              >
+                {$t("errors.show_details")}
+              </summary>
+              <p class="mt-1.5 break-all font-mono text-code-sm opacity-80">
+                {skipError.detail}
+              </p>
+            </details>
+          {/if}
+        </ErrorBanner>
+      </div>
+    {/if}
 
     <footer class="onboarding-card-footer">
       {#if currentStep === "chat"}
@@ -421,6 +456,11 @@
     flex: 1;
     min-height: 0;
     flex-direction: column;
+  }
+
+  .onboarding-card-notice {
+    padding: 0 1.25rem 0.625rem;
+    flex-shrink: 0;
   }
 
   .onboarding-card-footer {

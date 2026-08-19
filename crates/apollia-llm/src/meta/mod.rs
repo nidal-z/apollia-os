@@ -17,5 +17,6 @@ pub use parse_automation::{
     parse_automation, AgentMatch, Confidence, ParsedAutomation, ParsedSchedule,
 };
 pub use rewrite_input::{
-    rewrite_input, RewriteInputError, RewriteInputRequest, RewriteInputResponse, WorkContext,
+    rewrite_input, RewriteFallback, RewriteInputError, RewriteInputRequest, RewriteInputResponse,
+    WorkContext,
 };

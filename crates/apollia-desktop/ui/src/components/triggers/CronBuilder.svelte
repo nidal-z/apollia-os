@@ -3,6 +3,13 @@
   import { Input } from "$lib/components/ui/input";
   import { TimePicker } from "$lib/components/ui/date-picker";
   import { stripSecondsField } from "$lib/automations/humanize";
+  import {
+    DAYS_CRON,
+    buildCronExpression,
+    utcToLocal,
+    type CronDraft,
+    type CronPreset,
+  } from "./cronExpression";
 
   interface Props {
     value: string;
@@ -11,11 +18,10 @@
 
   let { value, onchange }: Props = $props();
 
-  type Preset = "15m" | "30m" | "hourly" | "daily" | "weekly" | "custom";
+  type Preset = CronPreset;
 
   // cron day-of-week: 0=Sun,1=Mon,...,6=Sat - displayed as Mon-Sun
   const DAYS_LABEL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const DAYS_CRON = [1, 2, 3, 4, 5, 6, 0]; // Mon→1, ... Sun→0
 
   let preset = $state<Preset>("custom");
   let dailyTime = $state("08:00");
@@ -34,26 +40,14 @@
     return "custom";
   }
 
-  // The trigger engine evaluates cron expressions in UTC, but the pickers show
-  // local wall-clock time. Convert local <-> UTC so "daily at 08:00" fires at
-  // 08:00 local, shifting the weekday when the conversion crosses midnight. DST
-  // is approximated with the current offset: a recurring schedule cannot encode
-  // a per-occurrence offset.
+  // The conversion between the local wall-clock time the pickers show and the
+  // UTC the trigger engine evaluates lives in `cronExpression.ts`, which takes
+  // the offset as an argument so it stays testable outside a browser.
   function tzOffsetMinutes(): number {
     // getTimezoneOffset returns minutes to add to local time to reach UTC.
     return new Date().getTimezoneOffset();
   }
 
-  function shiftMinutes(hh: number, mm: number, delta: number): { hh: number; mm: number; dayDelta: number } {
-    let total = hh * 60 + mm + delta;
-    let dayDelta = 0;
-    while (total < 0) { total += 1440; dayDelta -= 1; }
-    while (total >= 1440) { total -= 1440; dayDelta += 1; }
-    return { hh: Math.floor(total / 60), mm: total % 60, dayDelta };
-  }
-
-  const localToUtc = (hh: number, mm: number) => shiftMinutes(hh, mm, tzOffsetMinutes());
-  const utcToLocal = (hh: number, mm: number) => shiftMinutes(hh, mm, -tzOffsetMinutes());
   const pad = (n: number) => String(n).padStart(2, "0");
 
   function initFromValue(expr: string) {
@@ -66,11 +60,11 @@
     rawCron = expr;
     if (p === "daily") {
       const [min, hour] = fiveField.split(" ").map(Number);
-      const l = utcToLocal(hour, min);
+      const l = utcToLocal(hour, min, tzOffsetMinutes());
       dailyTime = `${pad(l.hh)}:${pad(l.mm)}`;
     } else if (p === "weekly") {
       const parts = fiveField.split(" ");
-      const l = utcToLocal(Number(parts[1]), Number(parts[0]));
+      const l = utcToLocal(Number(parts[1]), Number(parts[0]), tzOffsetMinutes());
       weeklyTime = `${pad(l.hh)}:${pad(l.mm)}`;
       const utcDays = parts[4].split(",").map(Number);
       const localDays = utcDays.map(d => ((d + l.dayDelta) % 7 + 7) % 7);
@@ -85,47 +79,42 @@
     }
   });
 
-  function buildExpr(p: Preset, dTime: string, wTime: string, wDays: boolean[], raw: string): string {
-    switch (p) {
-      case "15m": return "*/15 * * * *";
-      case "30m": return "*/30 * * * *";
-      case "hourly": return "0 * * * *";
-      case "daily": {
-        const [hh, mm] = dTime.split(":").map(Number);
-        const u = localToUtc(hh, mm);
-        return `${u.mm} ${u.hh} * * *`;
-      }
-      case "weekly": {
-        const [hh, mm] = wTime.split(":").map(Number);
-        const u = localToUtc(hh, mm);
-        const activeDays =
-          DAYS_CRON.filter((_, i) => wDays[i])
-            .map(d => ((d + u.dayDelta) % 7 + 7) % 7)
-            .join(",") || "0";
-        return `${u.mm} ${u.hh} * * ${activeDays}`;
-      }
-      case "custom": return raw;
-    }
+  function draft(p: Preset): CronDraft {
+    return { preset: p, dailyTime, weeklyTime, weeklyDays: [...weeklyDays], rawCron };
   }
+
+  /**
+   * Emits the expression the current draft stands for, or an empty string when
+   * it stands for none. An empty schedule is what both calling forms already
+   * refuse, so a draft with no day ticked cannot reach the trigger repository.
+   */
+  function emit(p: Preset) {
+    onchange(buildCronExpression(draft(p), tzOffsetMinutes()).expr);
+  }
+
+  /** Set while the weekly preset holds no day, so the row says why nothing is emitted. */
+  const weeklyErrorKey = $derived(
+    preset === "weekly" ? buildCronExpression(draft("weekly"), tzOffsetMinutes()).errorKey : null,
+  );
 
   function selectPreset(p: Preset) {
     preset = p;
-    onchange(buildExpr(p, dailyTime, weeklyTime, weeklyDays, rawCron));
+    emit(p);
   }
 
   function onDailyTimeChange(t: string) {
     dailyTime = t;
-    if (preset === "daily") onchange(buildExpr("daily", t, weeklyTime, weeklyDays, rawCron));
+    if (preset === "daily") emit("daily");
   }
 
   function onWeeklyTimeChange(t: string) {
     weeklyTime = t;
-    if (preset === "weekly") onchange(buildExpr("weekly", dailyTime, t, weeklyDays, rawCron));
+    if (preset === "weekly") emit("weekly");
   }
 
   function toggleDay(i: number) {
     weeklyDays[i] = !weeklyDays[i];
-    if (preset === "weekly") onchange(buildExpr("weekly", dailyTime, weeklyTime, weeklyDays, rawCron));
+    if (preset === "weekly") emit("weekly");
   }
 
   function onRawCronChange(val: string) {
@@ -190,6 +179,11 @@
           </button>
         {/each}
       </div>
+      {#if weeklyErrorKey}
+        <p class="text-xs text-destructive" data-testid="cron-weekly-days-error">
+          {$t(weeklyErrorKey)}
+        </p>
+      {/if}
       <div class="flex items-center gap-2">
         <span class="min-w-[2rem] text-xs text-muted-foreground">{$t("triggers.cron_at_time")}</span>
         <TimePicker
