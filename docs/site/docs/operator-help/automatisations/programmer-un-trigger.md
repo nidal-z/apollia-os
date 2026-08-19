@@ -70,7 +70,7 @@ For operators who prefer to enter the technical parameters directly (exact cron 
 
 ### Parameters per type - advanced mode
 
-- **On a schedule**: pick a preset (*Every 15 min, Every 30 min, Every hour, Daily, Weekly*) or **Custom** to enter a raw cron expression (`min hour day month weekday`). The **Daily** and **Weekly** presets show a time picker; **Weekly** adds chips to choose the days.
+- **On a schedule**: pick a preset (*Every 15 min, Every 30 min, Every hour, Daily, Weekly*) or **Custom** to enter a raw cron expression (`min hour day month weekday`). The **Daily** and **Weekly** presets show a time picker; **Weekly** adds chips to choose the days. At least one day is required: leave every chip unselected and the schedule is not built, and the form says so under the chips.
 - **At regular intervals**: unit picker + value (every N seconds / minutes / hours).
 - **Once at a date/time**: a date picker and a time picker side by side.
 - **When a file or folder changes**: a **Watch path** field (accepting a specific file path **or** a folder path), three chips to toggle the event type - **Create**, **Modify**, **Delete** - and an **Include sub-folders** toggle. That toggle turns on recursive watching: every sub-folder (at any depth) is then watched too. Off by default, it only has an effect on a folder path; it is ignored for a specific file.

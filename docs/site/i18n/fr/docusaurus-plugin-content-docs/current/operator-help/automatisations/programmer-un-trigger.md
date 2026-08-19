@@ -70,7 +70,7 @@ Pour les opérateurs qui préfèrent saisir directement les paramètres techniqu
 
 ### Paramètres par type - mode avancé
 
-- **Sur un calendrier** : sélectionnez un preset (*Toutes les 15 min, 30 min, Toutes les heures, Quotidien, Hebdomadaire*) ou **Personnalisé** pour saisir une expression cron brute (`min heure jour mois jour-semaine`). Les presets **Quotidien** et **Hebdomadaire** affichent un sélecteur d'heure ; **Hebdomadaire** ajoute des puces pour choisir les jours.
+- **Sur un calendrier** : sélectionnez un preset (*Toutes les 15 min, 30 min, Toutes les heures, Quotidien, Hebdomadaire*) ou **Personnalisé** pour saisir une expression cron brute (`min heure jour mois jour-semaine`). Les presets **Quotidien** et **Hebdomadaire** affichent un sélecteur d'heure ; **Hebdomadaire** ajoute des puces pour choisir les jours. Au moins un jour est requis : si vous n'en cochez aucun, la planification n'est pas construite, et le formulaire l'indique sous les puces.
 - **À intervalle régulier** : sélecteur d'unité + valeur (toutes les N secondes / minutes / heures).
 - **Une seule fois** : un sélecteur de date + un sélecteur d'heure côte à côte.
 - **Quand un fichier ou un dossier change** : un champ **Chemin surveillé** (acceptant un chemin de fichier précis **ou** un chemin de dossier), trois puces à activer/désactiver pour le type d'événement - **Création**, **Modification**, **Suppression** - et un interrupteur **Inclure les sous-dossiers**. Cet interrupteur active la surveillance récursive : tous les sous-dossiers (à n'importe quelle profondeur) sont alors également surveillés. Désactivé par défaut, il n'a d'effet que pour un chemin de dossier ; il est ignoré pour un fichier précis.
