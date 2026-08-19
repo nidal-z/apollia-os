@@ -555,3 +555,77 @@ fn test_format_audit_event_row_failed_uses_error_code() {
     assert!(row.contains("PERMISSION_DENIED"), "row: {row}");
     assert!(row.contains("task=abc"));
 }
+
+/// Names declared by the agent manifests this repository ships under `agents/`.
+///
+/// Reads the tree rather than a hardcoded list: an agent removed from `agents/`
+/// must make the assertion below fail, which a duplicated list would not do.
+fn shipped_agent_names() -> Vec<String> {
+    let agents_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../agents");
+    let mut names = Vec::new();
+    for family in ["examples", "system"] {
+        let Ok(entries) = std::fs::read_dir(agents_root.join(family)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(raw) = std::fs::read_to_string(entry.path().join("manifest.toml")) else {
+                continue;
+            };
+            let Ok(parsed) = raw.parse::<toml::Value>() else {
+                continue;
+            };
+            if let Some(name) = parsed
+                .get("agent")
+                .and_then(|agent| agent.get("name"))
+                .and_then(|name| name.as_str())
+            {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Sub-command names `apollia-os agent` really accepts, read from the parser.
+fn agent_subcommand_names() -> Vec<String> {
+    let command = AgentCommand::augment_subcommands(clap::Command::new("agent"));
+    command
+        .get_subcommands()
+        .map(|sub| sub.get_name().to_string())
+        .collect()
+}
+
+#[test]
+fn file_path_hint_offers_a_command_an_operator_can_really_run() {
+    // GIVEN the agents this repository ships and the sub-commands the parser
+    // accepts, both read from the tree rather than restated here
+    let shipped = shipped_agent_names();
+    let subcommands = agent_subcommand_names();
+    assert!(
+        !shipped.is_empty() && !subcommands.is_empty(),
+        "nothing read from agents/ or from the parser, the assertions below would be vacuous"
+    );
+
+    // WHEN every hint the crate can render is built
+    let example = lifecycle::HINT_EXAMPLE_AGENT;
+
+    // THEN the agent each one names is one the repository ships
+    assert!(
+        shipped.iter().any(|name| name == example),
+        "hint example '{example}' is not shipped, an operator copying it lands on `agent not found`; shipped: {shipped:?}"
+    );
+
+    // AND the verb each one spells out is one the parser accepts, retyped whole
+    for verb in lifecycle::HintVerb::ALL {
+        let spelled = verb.as_str();
+        assert!(
+            subcommands.iter().any(|name| name == spelled),
+            "hint verb '{spelled}' is not an agent sub-command, retyping the hint fails again; accepted: {subcommands:?}"
+        );
+        let hint = lifecycle::file_path_hint(verb, "agents/my_agent.py");
+        assert!(
+            hint.contains(&format!("apollia-os agent {spelled} {example}")),
+            "hint for '{spelled}': {hint}"
+        );
+    }
+}

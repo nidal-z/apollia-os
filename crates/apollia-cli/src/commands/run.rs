@@ -1458,10 +1458,7 @@ mod tests {
     #[test]
     fn test_started_event_not_terminal() {
         // GIVEN
-        let event = make_event(
-            "started",
-            serde_json::json!({"agent_id": "apollia-reviewer"}),
-        );
+        let event = make_event("started", serde_json::json!({"agent_id": "apollia-guide"}));
         let mut state = RunDisplayState::new(false, false);
 
         // WHEN

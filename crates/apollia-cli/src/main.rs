@@ -920,7 +920,7 @@ mod tests {
         let cli = parse(&[
             "apollia-os",
             "run",
-            "apollia-reviewer",
+            "apollia-guide",
             "/some/path",
             "--detach",
         ]);
@@ -932,7 +932,7 @@ mod tests {
                 detach,
                 ..
             } => {
-                assert_eq!(agent_id, "apollia-reviewer");
+                assert_eq!(agent_id, "apollia-guide");
                 assert_eq!(input, "/some/path");
                 assert!(detach);
             }

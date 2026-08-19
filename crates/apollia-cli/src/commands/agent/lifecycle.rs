@@ -108,6 +108,48 @@ pub(in crate::commands::agent) async fn run_start(
     }
 }
 
+/// Agent offered as the example in [`file_path_hint`].
+///
+/// Must name an agent this repository ships under `agents/`. An operator who
+/// mistypes a path reads the hint and copies the example verbatim; a name
+/// nothing answers to lands them on `agent not found`, with nothing telling
+/// them the example was the wrong part.
+pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "apollia-guide";
+
+/// Sub-command a [`file_path_hint`] tells the operator to retype.
+///
+/// A closed set, so every verb the hint can spell out is one the parser
+/// accepts. Spelling a verb `apollia-os agent` rejects turns the recovery path
+/// into a second failure.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::commands::agent) enum HintVerb {
+    Stop,
+    Show,
+}
+
+impl HintVerb {
+    /// Every variant, so the crate's tests can check them all against the parser.
+    #[cfg(test)]
+    pub(in crate::commands::agent) const ALL: [Self; 2] = [Self::Stop, Self::Show];
+
+    pub(in crate::commands::agent) fn as_str(self) -> &'static str {
+        match self {
+            Self::Stop => "stop",
+            Self::Show => "show",
+        }
+    }
+}
+
+/// Error rendered when an agent sub-command receives what looks like a file
+/// path instead of a name or UUID.
+pub(in crate::commands::agent) fn file_path_hint(verb: HintVerb, arg: &str) -> String {
+    let verb = verb.as_str();
+    format!(
+        "'{arg}' looks like a file path - use the agent name or UUID instead\n\
+         Hint: apollia-os agent {verb} <name|uuid>  (e.g. apollia-os agent {verb} {HINT_EXAMPLE_AGENT})"
+    )
+}
+
 /// `apollia-os agent stop <id>`: stop a running agent.
 pub(in crate::commands::agent) async fn run_stop(
     client: &RuntimeClient,
@@ -115,10 +157,7 @@ pub(in crate::commands::agent) async fn run_stop(
     json: bool,
 ) -> i32 {
     if looks_like_file_path(agent_id) {
-        let msg = format!(
-            "'{agent_id}' looks like a file path - use the agent name or UUID instead\n\
-             Hint: apollia-os agent stop <name|uuid>  (e.g. apollia-os agent stop apollia-reviewer)"
-        );
+        let msg = file_path_hint(HintVerb::Stop, agent_id);
         if json {
             println!("{}", serde_json::json!({"error": msg}));
         } else {
@@ -142,17 +181,14 @@ pub(in crate::commands::agent) async fn run_stop(
     }
 }
 
-/// `apollia-os agent info <id>`: display agent detail.
+/// `apollia-os agent show <id>`: display agent detail.
 pub(in crate::commands::agent) async fn run_info(
     client: &RuntimeClient,
     agent_id: &str,
     json: bool,
 ) -> i32 {
     if looks_like_file_path(agent_id) {
-        let msg = format!(
-            "'{agent_id}' looks like a file path - use the agent name or UUID instead\n\
-             Hint: apollia-os agent info <name|uuid>  (e.g. apollia-os agent info apollia-reviewer)"
-        );
+        let msg = file_path_hint(HintVerb::Show, agent_id);
         return print_compact_error_and_exit(&msg, json);
     }
     match client.get_agent(agent_id).await {
@@ -169,7 +205,7 @@ pub(in crate::commands::agent) async fn run_info(
         }
         // Disabled / not-yet-loaded agents are absent from the runtime
         // registry but still present in `agents.db`. Fall back to the local
-        // repository so `apollia-os agent info` works on every installed
+        // repository so `apollia-os agent show` works on every installed
         // agent regardless of its runtime state.
         Err(ClientError::ServerError { status: 404, .. }) => {
             run_info_local_fallback(agent_id, json)

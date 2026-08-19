@@ -637,7 +637,7 @@ struct AIPProductionBackend {
     task_repository: Option<Arc<TaskRepository>>,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
-    /// Memory namespace declared in the manifest (e.g. "apollia-reviewer").
+    /// Memory namespace declared in the manifest (e.g. "apollia-guide").
     memory_namespace: Option<String>,
     /// Root directory of the memory files (e.g. `~/.apollia/memory/`).
     memory_base_dir: PathBuf,
