@@ -1,4 +1,4 @@
-//! Integration tests for Sprint 28 config migrations, LLM routing, MCP
+//! Integration tests for system config migrations, LLM routing, MCP
 //! one-shot import, and memory clear.
 //!
 //! Covers:
@@ -98,7 +98,7 @@ fn mcp_server(name: &str) -> McpServerConfig {
     }
 }
 
-// ── AC-1: system.db is created with llm_backends and stt_config tables ────────
+// ── system.db is created with llm_backends and stt_config tables ──────────────
 
 /// GIVEN a fresh data directory
 /// WHEN LlmBackendRepository and SttConfigRepository are opened on the same system.db
@@ -131,7 +131,7 @@ fn test_boot_creates_system_db() {
     );
 }
 
-// ── AC-2: explicit backend name is routed correctly ───────────────────────────
+// ── Explicit backend name is routed correctly ─────────────────────────────────
 
 /// GIVEN a router with "local-code" and "mistral-small" (default)
 /// WHEN route(Some("local-code")) is called
@@ -155,7 +155,7 @@ async fn test_routing_explicit_backend() {
     assert_eq!(backend.model_id(), "codellama-7b");
 }
 
-// ── AC-3: None routes to default backend ─────────────────────────────────────
+// ── None routes to default backend ───────────────────────────────────────────
 
 /// GIVEN a router with "mistral-small" marked as default
 /// WHEN route(None) is called
@@ -198,7 +198,7 @@ async fn test_routing_unknown_backend_uses_default_with_warning() {
     assert_eq!(backend.backend_name(), "mistral-small");
 }
 
-// ── AC-4: MCP one-shot import is idempotent ───────────────────────────────────
+// ── MCP one-shot import is idempotent ─────────────────────────────────────────
 
 /// GIVEN an empty mcp.db and two server configs from a TOML migration
 /// WHEN import_from_toml is called once
@@ -232,7 +232,7 @@ fn test_mcp_one_shot_import() {
     );
 }
 
-// ── AC-5: clear_episodic deletes all entries and resets stats ─────────────────
+// ── clear_episodic deletes all entries and resets stats ───────────────────────
 
 /// GIVEN 3 episodic entries in namespace "test-agent"
 /// WHEN clear_episodic("test-agent") is called

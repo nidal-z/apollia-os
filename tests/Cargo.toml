@@ -133,8 +133,8 @@ name = "test_onboarding"
 path = "integration/test_onboarding.rs"
 
 [[test]]
-name = "test_sprint_28_config"
-path = "integration/test_sprint_28_config.rs"
+name = "test_system_config_and_routing"
+path = "integration/test_system_config_and_routing.rs"
 
 [[test]]
 name = "test_a2a_routing"

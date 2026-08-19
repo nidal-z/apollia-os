@@ -1,4 +1,4 @@
-//! Integration tests - Sprint 23 onboarding subsystem.
+//! Integration tests for the onboarding subsystem.
 //!
 //! Validates the end-to-end interactions between `apollia-memory` (UserMemory),
 //! `apollia-runtime` (Supervisor onboarding detection, chat extractor),
