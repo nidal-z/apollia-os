@@ -58,11 +58,18 @@ seed_wire_real_model() {
     [[ -f "$gguf" ]] || return 1
     sysdb="$seed_home/.apollia/system.db"
     [[ -f "$sysdb" ]] || return 1
-    # Repoint the embedded local-qwen backend at the absolute real path (no copy,
-    # read-only) and make it the sole boot default. The daemon loads the model as
-    # part of startup (a runtime `set-default` + `reload` refreshes the router but
-    # does NOT spawn the llama load), so boot-loading is the only reliable path to
-    # a live model. The orchestrator then waits for readiness before Track 2.
+    # Repoint the seeded default backend at the absolute real path (no copy,
+    # read-only) and make it the sole boot default. The daemon builds its router
+    # from this table at startup; a runtime `set-default` + `reload` refreshes the
+    # router but does NOT spawn a local load, so writing the default before boot
+    # is the only reliable path. The orchestrator then waits for readiness before
+    # Track 2.
+    #
+    # The name must be one the seed actually writes. seed/fragments/system.sql
+    # declares local-llama-server, openai-gpt4o-mini and anthropic-claude, and
+    # nothing else: a WHERE on any other name matches no row, and the preceding
+    # `SET is_default = 0` then leaves the base with NO default at all, a state
+    # `reload_llm_from_db` refuses.
     /usr/bin/sqlite3 "$sysdb" \
         "UPDATE llm_backends SET is_default = 0;
          UPDATE llm_backends
@@ -70,17 +77,18 @@ seed_wire_real_model() {
                 config_json = json_set(COALESCE(NULLIF(config_json,''),'{}'), '\$.model_path', '$gguf'),
                 is_default = 1,
                 enabled = 1
-          WHERE name = 'local-qwen';" >/dev/null 2>&1 || return 1
+          WHERE name = 'local-llama-server';" >/dev/null 2>&1 || return 1
 }
 
 # seed_wait_model_ready [tries]  (daemon must be up on $SOCK)
-#   Poll `llm ping local-qwen` until the boot-loaded model answers. Returns 0
-#   when ready. A multi-GB GGUF can take tens of seconds to load after the socket
-#   is up, so both Track 2 and Track 3 wait here to stay race-free.
+#   Poll `llm ping local-llama-server`, the backend seed_wire_real_model just
+#   repointed, until it answers. Returns 0 when ready. A multi-GB GGUF can take
+#   tens of seconds to load after the socket is up, so both Track 2 and Track 3
+#   wait here to stay race-free.
 seed_wait_model_ready() {
     local tries=${1:-40} i=0
     while [[ $i -lt $tries ]]; do
-        "$BIN" --socket "$SOCK" llm ping local-qwen >/dev/null 2>&1 && return 0
+        "$BIN" --socket "$SOCK" llm ping local-llama-server >/dev/null 2>&1 && return 0
         /bin/sleep 2; i=$((i + 1))
     done
     return 1

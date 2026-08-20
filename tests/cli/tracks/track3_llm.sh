@@ -17,8 +17,8 @@ Q=("$BIN" --socket "$SOCK")
 # The model is boot-loaded and the orchestrator already waited for readiness, so
 # this is a fast confirmation. An unreachable runner degrades to a justified skip.
 section "C.0 runner reachability"
-if "${Q[@]}" llm ping local-qwen >/dev/null 2>&1; then
-    _pass "llm ping local-qwen (runner reachable)"
+if "${Q[@]}" llm ping local-llama-server >/dev/null 2>&1; then
+    _pass "llm ping local-llama-server (backend reachable)"
     RUNNER_OK=1
 else
     skip "Track 3 model-bound captures" "apollia-runner sidecar unreachable in this env (llm ping failed)"
@@ -29,7 +29,7 @@ if [[ "$RUNNER_OK" == "1" ]]; then
     # ── C.1 llm chat (one-shot, non-deterministic) ──────────────────────────
     section "C.1 llm chat (capture)"
     capture_run "llm chat one-shot" 120 "Reply with the single word OK." -- \
-        "${Q[@]}" llm chat "Reply with the single word OK." --backend local-qwen
+        "${Q[@]}" llm chat "Reply with the single word OK." --backend local-llama-server
 
     # ── C.2 local-model meta commands (runner-dependent → soft) ─────────────
     # Run while the runner is fresh; skip (not fail) if the sidecar drops.

@@ -525,7 +525,7 @@ pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
 /// A single day+backend cost entry for the daily chart.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DailyCostEntry {
-    /// Date au format `YYYY-MM-DD`.
+    /// Local calendar day of the host, in `YYYY-MM-DD` format.
     pub date: String,
     /// Backend name.
     pub backend: String,
@@ -542,15 +542,40 @@ pub struct DailyCostsResponse {
     pub days: u32,
 }
 
+/// UTC instant at which a window of `days` local calendar days opens.
+///
+/// The last day of the window is today, so the window opens at local midnight
+/// `days - 1` days ago. Returned in the `YYYY-MM-DDTHH:MM:SSZ` form the
+/// repository compares against `created_at`.
+fn local_window_start(days: u32) -> String {
+    let span = i64::from(days.max(1)) - 1;
+    let start_day = chrono::Local::now().date_naive() - chrono::Duration::days(span);
+    let start = start_day
+        .and_hms_opt(0, 0, 0)
+        .and_then(|naive| chrono::TimeZone::from_local_datetime(&chrono::Local, &naive).earliest())
+        .map(|local| local.with_timezone(&chrono::Utc))
+        // A DST forward jump can delete local midnight itself. Falling back on
+        // a plain 24-hour count then opens the window earlier, never later, so
+        // no day the axis draws is left out.
+        .unwrap_or_else(|| chrono::Utc::now() - chrono::Duration::days(i64::from(days.max(1))));
+    start.format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
 /// Handler for `GET /api/v1/llm/costs/daily`.
 ///
 /// Returns LLM costs broken down by day and backend for the requested
 /// time window. Used by the Observability LLM Costs chart.
+///
+/// Both the day of each entry and the bounds of the window are the host's
+/// local calendar, not UTC: `days` counts calendar days ending today, and the
+/// window opens at local midnight of the first of them. A window measured in
+/// 24-hour slices from `now` reaches into a day the chart draws no bar for,
+/// and the spend of that fraction then shows in a total no bar carries.
 #[utoipa::path(
     get,
     path = "/api/v1/llm/costs/daily",
     tag = "llm",
-    params(("days" = Option<u32>, Query, description = "Number of days to aggregate (default 7)")),
+    params(("days" = Option<u32>, Query, description = "Number of local calendar days to aggregate, ending today (default 7)")),
     responses(
         (status = 200, description = "Per-day LLM costs by backend", body = DailyCostsResponse),
         (status = 500, description = "Query failed", body = crate::api::openapi::ApiErrorBody),
@@ -569,8 +594,7 @@ pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
     })?;
 
     let days = query.days;
-    let since = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
-    let since_str = since.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let since_str = local_window_start(days);
 
     let repo = Arc::clone(repo);
     let summaries = tokio::task::spawn_blocking(move || {
@@ -1339,6 +1363,29 @@ mod tests {
         let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["backends"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_daily_cost_window_opens_at_local_midnight_of_its_first_day() {
+        // GIVEN a 7 calendar day window, the default of the LLM Costs chart
+        let days = 7_u32;
+
+        // WHEN computing the instant the window opens
+        let since = local_window_start(days);
+
+        // THEN it is local midnight of the day the chart draws first, so the
+        // window covers the axis exactly and no fraction of an eighth day
+        // enters a total that no bar carries
+        let expected = (chrono::Local::now().date_naive() - chrono::Duration::days(6))
+            .and_hms_opt(0, 0, 0)
+            .and_then(|naive| {
+                chrono::TimeZone::from_local_datetime(&chrono::Local, &naive).earliest()
+            })
+            .expect("local midnight exists on this date")
+            .with_timezone(&chrono::Utc)
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
+        assert_eq!(since, expected);
     }
 
     #[test]

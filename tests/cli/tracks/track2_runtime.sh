@@ -24,12 +24,13 @@ check         "agent show apollia-chat"            "${Q[@]}" agent show apollia-
 check_json    "agent show --json"                  "${Q[@]}" agent show apollia-chat --json
 check_content "trigger list has daily-digest" "seed-trigger-daily-digest" "${Q[@]}" trigger list
 check_content "notify list has seed-channel-desktop" "seed-channel-desktop" "${Q[@]}" notify list
-# The seed carries local-llama-server (external) + local-qwen (embedded). Assert
-# both are present (which one is default varies: Track 3 wiring repoints
-# local-qwen at the real test model and makes it default).
+# The seed writes exactly three backends (seed/fragments/system.sql):
+# local-llama-server (the default), openai-gpt4o-mini and anthropic-claude.
+# Assert the default and one non-default, so the list is proven to carry more
+# than the row Track 3 repoints.
 check_content "llm backends lists local-llama-server" "local-llama-server" "${Q[@]}" llm backends list
-check_content "llm backends lists local-qwen" "local-qwen"  "${Q[@]}" llm backends list
-check_content "mcp list has seed-mcp-fs connected" "seed-mcp-fs"  "${Q[@]}" mcp list
+check_content "llm backends lists anthropic-claude" "anthropic-claude"  "${Q[@]}" llm backends list
+check_content "mcp list has filesystem connected" "filesystem"  "${Q[@]}" mcp list
 check_content "notify events get has task.completed" "task.completed" "${Q[@]}" notify events get
 # Seeded agents auto-start at boot, so seed-classifier exposes its A2A skill.
 check_content "a2a skills exposes classify_text" "classify_text" "${Q[@]}" a2a skills
@@ -46,17 +47,19 @@ check_json    "model hardware --json"              "${Q[@]}" model hardware --js
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
-# ── mcp (seeded live servers) ───────────────────────────────────────────────
+# ── mcp (seeded live servers) ───────────────────────────────────────────
 section "mcp (runtime)"
-check         "mcp show seed-mcp-fs"               "${Q[@]}" mcp show seed-mcp-fs
-check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show seed-mcp-fs
-check         "mcp test seed-mcp-fs"               "${Q[@]}" mcp test seed-mcp-fs
-check         "mcp raw-config seed-mcp-fs"         "${Q[@]}" mcp raw-config seed-mcp-fs
-check         "mcp update seed-mcp-fs"             "${Q[@]}" mcp update seed-mcp-fs --require-approval true
-check_content "mcp update persisted requires_approval" "requires_approval.*true|true" "${Q[@]}" mcp raw-config seed-mcp-fs
-check         "mcp restart seed-mcp-fs"            "${Q[@]}" mcp restart seed-mcp-fs
-check         "mcp remove seed-mcp-notes --confirm" "${Q[@]}" mcp remove seed-mcp-notes --confirm
-check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show seed-mcp-notes
+# The seed writes exactly two MCP servers (seed/fragments/mcp.sql): `filesystem`
+# and `notes`, both backed by the bundled stdio stub.
+check         "mcp show filesystem"                "${Q[@]}" mcp show filesystem
+check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show filesystem
+check         "mcp test filesystem"                "${Q[@]}" mcp test filesystem
+check         "mcp raw-config filesystem"          "${Q[@]}" mcp raw-config filesystem
+check         "mcp update filesystem"              "${Q[@]}" mcp update filesystem --require-approval true
+check_content "mcp update persisted requires_approval" "requires_approval.*true|true" "${Q[@]}" mcp raw-config filesystem
+check         "mcp restart filesystem"             "${Q[@]}" mcp restart filesystem
+check         "mcp remove notes --confirm"         "${Q[@]}" mcp remove notes --confirm
+check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
 skip          "mcp add <name>" "needs a single-binary MCP server; a bad command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 skip          "mcp server / mcp oauth discover" "long-running stdio JSON-RPC server / live network discovery"
 
@@ -114,20 +117,24 @@ check         "notify delete e2e-desk"             "${Q[@]}" notify delete e2e-d
 # ── llm backends CRUD (metadata; no model needed) ───────────────────────────
 section "llm backends CRUD"
 check         "llm backends list"                  "${Q[@]}" llm backends list
-check         "llm backends show local-qwen"       "${Q[@]}" llm backends show local-qwen
+check         "llm backends show local-llama-server" "${Q[@]}" llm backends show local-llama-server
 check         "llm backends create e2e2"           "${Q[@]}" llm backends create e2e2 --provider openai --model gpt-4o-mini --timeout-sec 60
 check         "llm backends update e2e2"           "${Q[@]}" llm backends update e2e2 --timeout-sec 90
 check         "llm backends set-default e2e2"      "${Q[@]}" llm backends set-default e2e2
-check         "llm backends set-default local-qwen (restore)" "${Q[@]}" llm backends set-default local-qwen
+check         "llm backends set-default local-llama-server (restore)" "${Q[@]}" llm backends set-default local-llama-server
 check         "llm backends delete e2e2"           "${Q[@]}" llm backends delete e2e2 --confirm
 check         "llm status"                          "${Q[@]}" llm status
 check_json    "llm status --json"                  "${Q[@]}" llm status --json
 check         "llm costs"                           "${Q[@]}" llm costs
 check         "llm reload"                          "${Q[@]}" llm reload
 
-# ── stt / resilience / plan cache / chat --list ─────────────────────────────
+# ── stt / resilience / plan cache / chat --list ─────────────────────────
 section "stt / resilience / plan cache"
-check_exit    "stt status (engine off) → 1"  1     "${Q[@]}" stt status
+# The seed writes a configured stt_config row (fragments/system.sql:82-93), so
+# with the daemon up the command answers and names the seeded model. It returns
+# a non-zero code only when the daemon does not answer, which Track 1 already
+# asserts (track1_offline.sh:236, exit 2 against a dead socket).
+check_content "stt status names the seeded model" "ggml-base" "${Q[@]}" stt status
 check         "stt model list"                      "${Q[@]}" stt model list
 check         "stt config get"                      "${Q[@]}" stt config get
 check         "stt config update --language en"    "${Q[@]}" stt config update --language en

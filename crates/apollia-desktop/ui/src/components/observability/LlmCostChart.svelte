@@ -23,6 +23,65 @@
     }
     return dates;
   }
+
+  /** One day+backend row as the runtime returns it. */
+  export interface DailyCostRow {
+    date: string;
+    backend: string;
+    cost_usd: number;
+  }
+
+  /** The window folded onto the axis, and nothing but the axis. */
+  export interface WindowSummary {
+    /** One entry per axis day, in axis order. */
+    days: { date: string; byBackend: Record<string, number>; total: number }[];
+    /** Backends that spent something on the axis, sorted. */
+    backends: string[];
+    /** Total per backend over the axis. */
+    byBackend: Record<string, number>;
+    /** Sum of the bars the chart draws. */
+    total: number;
+  }
+
+  /**
+   * Folds the server rows onto the axis the chart draws.
+   *
+   * The Total tile, the legend pills and the bars all read this one fold. They
+   * used to read two different sets: the bars kept only the rows whose day is
+   * on the axis, while the total summed every row returned. A row falling
+   * outside the axis then showed in the tile and in no bar, and the operator
+   * read a total that the bars under it did not add up to.
+   */
+  export function summarizeWindow(rows: DailyCostRow[], axis: string[]): WindowSummary {
+    const byDay = new Map<string, Record<string, number>>();
+    for (const day of axis) byDay.set(day, {});
+
+    for (const row of rows) {
+      const bucket = byDay.get(row.date);
+      if (bucket === undefined) continue;
+      bucket[row.backend] = (bucket[row.backend] ?? 0) + row.cost_usd;
+    }
+
+    const backends = [
+      ...new Set(axis.flatMap((day) => Object.keys(byDay.get(day) ?? {}))),
+    ].sort();
+
+    const byBackend: Record<string, number> = {};
+    let total = 0;
+    const days = axis.map((date) => {
+      const bucket = byDay.get(date) ?? {};
+      let dayTotal = 0;
+      for (const backend of backends) {
+        const cost = bucket[backend] ?? 0;
+        dayTotal += cost;
+        byBackend[backend] = (byBackend[backend] ?? 0) + cost;
+      }
+      total += dayTotal;
+      return { date, byBackend: bucket, total: dayTotal };
+    });
+
+    return { days, backends, byBackend, total };
+  }
 </script>
 
 <script lang="ts">
@@ -73,13 +132,14 @@
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let hoverIndex = $state<number | null>(null);
 
-  let backends = $derived([...new Set(entries.map((e) => e.backend))].sort());
+  let dateLabels = $derived(buildDateAxis(windowDays, new Date()));
+
+  let summary = $derived(summarizeWindow(entries, dateLabels));
+  let backends = $derived(summary.backends);
 
   let backendColorMap = $derived(
     Object.fromEntries(backends.map((b, i) => [b, CHART_CSS_VARS[i % CHART_CSS_VARS.length]])),
   );
-
-  let dateLabels = $derived(buildDateAxis(windowDays, new Date()));
 
   /** When the window grows, individual day labels overlap. We thin them: keep
    *  one tick every Nth day, always keep the first and last. */
@@ -98,25 +158,20 @@
   }
 
   let barData = $derived(
-    dateLabels.map((date) => {
-      const dayEntries = entries.filter((e) => e.date === date);
-      const segments: { backend: string; cost: number; color: string }[] = [];
-      for (const b of backends) {
-        const entry = dayEntries.find((e) => e.backend === b);
-        segments.push({
-          backend: b,
-          cost: entry ? entry.cost_usd : 0,
-          color: backendColorMap[b] ?? CHART_CSS_VARS[0],
-        });
-      }
-      const total = segments.reduce((sum, s) => sum + s.cost, 0);
-      return { date, segments, total };
-    }),
+    summary.days.map((day) => ({
+      date: day.date,
+      segments: backends.map((b) => ({
+        backend: b,
+        cost: day.byBackend[b] ?? 0,
+        color: backendColorMap[b] ?? CHART_CSS_VARS[0],
+      })),
+      total: day.total,
+    })),
   );
 
   let maxCost = $derived(Math.max(0.01, ...barData.map((d) => d.total)));
 
-  let totalCost = $derived(entries.reduce((sum, e) => sum + e.cost_usd, 0));
+  let totalCost = $derived(summary.total);
   let avgPerDay = $derived(totalCost / Math.max(1, windowDays));
 
   let maxDay = $derived.by(() => {
@@ -134,7 +189,7 @@
     backends.map((b) => ({
       backend: b,
       color: backendColorMap[b],
-      cost: entries.filter((e) => e.backend === b).reduce((s, e) => s + e.cost_usd, 0),
+      cost: summary.byBackend[b] ?? 0,
     })),
   );
 

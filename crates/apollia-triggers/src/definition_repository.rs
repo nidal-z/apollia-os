@@ -385,21 +385,38 @@ impl TriggerDefinitionRepository {
 }
 
 /// Converts a SQLite row into a [`TriggerDefinitionRow`].
+///
+/// The stored `source_config` is handed back in the form the runtime readers
+/// accept verbatim, through [`validation::normalized_source_config`]. The write
+/// path normalizes a cron schedule before storing it, but nothing rewrites the
+/// rows persisted before it did: `MIGRATION_008` creates the table and no
+/// statement updates `source_config` outside [`TriggerDefinitionRepository::update`].
+/// Such a row keeps its 5-field expression, which `sources/cron.rs` refuses,
+/// so the trigger stays listed, with a readable schedule, and never fires. The
+/// repair therefore belongs to the read path as well.
+///
+/// An expression no normalization can rescue is returned unchanged: refusing it
+/// here would fail the whole listing over a single row, where today it costs one
+/// silent trigger.
 fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionRow> {
     let on_busy_str: String = row.get(3)?;
+    let source_type: String = row.get(4)?;
     let source_config_str: String = row.get(5)?;
 
-    let source_config: serde_json::Value =
+    let stored_config: serde_json::Value =
         serde_json::from_str(&source_config_str).map_err(|e| {
             rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
         })?;
+
+    let source_config =
+        validation::normalized_source_config(&source_type, &stored_config).unwrap_or(stored_config);
 
     Ok(TriggerDefinitionRow {
         id: row.get(0)?,
         agent: row.get(1)?,
         enabled: row.get(2)?,
         on_busy: OnBusy::from_sql(&on_busy_str),
-        source_type: row.get(4)?,
+        source_type,
         source_config,
         input_template: row.get(6)?,
         created_at: row.get(7)?,
@@ -412,7 +429,21 @@ fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionR
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
     use tempfile::TempDir;
+
+    /// Writes a row straight into SQLite, bypassing [`TriggerDefinitionRepository::insert`]
+    /// and its normalization, the way a build older than that normalization left it.
+    fn insert_raw_row(repo: &TriggerDefinitionRepository, id: &str, source_config: &str) {
+        repo.conn
+            .execute(
+                "INSERT INTO trigger_definitions \
+                 (id, agent, enabled, on_busy, source_type, source_config, input_template) \
+                 VALUES (?1, 'rapport-agent', 1, 'queue', 'cron', ?2, NULL)",
+                params![id, source_config],
+            )
+            .expect("direct insert bypassing the repository");
+    }
 
     /// Opens a test repository in a temporary directory.
     fn open_test_repo() -> (TempDir, TriggerDefinitionRepository) {
@@ -764,5 +795,74 @@ mod tests {
         repo.insert(&def).expect("insert valid webhook");
         let got = repo.get("webhook-valid").expect("get").expect("exists");
         assert_eq!(got.source_type, "webhook");
+    }
+
+    // --- Read path: a schedule persisted before the write path normalized it ---
+
+    #[test]
+    fn test_get_returns_a_five_field_schedule_the_cron_reader_accepts() {
+        // GIVEN a cron row persisted with a 5-field schedule, written without insert()
+        let (_dir, repo) = open_test_repo();
+        insert_raw_row(&repo, "legacy-cron", r#"{"schedule":"*/15 * * * *"}"#);
+
+        // WHEN the read path returns it
+        let got = repo.get("legacy-cron").expect("get").expect("should exist");
+        let schedule = got
+            .source_config
+            .get("schedule")
+            .and_then(|v| v.as_str())
+            .expect("schedule field");
+
+        // THEN the expression is the one `sources/cron.rs` parses verbatim
+        assert_eq!(schedule, "0 */15 * * * *");
+        assert!(
+            cron::Schedule::from_str(schedule).is_ok(),
+            "the runtime cron reader must accept the schedule the read path returns: {schedule}"
+        );
+    }
+
+    #[test]
+    fn test_list_feeds_the_boot_path_a_firing_cron_definition() {
+        // GIVEN the same row, read through the listing the supervisor boots on
+        let (_dir, repo) = open_test_repo();
+        insert_raw_row(&repo, "legacy-cron", r#"{"schedule":"*/15 * * * *"}"#);
+
+        // WHEN the row is converted the way `load_trigger_definitions` converts it
+        let rows = repo.list().expect("list");
+        let row = rows.into_iter().next().expect("one row");
+        let def = TriggerDefinition::try_from(row).expect("conversion");
+
+        // THEN the source carries a schedule the cron trigger can spawn on
+        let schedule = match def.source {
+            TriggerSourceConfig::Cron { schedule } => Some(schedule),
+            _ => None,
+        }
+        .expect("the stored row is a cron source");
+        assert!(
+            cron::Schedule::from_str(&schedule).is_ok(),
+            "CronTrigger::spawn returns without firing when this fails: {schedule}"
+        );
+    }
+
+    #[test]
+    fn test_list_survives_a_schedule_no_normalization_can_rescue() {
+        // GIVEN a stored schedule that is neither 5-field nor parsable
+        let (_dir, repo) = open_test_repo();
+        insert_raw_row(&repo, "broken-cron", r#"{"schedule":"every tuesday"}"#);
+
+        // WHEN the listing runs
+        let rows = repo
+            .list()
+            .expect("list must not fail over one unreadable row");
+
+        // THEN the row is returned unchanged, and the listing still holds it
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0]
+                .source_config
+                .get("schedule")
+                .and_then(|v| v.as_str()),
+            Some("every tuesday")
+        );
     }
 }

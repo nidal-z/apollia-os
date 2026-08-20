@@ -130,6 +130,12 @@ pub(crate) fn accepted_cron_schedule(schedule: &str) -> Result<String, TriggerDe
 /// the form `cron::Schedule::from_str` accepts, so the reader in
 /// `sources/cron.rs` never rejects what the validator accepted. Non-cron
 /// sources are returned unchanged.
+///
+/// The SQLite read path runs it too, in
+/// `definition_repository::row_to_definition`, because no migration rewrites
+/// the rows a build older than that write path persisted. Those rows still
+/// hold a 5-field expression, and the trigger they describe stays listed and
+/// never fires until the read repairs it.
 pub(crate) fn normalized_source_config(
     source_type: &str,
     config: &serde_json::Value,

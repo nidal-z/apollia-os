@@ -57,8 +57,9 @@ below is the committed fixture and nothing else. See
 
 Seeded content asserted by the tracks (fixed ids, fixed `2026-07-01` data):
 2 projects, 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents
-(+ 1 package), 3 LLM backends (`local-qwen` default), 4 triggers, 2 notify
-channels, 2 live MCP servers (via a bundled stdio stub).
+(+ 1 package), 3 LLM backends (`local-llama-server` default), 4 triggers,
+2 notify channels, 2 live MCP servers named `filesystem` and `notes` (via a
+bundled stdio stub).
 
 ### The three tracks
 

@@ -89,7 +89,7 @@ pub struct LlmCostSummary {
 /// Daily cost summary aggregated by backend (LLM Costs daily chart).
 #[derive(Debug, Clone)]
 pub struct LlmDailyCostSummary {
-    /// Date in `YYYY-MM-DD` format.
+    /// Local calendar day of the host, in `YYYY-MM-DD` format.
     pub date: String,
     /// Logical backend name.
     pub backend: String,
@@ -231,12 +231,19 @@ impl LlmCallRepository {
     ///
     /// Returns a vector of `LlmDailyCostSummary` sorted by date ASC then backend.
     /// Used by the Observability dashboard.
+    ///
+    /// The day is the **local calendar day of the host**, not the UTC day.
+    /// `created_at` is stored in UTC, so `DATE(created_at)` alone buckets a
+    /// call by a day the operator never lived: on a host at UTC-7 an 18:00
+    /// call falls in the next UTC day, and the chart, whose axis is the local
+    /// calendar, then draws it on no bar at all. The `localtime` modifier is
+    /// timezone-database driven, so it stays exact across a DST change.
     pub fn costs_by_day_backend_since(
         &self,
         since: &str,
     ) -> Result<Vec<LlmDailyCostSummary>, LlmRepositoryError> {
         let mut stmt = self.conn.prepare(
-            "SELECT DATE(created_at) AS day, backend,
+            "SELECT DATE(created_at, 'localtime') AS day, backend,
                     COALESCE(SUM(cost_usd), 0.0) AS cost_usd
              FROM llm_calls
              WHERE created_at >= ?1
@@ -477,6 +484,54 @@ mod tests {
         assert_eq!(local.call_count, 1);
         assert_eq!(local.total_tokens, 300); // 200+100
         assert!(local.total_cost_usd.abs() < f64::EPSILON); // NULL → 0.0
+    }
+
+    /// Insert a call at an exact UTC instant. `save` lets SQLite stamp
+    /// `created_at` with `now`, which no test can pin.
+    fn insert_call_at(repo: &LlmCallRepository, id: &str, created_at: &str, cost: f64) {
+        repo.conn
+            .execute(
+                "INSERT INTO llm_calls (id, backend, model, cost_usd, created_at)
+                 VALUES (?1, 'anthropic', 'sonnet', ?2, ?3)",
+                params![id, cost, created_at],
+            )
+            .expect("insert call");
+    }
+
+    #[test]
+    fn test_daily_costs_bucket_on_the_hosts_local_calendar_day() {
+        // GIVEN two calls at the instants that straddle local midnight on a
+        // host west of UTC and on a host east of UTC
+        let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
+        insert_call_at(&repo, "call-west", "2026-08-16T01:00:00.000Z", 0.50);
+        insert_call_at(&repo, "call-east", "2026-08-14T23:00:00.000Z", 0.25);
+
+        // WHEN aggregating the window that contains both
+        let summaries = repo
+            .costs_by_day_backend_since("2026-08-01T00:00:00Z")
+            .expect("daily costs query");
+
+        // THEN each call is filed under the day the host's calendar shows for
+        // its instant, which is what the chart's axis is built from
+        for (id, instant, cost) in [
+            ("call-west", "2026-08-16T01:00:00Z", 0.50_f64),
+            ("call-east", "2026-08-14T23:00:00Z", 0.25_f64),
+        ] {
+            let expected_day = instant
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .expect("parse instant")
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d")
+                .to_string();
+            let found = summaries
+                .iter()
+                .find(|s| (s.cost_usd - cost).abs() < 1e-9)
+                .unwrap_or_else(|| panic!("no bucket carries the cost of {id}"));
+            assert_eq!(
+                found.date, expected_day,
+                "{id} must be filed under its local calendar day"
+            );
+        }
     }
 
     #[test]

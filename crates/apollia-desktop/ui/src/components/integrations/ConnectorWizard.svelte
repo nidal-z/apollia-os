@@ -1,3 +1,84 @@
+<script module lang="ts">
+  import type {
+    McpServerConfigInput as McpServerConfigInputModule,
+    RegistryServerView as RegistryServerViewModule,
+  } from "$lib/types";
+
+  /**
+   * Backend validate_name() in apollia-mcp enforces `[a-z0-9_-]+` strictly,
+   * so identifiers like `@modelcontextprotocol/server-filesystem` or
+   * `com.figma/mcp-cloud` must be sanitised before being sent. We:
+   * - lowercase the string
+   * - replace every non-`[a-z0-9_-]` character with `-`
+   * - collapse runs of `-` and trim them at the edges
+   * - fall back to `mcp-server` if the result is empty.
+   */
+  export function sanitizeServerName(raw: string): string {
+    const cleaned = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    return cleaned.length > 0 ? cleaned : "mcp-server";
+  }
+
+  /**
+   * The one identifier a catalogue connector is installed under.
+   *
+   * Prefer the operator label (e.g. "Local Files") over the registry
+   * identifier (e.g. "@modelcontextprotocol/server-filesystem"). The operator
+   * label is the human-facing card name; using it as the server name keeps the
+   * installed-card label, the runtime logs, and the `mcp:<server>/<tool>`
+   * invocation prefix consistent and readable.
+   */
+  export function deriveServerName(
+    server: Pick<RegistryServerViewModule, "name" | "title" | "enrichment">,
+  ): string {
+    const label = server.enrichment?.operator_label ?? server.title ?? server.name;
+    const source = label && label.trim().length > 0 ? label : server.name;
+    return sanitizeServerName(source);
+  }
+
+  /** A secret typed in the wizard, waiting to be filed in the OS keyring. */
+  export interface PendingSecret {
+    envVar: string;
+    value: string;
+  }
+
+  /** The subset of `@tauri-apps/api/core::invoke` the install sequence needs. */
+  export type WizardInvoke = <T>(
+    cmd: string,
+    args?: Record<string, unknown>,
+  ) => Promise<T>;
+
+  /**
+   * File the connector's secrets, then install its configuration.
+   *
+   * Both calls carry `config.name`, and that is the whole point of this
+   * function existing. The keyring key is written as `{server_name}:{env_var}`
+   * by `SecretStore::key_for` and rebuilt, at resolution time, from the name
+   * carried by the *installed configuration*
+   * (`apollia-mcp::config::resolve_env` passes `&self.name` to
+   * `resolve_single_var`). Filing a secret under any other identifier, the
+   * registry one included, hides it from the only lookup that will ever go
+   * looking for it, and the connector answers `UnresolvedEnvVar` on first use.
+   */
+  export async function installConnector(
+    invokeFn: WizardInvoke,
+    config: McpServerConfigInputModule,
+    secrets: readonly PendingSecret[],
+  ): Promise<void> {
+    for (const secret of secrets) {
+      await invokeFn("store_mcp_secret", {
+        serverName: config.name,
+        envVar: secret.envVar,
+        value: secret.value,
+      });
+    }
+    await invokeFn("add_mcp_server", { config });
+  }
+</script>
+
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
@@ -273,24 +354,6 @@
     }
   });
 
-  /**
-   * Backend validate_name() in apollia-mcp enforces `[a-z0-9_-]+` strictly,
-   * so identifiers like `@modelcontextprotocol/server-filesystem` or
-   * `com.figma/mcp-cloud` must be sanitised before being sent. We:
-   * - lowercase the string
-   * - replace every non-`[a-z0-9_-]` character with `-`
-   * - collapse runs of `-` and trim them at the edges
-   * - fall back to `mcp-server` if the result is empty.
-   */
-  function sanitizeServerName(raw: string): string {
-    const cleaned = raw
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    return cleaned.length > 0 ? cleaned : "mcp-server";
-  }
-
   // ── Stdio launcher resolution ──────────────────────────────────────────────
   // Map (registry_type, runtime_hint) to the actual launcher invocation. The
   // registry's `runtime_hint` field is semantically informational ("which
@@ -328,16 +391,7 @@
 
   // ── Config builder ──────────────────────────────────────────────────────────
   function buildConfig(forTest: boolean): McpServerConfigInput | null {
-    // Prefer the operator label (e.g. "Local Files") over the registry
-    // identifier (e.g. "@modelcontextprotocol/server-filesystem"). The
-    // operator label is the human-facing card name; using it as the server
-    // name keeps the installed-card label, the runtime logs, and the
-    // `mcp:<server>/<tool>` invocation prefix consistent and readable.
-    let nameSource = server.enrichment?.operator_label ?? server.title ?? server.name;
-    if (!nameSource || nameSource.trim().length === 0) {
-      nameSource = server.name;
-    }
-    const safeName = sanitizeServerName(nameSource);
+    const safeName = deriveServerName(server);
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
       if (probeMode === "oauth" && oauthAccount) {
@@ -447,9 +501,7 @@
   function buildProbeConfig(): McpServerConfigInput | null {
     if (connectionMode !== "remote" || !remote) return null;
     return {
-      name: sanitizeServerName(
-        server.enrichment?.operator_label ?? server.title ?? server.name,
-      ),
+      name: deriveServerName(server),
       url: remote.url,
       transport: remote.type,
       env: {},
@@ -603,9 +655,7 @@
     oauthSigninError = null;
     try {
       const account = await invoke<McpOAuthAccount>("mcp_oauth_login", {
-        serverName: sanitizeServerName(
-          server.enrichment?.operator_label ?? server.title ?? server.name,
-        ),
+        serverName: deriveServerName(server),
         serverUrl: remote.url,
         wwwAuthenticate: oauthWwwAuthenticate,
         scopes: oauthSelectedScopes,
@@ -653,35 +703,33 @@
     onclose();
   }
 
+  /** The secrets the operator typed, in the order the wizard collected them. */
+  function pendingSecrets(): PendingSecret[] {
+    const declared =
+      connectionMode === "remote" && remote
+        ? remote.headers.map((h) => ({ name: h.name, isSecret: h.isSecret }))
+        : connectionMode === "package" && pkg
+          ? (pkg.environmentVariables ?? []).map((v) => ({
+              name: v.name,
+              isSecret: v.isSecret,
+            }))
+          : [];
+    const out: PendingSecret[] = [];
+    for (const entry of declared) {
+      const value = envValues[entry.name];
+      if (entry.isSecret && value) {
+        out.push({ envVar: entry.name, value });
+      }
+    }
+    return out;
+  }
+
   async function finalize(): Promise<void> {
     if (!builtConfig) return;
     finalizing = true;
     finalizeError = null;
     try {
-      if (connectionMode === "remote" && remote) {
-        for (const header of remote.headers) {
-          const val = envValues[header.name];
-          if (header.isSecret && val) {
-            await invoke("store_mcp_secret", {
-              serverName: server.name,
-              envVar: header.name,
-              value: val,
-            });
-          }
-        }
-      } else if (connectionMode === "package" && pkg) {
-        for (const envVar of pkg.environmentVariables ?? []) {
-          const val = envValues[envVar.name];
-          if (envVar.isSecret && val) {
-            await invoke("store_mcp_secret", {
-              serverName: server.name,
-              envVar: envVar.name,
-              value: val,
-            });
-          }
-        }
-      }
-      await invoke("add_mcp_server", { config: builtConfig });
+      await installConnector(invoke, builtConfig, pendingSecrets());
       oncomplete();
       // The first-connection walkthrough moved out of the wizard: it used to run
       // while this dialog was closed, pointing at a sheet that was never open.
