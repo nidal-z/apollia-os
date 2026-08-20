@@ -43,6 +43,15 @@ SCAN_ROOTS = [
     Path("crates/apollia-desktop/ui"),
 ]
 
+# Named files scanned whatever their suffix and wherever they sit, because they
+# are the input a generator turns into scanned output. `clients/openapi.json`
+# feeds `docusaurus gen-api-docs`, whose 125 published pages this gate stops
+# reading below: the promise stays anchored on the source rather than on the
+# artifact, which no tree is guaranteed to carry.
+SCAN_FILES = [
+    Path("clients/openapi.json"),
+]
+
 # Entry points that must be inside the scanned set for the gate to mean
 # anything. Asserted by the self-test, so shrinking SCAN_ROOTS back to a
 # subdirectory list fails the build rather than quietly narrowing coverage.
@@ -54,6 +63,7 @@ REQUIRED_COVERAGE = [
     Path("crates/apollia-desktop/ui/vite.config.ts"),
     Path("crates/apollia-desktop/ui/tailwind.config.ts"),
     Path("crates/apollia-desktop/ui/src/app.css"),
+    Path("clients/openapi.json"),
 ]
 
 SCAN_SUFFIXES = {".css", ".scss", ".html", ".js", ".jsx", ".ts", ".tsx", ".svelte", ".md", ".mdx"}
@@ -71,6 +81,29 @@ EXCLUDED_DIRS = {
     "coverage",
     "playwright-report",
     "test-results",
+}
+
+# Generated sources. They sit among the sources, they carry a scanned suffix,
+# and git ignores them, which is what made this gate's coverage depend on the
+# tree it ran from: 1185 files here against 1059 in an extraction of the same
+# commit, both green, and nothing in the verdict said which tree it was. The
+# 126 that differed are these two entries. The gap runs in the direction that
+# reports success, so a fresh clone, or the worktree every build phase works
+# in, stopped covering the 125 published API pages without saying so.
+#
+# Both are repository-relative and anchored, not bare names. `api` as a bare
+# directory name would silence any directory so called, and `figma` as one
+# would silence the tracked `.md` and `.ts` files that live beside the
+# generated map.
+EXCLUDED_PATHS = {
+    # `docusaurus gen-api-docs` output, .gitignore `/docs/site/docs/reference/api/`
+    Path("docs/site/docs/reference/api"),
+}
+
+EXCLUDED_FILES = {
+    # Figma map rewritten by the design sync,
+    # .gitignore `/crates/apollia-desktop/ui/figma/MAPPING.md`
+    Path("crates/apollia-desktop/ui/figma/MAPPING.md"),
 }
 
 FONT_HOSTS = (
@@ -112,6 +145,21 @@ def offending_urls(text: str) -> list[str]:
     return hits
 
 
+def is_excluded(rel: Path) -> bool:
+    """Say whether the repository-relative `rel` is kept out of the scan.
+
+    Pure and total, so the self-test can drive it on paths that need not exist.
+    That is the only way to assert the two generated entries from a tree where
+    nothing has been generated yet, which is every fresh clone and every
+    worktree.
+    """
+    if EXCLUDED_DIRS.intersection(rel.parts):
+        return True
+    if rel in EXCLUDED_FILES:
+        return True
+    return any(rel == prefix or prefix in rel.parents for prefix in EXCLUDED_PATHS)
+
+
 def iter_files() -> list[Path]:
     files: list[Path] = []
     for root in SCAN_ROOTS:
@@ -121,10 +169,39 @@ def iter_files() -> list[Path]:
         for path in base.rglob("*"):
             if not path.is_file() or path.suffix.lower() not in SCAN_SUFFIXES:
                 continue
-            if EXCLUDED_DIRS.intersection(path.relative_to(REPO_ROOT).parts):
+            if is_excluded(path.relative_to(REPO_ROOT)):
                 continue
             files.append(path)
+    for rel in SCAN_FILES:
+        path = REPO_ROOT / rel
+        if path.is_file() and not is_excluded(rel):
+            files.append(path)
     return sorted(set(files))
+
+
+def skipped_generated() -> list[tuple[Path, int]]:
+    """Count, per generated entry, what this tree carries and does not read.
+
+    The verdict prints it. A count that moves between two trees at the same
+    commit is the defect this list closes, so the reader is handed the number
+    rather than left to deduce it from a total that shifted.
+    """
+    counts: list[tuple[Path, int]] = []
+    for prefix in sorted(EXCLUDED_PATHS):
+        base = REPO_ROOT / prefix
+        found = 0
+        if base.is_dir():
+            found = sum(
+                1
+                for path in base.rglob("*")
+                if path.is_file()
+                and path.suffix.lower() in SCAN_SUFFIXES
+                and not EXCLUDED_DIRS.intersection(path.relative_to(REPO_ROOT).parts)
+            )
+        counts.append((prefix, found))
+    for rel in sorted(EXCLUDED_FILES):
+        counts.append((rel, 1 if (REPO_ROOT / rel).is_file() else 0))
+    return counts
 
 
 def uncovered_required() -> list[Path]:
@@ -175,6 +252,14 @@ def main() -> int:
                 violations.append(f"{rel}:{lineno}: {url}")
 
     print(f"check_no_font_cdn: {len(files)} files scanned")
+    for root in SCAN_ROOTS:
+        base = REPO_ROOT / root
+        print(f"  read under {root}: {sum(1 for p in files if p.is_relative_to(base))}")
+    print(f"  read by name: {sum(1 for rel in SCAN_FILES if (REPO_ROOT / rel) in files)}")
+    skipped = skipped_generated()
+    print(f"  skipped, generated and outside the tracked inventory: {sum(n for _, n in skipped)}")
+    for rel, found in skipped:
+        print(f"    {rel}: {found}")
     if violations:
         print(
             f"\n{len(violations)} remote font reference(s). Fonts must be bundled "

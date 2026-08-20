@@ -207,7 +207,7 @@
           {:else}
             <span class="text-body-xs text-foreground truncate flex-1">{doc.name}</span>
             <span class="text-caption text-muted-foreground font-mono tabular-nums">
-              {(doc.size_bytes / 1024).toFixed(1)} KB
+              {(doc.size_bytes / 1024).toFixed(1)} {$t("tools.body.unit_kb")}
             </span>
             <Button
               variant="ghost"

@@ -32,6 +32,12 @@ properties rather than the fixes:
      tracker-reference rule of `check_prose.py` excuses exactly one path, and a
      green run alone cannot tell one excused path from five. The exemption is
      therefore driven from both sides, like the detector it belongs to.
+  6. A guard reads the same set of files whatever tree it runs in. The same
+     bias again, one step further out: `check_no_font_cdn.py` walked the disk,
+     so it read 1185 files in a developer's tree and 1059 in an extraction of
+     the same commit, both green, and its verdict named neither the tree nor
+     the 126 generated files that separated them. Coverage that depends on the
+     tree drops silently, in the direction that reports success.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -386,6 +392,161 @@ def check_font_cdn_detector_fires() -> None:
         f"app covered: {covers_app}, site covered: {covers_site}. The promise is "
         f"broken by whichever of the two nobody scanned",
     )
+
+
+# ── The font guard reads the same set in every tree ──────────────────────────
+# Same family, one step out from the block above. There the question was
+# whether the detector fires; here it is whether the detector was pointed at
+# the same thing twice. `iter_files()` walks the disk and never consults git,
+# so any generated file carrying a scanned suffix joined the scan in the tree
+# that had built it and left it in the tree that had not. Measured on
+# `d20a956e`: 1185 files against 1059 in an extraction of the same commit, both
+# exit 0, and the verdict was one bare number either way.
+#
+# The tracked inventory is the reference, and `git ls-files` is exactly what an
+# extraction of HEAD lays down: this repository declares no `.gitattributes`,
+# so no path is dropped by `export-ignore`. The guard itself still never calls
+# git, because it has to run inside such an extraction, which is not a
+# repository. Comparing against the inventory is this file's job, not its.
+
+
+def _in_scope(rel: str) -> bool:
+    path = Path(rel)
+    if path in fontcdn.SCAN_FILES:
+        return True
+    under_root = any(root == path or root in path.parents for root in fontcdn.SCAN_ROOTS)
+    return under_root and path.suffix.lower() in fontcdn.SCAN_SUFFIXES
+
+
+def _check_ignore(paths: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "check-ignore", "--stdin", "--no-index"],
+        cwd=fontcdn.REPO_ROOT,
+        input="\n".join(paths),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def check_font_cdn_scan_is_tree_invariant() -> None:
+    print("font CDN guard: the scan reads the same set whatever tree it runs in")
+
+    generated = [
+        ("the generated API pages", "docs/site/docs/reference/api/oria.api.mdx"),
+        ("the generated Figma map", "crates/apollia-desktop/ui/figma/MAPPING.md"),
+    ]
+    for name, rel in generated:
+        case(
+            f"skips {name}",
+            fontcdn.is_excluded(Path(rel)),
+            f"{rel} stayed in the scan. Git ignores it, so it exists in the tree "
+            f"that generated it and nowhere else, and the guard's coverage "
+            f"follows it instead of the commit",
+        )
+
+    # Anchored, not a bare name. `api` or `figma` as directory names would take
+    # hand-written neighbours with them, and a guard that quietly stops reading
+    # a source file is the defect above with its sign flipped.
+    kept = [
+        ("the hand-written reference index", "docs/site/docs/reference/index.md"),
+        ("a tracked file beside the generated map", "crates/apollia-desktop/ui/figma/README.md"),
+    ]
+    for name, rel in kept:
+        case(
+            f"negative control: still reads {name}",
+            not fontcdn.is_excluded(Path(rel)),
+            f"{rel} was excluded. The exclusion matched a bare directory name "
+            f"instead of the anchored path, and took tracked sources with it",
+        )
+
+    inventory = subprocess.run(
+        ["git", "ls-files"],
+        cwd=fontcdn.REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    case(
+        "the tracked inventory is readable",
+        inventory.returncode == 0,
+        f"`git ls-files` exited {inventory.returncode}: {inventory.stderr.strip()!r}. "
+        f"Nothing was measured, which is not the same as a scan that matches",
+    )
+    if inventory.returncode != 0:
+        return
+    tracked = set(inventory.stdout.splitlines())
+    scanned = {str(p.relative_to(fontcdn.REPO_ROOT)) for p in fontcdn.iter_files()}
+
+    extra = sorted(scanned - tracked)
+    ignored: list[str] = []
+    if extra:
+        query = _check_ignore(extra)
+        # 0 means at least one path is ignored, 1 means none is. Anything else
+        # is a failure to measure, and must never read as "none is".
+        case(
+            "the ignore query ran",
+            query.returncode in (0, 1),
+            f"`git check-ignore` exited {query.returncode}: {query.stderr.strip()!r}",
+        )
+        if query.returncode not in (0, 1):
+            return
+        ignored = sorted(set(query.stdout.splitlines()))
+
+    case(
+        "no generated file is inside the scan",
+        not ignored,
+        f"the scan reads {len(ignored)} git-ignored file(s), among them "
+        f"{ignored[:3]!r}. Those exist only in the tree that generated them, so "
+        f"this verdict does not cover them anywhere else",
+    )
+
+    # Positive control on the same query, and it needs no file to exist:
+    # `git check-ignore` answers on paths, not on inodes. Without it, a green
+    # above would prove this tree carries no generated output, not that the
+    # query can see any.
+    probe = _check_ignore(
+        [
+            "docs/site/docs/reference/api/probe.mdx",
+            "crates/apollia-desktop/ui/figma/MAPPING.md",
+        ]
+    )
+    case(
+        "positive control: the ignore query finds the two generated entries",
+        len(probe.stdout.splitlines()) == 2,
+        f"the query returned {probe.stdout.splitlines()!r} for two paths git is "
+        f"known to ignore, so the case above would be green because the query is "
+        f"blind, not because the scan is clean",
+    )
+
+    # A source being written is untracked and not ignored. It is read here and
+    # not in a clone, which is the direction that adds scrutiny and lasts until
+    # the next commit, so it is reported rather than failed.
+    pending = [rel for rel in extra if rel not in set(ignored)]
+    if pending:
+        print(f"  note  {len(pending)} untracked source(s) read in this tree only: {pending[:3]}")
+
+    hidden = sorted(rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel)))
+    case(
+        "no tracked source is hidden by an exclusion",
+        not hidden,
+        f"{len(hidden)} tracked in-scope file(s) are excluded, among them "
+        f"{hidden[:3]!r}. An exclusion written for generated output has started "
+        f"eating the sources the promise rests on",
+    )
+
+    widened = fontcdn.EXCLUDED_PATHS
+    try:
+        fontcdn.EXCLUDED_PATHS = widened | {Path("docs/site/docs/reference")}
+        regrown = [rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel))]
+        case(
+            "positive control: an exclusion that swallows tracked sources is seen",
+            bool(regrown),
+            "widening the exclusion to a directory full of tracked pages left the "
+            "assertion silent, so it would never notice the drift it exists to catch",
+        )
+    finally:
+        fontcdn.EXCLUDED_PATHS = widened
 
 
 # ── The prose tracker-reference rule ─────────────────────────────────
@@ -833,6 +994,8 @@ def main() -> int:
     check_zero_coverage_is_reported()
     check_font_cdn_detector_fires()
     print()
+    check_font_cdn_scan_is_tree_invariant()
+    print()
     check_prose_tracker_rule()
     print()
     check_worktree_comparator()
@@ -844,12 +1007,13 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nseven properties hold: neither a comment nor a re-export is a use, "
-        "zero coverage says so, the font guard fires on a dirty tree, the "
-        "prose tracker rule fires and its one exemption is bounded from both "
-        "sides, two equal exit codes over different measures are not the same "
-        "verdict, and a failed assertion reaches the artifact with its cause "
-        "while a passing one adds nothing to it"
+        "\neight properties hold: neither a comment nor a re-export is a use, "
+        "zero coverage says so, the font guard fires on a dirty tree and reads "
+        "the same set whatever tree it runs in, the prose tracker rule fires "
+        "and its one exemption is bounded from both sides, two equal exit codes "
+        "over different measures are not the same verdict, and a failed "
+        "assertion reaches the artifact with its cause while a passing one adds "
+        "nothing to it"
     )
     return 0
 

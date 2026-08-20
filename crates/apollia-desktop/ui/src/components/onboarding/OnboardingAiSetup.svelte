@@ -916,6 +916,7 @@
   {#if sysInfo}
     <div class="sys-info-bar" data-testid="system-info-bar">
       <span class="sys-chip">
+        <!-- i18n-ignore: memory unit acronym, identical in every locale -->
         <MemoryStick size={11} strokeWidth={2} />{ramLabel(sysInfo.total_ram_gb)} RAM
       </span>
       <span class="sys-chip">

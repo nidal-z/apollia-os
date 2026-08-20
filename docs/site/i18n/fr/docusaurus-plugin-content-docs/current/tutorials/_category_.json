@@ -1,9 +1,4 @@
 {
   "label": "Tutoriels",
-  "position": 1,
-  "link": {
-    "type": "generated-index",
-    "slug": "/tutorials",
-    "description": "Apprenez Apollia par la pratique. Des leçons guidées de bout en bout pour les nouveaux venus."
-  }
+  "position": 1
 }

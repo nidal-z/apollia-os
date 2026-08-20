@@ -153,6 +153,7 @@
           <span>{createdRel}</span>
           {#if expiresRel}
             <span aria-hidden="true">·</span>
+            <!-- i18n-ignore: time-to-live acronym, identical in every locale -->
             <span class="text-warning">TTL {expiresRel}</span>
           {/if}
         </div>

@@ -7,9 +7,15 @@
  * match remains outside the whitelist - wire this into CI / a pre-commit
  * hook once the baseline hits 0.
  *
+ * Every file under `src/` is read and scanned, including the excused ones:
+ * the verdict says how many files it enforced, how many it excused, and how
+ * many findings the excused files carry. A guard that concluded on a file it
+ * never opened would be reporting on a subject it had not read.
+ *
  * Whitelist rules:
  *   - design-system showcase routes (`src/routes/Design*.svelte`)
- *     are dev-only and not part of the end-user product,
+ *     are dev-only and not part of the end-user product, so their findings
+ *     are counted and printed but never change the exit code,
  *   - strings inside `$t("...")` calls are keys, not copy,
  *   - HTML/Svelte comment blocks are ignored,
  *   - attribute values that interpolate (`aria-label={...}`,
@@ -215,6 +221,22 @@ function leadingBlanks(raw) {
 }
 
 /**
+ * Length of the span `[start, start + length)` of `source`, whitespace
+ * collapsed, before any blanking pass touched it.
+ *
+ * The blanking passes are index-preserving, so the caller can hand over the
+ * match offsets it computed on the blanked markup.
+ *
+ * @param {string} source
+ * @param {number} start
+ * @param {number} length
+ * @returns {number}
+ */
+function unblankedLength(source, start, length) {
+  return normalize(source.slice(start, start + length)).length;
+}
+
+/**
  * 1-based line holding `index`.
  *
  * @param {string} markup
@@ -232,12 +254,21 @@ function lineOf(markup, index) {
  *
  * `markup` is expected to have gone through `stripNonMarkup`. `silenced`
  * is the set of 1-based lines covered by an `i18n-ignore` directive.
+ * `source` is the body `markup` was derived from. Every blanking pass keeps
+ * its indices, so a match into `markup` slices the same span out of
+ * `source`, and MIN_COPY_LENGTH is measured on that unblanked span.
+ *
+ * Measuring after blanking is what made `TTL {expiresRel}` invisible: the
+ * expression left three literal characters, the threshold dropped the node,
+ * and no directive or whitelist entry recorded the decision. The reported
+ * snippet is still the blanked literal part, so messages keep their shape.
  *
  * @param {string} markup
  * @param {Set<number>} [silenced]
+ * @param {string} [source]
  * @returns {{ kind: string, snippet: string }[]}
  */
-function scanMarkup(markup, silenced = new Set()) {
+function scanMarkup(markup, silenced = new Set(), source = markup) {
   /** @type {{ kind: string, snippet: string }[]} */
   const findings = [];
 
@@ -254,20 +285,24 @@ function scanMarkup(markup, silenced = new Set()) {
 
   let match;
   while ((match = textRe.exec(markup)) !== null) {
+    const start = match.index + 1;
     const text = normalize(match[1]);
-    if (text.length < MIN_COPY_LENGTH) continue;
+    if (unblankedLength(source, start, match[1].length) < MIN_COPY_LENGTH)
+      continue;
     if (!/^[A-ZÀ-Ÿ]/.test(text)) continue;
     if (BRAND_WHITELIST.has(text)) continue;
     // Anchor on the first visible character, not on the `>` that opened the
     // text node: that `>` can belong to a self-closing icon on the line
     // above, and a directive is written above the words it silences.
-    const anchor = match.index + 1 + leadingBlanks(match[1]);
+    const anchor = start + leadingBlanks(match[1]);
     if (silenced.has(lineOf(markup, anchor))) continue;
     findings.push({ kind: "text", snippet: text });
   }
   while ((match = attrRe.exec(markup)) !== null) {
     const value = normalize(match[2]);
-    if (value.length < MIN_COPY_LENGTH) continue;
+    const valueStart = match.index + match[0].lastIndexOf(match[2]);
+    if (unblankedLength(source, valueStart, match[2].length) < MIN_COPY_LENGTH)
+      continue;
     if (!/^[A-Za-zÀ-ÿ]/.test(value)) continue;
     if (BRAND_WHITELIST.has(value)) continue;
     if (silenced.has(lineOf(markup, match.index))) continue;
@@ -276,25 +311,62 @@ function scanMarkup(markup, silenced = new Set()) {
   return findings;
 }
 
+/**
+ * Print what the run read, what it enforced, and what it excused.
+ *
+ * `enforced + excused.length` is the number of files walked, so a reader can
+ * check the coverage against `find src -name '*.svelte' | wc -l` without
+ * trusting the guard's own arithmetic.
+ *
+ * @param {number} enforced
+ * @param {{ file: string, count: number }[]} excused
+ * @returns {void}
+ */
+function reportCoverage(enforced, excused) {
+  const excusedFindings = excused.reduce((sum, e) => sum + e.count, 0);
+  console.log(
+    `audit-i18n: ${enforced + excused.length} files, ${enforced} enforced, ` +
+      `${excused.length} excused (design-system showcase routes, dev-only)`,
+  );
+  for (const { file, count } of excused) {
+    console.log(`  excused  ${file}  ${count} finding(s), not enforced`);
+  }
+  if (excused.length > 0) {
+    console.log(`  excused findings, total: ${excusedFindings}`);
+  }
+}
+
 async function main() {
   let totalFindings = 0;
+  let enforced = 0;
   const offenders = [];
+  /** @type {{ file: string, count: number }[]} */
+  const excused = [];
 
   for await (const file of walk(ROOT)) {
     const rel = path.relative(ROOT, file);
-    if (WHITELIST_FILES.has(rel)) continue;
-
     const raw = await readFile(file, "utf8");
     const markup = stripNonMarkup(raw);
-    const findings = scanMarkup(markup, ignoredLines(raw));
+    const findings = scanMarkup(markup, ignoredLines(raw), raw);
+
+    if (WHITELIST_FILES.has(rel)) {
+      excused.push({ file: rel, count: findings.length });
+      continue;
+    }
+
+    enforced += 1;
     if (findings.length === 0) continue;
 
     offenders.push({ file: rel, findings });
     totalFindings += findings.length;
   }
 
+  reportCoverage(enforced, excused);
+
   if (totalFindings === 0) {
-    console.log("✓ No hardcoded UI strings found in src/**/*.svelte");
+    console.log(
+      `✓ No hardcoded UI strings in the ${enforced} enforced .svelte files`,
+    );
     process.exit(0);
   }
 

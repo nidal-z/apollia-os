@@ -95,6 +95,7 @@
       class="text-[9.5px] font-mono px-1.5 py-px rounded bg-surface-1 text-muted-foreground"
       title={$t("projects.context_priority_label")}
     >
+      <!-- i18n-ignore: priority prefix, identical in every locale -->
       P{provider.priority}
     </span>
     {#if !provider.enabled}

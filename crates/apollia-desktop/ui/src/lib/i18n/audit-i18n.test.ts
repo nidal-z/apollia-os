@@ -10,11 +10,16 @@ import {
  * These cases pin the four shapes its character class used to get wrong:
  * a colon, an HTML entity next to a digit, a plain sentence, and a
  * whitelisted brand immediately followed by its closing tag.
+ *
+ * They also pin the length rule in both directions: a label whose literal
+ * part is short only because an expression sits next to it is reported, the
+ * same label routed or covered is not, and a short label with no expression
+ * beside it stays below the threshold.
  */
 
 function scan(source: string): string[] {
   const markup = stripNonMarkup(source);
-  return scanMarkup(markup, ignoredLines(source)).map(
+  return scanMarkup(markup, ignoredLines(source), source).map(
     (finding: { snippet: string }) => finding.snippet,
   );
 }
@@ -102,6 +107,59 @@ describe("audit-i18n scanner", () => {
     const snippets = scan(source);
 
     // THEN the directive suppresses the finding
+    expect(snippets).toEqual([]);
+  });
+
+  it("reports a label whose literal part is short only next to an expression", () => {
+    // GIVEN the memory-entry time-to-live label, whose literal part is three
+    // characters once `{expiresRel}` is blanked
+    const source = "<span>TTL {expiresRel}</span>";
+
+    // WHEN the scanner reads it
+    const snippets = scan(source);
+
+    // THEN the label is reported, the length having been measured before
+    // blanking, and the snippet is still the blanked literal part
+    expect(snippets).toEqual(["TTL"]);
+  });
+
+  it("stays silent on that same label once a directive covers it", () => {
+    // GIVEN the same label, carrying the documented directive
+    const source = [
+      "<!-- i18n-ignore: time-to-live acronym -->",
+      "<span>TTL {expiresRel}</span>",
+    ].join("\n");
+
+    // WHEN the scanner reads it
+    const snippets = scan(source);
+
+    // THEN nothing is reported
+    expect(snippets).toEqual([]);
+  });
+
+  it("stays silent on that same label once the literal is routed", () => {
+    // GIVEN the same label with its literal part routed through the
+    // catalogue. The key is a real one: `call-site-keys.test.ts` resolves
+    // every literal `$t("...")` of the tree, this file included.
+    const source = '<span>{$t("memory.value_empty")} {expiresRel}</span>';
+
+    // WHEN the scanner reads it
+    const snippets = scan(source);
+
+    // THEN nothing is reported, no literal being left to report
+    expect(snippets).toEqual([]);
+  });
+
+  it("keeps ignoring a short label that no expression sits next to", () => {
+    // GIVEN a text node under MIN_COPY_LENGTH with nothing blanked out of it.
+    // This is the discriminator: lowering the threshold would report it, and
+    // measuring before blanking must not.
+    const source = "<span>TTL</span>";
+
+    // WHEN the scanner reads it
+    const snippets = scan(source);
+
+    // THEN it stays below the threshold
     expect(snippets).toEqual([]);
   });
 

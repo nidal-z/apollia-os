@@ -45,11 +45,11 @@
     <div class="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
       <div>
         <div class="text-body-sm text-muted-foreground">{$t("settings.model_hub.hardware.ram")}</div>
-        <div class="text-body-md font-semibold tabular-nums text-foreground">{hardware.total_ram_gb.toFixed(0)} GB</div>
+        <div class="text-body-md font-semibold tabular-nums text-foreground">{hardware.total_ram_gb.toFixed(0)} {$t("tools.body.unit_gb")}</div>
       </div>
       <div>
         <div class="text-body-sm text-muted-foreground">{$t("settings.model_hub.hardware.available")}</div>
-        <div class="text-body-md font-semibold tabular-nums text-foreground">{hardware.available_ram_gb.toFixed(1)} GB</div>
+        <div class="text-body-md font-semibold tabular-nums text-foreground">{hardware.available_ram_gb.toFixed(1)} {$t("tools.body.unit_gb")}</div>
       </div>
       <div>
         <div class="text-body-sm text-muted-foreground">{$t("settings.model_hub.hardware.gpu")}</div>

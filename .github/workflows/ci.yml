@@ -294,6 +294,13 @@ jobs:
         run: |
           python3 scripts/check_tauri_ipc_args.py --selftest
           python3 scripts/check_tauri_ipc_args.py
+      # A category link declared on a slug its own index page already serves
+      # takes the route from that page. The page is then never rendered, so the
+      # build's link verifier never collects its links: a dead internal route
+      # written in it travels through the docs build in exit 0. Ten source
+      # pages, five sections in two locales, were in that state.
+      - name: Every documentation index page owns its route
+        run: python3 scripts/check_docs_routes.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

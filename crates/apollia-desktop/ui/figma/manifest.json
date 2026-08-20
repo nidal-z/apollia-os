@@ -2343,7 +2343,8 @@
           "ready",
           "loading"
         ]
-      }
+      },
+      "coverage": "Entree perimee depuis LOT-035, le 2026-08-20. Ce qui a change dans le source et n'est pas reproduit dans le jumeau : HardwareCard.svelte:48 et :52 rendent desormais l'unite par la cle de catalogue tools.body.unit_gb, qui vaut GB dans en.json et Go dans fr.json. Le jumeau est construit en francais, ses libelles disent Memoire vive et Disponible, et ses deux noeuds de valeur 416:1608 et 416:1611 portent encore 32 GB et 18.4 GB. Le rendu anglais du composant est inchange, seul le rendu francais diverge. Le jumeau n'a pas ete resynchronise. Aucun autre composant touche par le lot ne diverge : MemoryEntryRow, NotificationChannelCard, ProviderCard et OnboardingAiSetup n'ont recu qu'une directive i18n-ignore en commentaire, sortie de compilation identique verifiee, et ProjectMemoryTab, dont la meme substitution d'unite change KB en Ko, n'a pas d'entree dans ce manifeste."
     },
     {
       "nodeId": "416:1657",

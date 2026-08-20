@@ -251,6 +251,7 @@
       <div class="min-h-5 flex-1">
         {#if testResult?.status === "ok"}
           <Badge variant="success" size="sm">
+            <!-- i18n-ignore: status acronym, identical in every locale -->
             OK{testResult.latency_ms !== null ? ` · ${testResult.latency_ms} ms` : ""}
           </Badge>
         {:else if testFailure}
