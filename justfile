@@ -443,8 +443,52 @@ release-windows target=windows_target runners=windows_runners:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
-# Local CI: lint + tests
-ci: lint test
+# Run the thirteen tracked guard scripts, unfiltered, and report every red one.
+guards:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # Named one by one rather than globbed: the crossing carried by
+    # scripts/check_selftest.py looks for each guard's basename inside the
+    # files that declare a boundary, and a glob would name none of them.
+    guards=(
+      "scripts/check_claim_anchors.py"
+      "scripts/check_claims.py"
+      "scripts/check_crate_lints.py"
+      "scripts/check_docs_routes.py"
+      "scripts/check_guard_verdicts.py"
+      "scripts/check_instrument_verdicts.py"
+      "scripts/check_no_font_cdn.py"
+      "scripts/check_optional_builders.py --strict"
+      "scripts/check_prose.py"
+      "scripts/check_selftest.py"
+      "scripts/check_subprocess_window.py"
+      "scripts/check_tauri_ipc_args.py"
+      "scripts/check_tauri_ipc_callers.py"
+    )
+    # Reds accumulate instead of stopping the run: an operator wants the whole
+    # list, and stopping on the first one hides the twelve behind it.
+    reds=()
+    for guard in "${guards[@]}"; do
+      # Word splitting is wanted here, one entry carries an argument. This body
+      # runs under the bash of the shebang above, whose splitting is reliable.
+      # shellcheck disable=SC2086
+      if python3 $guard; then
+        echo "== ok   $guard"
+      else
+        echo "== RED  $guard"
+        reds+=("$guard")
+      fi
+    done
+    echo
+    if [ "${#reds[@]}" -ne 0 ]; then
+      echo "${#reds[@]} guard(s) red:" >&2
+      for guard in "${reds[@]}"; do echo "  $guard" >&2; done
+      exit 1
+    fi
+    echo "${#guards[@]} guards green"
+
+# Local CI: guards + lint + tests
+ci: guards lint test
     @echo "✅ CI locale passée"
 
 # Clean generated artifacts

@@ -78,6 +78,79 @@ repos:
         language: system
         pass_filenames: false
 
+      # The eight guards below run where the defect they catch is born, which
+      # is a commit. The five others of the corpus stay in `just guards`
+      # alone: two need a built tree, so a pre-commit entry would refuse the
+      # first commit of anyone who has not run `npm install` or `cargo build`,
+      # and three cost more than the commit they would sit on.
+      #
+      # Every filter is derived from the roots the guard declares in its own
+      # source, never from an intuition, and every filter names the guard's own
+      # file: without that, a change to a guard escapes the guard, which is the
+      # silent form of the defect these entries exist to close. The two guards
+      # whose subject is the whole repository carry no filter at all, since an
+      # honest one would name nearly every path.
+      #
+      # A filter decides when a defect is seen first, not whether it is seen:
+      # `just guards` runs the thirteen unfiltered.
+
+      - id: check-claim-anchors
+        name: claim anchors (markers against CLAIMS.toml, both locales)
+        entry: python3 scripts/check_claim_anchors.py
+        language: system
+        pass_filenames: false
+
+      - id: check-claims
+        name: declared claims against the code that backs them
+        entry: python3 scripts/check_claims.py
+        language: system
+        pass_filenames: false
+
+      - id: check-crate-lints
+        name: every crate inherits the workspace lints
+        entry: python3 scripts/check_crate_lints.py
+        language: system
+        files: '^(Cargo\.toml|crates/[^/]+/Cargo\.toml|scripts/check_crate_lints\.py)$'
+        pass_filenames: false
+
+      - id: check-subprocess-window
+        name: no console window on spawned subprocesses
+        entry: python3 scripts/check_subprocess_window.py
+        language: system
+        files: '^(crates/.+\.rs|scripts/check_subprocess_window\.py)$'
+        pass_filenames: false
+
+      # Ten percent on top of a commit that already pays a workspace check, and
+      # its defect, a documented capability nothing installs, is born nowhere
+      # else.
+      - id: check-optional-builders
+        name: optional builders are called somewhere
+        entry: python3 scripts/check_optional_builders.py --strict
+        language: system
+        files: '^(crates/.+\.rs|scripts/check_optional_builders\.py)$'
+        pass_filenames: false
+
+      - id: check-tauri-ipc-args
+        name: Tauri command arguments match their callers
+        entry: python3 scripts/check_tauri_ipc_args.py
+        language: system
+        files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_tauri_ipc_args\.py)$'
+        pass_filenames: false
+
+      - id: check-tauri-ipc-callers
+        name: every registered Tauri command has a caller
+        entry: python3 scripts/check_tauri_ipc_callers.py
+        language: system
+        files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_tauri_ipc_callers\.py)$'
+        pass_filenames: false
+
+      - id: check-docs-routes
+        name: documentation routes and category files
+        entry: python3 scripts/check_docs_routes.py
+        language: system
+        files: '^(docs/site/.+|scripts/check_docs_routes\.py)$'
+        pass_filenames: false
+
       # Blocks a commit that breaks the documentation build. The second branch
       # of the filter is measured, not guessed: docusaurus.config.js reads
       # ../../clients/openapi.json, so a spec change can break the site without

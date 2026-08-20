@@ -85,8 +85,23 @@ fails the build on that shape. The full explanation is in
 `.pre-commit-config.yaml` is the source; read it there. What it runs at commit
 time, in one line: the usual hygiene hooks plus `detect-private-key` and a
 500 KB file cap, `ruff-check` and `ruff-format` on `sdk/`, `rustfmt` and
-`cargo check` on the workspace, `check-prose` on the five prose rules, and
-`docs-site-build` when `docs/site/` or `clients/openapi.json` changes.
+`cargo check` on the workspace, `check-prose` on the five prose rules,
+`docs-site-build` when `docs/site/` or `clients/openapi.json` changes, and
+eight of the guard scripts of `scripts/`.
+
+Those eight are `check-claim-anchors` and `check-claims`, which carry no filter
+because their subject is the whole repository, plus `check-crate-lints`,
+`check-subprocess-window`, `check-optional-builders`, `check-tauri-ipc-args`,
+`check-tauri-ipc-callers` and `check-docs-routes`, each filtered on the roots
+its own source declares. A filter decides when a defect is seen first, never
+whether it is seen: `just guards` runs the thirteen tracked guards unfiltered
+and reports every red one, and `just ci` starts with it.
+
+The four guards that stay out of the hook stay out for a measured reason.
+`check_guard_verdicts.py` and `check_instrument_verdicts.py` need a built tree,
+so a hook entry would refuse the first commit of a contributor who has not yet
+run `npm ci` or `cargo build`. `check_no_font_cdn.py` and `check_selftest.py`
+cost more than the commits they would sit on.
 
 Two entries are not commit-time hooks, and reading the list as one is how a
 contributor gets surprised: `clippy -D warnings` is staged on `pre-push`, and

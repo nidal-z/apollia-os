@@ -20,9 +20,9 @@ render one. The verdict is plausible, and it is about something else:
     having looked at any file, because a workspace with several members and no
     `default-members` leaves it without a current package.
   - `tests/cli/cli-e2e.sh` was asked whether the command line behaves. A
-    relative `APOLLIA_BIN` was carried unresolved through 153 assertions and
-    failed on the only one that changes directory first, so the red named an
-    assertion rather than a malformed input.
+    relative `APOLLIA_BIN` was carried unresolved through every assertion but
+    the one that changes directory first, and failed on that one, so the red
+    named an assertion rather than a malformed input.
 
 Each instrument carries a pair in both directions on the same subject: the
 command answers green on a conforming subject and red on a deliberately faulty
@@ -634,6 +634,42 @@ def _suite(binary: str, report_dir: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _e2e_totals(plain: str) -> dict[str, int] | None:
+    """The three summary numbers the suite prints, or None if one is missing."""
+    totals: dict[str, int] = {}
+    for key in ("PASS", "FAIL", "SKIP"):
+        found = re.search(rf"^\s*{key}\s*:\s*(\d+)\s*$", plain, re.M)
+        if found is None:
+            return None
+        totals[key] = int(found.group(1))
+    return totals
+
+
+def _e2e_summary_is_consistent(plain: str) -> tuple[bool, str]:
+    """Does the printed summary agree with the marks printed above it?
+
+    A summary read on its own says nothing: an orchestrator that stopped
+    counting halfway would print three numbers that hold together and describe
+    a run that never happened. Counting the marks costs nothing and pins the
+    summary to the assertions it claims to summarise.
+
+    The skip marks are matched on the shape `⊘ <label> - <reason>` rather than
+    on the character alone: tests/cli/cli-e2e.sh prints one more `⊘` of its
+    own, without that separator, when the local model does not become ready,
+    and it is a track announcement rather than a skipped assertion.
+    """
+    totals = _e2e_totals(plain)
+    if totals is None:
+        return False, "no summary"
+    marks = {
+        "PASS": len(re.findall(r"^\s*✔\s+\S.*$", plain, re.M)),
+        "FAIL": len(re.findall(r"^\s*✗\s+\S.*$", plain, re.M)),
+        "SKIP": len(re.findall(r"^\s*⊘\s+\S.* - .*$", plain, re.M)),
+    }
+    ok = totals == marks and totals["PASS"] >= 1
+    return ok, f"summary {totals} against marks {marks}"
+
+
 def check_cli_suite(pair: Pair) -> None:
     announce(pair)
 
@@ -666,20 +702,57 @@ def check_cli_suite(pair: Pair) -> None:
         plain = ANSI.sub("", run.stdout)
         # The single assertion that changes directory before invoking the
         # binary, named rather than counted: it is the one a relative path used
-        # to break, and a count of 154 could be reached without it.
+        # to break, and any total could be reached without it.
+        #
+        # No absolute total is pinned here, and that is the substance of the
+        # green direction rather than a relaxation of it. Since the commit that
+        # made ten red verdicts measure the product instead of the host, the
+        # suite skips the assertions whose subject the host does not provide:
+        # the platform keyring answers on one machine and not on another, so
+        # PASS and SKIP trade places at constant total and neither is a
+        # property of the tree. What the instrument was asked stays pinned by
+        # three predicates that no host can move: the run is green, no
+        # assertion failed, the assertion that resolves a relative path passed,
+        # and the summary agrees with the marks it printed.
         scratch_cwd = re.search(
             r"^\s*✔\s+workspace init --force \(scratch cwd\)\s*$", plain, re.M
         )
+        relative_totals = _e2e_totals(plain)
+        consistent, consistency = _e2e_summary_is_consistent(plain)
         pair.case(
             "green",
             "a relative APOLLIA_BIN runs every assertion, including the one that changes directory",
             run.returncode == 0
-            and re.search(r"^\s*PASS\s*:\s*154\s*$", plain, re.M) is not None
-            and re.search(r"^\s*FAIL\s*:\s*0\s*$", plain, re.M) is not None
-            and scratch_cwd is not None,
-            f"exit {run.returncode}, the scratch-cwd assertion passed "
-            f"{scratch_cwd is not None}. Tail:\n"
-            + "\n".join(plain.splitlines()[-25:]),
+            and relative_totals is not None
+            and relative_totals["FAIL"] == 0
+            and scratch_cwd is not None
+            and consistent,
+            f"exit {run.returncode}, totals {relative_totals}, the scratch-cwd "
+            f"assertion passed {scratch_cwd is not None}, summary consistency "
+            f"{consistency}. Tail:\n" + "\n".join(plain.splitlines()[-25:]),
+        )
+
+    # The half the named assertion does not cover, "every other assertion was
+    # reached too", measured by a differential rather than by a count. The same
+    # suite is run again under the absolute spelling of the same binary, on the
+    # same machine, in the same second, with the same keyring and the same
+    # APOLLIA_REQUIRE_RUNTIME: everything that depends on the host cancels out,
+    # so any assertion that a relative path fails to reach shows up as a
+    # difference between the two triplets. Nothing is written down here that a
+    # later assertion could make stale.
+    with tempfile.TemporaryDirectory() as tmp:
+        absolute_run = _suite(str(REPO_ROOT / relative), Path(tmp))
+        absolute_plain = ANSI.sub("", absolute_run.stdout)
+        absolute_totals = _e2e_totals(absolute_plain)
+        pair.case(
+            "control",
+            "the absolute spelling of the same binary reaches exactly the same assertions",
+            absolute_run.returncode == 0
+            and absolute_totals is not None
+            and absolute_totals == relative_totals,
+            f"relative {relative_totals} against absolute {absolute_totals}, "
+            f"absolute exit {absolute_run.returncode}. Tail:\n"
+            + "\n".join(absolute_plain.splitlines()[-25:]),
         )
 
     with tempfile.TemporaryDirectory() as tmp:

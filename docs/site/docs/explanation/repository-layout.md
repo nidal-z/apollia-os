@@ -109,7 +109,7 @@ actually configures in this repository.
 | `Cross.toml` | `cross-rs` cross-compilation: `pre-build` steps that install the Linux system libraries (ALSA, PulseAudio, JACK, CMake, clang) into the build container for the x86_64 and aarch64 GNU/Linux targets. |
 | `sonar-project.properties` | SonarQube analysis config (local Community Build, not part of the public release): source and test roots, exclusions, the imported Clippy report path, and documented per-rule exemptions. |
 | `justfile` | `just` task recipes: the canonical commands for building, testing, linting, and running the desktop automaton. |
-| `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, the prose rules, and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
+| `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, nine of the repository guards under `scripts/` (the prose rules among them), and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
 | `.editorconfig` | Editor-agnostic whitespace rules: LF endings, final newline, and per-language indent sizes (4 for Rust/Python/TOML, 2 for web and Markdown). |
 | `.python-version` | Pins the local Python interpreter (`3.13.7`) for tooling like `pyenv`. |
 | `.mailmap` | Canonicalizes contributor name and email across git history. |

@@ -38,6 +38,11 @@ properties rather than the fixes:
      the same commit, both green, and its verdict named neither the tree nor
      the 126 generated files that separated them. Coverage that depends on the
      tree drops silently, in the direction that reports success.
+  7. Every guard of the corpus is named by a file that launches it. The same
+     bias one step further out again: a guard nobody starts reports nothing,
+     and nothing distinguishes it from a guard that passed. Two of this
+     corpus were in that state, named by no pre-commit entry, no workflow and
+     no recipe.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -988,6 +993,98 @@ def check_e2e_failure_detail() -> None:
         )
 
 
+# ── The crossing: a guard nobody launches ────────────────────────────────────
+
+# The files that declare where a command runs. A guard whose basename appears in
+# none of them is declared and launched by nothing, which is the same bias as
+# the six above one step further out: the corpus reports green because nothing
+# ran, and the reader who cannot tell a guard that passed from a guard that was
+# never started falls back on believing the green.
+BOUNDARY_FILES = (".pre-commit-config.yaml", "justfile")
+WORKFLOW_DIR = ".github/workflows"
+
+
+def _boundary_text() -> tuple[str, list[str]]:
+    read: list[str] = []
+    chunks: list[str] = []
+    paths = [REPO_ROOT / name for name in BOUNDARY_FILES]
+    paths += sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yml"))
+    paths += sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yaml"))
+    for path in paths:
+        if not path.is_file():
+            continue
+        chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+        read.append(str(path.relative_to(REPO_ROOT)))
+    return "\n".join(chunks), read
+
+
+def orphan_guards(basenames: list[str], text: str) -> list[str]:
+    """Guard basenames that no boundary file names."""
+    return sorted(name for name in basenames if name not in text)
+
+
+def check_guards_are_launched() -> None:
+    print("guard corpus: every tracked guard is named by a file that launches it")
+
+    inventory = subprocess.run(
+        ["git", "ls-files", "scripts/check_*.py"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    case(
+        "the guard inventory is readable",
+        inventory.returncode == 0,
+        f"`git ls-files` exited {inventory.returncode}: {inventory.stderr.strip()!r}. "
+        f"Nothing was measured, which is not the same as no orphan",
+    )
+    if inventory.returncode != 0:
+        return
+
+    tracked = [Path(line).name for line in inventory.stdout.split()]
+    # Untracked guards are out of reach on purpose: they are absent from a fresh
+    # clone, so demanding a boundary for one would ask every clone to launch a
+    # file it does not have. The day such a guard becomes tracked, it enters
+    # this crossing without a line being added here.
+    case(
+        "the crossing has a corpus to measure",
+        len(tracked) >= 2,
+        f"`git ls-files scripts/check_*.py` returned {tracked!r}. A crossing "
+        f"over an empty corpus reports no orphan and proves nothing",
+    )
+
+    text, read = _boundary_text()
+    case(
+        "the boundary files were read",
+        len(read) >= 3 and ".pre-commit-config.yaml" in read and "justfile" in read,
+        f"read {read!r}. A crossing over an empty text would report every guard "
+        f"as an orphan, and one over a partial text would invent orphans",
+    )
+
+    orphans = orphan_guards(tracked, text)
+    case(
+        "no tracked guard is orphaned of a boundary",
+        not orphans,
+        f"{len(orphans)} guard(s) named by no boundary file: {orphans!r}. Each "
+        f"is a rule the corpus carries and nothing enforces. Add it to the "
+        f"`guards` recipe of the justfile, or to a pre-commit entry",
+    )
+
+    # Positive control, on the same query and against the same text: without it
+    # a green above would prove this tree carries no orphan only if the
+    # crossing can see one at all, which is exactly what a bare `in` on a
+    # truncated text would fail to do.
+    invented = "check_a_guard_no_boundary_names.py"
+    case(
+        "positive control: a name no boundary file carries is reported",
+        orphan_guards([invented], text) == [invented],
+        f"the crossing found {invented!r} inside the boundary text, so the case "
+        f"above would be green because the crossing matches anything, not "
+        f"because the corpus is launched",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
@@ -1001,19 +1098,22 @@ def main() -> int:
     check_worktree_comparator()
     print()
     check_e2e_failure_detail()
+    print()
+    check_guards_are_launched()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\neight properties hold: neither a comment nor a re-export is a use, "
+        "\nnine properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
-        "nothing to it"
+        "nothing to it, and every tracked guard is named by a file that "
+        "launches it"
     )
     return 0
 
