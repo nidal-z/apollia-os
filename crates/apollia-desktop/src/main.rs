@@ -1047,8 +1047,6 @@ fn main() {
             commands::memory::memory_import_namespace,
             // Observability
             commands::observability::get_audit_stats,
-            // Agents
-            commands::agents::get_agent_detail,
             // Updates
             // Projects
             commands::projects::suggest_workspace_path,

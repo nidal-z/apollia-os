@@ -966,23 +966,6 @@ async fn list_agent_messages_inner(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Agent detail
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Fetches the full details of an agent by its ID.
-///
-/// Calls `GET /api/v1/agents/{agent_id}` and returns the enriched data as raw
-/// JSON to avoid duplicating the data structure on the Tauri side.
-#[tauri::command]
-pub async fn get_agent_detail(
-    runtime: State<'_, RuntimeHandle>,
-    agent_id: String,
-) -> Result<serde_json::Value, String> {
-    let path = format!("/api/v1/agents/{agent_id}");
-    super::http_get_json(runtime.api_port, &path).await
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
