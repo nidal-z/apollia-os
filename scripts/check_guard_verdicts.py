@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pin that three declared guards can still render a negative verdict.
+"""Pin that four declared guards can still render a negative verdict.
 
 A command is only a guard if it can fail. Three in this tree could not, each in
 a different way, and each failure mode is invisible to a reader of the command
@@ -13,6 +13,13 @@ itself:
   - `npx svelte-check` answered 823 errors of which 822 came from
     `node_modules`, so its verdict was never read. A guard nobody reads is a
     guard nobody can fail.
+
+A fourth arrived by the other door. `detect-private-key` could always fail, and
+did, on every commit touching the module that held the TLS test pair, whatever
+the diff; the way through was `--no-verify`, which switches off all sixteen
+hooks. Moving the pair to a path of its own and excusing that one path is the
+fix, and an exemption is the cheapest way to blind a detector, so it is pinned
+here from three directions rather than trusted.
 
 Fixing each instance does nothing for the fourth guard someone writes next, so
 this file pins the property rather than the fix: every guard enrolled here
@@ -351,12 +358,131 @@ def check_frontend_type_verdict() -> None:
     )
 
 
+# ── The private-key detector ─────────────────────────────────────────────────
+# The hook refuses every commit touching a file that carries a private key,
+# whatever the diff, so the TLS pair inlined in `api/server.rs` made that
+# module uncommittable and the way through was `--no-verify`, which switches
+# off all sixteen hooks. The pair now lives on a path of its own and that one
+# path is excused. An exemption is the cheapest way to blind a detector, so the
+# three directions below are what keeps this one honest: it still fires outside
+# the excused path, the excused file is genuinely a file it would fire on, and
+# the exemption still covers exactly one path.
+
+# Assembled rather than written out. This file is judged by the very hook it
+# drives here, and a literal marker in it would make it a file carrying a key:
+# the first draft did exactly that and the hook caught it, which is the pair
+# working one level up from where it was aimed.
+_KEY_MARK = "PRIVATE KEY-----"
+PROBE_KEY = f"-----BEGIN {_KEY_MARK}\nZmFrZQ==\n-----END {_KEY_MARK}\n"
+EXEMPTED_PATH = "crates/apollia-runtime/src/api/tls_test_material.rs"
+HOOK_ID = "detect-private-key"
+HOOK_ENTRY = re.compile(
+    rf"^(\s*)-\s*id:\s*{re.escape(HOOK_ID)}\s*$\n((?:\1\s+\S.*\n|\s*\n)*)",
+    re.MULTILINE,
+)
+HOOK_EXCLUDE = re.compile(r"^\s*exclude:\s*['\"](.+?)['\"]\s*$", re.MULTILINE)
+
+
+def _hook_exclude(config_text: str) -> str | None:
+    """The `exclude` carried by the detect-private-key entry, if it carries one."""
+    entry = HOOK_ENTRY.search(config_text)
+    if entry is None:
+        return None
+    found = HOOK_EXCLUDE.search(entry.group(2))
+    return found.group(1) if found else None
+
+
+def _run_hook(paths: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["pre-commit", "run", HOOK_ID, "--files", *paths],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
+def check_private_key_detector() -> None:
+    print("private-key detector: it still fires, and the exemption is one path wide")
+    if shutil.which("pre-commit") is None:
+        zero_coverage(
+            "private-key detector",
+            "pre-commit is not on this machine, so this pair examined nothing",
+        )
+        return
+    config, where = subject(".pre-commit-config.yaml")
+    material, _ = subject(EXEMPTED_PATH)
+    if config is None or material is None:
+        zero_coverage(
+            "private-key detector",
+            f"{'.pre-commit-config.yaml' if config is None else EXEMPTED_PATH} is "
+            "absent, so this pair examined nothing",
+        )
+        return
+    print(f"        configuration found in {where}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        planted = Path(tmp) / "planted.pem"
+        planted.write_text(PROBE_KEY, encoding="utf-8")
+        fired = _run_hook([str(planted)])
+        case(
+            "a file carrying a key, outside the excused path, is caught",
+            fired.returncode != 0 and "planted.pem" in fired.stdout,
+            f"expected a non-zero exit naming the file, got {fired.returncode}. "
+            f"Output:\n{fired.stdout}{fired.stderr}",
+        )
+        # The excused file passing proves nothing unless the same detector,
+        # given the same bytes at a path it does not excuse, fires on them.
+        copied = Path(tmp) / "copied.rs"
+        copied.write_text(material.read_text(encoding="utf-8"), encoding="utf-8")
+        control = _run_hook([str(copied)])
+        case(
+            "control: the excused file's own content is content it fires on",
+            control.returncode != 0 and "copied.rs" in control.stdout,
+            f"the detector stayed silent on the bytes of {EXEMPTED_PATH} copied "
+            f"to a path it does not excuse, so its silence on the real path says "
+            f"nothing. Output:\n{control.stdout}{control.stderr}",
+        )
+
+    excused = _run_hook([EXEMPTED_PATH])
+    case(
+        "the excused path passes",
+        excused.returncode == 0,
+        f"expected exit 0 on {EXEMPTED_PATH}, got {excused.returncode}. Output:\n"
+        f"{excused.stdout}{excused.stderr}",
+    )
+
+    pattern = _hook_exclude(config.read_text(encoding="utf-8"))
+    if pattern is None:
+        zero_coverage(
+            "private-key detector, exemption width",
+            f"the {HOOK_ID} entry of {config} declares no exclude, so there is "
+            "no exemption left to measure",
+        )
+        return
+    tracked = subprocess.run(
+        ["git", "ls-files"],
+        cwd=config.parent,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    subtracted = [path for path in tracked if re.search(pattern, path)]
+    case(
+        "the exemption subtracts exactly one path",
+        subtracted == [EXEMPTED_PATH],
+        f"the exclude {pattern!r} subtracts {len(subtracted)} tracked path(s) "
+        f"from the detector: {subtracted}. An exemption that grew is an "
+        "exemption nobody arbitrated",
+    )
+
+
 def main() -> int:
     check_corpus_validator()
     print()
     check_signature_verification()
     print()
     check_frontend_type_verdict()
+    print()
+    check_private_key_detector()
 
     if UNCOVERED:
         print(f"\n{len(UNCOVERED)} pair(s) examined nothing:\n", file=sys.stderr)
@@ -369,10 +495,11 @@ def main() -> int:
     if UNCOVERED or FAILURES:
         return 1
     print(
-        "\nthree guards hold a pair in both directions: the corpus validator "
+        "\nfour guards hold a pair in both directions: the corpus validator "
         "rejects an absent anchor, the signature verification rejects a tampered "
-        "bundle and no caller swallows it, and the frontend verdict drops "
-        "library noise without dropping repository errors"
+        "bundle and no caller swallows it, the frontend verdict drops library "
+        "noise without dropping repository errors, and the private-key detector "
+        "still fires everywhere its one excused path is not"
     )
     return 0
 

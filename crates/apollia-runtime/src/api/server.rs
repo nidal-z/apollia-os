@@ -1018,6 +1018,7 @@ async fn serve_unix(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::tls_test_material::{TEST_TLS_CERT_PEM, TEST_TLS_KEY_PEM};
     use crate::coordinator::ExecutionBackend;
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
@@ -1282,26 +1283,6 @@ mod tests {
         handle.shutdown();
         let _ = std::fs::remove_file(&socket_path);
     }
-
-    // Self-signed EC certificate + key for the TLS handshake test. Generated
-    // once with `openssl req -x509 -newkey ec` for CN/SAN localhost. Test-only.
-    const TEST_TLS_CERT_PEM: &str = "-----BEGIN CERTIFICATE-----\n\
-MIIBmjCCAT+gAwIBAgIUQqKKeHUOBMBghGEEvDXjapDcIiQwCgYIKoZIzj0EAwIw\n\
-FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDcxNDA1MzQyOFoXDTM2MDcxMTA1\n\
-MzQyOFowFDESMBAGA1UEAwwJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0D\n\
-AQcDQgAEWZ0RPXZo8vEdvtyHUAAe/R0TryJmnh2fT5wTVuUMZrJVIGRVTTbfenOz\n\
-XFC25yp0escLNTMuNprp7qchbrmjIaNvMG0wHQYDVR0OBBYEFCLotXp0e5i8B2vA\n\
-mlHBnwgVvxn1MB8GA1UdIwQYMBaAFCLotXp0e5i8B2vAmlHBnwgVvxn1MA8GA1Ud\n\
-EwEB/wQFMAMBAf8wGgYDVR0RBBMwEYcEfwAAAYIJbG9jYWxob3N0MAoGCCqGSM49\n\
-BAMCA0kAMEYCIQC9y01nmYoSlWnK+uX1tqHfjMn0a+HWhRiaSN55QML6LAIhAPKM\n\
-Htplqy9lO4oMS0FJXRsjbD93wxQgJHL/4YHl+Ne0\n\
------END CERTIFICATE-----\n";
-
-    const TEST_TLS_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----\n\
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgBUl6bU7cNDQoy04z\n\
-6fv3u4wCglZ2i1wK/BnAmFhnqo2hRANCAARZnRE9dmjy8R2+3IdQAB79HROvImae\n\
-HZ9PnBNW5QxmslUgZFVNNt96c7NcULbnKnR6xws1My42munupyFuuaMh\n\
------END PRIVATE KEY-----\n";
 
     /// Test-only cert verifier that accepts any server certificate, so the
     /// handshake test does not need a trust anchor for the self-signed fixture.

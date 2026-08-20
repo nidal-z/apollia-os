@@ -28,5 +28,11 @@ pub mod routes_triggers;
 pub mod routes_webhooks;
 pub mod server;
 
+// The TLS pair the handshake test writes to disk. Held apart from
+// `server.rs` so that the private-key hook can be excused on one path
+// instead of being bypassed on every commit that touched that module.
+#[cfg(test)]
+mod tls_test_material;
+
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
 pub use server::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};

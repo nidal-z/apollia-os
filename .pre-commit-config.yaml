@@ -21,7 +21,13 @@ repos:
       - id: check-toml
       - id: check-added-large-files
         args: ["--maxkb=500"]
+      # The one path excused, anchored at both ends so it names a file and
+      # not a prefix: a directory prefix here would blind the detector to
+      # the twenty-six other files of `src/api/`. The exemption sits on
+      # this entry rather than at the root of the file, where it would
+      # also excuse the fifteen other hooks.
       - id: detect-private-key
+        exclude: '^crates/apollia-runtime/src/api/tls_test_material\.rs$'
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
