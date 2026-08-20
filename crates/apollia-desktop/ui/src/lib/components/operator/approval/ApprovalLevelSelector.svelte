@@ -29,12 +29,15 @@
       labelKey: "integrations.wizard.approval_ask_label",
       descKey: "integrations.wizard.approval_ask_desc",
     },
-    {
-      value: "readonly",
-      labelKey: "integrations.wizard.approval_readonly_label",
-      descKey: "integrations.wizard.approval_readonly_desc",
-    },
   ];
+
+  // The "readonly" level was removed on 2026-08-20. It persisted the same byte as
+  // "auto", so the most restrictive label produced the least protective setting:
+  // an autonomous agent called every write, delete and network operation of an MCP
+  // server the operator had explicitly set to read-only. There is no per-server
+  // read-only notion anywhere, neither in McpServerConfig nor in the engine, so
+  // the level promised something nothing could deliver. Restoring it means
+  // building that notion first, not adding an option back here.
 </script>
 
 <RadioGroup class="gap-2" data-testid="approval-level-selector">

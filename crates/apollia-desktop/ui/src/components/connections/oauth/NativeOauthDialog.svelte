@@ -93,7 +93,25 @@
     try {
       const scopes =
         provider === "google"
-          ? ["mail.send", "mail.compose", "calendar.read", "calendar.write", "drive.workspace"]
+          ? // "mail.drafts" and not "mail.compose": the only draft operation wired in
+            // the bridge is gmail.compose_draft, a POST on {BASE}/drafts, which
+            // gmail.drafts.create covers. Asking for the wider compose scope
+            // contradicted the published policy without buying an operation.
+            // The six aliases below were checked green in the capability list
+            // while no scope carried their right; they exist on both sides of
+            // the bridge, so asking for them makes the list true.
+            [
+              "mail.send",
+              "mail.drafts",
+              "calendar.read",
+              "calendar.write",
+              "drive.workspace",
+              "sheets",
+              "docs",
+              "slides",
+              "tasks",
+              "forms",
+            ]
           : ["mail.read", "mail.send", "calendar.read", "calendar.write", "files.read"];
       const startResult = await oauthStartFlow(provider, scopes);
       authUrl = startResult.auth_url;

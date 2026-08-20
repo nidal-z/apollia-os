@@ -12,12 +12,27 @@
    * would silently unselect them, which is destruction with no confirmation and
    * no trace: the button says "select all", so it selects.
    */
+  /**
+   * Tools the engine refuses to pre-authorize, whatever this panel records.
+   *
+   * `chat/manager/libre.rs` drops every code executor from the pre-authorized
+   * set on each session and warns about it, because per-invocation approval is
+   * an invariant rather than a preference. A checkbox that survives a reopen
+   * while the engine strips it every time tells the operator something false,
+   * so the panel stops offering them.
+   */
+  const NEVER_PRE_AUTHORIZED: readonly string[] = ["bash_executor", "python_executor"];
+
+  export function isPreAuthorizable(name: string): boolean {
+    return !NEVER_PRE_AUTHORIZED.includes(name);
+  }
+
   export function selectAllTools(
     current: ReadonlySet<string>,
     listed: readonly NamedTool[],
   ): Set<string> {
     const next = new Set(current);
-    for (const tool of listed) next.add(tool.name);
+    for (const tool of listed) if (isPreAuthorizable(tool.name)) next.add(tool.name);
     return next;
   }
 </script>
@@ -288,7 +303,7 @@
         class="max-h-72 divide-y divide-border overflow-y-auto rounded-md border border-border"
         data-testid="apollia-chat-tools-list"
       >
-        {#each filteredTools as tool (tool.name)}
+        {#each filteredTools.filter((t) => isPreAuthorizable(t.name)) as tool (tool.name)}
           {@const checked = allowedTools.has(tool.name)}
           <li>
             <Button variant="ghost" size="auto"
