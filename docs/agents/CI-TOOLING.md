@@ -21,7 +21,7 @@ source of truth at runtime.
 | `Cargo.toml` (root) | `[workspace.dependencies]`, `[workspace.lints]`, `[workspace.package]` |
 | `package.json` (desktop UI) | Node tooling, scripts |
 | `.github/workflows/*.yml` | CI pipelines |
-| `scripts/linux-check.sh` + `scripts/linux-check.Dockerfile` | ask the Linux question locally, in a container, before pushing |
+| `scripts/linux-check.sh` + `scripts/linux-check.Dockerfile` | ask the two Linux questions locally, in a container, before pushing: does it compile, do the suites pass |
 
 ---
 
@@ -291,11 +291,60 @@ fine". The daemon is deliberately not started for you.
 
 Every run prints the perimeter it measured before it measures it: image,
 platform, triple read out of the container with `rustc -vV`, release preset,
-workspace member count read from `cargo metadata`, and what it does not cover
-(the other Linux triple, both Windows triples, and the feature presets). Requires
-a running Docker daemon and roughly 7.5 GB of image and volumes per
-architecture; without one, read the verdict of the `Clippy` job of
+workspace member count read from `cargo metadata`, the parallelism it used and
+where that number came from, and what it does not cover (the other Linux triple,
+both Windows triples, and the feature presets). Requires a running Docker
+daemon; without one, read the verdict of the `Clippy` job of
 `.github/workflows/ci.yml` on a pushed branch instead.
+
+Disk, measured with `docker system df -v` on an Apple Silicon host on
+2026-08-19. An architecture that has only ever been asked the compile question
+holds a 3.8 GB image, a 392 MB registry volume and a 7.58 GB target volume, so
+about 12 GB. The test question shares that same target volume and grows it: the
+architecture that has been asked it holds 43.75 GB of targets, so budget about
+48 GB for it.
+
+### Ask the Linux test question too, it is a different question
+
+`linux-check` answers whether the tree compiles. It links no test binary, so a
+tree can compile on Linux and still fail its suites there, and until August 2026
+the only run that ever asked the second question was a `docker run` typed by
+hand: a mount, two volumes and an environment variable that lived in no tracked
+file, so nobody could replay it.
+
+```sh
+just linux-test               # aarch64-unknown-linux-gnu, native, measured
+just linux-test x86           # x86_64-unknown-linux-gnu, emulated, cost unmeasured
+```
+
+It runs `cargo test --workspace --no-fail-fast --locked`, the first of the two
+steps of the `Rust Tests` job of `.github/workflows/ci.yml:143-146`, in the same
+container, on the same read-only mount, sharing the same target volume as
+`linux-check`. The default target differs from `linux-check` on purpose: this
+question is the slow one, and `aarch64` is the only one that has been measured.
+
+**It sets its own parallelism, and that is the point.** Left at the container's
+default of 24 jobs for 7.65 GiB, linking the test binaries dies on
+`collect2: fatal error: ld terminated with signal 9 [Killed]`. The script reads
+the container's core count and `MemTotal` in the same probe that reads the
+triple, then uses one job per 3 GiB capped by the core count, and passes it as
+`CARGO_BUILD_JOBS`. Nothing has to be exported by the caller, and the perimeter
+block prints the value together with the two numbers it came from, so the same
+line read on another machine says where its own number came from.
+
+The three exit codes are the same three, read for this question: 0 the suites
+passed, 1 they failed or the tree did not compile, 2 nothing was measured. On
+green and on red alike the last line carries the counts extracted from the run
+by `scripts/worktree_verdicts.py`, in the form `exit 101, 78 bin, 4379 tst`, and
+the word `not measured` where a count could not be extracted, never `0`.
+
+What it does not cover, beyond what `linux-check` already does not cover:
+`cargo test -p apollia-e2e-tests --features python-tests`, the second step of the
+same job. That suite declares it needs the SDK installed in the interpreter
+(`tests/integration/test_hello_agent.rs:4-5`), the image is built without a
+context so it cannot install it, and the tree is mounted read-only. And no run of
+this channel confronts the image's system packages with the runner's, so a green
+here is not a promise of a green there. Both facts are printed by the run itself.
 
 ### Linked worktrees need one command first
 

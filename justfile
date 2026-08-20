@@ -78,7 +78,22 @@ fmt:
 
 # Check that this tree compiles on Linux, from a machine that is not Linux.
 linux-check arch="x86":
-    bash scripts/linux-check.sh {{arch}}
+    bash scripts/linux-check.sh {{arch}} compile
+
+# Runs the first step of the Rust Tests job of CI, ci.yml:143-144, in the same
+# container and on the same read-only mount. It derives cargo's parallelism from
+# the container's cores and memory and sets it itself: left unbounded, linking
+# the test binaries is killed for memory. Nothing is exported by the caller.
+#
+#   just linux-test               aarch64-unknown-linux-gnu, native, measured
+#   just linux-test x86           x86_64-unknown-linux-gnu, emulated, cost
+#                                 unmeasured. The default differs from
+#                                 linux-check on purpose: this question is the
+#                                 slow one, and only arm was measured
+
+# Run the workspace suites on Linux, from a machine that is not Linux.
+linux-test arch="arm":
+    bash scripts/linux-check.sh {{arch}} test
 
 # Groups are cumulative and there is no default: `just worktree-prep` lists them
 # and exits 1. See scripts/worktree-prep.sh for what each group lays down.
