@@ -17,8 +17,12 @@
 //! ## Isolation of the interpreter process
 //!
 //! On Linux, the interpreter runs inside a PID and mount namespace via
-//! `unshare --pid --mount --fork`, matching `bash_executor`. Spawning fails closed
-//! if `unshare` is unavailable (for example on hosts without `CAP_SYS_ADMIN`).
+//! `unshare --pid --mount --fork`, matching `bash_executor`. When `unshare` is
+//! refused, for example on a host without `CAP_SYS_ADMIN`, the interpreter does
+//! not start and nothing runs outside the namespace. The failure is relayed as
+//! the program's own non-zero exit with `unshare`'s message on stderr, so a
+//! caller cannot tell it apart from a script that failed on its own, and a
+//! script can forge it. Do not read this path as a fail-closed signal.
 //! On macOS there is no OS sandbox; a per-invocation warning is emitted. On every
 //! Unix platform, per-process resource limits are applied via `setrlimit`. Python
 //! child processes get rlimits everywhere and namespaces on Linux, but no macOS

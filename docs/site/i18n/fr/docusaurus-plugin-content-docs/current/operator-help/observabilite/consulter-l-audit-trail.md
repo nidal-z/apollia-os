@@ -11,7 +11,7 @@
 
 1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Piste d'audit**.
 
-2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent. C'est la trace immuable de chaque outil invoqué par un agent.
+2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité. L'onglet enregistre les **invocations d'outils** ; un fichier que le code Python d'un agent lit directement n'y figure pas.
 
 3. Sous l'encart, une carte **Journal complet** donne trois totaux comptés sur tout le journal : **Invocations enregistrées**, **Outils distincts**, **Agents distincts**. Ils ne bougent pas avec les filtres, et ils ne s'arrêtent pas aux lignes chargées plus bas : ils répondent à « que contient le journal », là où les indicateurs de l'étape suivante répondent à « qu'est-ce que je regarde en ce moment ». Si ces totaux ne peuvent pas être lus, la carte affiche une ligne qui le dit et le tableau en dessous n'est pas affecté.
 

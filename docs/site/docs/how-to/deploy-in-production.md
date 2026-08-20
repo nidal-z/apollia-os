@@ -82,7 +82,9 @@ sudo systemctl status apollia
   `unshare --pid --mount --fork`. Those flags are called **without** `--user`, so
   they need `CAP_SYS_ADMIN`: enabling unprivileged user namespaces on the host
   does not grant it. Under a plain `User=apollia` service, both executors fail,
-  and `python_executor` fails closed.
+  and nothing runs outside the namespace. The refusal reaches the caller as the
+  program's own non-zero exit rather than as a distinct sandbox error, so do not
+  rely on it as a fail-closed signal.
   <!-- claim:unshare-sandbox-requires-cap-sys-admin -->
 
   Pick one, knowingly:

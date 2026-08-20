@@ -90,8 +90,10 @@ sudo systemctl status apollia
   `unshare --pid --mount --fork`. Ces options sont appelées **sans**
   `--user`, ce qui nécessite `CAP_SYS_ADMIN` : activer les espaces de noms
   utilisateur non privilégiés sur l'hôte ne l'accorde pas. Sous un service
-  `User=apollia` classique, les deux exécuteurs échouent, et
-  `python_executor` échoue de façon sécurisée, en refusant par défaut.
+  `User=apollia` classique, les deux exécuteurs échouent, et rien ne s'exécute
+  hors de l'espace de noms. Le refus parvient à l'appelant sous la forme du code
+  de sortie du programme lui-même, et non d'une erreur de bac à sable distincte :
+  ne le lisez pas comme un signal de refus par défaut.
   <!-- claim:unshare-sandbox-requires-cap-sys-admin -->
 
   Choisissez-en une, en connaissance de cause :
