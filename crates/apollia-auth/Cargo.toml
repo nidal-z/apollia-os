@@ -19,7 +19,7 @@ chrono       = { workspace = true }
 base64       = { workspace = true }
 keyring      = { workspace = true }
 urlencoding  = { workspace = true }
-dirs         = "5"
+dirs         = "6"
 toml         = { workspace = true }
 dashmap      = "6"
 age          = "0.11"
