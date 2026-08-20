@@ -76,6 +76,98 @@
       showHotkeyBlock: detectedCount > 0 && dictationEnabled,
     };
   }
+
+  /** What a voice scan reports about one model, reduced to what a choice needs. */
+  export interface ScannedWhisperModel {
+    /** Absolute path of the model file, its identity from one scan to the next. */
+    path: string;
+    /** Whether the scan marks this model as the one to use by default. */
+    recommended: boolean;
+  }
+
+  /** The voice selection a scan leaves behind, and where it leaves the toggle. */
+  export interface WhisperScanChoice {
+    /** Path of the model that stays selected, `null` when the scan found none. */
+    selectedPath: string | null;
+    /** Position of the dictation toggle once the scan has been applied. */
+    dictationEnabled: boolean;
+  }
+
+  /**
+   * Reconcile a fresh voice scan with the choice already on screen.
+   *
+   * A scan used to overwrite both the selected model and the dictation toggle
+   * with the first result and its `recommended` flag, so any re-scan silently
+   * undid what the operator had just picked. A choice that is still on disk is
+   * therefore kept, toggle included.
+   *
+   * The first scan of a session has no choice to keep, and a chosen model that
+   * the scan no longer reports is gone from disk: both fall back on the first
+   * result, which is what makes the section usable without a click.
+   */
+  export function reconcileWhisperScan(
+    scanned: readonly ScannedWhisperModel[],
+    currentPath: string | null,
+    dictationEnabled: boolean,
+  ): WhisperScanChoice {
+    if (scanned.length === 0) {
+      return { selectedPath: null, dictationEnabled: false };
+    }
+    if (currentPath !== null && scanned.some((model) => model.path === currentPath)) {
+      return { selectedPath: currentPath, dictationEnabled };
+    }
+    const fallback = scanned[0];
+    return { selectedPath: fallback.path, dictationEnabled: fallback.recommended };
+  }
+
+  /** The engine-configuration state of the step, as the template reads it. */
+  export interface LlmConfigurationState {
+    /** Path of the engine the step names, `null` while none is wired. */
+    selectedPath: string | null;
+    /** True only while a configuration is in flight. */
+    configuring: boolean;
+    /** True once an engine has been wired during this session. */
+    configured: boolean;
+    /** Message of the configuration that failed, `null` otherwise. */
+    error: string | null;
+  }
+
+  /**
+   * Run one engine configuration, from the click to the settled state.
+   *
+   * `wire` performs the effect, `publish` receives the in-flight state and then
+   * the settled one. The lock comes back down whichever way the run ends. A run
+   * that succeeded used to leave it raised for the rest of the session, which
+   * disabled every detected row and turned the confirmation into a dead end:
+   * having wired one engine is exactly when an operator wants another.
+   *
+   * A run that failed restores the engine wired before it, so the step keeps
+   * naming the one actually in use rather than the one that just refused.
+   */
+  export async function runLlmConfiguration(
+    current: LlmConfigurationState,
+    path: string,
+    wire: (path: string) => Promise<void>,
+    publish: (next: LlmConfigurationState) => void,
+  ): Promise<void> {
+    publish({
+      selectedPath: path,
+      configuring: true,
+      configured: current.configured,
+      error: null,
+    });
+    try {
+      await wire(path);
+      publish({ selectedPath: path, configuring: false, configured: true, error: null });
+    } catch (err: unknown) {
+      publish({
+        selectedPath: current.selectedPath,
+        configuring: false,
+        configured: current.configured,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 </script>
 
 <script lang="ts">
@@ -490,6 +582,26 @@
 
   // ─── Data loading ─────────────────────────────────────────────────────────
 
+  /**
+   * Apply a fresh voice scan to the section.
+   *
+   * Every path that scans for voice models goes through here, so a re-scan
+   * behaves the same whether it was triggered by the header button, by a
+   * finished download, by an import from disk, or by the rescan link of the
+   * language-engine section.
+   */
+  function applyWhisperScan(scanned: WhisperModelInfo[]): void {
+    whisperModels = scanned;
+    const choice = reconcileWhisperScan(
+      scanned,
+      selectedWhisper?.path ?? null,
+      sttEnabled,
+    );
+    selectedWhisper =
+      scanned.find((model) => model.path === choice.selectedPath) ?? null;
+    sttEnabled = choice.dictationEnabled;
+  }
+
   async function loadData(): Promise<void> {
     try {
       const [sys, gguf, whisper, sttCfg] = await Promise.all([
@@ -505,11 +617,7 @@
       ]);
       sysInfo = sys;
       ggufModels = gguf;
-      whisperModels = whisper;
-      if (whisper.length > 0) {
-        selectedWhisper = whisper[0];
-        sttEnabled = whisper[0].recommended;
-      }
+      applyWhisperScan(whisper);
       sttHotkey = sttCfg?.hotkey ?? "ctrl+shift+space";
       sttInputDevice = sttCfg?.input_device ?? "";
       void loadInputDevices();
@@ -629,12 +737,7 @@
 
   async function rescanStt(): Promise<void> {
     try {
-      const whisper = await scanForWhisperModels();
-      whisperModels = whisper;
-      if (whisper.length > 0) {
-        selectedWhisper = whisper[0];
-        sttEnabled = whisper[0].recommended;
-      }
+      applyWhisperScan(await scanForWhisperModels());
     } catch {
       /* leave empty */
     }
@@ -643,18 +746,31 @@
   // ─── LLM local model selection ────────────────────────────────────────────
 
   async function selectGgufModel(model: GgufModelInfo): Promise<void> {
-    if (llmConfiguring || llmSuccess) return;
-    selectedGguf = model;
-    llmConfiguring = true;
-    llmError = null;
-    try {
-      await setupLocalLlm(model.path);
-      await reloadLlm();
-      llmSuccess = true;
-    } catch (err: unknown) {
-      llmError = err instanceof Error ? err.message : String(err);
-      llmConfiguring = false;
-    }
+    // A configuration in flight is the only reason to ignore a click. Having
+    // already wired an engine during this session is precisely when an
+    // operator wants to switch to another one.
+    if (llmConfiguring) return;
+    // Held so a failed run can put back the engine that is actually wired.
+    const previous = selectedGguf;
+    await runLlmConfiguration(
+      {
+        selectedPath: previous?.path ?? null,
+        configuring: llmConfiguring,
+        configured: llmSuccess,
+        error: llmError,
+      },
+      model.path,
+      async (path) => {
+        await setupLocalLlm(path);
+        await reloadLlm();
+      },
+      (next) => {
+        selectedGguf = next.selectedPath === model.path ? model : previous;
+        llmConfiguring = next.configuring;
+        llmSuccess = next.configured;
+        llmError = next.error;
+      },
+    );
   }
 
   // ─── Load a model from disk (file picker + copy into models dir) ───────────
@@ -971,7 +1087,7 @@
                 class="model-row"
                 class:is-selected={selectedGguf?.path === model.path && llmConfiguring}
                 onclick={() => selectGgufModel(model)}
-                disabled={llmConfiguring || llmSuccess}
+                disabled={llmConfiguring}
                 data-testid="llm-model-row"
               >
                 <div class="model-icon">
