@@ -147,7 +147,7 @@ async-trait = "0.1"
 # `timings` object that llama-server attaches, and the generic `post` helper that
 # would otherwise reach it is `pub(crate)`.
 async-openai = { version = "0.28", features = ["byot"] }
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
 # Local LLM inference runs through the embedded upstream llama-server binary
 # (see crates/apollia-runtime/src/llama_server.rs), not in-process bindings, so
 # neither llama-cpp-2 nor its sys crate is a dependency anymore. The runner is
