@@ -71,7 +71,7 @@ hound            = { workspace = true }
 # crate's own redeclaration used to drop, silently leaving Windows credentials in
 # keyring's in-memory mock instead of the Credential Manager.
 keyring          = { workspace = true }
-scraper          = "0.26"
+scraper          = "0.27"
 url              = "2"
 urlencoding      = { workspace = true }
 
