@@ -294,6 +294,16 @@ jobs:
         run: |
           python3 scripts/check_tauri_ipc_args.py --selftest
           python3 scripts/check_tauri_ipc_args.py
+      # The other half of the same contract. A command registered in
+      # `generate_handler!` that nothing calls compiles, passes its own unit
+      # tests and is reachable by no user; nineteen of them lived here at once.
+      # The crossing was measured by hand each time, never kept, so the count
+      # went back up between measurements. The two completeness lines of the
+      # output are what makes an empty result mean something.
+      - name: Every registered Tauri command has a caller
+        run: |
+          python3 scripts/check_tauri_ipc_callers.py --selftest
+          python3 scripts/check_tauri_ipc_callers.py
       # A category link declared on a slug its own index page already serves
       # takes the route from that page. The page is then never rendered, so the
       # build's link verifier never collects its links: a dead internal route
