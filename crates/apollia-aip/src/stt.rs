@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 
 use apollia_stt::SttBackend;
 
@@ -91,9 +92,7 @@ impl PySttInterface {
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))??;
 
-            Ok(Python::with_gil(|py| {
-                result.into_pyobject(py).unwrap().into_any().unbind()
-            }))
+            Python::with_gil(|py| result.into_py_any(py))
         })
     }
 

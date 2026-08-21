@@ -22,6 +22,7 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3::IntoPyObjectExt;
 
 use apollia_memory::user_memory::{ProfileEntry, WrittenBy};
 
@@ -55,7 +56,7 @@ impl ProfileInterface {
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?;
             Python::with_gil(|py| match value {
-                Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().unbind()),
+                Some(v) => v.into_py_any(py),
                 None => Ok(py.None()),
             })
         })

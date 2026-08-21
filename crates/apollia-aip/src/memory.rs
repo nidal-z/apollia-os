@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::IntoPyObjectExt;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_memory::episodic::EpisodicMemory;
@@ -164,9 +165,7 @@ impl MemoryInterface {
                     .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
-                Ok(Some(value)) => Ok(Python::with_gil(|py| {
-                    value.into_pyobject(py).unwrap().into_any().unbind()
-                })),
+                Ok(Some(value)) => Python::with_gil(|py| value.into_py_any(py)),
                 Ok(None) => Ok(Python::with_gil(|py| py.None())),
                 Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
             }
@@ -388,9 +387,7 @@ impl MemoryInterface {
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
-                Ok(id) => Ok(Python::with_gil(|py| {
-                    id.into_pyobject(py).unwrap().into_any().unbind()
-                })),
+                Ok(id) => Python::with_gil(|py| id.into_py_any(py)),
                 Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
             }
         })
@@ -480,7 +477,7 @@ impl MemoryInterface {
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-            Python::with_gil(|py| Ok(count.into_pyobject(py).unwrap().into_any().unbind()))
+            Python::with_gil(|py| count.into_py_any(py))
         })
     }
 }

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use pyo3::exceptions::{PyRuntimeError, PyStopAsyncIteration, PyValueError};
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 use apollia_core::events::EventBusSender;
@@ -536,7 +537,7 @@ impl LlmProxy {
                 .await
                 .map_err(llm_err_to_py)?;
 
-            Python::with_gil(|py| Ok(result.into_pyobject(py).unwrap().into_any().unbind()))
+            Python::with_gil(|py| result.into_py_any(py))
         })
     }
 
