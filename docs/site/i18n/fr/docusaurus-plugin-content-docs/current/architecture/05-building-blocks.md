@@ -104,7 +104,7 @@ service dans la [référence SDK](/reference/sdk). Les quinze services sont
 
 | Crate | Rôle |
 |---|---|
-| **apollia-tools** | La bibliothèque d'outils natifs (shell, Python, opérations sur fichiers, notebook, récupération HTTP, recherche et lecture web, recherche mémoire, demande à l'utilisateur), avec un bac à sable de chemins, une garde SSRF, un classificateur de risque, des règles de permission, et un audit SHA-256 de chaque appel. |
+| **apollia-tools** | La bibliothèque d'outils natifs (shell, Python, opérations sur fichiers, notebook, récupération HTTP, recherche et lecture web, recherche mémoire, demande à l'utilisateur), avec un bac à sable de chemins, une garde SSRF, des règles de permission, un audit SHA-256 de chaque appel, et un filtre de commandes shell dont les listes de motifs sont livrées vides et qu'aucun code de production ne remplit, si bien qu'il ne bloque aucune commande. |
 | **apollia-mcp** | Le client MCP (initialize plus tools/list via stdio, Streamable HTTP, et SSE, avec des approbations HITL et une découverte mDNS optionnelle). Les agents invoquent les outils MCP via le chemin d'outil gouverné. Un serveur MCP entrant existe mais reste partiel (stdio uniquement). |
 | **apollia-connectors** | Des connecteurs natifs Google et Microsoft agissant sur le mail, le calendrier et les fichiers. Google est limité aux scopes non restreints du niveau gratuit ; Microsoft est plus large. Les jetons vont dans le trousseau ou dans un fichier chiffré age. |
 | **apollia-stt** | Reconnaissance vocale locale sur `whisper` : transcription et traduction par lots, plus une chaîne de traitement audio. Uniquement par lots, sans diffusion en continu. |

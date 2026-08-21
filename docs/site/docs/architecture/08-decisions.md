@@ -54,9 +54,10 @@ grammar, with just-in-time extraction as a fallback at execution. Filling them
 at plan time is what lets a plan drive real tools with structured arguments
 instead of re-parsing prose at each step.
 
-A completed orchestrated run is verified by a critic. The verdict is recorded as
-a runtime event, and a failing verdict triggers bounded re-planning under the
-same budget that bounded the original run.
+A completed orchestrated run is verified by a critic from the `supervised` tier
+upward; the `assisted` tier runs no verification pass at all. The verdict is
+recorded as a runtime event, and a failing verdict triggers bounded re-planning
+under the same budget that bounded the original run.
 
 ## Budget and safeguards {#budget-and-safeguards}
 
@@ -107,19 +108,39 @@ network.
 
 ## Permission model {#permission-model}
 
-Tool calls pass through a governance layer that resolves a decision from
-persisted rules. A rule carries a scope: session, project, agent, or global.
-Denials take priority over grants at equal specificity, and the decision is
-logged whichever way it goes.
+<!-- claim:prefix-rules-evaluated-per-invocation -->
+On the chat path a tool call is decided in a fixed order. The operator's
+persisted rules are evaluated first, per invocation, against this call's own
+first argument: project rules, then rules scoped to the chat agent, then global
+rules, longest argument prefix first. A matching deny refuses the call outright,
+even one the turn had already authorized by name. Otherwise the call runs when
+the tool's name is in the turn's authorization set or a rule allows it, and a
+rule-based allow is not remembered, so the next call is evaluated again with its
+own argument. Anything left raises an approval request and waits for a person; a
+refusal, or five minutes without an answer, runs nothing.
+
+A persisted rule carries one of three scopes: project, agent, or global. The
+session scope is refused at write time and lives in memory only, and the chat
+path passes no in-memory session rule.
 
 Code executors are never blanket-authorized. A rule that would grant every tool
 does not grant shell or Python execution; those require their own explicit
 grant. A blanket grant is usually a convenience decision about reading files,
 and it must not silently become permission to run arbitrary code.
 
-Command strings reaching a shell executor are scanned quote-aware, so chaining,
-redirection, and pipe-to-interpreter constructions are refused rather than
-missed by a naive substring rule.
+<!-- claim:executor-guard-blocks-command-chaining -->
+A rule only lets a shell command skip approval when that command is a single
+simple command, with no chaining, pipe, redirection, substitution, or
+backgrounding. That guard decides whether a call may skip approval; it is not a
+filter placed in front of execution, and a code executor with no matching rule
+asks a person on every invocation.
+
+<!-- claim:permission-decision-is-not-recorded -->
+The permission decision itself is not written anywhere. Nothing in a shipped
+binary writes to the `permission_audit` table; it is read by
+`apollia permissions audit` and by the desktop audit view, and by nothing else.
+What is recorded is the invocation: `tool_invocations` holds what ran, not who
+allowed it.
 
 ## Human in the loop {#human-in-the-loop}
 

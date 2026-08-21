@@ -167,6 +167,87 @@ more.
 """
 
 [[claim]]
+id = "permission-decision-is-not-recorded"
+scope = "public"
+symbol = "PermissionAuditLog::record"
+status = "absent"
+proof = "crates/apollia-permissions/src/audit_log.rs"
+evidence = "CREATE TABLE IF NOT EXISTS permission_audit"
+note = """
+The decisions chapter said the permission decision "is logged whichever way it
+goes". Nothing in a shipped binary writes to `permission_audit`.
+
+Re-anchored on 2026-08-21, once the unwired governance types were removed from
+the tree. The claim used to rest on
+`PermissionEngine::decide`, the only writer, reached through
+`ToolDispatcher::with_permission_engine`, which no production caller populated.
+That engine has been removed, so the fact is now stronger and its old anchor is
+gone: there is no writer at all, wired or otherwise.
+
+What remains is what the claim now rests on, and it is durable rather than
+transitional. `audit_log.rs` still creates the table and its index, still exposes
+`query`, and `apollia permissions audit` still reads it. A table with readers and
+no writer is the shape of this defect, and it survives any future removal of the
+code that once might have filled it.
+
+The two production callers of the table are readers. The only `INSERT INTO
+permission_audit` in the tree sits under `#[cfg(test)]` in
+`apollia-cli/src/commands/permissions.rs`, inside a fixture that seeds rows to
+test the reader.
+
+The evidence deliberately pins the same string as `permission-engine-not-wired`,
+because that is the exact fact this claim rests on: the day someone wires the
+engine, the decision starts being recorded and the corrected paragraph has to be
+corrected back. What *is* recorded is the invocation, and
+`tool-invocations-is-the-execution-record` guards that distinction. Do not merge
+the two: one says what ran, the other says who allowed it, and only the first
+exists.
+"""
+
+[[claim]]
+id = "risk-classifier-has-no-patterns-by-default"
+scope = "public"
+symbol = "BashExecutor::with_config"
+status = "not-wired"
+proof = "crates/apollia-tools/src/tools/bash_executor.rs"
+evidence = "pattern lists are empty; no command is blocked"
+note = """
+Two pages listed "a risk classifier" beside the path sandbox and the SSRF guard,
+which do run. The four pattern lists of `BashValidatorConfig` default to empty,
+and `with_config`, the only path that would fill them, has one caller, under
+`#[cfg(test)]`. Every production site builds `BashExecutor::new()`. The
+categories are enabled and match nothing, and no configuration reaches them:
+`ToolsConfig` carries no `bash` field, so the `[tools.bash]` section named by the
+`BashValidatorConfig` doc-comment is deserialised nowhere. The filter refuses no
+command in the shipped runtime.
+
+If the evidence string stops matching, either the defaults changed or the
+executor gained a configured production caller, and the pages that now say
+"blocks nothing" have to be revisited.
+"""
+
+[[claim]]
+id = "rollback-journal-has-no-writer"
+scope = "public"
+symbol = "FileWrite::with_journal"
+status = "not-wired"
+proof = "scripts/check_optional_builders.py"
+evidence = "until then no documentation may imply it"
+note = """
+Three pages promised that filesystem changes could be reversed: two architecture
+chapters and, worse, the how-to index, which promised it on behalf of a page
+that does not do it. `with_journal` exists on `FileWrite` and `FileEdit` and has
+callers only under `#[cfg(test)]`, so no install records anything to undo.
+
+The proof file is the builder baseline rather than a crate, and on purpose. The
+rule this claim enforces is written there, in the verdict on the builder: wiring
+the journal is what makes the capability real, and until then no documentation
+may imply it. Wiring it removes the baseline entry, which removes the evidence
+string, which fails this claim and reopens the pages in one move. No crate file
+carries that statement.
+"""
+
+[[claim]]
 id = "plan-cache-is-consulted-by-the-engine"
 scope = "public"
 symbol = "with_shared_plan_cache"
@@ -410,6 +491,50 @@ ceiling. What a tier cannot change is that ceiling.
 
 The evidence string pins the doc-comment table, which is the only place all four
 tiers are stated together, and which the code below it must keep matching.
+"""
+
+[[claim]]
+id = "tier-budget-capped-at-thirty-on-agent-paths"
+scope = "public"
+symbol = "direct_path_budget"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/start.rs"
+evidence = ""
+note = """
+The tier table of 100 to 500 reasoning steps is real and it is read by the chat
+path, which runs at the default tier and never varies. An agent run reads none
+of it: both execution paths take the budget the manifest declares and cap it
+with `StepBudget::from_capped` against `StepBudgetConfig::default()`, 30 steps,
+60 tool calls, 600 seconds. On the direct path that is `direct_path_budget`, in
+`apollia-cli` and again in `apollia-desktop`; on the orchestrated path the
+engine caps against its own `runtime_config`, whose only setter has no
+production caller, so it stays at the same default.
+
+An explanation page told an operator that raising the tier raises the budget
+from 100 to 500. It raises what the run may attempt, not what it gets. If
+`direct_path_budget` loses its caller, the direct path is unbounded again and
+principle #7 fails silently, which is the reason this is guarded as `wired`
+rather than stated in prose.
+"""
+
+[[claim]]
+id = "plan-gate-yields-to-the-per-run-override"
+scope = "public"
+symbol = "with_plan_gate_override"
+status = "wired"
+proof = "crates/apollia-oria/src/engine.rs"
+evidence = ""
+note = """
+`plan_gate_active` returns the per-run override when one is present and consults
+the tier only otherwise. Both agent backends always call
+`with_plan_gate_override` with what the submission carried, and `apollia-os run`
+always fills that field, so on that path `--plan` decides and the tier does not.
+
+Four pages presented the gate as a property of the tier, full stop. The
+conditional is the whole point: state the override, or an operator picks
+`assisted` believing the gate is armed. If this builder loses its callers the
+tier decides again and those pages become true, which is why the claim is here
+rather than in a comment.
 """
 
 [[claim]]

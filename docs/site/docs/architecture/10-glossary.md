@@ -21,7 +21,7 @@ Key terms used across this section and the rest of the documentation.
 | **ctx** | The runtime context passed to every agent handler, exposing fifteen typed services. The contract is `sdk/apollia/types.py`. See the [SDK reference](/reference/sdk). |
 | **AgentKit** | The Python SDK (`apollia`): the decorators, schemas, harness, and helpers an author writes against. |
 | **MCP** | Model Context Protocol. Apollia is an MCP client that discovers and calls external tools, and can expose a limited inbound MCP server. |
-| **Autonomy tier** | The operator-set dial for how much an agent may do without asking. Lower tiers keep a human in the loop on more actions. |
+| **Autonomy tier** | The per-run setting that governs the plan gate and the post-run verification pass. It governs no permission and no approval, so it changes how far a run goes unattended, not what an agent may touch. |
 | **HITL** | Human-in-the-loop: an approval a person resolves before a consequential action runs. The decision is recorded. |
 | **Audit journal** | The append-only, hash-chained, signed record of governed actions, used for verification. |
 | **Verify** | Checking a run's audit hash chain and signatures to confirm the record was not altered. |

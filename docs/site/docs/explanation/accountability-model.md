@@ -83,11 +83,19 @@ path would not contain a hostile one.
 
 ### Autonomy tiers
 
-How much an agent may do without asking is set by an autonomy tier. Lower tiers
-keep a human in the loop on more actions; higher tiers widen what the agent may
-do on its own. The tier is a deliberate dial an operator sets, not a property of
-the agent, so the same agent can run cautiously or freely depending on the
-context and the trust the operator extends.
+An autonomy tier moves five things and no others: the suggested step budget,
+memory injection, the post-run verification pass, the system-prompt profile, and
+the plan gate. It moves no permission rule and no human checkpoint on a tool
+call, so a higher tier does not widen what an agent is allowed to touch. It
+widens how far a run goes before it stops to ask.
+
+<!-- claim:plan-gate-yields-to-the-per-run-override -->
+The plan gate is the conditional one. The tier decides it only when the run
+carries no per-run override, and `apollia-os run` always sends one, so on that
+path `--plan` decides and the tier does not. The tier itself is set per run,
+through `--autonomy`: `apollia.toml` has no `[autonomy]` section the runtime
+reads, and the desktop offers no tier control. Free chat does not vary it
+either, every exchange running at the default tier.
 
 ### Non-negotiable safeguards
 
@@ -98,8 +106,12 @@ without bound. This is the guarantee that autonomy has a hard edge.
 
 ### Shell command screening
 
-Shell commands are screened before execution: a risk classifier reads the
-command and a syntax check rejects what will not parse. When a standing prefix
+<!-- claim:risk-classifier-has-no-patterns-by-default -->
+Shell commands are screened before execution: a syntax check rejects what will
+not parse, and a pattern filter can refuse a command outright. That filter ships
+with empty pattern lists, and nothing fills them: the constructor that takes
+patterns has no production caller, and no `apollia.toml` section reaches it, so
+the filter blocks no command in the shipped runtime. When a standing prefix
 rule is consulted for a code executor, a stricter guard refuses any command
 that chains, pipes, redirects or substitutes, so an authorisation granted for
 one command cannot smuggle a second; outside a matching rule, every code

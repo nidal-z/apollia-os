@@ -81,9 +81,11 @@ third lives elsewhere, in the desktop prompt-rewrite command, which never touche
 the assistant's prompt at all: it answers the composer, not a run. No agent
 execution path goes through any of the three.
 
-The first is an operator's decision. At the highest autonomy tier only,
-`long_autonomous`, the assistant appends a short user-persona brief to its system
-prompt. The three lower tiers do not.
+The first is written into the assistant and unreachable in this release. At the
+highest autonomy tier only, `long_autonomous`, the assistant appends a short
+user-persona brief to its system prompt. Free chat rebuilds the default tier on
+every exchange, so it always runs at `assisted`, and that brief is never
+appended.
 
 <!-- claim:cross-session-recall-injects-summaries -->
 The second is not tier-gated, and is worth stating plainly. On the **first

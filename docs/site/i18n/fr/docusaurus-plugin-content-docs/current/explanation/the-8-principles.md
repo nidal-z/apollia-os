@@ -93,10 +93,11 @@ vit ailleurs, dans la commande de réécriture du bureau, qui ne touche jamais a
 prompt de l'assistant : elle répond au composeur, pas à une exécution. Aucun
 chemin d'exécution d'agent ne passe par l'une des trois.
 
-La première est une décision de l'opérateur. Au palier d'autonomie le plus
-élevé uniquement, `long_autonomous`, l'assistant ajoute un court brief de
-persona utilisateur à son prompt système. Les trois paliers inférieurs ne le
-font pas.
+La première est écrite dans l'assistant et inatteignable dans cette version. Au
+palier d'autonomie le plus élevé uniquement, `long_autonomous`, l'assistant
+ajoute un court brief de persona utilisateur à son prompt système. Le chat libre
+reconstruit le palier par défaut à chaque échange : il s'exécute donc toujours en
+`assisted`, et ce brief n'est jamais ajouté.
 
 <!-- claim:cross-session-recall-injects-summaries -->
 La seconde n'est pas conditionnée par un palier, et mérite d'être énoncée sans

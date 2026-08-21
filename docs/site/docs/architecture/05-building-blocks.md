@@ -102,7 +102,7 @@ service in the [SDK reference](/reference/sdk). The fifteen services are `llm`,
 
 | Crate | Role |
 |---|---|
-| **apollia-tools** | The native tool library (shell, Python, file operations, notebook, HTTP fetch, web search and read, memory search, ask-user), with a path sandbox, SSRF guard, a risk classifier, permission rules, and a SHA-256 audit of each call. |
+| **apollia-tools** | The native tool library (shell, Python, file operations, notebook, HTTP fetch, web search and read, memory search, ask-user), with a path sandbox, an SSRF guard, permission rules, a SHA-256 audit of each call, and a shell command filter whose pattern lists ship empty and that no production code fills, so it blocks no command. |
 | **apollia-mcp** | The MCP client (initialize plus tools/list over stdio, streamable HTTP, and SSE, with HITL approvals and optional mDNS discovery). Agents invoke MCP tools through the governed tool path. An inbound MCP server exists but is partial (stdio only). |
 | **apollia-connectors** | Native Google and Microsoft connectors acting on mail, calendar, and files. Google is scoped to non-restricted, free-tier scopes; Microsoft is broader. Tokens go to the keyring or an age-encrypted file. |
 | **apollia-stt** | Local speech-to-text on `whisper`: batch transcribe and translate plus an audio pipeline. Batch only, no streaming. |

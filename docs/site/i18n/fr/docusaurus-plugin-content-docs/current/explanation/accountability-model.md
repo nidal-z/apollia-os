@@ -97,12 +97,21 @@ agent hostile.
 
 ### Paliers d'autonomie
 
-Ce qu'un agent peut faire sans demander est fixé par un palier d'autonomie.
-Les paliers bas gardent un humain dans la boucle sur davantage d'actions ; les
-paliers hauts élargissent ce que l'agent peut faire de sa propre initiative.
-Le palier est un curseur délibéré que l'opérateur règle, pas une propriété de
-l'agent, si bien que le même agent peut s'exécuter avec prudence ou en toute
-liberté selon le contexte et la confiance que l'opérateur lui accorde.
+Un palier d'autonomie fait varier cinq choses, et aucune autre : le budget de
+pas suggéré, l'injection mémoire, la passe de vérification après exécution, le
+profil de prompt système, et la porte du plan. Il ne fait varier aucune règle de
+permission ni aucun point de contrôle humain sur un appel d'outil : un palier
+plus élevé n'élargit donc pas ce qu'un agent a le droit de toucher. Il élargit
+la distance qu'une exécution parcourt avant de s'arrêter pour demander.
+
+<!-- claim:plan-gate-yields-to-the-per-run-override -->
+La porte du plan est celle qui est conditionnelle. Le palier ne la décide que
+lorsque l'exécution ne porte aucune surcharge propre à l'exécution, et
+`apollia-os run` en envoie toujours une : sur ce chemin, c'est `--plan` qui
+décide, pas le palier. Le palier lui-même se pose par exécution, via
+`--autonomy` : `apollia.toml` n'a aucune section `[autonomy]` que le runtime
+lise, et le bureau n'offre aucun réglage de palier. Le chat libre ne le fait pas
+varier non plus, chaque échange s'exécutant au palier par défaut.
 
 ### Garde-fous non négociables
 
@@ -115,9 +124,14 @@ limite dure.
 
 ### Filtrage des commandes shell
 
-Les commandes shell sont filtrées avant exécution : un classifieur de risque
-lit la commande et un contrôle syntaxique rejette ce qui ne peut pas être
-analysé. Quand une règle de préfixe permanente est consultée pour un exécuteur
+<!-- claim:risk-classifier-has-no-patterns-by-default -->
+Les commandes shell sont filtrées avant exécution : un contrôle syntaxique
+rejette ce qui ne peut pas être analysé, et un filtre de motifs peut refuser une
+commande sur-le-champ. Ce filtre est livré avec des listes de motifs vides, et
+rien ne les remplit : le constructeur qui accepte des motifs n'a aucun appelant
+de production, et aucune section d'`apollia.toml` ne l'atteint, si bien que le
+filtre ne bloque aucune commande dans le runtime livré.
+Quand une règle de préfixe permanente est consultée pour un exécuteur
 de code, un garde-fou plus strict refuse toute commande qui enchaîne, met en
 pipe, redirige ou substitue, si bien qu'une autorisation accordée pour une
 commande ne peut pas en faire passer une seconde en contrebande ; en dehors

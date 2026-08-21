@@ -59,9 +59,11 @@ de l'exécution. C'est ce remplissage à la planification qui permet à un plan 
 piloter de vrais outils avec des arguments structurés, au lieu de réanalyser de
 la prose à chaque étape.
 
-Une exécution orchestrée terminée est vérifiée par un critique. Le verdict est
-consigné comme événement du runtime, et un verdict négatif déclenche une
-replanification bornée, sous le budget qui bornait déjà l'exécution d'origine.
+Une exécution orchestrée terminée est vérifiée par un critique à partir du
+palier `supervised` ; le palier `assisted` ne lance aucune passe de
+vérification. Le verdict est consigné comme événement du runtime, et un verdict
+négatif déclenche une replanification bornée, sous le budget qui bornait déjà
+l'exécution d'origine.
 
 ## Budget et garde-fous {#budget-and-safeguards}
 
@@ -114,10 +116,22 @@ ne peut pas rediriger vers le réseau local.
 
 ## Modèle de permissions {#permission-model}
 
-Les appels d'outils passent par une couche de gouvernance qui résout une
-décision à partir de règles persistées. Une règle porte une portée : session,
-projet, agent ou globale. Les refus priment sur les autorisations à spécificité
-égale, et la décision est journalisée dans les deux sens.
+<!-- claim:prefix-rules-evaluated-per-invocation -->
+Sur le chemin du chat, un appel d'outil est décidé dans un ordre fixe. Les
+règles persistées de l'opérateur sont évaluées en premier, à chaque invocation,
+contre le premier argument de cet appel-ci : règles de projet, puis règles
+portant sur l'agent du chat, puis règles globales, le préfixe d'argument le plus
+long gagnant. Un refus qui correspond rejette l'appel sur-le-champ, y compris un
+appel que le tour avait déjà autorisé par son nom. Sinon l'appel s'exécute si le
+nom de l'outil est dans l'ensemble autorisé du tour ou si une règle l'autorise,
+et une autorisation venue d'une règle n'est pas mémorisée : l'appel suivant est
+réévalué avec son propre argument. Ce qui reste déclenche une demande
+d'approbation et attend une personne ; un refus, ou cinq minutes sans réponse,
+n'exécute rien.
+
+Une règle persistée porte l'une des trois portées suivantes : projet, agent ou
+globale. La portée session est refusée à l'écriture et ne vit qu'en mémoire, et
+le chemin du chat ne transmet aucune règle de session en mémoire.
 
 Les exécuteurs de code ne sont jamais autorisés en bloc. Une règle qui
 accorderait tous les outils n'accorde pas l'exécution shell ni l'exécution
@@ -126,10 +140,19 @@ en bloc est en général une décision de confort à propos de la lecture de
 fichiers, et elle ne doit pas devenir en silence le droit d'exécuter du code
 arbitraire.
 
-Les chaînes de commande qui atteignent un exécuteur shell sont analysées en
-tenant compte des guillemets, si bien que le chaînage, la redirection et les
-constructions qui redirigent vers un interpréteur sont refusés plutôt que
-manqués par une règle naïve de sous-chaîne.
+<!-- claim:executor-guard-blocks-command-chaining -->
+Une règle ne dispense une commande shell d'approbation que lorsque cette
+commande est une commande simple et unique, sans chaînage, tube, redirection,
+substitution ni exécution en arrière-plan. Cette garde décide d'une dispense
+d'approbation ; ce n'est pas un filtre placé devant l'exécution, et un exécuteur
+de code sans règle correspondante demande une personne à chaque invocation.
+
+<!-- claim:permission-decision-is-not-recorded -->
+La décision de permission elle-même n'est écrite nulle part. Rien, dans un
+binaire livré, n'écrit dans la table `permission_audit` : elle est lue par
+`apollia permissions audit` et par la vue d'audit du bureau, et par rien
+d'autre. Ce qui est enregistré, c'est l'invocation : `tool_invocations` retient
+ce qui a tourné, pas qui l'a autorisé.
 
 ## Humain dans la boucle {#human-in-the-loop}
 

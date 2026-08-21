@@ -63,11 +63,19 @@ the how-to is [Integrate via the driving contract](/how-to/integrate-via-driving
 
 ## Governance lives in the runtime, not in the agent
 
-Permissions, the audit trail, human-in-the-loop approvals, autonomy tiers, and
-the step budget are enforced by the runtime around every agent, not implemented
-by each agent. An agent author cannot forget them and an operator cannot be
-surprised by their absence. This is what makes autonomy delegable, and it is the
-subject of [Cross-cutting concepts](/architecture/crosscutting-concepts) and the
+The step budget and the audit trail are enforced by the runtime around every
+agent, not implemented by each agent: every tool call an agent makes is recorded
+and bounded, whichever path it runs on. The autonomy tier reaches an
+orchestrated run the same way, through the engine that plans and executes it.
+
+<!-- claim:hitl-wired-in-chat-path-only -->
+Permission rules and human-in-the-loop approvals are narrower, and stating the
+boundary matters more than the slogan: they are wired on the chat path only. The
+tool calls an installed Python agent makes through `ctx.tools` meet no
+permission rule and no human checkpoint. That is a deliberate position rather
+than an oversight, and the [agent trust
+model](/explanation/agent-trust-model) explains why. The whole picture is in
+[Cross-cutting concepts](/architecture/crosscutting-concepts) and the
 [accountability model](/explanation/accountability-model).
 
 The governing decisions are [the permission model](/architecture/decisions#permission-model),

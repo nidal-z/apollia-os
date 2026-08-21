@@ -26,7 +26,7 @@ The architecture is optimized, in order, for three properties.
 | Goal | What it means | Why it is first-class |
 |---|---|---|
 | **Sovereignty** | No user data leaves the machine without an explicit action. Inference can run fully local. | The runtime targets regulated and privacy-bound settings where a cloud sandbox is disqualifying. |
-| **Accountability** | Every governed action is recorded in a signed, tamper-evident trail that can be verified and, for filesystem changes, reversed. | Autonomy is only delegable if you can answer, after the fact, what happened and undo it. |
+| **Accountability** | Every governed action is recorded in a signed, tamper-evident trail that can be verified. Undoing a filesystem change is not a capability of this release. | Autonomy is only delegable if you can answer, after the fact, what happened. |
 | **Control** | A human sets how much an agent may do on its own, approves consequential actions inline, and the runtime enforces hard budgets that an agent cannot bypass. | Bounded autonomy is the difference between a tool and a liability. |
 
 Performance, portability, and developer ergonomics matter, but they are shaped

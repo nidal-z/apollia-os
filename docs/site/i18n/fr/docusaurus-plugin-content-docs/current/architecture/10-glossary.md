@@ -21,7 +21,7 @@ Termes clés utilisés dans cette section et dans le reste de la documentation.
 | **ctx** | Le contexte runtime transmis à chaque gestionnaire d'agent, exposant quinze services typés. Le contrat est `sdk/apollia/types.py`. Voir la [référence du SDK](/reference/sdk). |
 | **AgentKit** | Le SDK Python (`apollia`) : les décorateurs, schémas, harnais et fonctions utilitaires contre lesquels un auteur écrit son code. |
 | **MCP** | Model Context Protocol. Apollia est un client MCP qui découvre et appelle des outils externes, et peut exposer un serveur MCP entrant limité. |
-| **Palier d'autonomie** | Le curseur réglé par l'opérateur qui détermine ce qu'un agent peut faire sans demander l'autorisation. Les paliers inférieurs gardent un humain dans la boucle sur davantage d'actions. |
+| **Palier d'autonomie** | Le réglage propre à une exécution qui gouverne la porte du plan et la passe de vérification après exécution. Il ne gouverne aucune permission ni aucune approbation : il change la distance qu'une exécution parcourt sans surveillance, pas ce qu'un agent peut toucher. |
 | **HITL** | Humain dans la boucle : une approbation qu'une personne doit trancher avant l'exécution d'une action à conséquences. La décision est enregistrée. |
 | **Journal d'audit** | Le registre en ajout seul, chaîné par hachage et signé, des actions gouvernées, utilisé pour la vérification. |
 | **Vérification** | Contrôler la chaîne de hachage d'audit et les signatures d'une exécution pour confirmer que l'enregistrement n'a pas été altéré. |

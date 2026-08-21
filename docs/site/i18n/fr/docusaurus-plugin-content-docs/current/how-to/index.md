@@ -47,7 +47,6 @@ Des recettes orientées tâche. Chacune résout un problème unique et concret.
 - [Garder un humain dans la boucle](/how-to/human-in-the-loop) : exigez une
   approbation avant l'exécution d'une action à conséquences.
 - [Auditer et vérifier une exécution](/how-to/audit-and-verify) : lisez la
-  piste d'audit, vérifiez le journal, et annulez les modifications apportées
-  au système de fichiers.
+  piste d'audit et vérifiez le journal.
 - [Déployer en production](/how-to/deploy-in-production) : exécutez Apollia
   comme un service managé avec TCP, authentification et TLS.

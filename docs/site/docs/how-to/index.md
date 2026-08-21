@@ -41,6 +41,6 @@ Task-oriented recipes. Each one solves a single, concrete problem.
 - [Keep a human in the loop](/how-to/human-in-the-loop): require approval before
   a consequential action runs.
 - [Audit and verify a run](/how-to/audit-and-verify): read the
-  trail, verify the journal, and reverse filesystem changes.
+  trail and verify the journal.
 - [Deploy in production](/how-to/deploy-in-production): run Apollia as a managed
   service with TCP, authentication, and TLS.

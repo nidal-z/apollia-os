@@ -28,7 +28,7 @@ L'architecture est optimisée, dans cet ordre, pour trois propriétés.
 | Objectif | Ce que cela signifie | Pourquoi c'est prioritaire |
 |---|---|---|
 | **Souveraineté** | Aucune donnée utilisateur ne quitte la machine sans action explicite. L'inférence peut s'exécuter entièrement en local. | Le runtime cible des contextes réglementés et soumis à des contraintes de confidentialité où un bac à sable cloud est rédhibitoire. |
-| **Redevabilité** | Toute action gouvernée est enregistrée dans un journal signé, inviolable, qui peut être vérifié et, pour les modifications du système de fichiers, annulé. | L'autonomie n'est déléguable que si l'on peut répondre, après coup, à ce qui s'est passé, et l'annuler. |
+| **Redevabilité** | Toute action gouvernée est enregistrée dans un journal signé, inviolable, qui peut être vérifié. Annuler une modification du système de fichiers n'est pas une capacité de cette version. | L'autonomie n'est déléguable que si l'on peut répondre, après coup, à ce qui s'est passé. |
 | **Contrôle** | Un humain détermine jusqu'où un agent peut agir seul, approuve les actions à conséquences directement dans le flux d'exécution, et le runtime impose des budgets stricts qu'un agent ne peut contourner. | L'autonomie bornée fait la différence entre un outil et un risque. |
 
 La performance, la portabilité et l'ergonomie pour les développeurs comptent,

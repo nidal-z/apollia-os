@@ -72,12 +72,20 @@ pratique est
 
 ## La gouvernance vit dans le runtime, pas dans l'agent
 
-Les permissions, le journal d'audit, les approbations à supervision humaine,
-les paliers d'autonomie et le budget d'étapes sont appliqués par le runtime
-autour de chaque agent, et non implémentés par chaque agent individuellement.
-Un auteur d'agent ne peut pas les oublier, et un opérateur ne peut pas être
-surpris par leur absence. C'est ce qui rend l'autonomie délégable ; le sujet
-est développé dans
+Le budget d'étapes et le journal d'audit sont appliqués par le runtime autour de
+chaque agent, et non implémentés par chaque agent individuellement : chaque
+appel d'outil qu'un agent effectue est enregistré et borné, quel que soit le
+chemin sur lequel il s'exécute. Le palier d'autonomie atteint une exécution
+orchestrée de la même façon, par le moteur qui la planifie et l'exécute.
+
+<!-- claim:hitl-wired-in-chat-path-only -->
+Les règles de permission et les approbations à supervision humaine sont plus
+étroites, et énoncer la frontière compte davantage que la formule : elles ne
+sont branchées que sur le chemin du chat. Les appels d'outils qu'un agent Python
+installé effectue via `ctx.tools` ne rencontrent aucune règle de permission ni
+aucun point de contrôle humain. C'est une position délibérée et non un oubli, et
+le [modèle de confiance des agents](/explanation/agent-trust-model) en explique
+la raison. Le tableau complet se trouve dans
 [Concepts transversaux](/architecture/crosscutting-concepts) et dans le
 [modèle de responsabilité](/explanation/accountability-model).
 

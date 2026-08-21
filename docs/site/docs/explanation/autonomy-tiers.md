@@ -5,23 +5,24 @@ title: Autonomy tiers
 
 # Autonomy tiers
 
-How much an agent may do on its own is not a fixed property of the agent. It is a
-dial the operator sets, called the autonomy tier. The same agent can run
-cautiously, asking before anything consequential, or freely, acting without
-interruption, depending only on the tier you put it in. This page explains the
-four tiers, what the tier actually changes, and how to choose one. For the
-safeguards and the step budget that bound every run regardless of tier, see the
+How far an agent runs on its own is not a fixed property of the agent. It is the
+autonomy tier, chosen for a run. The same agent can pause on its plan and wait
+for you, or run its plan through without interruption, depending on the tier you
+put it in. This page explains the four tiers, what the tier actually changes, and
+how to choose one. For the safeguards and the step budget that bound every run
+regardless of tier, see the
 [accountability model](/explanation/accountability-model); this page is the
-companion that explains the dial, not the guardrails.
+companion that explains the tier, not the guardrails.
 
-## The dial, not the agent
+## The tier, not the agent
 
 Separating "what the agent can do" from "how far it may go unattended" is the key
-idea. An agent declares the tools it needs; the tier decides how much human
-oversight sits between the agent's intent and its actions. That separation is
-what lets you deploy the same agent conservatively in a sensitive context and
-loosely on an isolated test machine, without rewriting it. The tier reflects the trust you
-extend for a given task, and trust is a decision about context, not code.
+idea, and the tier only ever answers the second half. An agent declares the tools
+it needs; the tier decides whether its plan waits for approval and whether its
+result is verified afterwards. It decides nothing about permissions: no tier
+grants a tool, refuses one, or adds a human checkpoint to a tool call. That
+separation is what lets you deploy the same agent conservatively in a sensitive
+context and loosely on an isolated test machine, without rewriting it.
 
 ## The four tiers
 
@@ -43,28 +44,40 @@ Apollia defines four tiers, from most supervised to most autonomous:
   the budget and permissions already constrain the blast radius.
 
 The gate is active in Assisted and Supervised, and bypassed in Bounded autonomous
-and Long autonomous. Moving up the tiers trades interruption for momentum.
+and Long autonomous, but only for a run that carries no decision of its own.
+`apollia-os run` always carries one: `--plan` arms the gate for that run and its
+absence disarms it, whichever tier the run is in. Moving up the tiers trades
+interruption for momentum.
 
 ## What the tier actually changes
 
-Two things move with the tier. First, the plan gate: in the two lower tiers a
-consequential plan pauses for human approval; in the two higher tiers it does
-not. Second, self-checking: the runtime's verification and critic pass is dark in
+<!-- claim:plan-gate-yields-to-the-per-run-override -->
+Five things move with the tier, and no others. The plan gate: in the two lower
+tiers a consequential plan pauses for human approval, in the two higher tiers it
+does not, and in both cases a run that carries its own decision overrides the
+tier. Self-checking: the runtime's verification and critic pass is dark in
 Assisted and comes into play from Supervised upward, so a completed run can be
-checked before its result is accepted. The mechanics of that verification loop
-belong to the [plan and orchestrated execution model](/explanation/the-plan-model),
-and the safeguards it runs under belong to the
-[accountability model](/explanation/accountability-model). What matters here is
-that the tier is the single dial that governs both.
+checked before its result is accepted. Memory injection: the highest tier alone
+appends a user-persona brief, and only inside the built-in assistant. The
+system-prompt profile: Assisted takes one built-in prompt, the three other tiers
+take a more persistent one. And the suggested step budget, which is the one worth
+reading twice.
 
 <!-- claim:tier-sets-budget-runtime-ceiling-caps-it -->
-Note what the tier does not change: the runtime ceiling. Each tier carries its
-own budget, from 100 reasoning steps at the most cautious to 500 at the most
-autonomous, and that budget is always capped by the runtime ceiling, which no
-tier can exceed. The ceiling on reasoning steps, tool calls and wall-clock time
-is enforced by the runtime on every tier, including the most autonomous one.
-Raising autonomy widens what an agent may
-attempt; it never removes the hard edge.
+The four tiers declare 100, 200, 300 and 500 reasoning steps, and that table is
+real. What reads it is the chat path, and free chat runs at the default tier and
+never varies.
+
+<!-- claim:tier-budget-capped-at-thirty-on-agent-paths -->
+An agent run does not read that table at all. Both execution paths take the
+budget the agent's manifest declares and cap it against a fixed runtime ceiling
+of 30 reasoning steps, 60 tool calls and 600 seconds of wall clock. So raising
+the tier widens what an agent may attempt well before it changes what the agent
+actually gets, and it never removes the hard edge. The mechanics of the
+verification loop belong to the
+[plan and orchestrated execution model](/explanation/the-plan-model), and the
+safeguards it runs under belong to the
+[accountability model](/explanation/accountability-model).
 
 ## Choosing a tier
 
@@ -73,12 +86,14 @@ or sensitive work in Assisted, where you see the plan first. Move to Supervised
 when you want the engine's verification without giving up the gate. Reach for the
 autonomous tiers only when the work is well scoped, the permissions are tight, and
 the interruptions of a lower tier would cost more than they protect. The tier is
-easy to change, so treat it as a per-run judgment, not a permanent setting. For
-where the tier is configured, see the
-[Configuration reference](/reference/configuration).
+easy to change, so treat it as a per-run judgment, not a permanent setting.
+
+The tier is set for a run, with `--autonomy` on `apollia-os run`. There is no
+`[autonomy]` section in `apollia.toml` that the runtime reads, and the desktop
+offers no tier control.
 
 ## Related
 
 - [The accountability model](/explanation/accountability-model)
 - [The plan and orchestrated execution model](/explanation/the-plan-model)
-- [Configuration reference](/reference/configuration)
+- [Choose an autonomy level](/operator-help/agents/choisir-un-palier-d-autonomie)

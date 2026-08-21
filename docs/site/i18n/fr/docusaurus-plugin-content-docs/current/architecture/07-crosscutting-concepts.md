@@ -21,12 +21,15 @@ coup : c'est la contrainte qui façonne chaque défaut. Voir
 
 ## Le modèle de responsabilité
 
+<!-- claim:rollback-journal-has-no-writer -->
 L'autonomie n'est délégable que si elle est responsabilisée. Chaque action
-gouvernée est enregistrée dans un journal signé et chaîné par hachage ;
-l'intégrité de cet enregistrement peut être vérifiée ; et les modifications du
-système de fichiers effectuées dans une session de chat peuvent être annulées.
-C'est la réponse du runtime aux questions : qu'a fait l'agent, peut-on faire
-confiance à l'enregistrement, et peut-on l'annuler.
+gouvernée est enregistrée dans un journal signé et chaîné par hachage, et
+l'intégrité de cet enregistrement peut être vérifiée. Annuler ce qu'un agent a
+écrit n'en fait pas partie : le format du journal et la logique de rejeu
+existent dans la base de code, mais rien n'installe ce journal sur les outils
+qui écrivent des fichiers, si bien que rien n'est enregistré et que rien ne peut
+être annulé. C'est la réponse du runtime aux questions : qu'a fait l'agent, et
+peut-on faire confiance à l'enregistrement.
 
 Cette notion a sa propre page, qui met aussi en correspondance les contrôles
 avec l'AI Act européen. Cette section ne la duplique pas : lire
@@ -71,10 +74,12 @@ et cette décision est enregistrée. Ce que ce garde-fou surveille est l'injecti
 l'injection de prompt.
 
 Les permissions se portent sur toute l'installation, sur un projet, ou sur une
-seule session. Par-dessus, un palier d'autonomie est un curseur que
-l'opérateur règle pour déterminer ce qu'un agent peut faire sans demander. Un
-même agent peut s'exécuter avec prudence ou avec liberté selon la confiance
-que l'opérateur lui accorde.
+seule session. Séparément, un palier d'autonomie est choisi pour une exécution :
+il gouverne la porte du plan et la passe de vérification après exécution, et il
+ne gouverne aucune règle de permission ni aucun point de contrôle humain sur un
+appel d'outil. Un palier n'élargit jamais ce qu'un agent a le droit de toucher,
+seulement la distance qu'une exécution parcourt avant de s'arrêter pour
+demander.
 
 ## Mémoire à l'initiative de l'agent
 

@@ -19,11 +19,13 @@ is not a feature bolted on; it is the constraint that shapes every default. See
 
 ## The accountability model
 
+<!-- claim:rollback-journal-has-no-writer -->
 Autonomy is only delegable if it is accountable. Every governed action is
-recorded in a signed, hash-chained journal; the record can be verified for
-integrity; and filesystem changes in a chat session can be reversed. This is the
-runtime's answer to "what did the agent do, can I trust the record, and can I
-undo it."
+recorded in a signed, hash-chained journal, and the record can be verified for
+integrity. Undoing what an agent wrote is not part of it: the journal format and
+the replay logic exist in the codebase, but nothing installs the journal on the
+tools that write files, so nothing is recorded and no change can be undone. This
+is the runtime's answer to "what did the agent do, and can I trust the record."
 
 This concept has its own page, which also maps the controls to the EU AI Act.
 This section does not duplicate it: read
@@ -60,10 +62,11 @@ for one command cannot smuggle a second. Anything left raises a
 recorded. What this guard screens is **shell** injection, not prompt injection:
 Apollia ships no prompt-injection defence.
 
-Permissions are scoped to the whole install, a project, or a single session. On
-top of that, an autonomy tier is a dial the operator sets for how much an agent
-may do without asking. The same agent can run cautiously or freely depending on
-the trust the operator extends.
+Permissions are scoped to the whole install, a project, or a single session.
+Separately, an autonomy tier is chosen for a run: it governs the plan gate and
+the post-run verification pass, and it governs no permission rule and no human
+checkpoint on a tool call. A tier never widens what an agent is allowed to
+touch, only how far a run goes before it stops to ask.
 
 ## Memory at agent initiative
 
