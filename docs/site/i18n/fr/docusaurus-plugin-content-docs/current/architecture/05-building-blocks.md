@@ -118,7 +118,7 @@ natifs](/reference/native-tools).
 
 | Crate | Rôle |
 |---|---|
-| **apollia-permissions** | Types et décisions de permission, à l'échelle installation, projet ou session, avec quatre paliers d'autonomie et un registre des approbations. Chaque décision est auditée. Ce qui est activé par défaut est le moteur de règles par préfixe ; l'agrégat `PermissionEngine`, sa liste blanche et son détecteur d'injection shell sont présents mais non câblés dans l'application (voir [concepts transversaux](./07-crosscutting-concepts.md)). |
+| **apollia-permissions** | Types et décisions de permission, à l'échelle installation, projet ou session, avec quatre paliers d'autonomie et un registre des approbations. Ce qui est activé par défaut est le moteur de règles par préfixe, consulté à chaque invocation sur le chemin du chat, et le garde-fou qui tient un exécuteur de code hors de toute autorisation globale (voir [concepts transversaux](./07-crosscutting-concepts.md)). |
 | **apollia-notifications** | Notifications opérateur sur desktop, terminal et webhook, avec niveaux de gravité, HITL, et un observateur d'inactivité. |
 | **apollia-triggers** | Démarrages d'agent planifiés et réactifs : cron, intervalle, ponctuel, et surveillance de fichiers sont câblés ; la source webhook est une ébauche. |
 | **apollia-eval** | Évaluation souveraine : suites TOML déclaratives et métriques de succès, de longueur, de durée réelle, et de coût. Une assertion `llm_judge` existe dans le schéma de suite, mais aucun juge n'est installé par la CLI, si bien qu'une telle assertion échoue au lieu d'être notée. |

@@ -78,7 +78,6 @@ donnez-lui une racine de bac à sable que vous acceptez de perdre.
 
 ### Permissions et supervision humaine
 
-<!-- claim:permission-engine-not-wired -->
 <!-- claim:hitl-wired-in-chat-path-only -->
 Avant qu'un appel d'outil ne s'exécute dans une session de chat, des règles de
 permission persistées le classent, un garde-fou refuse une commande shell qui
@@ -87,10 +86,7 @@ qu'un opérateur résout. Cette décision est elle-même enregistrée. Les
 permissions sont scopées, si bien que l'autorité peut être accordée au niveau
 de l'installation entière, d'un projet, ou d'une seule session.
 
-Deux limites, à énoncer clairement toutes les deux. `apollia-permissions`
-embarque aussi un `PermissionEngine` avec une liste blanche et un détecteur
-d'injection shell ; **aucun appelant en production ne l'installe**, si bien que
-ces deux composants ne s'exécutent jamais. Et l'enveloppe d'approbation n'est
+Une limite, à énoncer clairement. L'enveloppe d'approbation n'est
 posée que sur le dispatcher du **chat** : les appels d'outil qu'un agent Python
 installé effectue via `ctx.tools` ne rencontrent aucun point de contrôle
 humain. C'est une position délibérée, pas un oubli, et le
@@ -119,7 +115,6 @@ limite dure.
 
 ### Filtrage des commandes shell
 
-<!-- claim:injection-detector-is-shell-not-prompt -->
 Les commandes shell sont filtrées avant exécution : un classifieur de risque
 lit la commande et un contrôle syntaxique rejette ce qui ne peut pas être
 analysé. Quand une règle de préfixe permanente est consultée pour un exécuteur
@@ -130,9 +125,7 @@ d'une règle correspondante, chaque invocation d'exécuteur de code exige sa
 propre approbation. Le filtrage est enregistré.
 
 Ce mécanisme filtre l'injection **shell**. Apollia n'embarque aucune défense
-contre l'injection de prompt, et rien ici ne doit être lu comme tel. Le crate
-contient aussi un `InjectionDetector`, qui fait partie du moteur de
-permissions qui ne s'exécute pas.
+contre l'injection de prompt, et rien ici ne doit être lu comme tel.
 
 ### Autocontrôle sur le chemin orchestré
 

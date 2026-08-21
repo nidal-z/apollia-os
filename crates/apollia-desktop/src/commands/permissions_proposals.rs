@@ -6,13 +6,13 @@
 //!
 //! The desktop reads that key and renders one approval card per proposal in
 //! the onboarding modal. On approval, this module persists the rule directly
-//! through `PrefixRuleEngine::add_rule`, bypassing the tool dispatcher, which
-//! would otherwise surface `NeedsApproval` as `PermissionDenied`.
+//! through `PrefixRuleEngine::add_rule`, rather than by calling the
+//! `permission_rule_add` native tool.
 //!
-//! Why bypass: `permission_rule_add` is itself HITL-gated. Calling it from
-//! a Tauri command triggered by an explicit user click would re-trigger the
-//! HITL ladder, deadlocking the UI. Going straight to `PrefixRuleEngine`
-//! is safe because the user has already approved the proposal in the UI.
+//! Why: `permission_rule_add` is an ordinary native tool, so a chat invocation
+//! of it goes through the approval flow like any other. Reaching it from a
+//! Tauri command triggered by an explicit user click would re-ask a question
+//! the user has just answered in the UI.
 
 use std::path::{Path, PathBuf};
 

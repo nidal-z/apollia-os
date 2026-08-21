@@ -1,7 +1,8 @@
-//! Immutable audit log of permission decisions (SQLite).
+//! Immutable audit log of permission decisions (SQLite), read side.
 //!
-//! Each call to `PermissionEngine::decide()` is recorded with the invoked
-//! tool, the extracted first argument, the decision taken, and the timestamp.
+//! The table is append-only and enforced as such by two triggers. Nothing in
+//! this crate writes to it; the readers are `apollia permissions audit` and the
+//! desktop audit view.
 //!
 //! SQLite schema:
 //! ```sql
@@ -19,7 +20,6 @@ use std::path::Path;
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 
-use crate::engine::PermissionDecision;
 use crate::error::PermissionError;
 use crate::migrations::add_column_if_missing;
 
@@ -54,8 +54,7 @@ pub struct PermissionAuditEntry {
 
 /// Immutable audit log of permission decisions.
 ///
-/// All decisions are recorded in SQLite. The log is append-only: no entry is
-/// ever modified or deleted by the runtime.
+/// The log is append-only: no entry is ever modified or deleted by the runtime.
 pub struct PermissionAuditLog {
     db: Connection,
 }
@@ -75,35 +74,6 @@ impl PermissionAuditLog {
         let log = Self { db };
         log.migrate()?;
         Ok(log)
-    }
-
-    /// Records a permission decision in the audit log.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PermissionError::Database`] on a SQLite error.
-    pub fn record(
-        &mut self,
-        tool_name: &str,
-        first_arg: Option<&str>,
-        decision: &PermissionDecision,
-    ) -> Result<(), PermissionError> {
-        let decided_at = chrono::Utc::now().timestamp();
-        let decision_str = decision_to_str(decision);
-
-        self.db.execute(
-            "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
-             VALUES (?, ?, ?, ?)",
-            params![tool_name, first_arg, decision_str, decided_at],
-        )?;
-
-        tracing::debug!(
-            tool = %tool_name,
-            decision = %decision_str,
-            "permission decision recorded"
-        );
-
-        Ok(())
     }
 
     /// Returns the audit entries for a tool (or all tools if `None`).
@@ -194,23 +164,6 @@ fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionAuditEntr
     })
 }
 
-/// Serializes a `PermissionDecision` to a string for the audit log.
-pub(crate) fn decision_to_str(decision: &PermissionDecision) -> String {
-    match decision {
-        PermissionDecision::AutoAllowedSafeList => "AutoAllowedSafeList".to_string(),
-        PermissionDecision::AutoAllowedPrefixRule { rule_id } => {
-            format!("AutoAllowedPrefixRule({})", rule_id)
-        }
-        PermissionDecision::AutoDeniedPrefixRule { rule_id } => {
-            format!("AutoDeniedPrefixRule({})", rule_id)
-        }
-        PermissionDecision::AutoDeniedInjection { pattern } => {
-            format!("AutoDeniedInjection({})", pattern)
-        }
-        PermissionDecision::NeedsApproval => "NeedsApproval".to_string(),
-    }
-}
-
 // ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
@@ -226,21 +179,33 @@ mod tests {
         (log, file)
     }
 
+    /// Inserts one row the way the table is meant to be fed: by SQL, since no
+    /// Rust caller writes to `permission_audit`.
+    fn insert(log: &PermissionAuditLog, tool_name: &str, first_arg: Option<&str>, decision: &str) {
+        log.db
+            .execute(
+                "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
+                 VALUES (?, ?, ?, ?)",
+                params![tool_name, first_arg, decision, 1_700_000_000_i64],
+            )
+            .expect("insert audit row");
+    }
+
     #[test]
-    fn audit_log_persists_and_queries() {
-        // GIVEN a PermissionAuditLog
-        let (mut log, _tmp) = tmp_audit();
-        // WHEN record + query
-        log.record(
+    fn audit_log_queries_rows_of_one_tool() {
+        // GIVEN an audit log holding one row for `bash_executor`
+        let (log, _tmp) = tmp_audit();
+        insert(
+            &log,
             "bash_executor",
             Some("git status"),
-            &PermissionDecision::AutoAllowedSafeList,
-        )
-        .expect("record must succeed");
+            "AutoAllowedSafeList",
+        );
+        // WHEN that tool is queried
         let entries = log
             .query(Some("bash_executor"), 10, 0)
             .expect("query must succeed");
-        // THEN entries are persisted and queryable
+        // THEN the row comes back with every column mapped
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].tool_name, "bash_executor");
         assert_eq!(entries[0].first_arg.as_deref(), Some("git status"));
@@ -249,47 +214,37 @@ mod tests {
 
     #[test]
     fn audit_log_query_all_tools() {
-        let (mut log, _tmp) = tmp_audit();
-        log.record("tool_a", None, &PermissionDecision::NeedsApproval)
-            .expect("record");
-        log.record("tool_b", None, &PermissionDecision::NeedsApproval)
-            .expect("record");
+        // GIVEN two rows for two different tools
+        let (log, _tmp) = tmp_audit();
+        insert(&log, "tool_a", None, "NeedsApproval");
+        insert(&log, "tool_b", None, "NeedsApproval");
+        // WHEN no tool name is given
         let all = log.query(None, 10, 0).expect("query");
+        // THEN both rows come back
         assert_eq!(all.len(), 2);
     }
 
     #[test]
     fn audit_log_pagination_works() {
-        let (mut log, _tmp) = tmp_audit();
+        // GIVEN five rows for one tool
+        let (log, _tmp) = tmp_audit();
         for i in 0..5 {
-            log.record(
+            insert(
+                &log,
                 "bash_executor",
                 Some(&format!("cmd_{}", i)),
-                &PermissionDecision::NeedsApproval,
-            )
-            .expect("record");
+                "NeedsApproval",
+            );
         }
+        // WHEN two successive pages of two are queried
         let page = log
             .query(Some("bash_executor"), 2, 0)
             .expect("query page 0");
-        assert_eq!(page.len(), 2);
         let page2 = log
             .query(Some("bash_executor"), 2, 2)
             .expect("query page 1");
+        // THEN each page holds its two rows
+        assert_eq!(page.len(), 2);
         assert_eq!(page2.len(), 2);
-    }
-
-    #[test]
-    fn decision_to_str_injection() {
-        let d = PermissionDecision::AutoDeniedInjection {
-            pattern: ";".to_string(),
-        };
-        assert_eq!(decision_to_str(&d), "AutoDeniedInjection(;)");
-    }
-
-    #[test]
-    fn decision_to_str_prefix_rule() {
-        let d = PermissionDecision::AutoAllowedPrefixRule { rule_id: 42 };
-        assert_eq!(decision_to_str(&d), "AutoAllowedPrefixRule(42)");
     }
 }

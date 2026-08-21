@@ -48,7 +48,7 @@ pub use llm::{
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use oria::ORIAConfig;
-pub use permissions::{BashValidatorConfig, PermissionsConfig};
+pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub use runtime::RuntimeConfig;
 pub use tools::ToolsConfig;

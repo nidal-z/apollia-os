@@ -592,8 +592,6 @@ dependencies = [
 name = "apollia-permissions"
 version = "0.1.0-preview"
 dependencies = [
- "apollia-core",
- "chrono",
  "rusqlite",
  "serde",
  "serde_json",

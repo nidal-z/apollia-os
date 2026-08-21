@@ -1,6 +1,6 @@
-//! Permission engine errors.
+//! Errors of the permission-rule crate.
 
-/// Three-layer permission engine error.
+/// Error raised by the permission-rule store and its audit-log reader.
 #[derive(Debug, thiserror::Error)]
 pub enum PermissionError {
     /// SQLite error during a rule database or audit log operation.

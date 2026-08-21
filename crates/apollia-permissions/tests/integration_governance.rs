@@ -1,76 +1,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Tests d'intégration end-to-end des flux de gouvernance des permissions.
+//! End-to-end integration tests of the permission governance flows.
 //!
-//! Ces tests exercent le `PermissionEngine` complet (les trois couches)
-//! et le `PrefixRuleEngine` scope-aware via leurs APIs publiques, en
-//! validant les invariants critiques :
+//! They exercise the scope-aware `PrefixRuleEngine` and the `permission_audit`
+//! table through their public surfaces, checking the critical invariants:
 //!
-//! - les règles `Session` ne sont jamais persistées en SQLite ;
-//! - les règles `Project` ne s'appliquent qu'au projet courant ;
-//! - les règles `Global` s'appliquent indépendamment du projet ;
-//! - les règles expirées sont ignorées par les deux variantes de `check` ;
-//! - la révocation par identifiant fait disparaître la règle de l'évaluation ;
-//! - l'audit log est strictement append-only au niveau SQLite.
+//! - `Session` rules are never persisted to SQLite;
+//! - `Project` rules apply only to the current project;
+//! - `Global` rules apply whatever the project;
+//! - expired rules are ignored by evaluation;
+//! - revoking by identifier removes the rule from evaluation;
+//! - the audit table is strictly append-only at the SQLite level.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use apollia_core::config::PermissionsConfig;
-use apollia_core::manifest::AgentManifest;
 use apollia_permissions::{
-    PermissionDecision, PermissionEngine, PermissionScope, PrefixRule, RuleAction, ScopeContext,
+    PermissionAuditLog, PermissionError, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
+    ScopeContext,
 };
-use rusqlite::Connection;
-use serde_json::json;
+use rusqlite::{params, Connection};
 use tempfile::TempDir;
-
-/// Construit un manifeste minimal pour les invocations de `decide`.
-fn dummy_manifest() -> AgentManifest {
-    AgentManifest {
-        name: "test-agent".into(),
-        version: "1.0.0".into(),
-        description: "integration test".into(),
-        tools_required: vec![],
-        tools_optional: vec![],
-        supports_streaming: false,
-        supports_a2a: false,
-        memory_namespace: None,
-        shared_memory_namespaces: vec![],
-        max_concurrent_tasks: 1,
-        step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
-        tags: vec![],
-        skills: vec![],
-        execution_mode: "auto".into(),
-        supports_mailbox: false,
-        mailbox_allowlist: None,
-        system_prompt: None,
-        tools_requiring_approval: vec![],
-        llm_backend: None,
-        packages: vec![],
-        memory_config: None,
-        agent_type: None,
-        examples: vec![],
-        limitations: vec![],
-        setup_notes: None,
-        agent_class: None,
-        user_memory_write: false,
-        datasources: vec![],
-        templates: vec![],
-        secrets: vec![],
-        check_commands: vec![],
-    }
-}
-
-fn empty_permissions_config(db_path: PathBuf) -> PermissionsConfig {
-    PermissionsConfig {
-        safe_commands: vec![],
-        injection_detection: true,
-        prefix_rule_ttl_hours: 168,
-        db_path,
-    }
-}
 
 fn now_secs() -> i64 {
     SystemTime::now()
@@ -90,226 +39,190 @@ fn allow_rule(tool: &str, prefix: Option<&str>, scope: PermissionScope) -> Prefi
     }
 }
 
+fn global_ctx() -> ScopeContext {
+    ScopeContext {
+        scope: PermissionScope::Global,
+        project_path: None,
+        agent_id: None,
+    }
+}
+
+fn project_ctx(path: PathBuf) -> ScopeContext {
+    ScopeContext {
+        scope: PermissionScope::Project,
+        project_path: Some(path),
+        agent_id: None,
+    }
+}
+
 #[tokio::test]
 async fn test_session_rule_not_persisted_after_restart() {
+    // GIVEN a rule store and a session-scoped rule
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
+    let mut engine = PrefixRuleEngine::new(&db_path).expect("engine init");
+    let rule = allow_rule("bash_executor", Some("git"), PermissionScope::Session);
 
-    {
-        let mut engine =
-            PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-                .expect("engine init");
-        let mut rule = allow_rule("bash_executor", Some("git"), PermissionScope::Session);
-        rule.id = 42;
-        engine.add_session_rule(rule);
-        assert_eq!(engine.session_rules().len(), 1);
-    }
+    // WHEN the store is asked to persist it
+    let outcome = engine.add_rule(&rule);
 
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine restart");
+    // THEN it is refused, and a reopened store holds nothing
     assert!(
-        engine.session_rules().is_empty(),
-        "session rules must not survive engine reconstruction"
+        matches!(outcome, Err(PermissionError::InvalidRule(_))),
+        "session rules must never reach SQLite, got {outcome:?}"
     );
-
-    let decision = engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git status"}),
-            &dummy_manifest(),
-        )
-        .expect("decide");
-    assert_eq!(decision, PermissionDecision::NeedsApproval);
+    let reopened = PrefixRuleEngine::new(&db_path).expect("engine restart");
+    assert!(reopened.list_rules().expect("list rules").is_empty());
+    assert_eq!(
+        reopened
+            .check_with_scope("bash_executor", Some("git status"), &global_ctx(), &[])
+            .expect("check"),
+        None
+    );
 }
 
 #[tokio::test]
 async fn test_project_rule_applies_only_to_matching_path() {
+    // GIVEN an allow rule scoped to project A
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine init");
+    let mut engine = PrefixRuleEngine::new(&db_path).expect("engine init");
 
     let project_a = PathBuf::from("/home/user/projet-a");
     let project_b = PathBuf::from("/home/user/projet-b");
 
     let mut rule = allow_rule("bash_executor", Some("git"), PermissionScope::Project);
     rule.project_path = Some(project_a.clone());
-    engine
-        .prefix_rules_mut()
-        .add_rule(&rule)
-        .expect("add project rule");
+    engine.add_rule(&rule).expect("add project rule");
 
-    engine.set_scope_context(ScopeContext {
-        scope: PermissionScope::Project,
-        project_path: Some(project_b),
-        agent_id: None,
-    });
-    let denied_decision = engine
-        .decide(
+    // WHEN the same call is evaluated from project B, then from project A
+    let from_b = engine
+        .check_with_scope(
             "bash_executor",
-            &json!({"cmd": "git status"}),
-            &dummy_manifest(),
+            Some("git status"),
+            &project_ctx(project_b),
+            &[],
         )
-        .expect("decide projet-b");
-    assert_eq!(denied_decision, PermissionDecision::NeedsApproval);
+        .expect("check projet-b");
+    let from_a = engine
+        .check_with_scope(
+            "bash_executor",
+            Some("git status"),
+            &project_ctx(project_a),
+            &[],
+        )
+        .expect("check projet-a");
 
-    engine.set_scope_context(ScopeContext {
-        scope: PermissionScope::Project,
-        project_path: Some(project_a),
-        agent_id: None,
-    });
-    let allowed_decision = engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git status"}),
-            &dummy_manifest(),
-        )
-        .expect("decide projet-a");
-    assert!(matches!(
-        allowed_decision,
-        PermissionDecision::AutoAllowedPrefixRule { .. }
-    ));
+    // THEN only project A matches
+    assert_eq!(from_b, None);
+    assert!(matches!(from_a, Some((_, RuleAction::Allow))));
 }
 
 #[tokio::test]
 async fn test_global_rule_applies_to_all_projects() {
+    // GIVEN a global allow rule
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine init");
-
-    let rule = allow_rule("web_search", None, PermissionScope::Global);
+    let mut engine = PrefixRuleEngine::new(&db_path).expect("engine init");
     engine
-        .prefix_rules_mut()
-        .add_rule(&rule)
+        .add_rule(&allow_rule("web_search", None, PermissionScope::Global))
         .expect("add global rule");
 
+    // WHEN it is evaluated from three different projects
     for project in [
         "/home/user/projet-a",
         "/home/user/projet-b",
         "/tmp/anywhere",
     ] {
-        engine.set_scope_context(ScopeContext {
-            scope: PermissionScope::Project,
-            project_path: Some(PathBuf::from(project)),
-            agent_id: None,
-        });
-        let decision = engine
-            .decide(
+        let hit = engine
+            .check_with_scope(
                 "web_search",
-                &json!({"query": "apollia runtime"}),
-                &dummy_manifest(),
+                Some("apollia runtime"),
+                &project_ctx(PathBuf::from(project)),
+                &[],
             )
-            .expect("decide");
+            .expect("check");
+        // THEN it applies in each of them
         assert!(
-            matches!(decision, PermissionDecision::AutoAllowedPrefixRule { .. }),
-            "global rule must apply to project {project}, got {decision:?}"
+            matches!(hit, Some((_, RuleAction::Allow))),
+            "global rule must apply to project {project}, got {hit:?}"
         );
     }
 }
 
 #[tokio::test]
 async fn test_expired_rule_not_applied() {
+    // GIVEN an allow rule whose deadline has already passed
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine init");
+    let mut engine = PrefixRuleEngine::new(&db_path).expect("engine init");
 
     let mut rule = allow_rule("bash_executor", Some("git"), PermissionScope::Global);
     rule.expires_at = Some(now_secs() - 1);
-    engine
-        .prefix_rules_mut()
-        .add_rule(&rule)
-        .expect("add expired rule");
+    engine.add_rule(&rule).expect("add expired rule");
 
-    engine.set_scope_context(ScopeContext {
-        scope: PermissionScope::Global,
-        project_path: None,
-        agent_id: None,
-    });
-    let decision = engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git status"}),
-            &dummy_manifest(),
-        )
-        .expect("decide");
-    assert_eq!(decision, PermissionDecision::NeedsApproval);
+    // WHEN a matching call is evaluated
+    let hit = engine
+        .check_with_scope("bash_executor", Some("git status"), &global_ctx(), &[])
+        .expect("check");
+
+    // THEN the rule is ignored
+    assert_eq!(hit, None);
 }
 
 #[tokio::test]
 async fn test_revoke_removes_from_check() {
+    // GIVEN a global allow rule that currently matches
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine init");
-
-    let rule = allow_rule("bash_executor", Some("git"), PermissionScope::Global);
-    let rule_id = engine.prefix_rules_mut().add_rule(&rule).expect("add rule");
-
-    engine.set_scope_context(ScopeContext {
-        scope: PermissionScope::Global,
-        project_path: None,
-        agent_id: None,
-    });
+    let mut engine = PrefixRuleEngine::new(&db_path).expect("engine init");
+    let rule_id = engine
+        .add_rule(&allow_rule(
+            "bash_executor",
+            Some("git"),
+            PermissionScope::Global,
+        ))
+        .expect("add rule");
     let before = engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git push"}),
-            &dummy_manifest(),
-        )
-        .expect("decide before revoke");
-    assert!(matches!(
-        before,
-        PermissionDecision::AutoAllowedPrefixRule { .. }
-    ));
+        .check_with_scope("bash_executor", Some("git push"), &global_ctx(), &[])
+        .expect("check before revoke");
+    assert!(matches!(before, Some((_, RuleAction::Allow))));
 
-    let removed = engine
-        .prefix_rules_mut()
-        .remove_rule_checked(rule_id)
-        .expect("remove rule");
+    // WHEN the rule is revoked by identifier
+    let removed = engine.remove_rule_checked(rule_id).expect("remove rule");
+
+    // THEN the same call no longer matches
     assert!(removed);
-
     let after = engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git push"}),
-            &dummy_manifest(),
-        )
-        .expect("decide after revoke");
-    assert_eq!(after, PermissionDecision::NeedsApproval);
+        .check_with_scope("bash_executor", Some("git push"), &global_ctx(), &[])
+        .expect("check after revoke");
+    assert_eq!(after, None);
 }
 
 #[tokio::test]
 async fn test_audit_trigger_blocks_modification() {
+    // GIVEN one row in the audit table of a migrated governance database
     let tmp = TempDir::new().expect("tempdir");
     let db_path = tmp.path().join("governance.db");
-    let mut engine = PermissionEngine::new(&empty_permissions_config(db_path.clone()), &db_path)
-        .expect("engine init");
-
-    engine
-        .decide(
-            "bash_executor",
-            &json!({"cmd": "git status"}),
-            &dummy_manifest(),
-        )
-        .expect("decide writes one audit row");
-
+    let log = PermissionAuditLog::new(&db_path).expect("audit log init");
     let raw = Connection::open(&db_path).expect("raw open");
-    let count: i64 = raw
-        .query_row("SELECT COUNT(*) FROM permission_audit", [], |row| {
-            row.get(0)
-        })
-        .expect("count audit rows");
-    assert!(count >= 1, "decide() must record an audit entry");
+    raw.execute(
+        "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
+         VALUES (?, ?, ?, ?)",
+        params!["bash_executor", "git status", "NeedsApproval", now_secs()],
+    )
+    .expect("insert audit row");
+    assert_eq!(log.query(None, 10, 0).expect("query").len(), 1);
 
+    // WHEN an update and a delete are attempted
     let update = raw.execute("UPDATE permission_audit SET decision = 'tampered'", []);
+    let delete = raw.execute("DELETE FROM permission_audit", []);
+
+    // THEN both are refused by the append-only triggers
     assert!(
         update.is_err(),
         "UPDATE must be blocked by the append-only trigger"
     );
-
-    let delete = raw.execute("DELETE FROM permission_audit", []);
     assert!(
         delete.is_err(),
         "DELETE must be blocked by the append-only trigger"

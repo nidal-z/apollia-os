@@ -1,13 +1,15 @@
 //! Native `permission_rule_{add,remove,list}` tools: they expose the read/write
 //! API of `governance.db` to agents.
 //!
-//! Writes (`add` / `remove`) are always HITL-gated by the `PermissionEngine`.
-//! The read (`list`) is read-only.
+//! The three are ordinary native tools (`tool_registry::NATIVE_TOOL_NAMES`), so
+//! an agent invocation of any of them goes through the same gate as every other
+//! tool call: the chat session's name-only authorization set, then the
+//! per-invocation prefix-rule check, then human approval on a miss. Nothing in
+//! this module adds a gate of its own.
 //!
 //! Each tool opens a fresh connection to the `governance.db` file at invocation
-//! time: SQLite WAL handles concurrency with the connection owned by the
-//! dispatcher's `PermissionEngine`. Writes are immediately visible to later
-//! `decide()` calls.
+//! time: SQLite WAL handles concurrency with the connections held elsewhere.
+//! Writes are immediately visible to later reads.
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -201,8 +203,9 @@ pub struct PermissionRuleAddOutput {
 /// Native `permission_rule_add` tool: proposes adding a permission rule
 /// persisted in `governance.db`.
 ///
-/// The invocation is gated by the `PermissionEngine` (HITL). The `created_by`
-/// field is automatically populated with the name of the calling agent.
+/// The invocation is gated like any other tool call, by the chat approval flow.
+/// The `created_by` field is automatically populated with the name of the
+/// calling agent.
 #[derive(Debug, Clone)]
 pub struct PermissionRuleAdd {
     db_path: PathBuf,

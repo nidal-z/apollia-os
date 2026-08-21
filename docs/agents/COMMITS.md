@@ -58,7 +58,7 @@ The scope is the workspace member or domain that owns the change.
 ```
 feat(apollia-core): add StepBudget type
 fix(apollia-runtime): propagate skill_id in AIPTask
-refactor(apollia-permissions): inline SafeList check
+refactor(apollia-permissions): inline the code-executor prefix match
 test(apollia-cli): add parsing tests for agent logs
 ```
 

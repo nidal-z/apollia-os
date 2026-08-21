@@ -752,7 +752,7 @@ impl BridgeRunner {
     /// Builds the governed [`ToolProxy`] used to execute orchestrated plan steps.
     ///
     /// Mirrors the proxy `call_run` builds for the direct/ctx path so the
-    /// orchestrated `ActorLoop` runs tools under the same permission engine,
+    /// orchestrated `ActorLoop` runs tools under the same governed path,
     /// audit trail, disabled-tool set, and A2A routing. Returns `None` in
     /// degraded mode (tool registry or audit trail unavailable), matching
     /// `call_run`, in which case orchestrated tool steps fall back to the

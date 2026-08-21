@@ -60,9 +60,9 @@ un budget d'étapes appliqué, un journal d'audit signé et vérifiable, un
 système de permissions avec supervision humaine et paliers d'autonomie, un
 garde-fou qui refuse les commandes shell enchaînées ou redirigées, et un
 chemin d'outils gouverné, emprunté aussi bien par les outils natifs que par
-les outils MCP. La détection structurelle d'injection ne fait pas partie de
-cette liste : le composant existe mais n'est pas câblé dans l'application
-livrée, et il filtre l'injection shell plutôt que l'injection de prompt. La
+les outils MCP. La détection d'injection de prompt ne fait pas partie de cette
+liste, et aucun composant de l'arbre ne la fournit : ce que le garde-fou
+ci-dessus filtre est l'injection shell. La
 dette se situe surtout en périphérie : durcir le sidecar d'inférence, boucler
 le volet vérifications shell des contrôles, câbler les plafonds de coût, et
 achever la couche copilote. Savoir précisément où se situent ces marges est

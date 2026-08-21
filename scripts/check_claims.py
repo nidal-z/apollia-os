@@ -2,8 +2,9 @@
 """Replay every capability claim of the documentation against the code.
 
 The corpus repeatedly stated that a capability was active when the symbol behind
-it existed but nothing ever called it. A permission engine documented across
-five pages runs in no shipped binary; five `[observability]` capture switches had
+it existed but nothing ever called it. An aggregate documented across five
+pages as the gate in front of every tool call ran in no shipped binary; five
+`[observability]` capture switches had
 a settings page and no reader. Prose review never catches this, because the prose
 is internally coherent: only the code disagrees.
 
@@ -129,8 +130,9 @@ def check_anchor(claim: dict, anchors: dict[str, list[Path]]) -> None:
 
 def check_wired(claim: dict, sources: list[Path]) -> None:
     symbol = claim["symbol"]
-    # The last path segment: `PermissionEngine::decide` is called as `decide`
-    # on a value, so the fully qualified form rarely appears at a call site.
+    # The last path segment: `PrefixRuleEngine::check_with_scope` is called as
+    # `check_with_scope` on a value, so the fully qualified form rarely appears
+    # at a call site.
     needle = symbol.split("::")[-1]
     definition = re.compile(
         rf"\b(fn|struct|enum|trait|type|const|static)\s+{re.escape(needle)}\b"

@@ -9,7 +9,7 @@
 //! *Session* permission rules are no longer supported on the desktop side:
 //! only the `project` and `global` scopes (persisted in `governance.db`) are
 //! exposed to the frontend. The historical in-memory store was removed because
-//! the runtime's `PermissionEngine` never consulted it.
+//! no runtime path ever read it.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};

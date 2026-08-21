@@ -160,9 +160,7 @@ avertissement au démarrage. Les retirer n'a changé aucun comportement, puisque
 ces sections n'en avaient aucun.
 
 `[permissions]` mérite d'être détaillée, car son nom suggère le contraire :
-`safe_commands` et `injection_detection` alimentaient un moteur de permissions
-qui n'est pas actif dans l'application livrée, tandis que
-`prefix_rule_ttl_hours` et `db_path` n'avaient aucun lecteur du tout. La
+aucune de ses quatre clés n'a jamais eu de lecteur sur un chemin d'exécution. La
 gouvernance qui s'exécute réellement, règles de préfixe et approbations, ne
 prend rien de cette section. Voir
 [concepts transverses](/architecture/crosscutting-concepts).

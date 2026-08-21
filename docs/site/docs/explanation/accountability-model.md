@@ -66,7 +66,6 @@ as final, and give it a sandbox root you are willing to lose.
 
 ### Permissions and human oversight
 
-<!-- claim:permission-engine-not-wired -->
 <!-- claim:hitl-wired-in-chat-path-only -->
 Before a tool call runs in a chat session, persisted permission rules classify
 it, a guard refuses a shell command that chains or redirects, and anything left
@@ -74,10 +73,8 @@ raises an approval request that an operator resolves. That decision is itself
 recorded. Permissions are scoped, so authority can be granted at the level of the
 whole install, a project, or a single session.
 
-Two boundaries, both worth stating plainly. `apollia-permissions` also ships a
-`PermissionEngine` with a safe-list and a shell-injection detector; **no
-production caller installs it**, so those two components never run. And the
-approval wrapper is placed on the **chat** dispatcher only: the tool calls an
+One boundary worth stating plainly. The approval wrapper is placed on the
+**chat** dispatcher only: the tool calls an
 installed Python agent makes through `ctx.tools` meet no human checkpoint. That
 is a deliberate position rather than an oversight, and the
 [agent trust model](/explanation/agent-trust-model) explains why: an installed
@@ -101,7 +98,6 @@ without bound. This is the guarantee that autonomy has a hard edge.
 
 ### Shell command screening
 
-<!-- claim:injection-detector-is-shell-not-prompt -->
 Shell commands are screened before execution: a risk classifier reads the
 command and a syntax check rejects what will not parse. When a standing prefix
 rule is consulted for a code executor, a stricter guard refuses any command
@@ -110,8 +106,7 @@ one command cannot smuggle a second; outside a matching rule, every code
 executor invocation requires its own approval. The screening is recorded.
 
 This screens **shell** injection. Apollia ships no defence against prompt
-injection, and nothing here should be read as one. The crate also contains an
-`InjectionDetector`, which is part of the permission engine that does not run.
+injection, and nothing here should be read as one.
 
 ### Self-checking on the orchestrated path
 

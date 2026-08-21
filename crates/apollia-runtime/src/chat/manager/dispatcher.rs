@@ -38,7 +38,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     // Convergence point: every tool outside the native hardcoded fast path,
     // MCP, Google connectors, read-only natives, future providers, is
     // resolved through a single `ToolDispatcher`.
-    // The dispatcher applies the same permission engine + audit trail as
+    // The dispatcher applies the same governed path and audit trail as
     // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
     // bash, python_executor, notebook_edit) stay in the fast path because
     // their inline approval flow is not yet ported to events.

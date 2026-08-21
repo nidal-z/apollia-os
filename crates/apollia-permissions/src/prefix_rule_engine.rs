@@ -1,4 +1,4 @@
-//! Layer 2 of the permission engine: the SQLite PrefixRuleEngine.
+//! The persisted rule store consulted on the chat path.
 //!
 //! Persists Allow/Deny rules keyed by argument prefix in SQLite.
 //! Lets the operator (or the desktop HITL "Always allow" button) add rules
@@ -65,7 +65,7 @@ impl RuleAction {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionScope {
-    /// Rule living only in memory inside the `PermissionEngine`.
+    /// Rule living only in memory, for the duration of one chat session.
     ///
     /// Disappears when the process stops. Never persisted to SQLite.
     Session,
@@ -320,7 +320,8 @@ impl PrefixRuleEngine {
         }
         if rule.scope == PermissionScope::Session {
             return Err(PermissionError::InvalidRule(
-                "session rules must not be persisted; use PermissionEngine::add_session_rule"
+                "session rules must not be persisted; the chat manager keeps them \
+                 in memory for the session"
                     .to_string(),
             ));
         }
@@ -410,7 +411,8 @@ impl PrefixRuleEngine {
     ) -> Result<u32, PermissionError> {
         if scope == PermissionScope::Session {
             return Err(PermissionError::InvalidRule(
-                "session rules are not persisted; clear them via PermissionEngine::clear_session_rules"
+                "session rules are not persisted; they are dropped when the chat \
+                 session ends"
                     .to_string(),
             ));
         }
@@ -837,6 +839,45 @@ fn scan_rows(
         }
     }
     Ok(None)
+}
+
+/// Extracts the first string argument from the JSON input.
+///
+/// Strategy: try the common native-tool keys first
+/// (`cmd`, `command`, `path`, `url`, `query`, `input`, `text`, `content`,
+/// `prompt`), then take the first string value found in the object.
+/// If the input is itself a string, return it as is.
+///
+/// Public because the chat ReAct loop performs the same extraction before it
+/// consults the prefix rules per invocation: the caller and the rule store
+/// must agree on which argument a rule's prefix is matched against.
+pub fn extract_first_arg(input: &serde_json::Value) -> Option<String> {
+    use serde_json::Value;
+
+    match input {
+        Value::String(s) => Some(s.clone()),
+        Value::Object(map) => {
+            // Try the common native-tool keys first.
+            const PRIORITY_KEYS: &[&str] = &[
+                "cmd", "command", "path", "url", "query", "input", "text", "content", "prompt",
+            ];
+
+            for key in PRIORITY_KEYS {
+                if let Some(Value::String(s)) = map.get(*key) {
+                    return Some(s.clone());
+                }
+            }
+            // Fallback: first string value found in the object.
+            map.values().find_map(|v| {
+                if let Value::String(s) = v {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+        }
+        _ => None,
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -1503,5 +1544,35 @@ mod tests {
             .list_rules_filtered(Some(PermissionScope::Session), None)
             .expect("list session");
         assert!(none_for_session.is_empty());
+    }
+
+    #[test]
+    fn extract_first_arg_uses_cmd_key() {
+        // GIVEN an object carrying a `cmd` key next to another string key
+        let input = serde_json::json!({"cmd": "git status", "other": "value"});
+        // WHEN the first argument is extracted
+        let arg = extract_first_arg(&input);
+        // THEN the priority key wins
+        assert_eq!(arg, Some("git status".to_string()));
+    }
+
+    #[test]
+    fn extract_first_arg_string_input() {
+        // GIVEN a bare string input
+        let input = serde_json::json!("direct string");
+        // WHEN the first argument is extracted
+        let arg = extract_first_arg(&input);
+        // THEN the string itself is returned
+        assert_eq!(arg, Some("direct string".to_string()));
+    }
+
+    #[test]
+    fn extract_first_arg_empty_object_returns_none() {
+        // GIVEN an empty object
+        let input = serde_json::json!({});
+        // WHEN the first argument is extracted
+        let arg = extract_first_arg(&input);
+        // THEN nothing is found
+        assert!(arg.is_none());
     }
 }

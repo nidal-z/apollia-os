@@ -115,7 +115,7 @@ For the full native tool list see the [native tool catalog](/reference/native-to
 
 | Crate | Role |
 |---|---|
-| **apollia-permissions** | Permission types and decisions, scoped to install, project, or session, with four autonomy tiers and an approvals register. Every decision is audited. What ships enabled is the prefix-rule engine; the `PermissionEngine` aggregate, its safe-list and its shell-injection detector are present but not wired into the application (see [crosscutting concepts](./07-crosscutting-concepts.md)). |
+| **apollia-permissions** | Permission types and decisions, scoped to install, project, or session, with four autonomy tiers and an approvals register. What ships enabled is the prefix-rule engine, consulted per invocation on the chat path, plus the guard that keeps a code executor out of any blanket authorization (see [crosscutting concepts](./07-crosscutting-concepts.md)). |
 | **apollia-notifications** | Operator notifications across desktop, terminal, and webhook, with severity, HITL, and an inactivity watcher. |
 | **apollia-triggers** | Scheduled and reactive agent starts: cron, interval, one-shot, and file-watch are wired; the webhook source is a stub. |
 | **apollia-eval** | Sovereign evaluation: declarative TOML suites and success, length, wall-clock, and cost metrics. An `llm_judge` assertion exists in the suite schema but no judge is installed by the CLI, so such an assertion fails rather than being scored. |

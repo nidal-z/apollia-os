@@ -5,8 +5,8 @@ Three checks were written for this corpus, and all three shipped with a bias on
 the same side: the side that reports success.
 
   - `check_optional_builders.py` counted `/// chain [`X::with_y`] ...` as a call
-    site, which hid `with_permission_engine`, the original instance of the very
-    class it exists to catch.
+    site, which hid the opt-in permission engine of `apollia-tools`, the
+    original instance of the very class it exists to catch.
   - `check_claims.py` did the same through its `status = "wired"` rule, and
     passed a claim asserting a rollback journal that nothing ever wrote.
   - `check_claim_anchors.py` counted only its failures, so its mirror rule
@@ -119,8 +119,8 @@ def check_builder_sweep() -> None:
     case(
         "comment-only mention yields no caller",
         builders.production_callers("with_cap", only_comment) == [],
-        "a doc-comment was counted as a call site, which is how "
-        "`with_permission_engine` passed as wired",
+        "a doc-comment was counted as a call site, which is how the opt-in "
+        "permission engine of `apollia-tools` passed as wired",
     )
 
     with_caller = dict(only_comment)

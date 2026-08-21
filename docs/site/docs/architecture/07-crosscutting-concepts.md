@@ -46,7 +46,6 @@ posture and its limits in full.
 
 ## Permissions and autonomy tiers
 
-<!-- claim:permission-engine-not-wired -->
 <!-- claim:executor-guard-blocks-command-chaining -->
 Before any action runs, the chat dispatch path in `apollia-runtime` classifies
 it in three steps. The first gate is a **tool-name authorization set**:
@@ -58,16 +57,8 @@ goes through the guard (`is_single_simple_command`) that refuses a shell
 command that chains, pipes, redirects or substitutes, so an approval granted
 for one command cannot smuggle a second. Anything left raises a
 **human-in-the-loop approval** the operator resolves, and that decision is
-recorded.
-
-<!-- claim:injection-detector-is-shell-not-prompt -->
-`apollia-permissions` also contains a `PermissionEngine` aggregating a safe-list
-and a shell-injection detector. **It is not active in the shipped application.**
-`ToolDispatcher` holds an `Option<PermissionEngine>` that no production caller
-populates, so those two components never run. They are kept for an embedder that
-opts in, and the crate says so in its own module documentation. Note also that
-the detector screens **shell** injection, not prompt injection: Apollia ships no
-prompt-injection defence.
+recorded. What this guard screens is **shell** injection, not prompt injection:
+Apollia ships no prompt-injection defence.
 
 Permissions are scoped to the whole install, a project, or a single session. On
 top of that, an autonomy tier is a dial the operator sets for how much an agent

@@ -91,9 +91,6 @@ human-in-the-loop, layered as defense in depth.
   the agent. Persisted permission rules apply on the chat path, evaluated per
   invocation; code executors are excluded from every blanket authorization and
   only match through a prefix rule restricted to a single simple command.
-  <!-- claim:permission-engine-not-wired -->
-  The `PermissionEngine` that `apollia-permissions` also ships is **not installed
-  by any production caller** and enforces nothing today.
 
 ## What an operator must assume
 

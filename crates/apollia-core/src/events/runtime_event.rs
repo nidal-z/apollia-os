@@ -1309,9 +1309,9 @@ pub enum RuntimeEvent {
     // ── Permission events ────────────────────────
     /// A tool invocation requires a human approval.
     ///
-    /// Emitted by `ToolDispatcher::dispatch()` when `PermissionEngine::decide()`
-    /// returns `PermissionDecision::NeedsApproval`. The frontend intercepts this
-    /// event via SSE to show the appropriate HITL dialog.
+    /// Emitted by the agent mailbox guard (`MailContext::emit_approval_required`)
+    /// when an agent-to-agent send is gated. The frontend intercepts this event
+    /// via SSE to show the appropriate HITL dialog.
     PermissionRequired {
         /// Name of the tool whose invocation is suspended.
         tool_name: String,
@@ -1542,8 +1542,8 @@ pub enum RuntimeEvent {
     },
     /// The tool was denied (manifest, permission rule, HITL).
     ///
-    /// Emitted instead of `ToolCallCompleted` when the dispatcher or the
-    /// permissions engine blocks the invocation. Valuable for explaining to the
+    /// Emitted instead of `ToolCallCompleted` when the manifest allowlist, a
+    /// permission rule or a human decision blocks the invocation. Valuable for explaining to the
     /// operator why an agent could not act.
     ToolCallDenied {
         /// `event_id` of the `ToolCallStarted` this record closes.

@@ -53,7 +53,6 @@ cette posture et ses limites en détail.
 
 ## Permissions et paliers d'autonomie
 
-<!-- claim:permission-engine-not-wired -->
 <!-- claim:executor-guard-blocks-command-chaining -->
 Avant qu'une action ne s'exécute, le chemin de dispatch du chat dans
 `apollia-runtime` la classe en trois étapes. La première porte est un
@@ -67,17 +66,9 @@ le garde-fou (`is_single_simple_command`) qui refuse une commande shell qui
 chaîne, redirige, pipe ou substitue, de sorte qu'une approbation accordée pour
 une commande ne puisse pas en faire passer une seconde en douce. Ce qui reste
 déclenche une **approbation humaine dans la boucle** que l'opérateur résout,
-et cette décision est enregistrée.
-
-<!-- claim:injection-detector-is-shell-not-prompt -->
-`apollia-permissions` contient aussi un `PermissionEngine` agrégeant une liste
-sûre et un détecteur d'injection shell. **Il n'est pas actif dans
-l'application livrée.** `ToolDispatcher` détient un `Option<PermissionEngine>`
-qu'aucun appelant de production ne peuple, si bien que ces deux composants ne
-s'exécutent jamais. Ils sont conservés pour un intégrateur qui choisirait de
-les activer, et le crate le précise dans sa propre documentation de module. À
-noter aussi que le détecteur surveille l'injection **shell**, pas l'injection
-de prompt : Apollia ne livre aucune défense contre l'injection de prompt.
+et cette décision est enregistrée. Ce que ce garde-fou surveille est l'injection
+**shell**, pas l'injection de prompt : Apollia ne livre aucune défense contre
+l'injection de prompt.
 
 Les permissions se portent sur toute l'installation, sur un projet, ou sur une
 seule session. Par-dessus, un palier d'autonomie est un curseur que

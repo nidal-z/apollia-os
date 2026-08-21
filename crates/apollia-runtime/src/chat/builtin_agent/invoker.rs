@@ -307,8 +307,8 @@ impl NativeChatToolInvoker {
 
     // `file_read` migrated to the shared ToolDispatcher: the executor is
     // registered by `chat::manager::resolve_workspace_for_session` and
-    // reached via `fallback_dispatcher`. No inline HITL, so the
-    // dispatcher's permission engine stays in charge.
+    // reached via `fallback_dispatcher`. No inline HITL: a read-only tool
+    // is gated by the loop's authorization set like any other.
 
     /// Execute `file_write` with the given JSON arguments.
     #[allow(
@@ -519,7 +519,7 @@ impl ToolInvoker for NativeChatToolInvoker {
         // `fallback_dispatcher`. HITL-sensitive ones are wrapped in
         // `HitlFilesystemGuard`, `http_fetch` via `DynamicAllowlistHttpFetch`,
         // everything else as stock executors. No fast path, no special
-        // cases, a single permission engine + audit trail path across
+        // cases, a single governed path plus audit trail across
         // Chat Libre / Chat Agent / Triggers.
         match self.fallback_dispatcher.as_ref() {
             Some(invoker) => invoker.invoke(tool_name, arguments).await,

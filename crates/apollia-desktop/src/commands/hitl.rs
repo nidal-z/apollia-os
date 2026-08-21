@@ -271,7 +271,7 @@ pub async fn list_resolved_approvals(
 ///
 /// Called by the "Always allow" buttons of the desktop HITL components. Two
 /// scopes are supported (the `session` scope was removed: it lived only in the
-/// desktop process and was never consulted by the runtime's `PermissionEngine`):
+/// desktop process and no runtime path ever read it):
 ///
 /// - `"project"`: rule persisted in `governance.db` with its canonicalized
 ///   `project_path`. `project_path` is required in this mode.

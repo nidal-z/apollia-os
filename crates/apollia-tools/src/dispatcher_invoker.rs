@@ -65,7 +65,6 @@ fn format_dispatch_error(err: &ToolExecutionError) -> String {
         ToolExecutionError::ExecutionFailed { code, message } => {
             format!("{code}: {message}")
         }
-        other => other.to_string(),
     }
 }
 

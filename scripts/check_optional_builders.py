@@ -5,8 +5,9 @@ Three times now this repository has produced the same shape: a `pub fn with_x`
 that sets an optional field to `Some`, a default path that leaves it `None`, and
 a documented capability that therefore never runs.
 
-  - `with_permission_engine`: the permission engine documented on five pages,
-    wired in no shipped binary.
+  - the opt-in permission engine of `apollia-tools`, documented on five pages
+    and wired in no shipped binary. It has since been removed, which is what a
+    builder of this class earns.
   - `with_judge`: every `llm_judge` assertion silently counted as passed,
     because the CLI builds the runner with `new`.
   - the same shape elsewhere, which is what this script is for.
@@ -74,7 +75,7 @@ BASELINE: dict[str, str] = {
     "restart, so this is unstated behaviour rather than a dead capability. "
     "`the-plan-model.md` now states it. Turning on SQLite persistence here would "
     "change durability with no functional validation behind it, which is the "
-    "argument that kept the permission engine out.",
+    "argument that decides an unwired builder either way.",
     "with_force_plan_gate@apollia-oria": "superseded: production calls "
     "`with_plan_gate_override`, which carries the same decision with a tri-state. "
     "Delete rather than wire.",
@@ -86,11 +87,6 @@ BASELINE: dict[str, str] = {
     "with_hitl@apollia-mcp": "dead second gate: approval is enforced by the ORIA "
     "actor loop for orchestrated runs and by the chat dispatcher for free chat, "
     "both of which are wired. Redundant defence nobody installs, not a hole.",
-    "with_permission_engine@apollia-tools": "known and documented: the first "
-    "instance of this class. The corpus now states it is inert unless a host "
-    "embeds Apollia and installs one, guarded by the claim "
-    "`permission-engine-not-wired`. Accepted, not a defect.",
-    "with_agent_manifest@apollia-tools": "unjudged capability, no doc claim.",
     "with_session_filter@apollia-tools": "unjudged capability, no doc claim.",
     "with_file_path_extractor@apollia-tools": "unjudged capability, no doc claim.",
     "with_timestamp_cache@apollia-tools": "unjudged capability, no doc claim.",

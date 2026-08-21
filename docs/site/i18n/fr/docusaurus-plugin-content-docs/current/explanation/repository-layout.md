@@ -59,7 +59,7 @@ principales :
 | `apollia-mcp` | Le client Model Context Protocol (transports stdio / HTTP / SSE, plafonds de taille sur les réponses non fiables). |
 | `apollia-tools` | Implémentations des outils intégrés. |
 | `apollia-memory` | Persistance de la mémoire des agents (SQLite + FTS5). |
-| `apollia-permissions` | Les règles de permission persistées, le garde-fou de l'exécuteur de code, et le journal des décisions. Contient aussi un moteur de permissions à activation volontaire que le runtime livré n'installe pas. |
+| `apollia-permissions` | Les règles de permission persistées, le garde-fou de l'exécuteur de code, et le journal des décisions. |
 | `apollia-auth` | Authentification et OAuth2 (PKCE), stockage des secrets via le trousseau du système d'exploitation. |
 | `apollia-connectors` | Connecteurs vers des services externes. |
 | `apollia-triggers` | Déclencheurs planifiés et événementiels (cron, surveillance du système de fichiers). |

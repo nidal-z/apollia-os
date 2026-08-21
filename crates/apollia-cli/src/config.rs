@@ -120,12 +120,11 @@ const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 ///   under `apollia-core/src/config/` at all.
 /// - `[a2a]`, `[oria]`, `[registry]`, `[permissions]` and `[filesystem]` did
 ///   deserialize into a typed struct, and that struct was then never consulted.
-///   `[permissions]` is the one worth spelling out: its `safe_commands` and
-///   `injection_detection` feed `SafeList` and `InjectionDetector`, which only
-///   run behind a `PermissionEngine` that no production caller ever installs
-///   (see `apollia-tools/src/executor.rs`), while `prefix_rule_ttl_hours` and
-///   `db_path` had no reader at all. `PrefixRuleEngine`, the governance path
-///   that does run, takes nothing from this section.
+///   `[permissions]` is the one worth spelling out: not one of its four keys
+///   ever had a reader on an execution path, so setting any of them changed
+///   nothing. The typed struct behind it has since been removed.
+///   `PrefixRuleEngine`, the governance path that does run, takes nothing from
+///   this section: it is opened on the `governance.db` path alone.
 ///
 /// Removing the surface does not change behaviour: these values had none.
 const INERT_SECTIONS: &[&str] = &[
@@ -584,8 +583,7 @@ events = ["task.completed"]
 approval_ttl_hours = 48
 
 [permissions]
-injection_detection = false
-safe_commands = ["bash_executor(git status)"]
+db_path = "~/.apollia/governance.db"
 
 [filesystem.journal]
 max_sessions = 100
@@ -634,7 +632,7 @@ max_sessions = 100
         // GIVEN a file written before the sections were withdrawn
         let toml = r#"
 [permissions]
-injection_detection = false
+db_path = "~/.apollia/governance.db"
 
 [oria]
 max_replans = 3

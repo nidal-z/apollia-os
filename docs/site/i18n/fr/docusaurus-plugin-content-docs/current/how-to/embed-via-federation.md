@@ -65,7 +65,6 @@ et [le câblage de votre propre serveur MCP](/operator-help/integrations/cabler-
 La fédération signifie en général que l'agent peut déclencher des changements
 dans votre produit. Gardez un humain dans la boucle sur ces changements.
 
-<!-- claim:permission-engine-not-wired -->
 Pour un serveur MCP que vous enregistrez, l'approbation se règle par serveur
 ou par outil :
 
@@ -78,12 +77,10 @@ apollia-os mcp list-pending
 Un opérateur confirme alors avant que quoi que ce soit ne soit écrit en
 retour, et l'approbation est enregistrée aux côtés de l'action.
 
-Deux limites à anticiper plutôt qu'à découvrir. Ce flux d'approbation couvre
+Une limite à anticiper plutôt qu'à découvrir. Ce flux d'approbation couvre
 le chemin du **chat** ; les appels d'outils qu'effectue un agent Python
 installé ne sont pas soumis à cette porte, donc ne comptez pas sur les
-approbations pour contenir un agent que vous n'avez pas écrit vous-même. Et
-le `PermissionEngine` fourni par `apollia-permissions` n'est installé par
-aucun appelant en production : les règles écrites pour lui n'appliquent rien.
+approbations pour contenir un agent que vous n'avez pas écrit vous-même.
 Ce qui fonctionne réellement, c'est l'approbation MCP par serveur décrite
 ci-dessus, les règles de préfixe persistées, et le garde-fou qui refuse une
 commande shell chaînée.

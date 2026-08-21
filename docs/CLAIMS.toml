@@ -2,9 +2,9 @@
 #
 # One entry per statement in the documentation that asserts something about what
 # the software does. The corpus has, more than once, described a capability whose
-# symbol existed while nothing ever called it: a permission engine documented on
-# five pages that runs in no shipped binary, five capture switches with a settings
-# page and no reader. Prose review does not catch that, because the prose is
+# symbol existed while nothing ever called it: an aggregate documented on five
+# pages as the gate in front of every tool call, which ran in no shipped binary,
+# five capture switches with a settings page and no reader. Prose review does not catch that, because the prose is
 # internally coherent. Only the code disagrees.
 #
 # What counts as a claim
@@ -109,34 +109,6 @@
 # ── Permissions: the drift this file was built for ───────────────────────────
 
 [[claim]]
-id = "permission-engine-not-wired"
-scope = "public"
-symbol = "ToolDispatcher::with_permission_engine"
-status = "not-wired"
-proof = "crates/apollia-tools/src/executor.rs"
-evidence = "**No production caller wires it.**"
-note = """
-Five pages described a three-layer permission engine as the gate in front of
-every tool call. Two of the three layers never execute. The version that shipped
-to a compliance page cited OWASP ASVS and CWE-78 in support of a control that
-runs in no binary. If this evidence string ever stops matching, someone wired the
-engine and the corrected pages have to be corrected back.
-"""
-
-[[claim]]
-id = "injection-detector-is-shell-not-prompt"
-scope = "public"
-symbol = "InjectionDetector"
-status = "not-wired"
-proof = "crates/apollia-permissions/src/lib.rs"
-evidence = "detects **shell** injection, not prompt injection"
-note = """
-Two errors compounded here: the detector was presented as active when it is not,
-and as prompt-injection protection when it screens shell metacharacters. Apollia
-ships no prompt-injection defence, and the documentation must not imply one.
-"""
-
-[[claim]]
 id = "executor-guard-blocks-command-chaining"
 scope = "public"
 symbol = "is_single_simple_command"
@@ -144,13 +116,12 @@ status = "wired"
 proof = "crates/apollia-permissions/src/executor_guard.rs"
 evidence = ""
 note = """
-The protection people attribute to the injection detector is really delivered
-here. It went dark once (the only call chain led to the never-wired
-PermissionEngine, and the docs promised it anyway); it is live again through
-the chat loop's per-invocation prefix checker (`build_prefix_checker` ->
-`check_with_scope` -> `code_executor_prefix_matches`). If that checker ever
-loses its caller, this claim must flip back to not-wired together with the
-pages that state it.
+This is where the anti-chaining protection actually lives. It went dark once,
+its only call chain leading to an aggregate no binary installed while the docs
+promised it anyway; it is live through the chat loop's per-invocation prefix
+checker (`build_prefix_checker` -> `check_with_scope` ->
+`code_executor_prefix_matches`). If that checker ever loses its caller, this
+claim must flip back to not-wired together with the pages that state it.
 """
 
 [[claim]]
@@ -792,7 +763,7 @@ evidence = ""
 note = """
 On the orchestrated path the manifest field is the whole gate. Documenting a
 policy layer here would repeat the drift this pass removed: the corpus described
-a permission engine in front of tool calls that no shipped binary runs. If this
+a policy aggregate in front of tool calls that no shipped binary ran. If this
 lookup disappears, every step executes unattended and nothing else in the build
 notices.
 """

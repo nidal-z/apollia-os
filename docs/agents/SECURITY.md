@@ -24,9 +24,9 @@ What this means in practice:
 
 - Security is procedural before it is technical. The operator audits an agent
   before installing it. The install path prints a trust banner to that effect.
-- The real gate for sensitive actions is HITL: the permission engine defaults
-  to `NeedsApproval`, so a write or an external call surfaces an approval rather
-  than executing silently. See section 5.
+- The real gate for sensitive actions is HITL: the chat path asks by default,
+  so a write or an external call surfaces an approval rather than executing
+  silently. See section 5.
 - Manifest capability allowlists (`tools_required`, `secrets`, `datasources`,
   `mailbox`) gate the `ctx.*` convenience interfaces. They are least-privilege
   ergonomics, not an OS boundary: an unsandboxed agent can bypass `ctx.secrets`
@@ -70,7 +70,7 @@ State :
   post-v0.1.0.
 
 Rules :
-- A new external call site should route through the permission engine (HITL) so
+- A new external call site should route through the chat approval gate (HITL) so
   the operator can deny it. Do not claim the sovereignty profile blocks the call
   automatically until the enforcement gate lands.
 
@@ -161,9 +161,8 @@ the OAuth flow above. See `crates/apollia-connectors/`.
 
 ## 5. Permissions and audit
 
-The permissions engine has three layers (see
-`docs/agents/ARCHITECTURE.md` §C). Every tool invocation produces a
-decision record in `governance.db`.
+Tool governance is described in `docs/agents/ARCHITECTURE.md` §C. The rules it
+evaluates are persisted in `governance.db`.
 
 Decision outcomes :
 
@@ -185,19 +184,15 @@ What actually gates a tool call in the shipped runtime :
    invariant described in the next section, applied on every dispatch.
 3. **HITL approval**. Anything not auto-approved reaches the user.
 
-`apollia-permissions` also contains a `PermissionEngine` that aggregates a
-`SafeList` and an `InjectionDetector` in front of the prefix rules. **It is not
-wired.** `ToolDispatcher::with_permission_engine` has no caller in this
-workspace, so those two layers never execute and
-`PermissionDecision::AutoDeniedInjection` is unreachable in the shipped binary.
-The `[permissions]` keys `safe_commands` and `injection_detection` are therefore
-inert unless an embedder installs the engine itself.
+Those three are the whole of it. Nothing else in `apollia-permissions` sits in
+front of a tool call, and the `[permissions]` section of `apollia.toml` is inert
+(see the withdrawn sections of the configuration reference).
 
 Two consequences worth stating plainly, because they are easy to get wrong :
 
-- The anti-chaining protection usually credited to the injection detector is in
+- The anti-chaining protection people credit to a shell-injection scanner is in
   fact delivered by `executor_guard::is_single_simple_command`, which is live.
-- `InjectionDetector` detects **shell** injection (CWE-77/78), never prompt
+- What that guard screens is **shell** injection (CWE-77/78), never prompt
   injection. There is no prompt-injection defence in the codebase; see the
   threat table below.
 

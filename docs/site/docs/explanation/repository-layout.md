@@ -56,7 +56,7 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `apollia-mcp` | The Model Context Protocol client (stdio / HTTP / SSE transports, untrusted-response caps). |
 | `apollia-tools` | Built-in tool implementations. |
 | `apollia-memory` | Agent memory persistence (SQLite + FTS5). |
-| `apollia-permissions` | Persisted permission rules, the code-executor guard, and the decision log. Also holds an opt-in permission engine that the shipped runtime does not install. |
+| `apollia-permissions` | Persisted permission rules, the code-executor guard, and the decision log. |
 | `apollia-auth` | Authentication and OAuth2 (PKCE), secret storage via the OS keychain. |
 | `apollia-connectors` | External service connectors. |
 | `apollia-triggers` | Scheduled and event-driven triggers (cron, filesystem watch). |

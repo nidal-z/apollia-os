@@ -8,9 +8,9 @@
 //! - `revoke`: delete a persisted rule by identifier, or in bulk by scope.
 //! - `audit`:  inspect the immutable history of permission decisions.
 //!
-//! `session` rules live only in memory inside the runtime's `PermissionEngine`;
-//! they are neither listable nor revocable from this subcommand, which runs
-//! outside the daemon process. When an identifier prefixed with `s` is passed
+//! `session` rules live only in memory inside the running chat manager; they
+//! are neither listable nor revocable from this subcommand, which runs outside
+//! the daemon process. When an identifier prefixed with `s` is passed
 //! to `revoke`, a clear message reports this limit and redirects the operator
 //! to the desktop app.
 
@@ -705,7 +705,7 @@ fn format_unix_datetime(ts: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_permissions::{PermissionDecision, RuleAction};
+    use apollia_permissions::RuleAction;
     use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -810,29 +810,32 @@ mod tests {
 
     #[test]
     fn test_audit_filtered_by_tool() {
+        // GIVEN two audit rows for two different tools
         let dir = TempDir::new().expect("tempdir");
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
-        GovernanceDb::open(dir.path()).expect("init governance");
-        let mut log = PermissionAuditLog::new(&db_path).expect("audit log");
+        let governance = GovernanceDb::open(dir.path()).expect("init governance");
+        let log = PermissionAuditLog::new(&db_path).expect("audit log");
+        for (tool, arg, decision) in [
+            ("web_search", "apollia", "AutoAllowedSafeList"),
+            ("file_write", "/tmp/x", "NeedsApproval"),
+        ] {
+            governance
+                .connection()
+                .execute(
+                    "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
+                     VALUES (?, ?, ?, ?)",
+                    rusqlite::params![tool, arg, decision, now()],
+                )
+                .expect("insert audit row");
+        }
 
-        log.record(
-            "web_search",
-            Some("apollia"),
-            &PermissionDecision::AutoAllowedSafeList,
-        )
-        .expect("record web_search");
-        log.record(
-            "file_write",
-            Some("/tmp/x"),
-            &PermissionDecision::NeedsApproval,
-        )
-        .expect("record file_write");
-
+        // WHEN one tool is queried, then all tools
         let only_web = log.query(Some("web_search"), 10, 0).expect("query");
+        let all = log.query(None, 10, 0).expect("query all");
+
+        // THEN the filter selects one row and the unfiltered query both
         assert_eq!(only_web.len(), 1);
         assert_eq!(only_web[0].tool_name, "web_search");
-
-        let all = log.query(None, 10, 0).expect("query all");
         assert_eq!(all.len(), 2);
     }
 

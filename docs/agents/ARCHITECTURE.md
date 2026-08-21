@@ -131,7 +131,7 @@ shell-out around. A CLI that only emits JSON is a CLI that humans hate.
       ▼       ▼       ▼         ▼         ▼         ▼
    apollia- apollia- apollia- apollia- apollia- apollia-
    oria    memory  tools   permissions auth    mcp
-   (StepB) (FTS5)  (sandb) (3-layer)  (OAuth) (JSON-RPC)
+   (StepB) (FTS5)  (sandb) (rules)    (OAuth) (JSON-RPC)
                                        (SecretStore)
                            │
                            ▼
@@ -201,12 +201,12 @@ Live in the shipped runtime :
    rule only matches a single simple command.
 3. HITL approval for everything not auto-approved.
 
-Present but not wired : `PermissionEngine`, which aggregates `SafeList` and
-`InjectionDetector`. No caller installs it, so those two never run. Details and
-rationale in `docs/agents/SECURITY.md`.
+Details and rationale in `docs/agents/SECURITY.md`.
 
-Audit log is SQLite, append-only, no deletes. Each tool invocation produces
-a decision record.
+The `permission_audit` table of `governance.db` is SQLite, append-only, no
+deletes, enforced by two triggers. Nothing in the shipped runtime writes to it;
+the approval decisions an operator takes on the chat path are recorded in
+`chat_approval_log` instead.
 
 Source : `crates/apollia-permissions/`.
 
@@ -312,7 +312,7 @@ either locale resolves.
 | EventBus implementation | `crates/apollia-runtime/src/eventbus.rs` |
 | Actor supervisor | `crates/apollia-runtime/src/supervisor/` |
 | Step budget enforcement | `crates/apollia-oria/src/engine.rs` |
-| Permissions engine | `crates/apollia-permissions/src/` |
+| Permission rules | `crates/apollia-permissions/src/` |
 | SecretStore backends | `crates/apollia-auth/src/secret_storage.rs` |
 | MCP client manager | `crates/apollia-mcp/src/` |
 | LLM router | `crates/apollia-llm/src/router.rs` |

@@ -117,10 +117,6 @@ profondeur.
   chemin du chat, évaluées à chaque invocation ; les exécuteurs de code sont
   exclus de toute autorisation globale, et ne correspondent que via une
   règle de préfixe restreinte à une seule commande simple.
-  <!-- claim:permission-engine-not-wired -->
-  Le `PermissionEngine` que fournit également `apollia-permissions` n'est
-  **installé par aucun appelant de production** et n'impose aujourd'hui
-  aucune règle.
 
 ## Ce qu'un opérateur doit supposer
 

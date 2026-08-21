@@ -8,10 +8,7 @@
 //! and serialising the output back to JSON. Domain errors are mapped to
 //! [`ToolExecutionError::ExecutionFailed`] with a stable `code` string.
 
-use apollia_core::manifest::AgentManifest;
 use apollia_core::utils::truncate_middle;
-use apollia_core::EventBusSender;
-use apollia_permissions::{PermissionDecision, PermissionEngine};
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
@@ -76,30 +73,12 @@ pub enum ToolExecutionError {
         /// Name of the tool that was blocked.
         tool_name: String,
     },
-
-    /// The permission engine denied the invocation (AutoDenied*).
-    ///
-    /// Returned when `PermissionEngine::decide()` produces `AutoDeniedInjection`
-    /// or `AutoDeniedPrefixRule`. The `reason` field contains a human-readable
-    /// description of why the invocation was blocked.
-    #[error("permission denied: {reason}")]
-    PermissionDenied {
-        /// Human-readable reason for the denial.
-        reason: String,
-    },
-
-    /// The permission engine requires human approval before executing this tool.
-    ///
-    /// Returned when `PermissionEngine::decide()` produces `NeedsApproval`
-    /// and no `EventBusSender` is configured to emit `PermissionRequired`.
-    #[error("permission check failed: {0}")]
-    PermissionError(String),
 }
 
 /// Session-level tool filter enforcing `--allowed-tools` / `--disallowed-tools`.
 ///
-/// The filter is evaluated before the 3-layer permission engine so that
-/// session-scoped restrictions take precedence over the global safe-list.
+/// The filter is evaluated before the executor lookup, so a session-scoped
+/// restriction blocks a tool the dispatcher would otherwise run.
 ///
 /// Rules (evaluated in order):
 /// 1. If `disallowed_tools` contains the tool name → blocked.
@@ -200,39 +179,15 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// truncation marker indicating the number of discarded lines.
 ///
 /// An optional [`SessionToolFilter`] can be wired in via [`with_session_filter`].
-/// When present, `dispatch()` evaluates the session filter *before* the permission
-/// engine. Blocked tools return [`ToolExecutionError::ToolNotAllowed`] immediately.
-///
-/// An optional [`PermissionEngine`] can be wired in via [`with_permission_engine`].
-/// When present, `dispatch()` evaluates its layered policy before executing the
-/// tool. If the engine returns `AutoDenied*`, the call is blocked and a
-/// [`ToolExecutionError::PermissionDenied`] is returned. If it returns `NeedsApproval`,
-/// a [`RuntimeEvent::PermissionRequired`] is emitted on the `EventBusSender` (fire-and-forget)
-/// and [`ToolExecutionError::PermissionDenied`] is returned.
-///
-/// **No production caller wires it.** `with_permission_engine` has no callers in
-/// this workspace, so `permission_engine` is always `None` in the shipped
-/// runtime and the block below never runs. Tool calls are gated instead by the
-/// chat path's name-only authorization set, the per-invocation prefix-rule
-/// check and the HITL flow, applied by `apollia-runtime` in the chat dispatch
-/// path; a code executor is only ever auto-approved through a prefix rule
-/// restricted to a single simple command. Do not read the presence of this
-/// field as a protection that is active today.
+/// When present, `dispatch()` evaluates the filter before looking up an executor.
+/// Blocked tools return [`ToolExecutionError::ToolNotAllowed`] immediately.
 ///
 /// [`with_session_filter`]: ToolDispatcher::with_session_filter
-/// [`with_permission_engine`]: ToolDispatcher::with_permission_engine
 pub struct ToolDispatcher {
     executors: Vec<Box<dyn ToolExecutor>>,
     max_output_chars: usize,
     /// Optional session-level tool filter (`--allowed-tools` / `--disallowed-tools`).
     tool_filter: Option<SessionToolFilter>,
-    /// Optional opt-in permission engine. Always `None` in the shipped runtime:
-    /// no caller invokes `with_permission_engine`. See the struct docs.
-    permission_engine: Option<std::sync::Mutex<PermissionEngine>>,
-    /// EventBus sender for emitting `PermissionRequired` events.
-    event_bus: Option<EventBusSender>,
-    /// Agent manifest used by `PermissionEngine::decide()`.
-    agent_manifest: Option<AgentManifest>,
 }
 
 impl ToolDispatcher {
@@ -247,17 +202,14 @@ impl ToolDispatcher {
             executors,
             max_output_chars: DEFAULT_MAX_OUTPUT_CHARS,
             tool_filter: None,
-            permission_engine: None,
-            event_bus: None,
-            agent_manifest: None,
         }
     }
 
     /// Attach a session-level tool filter to this dispatcher.
     ///
-    /// When set, every `dispatch()` call checks the filter before the permission
-    /// engine. Tools blocked by the filter return [`ToolExecutionError::ToolNotAllowed`]
-    /// immediately without reaching the executor.
+    /// When set, every `dispatch()` call checks the filter first. Tools blocked by
+    /// the filter return [`ToolExecutionError::ToolNotAllowed`] immediately without
+    /// reaching the executor.
     pub fn with_session_filter(mut self, filter: SessionToolFilter) -> Self {
         self.tool_filter = Some(filter);
         self
@@ -274,39 +226,7 @@ impl ToolDispatcher {
         self
     }
 
-    /// Wire the 3-layer permission engine into the dispatcher.
-    ///
-    /// When set, every `dispatch()` call evaluates `PermissionEngine::decide()`
-    /// before executing the tool. Requires a corresponding [`AgentManifest`] to be
-    /// provided via [`with_agent_manifest`].
-    ///
-    /// [`with_agent_manifest`]: ToolDispatcher::with_agent_manifest
-    pub fn with_permission_engine(mut self, engine: PermissionEngine) -> Self {
-        self.permission_engine = Some(std::sync::Mutex::new(engine));
-        self
-    }
-
-    /// Set the `EventBusSender` used to emit `RuntimeEvent::PermissionRequired`.
-    ///
-    /// When set alongside a permission engine, `NeedsApproval` decisions trigger
-    /// a fire-and-forget broadcast on this sender before returning `PermissionDenied`.
-    pub fn with_event_bus(mut self, sender: EventBusSender) -> Self {
-        self.event_bus = Some(sender);
-        self
-    }
-
-    /// Set the agent manifest forwarded to `PermissionEngine::decide()`.
-    ///
-    /// Required when a permission engine is configured.
-    pub fn with_agent_manifest(mut self, manifest: AgentManifest) -> Self {
-        self.agent_manifest = Some(manifest);
-        self
-    }
-
     /// Dispatch a tool call to the executor registered under `tool_name`.
-    ///
-    /// When a `PermissionEngine` is configured, the 3-layer policy is evaluated
-    /// before execution. Blocked invocations return `PermissionDenied` immediately.
     ///
     /// After a successful execution, the output is serialized to a JSON string.
     /// If the serialized length exceeds `max_output_chars`, the middle is trimmed
@@ -315,9 +235,6 @@ impl ToolDispatcher {
     ///
     /// # Errors
     ///
-    /// - [`ToolExecutionError::PermissionDenied`] if the permission engine blocks or
-    ///   suspends the invocation.
-    /// - [`ToolExecutionError::PermissionError`] if the permission engine itself fails.
     /// - [`ToolExecutionError::UnknownTool`] if no executor is registered for `tool_name`.
     /// - [`ToolExecutionError::ExecutionFailed`] with code `"serialization_error"` if the
     ///   executor output cannot be serialized.
@@ -337,82 +254,6 @@ impl ToolDispatcher {
                 return Err(ToolExecutionError::ToolNotAllowed {
                     tool_name: tool_name.to_string(),
                 });
-            }
-        }
-
-        // ── Permission check (optional) ───────────────────────────────────────
-        if let Some(engine_mutex) = &self.permission_engine {
-            let manifest = self.agent_manifest.as_ref().ok_or_else(|| {
-                ToolExecutionError::PermissionError(
-                    "permission engine configured but no agent manifest provided".to_string(),
-                )
-            })?;
-
-            let decision = {
-                let mut engine = engine_mutex.lock().map_err(|_| {
-                    ToolExecutionError::PermissionError(
-                        "permission engine mutex poisoned".to_string(),
-                    )
-                })?;
-                engine
-                    .decide(tool_name, &input, manifest)
-                    .map_err(|e| ToolExecutionError::PermissionError(e.to_string()))?
-            };
-
-            match &decision {
-                PermissionDecision::AutoAllowedSafeList
-                | PermissionDecision::AutoAllowedPrefixRule { .. } => {
-                    // Invocation approved, proceed normally.
-                    tracing::debug!(tool = %tool_name, "permission: auto-allowed");
-                }
-                PermissionDecision::AutoDeniedInjection { pattern } => {
-                    tracing::warn!(
-                        tool = %tool_name,
-                        pattern = %pattern,
-                        "permission: injection detected, invocation blocked"
-                    );
-                    return Err(ToolExecutionError::PermissionDenied {
-                        reason: format!(
-                            "injection pattern detected: '{}' - invocation blocked",
-                            pattern
-                        ),
-                    });
-                }
-                PermissionDecision::AutoDeniedPrefixRule { rule_id } => {
-                    tracing::warn!(
-                        tool = %tool_name,
-                        rule_id,
-                        "permission: denied by prefix rule"
-                    );
-                    return Err(ToolExecutionError::PermissionDenied {
-                        reason: format!("denied by prefix rule {}", rule_id),
-                    });
-                }
-                PermissionDecision::NeedsApproval => {
-                    // Emit PermissionRequired (fire-and-forget) when an EventBus is available.
-                    if let Some(sender) = &self.event_bus {
-                        let request_id = uuid::Uuid::new_v4().to_string();
-                        let event = apollia_core::RuntimeEvent::PermissionRequired {
-                            tool_name: tool_name.to_string(),
-                            input: input.clone(),
-                            request_id: request_id.clone(),
-                        };
-                        let _ = sender.send(event);
-                        tracing::info!(
-                            tool = %tool_name,
-                            request_id = %request_id,
-                            "permission: NeedsApproval - PermissionRequired event emitted"
-                        );
-                    } else {
-                        tracing::info!(
-                            tool = %tool_name,
-                            "permission: NeedsApproval - no event bus configured"
-                        );
-                    }
-                    return Err(ToolExecutionError::PermissionDenied {
-                        reason: "human approval required before executing this tool".to_string(),
-                    });
-                }
             }
         }
 

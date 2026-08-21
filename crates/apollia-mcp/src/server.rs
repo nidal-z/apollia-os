@@ -229,9 +229,6 @@ impl McpStdioServer {
             Err(ToolExecutionError::InvalidInput { message }) => {
                 jsonrpc_error(id, -32602, &format!("invalid input: {}", message))
             }
-            Err(ToolExecutionError::PermissionDenied { reason }) => {
-                jsonrpc_error(id, -32000, &format!("permission denied: {}", reason))
-            }
             Err(e) => jsonrpc_error(id, -32000, &format!("execution error: {}", e)),
         }
     }

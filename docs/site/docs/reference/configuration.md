@@ -155,11 +155,9 @@ nothing then consulted, so writing a value there had no effect and produced no
 error either. They are no longer accepted, and a file that still carries one logs
 a warning at startup. Removing them changed no behaviour, because they had none.
 
-`[permissions]` is worth spelling out, since its name suggests otherwise:
-`safe_commands` and `injection_detection` fed a permission engine that is not
-active in the shipped application, while `prefix_rule_ttl_hours` and `db_path`
-had no reader at all. The governance that does run, prefix rules and approvals,
-takes nothing from this section. See
+`[permissions]` is worth spelling out, since its name suggests otherwise: not
+one of its four keys ever had a reader on an execution path. The governance that
+does run, prefix rules and approvals, takes nothing from this section. See
 [cross-cutting concepts](/architecture/crosscutting-concepts).
 
 Sampling parameters are documented separately in

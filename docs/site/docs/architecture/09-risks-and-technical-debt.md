@@ -56,9 +56,9 @@ The moat is real and demonstrable: bounded autonomy with an enforced step
 budget, a signed and verifiable audit trail, permissions with
 human oversight and autonomy tiers, a guard that refuses chained or redirected
 shell commands, and a governed tool path that native and MCP tools both pass
-through. Structural injection detection is **not** part of that list: the
-component exists but is not wired into the shipped application, and it screens
-shell injection rather than prompt injection. The debt is
+through. Prompt-injection detection is **not** part of that list, and no
+component of the tree provides it: what the guard above screens is shell
+injection. The debt is
 mostly at the edges: hardening the inference sidecar, closing the shell-check
 half of verification, wiring cost ceilings, and finishing the copilot layer.
 Knowing exactly where those edges are is the point of this page.

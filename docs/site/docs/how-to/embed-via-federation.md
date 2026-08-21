@@ -57,7 +57,6 @@ and [wiring your own MCP server](/operator-help/integrations/cabler-son-propre-s
 Federation usually means the agent can trigger changes in your product. Keep a
 human in the loop on those.
 
-<!-- claim:permission-engine-not-wired -->
 For an MCP server you register, approval is per server or per tool:
 
 ```sh
@@ -69,11 +68,9 @@ apollia-os mcp list-pending
 An operator then confirms before anything is written back, and the approval is
 recorded alongside the action.
 
-Two limits to design around rather than discover. This approval flow covers the
+One limit to design around rather than discover. This approval flow covers the
 **chat** path; the tool calls an installed Python agent makes are not gated, so
-do not rely on approvals to contain an agent you did not write. And the
-`PermissionEngine` that `apollia-permissions` ships is not installed by any
-production caller: rules written for it enforce nothing. What runs is the
+do not rely on approvals to contain an agent you did not write. What runs is the
 per-server MCP approval above, the persisted prefix rules, and the guard that
 refuses a chained shell command.
 
