@@ -1,3 +1,8 @@
+---
+title: Discuter avec votre IA
+sidebar_position: 1
+---
+
 # Discuter avec votre IA
 
 > Pour tout operator qui veut commencer à dialoguer avec son IA : ouvrir une conversation, envoyer des messages et obtenir des réponses adaptées au contexte.

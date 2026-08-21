@@ -1,3 +1,8 @@
+---
+title: Connecter un modèle distant
+sidebar_position: 6
+---
+
 # Connecter un modèle distant
 
 > Pour tout operator qui veut brancher Anthropic, OpenAI (ou compatible LM Studio, vLLM), Mistral, ou un serveur Ollama distant à Apollia.

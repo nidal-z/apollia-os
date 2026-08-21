@@ -1,3 +1,8 @@
+---
+title: Configurer le routage hybride local + frontier
+sidebar_position: 7
+---
+
 # Configurer le routage hybride local + frontier
 
 > Pour tout operator qui veut combiner un modèle local rapide pour les étapes simples et un modèle cloud puissant pour les étapes complexes, avec un plafond de coût automatique.

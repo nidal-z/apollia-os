@@ -1,3 +1,8 @@
+---
+title: Consulter la chronologie d'activité
+sidebar_position: 1
+---
+
 # Consulter la chronologie d'activité
 
 > Pour les operators qui veulent voir ce qui s'est passé dans l'application sur une fenêtre temporelle donnée : tâches lancées, outils appelés, approbations, appels LLM, mémoire, délégations entre agents, erreurs.

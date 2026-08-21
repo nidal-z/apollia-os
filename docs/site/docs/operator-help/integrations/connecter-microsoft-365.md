@@ -1,3 +1,8 @@
+---
+title: Connect Microsoft 365
+sidebar_position: 4
+---
+
 # Connect Microsoft 365
 
 > For any operator who wants to plug Outlook, Calendar and OneDrive into Apollia, whether the account is personal (outlook.com, hotmail.com, live.com) or professional (Microsoft 365, Entra ID).

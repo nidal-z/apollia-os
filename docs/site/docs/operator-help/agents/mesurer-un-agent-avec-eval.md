@@ -1,3 +1,8 @@
+---
+title: Measure an agent's performance with apollia-os eval
+sidebar_position: 5
+---
+
 # Measure an agent's performance with apollia-os eval
 
 > For any operator who wants to quantify the reliability of an agent on a set of reproducible tasks before using it in production.

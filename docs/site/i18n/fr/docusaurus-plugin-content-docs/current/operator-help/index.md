@@ -1,6 +1,6 @@
 ---
-sidebar_position: 0
 title: Centre d'aide operateur
+sidebar_position: 0
 ---
 
 # Apollia, centre d'aide

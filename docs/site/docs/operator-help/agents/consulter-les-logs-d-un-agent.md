@@ -1,3 +1,8 @@
+---
+title: View an agent's logs
+sidebar_position: 4
+---
+
 # View an agent's logs
 
 > To understand what an agent did, or why it failed: open its Logs panel and browse the history of its tasks.

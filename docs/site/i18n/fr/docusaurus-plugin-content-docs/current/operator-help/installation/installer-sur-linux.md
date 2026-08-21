@@ -1,3 +1,8 @@
+---
+title: Installer Apollia sur Linux
+sidebar_position: 3
+---
+
 # Installer Apollia sur Linux
 
 Apollia est distribué pour Linux x86_64 sous trois formats :

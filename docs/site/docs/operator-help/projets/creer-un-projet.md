@@ -1,3 +1,8 @@
+---
+title: Create a project
+sidebar_position: 1
+---
+
 # Create a project
 
 > For operators who want to group a working folder, its files and its chats under one reusable envelope.

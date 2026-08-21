@@ -1,3 +1,8 @@
+---
+title: Configurer votre profil au premier lancement
+sidebar_position: 4
+---
+
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.

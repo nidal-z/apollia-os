@@ -1,4 +1,8 @@
 {
   "label": "Cross-cutting",
-  "position": 11
+  "position": 11,
+  "link": {
+    "type": "generated-index",
+    "slug": "/operator-help/transversal"
+  }
 }

@@ -1,3 +1,8 @@
+---
+title: Manage my profile
+sidebar_position: 1
+---
+
 # Manage my profile
 
 > For operators who want to **review and change**, day to day, what all their agents know about them: first name, role, sector, supervision, constraints.

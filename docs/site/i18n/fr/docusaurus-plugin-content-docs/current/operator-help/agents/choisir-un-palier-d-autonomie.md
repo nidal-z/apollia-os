@@ -1,3 +1,8 @@
+---
+title: Choisir un palier d'autonomie pour un agent
+sidebar_position: 3
+---
+
 # Choisir un palier d'autonomie pour un agent
 
 > Pour tout operator qui veut ajuster jusqu'où un agent peut agir seul avant de demander une confirmation.

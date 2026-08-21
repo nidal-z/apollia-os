@@ -1,3 +1,8 @@
+---
+title: Chat with your AI
+sidebar_position: 1
+---
+
 # Chat with your AI
 
 > For any operator who wants to start a dialogue with their AI: open a conversation, send messages and get answers that fit the context.

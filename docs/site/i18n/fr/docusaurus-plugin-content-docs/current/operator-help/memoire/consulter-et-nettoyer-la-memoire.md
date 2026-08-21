@@ -1,3 +1,8 @@
+---
+title: Consulter et nettoyer la mémoire
+sidebar_position: 2
+---
+
 # Consulter et nettoyer la mémoire
 
 > Pour les operators qui veulent voir ce que leurs IA ont retenu, et supprimer ce qui ne devrait plus être là.

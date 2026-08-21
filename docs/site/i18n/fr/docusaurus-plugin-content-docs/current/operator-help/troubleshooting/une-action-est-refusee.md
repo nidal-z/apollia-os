@@ -1,3 +1,8 @@
+---
+title: Une action a été refusée
+sidebar_position: 3
+---
+
 # Une action a été refusée
 
 > Pour tout operator qui voit une action refusée dans la Boîte de réception, ou dont l'agent semble avoir abandonné une tâche : comprendre pourquoi et débloquer la suite.

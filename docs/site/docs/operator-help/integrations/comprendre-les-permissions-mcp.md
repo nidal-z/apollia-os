@@ -1,3 +1,8 @@
+---
+title: Understand MCP permissions
+sidebar_position: 7
+---
+
 # Understand MCP permissions
 
 > For any operator who wants to know why a tool asks for an approval, how to change a rule, and what local-only mode does.

@@ -1,3 +1,8 @@
+---
+title: Schedule a trigger
+sidebar_position: 1
+---
+
 # Schedule a trigger
 
 > For operators who want an AI task to run on its own, at a fixed time or on an event, with no manual step.

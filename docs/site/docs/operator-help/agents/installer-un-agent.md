@@ -1,3 +1,8 @@
+---
+title: Install an agent
+sidebar_position: 1
+---
+
 # Install an agent
 
 > For any operator who wants to add an agent to Apollia: starting from a file or a folder you received (by email, through a service engagement, from a Git repository…), register it in the application in a few clicks.

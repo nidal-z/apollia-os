@@ -1,3 +1,8 @@
+---
+title: Connecter Google Workspace
+sidebar_position: 3
+---
+
 # Connecter Google Workspace
 
 > Pour tout operator qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks ou YouTube à Apollia.

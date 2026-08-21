@@ -1,6 +1,6 @@
 ---
-sidebar_position: 5
 title: Take the guided tour
+sidebar_position: 1
 ---
 
 # Take the guided tour

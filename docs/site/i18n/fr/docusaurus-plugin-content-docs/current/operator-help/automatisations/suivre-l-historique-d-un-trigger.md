@@ -1,3 +1,8 @@
+---
+title: Suivre l'historique d'un trigger
+sidebar_position: 2
+---
+
 # Suivre l'historique d'un trigger
 
 > Pour les operators qui veulent vérifier qu'une automatisation a bien tourné cette nuit, ou comprendre pourquoi un déclenchement a été ignoré ou a échoué.

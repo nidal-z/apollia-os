@@ -1,4 +1,8 @@
 {
   "label": "Installation",
-  "position": 1
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "slug": "/operator-help/installation"
+  }
 }

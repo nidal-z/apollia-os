@@ -1,3 +1,8 @@
+---
+title: Monitor AI costs
+sidebar_position: 3
+---
+
 # Monitor AI costs
 
 > For operators who want to track what the calls to their AI provider cost over the past week.

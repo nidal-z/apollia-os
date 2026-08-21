@@ -1,3 +1,8 @@
+---
+title: Manage tool permissions
+sidebar_position: 2
+---
+
 # Manage tool permissions
 
 > For operators who want to review, filter or revoke the permissions granted to an agent's tools - without waiting for an action to raise a new approval card.

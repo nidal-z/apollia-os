@@ -1,3 +1,8 @@
+---
+title: Connect a remote model
+sidebar_position: 6
+---
+
 # Connect a remote model
 
 > For any operator who wants to plug Anthropic, OpenAI (or a compatible LM Studio, vLLM), Mistral, or a remote Ollama server into Apollia.

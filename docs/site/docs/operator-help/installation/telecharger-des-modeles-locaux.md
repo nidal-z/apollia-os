@@ -1,3 +1,8 @@
+---
+title: Download local models
+sidebar_position: 5
+---
+
 # Download local models
 
 > For any operator who wants to run Apollia 100 % offline: download an AI model and a voice transcription model directly onto your machine.

@@ -1,3 +1,8 @@
+---
+title: Find your version and your data
+sidebar_position: 5
+---
+
 # Find your version and your data
 
 > For operators who need to know exactly what is installed, where Apollia keeps their data on disk, and what to attach to a bug report.

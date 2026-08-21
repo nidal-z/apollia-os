@@ -1,3 +1,8 @@
+---
+title: Read the audit trail
+sidebar_position: 2
+---
+
 # Read the audit trail
 
 > For operators who want to find out precisely who did what, and when - typically for an internal control or a post-incident investigation.

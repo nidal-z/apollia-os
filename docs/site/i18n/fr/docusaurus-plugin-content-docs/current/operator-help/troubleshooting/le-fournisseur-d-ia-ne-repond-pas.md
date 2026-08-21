@@ -1,3 +1,8 @@
+---
+title: Le fournisseur d'IA ne répond pas
+sidebar_position: 1
+---
+
 # Le fournisseur d'IA ne répond pas
 
 > Pour tout operator dont le chat reste figé ou dont le **point d'état à gauche du mot *Apollia*** dans le bandeau supérieur passe à l'ambre ou au rouge : retrouver une IA fonctionnelle en moins de cinq minutes.

@@ -1,3 +1,8 @@
+---
+title: Configurer le chargement différé des outils MCP
+sidebar_position: 8
+---
+
 # Configurer le chargement différé des outils MCP
 
 > Pour tout operator qui veut contrôler quand les outils MCP sont chargés en mémoire : au démarrage (eager) ou à la demande de l'agent (deferred).

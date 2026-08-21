@@ -1,3 +1,8 @@
+---
+title: Un agent est bloqué
+sidebar_position: 4
+---
+
 # Un agent est bloqué
 
 > Pour tout operator qui voit un agent en statut "En cours" sans progression depuis plusieurs minutes : identifier la cause et relancer le travail.

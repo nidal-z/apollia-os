@@ -1,3 +1,8 @@
+---
+title: Câbler son propre serveur MCP
+sidebar_position: 9
+---
+
 # Câbler son propre serveur MCP
 
 > Pour tout operator ou builder qui veut connecter un serveur MCP qui n'est pas dans le catalogue, en local (stdio) ou distant (HTTP, SSE).

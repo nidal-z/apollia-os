@@ -1,6 +1,6 @@
 ---
-sidebar_position: 5
 title: Suivre la visite guidée
+sidebar_position: 1
 ---
 
 # Suivre la visite guidée

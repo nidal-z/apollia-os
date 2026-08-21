@@ -1,3 +1,8 @@
+---
+title: Réinitialiser Apollia (factory reset)
+sidebar_position: 6
+---
+
 # Réinitialiser Apollia (factory reset)
 
 > Pour tout operator qui souhaite remettre Apollia dans son état d'usine : effacer agents, mémoire, projets, intégrations et préférences. Cette action est irréversible - lisez chaque étape avant d'agir.

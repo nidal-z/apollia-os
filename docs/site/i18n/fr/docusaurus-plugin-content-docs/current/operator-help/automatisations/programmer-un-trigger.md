@@ -1,3 +1,8 @@
+---
+title: Programmer un trigger
+sidebar_position: 1
+---
+
 # Programmer un trigger
 
 > Pour les operators qui veulent qu'une tâche IA s'exécute toute seule, à heure fixe ou sur événement, sans intervention manuelle.

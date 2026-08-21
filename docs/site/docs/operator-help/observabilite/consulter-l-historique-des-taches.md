@@ -1,3 +1,8 @@
+---
+title: Read the activity timeline
+sidebar_position: 1
+---
+
 # Read the activity timeline
 
 > For operators who want to see what happened in the application over a given time window: tasks launched, tools called, approvals, LLM calls, memory, delegations between agents, errors.

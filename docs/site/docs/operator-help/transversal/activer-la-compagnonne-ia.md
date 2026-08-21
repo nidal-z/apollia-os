@@ -1,3 +1,8 @@
+---
+title: Enable Apollia Help
+sidebar_position: 4
+---
+
 # Enable Apollia Help
 
 > For operators who want a floating assistant one click away, able to answer a quick question without leaving the current screen.

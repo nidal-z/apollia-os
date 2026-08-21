@@ -1,3 +1,8 @@
+---
+title: Install Apollia on macOS
+sidebar_position: 1
+---
+
 # Install Apollia on macOS
 
 Apollia ships for macOS in two formats:

@@ -1,3 +1,8 @@
+---
+title: Start an agent or a package
+sidebar_position: 2
+---
+
 # Start an agent or a package
 
 > For any operator who has installed an agent (or a package of agents): put it into service so you can talk to it or let its triggers fire.

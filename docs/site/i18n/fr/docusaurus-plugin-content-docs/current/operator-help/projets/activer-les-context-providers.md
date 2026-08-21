@@ -1,3 +1,8 @@
+---
+title: Activer les context providers
+sidebar_position: 3
+---
+
 # Activer les context providers
 
 > Pour les operators qui veulent que l'IA arrive briefée sur leur projet sans avoir à coller du contexte à chaque message.

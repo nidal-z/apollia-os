@@ -1,3 +1,8 @@
+---
+title: Manage OAuth tokens
+sidebar_position: 10
+---
+
 # Manage OAuth tokens
 
 > For any operator who wants to know where Apollia stores its OAuth tokens, how to inspect them, revoke them, and understand automatic refresh.

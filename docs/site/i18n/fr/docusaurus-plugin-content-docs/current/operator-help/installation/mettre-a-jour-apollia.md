@@ -1,6 +1,6 @@
 ---
-sidebar_position: 8
 title: Mettre à jour Apollia
+sidebar_position: 8
 ---
 
 # Mettre à jour Apollia

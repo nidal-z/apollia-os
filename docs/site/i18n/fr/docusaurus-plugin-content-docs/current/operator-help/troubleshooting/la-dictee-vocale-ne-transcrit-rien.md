@@ -1,3 +1,8 @@
+---
+title: La dictée vocale ne transcrit rien
+sidebar_position: 5
+---
+
 # La dictée vocale ne transcrit rien
 
 > Pour tout operator qui appuie sur son raccourci de dictée sans voir apparaître de texte : retrouver une transcription fluide en quelques minutes.

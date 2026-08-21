@@ -1,6 +1,6 @@
 ---
-sidebar_position: 0
 title: Operator help center
+sidebar_position: 0
 ---
 
 # Apollia, help center

@@ -1,3 +1,8 @@
+---
+title: Gérer les autorisations d'outils
+sidebar_position: 2
+---
+
 # Gérer les autorisations d'outils
 
 > Pour les operators qui veulent visualiser, filtrer ou révoquer les autorisations accordées aux outils d'un agent - sans attendre qu'une action déclenche une nouvelle carte d'approbation.

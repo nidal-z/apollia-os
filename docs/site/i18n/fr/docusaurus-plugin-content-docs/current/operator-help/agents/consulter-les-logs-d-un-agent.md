@@ -1,3 +1,8 @@
+---
+title: Consulter les logs d'un agent
+sidebar_position: 4
+---
+
 # Consulter les logs d'un agent
 
 > Pour comprendre ce qu'un agent a fait, ou pourquoi il a échoué : ouvrir son panneau Logs et parcourir l'historique de ses tâches.

@@ -1,3 +1,8 @@
+---
+title: Naviguer au clavier (command palette)
+sidebar_position: 3
+---
+
 # Naviguer au clavier (command palette)
 
 > Pour les operators qui veulent ouvrir n'importe quelle page, lancer une action ou retrouver un agent en quelques touches, sans passer par la souris.

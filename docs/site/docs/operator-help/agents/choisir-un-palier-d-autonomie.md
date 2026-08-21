@@ -1,3 +1,8 @@
+---
+title: Choose an autonomy level for an agent
+sidebar_position: 3
+---
+
 # Choose an autonomy level for an agent
 
 > For any operator who wants to adjust how far an agent can go on its own before asking for a confirmation.

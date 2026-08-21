@@ -1,3 +1,8 @@
+---
+title: The AI provider does not answer
+sidebar_position: 1
+---
+
 # The AI provider does not answer
 
 > For operators whose chat stays frozen, or whose **status dot to the left of the word *Apollia*** in the top bar turns amber or red: get a working AI back in under five minutes.

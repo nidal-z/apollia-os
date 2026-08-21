@@ -1,3 +1,8 @@
+---
+title: Installer Apollia sur macOS
+sidebar_position: 1
+---
+
 # Installer Apollia sur macOS
 
 Apollia est distribué pour macOS en deux formats :

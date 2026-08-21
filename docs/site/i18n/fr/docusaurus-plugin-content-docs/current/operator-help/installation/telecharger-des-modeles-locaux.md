@@ -1,3 +1,8 @@
+---
+title: Télécharger des modèles locaux
+sidebar_position: 5
+---
+
 # Télécharger des modèles locaux
 
 > Pour tout operator qui veut faire tourner Apollia 100 % hors ligne : télécharger un modèle d'IA et un modèle de transcription vocale directement sur votre machine.

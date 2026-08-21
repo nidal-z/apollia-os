@@ -1,3 +1,8 @@
+---
+title: Use the Inbox
+sidebar_position: 2
+---
+
 # Use the Inbox
 
 > For operators who want to handle everything that needs their attention in one place: action approvals, agent questions, recent failures, and the history of notifications sent.

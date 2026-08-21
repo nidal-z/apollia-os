@@ -1,3 +1,8 @@
+---
+title: Installer Apollia sur Windows
+sidebar_position: 2
+---
+
 # Installer Apollia sur Windows
 
 Apollia est distribué pour Windows x86_64 sous trois formats :

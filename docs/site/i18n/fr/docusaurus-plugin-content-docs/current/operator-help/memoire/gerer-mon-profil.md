@@ -1,3 +1,8 @@
+---
+title: Gérer mon profil
+sidebar_position: 1
+---
+
 # Gérer mon profil
 
 > Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux - prénom, rôle, secteur, supervision, contraintes.

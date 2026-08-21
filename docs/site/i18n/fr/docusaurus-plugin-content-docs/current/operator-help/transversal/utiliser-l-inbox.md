@@ -1,3 +1,8 @@
+---
+title: Utiliser la Boîte de réception
+sidebar_position: 2
+---
+
 # Utiliser la Boîte de réception
 
 > Pour les operators qui veulent traiter au même endroit tout ce qui demande leur attention : approbations d'actions, questions d'agents, échecs récents, historique des notifications envoyées.

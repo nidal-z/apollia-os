@@ -1,3 +1,8 @@
+---
+title: Créer un projet
+sidebar_position: 1
+---
+
 # Créer un projet
 
 > Pour les operators qui veulent regrouper un dossier de travail, ses fichiers et ses chats sous une même enveloppe réutilisable.

@@ -1,3 +1,8 @@
+---
+title: Inspect a tool
+sidebar_position: 3
+---
+
 # Inspect a tool
 
 > For operators who want to know what a tool actually is before authorising it: what it takes as input, what it gives back, what it requires, and which credentials are stored against it.

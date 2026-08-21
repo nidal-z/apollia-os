@@ -1,3 +1,8 @@
+---
+title: Link a project to a chat
+sidebar_position: 2
+---
+
 # Link a project to a chat
 
 > For operators who want an AI conversation to load a project's files, git history and documents automatically.

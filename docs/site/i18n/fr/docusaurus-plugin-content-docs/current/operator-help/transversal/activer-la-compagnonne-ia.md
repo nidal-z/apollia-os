@@ -1,3 +1,8 @@
+---
+title: Activer l'Aide Apollia
+sidebar_position: 4
+---
+
 # Activer l'Aide Apollia
 
 > Pour les operators qui veulent garder un assistant flottant à portée de clic, capable de répondre à une question rapide sans quitter l'écran courant.

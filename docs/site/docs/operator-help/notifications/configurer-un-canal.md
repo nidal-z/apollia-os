@@ -1,3 +1,8 @@
+---
+title: Set up a notification channel
+sidebar_position: 1
+---
+
 # Set up a notification channel
 
 > For operators who want to receive Apollia alerts where they work: on their desktop, in Slack, in Discord, or on a homemade endpoint.

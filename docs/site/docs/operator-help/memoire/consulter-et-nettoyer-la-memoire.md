@@ -1,3 +1,8 @@
+---
+title: Review and clean up memory
+sidebar_position: 2
+---
+
 # Review and clean up memory
 
 > For operators who want to see what their AI has retained, and delete what should no longer be there.

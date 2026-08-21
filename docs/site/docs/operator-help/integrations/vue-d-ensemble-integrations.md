@@ -1,3 +1,8 @@
+---
+title: Integrations overview
+sidebar_position: 1
+---
+
 # Integrations overview
 
 > For any operator who wants to understand Apollia's two extension mechanisms, native connectors and MCP servers, and know where to start.

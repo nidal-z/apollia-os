@@ -1,3 +1,8 @@
+---
+title: Configurer un canal de notification
+sidebar_position: 1
+---
+
 # Configurer un canal de notification
 
 > Pour les operators qui veulent recevoir les alertes Apollia là où ils travaillent : sur leur bureau, dans Slack, dans Discord, ou sur un endpoint maison.

@@ -1,3 +1,8 @@
+---
+title: Retrouver sa version et ses données
+sidebar_position: 5
+---
+
 # Retrouver sa version et ses données
 
 > Pour les operators qui veulent savoir exactement ce qui est installé, où Apollia range leurs données sur le disque, et quoi joindre à un rapport de bug.

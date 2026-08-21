@@ -1,3 +1,8 @@
+---
+title: Lier un projet à un chat
+sidebar_position: 2
+---
+
 # Lier un projet à un chat
 
 > Pour les operators qui veulent qu'une conversation IA charge automatiquement les fichiers, l'historique git et les documents d'un projet.

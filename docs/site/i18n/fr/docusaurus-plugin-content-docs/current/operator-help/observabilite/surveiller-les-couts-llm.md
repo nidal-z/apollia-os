@@ -1,3 +1,8 @@
+---
+title: Surveiller les coûts d'IA
+sidebar_position: 3
+---
+
 # Surveiller les coûts d'IA
 
 > Pour les operators qui veulent suivre la dépense des appels à leur fournisseur d'IA sur la semaine écoulée.

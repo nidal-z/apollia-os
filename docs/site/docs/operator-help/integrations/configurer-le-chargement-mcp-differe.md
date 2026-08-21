@@ -1,3 +1,8 @@
+---
+title: Configure deferred loading of MCP tools
+sidebar_position: 8
+---
+
 # Configure deferred loading of MCP tools
 
 > For any operator who wants to control when MCP tools are loaded into memory: at startup (eager) or on the agent's request (deferred).

@@ -1,3 +1,8 @@
+---
+title: Test an MCP connection
+sidebar_position: 6
+---
+
 # Test an MCP connection
 
 > For any operator who wants to check that an installed MCP server really responds, or diagnose a red light.

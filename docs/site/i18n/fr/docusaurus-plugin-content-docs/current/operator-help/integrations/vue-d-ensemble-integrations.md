@@ -1,3 +1,8 @@
+---
+title: Vue d'ensemble des intégrations
+sidebar_position: 1
+---
+
 # Vue d'ensemble des intégrations
 
 > Pour tout operator qui veut comprendre les deux mécanismes d'extension d'Apollia, connecteurs natifs et serveurs MCP, et savoir par où commencer.

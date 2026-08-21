@@ -1,3 +1,8 @@
+---
+title: Activer la dictée vocale
+sidebar_position: 2
+---
+
 # Activer la dictée vocale
 
 > Pour tout operator qui veut parler à son IA au lieu de taper : configurer un raccourci clavier qui transcrit votre voix directement dans le champ de chat, en local.

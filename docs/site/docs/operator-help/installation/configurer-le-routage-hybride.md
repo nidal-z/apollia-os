@@ -1,3 +1,8 @@
+---
+title: Configure hybrid local + frontier routing
+sidebar_position: 7
+---
+
 # Configure hybrid local + frontier routing
 
 > For any operator who wants to combine a fast local model for simple steps and a powerful cloud model for complex steps, with an automatic cost ceiling.

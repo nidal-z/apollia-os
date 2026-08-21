@@ -1,3 +1,8 @@
+---
+title: Set up your profile on first launch
+sidebar_position: 4
+---
+
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.

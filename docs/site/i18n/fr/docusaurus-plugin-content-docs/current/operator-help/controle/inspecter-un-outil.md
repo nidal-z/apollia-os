@@ -1,3 +1,8 @@
+---
+title: Inspecter un outil
+sidebar_position: 3
+---
+
 # Inspecter un outil
 
 > Pour les operators qui veulent savoir ce qu'est vraiment un outil avant de l'autoriser : ce qu'il prend en entrée, ce qu'il rend, ce qu'il exige, et quels identifiants sont enregistrés pour lui.

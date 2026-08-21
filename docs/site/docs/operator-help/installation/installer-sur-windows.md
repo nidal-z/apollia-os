@@ -1,3 +1,8 @@
+---
+title: Install Apollia on Windows
+sidebar_position: 2
+---
+
 # Install Apollia on Windows
 
 Apollia ships for Windows x86_64 in three formats:

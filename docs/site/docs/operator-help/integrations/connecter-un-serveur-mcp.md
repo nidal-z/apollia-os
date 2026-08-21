@@ -1,3 +1,8 @@
+---
+title: Connect an MCP server from the catalogue
+sidebar_position: 5
+---
+
 # Connect an MCP server from the catalogue
 
 > For any operator who wants to enable an MCP server from the catalogue (Notion, GitHub, Linear, Atlassian, Stripe, Time, etc.) in a few clicks.

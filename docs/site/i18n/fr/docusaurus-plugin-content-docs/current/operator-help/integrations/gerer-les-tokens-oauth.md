@@ -1,3 +1,8 @@
+---
+title: Gérer les tokens OAuth
+sidebar_position: 10
+---
+
 # Gérer les tokens OAuth
 
 > Pour tout operator qui veut savoir où Apollia stocke ses tokens OAuth, comment les inspecter, les révoquer, et comprendre le refresh automatique.

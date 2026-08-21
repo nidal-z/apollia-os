@@ -1,3 +1,8 @@
+---
+title: An action was refused
+sidebar_position: 3
+---
+
 # An action was refused
 
 > For operators who see a refused action in the Inbox, or whose agent seems to have abandoned a task: understand why and unblock what comes next.

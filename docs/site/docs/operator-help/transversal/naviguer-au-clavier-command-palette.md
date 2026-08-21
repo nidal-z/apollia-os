@@ -1,3 +1,8 @@
+---
+title: Navigate with the keyboard (command palette)
+sidebar_position: 3
+---
+
 # Navigate with the keyboard (command palette)
 
 > For operators who want to open any page, run an action or find an agent in a few keystrokes, without reaching for the mouse.

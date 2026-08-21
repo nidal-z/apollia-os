@@ -1,3 +1,8 @@
+---
+title: Comprendre la portée d'une intégration
+sidebar_position: 2
+---
+
 # Comprendre la portée d'une intégration
 
 > Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un projet précis.

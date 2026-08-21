@@ -1,3 +1,8 @@
+---
+title: An agent is stuck
+sidebar_position: 4
+---
+
 # An agent is stuck
 
 > For operators who see an agent in "Running" status with no progress for several minutes: identify the cause and get the work moving again.

@@ -1,3 +1,8 @@
+---
+title: Approuver ou refuser une action d'agent
+sidebar_position: 1
+---
+
 # Approuver ou refuser une action d'agent
 
 > Pour les operators qui veulent garder la main sur chaque action sensible déclenchée par un agent (écriture, commande, appel d'outil externe).

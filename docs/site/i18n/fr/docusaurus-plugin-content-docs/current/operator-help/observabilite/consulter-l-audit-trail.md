@@ -1,3 +1,8 @@
+---
+title: Consulter l'audit trail
+sidebar_position: 2
+---
+
 # Consulter l'audit trail
 
 > Pour les operators qui veulent retrouver précisément qui a fait quoi, quand - typiquement pour un contrôle interne ou une enquête après incident.

@@ -1,3 +1,8 @@
+---
+title: Enable context providers
+sidebar_position: 3
+---
+
 # Enable context providers
 
 > For operators who want the AI to arrive already briefed on their project, without pasting context into every message.

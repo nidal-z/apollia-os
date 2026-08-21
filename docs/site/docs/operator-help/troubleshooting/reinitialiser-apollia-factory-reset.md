@@ -1,3 +1,8 @@
+---
+title: Reset Apollia (factory reset)
+sidebar_position: 6
+---
+
 # Reset Apollia (factory reset)
 
 > For operators who want to put Apollia back in its factory state: erase agents, memory, projects, integrations and preferences. This action is irreversible - read every step before acting.

@@ -1,3 +1,8 @@
+---
+title: Track a trigger's history
+sidebar_position: 2
+---
+
 # Track a trigger's history
 
 > For operators who want to check that an automation did run overnight, or understand why a run was skipped or failed.

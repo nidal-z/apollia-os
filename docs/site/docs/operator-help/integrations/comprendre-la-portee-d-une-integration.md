@@ -1,3 +1,8 @@
+---
+title: Understand the scope of an integration
+sidebar_position: 2
+---
+
 # Understand the scope of an integration
 
 > For any operator who wonders why one agent can call a tool while another cannot, or how to scope an integration to a specific project.

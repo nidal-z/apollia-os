@@ -1,3 +1,8 @@
+---
+title: Wire your own MCP server
+sidebar_position: 9
+---
+
 # Wire your own MCP server
 
 > For any operator or builder who wants to connect an MCP server that is not in the catalogue, locally (stdio) or remotely (HTTP, SSE).

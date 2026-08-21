@@ -1,3 +1,8 @@
+---
+title: Enable voice dictation
+sidebar_position: 2
+---
+
 # Enable voice dictation
 
 > For any operator who wants to talk to their AI instead of typing: set up a keyboard shortcut that transcribes your voice straight into the chat field, locally.

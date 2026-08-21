@@ -1,6 +1,6 @@
 ---
-sidebar_position: 8
 title: Update Apollia
+sidebar_position: 8
 ---
 
 # Update Apollia

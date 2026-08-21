@@ -1,3 +1,8 @@
+---
+title: Comprendre les permissions MCP
+sidebar_position: 7
+---
+
 # Comprendre les permissions MCP
 
 > Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que fait le mode local-only.

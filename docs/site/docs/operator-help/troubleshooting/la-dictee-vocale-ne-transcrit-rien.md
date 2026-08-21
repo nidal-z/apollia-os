@@ -1,3 +1,8 @@
+---
+title: Voice dictation transcribes nothing
+sidebar_position: 5
+---
+
 # Voice dictation transcribes nothing
 
 > For operators who press their dictation hotkey without seeing any text appear: get a working transcription back in a few minutes.

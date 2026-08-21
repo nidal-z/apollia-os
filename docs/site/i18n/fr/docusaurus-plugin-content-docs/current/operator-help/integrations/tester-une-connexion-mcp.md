@@ -1,3 +1,8 @@
+---
+title: Tester une connexion MCP
+sidebar_position: 6
+---
+
 # Tester une connexion MCP
 
 > Pour tout operator qui veut vérifier qu'un serveur MCP installé répond bien, ou diagnostiquer un voyant rouge.

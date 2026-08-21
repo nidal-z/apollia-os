@@ -1,3 +1,8 @@
+---
+title: Approve or reject an agent action
+sidebar_position: 1
+---
+
 # Approve or reject an agent action
 
 > For operators who want to keep control over every sensitive action triggered by an agent (write, command, external tool call).

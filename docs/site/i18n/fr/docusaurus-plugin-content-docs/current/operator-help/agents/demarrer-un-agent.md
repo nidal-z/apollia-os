@@ -1,3 +1,8 @@
+---
+title: Démarrer un agent ou un package
+sidebar_position: 2
+---
+
 # Démarrer un agent ou un package
 
 > Pour tout operator qui a installé un agent (ou un package d'agents) : le mettre en marche pour pouvoir lui parler ou laisser ses déclencheurs s'activer.
