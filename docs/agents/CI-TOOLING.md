@@ -94,14 +94,17 @@ because their subject is the whole repository, plus `check-crate-lints`,
 `check-subprocess-window`, `check-optional-builders`, `check-tauri-ipc-args`,
 `check-tauri-ipc-callers` and `check-docs-routes`, each filtered on the roots
 its own source declares. A filter decides when a defect is seen first, never
-whether it is seen: `just guards` runs the thirteen tracked guards unfiltered
+whether it is seen: `just guards` runs the fourteen tracked guards unfiltered
 and reports every red one, and `just ci` starts with it.
 
-The four guards that stay out of the hook stay out for a measured reason.
+The five guards that stay out of the hook stay out for a measured reason.
 `check_guard_verdicts.py` and `check_instrument_verdicts.py` need a built tree,
 so a hook entry would refuse the first commit of a contributor who has not yet
 run `npm ci` or `cargo build`. `check_no_font_cdn.py` and `check_selftest.py`
-cost more than the commits they would sit on.
+cost more than the commits they would sit on. `check_panic_free.py` re-reads
+every production Rust file whatever the diff holds, 2.7 seconds on three runs
+of this tree, and a filter on `crates/` would not lower that on the commits
+that touch Rust.
 
 Two entries are not commit-time hooks, and reading the list as one is how a
 contributor gets surprised: `clippy -D warnings` is staged on `pre-push`, and

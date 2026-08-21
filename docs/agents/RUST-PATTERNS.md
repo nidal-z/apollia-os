@@ -273,11 +273,17 @@ table without restating the lint, or loses a `check-cfg`. That check exists
 because the paragraph above already existed as a habit and did not hold: the
 whole point of this rulebook is that a written rule is not a gate.
 
-The rest of the NEVER list (`expect`, `panic!`, `todo!`, `println!`, `dbg!`,
-`anyhow`, ...) is enforced by `docs/agents/FORBIDDEN.md`, review, and the
-pre-commit hooks, not by a clippy lint line. CI runs
-`cargo clippy --workspace --all-targets -- -D warnings`, so any clippy default
-lint that fires is still a hard failure.
+`expect` has no clippy line at all, and a lint would not be enough anyway: it
+reads one compilation of one machine, so it sees neither an absent platform nor
+a feature that is off. `scripts/check_panic_free.py` sweeps the text instead. It
+holds production `unwrap()` at zero, whatever the `Err` type, and holds
+`expect(` on a two-sided ratchet that has to be lowered in the commit that
+removes a site. An exemption is a `// SAFETY:` comment on one of the three lines
+above the site, and it covers that one site. The rest of the NEVER list
+(`panic!`, `todo!`, `println!`, `dbg!`, `anyhow`, ...) is enforced by
+`docs/agents/FORBIDDEN.md`, review, and the pre-commit hooks, not by a clippy
+lint line. CI runs `cargo clippy --workspace --all-targets -- -D warnings`, so
+any clippy default lint that fires is still a hard failure.
 
 `unsafe_code = "deny"` is workspace-wide. To use `unsafe`, the crate overrides
 with `unsafe_code = "allow"` plus a top-of-crate explanation, and every

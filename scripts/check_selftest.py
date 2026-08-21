@@ -43,6 +43,13 @@ properties rather than the fixes:
      and nothing distinguishes it from a guard that passed. Two of this
      corpus were in that state, named by no pre-commit entry, no workflow and
      no recipe.
+  8. A textual sweep sees what a lint gracies, and an attribute is read by what
+     it binds to. `check_panic_free.py` exists because `clippy::unwrap_used`,
+     denied by the workspace and restated by five crates, stayed silent on six
+     production `unwrap()` whose `Err` type was `Infallible`. Its own way of
+     going wrong is the mirror image: a `#[cfg(test)]` matched by proximity
+     instead of by what it binds to drops production files from the sweep, and
+     the count that serves as a control does not move while it happens.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -64,6 +71,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_claims  # noqa: E402
 import check_no_font_cdn as fontcdn  # noqa: E402
+import check_panic_free as panicfree  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
 import check_prose  # noqa: E402
 import worktree_verdicts  # noqa: E402
@@ -1085,6 +1093,201 @@ def check_guards_are_launched() -> None:
     )
 
 
+# ── The panic-free sweep ─────────────────────────────────────────────────────
+# Same family as the font CDN block above, and the same reason to be here: a
+# sweep whose tree is clean has never been shown to work. This one is worse off
+# than most, since the lint it replaces is green on the very sites it misses,
+# so a green sweep and a green lint say nothing about each other. The four
+# shapes below must be caught and the four beside them must stay silent, and
+# the exclusion is pinned by name, because its failure mode is to drop
+# production files while every printed count stays where it was.
+
+PANIC_BARE = """\
+fn run() -> usize {
+    let value: Option<usize> = Some(1);
+    value.unwrap()
+}
+"""
+
+PANIC_ALLOW_ONLY = """\
+fn run() -> usize {
+    let value: Option<usize> = Some(1);
+    #[allow(clippy::unwrap_used)]
+    value.unwrap()
+}
+"""
+
+PANIC_SAFETY_TOO_FAR = """\
+fn run() -> usize {
+    // SAFETY: the value is a literal written three lines below.
+    let value: Option<usize> = Some(1);
+    let doubled = value;
+    let tripled = doubled;
+    tripled.unwrap()
+}
+"""
+
+PANIC_AFTER_TEST_MOD = """\
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn t() {
+        Some(1).unwrap();
+    }
+}
+
+pub fn run() -> usize {
+    Some(2).unwrap()
+}
+"""
+
+PANIC_SAFETY_ABOVE = """\
+fn run() -> usize {
+    // SAFETY: the value on the line below is a literal.
+    Some(1).unwrap()
+}
+"""
+
+PANIC_CLOUD_TEST_BLOCK = """\
+#[cfg(all(test, feature = "cloud"))]
+mod tests {
+    #[test]
+    fn t() {
+        Some(1).unwrap();
+    }
+}
+"""
+
+PANIC_DOC_EXAMPLE = """\
+//! ```
+//! let cwd = std::env::current_dir().unwrap();
+//! ```
+"""
+
+PANIC_EXPECT = """\
+fn run() -> usize {
+    Some(1).expect("nope")
+}
+"""
+
+
+def _accused(text: str) -> list[int]:
+    return [s.line for s in panicfree.sites(text) if s.form == "unwrap" and not s.exempt]
+
+
+def check_panic_sweep_fires() -> None:
+    print("panic-free sweep: the shapes a lint gracies are seen, and only those")
+
+    for name, sample, line in (
+        ("a bare unwrap in production", PANIC_BARE, 3),
+        ("an unwrap under #[allow] alone", PANIC_ALLOW_ONLY, 4),
+        ("an unwrap whose SAFETY line is four lines up", PANIC_SAFETY_TOO_FAR, 6),
+        ("an unwrap after a closed test module", PANIC_AFTER_TEST_MOD, 10),
+    ):
+        case(
+            f"accuses {name}",
+            _accused(sample) == [line],
+            f"expected one accusation on line {line}, got {_accused(sample)!r}. "
+            f"The sweep exists to name the site, and a site it cannot name is a "
+            f"site nobody fixes",
+        )
+
+    exempted = panicfree.sites(PANIC_SAFETY_ABOVE)
+    case(
+        "stays silent on an unwrap whose SAFETY line is right above",
+        len(exempted) == 1 and exempted[0].exempt,
+        f"got {exempted!r}. A sweep that refuses the exemption the corpus grants "
+        f"gets switched off, and then it guards nothing",
+    )
+    for name, sample in (
+        ("a #[cfg(all(test, feature = ...))] module", PANIC_CLOUD_TEST_BLOCK),
+        ("a doc example that unwraps", PANIC_DOC_EXAMPLE),
+    ):
+        case(
+            f"finds no site in {name}",
+            panicfree.sites(sample) == [],
+            f"got {panicfree.sites(sample)!r}. Test code and prose are not "
+            f"production, and counting them is how the first count of this "
+            f"rule reached eighty-nine",
+        )
+
+    expect_sites = panicfree.sites(PANIC_EXPECT)
+    case(
+        "counts an expect as an expect, not as an unwrap",
+        [(s.form, s.exempt) for s in expect_sites] == [("expect", False)],
+        f"got {expect_sites!r}. `expect()` is the half of the rule no lint "
+        f"covers, so a sweep that drops it leaves the larger hole open while "
+        f"looking closed",
+    )
+
+
+def check_panic_sweep_scope() -> None:
+    print("panic-free sweep: the exclusion drops test modules and keeps production")
+
+    paths = panicfree.tracked_sources()
+    case(
+        "the inventory is readable and has a corpus",
+        len(paths) >= 100,
+        f"`git ls-files -- crates/*/src/*.rs` returned {len(paths)} path(s). A "
+        f"sweep pointed at an empty tree reports success for the same reason a "
+        f"clean one does",
+    )
+    if not paths:
+        return
+
+    cache: dict[str, str | None] = {}
+
+    def read(path: str) -> str | None:
+        if path not in cache:
+            target = panicfree.REPO_ROOT / path
+            cache[path] = (
+                target.read_text(encoding="utf-8", errors="replace") if target.is_file() else None
+            )
+        return cache[path]
+
+    excluded = panicfree.excluded_modules(paths, read)
+    dropped = "crates/apollia-runtime/src/supervisor/tests.rs"
+    case(
+        "a module declared under #[cfg(test)] is dropped",
+        dropped in excluded,
+        f"{dropped} stayed in the sweep. Six files of this shape carried "
+        f"seventy-five of the eighty-nine sites the first count reported",
+    )
+    kept = [
+        "crates/apollia-runtime/src/audit_journal/signer.rs",
+        "crates/apollia-runtime/src/audit_journal/subscriber.rs",
+        "crates/apollia-desktop/src/main.rs",
+        "crates/apollia-core/src/budget.rs",
+        "crates/apollia-mcp/src/approvals.rs",
+    ]
+    present = [path for path in kept if path in paths]
+    case(
+        "the five production files named here are in the inventory",
+        len(present) == len(kept),
+        f"missing from `git ls-files`: {sorted(set(kept) - set(present))!r}. A "
+        f"case whose subject is absent proves nothing about the exclusion",
+    )
+    leaked = [path for path in present if path in excluded]
+    case(
+        "production sitting under a gated sibling is kept",
+        not leaked,
+        f"dropped from the sweep: {leaked!r}. `audit_journal/mod.rs` gates "
+        f"`proofs` and nothing else, and an inner `#![cfg_attr(test, allow(...))]` "
+        f"gates nothing at all: reading either as a gate removes thirty-eight "
+        f"production files while every printed count stays put",
+    )
+
+    # Positive control on the same query: without it, the case above would be
+    # green whenever `excluded_modules` returns an empty set, which is the one
+    # way it can be wrong and look right.
+    case(
+        "positive control: the exclusion is not simply empty",
+        len(excluded) >= 10,
+        f"the exclusion holds {len(excluded)} file(s), so the case above says "
+        f"nothing: an exclusion that drops nothing keeps production by accident",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
@@ -1100,20 +1303,25 @@ def main() -> int:
     check_e2e_failure_detail()
     print()
     check_guards_are_launched()
+    print()
+    check_panic_sweep_fires()
+    print()
+    check_panic_sweep_scope()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nnine properties hold: neither a comment nor a re-export is a use, "
+        "\nten properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
-        "nothing to it, and every tracked guard is named by a file that "
-        "launches it"
+        "nothing to it, every tracked guard is named by a file that launches "
+        "it, and the panic-free sweep names the sites a lint gracies while "
+        "keeping the production an attribute read by proximity would drop"
     )
     return 0
 
