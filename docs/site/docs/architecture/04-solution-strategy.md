@@ -63,10 +63,13 @@ the how-to is [Integrate via the driving contract](/how-to/integrate-via-driving
 
 ## Governance lives in the runtime, not in the agent
 
-The step budget and the audit trail are enforced by the runtime around every
-agent, not implemented by each agent: every tool call an agent makes is recorded
-and bounded, whichever path it runs on. The autonomy tier reaches an
-orchestrated run the same way, through the engine that plans and executes it.
+The step budget is enforced by the runtime around every agent, not implemented
+by each agent, and it bounds every tool call whichever path it runs on. Recording
+is narrower: a tool call an agent makes through `ctx.tools` is written to the
+tool-invocation trail and, through its run-scoped events, to the hash-chained
+journal, while a tool call made in a chat session reaches neither. The autonomy
+tier reaches an orchestrated run the same way as the budget, through the engine
+that plans and executes it.
 
 <!-- claim:hitl-wired-in-chat-path-only -->
 Permission rules and human-in-the-loop approvals are narrower, and stating the

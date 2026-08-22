@@ -65,8 +65,10 @@ apollia-os mcp set-approval my-product write_record
 apollia-os mcp list-pending
 ```
 
-An operator then confirms before anything is written back, and the approval is
-recorded alongside the action.
+An operator then confirms before anything is written back. The grant itself is
+persisted, so the operator is not asked again while it stands; the decision is
+not written to any audit register, and neither is the call it authorized. Treat
+the approval as a gate, not as evidence.
 
 One limit to design around rather than discover. This approval flow covers the
 **chat** path; the tool calls an installed Python agent makes are not gated, so

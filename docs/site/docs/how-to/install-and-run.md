@@ -227,9 +227,12 @@ apollia-os llm status
 apollia-os start --port 7771
 ```
 
+<!-- claim:daemon-binds-tcp-by-default -->
 On its first run the runtime creates its data directory at `~/.apollia`. It
-listens on a Unix socket (`/tmp/apollia.sock` by default) and, with a port, on
-`127.0.0.1:7771`. On first boot it writes an API token to `~/.apollia/api-token`;
+listens on a Unix socket (`/tmp/apollia.sock` by default) and on
+`127.0.0.1:7771`. `apollia-os start` always binds TCP; `--port` chooses the
+number, and omitting it takes the default 7771 rather than leaving the port
+closed. On first boot it writes an API token to `~/.apollia/api-token`;
 TCP callers must present it as a bearer credential, while the Unix socket is
 local-trust and needs none. Leave this terminal running and open a second one for
 the next steps.

@@ -13,8 +13,18 @@ Sur le chemin du chat, chaque appel passe par la même route gouvernée : la
 porte d'approbation humaine avec des règles de permission persistées (les
 règles d'autorisation par nom seul pré-autorisent un outil, les règles à
 préfixe d'argument sont évaluées à chaque invocation, et les exécuteurs de
-code ne sont jamais autorisés en bloc), le budget de pas du palier
-d'autonomie, et le journal d'audit.
+code ne sont jamais autorisés en bloc), et le budget de pas du palier
+d'autonomie.
+
+<!-- claim:audit-list-reads-the-tool-invocation-trail -->
+Un appel d'outil du chat n'atteint aucun des deux registres d'audit. La piste
+d'invocations d'outils, la table plate que `audit list` lit, n'est écrite que
+depuis `ctx.tools` sur le chemin agent ; le journal chaîné par hachage est
+alimenté par des événements d'appel d'outil rattachés à une exécution, que le
+chemin du chat n'émet pas. Ce qu'une session de chat conserve est
+l'enregistrement d'appel d'outil porté par son message d'assistant, sérialisé
+dans la colonne `tool_calls_json` de `chat_messages`, pas un enregistrement
+audité.
 
 Un agent accède à ces outils via `ctx.tools`, ou se les voit transmis dans
 une boucle ReAct via `ctx.tools.describe(<name>)`. Chaque appel est distribué

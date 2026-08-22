@@ -37,8 +37,8 @@ SYSTEM_PROMPT = """\
 You are a document assistant. Answer the user's question about a local PDF
 by using the available tools:
 
-- `pdf.read_text`: extract the text of a PDF, page by page.
-- `pdf.count_pages`: count the pages of a PDF.
+- `a2a__pdf__read_text`: extract the text of a PDF, page by page.
+- `a2a__pdf__count_pages`: count the pages of a PDF.
 
 Reason step by step. When you have enough information, write a concise answer
 and mention the file you inspected.
@@ -72,9 +72,33 @@ class DocumentDirector:
 
 `react` is a free function, not a `ctx` method: you pass `ctx` as its first
 argument. It runs the observe, reason, act loop and returns the model's final
-answer as a string. Its full signature (including `temperature` and `max_steps`,
-which defaults to 15) is in the [SDK / ctx contract](/reference/sdk); the
-`skill_as_tool` and other A2A methods are on [`ctx.a2a`](/reference/sdk/a2a).
+answer as a string. Its full signature is:
+
+```python
+async def react(
+    ctx: Ctx,
+    system: str,
+    user: str,
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    max_steps: int = 15,
+    temperature: float = 0.3,
+    stream: bool = True,
+) -> str
+```
+
+`temperature` is carried but currently informational: `LlmProxy.run_tools` uses
+the backend default. The [SDK / ctx contract](/reference/sdk) indexes the `ctx`
+services; the `skill_as_tool` and other A2A methods are on
+[`ctx.a2a`](/reference/sdk/a2a).
+
+<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
+Name the tools in the prompt the way the model sees them. `skill_as_tool` does
+not hand the model the `skill_id`: it prefixes `a2a__` and replaces each dot with
+a double underscore, because OpenAI-compatible tool names reject `.` and `:`. So
+`pdf.read_text` is offered as `a2a__pdf__read_text`, and the bridge decodes the
+name back to the `skill_id` before dispatch. A prompt that spells the raw
+`skill_id` asks for a tool the model was never given.
 
 If the director references a skill that no active worker exposes, it fails fast
 at run time with an unknown-skill error. Install and enable the worker first.
@@ -88,8 +112,9 @@ apollia-os agent enable document-director
 apollia-os run document-director "How many pages are in /tmp/report.pdf, and what is it about?"
 ```
 
-The model decides to call `pdf.count_pages`, then `pdf.read_text`, then writes
-its answer.
+The model decides to call `a2a__pdf__count_pages`, then `a2a__pdf__read_text`,
+then writes its answer. The runtime decodes each name back to its `skill_id`
+before dispatching to the worker.
 
 ## Variation: build the tool list dynamically
 

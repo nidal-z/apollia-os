@@ -37,6 +37,11 @@ The authoritative statement of the principles lives in the project rulebook
 
 ## Technical constraints
 
+<!-- claim:daemon-binds-tcp-by-default -->
+The transport entry below is the one an integrator most often reads backwards:
+the daemon binds TCP on every start, and only the embedded runtime defaults to
+Unix-socket-only.
+
 - **Language and runtime.** The core is Rust (1.89+) on Tokio. Errors use
   `thiserror` enums, not `anyhow`, so failures stay typed and map to exit codes
   and structured traces. No `unwrap`, `panic`, or `println` in production paths.
@@ -47,8 +52,10 @@ The authoritative statement of the principles lives in the project rulebook
   llama.cpp), on GGUF models, over its OpenAI-compatible HTTP API, with Metal and
   CUDA backends. Local speech-to-text is `whisper`.
 - **Persistence.** SQLite with FTS5, in WAL mode. No external database.
-- **Transport.** The HTTP API is served on a Unix socket and, when explicitly
-  enabled, on TCP with a bearer token. The embedded default is Unix-socket-only.
+- **Transport.** The HTTP API is served on a Unix socket and on TCP with a
+  bearer token. `apollia-os start` binds both, taking port 7771 when `--port` is
+  omitted. Unix-socket-only is the default of the embedded runtime, not of the
+  daemon.
 - **No unjustified dependency.** Every third-party dependency, Rust or Python, is
   a sovereignty surface and is added only with an architecture decision behind
   it. Agents and workers are standard-library-only by default.

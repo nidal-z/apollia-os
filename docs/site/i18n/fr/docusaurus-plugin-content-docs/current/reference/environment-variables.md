@@ -26,7 +26,7 @@ quoi régler et pourquoi.
 | `APOLLIA_LLAMA_SERVER_BIN` | résolu depuis `PATH` | Chemin absolu vers le binaire `llama-server`. |
 | `APOLLIA_LLAMA_MODEL_PATH` | depuis le backend configuré | Remplace le GGUF chargé par le moteur. |
 | `APOLLIA_LLAMA_MAX_LOADED` | voir la valeur par défaut du code source | Nombre de modèles pouvant rester résidents en mémoire simultanément. |
-| `APOLLIA_LLAMA_N_CTX` | dérivée du modèle | Fenêtre de contexte en tokens. |
+| `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Nombre de couches déchargées sur le GPU ; `0` force l'exécution sur CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | valeur par défaut du moteur | Taille de batch logique. |
 | `APOLLIA_LLAMA_N_UBATCH` | valeur par défaut du moteur | Taille de micro-batch physique. |

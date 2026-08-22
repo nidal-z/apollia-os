@@ -476,12 +476,12 @@ prospect. Your job: build a structured briefing in markdown.
 Workflow:
 
 1. Parse the request: company name and meeting time (for example "tomorrow 10:00").
-2. Use `web.research.company` to gather general info.
-3. Use `web.research.signals` to fetch three to five recent news signals.
-4. Use `crm.lookup.account` to fetch contacts. If it fails, continue without.
-5. For the most relevant contact, call `crm.lookup.history` for their history.
-6. Call `prep.build_brief` with the aggregated payload to render the markdown.
-7. Optionally call `prep.format_questions` for three to five open questions.
+2. Use `a2a__web__research__company` to gather general info.
+3. Use `a2a__web__research__signals` to fetch three to five recent news signals.
+4. Use `a2a__crm__lookup__account` to fetch contacts. If it fails, continue without.
+5. For the most relevant contact, call `a2a__crm__lookup__history` for their history.
+6. Call `a2a__prep__build_brief` with the aggregated payload to render the markdown.
+7. Optionally call `a2a__prep__format_questions` for three to five open questions.
 
 Aim for six to eight tool calls in total. If a worker fails, note it with
 emit_thought and continue. The brief must always be produced.
@@ -525,6 +525,13 @@ class MeetingDirector:
 worker skill into a tool the model can pick; [`ctx.a2a`](/reference/sdk/a2a)
 resolves each schema at call time.
 
+<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
+The prompt spells the tool names the way the model receives them, not the way you
+write them in `skill_as_tool`. That call prefixes `a2a__` and replaces each dot
+with a double underscore, so `web.research.company` is offered as
+`a2a__web__research__company`; the bridge decodes the name back to the `skill_id`
+before dispatch.
+
 ## Run it
 
 ```bash
@@ -543,12 +550,17 @@ apollia-os task inspect <task_id>
 ```
 
 `task inspect` shows the director's thoughts and each A2A call with its input.
-For the tamper-evident record of tool calls and their results, use the audit
+For the flat record of tool calls and their results, read the tool-invocation
 trail:
 
 ```bash
 apollia-os audit list --limit 50
 ```
+
+That trail is not the tamper-evident one. Tamper-evidence lives in the
+hash-chained journal, which `audit show` reads and `audit verify` checks; see
+[Audit and verify a run](/how-to/audit-and-verify) for which command reads which
+register.
 
 See the [CLI reference](/reference/cli) for every `task` and `audit` subcommand.
 

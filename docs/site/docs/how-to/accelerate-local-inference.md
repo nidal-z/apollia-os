@@ -65,7 +65,7 @@ launches the daemon.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `APOLLIA_LLAMA_N_CTX` | model-derived | Context window in tokens. |
+| `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |

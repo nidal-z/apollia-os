@@ -18,8 +18,12 @@ Si vous voulez simplement voir le flux fonctionner une fois, commencez par
 
 Un runtime Apollia expose ses capacités via une API HTTP sous `/api/v1` :
 soumettre des tâches, ouvrir des sessions de chat, diffuser des résultats en
-continu, consulter le journal d'audit et administrer le runtime. Le daemon
-écoute sur un socket Unix et, quand on lui fournit un port, sur `127.0.0.1`.
+continu, consulter le journal d'audit et administrer le runtime.
+
+<!-- claim:daemon-binds-tcp-by-default -->
+Le daemon lancé par `apollia-os start` écoute sur un socket Unix et sur
+`127.0.0.1:7771`. Le TCP est lié à chaque démarrage ; `--port` ne fait que
+choisir le numéro.
 
 L'API est décrite par une spécification OpenAPI 3.1 générée à partir du code
 source du runtime : elle ne peut donc pas diverger du code. Le runtime la

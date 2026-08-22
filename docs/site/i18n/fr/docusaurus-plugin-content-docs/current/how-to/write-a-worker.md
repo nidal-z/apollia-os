@@ -84,10 +84,12 @@ class PdfQuickstart:
 
 Remarques sur le contrat :
 
-- `@skill("pdf.read_text", ...)` prend d'abord le `skill_id`, puis `description`
-  et une liste `examples` optionnelle de payloads d'exemple. La surface
-  complète du décorateur figure dans la
-  [référence SDK / contrat ctx](/reference/sdk).
+- `@skill("pdf.read_text", ...)` prend d'abord le `skill_id`, puis trois
+  arguments nommés : `description`, `dangerous` (signale une compétence
+  potentiellement destructrice), et `examples`, une liste optionnelle de
+  dictionnaires de payloads d'exemple. C'est toute la surface du décorateur. La
+  [référence SDK / contrat ctx](/reference/sdk) indexe les services `ctx` qu'un
+  corps de compétence utilise.
 - Les paramètres de domaine viennent en premier ; `ctx` est le dernier
   paramètre. Annotez chaque paramètre avec `Annotated[type, "description"]`
   pour que le schéma généré s'auto-documente.

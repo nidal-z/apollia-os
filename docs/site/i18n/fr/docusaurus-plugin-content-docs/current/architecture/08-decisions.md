@@ -250,14 +250,23 @@ travailleurs ont exposé des skills aux noms voisins.
 
 ## Audit et preuve {#audit-and-evidence}
 
-Chaque appel d'outil est enregistré : ce qui a tourné, une empreinte de ses
-entrées, s'il a réussi, et combien de temps il a pris. Un appel qui a échoué est
-persisté comme ayant échoué. La piste est écrite sans attendre, si bien que
-l'enregistrement ne bloque jamais l'exécution.
+Il y a deux registres, et la garantie n'est pas la même sur chacun.
 
-Les enregistrements sont chaînés, et la chaîne est ancrée globalement pour que
-la troncature soit détectable : retirer la fin du journal casse une vérification
+La piste d'invocations d'outils porte ce qui a tourné, une empreinte de ses
+entrées, s'il a réussi, et combien de temps il a pris. Un appel qui a échoué est
+persisté comme ayant échoué. Elle est écrite en pose-et-oublie, si bien que
+l'enregistrement ne bloque jamais l'exécution, et un enregistrement est jeté
+quand le canal est saturé : la piste est un enregistrement au mieux, pas un
+enregistrement complet. Ses lignes sont plates : l'empreinte des entrées que
+chaque ligne porte n'est chaînée à aucune autre, et aucune ligne n'est signée.
+
+Le journal chaîné par hachage est le registre qui porte la preuve. Ses entrées
+sont chaînées et signées, et la chaîne est ancrée globalement pour que la
+troncature soit détectable : retirer la fin du journal casse une vérification
 qu'un lecteur peut lancer lui-même.
+
+Les deux registres couvrent le chemin agent. Un appel d'outil effectué dans une
+session de chat n'atteint ni l'un ni l'autre.
 
 Rejouer une exécution puis la comparer à son enregistrement n'est délibérément
 pas construit. Une réexécution prouve qu'une seconde exécution s'est comportée
@@ -271,9 +280,11 @@ Les secrets vivent dans le trousseau du système, ou dans un fichier chiffré av
 age là où il n'existe pas de trousseau. Ils ne sont jamais écrits dans un fichier
 de configuration.
 
-L'API HTTP écoute sur une socket Unix et, en option, sur un port TCP. La socket
-Unix relève de la confiance locale et s'appuie sur les permissions du système de
-fichiers. Le TCP exige un jeton porteur sur tous les chemins, et le lier à une
+<!-- claim:daemon-binds-tcp-by-default -->
+L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les deux
+à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
+La socket Unix relève de la confiance locale et s'appuie sur les permissions du
+système de fichiers. Le TCP exige un jeton porteur sur tous les chemins, et le lier à une
 adresse non locale sans TLS est une erreur de démarrage plutôt qu'un
 avertissement : un attachement distant non sécurisé est la seule erreur qu'on ne
 peut pas défaire une fois que le trafic est passé.

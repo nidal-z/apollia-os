@@ -9,9 +9,14 @@ Ces préoccupations n'appartiennent à aucun crate en particulier : elles traver
 
 ## Souveraineté et local-first
 
+<!-- claim:daemon-binds-tcp-by-default -->
 Le chemin par défaut ne quitte jamais la machine. L'inférence peut s'exécuter
 entièrement en local sur un modèle GGUF, le stockage est du SQLite local, et
-l'API se lie à une socket Unix sauf activation explicite du TCP. L'inférence
+l'API se lie à une socket Unix et au TCP de bouclage, que le daemon ouvre à
+chaque démarrage. C'est le bouclage qui garde le défaut local : joindre l'API
+depuis une autre machine demande une adresse de liaison hors bouclage,
+configurée volontairement, et le daemon refuse celle qui ne porte aucun jeton
+porteur. L'inférence
 cloud est optionnelle, sur la clé propre de l'utilisateur, et même dans ce cas
 le modèle local reste le choix par défaut, avec une escalade sous contrôle. La
 mémoire peut être exportée et importée par l'utilisateur, si bien que les

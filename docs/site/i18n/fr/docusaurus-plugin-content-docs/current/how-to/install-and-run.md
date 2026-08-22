@@ -253,9 +253,12 @@ apollia-os llm status
 apollia-os start --port 7771
 ```
 
+<!-- claim:daemon-binds-tcp-by-default -->
 À son premier lancement, le runtime crée son répertoire de données dans
 `~/.apollia`. Il écoute sur un socket Unix (`/tmp/apollia.sock` par défaut)
-et, avec un port, sur `127.0.0.1:7771`. Au premier démarrage il écrit un
+et sur `127.0.0.1:7771`. `apollia-os start` lie toujours le TCP ; `--port`
+choisit le numéro, et l'omettre prend la valeur par défaut 7771 plutôt que de
+laisser le port fermé. Au premier démarrage il écrit un
 jeton d'API dans `~/.apollia/api-token` ; les appelants en TCP doivent le
 présenter comme identifiant porteur, tandis que le socket Unix repose sur une
 confiance locale et n'en a besoin d'aucun. Laissez ce terminal en cours

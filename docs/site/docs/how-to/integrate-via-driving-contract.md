@@ -18,8 +18,11 @@ first.
 
 An Apollia runtime exposes its capabilities over an HTTP API under `/api/v1`:
 submit tasks, open chat sessions, stream results, inspect the audit trail, and
-manage the runtime. The daemon listens on a Unix socket and, when given a port,
-on `127.0.0.1`.
+manage the runtime.
+
+<!-- claim:daemon-binds-tcp-by-default -->
+The daemon started by `apollia-os start` listens on a Unix socket and on
+`127.0.0.1:7771`. TCP is bound on every start; `--port` only chooses the number.
 
 The API is described by an OpenAPI 3.1 specification that is generated from the
 runtime source, so it cannot drift from the code. The runtime serves it at:

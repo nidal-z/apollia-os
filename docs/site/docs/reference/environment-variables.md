@@ -24,7 +24,7 @@ tune and why.
 | `APOLLIA_LLAMA_SERVER_BIN` | resolved from `PATH` | Absolute path to the `llama-server` binary. |
 | `APOLLIA_LLAMA_MODEL_PATH` | from the configured backend | Overrides the GGUF the engine loads. |
 | `APOLLIA_LLAMA_MAX_LOADED` | see the source default | How many models may stay resident at once. |
-| `APOLLIA_LLAMA_N_CTX` | model-derived | Context window in tokens. |
+| `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |

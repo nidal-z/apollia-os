@@ -60,6 +60,8 @@ reads it: there is no occurrence of `seed` in any backend implementation. Passin
 one is accepted and has no effect.
 
 Two runs of the same prompt on the same model can therefore differ. What is
-reproducible is the record of what happened, not the generation itself: the audit
-trail and the event log capture each call, its inputs and its result. See
+recorded is not the generation itself. On an agent run, the tool-invocation trail
+holds each tool call with a hash of its inputs and its outcome, and the
+hash-chained journal holds the run's tool-call and LLM-call entries. Neither
+register receives a tool call made in a chat session. See
 [Audit and verify a run](/how-to/audit-and-verify).

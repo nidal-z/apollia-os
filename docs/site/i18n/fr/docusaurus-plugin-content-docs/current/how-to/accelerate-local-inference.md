@@ -72,7 +72,7 @@ les dans l'environnement de ce qui lance le daemon.
 
 | Variable | Défaut | Ce qu'elle fait |
 |---|---|---|
-| `APOLLIA_LLAMA_N_CTX` | dérivé du modèle | Fenêtre de contexte en tokens. |
+| `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Couches déportées vers le GPU ; `0` force le CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | défaut du moteur | Taille de batch logique. |
 | `APOLLIA_LLAMA_N_UBATCH` | défaut du moteur | Taille du micro-batch physique. |

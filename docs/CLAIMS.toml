@@ -1446,3 +1446,65 @@ docs/architecture/07-crosscutting-concepts.md, each with its French mirror under
 i18n/fr. The exception lives in the desktop rewrite command, not in the
 assistant's prompt builder, which is what the surrounding prose says.
 """
+
+# ── The two audit registers, and what a name promises ────────────────────────
+
+[[claim]]
+id = "audit-list-reads-the-tool-invocation-trail"
+scope = "public"
+symbol = "query_page"
+status = "wired"
+proof = "crates/apollia-runtime/src/api/routes_audit.rs"
+evidence = ""
+note = """
+The corpus called one thing "the audit trail" and described the other. There are
+two registers: the flat `tool_invocations` table, which has no `prev_hash` and no
+signature, and the hash-chained journal. `audit list`, `audit stats` and
+`audit export` reach the flat one through this reader; `audit verify`,
+`audit show` and `audit anchor` reach the journal. If `query_page` ever loses its
+caller in `list_audit`, the pages that now say which command reads which register
+are describing a path that stopped existing.
+
+The same paragraphs carry a second fact the replay cannot check: a tool call made
+in a chat session reaches neither register, because `ToolInvocationRecord` is
+written only from the agent-side `ctx.tools` proxy and `map_event` has no arm for
+the `ChatToolCall*` variants. That gap is tracked as a defect, not documented as
+a feature.
+"""
+
+[[claim]]
+id = "a2a-tool-name-is-prefixed-and-encoded"
+scope = "public"
+symbol = "extract_a2a_skill_id"
+status = "wired"
+proof = "crates/apollia-aip/src/context.rs"
+evidence = ""
+note = """
+`skill_as_tool` does not hand the model a `skill_id`. It emits
+`a2a__{skill_id with . replaced by __}`, because OpenAI-compatible tool names
+reject `.` and `:`, and this function reverses the encoding before dispatch. Two
+pages published director prompts that named the raw `skill_id`, which asks the
+model for a tool it was never given. If the decoder loses its caller, the naming
+convention the prompts now follow is no longer the one the bridge accepts.
+"""
+
+[[claim]]
+id = "daemon-binds-tcp-by-default"
+scope = "public"
+symbol = "DEFAULT_TCP_PORT"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/start.rs"
+evidence = ""
+note = """
+Six pages said the daemon opens a TCP port only when one is given, in six
+different formulations, so no single search found them. The code has no such
+condition: `apollia-os start` runs `port.unwrap_or(DEFAULT_TCP_PORT)` and passes
+`Some(tcp_port)` unconditionally, so `--port` chooses the number and nothing
+leaves the port closed. The embedded runtime is the one that defaults to
+Unix-socket-only, and that page is correct.
+
+The residual this claim does not cover: `wired` proves the constant is read, not
+that it is read unconditionally. A reintroduced `if let Some(port)` would keep
+this green, because the replay resolves a symbol and never reads the value or the
+shape of the expression around it.
+"""

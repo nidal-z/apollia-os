@@ -83,9 +83,12 @@ class PdfQuickstart:
 
 Notes on the contract:
 
-- `@skill("pdf.read_text", ...)` takes the `skill_id` first, then `description`
-  and an optional `examples` list of sample payloads. The full decorator surface
-  is in the [SDK / ctx contract](/reference/sdk).
+- `@skill("pdf.read_text", ...)` takes the `skill_id` first, then three
+  keyword-only arguments: `description`, `dangerous` (marks the skill as
+  potentially destructive), and `examples`, an optional list of sample payload
+  dicts. That is the whole decorator surface. The
+  [SDK / ctx contract](/reference/sdk) indexes the `ctx` services a skill body
+  uses.
 - Domain parameters come first; `ctx` is the last parameter. Annotate each
   parameter with `Annotated[type, "description"]` so the generated schema is
   self-documenting.

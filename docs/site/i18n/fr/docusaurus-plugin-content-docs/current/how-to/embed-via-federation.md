@@ -75,7 +75,10 @@ apollia-os mcp list-pending
 ```
 
 Un opérateur confirme alors avant que quoi que ce soit ne soit écrit en
-retour, et l'approbation est enregistrée aux côtés de l'action.
+retour. L'autorisation elle-même est persistée, de sorte que l'opérateur n'est
+pas resollicité tant qu'elle tient ; la décision n'est écrite dans aucun
+registre d'audit, et l'appel qu'elle autorise non plus. Traitez l'approbation
+comme une porte, pas comme une preuve.
 
 Une limite à anticiper plutôt qu'à découvrir. Ce flux d'approbation couvre
 le chemin du **chat** ; les appels d'outils qu'effectue un agent Python

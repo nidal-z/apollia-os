@@ -9,9 +9,13 @@ These concepts do not belong to one crate; they run through the whole runtime.
 
 ## Sovereignty and local-first
 
+<!-- claim:daemon-binds-tcp-by-default -->
 The default path never leaves the machine. Inference can run fully local on a
-GGUF model, storage is local SQLite, and the API binds to a Unix socket unless
-TCP is explicitly enabled. Cloud inference is opt-in, on the user's own key, and
+GGUF model, storage is local SQLite, and the API binds to a Unix socket and to
+loopback TCP, which the daemon opens on every start. Loopback is what keeps the
+default local: reaching the API from another machine takes a non-loopback bind
+address, configured on purpose, and the daemon refuses one that carries no
+bearer token. Cloud inference is opt-in, on the user's own key, and
 even then the local model stays the default with escalation under control.
 Memory can be exported and imported by the user, so the data stays theirs. This
 is not a feature bolted on; it is the constraint that shapes every default. See

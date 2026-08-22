@@ -38,8 +38,8 @@ SYSTEM_PROMPT = """\
 You are a document assistant. Answer the user's question about a local PDF
 by using the available tools:
 
-- `pdf.read_text`: extract the text of a PDF, page by page.
-- `pdf.count_pages`: count the pages of a PDF.
+- `a2a__pdf__read_text`: extract the text of a PDF, page by page.
+- `a2a__pdf__count_pages`: count the pages of a PDF.
 
 Reason step by step. When you have enough information, write a concise answer
 and mention the file you inspected.
@@ -73,11 +73,35 @@ class DocumentDirector:
 
 `react` est une fonction libre, pas une méthode de `ctx` : vous lui passez
 `ctx` en premier argument. Elle exécute la boucle observer, raisonner, agir
-et renvoie la réponse finale du modèle sous forme de chaîne de caractères.
-Sa signature complète (y compris `temperature` et `max_steps`, qui vaut 15
-par défaut) se trouve dans le [contrat SDK / ctx](/reference/sdk) ; les
-méthodes `skill_as_tool` et les autres méthodes A2A se trouvent sur
+et renvoie la réponse finale du modèle sous forme de chaîne de caractères. Sa
+signature complète est :
+
+```python
+async def react(
+    ctx: Ctx,
+    system: str,
+    user: str,
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    max_steps: int = 15,
+    temperature: float = 0.3,
+    stream: bool = True,
+) -> str
+```
+
+`temperature` est transportée mais reste indicative aujourd'hui :
+`LlmProxy.run_tools` utilise la valeur par défaut du backend. Le
+[contrat SDK / ctx](/reference/sdk) indexe les services `ctx` ; les méthodes
+`skill_as_tool` et les autres méthodes A2A se trouvent sur
 [`ctx.a2a`](/reference/sdk/a2a).
+
+<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
+Nommez les outils dans le prompt tels que le modèle les voit. `skill_as_tool` ne
+donne pas le `skill_id` au modèle : elle préfixe `a2a__` et remplace chaque point
+par un double tiret bas, parce que les noms d'outils compatibles OpenAI refusent
+`.` et `:`. Ainsi `pdf.read_text` est proposé sous le nom `a2a__pdf__read_text`,
+et le pont redécode le nom vers le `skill_id` avant la distribution. Un prompt
+qui écrit le `skill_id` brut demande un outil que le modèle n'a jamais reçu.
 
 Si le director référence un skill qu'aucun worker actif n'expose, il échoue
 rapidement à l'exécution avec une erreur de skill inconnu. Installez et
@@ -92,7 +116,8 @@ apollia-os agent enable document-director
 apollia-os run document-director "How many pages are in /tmp/report.pdf, and what is it about?"
 ```
 
-Le modèle décide d'appeler `pdf.count_pages`, puis `pdf.read_text`, puis
+Le modèle décide d'appeler `a2a__pdf__count_pages`, puis
+`a2a__pdf__read_text`, puis
 rédige sa réponse.
 
 ## Variante : construire la liste d'outils dynamiquement

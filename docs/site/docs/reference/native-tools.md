@@ -12,8 +12,16 @@ a single place (`crates/apollia-tools/src/native_dispatcher.rs`).
 On the chat path, every call runs through the same governed route: the human
 approval gate with persisted permission rules (name-only allow rules
 pre-authorize a tool, argument-prefix rules are evaluated per invocation, and
-code executors are never blanket-authorized), the autonomy tier's step
-budget, and the audit trail.
+code executors are never blanket-authorized), and the autonomy tier's step
+budget.
+
+<!-- claim:audit-list-reads-the-tool-invocation-trail -->
+A chat tool call reaches neither audit register. The tool-invocation trail, the
+flat table `audit list` reads, is written from `ctx.tools` on the agent path
+only; the hash-chained journal is fed from run-scoped tool-call events, which the
+chat path does not emit. What a chat session leaves behind is the tool-call
+record its assistant message carries, serialized into the `tool_calls_json`
+column of `chat_messages`, not an audited record.
 
 An agent reaches these tools through `ctx.tools`, or has them handed to a ReAct
 loop via `ctx.tools.describe(<name>)`. Each call is dispatched by the canonical

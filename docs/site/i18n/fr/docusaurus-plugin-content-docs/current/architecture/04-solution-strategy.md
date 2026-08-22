@@ -72,11 +72,15 @@ pratique est
 
 ## La gouvernance vit dans le runtime, pas dans l'agent
 
-Le budget d'étapes et le journal d'audit sont appliqués par le runtime autour de
-chaque agent, et non implémentés par chaque agent individuellement : chaque
-appel d'outil qu'un agent effectue est enregistré et borné, quel que soit le
-chemin sur lequel il s'exécute. Le palier d'autonomie atteint une exécution
-orchestrée de la même façon, par le moteur qui la planifie et l'exécute.
+Le budget d'étapes est appliqué par le runtime autour de chaque agent, et non
+implémenté par chaque agent individuellement, et il borne chaque appel d'outil
+quel que soit le chemin sur lequel il s'exécute. L'enregistrement, lui, est plus
+étroit : un appel d'outil qu'un agent effectue via `ctx.tools` est écrit dans la
+piste d'invocations d'outils et, par ses événements rattachés à l'exécution, dans
+le journal chaîné par hachage, alors qu'un appel d'outil effectué dans une
+session de chat n'atteint ni l'un ni l'autre. Le palier d'autonomie atteint une
+exécution orchestrée de la même façon que le budget, par le moteur qui la
+planifie et l'exécute.
 
 <!-- claim:hitl-wired-in-chat-path-only -->
 Les règles de permission et les approbations à supervision humaine sont plus

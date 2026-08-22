@@ -231,13 +231,22 @@ skills.
 
 ## Audit and evidence {#audit-and-evidence}
 
-Every tool call is recorded: what ran, a hash of its inputs, whether it
-succeeded, and how long it took. A call that failed is persisted as failed. The
-trail is written fire-and-forget, so recording never blocks execution.
+There are two registers, and the guarantee is not the same on each.
 
-Records are chained, and the chain is anchored globally so that truncation is
+The tool-invocation trail holds what ran, a hash of its inputs, whether it
+succeeded, and how long it took. A call that failed is persisted as failed. It is
+written fire-and-forget, so recording never blocks execution, and a record is
+dropped when the channel is saturated: the trail is a best-effort record, not a
+complete one. Its rows are flat: the input hash each row carries is not chained
+to the row before it, and no row is signed.
+
+The hash-chained journal is the register that carries the evidence. Its entries
+are chained and signed, and the chain is anchored globally so that truncation is
 detectable: removing the tail of the journal breaks a verification a reader can
 run themselves.
+
+Both registers cover the agent path. A tool call made in a chat session reaches
+neither.
 
 Replaying a run and comparing it against its record is deliberately not built.
 Re-execution proves that a second run behaved a certain way, not that the first
@@ -249,7 +258,9 @@ so its absence reads as a choice rather than a gap.
 Secrets live in the OS keychain, or in an age-encrypted file where no keychain
 exists. They are never written to configuration files.
 
-The HTTP API listens on a Unix socket and, optionally, on a TCP port. The Unix
+<!-- claim:daemon-binds-tcp-by-default -->
+The HTTP API listens on a Unix socket and on a TCP port; the daemon binds both on
+every start, and the port number is the only thing `--port` decides. The Unix
 socket is local-trust and relies on filesystem permissions. TCP requires a
 bearer token on every path, and binding it to a non-loopback address without TLS
 is a startup error rather than a warning: an insecure remote bind is the one

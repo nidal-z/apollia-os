@@ -489,12 +489,12 @@ prospect. Your job: build a structured briefing in markdown.
 Workflow:
 
 1. Parse the request: company name and meeting time (for example "tomorrow 10:00").
-2. Use `web.research.company` to gather general info.
-3. Use `web.research.signals` to fetch three to five recent news signals.
-4. Use `crm.lookup.account` to fetch contacts. If it fails, continue without.
-5. For the most relevant contact, call `crm.lookup.history` for their history.
-6. Call `prep.build_brief` with the aggregated payload to render the markdown.
-7. Optionally call `prep.format_questions` for three to five open questions.
+2. Use `a2a__web__research__company` to gather general info.
+3. Use `a2a__web__research__signals` to fetch three to five recent news signals.
+4. Use `a2a__crm__lookup__account` to fetch contacts. If it fails, continue without.
+5. For the most relevant contact, call `a2a__crm__lookup__history` for their history.
+6. Call `a2a__prep__build_brief` with the aggregated payload to render the markdown.
+7. Optionally call `a2a__prep__format_questions` for three to five open questions.
 
 Aim for six to eight tool calls in total. If a worker fails, note it with
 emit_thought and continue. The brief must always be produced.
@@ -538,6 +538,13 @@ class MeetingDirector:
 transforment chaque skill de worker en un outil que le modèle peut choisir ;
 [`ctx.a2a`](/reference/sdk/a2a) résout chaque schéma au moment de l'appel.
 
+<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
+Le prompt écrit les noms d'outils tels que le modèle les reçoit, et non tels que
+vous les écrivez dans `skill_as_tool`. Cet appel préfixe `a2a__` et remplace
+chaque point par un double tiret bas : `web.research.company` est donc proposé
+sous le nom `a2a__web__research__company`, et le pont redécode le nom vers le
+`skill_id` avant la distribution.
+
 ## Exécutez-le
 
 ```bash
@@ -557,12 +564,17 @@ apollia-os task inspect <task_id>
 ```
 
 `task inspect` affiche les pensées du director et chaque appel A2A avec son
-entrée. Pour le registre inviolable des appels d'outils et de leurs
-résultats, utilisez le journal d'audit :
+entrée. Pour l'enregistrement plat des appels d'outils et de leurs résultats,
+lisez la piste d'invocations d'outils :
 
 ```bash
 apollia-os audit list --limit 50
 ```
+
+Cette piste n'est pas le registre inviolable. L'inviolabilité vit dans le
+journal chaîné par hachage, que `audit show` lit et que `audit verify`
+contrôle ; voir [Auditer et vérifier une exécution](/how-to/audit-and-verify)
+pour savoir quelle commande lit quel registre.
 
 Consultez la [référence CLI](/reference/cli) pour chaque sous-commande
 `task` et `audit`.
