@@ -116,12 +116,26 @@ Le nombre et la nature des cartes proposées dépendent de vos choix précédent
 
 | Vos choix | Règles proposées |
 |---|---|
-| Souveraineté `Local strict` | `deny http_fetch https://` et `http://` (global) - bloque toute sortie réseau |
+| Souveraineté `Local strict` | `deny http_fetch https://` et `http://` (global) - ne porte que sur `http_fetch` |
 | Souveraineté `Local préféré` | `deny http_fetch` sur `api.openai.com` et `api.anthropic.com` (global) - bloque les LLM cloud par défaut |
 | Souveraineté `Cloud autorisé` | aucune règle réseau |
 | Supervision `Critique seulement` ou `Jamais` | `allow file_read` (global) - réduit la friction sur les actions en lecture |
 | Supervision `Toujours valider` | aucune règle d'allow - chaque action sensible déclenchera une carte d'approbation |
 | Intégrations cochées (GitHub, Slack, Notion, Gmail) | `allow http_fetch` sur l'API correspondante (global) |
+
+:::caution Ce que la souveraineté couvre, et ce qu'elle ne couvre pas
+
+Les règles proposées ici sont des règles de permission sur `http_fetch`, et
+c'est le seul outil qu'elles atteignent. `Local strict` n'est donc pas une
+coupure réseau de la machine.
+
+Restent ouverts, quel que soit le réglage : `web_search` et `web_read`, les
+serveurs MCP joints en HTTP, un backend de modèle distant que vous auriez
+configuré, et toute commande sortante lancée par `bash_executor`, `curl` par
+exemple. Si vous avez besoin d'une coupure réelle, elle se pose au niveau du
+système, pare-feu ou espace de noms réseau, pas dans ce profil.
+
+:::
 
 ![Cartes de règles de permissions proposées par l'agent à la fin du calibrage : deny http_fetch sur api.openai.com et api.anthropic.com, allow file_read, boutons Ignorer et Appliquer sur chaque carte](/img/operator-help/installation-configurer-votre-profil-6.png)
 

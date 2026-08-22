@@ -154,7 +154,7 @@ tools, nbformat v4 only.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `http_fetch` | Perform HTTP GET/POST/PUT/PATCH/DELETE requests. Returns status, headers, and body (capped at 1 MB). Restricted to the agent's host allowlist. | `url`, `method`, `headers`, `body`, `timeout_secs` |
+| `http_fetch` | Perform HTTP GET/POST/PUT/PATCH/DELETE requests. Returns status, headers, and body (capped at 1 MB). Fails closed: no code path supplies the host allowlist today, so every call is refused with `no_allowlist`. | `url`, `method`, `headers`, `body`, `timeout_secs` |
 | `web_search` | Search the web and return ranked results (title, URL, snippet). Defaults to DuckDuckGo; uses Brave when a key is configured. | `query`, `max_results` |
 | `web_read` | Fetch a public URL and return its extracted readable article text. Rejects private, loopback, and link-local addresses (SSRF guard). HTML and plain text only. | `url`, `max_chars`, `include_metadata` |
 

@@ -22,6 +22,7 @@
   } from "$lib/connections/errors";
   import {
     oauthStartFlow,
+    resolveSovereignty,
     oauthCompleteFlow,
     oauthSetDriveFolder,
     type ProviderId,
@@ -113,7 +114,7 @@
               "forms",
             ]
           : ["mail.read", "mail.send", "calendar.read", "calendar.write", "files.read"];
-      const startResult = await oauthStartFlow(provider, scopes);
+      const startResult = await oauthStartFlow(provider, scopes, await resolveSovereignty());
       authUrl = startResult.auth_url;
       flowState = startResult.state;
       awaitingCallback = true;

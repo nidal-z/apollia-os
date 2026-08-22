@@ -375,11 +375,21 @@ directory, then `$XDG_CONFIG_HOME/apollia/apollia.toml` (defaulting to
 downloaded models) lives separately under `~/.apollia/`. Paths in the file support
 `~` expansion.
 
-Recognized top-level sections include `[llm]`, `[api]`, `[runtime]`, `[memory]`,
-`[tools]`, `[budget]`, `[hitl]`, `[a2a]`, `[oria]`, `[registry]`, `[mcp]`,
-`[permissions]`, `[filesystem]`, `[hooks]`, and `[chat]`. Triggers, notifications,
-speech-to-text, and installed agents are managed through the CLI and the desktop
-app (persisted in SQLite), not through this file.
+The recognized top-level sections are `[llm]`, `[runtime]`, `[tools]`, `[api]`,
+`[hitl]`, `[mcp]`, `[hooks]`, and `[chat]`. Any other section is rejected by
+`config set`, and a file that still carries one logs a warning at startup rather
+than dropping it silently.
+
+`[memory]`, `[budget]`, `[a2a]`, `[oria]`, `[registry]`, `[permissions]`, and
+`[filesystem]` used to be accepted and are not. Each deserialized into a
+structure nothing consulted, so a value written there never had an effect.
+`[permissions]` is the one worth naming, since it reads as though it governs
+something: the governance path that does run is the prefix-rule engine, and it
+takes nothing from this file.
+
+Triggers, notifications, speech-to-text, and installed agents are managed
+through the CLI and the desktop app (persisted in SQLite), not through this
+file.
 
 Inspect and edit the live config with the `config` command:
 

@@ -3097,7 +3097,7 @@
       "sovereignty": {
         "local_only": {
           "label": "Strictly local",
-          "hint": "No data leaves the machine. Cloud LLM disabled."
+          "hint": "Blocks cloud connectors. Does not cut the machine off the network."
         },
         "local_preferred": {
           "label": "Local preferred",

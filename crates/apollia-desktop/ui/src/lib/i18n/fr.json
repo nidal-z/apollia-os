@@ -3097,7 +3097,7 @@
       "sovereignty": {
         "local_only": {
           "label": "Local strict",
-          "hint": "Aucune donnée ne quitte la machine. LLM cloud désactivé."
+          "hint": "Bloque les connecteurs cloud. Ne coupe pas le réseau de la machine."
         },
         "local_preferred": {
           "label": "Local préféré",

@@ -166,7 +166,7 @@ uniquement.
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
-| `http_fetch` | Effectue des requêtes HTTP GET/POST/PUT/PATCH/DELETE. Renvoie le statut, les en-têtes et le corps (plafonné à 1 Mo). Restreint à la liste d'autorisation d'hôtes de l'agent. | `url`, `method`, `headers`, `body`, `timeout_secs` |
+| `http_fetch` | Effectue des requêtes HTTP GET/POST/PUT/PATCH/DELETE. Renvoie le statut, les en-têtes et le corps (plafonné à 1 Mo). Refuse par défaut : aucun chemin de code ne fournit aujourd'hui la liste d'autorisation d'hôtes, donc chaque appel est refusé avec `no_allowlist`. | `url`, `method`, `headers`, `body`, `timeout_secs` |
 | `web_search` | Recherche sur le web et renvoie des résultats classés (titre, URL, extrait). Utilise DuckDuckGo par défaut ; passe sur Brave quand une clé est configurée. | `query`, `max_results` |
 | `web_read` | Récupère une URL publique et renvoie le texte de l'article extrait, lisible. Rejette les adresses privées, loopback et link-local (garde SSRF). HTML et texte brut uniquement. | `url`, `max_chars`, `include_metadata` |
 
