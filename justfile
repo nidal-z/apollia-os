@@ -469,6 +469,7 @@ guards:
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_custom_event_listeners.py"
+      "scripts/check_entry_doc_commands.py"
     )
     # Reds accumulate instead of stopping the run: an operator wants the whole
     # list, and stopping on the first one hides the twelve behind it.
