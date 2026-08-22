@@ -147,6 +147,13 @@ repos:
         files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_tauri_ipc_callers\.py)$'
         pass_filenames: false
 
+      - id: check-custom-event-listeners
+        name: every emitted custom event has a listener
+        entry: python3 scripts/check_custom_event_listeners.py
+        language: system
+        files: '^(crates/apollia-desktop/ui/src/.+|scripts/check_custom_event_listeners\.py)$'
+        pass_filenames: false
+
       - id: check-docs-routes
         name: documentation routes and category files
         entry: python3 scripts/check_docs_routes.py

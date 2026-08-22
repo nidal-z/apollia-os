@@ -51,8 +51,6 @@
   let selectedAgent = $state<string>("");
   let creating = $state(false);
   let createError = $state<string | null>(null);
-  let telemetryStepStartedAt = $state<number>(Date.now());
-  let usedTemplate = $state(false);
 
   const PLACEHOLDERS = [
     "automations.wizard.placeholder_1",
@@ -107,8 +105,6 @@
       parseError = null;
       selectedAgent = "";
       createError = null;
-      usedTemplate = false;
-      telemetryStepStartedAt = Date.now();
       void loadAgents();
     }
   });
@@ -122,24 +118,6 @@
   }
 
   // ── Telemetry (local, never uploaded) ─────────────────────────────────
-  function emitStepCompleted(stepIndex: number) {
-    try {
-      const payload = {
-        step: stepIndex,
-        duration_ms: Date.now() - telemetryStepStartedAt,
-        used_template: usedTemplate,
-        confidence: parsed?.confidence ?? null,
-      };
-      // Dispatch a window event so the observability store (if mounted) can
-      // forward it to the local telemetry buffer. No network IO here.
-      window.dispatchEvent(
-        new CustomEvent("automation_wizard_step_completed", { detail: payload }),
-      );
-    } catch {
-      /* best effort */
-    }
-    telemetryStepStartedAt = Date.now();
-  }
 
   // ── Actions ────────────────────────────────────────────────────────────
   async function runParser() {
@@ -163,7 +141,6 @@
     if (!canAdvanceFromDescribe) return;
     await runParser();
     if (parseError) return;
-    emitStepCompleted(0);
     step = 1;
   }
 
@@ -175,13 +152,11 @@
 
   function handleScheduleNext() {
     if (!canAdvanceFromSchedule) return;
-    emitStepCompleted(1);
     step = 2;
   }
 
   function handleAgentNext() {
     if (!canAdvanceFromAgent) return;
-    emitStepCompleted(2);
     step = 3;
   }
 
@@ -229,7 +204,6 @@
       const created = await invoke<TriggerDefinitionView>("create_trigger", {
         definition: request,
       });
-      emitStepCompleted(3);
       oncreated(created.id);
       onclose();
     } catch (err) {
