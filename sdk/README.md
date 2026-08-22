@@ -148,7 +148,7 @@ Every handler receives `ctx: Ctx`. The 14 services:
 
 | Service | Type | Use |
 |---|---|---|
-| `ctx.llm` | `LlmProxy` | `complete`, `chat`, `stream` (async iterator), `embed` |
+| `ctx.llm` | `LlmProxy` | `complete`, `chat`, `stream` (async iterator), `map`, `run_tools` |
 | `ctx.memory` | `MemoryInterface` | episodic / semantic / procedural + `export` / `import_data` |
 | `ctx.tools` | `ToolProxy` | `call(name, input)`, `describe(name)`, `list_tools()` |
 | `ctx.a2a` | `A2AInterface` | `invoke(skill_id)`, `discover`, `list_skills`, `skill_as_tool` |

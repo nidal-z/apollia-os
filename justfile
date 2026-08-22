@@ -443,7 +443,7 @@ release-windows target=windows_target runners=windows_runners:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
-# Run the fourteen tracked guard scripts, unfiltered, and report every red one.
+# Run the seventeen tracked guard scripts, unfiltered, and report every red one.
 guards:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -454,6 +454,7 @@ guards:
       "scripts/check_claim_anchors.py"
       "scripts/check_claims.py"
       "scripts/check_crate_lints.py"
+      "scripts/check_ctx_contract.py"
       "scripts/check_docs_frontmatter.py"
       "scripts/check_docs_routes.py"
       "scripts/check_guard_verdicts.py"

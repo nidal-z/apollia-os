@@ -16,7 +16,7 @@ use apollia_stt::SttBackend;
 /// Each agent optionally receives a `PySttInterface` configured with an STT
 /// backend. When the backend is `None` (STT not configured or model not loaded),
 /// `transcribe()` raises a `RuntimeError` with an explicit message.
-#[pyclass]
+#[pyclass(name = "SttInterface")]
 pub struct PySttInterface {
     backend: Option<Arc<dyn SttBackend>>,
     model_name: Option<String>,
@@ -52,7 +52,7 @@ impl PySttInterface {
     ///
     /// Returns the transcribed text as a String.
     /// Raises RuntimeError if the STT backend is not configured or the file does not exist.
-    #[pyo3(signature = (path, language = None, backend = None))]
+    #[pyo3(signature = (path, *, language = None, backend = None))]
     fn transcribe<'py>(
         &self,
         py: Python<'py>,

@@ -22,7 +22,7 @@ result. Asynchronous, non-blocking messaging lives on a separate service,
 #### `invoke`
 
 ```python
-async def invoke(self, skill_id: str, input: dict[str, Any] | None=None, *, timeout_secs: int | None=None, **kwargs: object) -> dict[str, Any]
+async def invoke(self, skill_id: str, input: dict[str, Any] | None, *, timeout_secs: int | None=None) -> dict[str, Any]
 ```
 
 Invoke an A2A skill and return the full invocation envelope.

@@ -37,7 +37,7 @@ Tags emitted by the LLM and parsed by this module:
 
 SDK signatures used:
   ctx.profile.get(key) -> str | None   ctx.profile.set(key=..., value=...)
-  ctx.memory.remember(key, value, source=None, confidence=1.0)
+  ctx.memory.remember(key, value, *, source=None, confidence=1.0)
   ctx.memory.recall(key) -> str | None
   ctx.llm.complete(messages) -> LlmResponse(.content)
 """

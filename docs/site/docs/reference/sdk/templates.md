@@ -32,6 +32,14 @@ Args:
 Returns:
     The rendered text.
 
+#### `has`
+
+```python
+def has(self, name: str) -> bool
+```
+
+Whether ``name`` is declared and compiled in memory.
+
 #### `list_names`
 
 ```python

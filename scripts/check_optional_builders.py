@@ -47,9 +47,27 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # `pub fn with_something(...) -> Self` or `-> Result<Self, _>`.
 BUILDER = re.compile(r"^\s*pub (?:const )?fn (with_\w+)\s*(?:<[^>]*>)?\s*\(", re.M)
-# The body assigns Some(...) to a field, which is the shape that matters: a
-# builder setting a plain value cannot leave a capability silently absent.
-SETS_SOME = re.compile(r"=\s*Some\(|:\s*Some\(")
+# The body installs an `Option`, which is the shape that matters: a builder
+# setting a plain value cannot leave a capability silently absent. Three forms,
+# and the last two were added because the first missed four real cases.
+#
+# A literal `Some(` is the obvious one. `self.field = <expr>.ok()` and
+# `self.field = Option::from(...)` install exactly the same thing without ever
+# writing `Some`, and the four builders of `crates/apollia-aip/src/context.rs`
+# are all of that shape: `Python::with_gil(|py| Py::new(py, x).ok())`.
+#
+# The anchor on `self.<field> =` is not decoration. Without it the pattern also
+# matched an unrelated `.ok()` sitting inside the 4000-character window that
+# `body_after` reads, which turned `with_ssrf_guard@apollia-tools` into a fifth
+# hit; that builder sets a `bool`
+# (`crates/apollia-tools/src/tools/http_fetch.rs:142-145`). Anchored: four hits,
+# all real.
+SETS_SOME = re.compile(
+    r"=\s*Some\(|:\s*Some\(|"
+    r"^\s*self\.\w+\s*=\s*.*\.ok\(\)|"
+    r"^\s*self\.\w+\s*=\s*Option::from\(",
+    re.M,
+)
 
 
 # Every builder with no production caller, and why it is tolerated. Reviewed
@@ -95,6 +113,25 @@ BASELINE: dict[str, str] = {
     "with_details@apollia-runner": "unjudged capability, no doc claim.",
     "with_wall_clock_secs@apollia-aip:bridge": "unjudged capability, no doc claim.",
     "with_wall_clock_secs@apollia-aip:context": "unjudged capability, no doc claim.",
+    # The four below became visible when SETS_SOME learned the `.ok()` form.
+    # Each verdict was reached by reading the call path, on 2026-08-22.
+    "with_notify@apollia-aip": "defect, open: nothing calls it, so the getter "
+    "hands back `None` on every binary and `ctx.notify.publish` is unreachable. "
+    "The reference page now says the service may be unattached; wiring a real "
+    "notification channel is product work, not documentation.",
+    "with_stt@apollia-aip": "defect, open: same shape as with_notify. Nothing "
+    "calls it, so `ctx.stt` is always `None`. The STT backend itself is alive "
+    "and reachable through the HTTP routes; only the agent-facing surface is "
+    "unattached.",
+    "with_workspace_snapshot@apollia-aip": "defect, open, and the second fill "
+    "path is dead too: `bridge.rs` can populate `ctx.workspace` from a snapshot, "
+    "but only behind `if let Some(ref cwd) = self.cwd`, and `AIPBridge::with_cwd` "
+    "has no caller either. The four production `AIPBridge::new` sites do not "
+    "chain it, so `ctx.workspace` is `None` on both binaries, always.",
+    "with_empty_workspace@apollia-aip": "defect, open: the empty counterpart of "
+    "with_workspace_snapshot, called from one unit test only. Wiring it would "
+    "give an agent an empty snapshot rather than `None`, which is a contract "
+    "decision, not a repair.",
 }
 
 

@@ -22,3 +22,7 @@ class SecretsInterface(Protocol):
     def has(self, key: str) -> bool:
         """Whether ``key`` resolved to a value at task startup."""
         ...
+
+    def list_names(self) -> list[str]:
+        """Return the secret keys the manifest declares, never their values."""
+        ...

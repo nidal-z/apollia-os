@@ -231,7 +231,7 @@ impl LlmProxy {
     // The parameter list mirrors the Python-facing signature (backend + sampling
     // overrides); PyO3 requires them flat, so they cannot be grouped into a struct.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (system, user, backend = None, temperature = None, max_tokens = None, seed = None))]
+    #[pyo3(signature = (system, user, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn chat<'py>(
         &self,
         py: Python<'py>,
@@ -311,7 +311,7 @@ impl LlmProxy {
     /// "usage"?: {...}}`. A single item failing never aborts the batch.
     // Flat parameters mirror the Python-facing signature (see `chat`).
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (prefix, items, backend = None, temperature = None, max_tokens = None, max_concurrency = None))]
+    #[pyo3(signature = (prefix, items, *, backend = None, temperature = None, max_tokens = None, max_concurrency = None))]
     fn map<'py>(
         &self,
         py: Python<'py>,
@@ -409,7 +409,7 @@ impl LlmProxy {
     /// when left `None` the per-model defaults apply.
     // Flat parameters mirror the Python-facing signature (see `chat`).
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, backend = None, temperature = None, max_tokens = None, seed = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
@@ -559,7 +559,7 @@ impl LlmProxy {
     /// ```
     // Flat parameters mirror the Python-facing signature (see `chat`).
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, backend = None, temperature = None, max_tokens = None, seed = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,

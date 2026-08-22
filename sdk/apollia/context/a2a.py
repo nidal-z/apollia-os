@@ -30,10 +30,9 @@ class A2AInterface(Protocol):
     async def invoke(
         self,
         skill_id: str,
-        input: dict[str, Any] | None = None,
+        input: dict[str, Any] | None,
         *,
         timeout_secs: int | None = None,
-        **kwargs: object,
     ) -> dict[str, Any]:
         """Invoke an A2A skill and return the full invocation envelope.
 

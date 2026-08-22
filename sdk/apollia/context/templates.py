@@ -25,6 +25,10 @@ class TemplatesInterface(Protocol):
         """
         ...
 
+    def has(self, name: str) -> bool:
+        """Whether ``name`` is declared and compiled in memory."""
+        ...
+
     def list_names(self) -> list[str]:
         """Return the names of every template the manifest declares."""
         ...

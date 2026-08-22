@@ -79,10 +79,13 @@ repos:
         pass_filenames: false
 
       # The eight guards below run where the defect they catch is born, which
-      # is a commit. The five others of the corpus stay in `just guards`
+      # is a commit. The eight others of the corpus stay in `just guards`
       # alone: two need a built tree, so a pre-commit entry would refuse the
       # first commit of anyone who has not run `npm install` or `cargo build`,
-      # and three cost more than the commit they would sit on.
+      # three cost more than the commit they would sit on, and three joined the
+      # corpus after this list was drawn without a hook entry being measured
+      # for them (`check_docs_frontmatter.py`, `check_i18n_catalogue.py`,
+      # `check_ctx_contract.py`).
       #
       # Every filter is derived from the roots the guard declares in its own
       # source, never from an intuition, and every filter names the guard's own
@@ -92,7 +95,7 @@ repos:
       # honest one would name nearly every path.
       #
       # A filter decides when a defect is seen first, not whether it is seen:
-      # `just guards` runs the thirteen unfiltered.
+      # `just guards` runs the seventeen unfiltered.
 
       - id: check-claim-anchors
         name: claim anchors (markers against CLAIMS.toml, both locales)

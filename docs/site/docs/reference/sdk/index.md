@@ -30,7 +30,7 @@ Use type hints to get IDE autocomplete::
 | [`ctx.secrets`](./secrets.md) | `SecretsInterface` | Read-only access to credentials declared in ``@agent(secrets=(...))``. |
 | [`ctx.events`](./events.md) | `EventsInterface` | Public typed events for streaming, ReAct observability, error reporting. |
 | [`ctx.logger`](./logger.md) | `Logger` | ctx.logger - structured logging via stdlib ``logging``. |
-| [`ctx.profile`](./profile.md) | `ProfileInterface` | User profile surface. |
+| [`ctx.profile`](./profile.md) | `ProfileInterface \| None` | User profile surface. |
 | [`ctx.workspace`](./workspace.md) | `WorkspaceContext` | Snapshot of the workspace at task start. |
 | [`ctx.stt`](./stt.md) | `SttInterface` | Audio transcription surface backed by ``apollia-stt``. |
 | [`ctx.notify`](./notify.md) | `NotifyInterface` | Notification surface (desktop, webhook, future channels). |

@@ -16,7 +16,7 @@ use apollia_notifications::{Notification, NotificationEngineHandle, Severity};
 /// Each agent optionally receives a `PyNotifyInterface` configured with
 /// a handle to the notification engine. When the handle is `None` (no
 /// channels configured), all publish calls are silent no-ops.
-#[pyclass]
+#[pyclass(name = "NotifyInterface")]
 pub struct PyNotifyInterface {
     handle: Option<NotificationEngineHandle>,
 }
@@ -39,7 +39,7 @@ impl PyNotifyInterface {
     ///
     /// severity: "debug" | "info" | "warn" | "warning" | "error" | "critical"
     /// Raises ValueError for any other severity value.
-    #[pyo3(signature = (message, severity = "info", title = None, channel = None))]
+    #[pyo3(signature = (message, *, severity = "info", title = None, channel = None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
     #[allow(clippy::too_many_arguments)]
     fn publish<'py>(

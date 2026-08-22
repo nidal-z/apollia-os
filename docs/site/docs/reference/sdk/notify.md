@@ -8,6 +8,8 @@ title: ctx.notify
 
 Service type: `NotifyInterface` (from `apollia.context.notify`).
 
+The bridge may leave this service unattached; `ctx.notify` is then `None`.
+
 ### `NotifyInterface`
 
 _Bases: Protocol_

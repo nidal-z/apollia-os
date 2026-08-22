@@ -69,7 +69,7 @@ impl MemoryInterface {
     /// task_id: id of the current task (optional)
     /// metadata: Python dict of arbitrary metadata (optional)
     /// expires_in: lifetime in seconds; `None` = no expiration
-    #[pyo3(signature = (content, importance=None, task_id=None, metadata=None, expires_in=None))]
+    #[pyo3(signature = (content, *, importance=None, task_id=None, metadata=None, expires_in=None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
     #[allow(clippy::too_many_arguments)]
     fn record<'py>(
@@ -114,7 +114,7 @@ impl MemoryInterface {
     /// confidence: score between 0.0 and 1.0 (default 1.0).
     ///     When provided, an existing entry with strictly higher confidence
     ///     is preserved (no overwrite).
-    #[pyo3(signature = (key, value, source=None, confidence=None))]
+    #[pyo3(signature = (key, value, *, source=None, confidence=None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
     #[allow(clippy::too_many_arguments)]
     fn remember<'py>(
@@ -176,7 +176,7 @@ impl MemoryInterface {
     ///
     /// Returns a list of dicts {content, score, source, timestamp}.
     /// limit: max number of results (default 10)
-    #[pyo3(signature = (query, limit=None))]
+    #[pyo3(signature = (query, *, limit=None))]
     fn search<'py>(
         &self,
         py: Python<'py>,
@@ -219,7 +219,7 @@ impl MemoryInterface {
     ///
     /// Returns a dict with keys `{key, value, confidence, source, updated_at, expires_at}`
     /// or `None` if the key does not exist or is expired.
-    #[pyo3(signature = (key, injection_reason=None))]
+    #[pyo3(signature = (key, *, injection_reason=None))]
     fn recall_entry<'py>(
         &self,
         py: Python<'py>,
@@ -272,7 +272,7 @@ impl MemoryInterface {
     ///
     /// Returns `list[dict]` with the same structure as `recall_entry()`.
     /// `limit` caps the result count (defaults to 100).
-    #[pyo3(signature = (limit=None, injection_reason=None))]
+    #[pyo3(signature = (*, limit=None, injection_reason=None))]
     fn recall_all<'py>(
         &self,
         py: Python<'py>,
@@ -451,7 +451,7 @@ impl MemoryInterface {
     /// `replace=True` to clear the namespace before importing.
     ///
     /// Returns the number of entries actually imported.
-    #[pyo3(signature = (data, replace = false))]
+    #[pyo3(signature = (data, *, replace = false))]
     fn import_data<'py>(
         &self,
         py: Python<'py>,

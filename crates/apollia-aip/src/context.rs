@@ -991,7 +991,7 @@ fn is_leap(y: i32) -> bool {
 /// ctx.workspace.get("Git")      # content of a section by title
 /// ctx.workspace.sections        # list of dicts {"title": ..., "content": ...}
 /// ```
-#[pyclass]
+#[pyclass(name = "WorkspaceContext")]
 pub struct WorkspaceContextPy {
     /// Flattened sections from all providers: (title, content).
     pub sections: Vec<(String, String)>,
@@ -1639,12 +1639,31 @@ impl RuntimeContext {
     }
 }
 
+// Every getter below whose body can hand back `py.None()` carries a
+// `ctx-attachment:` line in its doc comment, with two admissible verdicts.
+//
+//   `optional`, a production path really leaves the field unset, so the agent
+//              can read `None` and has to branch on it.
+//   `always`,   the branch exists but no production path reaches it, so the
+//              agent never sees `None`.
+//
+// The verdict is written here because this file is the only place that knows
+// it: the syntax of the accessor does not, and the Python protocol does not
+// either. `scripts/check_ctx_contract.py` reads these lines, refuses an
+// accessor that can return `None` without a verdict, and refuses an `optional`
+// verdict on an accessor with no such branch. `docs/site/scripts/gen_sdk_ref.py`
+// publishes the sentence "the bridge may leave this service unattached" on the
+// `optional` ones only. Publishing it on the syntax alone put that sentence on
+// seven pages the bridge documents as always attached.
 #[pymethods]
 impl RuntimeContext {
     /// Injected tools proxy; `None` if no tool is allocated.
     ///
     /// Python property `ctx.tools`. Returns Python `None` (no exception) if the
     /// agent has no `tools_required` or the factory did not provide a proxy.
+    ///
+    /// ctx-attachment: optional, the production constructor takes an `Option` and
+    ///     leaves `tools` unset when the agent declares no tool.
     #[getter]
     fn tools(&self, py: Python<'_>) -> PyObject {
         match &self.tools {
@@ -1657,6 +1676,9 @@ impl RuntimeContext {
     ///
     /// Python property `ctx.llm`. Returns Python `None` (no exception) if the
     /// runtime started with no LLM backend configured or available.
+    ///
+    /// ctx-attachment: optional, the production constructor takes an `Option` and
+    ///     leaves `llm` unset when no backend is available.
     #[getter]
     fn llm(&self, py: Python<'_>) -> PyObject {
         match &self.llm {
@@ -1671,6 +1693,9 @@ impl RuntimeContext {
     ///
     /// Python property `ctx.memory`. Returns Python `None` if the agent's
     /// manifest does not declare a `memory_namespace`.
+    ///
+    /// ctx-attachment: optional, the production constructor takes an `Option` and
+    ///     leaves `memory` unset without a `memory_namespace`.
     #[getter]
     fn memory(&self, py: Python<'_>) -> PyObject {
         match &self.memory {
@@ -1684,6 +1709,9 @@ impl RuntimeContext {
     /// Python property `ctx.workspace`. Exposes `ctx.workspace.git_branch`,
     /// `ctx.workspace.git_is_clean`, `ctx.workspace.apollia_md`, etc.
     /// Returns Python `None` if the runtime did not collect the workspace context.
+    ///
+    /// ctx-attachment: optional, the production constructor sets `workspace` to `None`;
+    ///     only `with_workspace_snapshot` fills it.
     #[getter]
     fn workspace(&self, py: Python<'_>) -> PyObject {
         match &self.workspace {
@@ -1696,6 +1724,9 @@ impl RuntimeContext {
     ///
     /// Python property `ctx.notify`. Returns Python `None` if no notification
     /// channel is configured (channels are opt-in by design).
+    ///
+    /// ctx-attachment: optional, the production constructor sets `notify` to `None`;
+    ///     channels are opt-in.
     #[getter]
     fn notify(&self, py: Python<'_>) -> PyObject {
         match &self.notify {
@@ -1707,6 +1738,9 @@ impl RuntimeContext {
     /// STT interface exposed to the Python agent via `ctx.stt`.
     ///
     /// Python property `ctx.stt`. Returns Python `None` if STT is not configured.
+    ///
+    /// ctx-attachment: optional, the production constructor sets `stt` to `None`; only
+    ///     `with_stt` fills it.
     #[getter]
     fn stt(&self, py: Python<'_>) -> PyObject {
         match &self.stt {
@@ -1719,6 +1753,9 @@ impl RuntimeContext {
     ///
     /// Python property `ctx.profile`. Returns Python `None` when no `__user__`
     /// manager has been initialized (tests, minimal contexts).
+    ///
+    /// ctx-attachment: optional, the production constructor sets `profile` to `None`;
+    ///     only `with_profile` fills it.
     #[getter]
     fn profile(&self, py: Python<'_>) -> PyObject {
         match &self.profile {
@@ -1744,6 +1781,9 @@ impl RuntimeContext {
     /// raise `RuntimeError("A2A invoker not available ...")` if the runtime has
     /// no active invoker. This uniformity spares the agent from branching on
     /// the presence of `ctx.a2a`.
+    ///
+    /// ctx-attachment: always, `a2a_iface` is built systematically by the production
+    ///     constructor; the methods raise when the invoker is missing.
     #[getter]
     fn a2a(&self, py: Python<'_>) -> PyObject {
         match &self.a2a_iface {
@@ -1757,6 +1797,9 @@ impl RuntimeContext {
     /// Built on each access so the caller's current `run_id` (set after
     /// construction) flows into emitted events for auditability. Always returns
     /// a `MailInterface`; its methods raise if the runtime has no mailbox.
+    ///
+    /// ctx-attachment: always, a fresh `MailInterface` is built on each access; the
+    ///     `None` branch is taken only if `Py::new` fails.
     #[getter]
     fn mail(&self, py: Python<'_>) -> PyObject {
         match Py::new(
@@ -1778,6 +1821,9 @@ impl RuntimeContext {
     }
 
     /// Typed event emission: `ctx.events`.
+    ///
+    /// ctx-attachment: always, `events_iface` is built systematically, in silent no-op
+    ///     mode when the bus is absent.
     #[getter]
     fn events(&self, py: Python<'_>) -> PyObject {
         match &self.events_iface {
@@ -1787,6 +1833,9 @@ impl RuntimeContext {
     }
 
     /// Read-only YAML datasources: `ctx.datasources`.
+    ///
+    /// ctx-attachment: always, `datasources_iface` is built systematically from
+    ///     `manifest.datasources`.
     #[getter]
     fn datasources(&self, py: Python<'_>) -> PyObject {
         match &self.datasources_iface {
@@ -1796,6 +1845,9 @@ impl RuntimeContext {
     }
 
     /// Read-only Jinja2 templates: `ctx.templates`.
+    ///
+    /// ctx-attachment: always, `templates_iface` is built systematically, empty when
+    ///     the manifest declares nothing.
     #[getter]
     fn templates(&self, py: Python<'_>) -> PyObject {
         match &self.templates_iface {
@@ -1805,6 +1857,9 @@ impl RuntimeContext {
     }
 
     /// Read-only secrets with manifest gating: `ctx.secrets`.
+    ///
+    /// ctx-attachment: always, `secrets_iface` is built systematically, empty when the
+    ///     manifest declares nothing.
     #[getter]
     fn secrets(&self, py: Python<'_>) -> PyObject {
         match &self.secrets_iface {
@@ -1817,6 +1872,9 @@ impl RuntimeContext {
     ///
     /// Typed successor of `ctx.step_budget` (which stays functional and
     /// `#[deprecated]`). Fresh snapshot on each access.
+    ///
+    /// ctx-attachment: always, the production constructor sets `step_budget` to `Some`;
+    ///     the two `None` sites are under `#[cfg(test)]`.
     #[getter]
     fn budget(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.step_budget {

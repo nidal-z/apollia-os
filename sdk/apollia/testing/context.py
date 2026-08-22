@@ -50,19 +50,12 @@ class MockA2A:
     async def invoke(  # NOSONAR S7503 S1172: Protocol contract
         self,
         skill_id: str,
-        input: dict[str, Any] | None = None,
+        input: dict[str, Any] | None,
         *,
-        timeout_secs: int = 120,  # NOSONAR S1172: Protocol kwarg
-        **kwargs: object,
+        timeout_secs: int | None = None,  # NOSONAR S1172: Protocol kwarg
     ) -> dict[str, Any]:
-        """Record the call and return the configured response.
-
-        ``input`` and ``**kwargs`` are merged (kwargs first, then input
-        overrides) so tests can use either calling convention.
-        """
-        merged: dict[str, Any] = dict(kwargs)
-        if input:
-            merged.update(input)
+        """Record the call and return the configured response."""
+        merged: dict[str, Any] = dict(input) if input else {}
         self.invoke_calls.append((skill_id, merged))
         return self.invoke_responses.get(skill_id, {"status": "completed"})
 
@@ -110,6 +103,10 @@ class MockDatasources:
             raise FileNotFoundError(f"Datasource '{name}' not configured in mock")
         return self.values[name]
 
+    def has(self, name: str) -> bool:
+        """Whether ``name`` was pre-configured."""
+        return name in self.values
+
     def list_names(self) -> list[str]:
         """Return the names of the configured datasources."""
         return list(self.values.keys())
@@ -147,6 +144,10 @@ class MockTemplates:
             result = result.replace(f"{{{{{key}}}}}", str(value))
         return result
 
+    def has(self, name: str) -> bool:
+        """Whether ``name`` was pre-configured."""
+        return name in self.templates
+
     def list_names(self) -> list[str]:
         """Return the names of the configured templates."""
         return list(self.templates.keys())
@@ -170,6 +171,10 @@ class MockSecrets:
     def has(self, key: str) -> bool:
         """Whether ``key`` was pre-configured."""
         return key in self.values
+
+    def list_names(self) -> list[str]:
+        """Return the keys of the configured secrets, never their values."""
+        return list(self.values.keys())
 
 
 # ctx.events

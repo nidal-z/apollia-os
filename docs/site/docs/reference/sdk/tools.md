@@ -8,6 +8,8 @@ title: ctx.tools
 
 Service type: `ToolProxy` (from `apollia.context.tools`).
 
+The bridge may leave this service unattached; `ctx.tools` is then `None`.
+
 ### `ToolProxy`
 
 _Bases: Protocol_

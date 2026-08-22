@@ -51,7 +51,7 @@ An image content block inside an LLM message.
 | Field | Type | Default |
 | --- | --- | --- |
 | `type` | `Literal['image']` |  |
-| `source` | `ImageSourceBase64 | ImageSourceUrl` |  |
+| `source` | `ImageSourceBase64 \| ImageSourceUrl` |  |
 
 ### `LlmMessage`
 
@@ -65,7 +65,7 @@ list of :data:`MessageContent` blocks (multi-modal path).
 | Field | Type | Default |
 | --- | --- | --- |
 | `role` | `Literal['system', 'user', 'assistant']` |  |
-| `content` | `list[MessageContent] | str` |  |
+| `content` | `list[MessageContent] \| str` |  |
 
 ### `MapItemResult`
 
@@ -113,11 +113,11 @@ cases:
 | Field | Type | Default |
 | --- | --- | --- |
 | `status` | `str` |  |
-| `text` | `str | None` | `None` |
-| `error_code` | `str | None` | `None` |
-| `error_message` | `str | None` | `None` |
-| `input_prompt` | `str | None` | `None` |
-| `input_context` | `dict[str, Any] | None` | `None` |
+| `text` | `str \| None` | `None` |
+| `error_code` | `str \| None` | `None` |
+| `error_message` | `str \| None` | `None` |
+| `input_prompt` | `str \| None` | `None` |
+| `input_context` | `dict[str, Any] \| None` | `None` |
 | `data` | `dict[str, Any]` | `field(default_factory=dict)` |
 
 #### `completed`

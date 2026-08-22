@@ -23,4 +23,4 @@ the non-negotiable guard-rails (Principle 7).
 | `steps_remaining` | `int` |  |
 | `tool_calls_remaining` | `int` |  |
 | `elapsed_seconds` | `float` |  |
-| `wall_clock_remaining` | `float | None` |  |
+| `wall_clock_remaining` | `float \| None` |  |

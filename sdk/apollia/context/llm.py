@@ -38,9 +38,10 @@ class LlmResponse(Protocol):
 class LlmProxy(Protocol):
     """``ctx.llm`` - LLM backend access.
 
-    Three primary methods: :meth:`complete` for single-shot, :meth:`stream`
-    for token iteration, :meth:`embed` for embeddings.  Stream cleanup
-    propagates cancellation to the Rust backend.
+    Five methods: :meth:`complete` for single-shot, :meth:`chat` for the
+    system-plus-user case, :meth:`map` for a batch sharing one prefix,
+    :meth:`stream` for token iteration, :meth:`run_tools` for the built-in
+    tool loop.  Stream cleanup propagates cancellation to the Rust backend.
     """
 
     @property
@@ -152,19 +153,28 @@ class LlmProxy(Protocol):
         """
         ...
 
-    async def embed(
+    async def run_tools(
         self,
-        text: str,
-        *,
-        backend: str | None = None,
-    ) -> list[float]:
-        """Return the embedding vector for ``text``.
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        max_iterations: int = 5,
+    ) -> str:
+        """Run the built-in tool loop and return the final answer.
+
+        The loop alternates model call and tool call until the model answers
+        without asking for a tool.
 
         Args:
-            text: Text to embed.
-            backend: Backend to use, or None for :attr:`default_backend`.
+            messages: Chat messages, ``{"role", "content"}`` each.
+            tools: Tool descriptors, ``{"name", "description", "parameters"}``
+                each. :meth:`A2AInterface.skill_as_tool` builds one.
+            max_iterations: Guard rail on the number of model calls.
 
         Returns:
-            The embedding, as a dense vector of floats.
+            The model's final answer, after every tool call has run.
+
+        Raises:
+            RuntimeError: The step budget is exhausted, or ``max_iterations``
+                was reached.
         """
         ...

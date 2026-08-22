@@ -8,6 +8,8 @@ title: ctx.workspace
 
 Service type: `WorkspaceContext` (from `apollia.context.workspace`).
 
+The bridge may leave this service unattached; `ctx.workspace` is then `None`.
+
 ### `WorkspaceContext`
 
 _Bases: Protocol_
@@ -19,8 +21,8 @@ The snapshot is immutable for the duration of the task.
 
 | Field | Type | Default |
 | --- | --- | --- |
-| `rules` | `str | None` |  |
-| `apollia_md` | `str | None` |  |
+| `rules` | `str \| None` |  |
+| `apollia_md` | `str \| None` |  |
 | `sections` | `list[dict[str, str]]` |  |
 
 #### `get`

@@ -57,7 +57,7 @@ impl A2AInterface {
     /// `agent_name`, `skill_id`, `duration_ms` on success, or a failure
     /// `AIPResult` dict if a runtime error occurs (never a Python exception,
     /// matching the historical API semantics).
-    #[pyo3(signature = (skill_id, input, timeout_secs=None))]
+    #[pyo3(signature = (skill_id, input, *, timeout_secs=None))]
     fn invoke<'py>(
         &self,
         py: Python<'py>,

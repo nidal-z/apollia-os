@@ -304,6 +304,17 @@ jobs:
         run: |
           python3 scripts/check_tauri_ipc_callers.py --selftest
           python3 scripts/check_tauri_ipc_callers.py
+      # `ctx` is published on one side and executed on the other, and for a
+      # long time the reference pages rendered only the published half:
+      # twenty-two divergences of signature, method name and class name
+      # shipped as fact. The generator now refuses to write a page when the two
+      # halves disagree, and this runs the same engine on its own fabricated
+      # subject first, in both directions, so a permanent red cannot pass for a
+      # guard that works.
+      - name: The ctx protocol and the bridge agree
+        run: |
+          python3 scripts/check_ctx_contract.py --selftest
+          python3 scripts/check_ctx_contract.py
       # A category link declared on a slug its own index page already serves
       # takes the route from that page. The page is then never rendered, so the
       # build's link verifier never collects its links: a dead internal route

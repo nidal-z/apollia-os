@@ -34,3 +34,11 @@ def has(self, key: str) -> bool
 ```
 
 Whether ``key`` resolved to a value at task startup.
+
+#### `list_names`
+
+```python
+def list_names(self) -> list[str]
+```
+
+Return the secret keys the manifest declares, never their values.

@@ -179,7 +179,7 @@ class Ctx(Protocol):
     secrets: SecretsInterface
     events: EventsInterface
     logger: Logger
-    profile: ProfileInterface
+    profile: ProfileInterface | None
     workspace: WorkspaceContext
     stt: SttInterface
     notify: NotifyInterface

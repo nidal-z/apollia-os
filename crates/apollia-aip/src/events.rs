@@ -42,7 +42,7 @@ impl EventsInterface {
     /// Silent no-op in task mode or if the session/message is missing.
     /// Pairs with `ChatTokenStreamed` on the SSE side; filtering by
     /// `session_id` happens in `routes_chat.rs`.
-    fn emit_token(&self, token: String) -> PyResult<()> {
+    fn emit_token(&self, delta: String) -> PyResult<()> {
         let (Some(session_id), Some(message_id), Some(bus)) = (
             self.chat_session_id.as_ref(),
             self.chat_message_id.as_ref(),
@@ -54,7 +54,7 @@ impl EventsInterface {
         let _ = bus.send(RuntimeEvent::ChatToken {
             session_id: session_id.clone(),
             message_id: message_id.clone(),
-            token,
+            token: delta,
         });
         Ok(())
     }

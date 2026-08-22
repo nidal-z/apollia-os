@@ -8,6 +8,8 @@ title: ctx.stt
 
 Service type: `SttInterface` (from `apollia.context.stt`).
 
+The bridge may leave this service unattached; `ctx.stt` is then `None`.
+
 ### `SttInterface`
 
 _Bases: Protocol_

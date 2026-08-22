@@ -7,11 +7,26 @@ the multi-modal content types) and the per-service protocols under
 Python source with the stdlib ``ast`` module (no import, no third-party
 dependency) and renders one Markdown page per service plus an index.
 
+The protocol is only half the contract. What an agent actually reaches is the
+``#[pyclass(name = "RuntimeContext")]`` of ``crates/apollia-aip``, and for a
+long time these pages published the half nobody runs: twenty-two divergences
+between the two halves shipped as fact. ``scripts/check_ctx_contract.py`` is the
+single engine that computes their junction, and this generator is one of its two
+consumers. It calls it *before writing anything*: on a divergence it prints the
+same list the guard prints, writes no page at all, and exits 1. The seventeen
+pages stay in their last coherent state.
+
+Publishing the divergence on the page instead was considered and refused. It
+would turn a contract into a report on itself, the mark would be committed and
+would read as a normal state, and above all it would offer a way to ship a
+divergence by writing prose around it.
+
 Run via ``docs/site/regen.sh`` (or ``python3 docs/site/scripts/gen_sdk_ref.py``).
 """
 
 import ast
 import copy
+import sys
 from pathlib import Path
 
 HEADER = "<!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->"
@@ -21,6 +36,31 @@ SDK_ROOT = REPO_ROOT / "sdk" / "apollia"
 TYPES_PY = SDK_ROOT / "types.py"
 CONTEXT_DIR = SDK_ROOT / "context"
 OUT_DIR = REPO_ROOT / "docs" / "site" / "docs" / "reference" / "sdk"
+BRIDGE_ROOT = REPO_ROOT / "crates" / "apollia-aip" / "src"
+
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+import check_ctx_contract  # noqa: E402
+
+# Published on the services the bridge declares `ctx-attachment: optional`, and
+# on those only. Deriving it from the presence of a `None =>` arm in the
+# accessor put it on seven more pages whose service the bridge documents as
+# always attached, which told an agent author to branch on an absence that
+# cannot happen. The verdict is the bridge's, read by `check_ctx_contract`.
+MAY_BE_ABSENT = (
+    "The bridge may leave this service unattached; `ctx.{attr}` is then `None`."
+)
+
+
+def cell(text: str) -> str:
+    """Escape a table cell so a pipe inside it does not open a new column.
+
+    GFM cuts a cell on a bare `|` even inside a code span, and every cell past
+    the header width is dropped. Ten published rows carried a truncated type
+    and a wrong default because of it: `AIPResult.text` read "type `str`,
+    default `None`" where the type is `str | None` and there is no default.
+    """
+    return text.replace("|", r"\|")
 
 
 def first_line(text: str | None) -> str:
@@ -115,8 +155,8 @@ def render_class(cls: ast.ClassDef) -> str:
         lines.append("| Field | Type | Default |")
         lines.append("| --- | --- | --- |")
         for name, annotation, default in attributes:
-            default_cell = f"`{default}`" if default is not None else ""
-            lines.append(f"| `{name}` | `{annotation}` | {default_cell} |")
+            default_cell = f"`{cell(default)}`" if default is not None else ""
+            lines.append(f"| `{cell(name)}` | `{cell(annotation)}` | {default_cell} |")
         lines.append("")
 
     for method in methods:
@@ -185,6 +225,16 @@ def module_alias(module: ast.Module, name: str) -> str | None:
     return None
 
 
+def base_type(annotation: str) -> str:
+    """The protocol class an annotation names, `| None` set aside.
+
+    `Ctx.profile` is annotated `ProfileInterface | None` because one production
+    context leaves it unattached. The union is what the index publishes; the
+    bare name is what resolves the module and the class.
+    """
+    return annotation.replace("| None", "").replace("|None", "").strip()
+
+
 def build_service_index(types_mod: ast.Module):
     """Extract the ordered Ctx service attributes and their import modules."""
     # attr name -> type name, in declaration order
@@ -216,7 +266,28 @@ def write_page(rel_name: str, frontmatter: dict, body: str) -> Path:
     return out
 
 
-def main() -> None:
+def main() -> int:
+    crossing = check_ctx_contract.cross(SDK_ROOT, BRIDGE_ROOT)
+    measured = len(crossing.services)
+    if measured < check_ctx_contract.REAL_TREE.service_floor:
+        print(
+            f"gen_sdk_ref: NOTHING MEASURED, {measured} service(s) crossed, fewer "
+            f"than the floor of {check_ctx_contract.REAL_TREE.service_floor}. "
+            "No page written."
+        )
+        return 1
+    if not crossing.clean:
+        print(
+            "gen_sdk_ref: the protocol and the bridge diverge, so there is no "
+            "contract to publish. No page written."
+        )
+        for line in (
+            crossing.divergences + crossing.uninterpreted + crossing.stale_exceptions
+        ):
+            print(f"  {line}")
+        print("Run python3 scripts/check_ctx_contract.py for the full crossing.")
+        return 1
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     types_mod = parse_module(TYPES_PY)
     services, type_to_module = build_service_index(types_mod)
@@ -239,7 +310,8 @@ def main() -> None:
 
     # One page per Ctx service, in declaration order.
     doc_summary: dict[str, str] = {}
-    for position, (attr, type_name) in enumerate(services, start=1):
+    for position, (attr, annotation) in enumerate(services, start=1):
+        type_name = base_type(annotation)
         stem = type_to_module.get(type_name)
         classes = module_classes.get(stem, []) if stem else []
         primary = next((c for c in classes if c.name == type_name), None)
@@ -247,7 +319,10 @@ def main() -> None:
         if primary is not None:
             summary = first_line(ast.get_docstring(primary))
             doc_summary[attr] = summary
-            body_parts.append(f"Service type: `{type_name}` (from `apollia.context.{stem}`).")
+            body_parts.append(f"Service type: `{annotation}` (from `apollia.context.{stem}`).")
+            if crossing.detached.get(attr):
+                body_parts.append("")
+                body_parts.append(MAY_BE_ABSENT.format(attr=attr))
             body_parts.append("")
             body_parts.append(render_class(primary))
             # Companion public classes in the same module (e.g. LlmResponse).
@@ -259,15 +334,18 @@ def main() -> None:
             if alias is not None:
                 mod_doc = ast.get_docstring(module_asts[stem])
                 body_parts.append(
-                    f"Service type: `{type_name}`, an alias for `{alias}`"
+                    f"Service type: `{annotation}`, an alias for `{alias}`"
                     f" (from `apollia.context.{stem}`)."
                 )
+                if crossing.detached.get(attr):
+                    body_parts.append("")
+                    body_parts.append(MAY_BE_ABSENT.format(attr=attr))
                 body_parts.append("")
                 doc_summary[attr] = first_line(mod_doc)
                 if mod_doc:
                     body_parts.append(mod_doc.strip())
             else:
-                body_parts.append(f"Service type: `{type_name}` (source not resolved).")
+                body_parts.append(f"Service type: `{annotation}` (source not resolved).")
         page = write_page(
             f"{attr}.md",
             {"sidebar_position": position, "title": f"ctx.{attr}"},
@@ -321,7 +399,10 @@ def main() -> None:
     index_parts.append("| --- | --- | --- |")
     for attr, type_name in services:
         summary = doc_summary.get(attr, "")
-        index_parts.append(f"| [`ctx.{attr}`](./{attr}.md) | `{type_name}` | {summary} |")
+        index_parts.append(
+            f"| [`ctx.{cell(attr)}`](./{attr}.md) | `{cell(type_name)}`"
+            f" | {cell(summary)} |"
+        )
     index_parts.append("")
     index_parts.append(
         "See also [Content types and helpers](./content-types.md) for the"
@@ -333,8 +414,12 @@ def main() -> None:
         "\n".join(index_parts),
     )
 
-    print(f"gen_sdk_ref: wrote {len(written) + 1} pages to {OUT_DIR}")
+    print(
+        f"gen_sdk_ref: wrote {len(written) + 1} pages to {OUT_DIR} "
+        f"({measured} services crossed against the bridge, no divergence)"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

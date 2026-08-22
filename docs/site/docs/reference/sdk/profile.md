@@ -6,7 +6,9 @@ title: ctx.profile
 
 # `ctx.profile`
 
-Service type: `ProfileInterface` (from `apollia.context.profile`).
+Service type: `ProfileInterface | None` (from `apollia.context.profile`).
+
+The bridge may leave this service unattached; `ctx.profile` is then `None`.
 
 ### `ProfileInterface`
 

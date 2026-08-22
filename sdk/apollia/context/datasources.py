@@ -21,6 +21,14 @@ class DatasourcesInterface(Protocol):
         """
         ...
 
+    def has(self, name: str) -> bool:
+        """Whether ``name`` is declared and loaded.
+
+        More idiomatic than wrapping :meth:`get` in a ``try``/``except`` when
+        the agent means to degrade gracefully on a missing YAML file.
+        """
+        ...
+
     def list_names(self) -> list[str]:
         """Return the names of every datasource the manifest declares."""
         ...
