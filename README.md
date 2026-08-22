@@ -339,7 +339,7 @@ common ones:
 | Attribute | Description |
 |---|---|
 | `ctx.llm` | Text generation: `await ctx.llm.complete(messages)` |
-| `ctx.tools` | Native tool calls: `await ctx.tools.call("tool_name", args)` |
+| `ctx.tools` | Native tool calls: `await ctx.tools.call("tool_name", args)`. `None` unless the agent declares `tools_required=("tool_name", ...)` in `@agent(...)` |
 | `ctx.memory` | Persistence: `record`, `recall`, `search`, `forget` (opt in per agent) |
 | `ctx.a2a` | Call other agents' skills |
 | `ctx.logger` | Structured logging routed to the runtime tracer |
@@ -395,7 +395,7 @@ Inspect and edit the live config with the `config` command:
 
 ```bash
 apollia-os config show
-apollia-os config show llm
+apollia-os config get llm
 ```
 
 The full section-by-section surface is in the
@@ -410,7 +410,7 @@ Triggers fire tasks automatically on a schedule or an external event. They are
 managed through the CLI (and the desktop app), which persists them:
 
 ```bash
-apollia-os trigger create   # interactive or flag-driven
+apollia-os trigger create daily-report --agent reporter --kind schedule --detail '0 9 * * *'
 apollia-os trigger list
 apollia-os trigger fire daily-report
 apollia-os trigger enable daily-report

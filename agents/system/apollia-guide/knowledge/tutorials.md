@@ -28,7 +28,7 @@ apollia-os agent list
 
 # Start an agent, then submit a task
 apollia-os agent start hello
-apollia-os task run hello '{"message": "hi"}'
+apollia-os run hello '{"message": "hi"}'
 ```
 
 ## Use memory

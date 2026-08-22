@@ -134,7 +134,9 @@ pub enum AgentCommand {
         /// Number of recent log lines to display.
         #[arg(long, default_value = "50", value_name = "N")]
         last: u32,
-        /// Follow the live log stream until Ctrl+C (SSE).
+        // The published reference is generated from the doc comment below, so a
+        // line describing this flag as working made the reference say so too.
+        /// Not implemented: refuses with an error naming `--last` instead.
         #[arg(long)]
         follow: bool,
     },

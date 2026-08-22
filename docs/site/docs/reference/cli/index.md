@@ -643,7 +643,7 @@ Display recent log lines from a running agent
 * `--last <N>` - Number of recent log lines to display
 
   Default value: `50`
-* `--follow` - Follow the live log stream until Ctrl+C (SSE)
+* `--follow` - Not implemented: refuses with an error naming `--last` instead
 
 
 

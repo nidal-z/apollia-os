@@ -12,7 +12,7 @@ starting point for your own work.
 ## Run it
 
 ```sh
-apollia-os agent install agents/examples/hello
+apollia-os agent install agents/examples/hello/agent.py
 apollia-os agent enable hello
 apollia-os run hello "hello from Apollia"
 ```
