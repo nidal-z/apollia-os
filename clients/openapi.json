@@ -701,6 +701,62 @@
         }
       }
     },
+    "/api/v1/audit/journal": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run.",
+        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when\nthe journal is not configured.",
+        "operationId": "list_audit_journal",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of entries to return (default 20, capped at 500)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of entries to skip, newest first (default 0). Page through the journal by advancing it.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of hash-chained journal entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJournalPageResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit/journal/{run_id}": {
       "get": {
         "tags": [
@@ -1537,13 +1593,13 @@
           "llm"
         ],
         "summary": "Handler for `GET /api/v1/llm/costs/daily`.",
-        "description": "Returns LLM costs broken down by day and backend for the requested\ntime window. Used by the Observability LLM Costs chart.",
+        "description": "Returns LLM costs broken down by day and backend for the requested\ntime window. Used by the Observability LLM Costs chart.\n\nBoth the day of each entry and the bounds of the window are the host's\nlocal calendar, not UTC: `days` counts calendar days ending today, and the\nwindow opens at local midnight of the first of them. A window measured in\n24-hour slices from `now` reaches into a day the chart draws no bar for,\nand the spend of that fraction then shows in a total no bar carries.",
         "operationId": "get_llm_daily_costs",
         "parameters": [
           {
             "name": "days",
             "in": "query",
-            "description": "Number of days to aggregate (default 7)",
+            "description": "Number of local calendar days to aggregate, ending today (default 7)",
             "required": false,
             "schema": {
               "type": "integer",
@@ -5666,6 +5722,28 @@
           }
         }
       },
+      "AuditJournalPageResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/audit/journal`.",
+        "required": [
+          "entries",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of entries in this page.",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Journal entries, newest global position first."
+          }
+        }
+      },
       "AuditJournalResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/audit/journal/:run_id`.",
@@ -6234,7 +6312,7 @@
           },
           "date": {
             "type": "string",
-            "description": "Date au format `YYYY-MM-DD`."
+            "description": "Local calendar day of the host, in `YYYY-MM-DD` format."
           }
         }
       },

@@ -349,6 +349,74 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
+    // A page spans every run and comes back newest global position first
+    #[tokio::test]
+    async fn test_query_page_spans_runs_newest_first() {
+        // GIVEN four entries appended across two interleaved runs
+        let (handle, path) = open_temp().await;
+        for (run, kind) in [
+            ("run-a", JournalEntryKind::ToolCallStarted),
+            ("run-b", JournalEntryKind::ToolCallStarted),
+            ("run-a", JournalEntryKind::ToolCallCompleted),
+            ("run-b", JournalEntryKind::ToolCallCompleted),
+        ] {
+            handle.append(draft(run, kind, serde_json::json!({})));
+        }
+
+        // WHEN a page is read without naming any run
+        let page = handle.query_page(10, 0).await;
+
+        // THEN it holds every entry, newest append first, both runs present
+        assert_eq!(page.len(), 4);
+        assert_eq!(page[0].run_id, "run-b");
+        assert_eq!(page[0].seq, 1);
+        assert_eq!(page[3].run_id, "run-a");
+        assert_eq!(page[3].seq, 0);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // limit bounds one page, offset walks past it without overlap or gap
+    #[tokio::test]
+    async fn test_query_page_limit_and_offset_page_through() {
+        // GIVEN five entries in one run
+        let (handle, path) = open_temp().await;
+        for _ in 0..5 {
+            handle.append(draft(
+                "run-p",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({}),
+            ));
+        }
+
+        // WHEN the journal is read in two pages of three
+        let first = handle.query_page(3, 0).await;
+        let second = handle.query_page(3, 3).await;
+
+        // THEN the pages are contiguous and cover the whole journal once
+        assert_eq!(first.len(), 3);
+        assert_eq!(second.len(), 2);
+        let seqs: Vec<u64> = first.iter().chain(second.iter()).map(|e| e.seq).collect();
+        assert_eq!(seqs, vec![4, 3, 2, 1, 0]);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // An empty journal answers a page rather than failing
+    #[tokio::test]
+    async fn test_query_page_on_empty_journal_is_empty() {
+        // GIVEN a journal that has never been appended to
+        let (handle, path) = open_temp().await;
+
+        // WHEN a page is read
+        let page = handle.query_page(20, 0).await;
+
+        // THEN it is empty, and no error surfaced
+        assert!(page.is_empty());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
     // Append-only: a raw UPDATE and DELETE are refused by the triggers
     #[tokio::test]
     async fn test_journal_is_append_only() {

@@ -40,6 +40,21 @@ identifiant d'exécution ou par un identifiant de tâche qui s'y rattache :
 apollia-os audit show <run-or-task-id>
 ```
 
+Cette lecture demande d'avoir un identifiant d'exécution sous la main. Pour
+parcourir le journal sans en connaître un, de l'entrée la plus récente à la plus
+ancienne et toutes exécutions confondues :
+
+```sh
+apollia-os audit journal --limit 20
+apollia-os audit journal --limit 20 --offset 20
+```
+
+C'est la seule lecture du journal chaîné qui ne nomme pas une exécution à
+l'avance. Elle affiche une ligne par entrée, avec son exécution, sa position
+dans la chaîne de celle-ci, et si l'entrée porte une signature. Un même appel
+d'outil apparaît en deux entrées, une au démarrage et une à la fin, parce que le
+journal enregistre des événements et non des invocations.
+
 Pour extraire la piste d'invocations d'outils à des fins d'archivage ou de revue
 externe :
 

@@ -87,6 +87,12 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
     },
+    /// Return a page of entries across every run, newest global position first.
+    QueryPage {
+        limit: usize,
+        offset: usize,
+        reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
+    },
     /// Return the last hash of a run, if any.
     LastHash {
         run_id: String,
@@ -116,6 +122,27 @@ pub(crate) enum JournalMessage {
     Shutdown {
         ack: tokio::sync::oneshot::Sender<()>,
     },
+}
+
+/// Map one `audit_journal_entries` row to a [`JournalEntry`].
+///
+/// The column order is fixed by the callers: `seq, run_id, ts, kind, payload,
+/// prev_hash, hash, signature, signing_key_id`.
+fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<JournalEntry> {
+    let payload_str: String = row.get(4)?;
+    let payload: Value = serde_json::from_str(&payload_str).unwrap_or(Value::Null);
+    let kind_tag: String = row.get(3)?;
+    Ok(JournalEntry {
+        seq: row.get::<_, i64>(0)? as u64,
+        run_id: row.get(1)?,
+        ts: row.get(2)?,
+        kind: JournalEntryKind::from_tag(&kind_tag),
+        payload,
+        prev_hash: row.get(5)?,
+        hash: row.get(6)?,
+        signature: row.get(7)?,
+        signing_key_id: row.get(8)?,
+    })
 }
 
 /// In-memory chain head for a run: last used `seq` and last `hash`.
@@ -166,6 +193,14 @@ impl JournalActor {
                 JournalMessage::Append(draft) => self.handle_append(*draft),
                 JournalMessage::QueryRun { run_id, reply } => {
                     let rows = self.query_run(&run_id).unwrap_or_default();
+                    let _ = reply.send(rows);
+                }
+                JournalMessage::QueryPage {
+                    limit,
+                    offset,
+                    reply,
+                } => {
+                    let rows = self.query_page(limit, offset).unwrap_or_default();
                     let _ = reply.send(rows);
                 }
                 JournalMessage::LastHash { run_id, reply } => {
@@ -468,6 +503,33 @@ impl JournalActor {
         Ok(ids)
     }
 
+    /// Read one page of entries across every run, newest global position first.
+    ///
+    /// Entries appended before the global chain migration carry a `NULL`
+    /// `global_seq`. SQLite sorts NULLs last under `DESC`, so they land at the
+    /// tail rather than disappearing: a listing that silently dropped rows would
+    /// be worse than one that orders them by a fallback key.
+    fn query_page(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<JournalEntry>, AuditJournalError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
+                 FROM audit_journal_entries \
+                 ORDER BY global_seq DESC, run_id ASC, seq DESC \
+                 LIMIT ?1 OFFSET ?2",
+            )
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let rows = stmt
+            .query_map(rusqlite::params![limit as i64, offset as i64], row_to_entry)
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))
+    }
+
     /// Read all entries of a run, ordered by ascending `seq`.
     fn query_run(&self, run_id: &str) -> Result<Vec<JournalEntry>, AuditJournalError> {
         let mut stmt = self
@@ -478,22 +540,7 @@ impl JournalActor {
             )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         let rows = stmt
-            .query_map(rusqlite::params![run_id], |row| {
-                let payload_str: String = row.get(4)?;
-                let payload: Value = serde_json::from_str(&payload_str).unwrap_or(Value::Null);
-                let kind_tag: String = row.get(3)?;
-                Ok(JournalEntry {
-                    seq: row.get::<_, i64>(0)? as u64,
-                    run_id: row.get(1)?,
-                    ts: row.get(2)?,
-                    kind: JournalEntryKind::from_tag(&kind_tag),
-                    payload,
-                    prev_hash: row.get(5)?,
-                    hash: row.get(6)?,
-                    signature: row.get(7)?,
-                    signing_key_id: row.get(8)?,
-                })
-            })
+            .query_map(rusqlite::params![run_id], row_to_entry)
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))

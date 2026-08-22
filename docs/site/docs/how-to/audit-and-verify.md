@@ -38,6 +38,20 @@ that maps to one:
 apollia-os audit show <run-or-task-id>
 ```
 
+Reading the journal that way needs a run identifier in hand. To browse it
+without one, newest entry first across every run:
+
+```sh
+apollia-os audit journal --limit 20
+apollia-os audit journal --limit 20 --offset 20
+```
+
+This is the only read of the chained journal that does not name a run up front.
+It shows one line per entry, with its run, its position in that run's chain, and
+whether the entry carries a signature. A single tool call appears as two entries,
+one when it starts and one when it completes, because the journal records events
+rather than invocations.
+
 To take the tool-invocation trail out for archival or external review:
 
 ```sh

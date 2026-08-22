@@ -20,6 +20,20 @@ pub enum AuditCommand {
         #[arg(long, default_value = "20")]
         limit: u32,
     },
+    /// Browse the hash-chained journal across every run, newest first.
+    ///
+    /// Unlike `audit list` (the tool-invocation trail) and `audit show RUN`
+    /// (one run), this reads the chained journal without needing a run id up
+    /// front, so the audited register is reachable by browsing.
+    #[command(name = "journal")]
+    Journal {
+        /// Maximum number of entries to display.
+        #[arg(long, default_value = "20")]
+        limit: u32,
+        /// Number of entries to skip, newest first. Page through with it.
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+    },
     /// Display audit statistics.
     Stats,
     /// Export the audit trail as JSON, up to `--limit` events.
@@ -85,6 +99,9 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
 
     match cmd {
         AuditCommand::List { limit } => run_list(&client, *limit, json).await,
+        AuditCommand::Journal { limit, offset } => {
+            run_journal(&client, *limit, *offset, json).await
+        }
         AuditCommand::Stats => run_stats(&client, json).await,
         AuditCommand::Export { output, limit } => {
             run_export(&client, output.as_deref(), *limit).await
@@ -156,6 +173,66 @@ async fn run_show(client: &RuntimeClient, arg: &str, json: bool) -> i32 {
         };
         let summary = journal_entry_summary(kind, e.get("payload"));
         println!("  [{seq:>3}] {kind:<20} {signed:<8} {summary}");
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os audit journal`: print a page of the chained journal across every
+/// run, newest global position first.
+async fn run_journal(client: &RuntimeClient, limit: u32, offset: u32, json: bool) -> i32 {
+    let uri = format!("/api/v1/audit/journal?limit={limit}&offset={offset}");
+    let resp = match client.get(&uri).await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+
+    if resp.status >= 400 {
+        return handle_server_error(resp.status, &resp.body, json);
+    }
+
+    let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&parsed).unwrap_or_default()
+        );
+        return exit_codes::SUCCESS;
+    }
+
+    let entries = parsed
+        .get("entries")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    if entries.is_empty() {
+        println!("  No journal entries.");
+        return exit_codes::SUCCESS;
+    }
+
+    println!("  Audit journal  ({} entries)", entries.len());
+    for e in &entries {
+        let run = e.get("run_id").and_then(|v| v.as_str()).unwrap_or("?");
+        let run_short: String = run.chars().take(8).collect();
+        let seq = e
+            .get("seq")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0);
+        let kind = e.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+        let signed = if e.get("signature").map(|v| !v.is_null()).unwrap_or(false) {
+            "signed"
+        } else {
+            "unsigned"
+        };
+        let summary = journal_entry_summary(kind, e.get("payload"));
+        println!("  {run_short:<8} [{seq:>3}] {kind:<20} {signed:<8} {summary}");
     }
     exit_codes::SUCCESS
 }

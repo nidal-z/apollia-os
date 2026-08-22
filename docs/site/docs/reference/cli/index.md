@@ -65,6 +65,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os tools approvals resolved`↴](#apollia-os-tools-approvals-resolved)
 * [`apollia-os audit`↴](#apollia-os-audit)
 * [`apollia-os audit list`↴](#apollia-os-audit-list)
+* [`apollia-os audit journal`↴](#apollia-os-audit-journal)
 * [`apollia-os audit stats`↴](#apollia-os-audit-stats)
 * [`apollia-os audit export`↴](#apollia-os-audit-export)
 * [`apollia-os audit verify`↴](#apollia-os-audit-verify)
@@ -1082,6 +1083,7 @@ Audit trail (list, stats, export, verify, show, replay)
 ###### **Subcommands:**
 
 * `list` - List recent audit events (default)
+* `journal` - Browse the hash-chained journal across every run, newest first
 * `stats` - Display audit statistics
 * `export` - Export the audit trail as JSON, up to `--limit` events
 * `verify` - Verify the audit journal's hash chains and signatures
@@ -1102,6 +1104,25 @@ List recent audit events (default)
 * `--limit <LIMIT>` - Maximum number of events to display
 
   Default value: `20`
+
+
+
+## `apollia-os audit journal`
+
+Browse the hash-chained journal across every run, newest first.
+
+Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing.
+
+**Usage:** `apollia-os audit journal [OPTIONS]`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - Maximum number of entries to display
+
+  Default value: `20`
+* `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
+
+  Default value: `0`
 
 
 

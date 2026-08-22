@@ -170,6 +170,28 @@ impl AuditJournalHandle {
         reply_rx.await.unwrap_or_default()
     }
 
+    /// Return one page of entries across every run, newest global position
+    /// first.
+    ///
+    /// This is the only read of the journal that does not require a run id
+    /// up front: `query_run` answers a run that the caller already knows.
+    pub async fn query_page(&self, limit: usize, offset: usize) -> Vec<JournalEntry> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(JournalMessage::QueryPage {
+                limit,
+                offset,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
     /// Return the distinct run ids present in the journal.
     ///
     /// Used to resolve a short run-id prefix to a full id (and to detect an

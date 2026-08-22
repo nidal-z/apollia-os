@@ -2,6 +2,7 @@
 //!
 //! - `GET /api/v1/audit?limit=N`, last N tool invocations (default 20)
 //! - `GET /api/v1/audit/stats`  , aggregate counts (total, unique tools, agents)
+//! - `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
 //!
 //! Both routes return 503 when no `AuditTrailHandle` is configured in `AppState`
 //! (e.g. unit tests or a runtime started without a data directory).
@@ -26,7 +27,9 @@ use crate::replay::{
 // Query parameters
 // ---------------------------------------------------------------------------
 
-/// Query parameters for `GET /api/v1/audit`.
+/// Query parameters for the two paged reads, `GET /api/v1/audit` over the
+/// tool-invocation trail and `GET /api/v1/audit/journal` over the chained
+/// journal. Both page the same way, so they share one shape.
 #[derive(Debug, Deserialize)]
 pub struct AuditListQuery {
     /// Maximum number of events to return (default 20, capped at 500).
@@ -343,6 +346,58 @@ pub struct AuditJournalResponse {
     /// captured reasoning is readable, not only verifiable/replayable.
     #[schema(value_type = Vec<Object>)]
     pub entries: Vec<JournalEntry>,
+}
+
+/// Response body for `GET /api/v1/audit/journal`.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AuditJournalPageResponse {
+    /// Journal entries, newest global position first.
+    #[schema(value_type = Vec<Object>)]
+    pub entries: Vec<JournalEntry>,
+    /// Number of entries in this page.
+    pub count: usize,
+}
+
+/// `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
+/// across every run.
+///
+/// This is the only read of the journal that does not need a run id up front:
+/// `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
+/// and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
+/// the journal is not configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/journal",
+    tag = "audit",
+    params(
+        ("limit" = Option<u32>, Query, description = "Maximum number of entries to return (default 20, capped at 500)"),
+        ("offset" = Option<u32>, Query, description = "Number of entries to skip, newest first (default 0). Page through the journal by advancing it."),
+    ),
+    responses(
+        (status = 200, description = "A page of hash-chained journal entries", body = AuditJournalPageResponse),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Query(params): Query<AuditListQuery>,
+) -> Result<Json<AuditJournalPageResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    // Same page ceiling as the trail: it bounds one request, not the reachable
+    // history, which `offset` walks past.
+    let limit = params.limit.min(500) as usize;
+    let entries = handle.query_page(limit, params.offset as usize).await;
+    let count = entries.len();
+
+    Ok(Json(AuditJournalPageResponse { entries, count }))
 }
 
 /// `GET /api/v1/audit/journal/:run_id`, the full journal for a run.
@@ -811,6 +866,58 @@ mod tests {
         assert!(json["ok"].as_bool().unwrap());
         assert_eq!(json["entries_checked"].as_u64().unwrap(), 2);
         assert!(json["first_broken_link"].is_null());
+    }
+
+    // GET /api/v1/audit/journal pages the chain across runs without a run id
+    #[tokio::test]
+    async fn test_list_audit_journal_spans_runs() {
+        // GIVEN a journal holding entries from two different runs
+        use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
+        let journal = open_temp_journal().await;
+        for run in ["run-1", "run-2"] {
+            journal.append(JournalEntryDraft {
+                run_id: run.to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind: JournalEntryKind::ToolCallStarted,
+                payload: serde_json::json!({ "tool_name": "bash" }),
+            });
+        }
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN GET /api/v1/audit/journal, naming no run
+        let req = Request::builder()
+            .uri("/api/v1/audit/journal")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 200 with both runs in one page, newest first
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["count"].as_u64().unwrap(), 2);
+        assert_eq!(json["entries"][0]["run_id"].as_str().unwrap(), "run-2");
+        assert_eq!(json["entries"][1]["run_id"].as_str().unwrap(), "run-1");
+    }
+
+    // The paged journal route answers 503 when no journal is configured
+    #[tokio::test]
+    async fn test_list_audit_journal_returns_503_when_not_configured() {
+        // GIVEN no audit journal in AppState
+        let state = test_app_state_with_audit(None);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN GET /api/v1/audit/journal
+        let req = Request::builder()
+            .uri("/api/v1/audit/journal")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 503 Service Unavailable, not a 404 from the run-scoped route
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     // GET verify with an unknown run returns 404 not_found
