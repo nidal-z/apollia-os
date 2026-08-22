@@ -243,7 +243,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/audit?limit=N`, list the most recent tool invocations. */
+        /** `GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first. */
         get: operations["list_audit"];
         put?: never;
         post?: never;
@@ -267,6 +267,30 @@ export interface paths {
          *     journal has no entries yet, 503 when the journal is not configured.
          */
         get: operations["get_audit_anchor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
+         *     across every run.
+         * @description This is the only read of the journal that does not need a run id up front:
+         *     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
+         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
+         *     the journal is not configured.
+         */
+        get: operations["list_audit_journal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -584,6 +608,12 @@ export interface paths {
          * Handler for `GET /api/v1/llm/costs/daily`.
          * @description Returns LLM costs broken down by day and backend for the requested
          *     time window. Used by the Observability LLM Costs chart.
+         *
+         *     Both the day of each entry and the bounds of the window are the host's
+         *     local calendar, not UTC: `days` counts calendar days ending today, and the
+         *     window opens at local midnight of the first of them. A window measured in
+         *     24-hour slices from `now` reaches into a day the chart draws no bar for,
+         *     and the spend of that fraction then shows in a total no bar carries.
          */
         get: operations["get_llm_daily_costs"];
         put?: never;
@@ -630,6 +660,40 @@ export interface paths {
          *     - The backend call fails (key missing, network error, etc.).
          */
         post: operations["ping_llm_backend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/registry/model/{org}/{repo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/model/:org/:repo?hf_token=...` */
+        get: operations["get_registry_model"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/registry/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/search?q=...&limit=...&sort=...` */
+        get: operations["search_registry"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1447,6 +1511,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stt/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/stt/reload`, rebuild the STT engine from persisted config.
+         * @description Reads the current `stt_config` row from `system.db`, rebuilds the engine
+         *     actor via [`build_stt_engine`](crate::stt::build_stt_engine), swaps it into
+         *     the shared cell, and shuts the previous engine down. Lets a model enabled or
+         *     downloaded mid-session come online without restarting the daemon. Idempotent:
+         *     swaps in `None` when STT is disabled or the model is missing.
+         */
+        post: operations["reload_stt_engine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stt/status": {
         parameters: {
             query?: never;
@@ -2099,6 +2187,13 @@ export interface components {
             task_id: string;
             tool_name: string;
         };
+        /** @description Response body for `GET /api/v1/audit/journal`. */
+        AuditJournalPageResponse: {
+            /** @description Number of entries in this page. */
+            count: number;
+            /** @description Journal entries, newest global position first. */
+            entries: Record<string, never>[];
+        };
         /** @description Response body for `GET /api/v1/audit/journal/:run_id`. */
         AuditJournalResponse: {
             /**
@@ -2139,6 +2234,13 @@ export interface components {
              *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
              */
             scope?: string | null;
+            /**
+             * @description Unique id of the tool call being resolved. Correlates with the
+             *     `approval_required` event so the same tool invoked twice in one turn
+             *     resolves the right pending slot. Defaults to the tool name for legacy
+             *     clients that do not yet send it.
+             */
+            tool_call_id?: string | null;
             /** @description Name of the tool. */
             tool_name: string;
         };
@@ -2328,7 +2430,7 @@ export interface components {
              * @description Total estimated cost in USD for this day.
              */
             cost_usd: number;
-            /** @description Date au format `YYYY-MM-DD`. */
+            /** @description Local calendar day of the host, in `YYYY-MM-DD` format. */
             date: string;
         };
         /** @description Response body for `GET /api/v1/llm/costs/daily`. */
@@ -2766,6 +2868,14 @@ export interface components {
         StartAgentRequest: {
             /** @description Path to the agent Python module. */
             agent_path: string;
+        };
+        /** @description Response body for `POST /api/v1/stt/reload`. */
+        SttReloadResponse: {
+            /**
+             * @description Whether an engine is loaded after the reload. `false` when STT is
+             *     disabled, the model file is absent, or the runner is unavailable.
+             */
+            loaded: boolean;
         };
         /** @description Response body for `GET /api/v1/stt/status`. */
         SttStatusResponse: {
@@ -3603,6 +3713,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of events to return (default 20, capped at 500) */
                 limit?: number;
+                /** @description Number of events to skip, most recent first (default 0). Page through the trail by advancing it. */
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -3664,6 +3776,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_audit_journal: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of entries to return (default 20, capped at 500) */
+                limit?: number;
+                /** @description Number of entries to skip, newest first (default 0). Page through the journal by advancing it. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of hash-chained journal entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditJournalPageResponse"];
                 };
             };
             /** @description Audit journal not configured */
@@ -4369,7 +4515,7 @@ export interface operations {
     get_llm_daily_costs: {
         parameters: {
             query?: {
-                /** @description Number of days to aggregate (default 7) */
+                /** @description Number of local calendar days to aggregate, ending today (default 7) */
                 days?: number;
             };
             header?: never;
@@ -4456,6 +4602,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    get_registry_model: {
+        parameters: {
+            query?: {
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path: {
+                /** @description HuggingFace organization or user */
+                org: string;
+                /** @description HuggingFace repository name */
+                repo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Model metadata and file list (HuggingFace model card) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Model is gated */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Model not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Upstream HuggingFace error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    search_registry: {
+        parameters: {
+            query?: {
+                /** @description Search query */
+                q?: string;
+                /** @description Maximum number of results */
+                limit?: number;
+                /** @description Sort key */
+                sort?: string;
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching GGUF models (HuggingFace model cards) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Upstream HuggingFace error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -6132,6 +6367,44 @@ export interface operations {
             };
             /** @description Failed to read models directory */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reload_stt_engine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description STT engine reloaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SttReloadResponse"];
+                };
+            };
+            /** @description Database error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description STT config repository unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
