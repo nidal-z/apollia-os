@@ -16,7 +16,7 @@ lit un seul :
 | Registre | Ce qu'il contient | Commandes qui le lisent |
 |---|---|---|
 | la piste d'invocations d'outils | une table SQLite plate des appels d'outils : ce qui a été exécuté, une empreinte de ses entrées, son succès, sa durée. Ni chaînage par hachage, ni signature. Les mises à jour comme les suppressions sont refusées par un déclencheur | `audit list`, `audit stats`, `audit export` |
-| le journal chaîné par hachage | des entrées rattachées à une exécution, chaînées deux fois, à l'entrée précédente de leur exécution et à l'entrée précédente de n'importe quelle exécution, signées au moment de l'ajout, avec une ancre de tête exportable | `audit verify`, `audit show`, `audit anchor`, `audit replay` |
+| le journal chaîné par hachage | des entrées rattachées à une exécution, chaînées deux fois, à l'entrée précédente de leur exécution et à l'entrée précédente de n'importe quelle exécution, signées au moment de l'ajout, avec une ancre de tête exportable | `audit journal`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
 
 Pour comprendre la logique de ce modèle et son lien avec les exigences
 réglementaires, voir [Le modèle de responsabilisation](/explanation/accountability-model).

@@ -15,7 +15,7 @@ them:
 | Register | What it holds | Commands that read it |
 |---|---|---|
 | the tool-invocation trail | a flat SQLite table of tool calls: what ran, a hash of its inputs, whether it succeeded, how long it took. No hash chain, no signature. Updates and deletions are both refused by a trigger | `audit list`, `audit stats`, `audit export` |
-| the hash-chained journal | run-scoped entries chained twice, to the previous entry of the run and to the previous entry of any run, signed as they are appended, with an exportable head anchor | `audit verify`, `audit show`, `audit anchor`, `audit replay` |
+| the hash-chained journal | run-scoped entries chained twice, to the previous entry of the run and to the previous entry of any run, signed as they are appended, with an exportable head anchor | `audit journal`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
 
 For the reasoning behind this model and how it maps to regulatory requirements,
 see [The accountability model](/explanation/accountability-model).
