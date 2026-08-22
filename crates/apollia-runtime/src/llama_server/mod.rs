@@ -368,6 +368,24 @@ impl LlamaServerSupervisor {
         *self.shutting_down.lock().await
     }
 
+    /// Build a supervisor owning no process, for tests in other modules.
+    ///
+    /// The binary path is deliberately absent: this instance is an observation
+    /// point for the shutdown sequence, never a spawner.
+    #[cfg(test)]
+    pub(crate) fn for_test() -> Arc<Self> {
+        Arc::new(Self {
+            bin_path: std::path::PathBuf::from("/nonexistent/llama-server"),
+            n_ctx: 32_768,
+            max_loaded: 1,
+            config: Arc::new(Mutex::new(LlamaServerConfig::default())),
+            instances: Arc::new(Mutex::new(Vec::new())),
+            tick: Arc::new(AtomicU64::new(0)),
+            respawn_lock: Arc::new(Mutex::new(())),
+            shutting_down: Arc::new(Mutex::new(false)),
+        })
+    }
+
     /// Stop every server without consuming the supervisor (for the exit hook).
     pub async fn shutdown_in_place(&self) {
         *self.shutting_down.lock().await = true;

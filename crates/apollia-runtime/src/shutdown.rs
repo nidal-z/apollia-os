@@ -73,6 +73,16 @@ pub struct ShutdownControllerDeps<B: ExecutionBackend> {
     pub registry_handle: AgentRegistryHandle,
     pub notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
     pub mcp_handle: Option<McpClientManagerHandle>,
+    /// Owner of the Python runner child processes, when one is running.
+    ///
+    /// Held here so the teardown kills the children it spawned. Without it they
+    /// are reparented to init and survive the daemon that started them.
+    pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+    /// Owner of the `llama-server` child processes, when one is running.
+    ///
+    /// Same reason as `runner_supervisor`, and the cost of missing it is higher:
+    /// a loaded model holds gigabytes of resident memory.
+    pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
 }
 
 /// Graceful shutdown controller for the Apollia runtime.
@@ -95,6 +105,10 @@ pub struct ShutdownController<B: ExecutionBackend> {
     /// Stopped after the NotificationEngine and before the TaskRouter so that
     /// any in-flight MCP tool calls complete before the subprocess is killed.
     mcp_handle: Option<McpClientManagerHandle>,
+    /// Owner of the Python runner child processes, if started.
+    runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+    /// Owner of the `llama-server` child processes, if started.
+    llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
 }
 
 impl<B: ExecutionBackend> ShutdownController<B> {
@@ -108,6 +122,8 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             registry_handle: deps.registry_handle,
             notification_engine: deps.notification_engine,
             mcp_handle: deps.mcp_handle,
+            runner_supervisor: deps.runner_supervisor,
+            llama_server_supervisor: deps.llama_server_supervisor,
         }
     }
 
@@ -118,7 +134,8 @@ impl<B: ExecutionBackend> ShutdownController<B> {
     /// 3. Drain in-progress tasks (with timeout)
     /// 4. Cancel remaining tasks
     /// 5. Transition agents to Stopped
-    /// 6. Stop actors in reverse startup order
+    /// 6. Kill the spawned child processes (Python runner, `llama-server`)
+    /// 7. Stop actors in reverse startup order
     ///
     /// Returns `Ok(())` if all tasks drained within the timeout.
     /// Returns `Err(ShutdownError::DrainTimeout)` if some tasks had to be force-canceled,
@@ -155,7 +172,23 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             info!("McpClientManager stopped");
         }
 
-        // Step 7: Stop actors in reverse startup order
+        // Step 7: Kill the child processes this runtime spawned.
+        //
+        // After the MCP servers and before the actors: an in-flight tool call has
+        // already drained, and a model still answering would be answering nobody.
+        // Skipping this leaves `llama-server` and the Python runner reparented to
+        // init, alive and holding their memory, while the shell that ran
+        // `apollia-os stop` reports the runtime stopped.
+        if self.runner_supervisor.is_some() || self.llama_server_supervisor.is_some() {
+            crate::embedded::stop_supervisors(
+                self.runner_supervisor.as_deref(),
+                self.llama_server_supervisor.as_deref(),
+            )
+            .await;
+            info!("Child process supervisors stopped");
+        }
+
+        // Step 8: Stop actors in reverse startup order
         // APIServer already stopped in step 2
         // TaskRouter
         self.router_handle.shutdown();
@@ -519,9 +552,15 @@ mod tests {
     /// Set up a full test environment with all actors.
     async fn setup_env<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
         backend: B,
-    ) -> (ShutdownController<B>, EventBusSender, PathBuf) {
+    ) -> (
+        ShutdownController<B>,
+        EventBusSender,
+        PathBuf,
+        Arc<crate::llama_server::LlamaServerSupervisor>,
+    ) {
         use crate::api::{APIServer, APIServerConfig, AppState};
 
+        let llama = crate::llama_server::LlamaServerSupervisor::for_test();
         let (event_sender, _rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
         let router_handle: TaskRouterHandle<B> =
@@ -590,9 +629,35 @@ mod tests {
             registry_handle,
             notification_engine: None,
             mcp_handle: None,
+            runner_supervisor: None,
+            llama_server_supervisor: Some(llama.clone()),
         });
 
-        (controller, event_sender, socket_path)
+        (controller, event_sender, socket_path, llama)
+    }
+
+    // The teardown reaches the child processes the runtime spawned
+    #[tokio::test]
+    async fn test_shutdown_stops_the_llama_server_supervisor() {
+        // GIVEN a controller holding a llama-server supervisor that owns no
+        // process yet, and that has not been asked to stop
+        let (controller, _event_sender, socket_path, llama) =
+            setup_env(MockBackend::instant()).await;
+        assert!(
+            !llama.is_shutting_down().await,
+            "precondition: the supervisor must start out running"
+        );
+
+        // WHEN the shutdown sequence runs
+        let _ = controller.shutdown().await;
+
+        // THEN the supervisor was told to stop, so its children do not outlive
+        // the daemon and get reparented to init still holding their memory
+        assert!(
+            llama.is_shutting_down().await,
+            "the shutdown sequence left the llama-server supervisor running"
+        );
+        let _ = std::fs::remove_file(&socket_path);
     }
 
     #[tokio::test]
@@ -607,7 +672,8 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_broadcasts_event() {
         // GIVEN a ShutdownController with an EventBus
-        let (controller, event_sender, socket_path) = setup_env(MockBackend::instant()).await;
+        let (controller, event_sender, socket_path, _llama) =
+            setup_env(MockBackend::instant()).await;
         let mut rx = event_sender.subscribe();
 
         // Drain any pre-existing events
@@ -737,6 +803,8 @@ mod tests {
             registry_handle,
             notification_engine: None,
             mcp_handle: None,
+            runner_supervisor: None,
+            llama_server_supervisor: None,
         });
 
         // WHEN shutdown() runs and the in-flight task is released so it completes
@@ -859,6 +927,8 @@ mod tests {
             registry_handle,
             notification_engine: None,
             mcp_handle: None,
+            runner_supervisor: None,
+            llama_server_supervisor: None,
         });
 
         // WHEN the drain runs and the task completes while it is in progress. The
@@ -979,6 +1049,8 @@ mod tests {
             registry_handle,
             notification_engine: None,
             mcp_handle: None,
+            runner_supervisor: None,
+            llama_server_supervisor: None,
         });
 
         let result = controller.shutdown().await;
@@ -1003,7 +1075,8 @@ mod tests {
     #[tokio::test]
     async fn test_actors_stopped_in_reverse_order() {
         // GIVEN all actors started
-        let (controller, event_sender, socket_path) = setup_env(MockBackend::instant()).await;
+        let (controller, event_sender, socket_path, _llama) =
+            setup_env(MockBackend::instant()).await;
         let mut rx = event_sender.subscribe();
 
         // Register an active agent to verify it gets stopped
@@ -1065,7 +1138,8 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_no_tasks_completes_immediately() {
         // GIVEN a runtime with no in-progress tasks
-        let (controller, _event_sender, socket_path) = setup_env(MockBackend::instant()).await;
+        let (controller, _event_sender, socket_path, _llama) =
+            setup_env(MockBackend::instant()).await;
 
         // WHEN shutdown() is called
         let start = tokio::time::Instant::now();
@@ -1184,6 +1258,8 @@ mod tests {
             registry_handle: registry_handle.clone(),
             notification_engine: None,
             mcp_handle: None,
+            runner_supervisor: None,
+            llama_server_supervisor: None,
         });
 
         // WHEN shutdown

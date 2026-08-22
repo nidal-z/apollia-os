@@ -279,6 +279,16 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
                 .map(|a| a.len())
                 .unwrap_or(0);
             println!("OK LLM router reloaded ({count} backend(s) active, default: {default})");
+            let reaches = resp
+                .get("reaches_running_agents")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if !reaches {
+                eprintln!(
+                    "Note: agents already running keep the router they started with. \
+                     Restart the daemon for them to pick this up."
+                );
+            }
             exit_codes::SUCCESS
         }
         Err(ClientError::ConnectionRefused) => {

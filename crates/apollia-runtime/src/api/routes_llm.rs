@@ -724,6 +724,16 @@ pub struct ReloadRouterResponse {
     pub backends: Vec<apollia_llm::BackendInfo>,
     /// Default backend name reported by the router (empty when no backends).
     pub default: String,
+    /// Whether the rebuilt router reaches agents that are already running.
+    ///
+    /// `false` today, and not a transient state: the agent execution path reads
+    /// its router from a `OnceLock` populated at boot, a different cell from the
+    /// one this route rewrites. A reload therefore reaches chat and this API,
+    /// and an already-running agent keeps the router it started with until the
+    /// daemon restarts. Reported rather than hidden, because the failure it
+    /// produces on the Python side, `'NoneType' object has no attribute
+    /// 'complete'`, names none of this.
+    pub reaches_running_agents: bool,
 }
 
 /// CRUD error response body.
@@ -1209,7 +1219,11 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
         "LLM router reloaded"
     );
 
-    Ok(Json(ReloadRouterResponse { backends, default }))
+    Ok(Json(ReloadRouterResponse {
+        backends,
+        default,
+        reaches_running_agents: false,
+    }))
 }
 
 // ─────────────────────────────────────────────

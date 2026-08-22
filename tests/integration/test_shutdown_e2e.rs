@@ -236,6 +236,8 @@ async fn test_shutdown_drains_active_tasks() {
         registry_handle: registry,
         notification_engine: None,
         mcp_handle: None,
+        runner_supervisor: None,
+        llama_server_supervisor: None,
     });
 
     let start = tokio::time::Instant::now();
@@ -343,6 +345,8 @@ async fn test_shutdown_stops_all_agents() {
         registry_handle: registry,
         notification_engine: None,
         mcp_handle: None,
+        runner_supervisor: None,
+        llama_server_supervisor: None,
     });
     let _ = controller.shutdown().await;
 
@@ -438,6 +442,8 @@ async fn test_shutdown_broadcasts_requested_event() {
         registry_handle: registry,
         notification_engine: None,
         mcp_handle: None,
+        runner_supervisor: None,
+        llama_server_supervisor: None,
     });
     let _ = controller.shutdown().await;
 
@@ -553,6 +559,8 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         registry_handle: registry,
         notification_engine: None,
         mcp_handle: None,
+        runner_supervisor: None,
+        llama_server_supervisor: None,
     });
 
     let result = controller.shutdown().await;

@@ -2725,6 +2725,18 @@ export interface components {
             backends: Record<string, never>[];
             /** @description Default backend name reported by the router (empty when no backends). */
             default: string;
+            /**
+             * @description Whether the rebuilt router reaches agents that are already running.
+             *
+             *     `false` today, and not a transient state: the agent execution path reads
+             *     its router from a `OnceLock` populated at boot, a different cell from the
+             *     one this route rewrites. A reload therefore reaches chat and this API,
+             *     and an already-running agent keeps the router it started with until the
+             *     daemon restarts. Reported rather than hidden, because the failure it
+             *     produces on the Python side, `'NoneType' object has no attribute
+             *     'complete'`, names none of this.
+             */
+            reaches_running_agents: boolean;
         };
         /** @description Response body for the reset route. */
         ResetResponse: {

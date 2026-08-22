@@ -1768,6 +1768,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         registry_handle: handles.registry_handle,
         notification_engine: handles.notification_engine,
         mcp_handle: handles.mcp_handle,
+        runner_supervisor: handles.runner_supervisor,
+        llama_server_supervisor: handles.llama_server_supervisor,
     });
 
     match shutdown.shutdown().await {

@@ -178,7 +178,7 @@ impl RuntimeHandle {
 /// Deliberately not named after the method above: `stop_child_processes` is
 /// guarded by a claim whose whole point is that a caller outside this file
 /// exists, and a same-named inner call would satisfy that check on its own.
-async fn stop_supervisors(
+pub(crate) async fn stop_supervisors(
     runner: Option<&crate::runner_supervisor::RunnerSupervisor>,
     llama_server: Option<&crate::llama_server::LlamaServerSupervisor>,
 ) {

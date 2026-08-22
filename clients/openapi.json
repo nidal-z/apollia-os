@@ -6974,7 +6974,8 @@
         "description": "Response body for `POST /api/v1/llm/reload`.\n\nCarries the list of backends that are live in the freshly-swapped router,\nso callers can confirm at a glance what is now available without a\nfollow-up `GET /api/v1/llm/status` call.",
         "required": [
           "backends",
-          "default"
+          "default",
+          "reaches_running_agents"
         ],
         "properties": {
           "backends": {
@@ -6987,6 +6988,10 @@
           "default": {
             "type": "string",
             "description": "Default backend name reported by the router (empty when no backends)."
+          },
+          "reaches_running_agents": {
+            "type": "boolean",
+            "description": "Whether the rebuilt router reaches agents that are already running.\n\n`false` today, and not a transient state: the agent execution path reads\nits router from a `OnceLock` populated at boot, a different cell from the\none this route rewrites. A reload therefore reaches chat and this API,\nand an already-running agent keeps the router it started with until the\ndaemon restarts. Reported rather than hidden, because the failure it\nproduces on the Python side, `'NoneType' object has no attribute\n'complete'`, names none of this."
           }
         }
       },
