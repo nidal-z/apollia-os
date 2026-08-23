@@ -612,6 +612,11 @@ desktop-dev-automation-seeded script: runners-dev-macos
     # The seed builder lives next to the script (tests/cli/seed/), which
     # may be in a worktree while the app is run from main. Derive it from the script.
     #
+    # The seed builder lives under `tests/cli/seed/`, not next to the driving
+    # scripts: the automaton was moved out of the public tree and its fixture
+    # stayed behind with the suite that asserts its row counts. Deriving the path
+    # from the driving script's own directory outlived that move and pointed at
+    # an emptied directory, so this recipe failed at 127 before booting anything.
     # `env -u APOLLIA_SEED_OVERLAY`: the narrative overlay is for the screenshot
     # session, not for assertions. A maintainer who exports it in their shell
     # would otherwise change the row counts this suite asserts on, and the
@@ -621,9 +626,9 @@ desktop-dev-automation-seeded script: runners-dev-macos
     # regressions. `desktop-screenshots` sets APOLLIA_SEED_SHOOTING=1 to opt
     # back in, because for a screenshot an empty timeline is the defect.
     if [ "${APOLLIA_SEED_SHOOTING:-0}" = "1" ]; then
-      bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+      bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
     else
-      env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+      env -u APOLLIA_SEED_OVERLAY bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
     fi
     # Preserve the toolchain env (defaults derive from the REAL home) before the swap.
     export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
@@ -726,7 +731,7 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     OUT="$(cd "$OUT" >/dev/null 2>&1 && pwd)"
     SEED_HOME="${APOLLIA_SEED_HOME:-$PWD/.apollia-seed-home}"
     # See the deterministic recipe above for why the overlay is unset here.
-    env -u APOLLIA_SEED_OVERLAY bash "$(dirname "$SCRIPT_ABS")/seed/build-seed.sh" "$SEED_HOME"
+    env -u APOLLIA_SEED_OVERLAY bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
     export CARGO_HOME="${CARGO_HOME:-$REAL_HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$REAL_HOME/.rustup}"
     # Build PyO3 against the SAME interpreter the app will run with, which is
