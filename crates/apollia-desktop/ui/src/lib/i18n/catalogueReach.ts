@@ -248,7 +248,15 @@ function walk(root: string, keep: (path: string) => boolean): string[] {
   return found;
 }
 
-/** Product sources under `src/`: tests excluded, on purpose. */
+/**
+ * Files that name catalogue keys to support a guard rather than to render
+ * them. `identicalLocales.ts` lists 226 keys as string literals, and counting
+ * it as a call site would make every one of them immortal: the exemption list
+ * of one guard would silently answer another guard's question.
+ */
+const GUARD_SUPPORT = ["lib/i18n/identicalLocales.ts"];
+
+/** Product sources under `src/`: tests and guard support excluded, on purpose. */
 export function productFiles(): string[] {
   return walk(
     SOURCE_ROOT,
@@ -257,7 +265,8 @@ export function productFiles(): string[] {
         path.endsWith(".ts") ||
         path.endsWith(".js")) &&
       !path.endsWith(".test.ts") &&
-      !path.endsWith(".spec.ts"),
+      !path.endsWith(".spec.ts") &&
+      !GUARD_SUPPORT.some((name) => path.endsWith(name)),
   );
 }
 

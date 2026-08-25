@@ -66,6 +66,21 @@ describe("i18n catalogue - the scan reaches both trees", () => {
     ).toEqual([]);
   });
 
+  test("the exemption list of another guard is not a call site", () => {
+    // GIVEN identicalLocales.ts, which names 226 keys to excuse them from the
+    // FR = EN rule
+    // WHEN the product walk is asked for it
+    const named = productFiles().filter((path) =>
+      path.endsWith("lib/i18n/identicalLocales.ts"),
+    );
+    // THEN it is not there, so one guard's exemption list cannot answer this
+    // guard's question and make its 226 keys immortal
+    expect(named).toEqual([]);
+    expect(REACHED.get("settings.model_hub.filters.lang_de")).not.toContain(
+      "lib/i18n/identicalLocales.ts",
+    );
+  });
+
   test("the model reports a key that nothing reaches", () => {
     // GIVEN a key name absent from every source tree and every builder
     const invented = "settings.this_key_is_not_called_by_anything";
