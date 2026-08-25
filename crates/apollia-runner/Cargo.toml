@@ -33,8 +33,6 @@ serde_json         = { workspace = true }
 uuid               = { workspace = true, features = ["v4", "serde"] }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
-futures            = { workspace = true }
-tokio-stream       = { workspace = true }
 
 # STT backend (optional, selected by a local-* feature)
 whisper-rs      = { version = "0.16", optional = true }

@@ -610,7 +610,6 @@ name = "apollia-runner"
 version = "0.1.0-preview"
 dependencies = [
  "axum",
- "futures",
  "hound",
  "reqwest 0.12.28",
  "rubato",
@@ -618,7 +617,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
- "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -716,7 +714,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-util",
  "tracing",
  "url",
  "uuid",
