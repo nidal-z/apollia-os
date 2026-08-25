@@ -150,10 +150,18 @@ impl ChatSessionRepository {
             .map_err(|e| ChatError::InternalError(format!("migration failed: {e}")))?;
 
         // v2 migration: add llm_backend column for existing databases.
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN llm_backend TEXT");
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_sessions ADD COLUMN llm_backend TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v2 migration failed: {e}")))?;
 
         // v3 migration: add summary column for conversation summarization.
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_sessions ADD COLUMN summary TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v3 migration failed: {e}")))?;
 
         // v4 migration: FTS5 index on session summaries for cross-session recall.
         conn.execute_batch(
@@ -166,27 +174,45 @@ impl ChatSessionRepository {
         .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
 
         // v5 migration: add title column for user-defined session names.
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_sessions ADD COLUMN title TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v5 migration failed: {e}")))?;
 
         // v6 migration: conversation forking support.
-        let _ = conn.execute_batch(
+        apollia_core::schema::add_column_if_missing(
+            &conn,
             "ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id)",
-        );
-        let _ = conn.execute_batch(
+        )
+        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
+        apollia_core::schema::add_column_if_missing(
+            &conn,
             "ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER NOT NULL DEFAULT 0",
-        );
-        let _ = conn.execute_batch(
+        )
+        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
+        conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
-        );
+        )
+        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
 
         // v7 migration: project linkage (application-level, no FK, separate databases).
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT");
-        let _ = conn.execute_batch(
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_sessions ADD COLUMN project_id TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v7 migration failed: {e}")))?;
+        conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
-        );
+        )
+        .map_err(|e| ChatError::InternalError(format!("v7 migration failed: {e}")))?;
 
         // v8 migration: metadata column on messages (thinking trace, etc.).
-        let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_messages ADD COLUMN metadata TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v8 migration failed: {e}")))?;
 
         // v9 migration: chat approval log for resolved tool approvals history.
         conn.execute_batch(
@@ -205,7 +231,11 @@ impl ChatSessionRepository {
 
         // v11 migration (pre-v10 path): store the operator-provided refusal
         // reason. NULL for accept / always_accept.
-        let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE chat_approval_log ADD COLUMN reason TEXT",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v11 migration failed: {e}")))?;
 
         // v10 migration: add 'companion' to the mode CHECK constraint.
         // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the
@@ -252,12 +282,16 @@ impl ChatSessionRepository {
         // v12 migration: per-session plan-mode state. Additive columns, applied
         // after the v10 table recreate so they survive it. Existing sessions
         // default to plan mode off in the neutral 'done' phase.
-        let _ = conn.execute_batch(
+        apollia_core::schema::add_column_if_missing(
+            &conn,
             "ALTER TABLE chat_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0",
-        );
-        let _ = conn.execute_batch(
+        )
+        .map_err(|e| ChatError::InternalError(format!("v12 migration failed: {e}")))?;
+        apollia_core::schema::add_column_if_missing(
+            &conn,
             "ALTER TABLE chat_sessions ADD COLUMN plan_phase TEXT NOT NULL DEFAULT 'done'",
-        );
+        )
+        .map_err(|e| ChatError::InternalError(format!("v12 migration failed: {e}")))?;
 
         Ok(Self { conn })
     }

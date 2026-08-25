@@ -155,7 +155,12 @@ impl ProjectRepository {
         conn.execute_batch(MIGRATION_009_SQL)?;
 
         // v10 migration: add workspace_path column for provider directory resolution.
-        let _ = conn.execute_batch("ALTER TABLE projects ADD COLUMN workspace_path TEXT");
+        // Only the duplicate-column failure is tolerated: any other failure
+        // (locked file, I/O) used to be swallowed here and read as success.
+        apollia_core::schema::add_column_if_missing(
+            &conn,
+            "ALTER TABLE projects ADD COLUMN workspace_path TEXT",
+        )?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
