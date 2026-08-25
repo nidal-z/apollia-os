@@ -4,11 +4,12 @@
 //! This module provides the paginated queries consumed by the
 //! `GET /api/v1/tasks/{id}/trace` API.
 //!
-//! **There is no purge routine.** `ObservabilityConfig::retention_days` exists
-//! and defaults to 90, and the schema carries an index on `created_at_unix` to
-//! support a purge, but nothing deletes a row: the event log grows without
-//! bound. Either the routine gets written and honours `retention_days`, or the
-//! setting is withdrawn. Until then, do not describe retention as a feature.
+//! Retention is applied once per boot, not continuously: the supervisor calls
+//! `EventPersistorHandle::purge_older_than` with
+//! `ObservabilityConfig::retention_days` (default 90) while spawning the
+//! event persistor (`supervisor/lifecycle.rs`), and the index on
+//! `created_at_unix` serves that purge. Between two boots the log grows
+//! unbounded.
 
 use std::path::{Path, PathBuf};
 

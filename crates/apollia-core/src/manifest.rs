@@ -14,7 +14,9 @@ fn default_execution_mode() -> String {
 
 /// Per-agent memory retention configuration.
 ///
-/// Overrides the global `[memory]` `default_retention_days` from `apollia.toml`.
+/// This is the only retention setting there is: no global `[memory]` section
+/// exists in `apollia.toml` (`[memory]` is an inert section in the CLI
+/// config), so nothing is overridden here.
 /// A `None` value for a type means no age-based purge is applied for that type.
 /// `auto_purge = true` triggers a single purge pass when the `MemoryManager` starts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
