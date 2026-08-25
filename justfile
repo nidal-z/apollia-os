@@ -116,7 +116,8 @@ worktree-prep *GROUPS:
 # `worktree-compare` reads two such records, and refuses them unless they were
 # made on the same commit.
 
-# Record the verdict of the expensive guards in this tree.
+# Record the verdict of the expensive guards in this tree, the containerised
+# Linux test suite among them (recorded, exempt from the comparison).
 worktree-verdicts OUT:
     python3 scripts/worktree_verdicts.py --record {{OUT}}
 

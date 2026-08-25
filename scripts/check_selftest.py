@@ -798,6 +798,7 @@ MATCHING_MEASURES = {
     "vitest": {"exit": 0, "tests": 790},
     "docs-build": {"exit": 0},
     "desktop-automation": {"exit": 0, "steps": 2424, "failed": 0},
+    "linux-test": {"exit": 0, "binaries": 78, "tests": 4370},
 }
 
 
@@ -1037,6 +1038,43 @@ def check_worktree_comparator() -> None:
             f"exit {run.returncode} while one tree's corpus ran green and the "
             f"other's failed 10 steps. The exemption covers absence only; once "
             f"both trees measured, a difference is a difference. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        # `linux-test` is recorded but exempt from the comparison: it needs a
+        # Docker daemon, and a machine without one would turn every comparison
+        # red for a cause foreign to the two trees. The exemption is driven
+        # from both sides: it never decides the verdict, its row still prints,
+        # and the list of exempt guards is bounded by name so it can only grow
+        # in the light.
+        case(
+            "the compare exemption is bounded to the docker-dependent guard",
+            [g.key for g in worktree_verdicts.GUARDS if g.exempt] == ["linux-test"],
+            f"the exempt guards are "
+            f"{[g.key for g in worktree_verdicts.GUARDS if g.exempt]}. A second "
+            f"exemption entering this list unnamed would be a guard leaving "
+            f"the comparison in the dark",
+        )
+
+        no_daemon = _record(
+            "/worktree",
+            {
+                "linux-test": {
+                    "prepared": True,
+                    "measures": {"exit": 2, "binaries": None, "tests": None},
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), no_daemon)
+        case(
+            "linux-test: a run that measured nothing is not a parity gap",
+            run.returncode == 0
+            and "linux-check.sh" in run.stdout
+            and "recorded outside the comparison" in run.stdout,
+            f"exit {run.returncode} while one tree measured its Linux suites "
+            f"and the other had no Docker daemon (exit 2, nothing measured). "
+            f"The exempt row must still print so the absence stays visible. "
             f"Output:\n{run.stdout}{run.stderr}",
         )
 

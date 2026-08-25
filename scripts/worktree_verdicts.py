@@ -52,6 +52,14 @@ would make the comparison unusable. The exemption is printed by name, never
 silent, and the moment both records carry a fresh report its measures are
 compared like any other guard's.
 
+The `linux-test` line is the local mirror of the `Rust Tests` (Linux) job of
+ci.yml, which does not run (billing). It is recorded like the others, and it
+is the one line exempt from the comparison outright: it needs a Docker daemon
+and a container build, so on a machine where the daemon is absent or silent
+linux-check.sh answers 2 with nothing measured, and counting that absence as
+a parity gap would fail every comparison for a cause foreign to the two trees.
+The exemption is named on the guard itself and bounded by the selftest.
+
 Usage:
     python3 scripts/worktree_verdicts.py --record <output.json>
     python3 scripts/worktree_verdicts.py --compare <main.json> <worktree.json>
@@ -137,6 +145,24 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
     }
 
 
+def measure_linux_test(output: str, code: int) -> dict[str, int | None]:
+    """The cargo test summaries of a containerised Linux run.
+
+    Same summary-line reading as `measure_cargo_test`, without the home
+    sentinel: the container mounts the tree read-only and never sees the
+    operator's home, so a sentinel line cannot appear and demanding one would
+    read every run as `not measured`. linux-check.sh exits 2 when nothing was
+    measured (no docker, daemon silent, image or container failure); no
+    summary line is printed on that path, so both counts stay None and the
+    row reads `not measured` rather than passing for a verdict.
+    """
+    summaries = TEST_SUMMARY.findall(output)
+    if not summaries:
+        return {"exit": code, "binaries": None, "tests": None}
+    executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
+    return {"exit": code, "binaries": len(summaries), "tests": executed}
+
+
 def measure_cli_e2e(output: str, code: int) -> dict[str, int | None]:
     passed = re.search(r"^\s*PASS\s*:\s*(\d+)\s*$", output, re.M)
     failed = re.search(r"^\s*FAIL\s*:\s*(\d+)\s*$", output, re.M)
@@ -212,6 +238,7 @@ class Guard:
         render,
         *,
         exempt_when_unprepared: str | None = None,
+        exempt: str | None = None,
     ) -> None:
         self.key = key
         self.label = label
@@ -227,6 +254,9 @@ class Guard:
         # comparing the measures whenever both trees carry one. The reason is
         # printed so the exemption never reads as agreement.
         self.exempt_when_unprepared = exempt_when_unprepared
+        # A non-None value takes this guard out of the two-tree comparison and
+        # says why. It is still recorded; its row still prints, marked `~`.
+        self.exempt = exempt
 
     def missing(self, tree: Path) -> Probe | None:
         for probe in self.probes:
@@ -243,6 +273,10 @@ def render_cargo_test(m: dict[str, int | None]) -> str:
     # `.get`: a record written by the pre-sentinel version of this script has
     # no `home_changes` key, and rendering it must not crash the comparison.
     return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst, home {m.get('home_changes')}"
+
+
+def render_linux_test(m: dict[str, int | None]) -> str:
+    return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst"
 
 
 def render_cli_e2e(m: dict[str, int | None]) -> str:
@@ -422,6 +456,29 @@ GUARDS = [
             "absence states nothing and does not decide this comparison"
         ),
     ),
+    # The tenth line, added after the last CI run that executed answered red on
+    # six tools::python_executor tests on Linux while every local guard stayed
+    # green on macOS. It is the local frontier for the `Rust Tests` (Linux) job
+    # of ci.yml, which does not run (billing). Heavy on purpose: a full
+    # workspace test build inside the container. linux-check.sh answers 2
+    # without measuring when the daemon is missing; the 60-second bound on a
+    # silent daemon belongs to the script itself.
+    Guard(
+        "linux-test",
+        "bash scripts/linux-check.sh arm test (Docker)",
+        ["bash", "scripts/linux-check.sh", "arm", "test"],
+        ".",
+        (),
+        measure_linux_test,
+        ("exit", "binaries", "tests"),
+        render_linux_test,
+        exempt=(
+            "needs a Docker daemon and a container build: on a machine where "
+            "the daemon is absent or silent the run measures nothing (exit 2), "
+            "and counting that absence as a parity gap would fail every "
+            "comparison for a cause foreign to the two trees"
+        ),
+    ),
 ]
 
 
@@ -484,7 +541,7 @@ def record(tree: Path, out: Path) -> int:
         print(f"                {guard.render(measures)}   {elapsed}s", flush=True)
 
     out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(f"\nrecorded 8 guards to {out}")
+    print(f"\nrecorded {len(GUARDS)} guards to {out}")
     return 0
 
 
@@ -550,6 +607,7 @@ def compare(left_path: Path, right_path: Path) -> int:
     unprepared: list[str] = []
     unextracted: list[str] = []
     exempted: list[tuple[str, str]] = []
+    outside: list[Guard] = []
 
     for guard in GUARDS:
         left_entry = left["guards"].get(guard.key, {})
@@ -557,6 +615,16 @@ def compare(left_path: Path, right_path: Path) -> int:
         left_cell = cell(left_entry, guard)
         right_cell = cell(right_entry, guard)
 
+        if guard.exempt is not None:
+            # Printed, never counted: the reason is on the guard and listed
+            # below the table, so the exemption stays visible on every run.
+            outside.append(guard)
+            mark = "~"
+            print(
+                f"| {guard.label.ljust(width)} | {left_cell.ljust(26)} "
+                f"| {right_cell.ljust(26)} | {mark} |"
+            )
+            continue
         if not left_entry.get("prepared", False) or not right_entry.get(
             "prepared", False
         ):
@@ -597,6 +665,10 @@ def compare(left_path: Path, right_path: Path) -> int:
         )
 
     print()
+    if outside:
+        print(f"{len(outside)} guard(s) recorded outside the comparison:")
+        for guard in outside:
+            print(f"  {guard.label}: {guard.exempt}")
     if exempted:
         for label, reason in exempted:
             print(f"exempt, not compared: {label} ({reason})")
@@ -626,7 +698,7 @@ def compare(left_path: Path, right_path: Path) -> int:
             print(f"  {gap}", file=sys.stderr)
     if unprepared or unextracted or gaps:
         return 1
-    compared = len(GUARDS) - len(exempted)
+    compared = len(GUARDS) - len(exempted) - len(outside)
     print(f"the {compared} compared guards answer the same verdict in both trees")
     return 0
 
