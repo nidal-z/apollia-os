@@ -25,6 +25,26 @@ Rules, each measured on every `.yml` and `.yaml` under `.github/workflows/`:
                   a suite that only passes serialised carries a bug, and the
                   flag files it away instead of reporting it
 
+Four more rules hold `release.yml` to the contract it broke silently: a
+publish step that tolerated unmatched globs published nothing and said so to
+no one, a `codesign --verify || true` rendered no verdict, six jobs sat on an
+image GitHub retires on 2026-09-17, and the three desktop jobs could not
+finish `cargo tauri build` at all while `createUpdaterArtifacts` demanded a
+signing key no secret provided:
+
+  unmatched-files   no step sets `fail_on_unmatched_files: false`; a publish
+                    that skips silently is a publish nobody reviewed
+  sign-verify       no `codesign`, `notarytool` or `stapler` line ends in
+                    `|| true`; a verification that cannot fail verifies
+                    nothing
+  runner-deprecated no `ubuntu-22.04` anywhere in a workflow, comments and
+                    embedded matrices included, since the raw text is what a
+                    future copy-paste reads
+  updater-guard     every `desktop-*` job of `release.yml` carries a step
+                    that reads `TAURI_SIGNING_PRIVATE_KEY` and mentions
+                    `createUpdaterArtifacts`, so a build without the secret
+                    still finishes, explicitly and with a named warning
+
 Exit codes, distinct on purpose so a run that measured nothing cannot pass for
 a run that found nothing:
 
@@ -58,9 +78,28 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 SHA_PIN = re.compile(r"@[0-9a-f]{40}$")
 TEST_THREADS = re.compile(r"--test-threads[= ]1\b")
 INPUTS_JOB_EQ = re.compile(r"inputs\.job\s*==\s*'([^']+)'")
+SIGN_SWALLOWED = re.compile(r"\b(codesign|notarytool|stapler)\b.*\|\|\s*true\b")
+DEPRECATED_RUNNER = "ubuntu-22.04"
 
 BOT_FILTER_FILE = "auto-close-prs.yml"
 REQUIRED_BOT_EXCLUSIONS = ("dependabot[bot]", "github-actions[bot]")
+
+RELEASE_FILE = "release.yml"
+DESKTOP_JOB_PREFIX = "desktop-"
+
+
+def _has_updater_guard(job: dict) -> bool:
+    """True when one step reads the signing key and names the updater flag."""
+    for step in _steps(job):
+        env = step.get("env")
+        env_keys = env.keys() if isinstance(env, dict) else ()
+        run = str(step.get("run", ""))
+        reads_key = "TAURI_SIGNING_PRIVATE_KEY" in env_keys or (
+            "TAURI_SIGNING_PRIVATE_KEY" in run
+        )
+        if reads_key and "createUpdaterArtifacts" in run:
+            return True
+    return False
 
 
 def _jobs(doc: dict) -> dict:
@@ -94,12 +133,25 @@ def _steps(job: dict) -> list[dict]:
 def audit_file(path: Path) -> tuple[list[str], int]:
     """Defects of one workflow file, and the number of `uses:` examined."""
     defects: list[str] = []
+    raw = path.read_text(encoding="utf-8")
     try:
-        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        doc = yaml.safe_load(raw)
     except yaml.YAMLError as error:
         return [f"{path.name}: unparseable YAML ({error})"], 0
     if not isinstance(doc, dict):
         return [f"{path.name}: not a mapping, so it declares no job"], 0
+
+    for number, line in enumerate(raw.splitlines(), start=1):
+        if DEPRECATED_RUNNER in line:
+            defects.append(
+                f"{path.name}:{number}: [runner-deprecated] mentions "
+                f"{DEPRECATED_RUNNER}, an image GitHub retires on 2026-09-17"
+            )
+        if SIGN_SWALLOWED.search(line):
+            defects.append(
+                f"{path.name}:{number}: [sign-verify] a codesign, notarytool "
+                f"or stapler line ends in '|| true', so it renders no verdict"
+            )
 
     jobs = _jobs(doc)
     options = _dispatch_options(doc)
@@ -142,11 +194,19 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                         f"offer"
                     )
 
+        if path.name == RELEASE_FILE and job_id.startswith(DESKTOP_JOB_PREFIX):
+            if not _has_updater_guard(job):
+                defects.append(
+                    f"{path.name}: job {job_id}: [updater-guard] no step reads "
+                    f"TAURI_SIGNING_PRIVATE_KEY and names "
+                    f"createUpdaterArtifacts, so a build without the secret "
+                    f"dies inside cargo tauri build instead of finishing "
+                    f"without updater artifacts"
+                )
+
         if path.name == BOT_FILTER_FILE:
             condition = str(job.get("if", ""))
-            missing = [
-                bot for bot in REQUIRED_BOT_EXCLUSIONS if bot not in condition
-            ]
+            missing = [bot for bot in REQUIRED_BOT_EXCLUSIONS if bot not in condition]
             if missing:
                 defects.append(
                     f"{path.name}: job {job_id}: [bot-filter] its `if` does not "
@@ -169,6 +229,16 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                     f"{path.name}: job {job_id}: [test-threads] a `run:` forces "
                     f"--test-threads=1, which hides the bug a parallel run "
                     f"would report"
+                )
+            with_block = step.get("with")
+            if (
+                isinstance(with_block, dict)
+                and with_block.get("fail_on_unmatched_files") is False
+            ):
+                defects.append(
+                    f"{path.name}: job {job_id}: [unmatched-files] a step sets "
+                    f"fail_on_unmatched_files: false, so a glob that matches "
+                    f"nothing publishes nothing and says so to no one"
                 )
 
     return defects, uses_seen
@@ -230,6 +300,52 @@ jobs:
 
 CLEAN_SHA = "0123456789abcdef0123456789abcdef01234567"
 
+FAULTY_RELEASE = f"""\
+name: Fixture release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  desktop-macos:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@{CLEAN_SHA} # v5
+      - run: cargo tauri build --target aarch64-apple-darwin
+      - run: codesign --verify --verbose=2 "$APP" || true
+  release:
+    needs: desktop-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@{CLEAN_SHA} # v2
+        with:
+          fail_on_unmatched_files: false
+"""
+
+CLEAN_RELEASE = f"""\
+name: Fixture release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@{CLEAN_SHA} # v5
+      - name: Guard the updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: dummy
+        run: echo "createUpdaterArtifacts stays on when the key is present"
+      - run: cargo tauri build --target aarch64-apple-darwin
+      - run: codesign --verify --verbose=2 "$APP"
+  release:
+    needs: desktop-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@{CLEAN_SHA} # v2
+        with:
+          fail_on_unmatched_files: true
+"""
+
 CLEAN_NIGHTLY = f"""\
 name: Fixture nightly
 on:
@@ -270,6 +386,10 @@ EXPECTED_RULES = (
     "[bot-filter]",
     "[advisory-name]",
     "[test-threads]",
+    "[unmatched-files]",
+    "[sign-verify]",
+    "[runner-deprecated]",
+    "[updater-guard]",
 )
 
 
@@ -288,11 +408,12 @@ def selftest() -> int:
         faulty.mkdir()
         (faulty / "nightly.yml").write_text(FAULTY_NIGHTLY, encoding="utf-8")
         (faulty / "auto-close-prs.yml").write_text(FAULTY_AUTOCLOSE, encoding="utf-8")
+        (faulty / "release.yml").write_text(FAULTY_RELEASE, encoding="utf-8")
         defects, files, uses = audit(faulty)
         case(
             "the faulty tree was measured",
-            files == 2 and uses == 1,
-            f"measured {files} file(s) and {uses} uses, expected 2 and 1",
+            files == 3 and uses == 3,
+            f"measured {files} file(s) and {uses} uses, expected 3 and 3",
         )
         for rule in EXPECTED_RULES:
             case(
@@ -306,12 +427,12 @@ def selftest() -> int:
         clean.mkdir()
         (clean / "nightly.yml").write_text(CLEAN_NIGHTLY, encoding="utf-8")
         (clean / "auto-close-prs.yml").write_text(CLEAN_AUTOCLOSE, encoding="utf-8")
+        (clean / "release.yml").write_text(CLEAN_RELEASE, encoding="utf-8")
         defects, files, _ = audit(clean)
         case(
             "positive control: a conforming tree yields no defect",
-            files == 2 and not defects,
-            f"expected 2 files and no defect, got {files} file(s) and "
-            f"{defects!r}",
+            files == 3 and not defects,
+            f"expected 3 files and no defect, got {files} file(s) and {defects!r}",
         )
 
         empty = Path(tmp) / "empty"
