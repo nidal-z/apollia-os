@@ -1,6 +1,208 @@
 {
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
+  "dynamicTestids": [
+    "agent-detail-tab-activity",
+    "agent-detail-tab-memory",
+    "agent-detail-tab-overview",
+    "agent-detail-tab-settings",
+    "agent-detail-tab-tools",
+    "agent-detail-title",
+    "automation-delete-seed-trigger-daily-digest",
+    "automation-edit-advanced-toggle",
+    "automation-edit-agent",
+    "automation-edit-cron",
+    "automation-edit-enabled",
+    "automation-edit-id-readonly",
+    "automation-edit-input-template",
+    "automation-edit-on-busy",
+    "automation-edit-secret",
+    "automation-edit-secret-generate",
+    "automation-edit-secret-warning",
+    "automation-edit-seed-trigger-daily-digest",
+    "automation-edit-type-cron",
+    "automation-edit-type-webhook",
+    "automation-enabled-toggle-seed-trigger-daily-digest",
+    "automation-history-seed-trigger-daily-digest",
+    "automation-menu-seed-trigger-daily-digest",
+    "automations-filter-active",
+    "automations-filter-all",
+    "automations-filter-error",
+    "automations-filter-paused",
+    "catalogue-filter-all",
+    "catalogue-filter-community",
+    "catalogue-filter-installed",
+    "catalogue-filter-official",
+    "catalogue-tab-custom",
+    "catalogue-tab-discover",
+    "channel-card-det-auto-channel",
+    "channel-card-seed-channel-desktop",
+    "channel-card-seed-channel-webhook",
+    "channel-delete-btn-seed-channel-desktop",
+    "channel-edit-btn-seed-channel-desktop",
+    "channel-event-task.completed",
+    "channel-test-btn-seed-channel-desktop",
+    "channel-toggle-det-auto-channel",
+    "channel-toggle-seed-channel-desktop",
+    "command-item-companion.toggle",
+    "config-file-card-copy-oria",
+    "config-file-card-copy-runtime",
+    "config-file-card-oria",
+    "connections-sidebar-filter-active",
+    "connections-sidebar-filter-all",
+    "connections-sidebar-filter-attention",
+    "connections-sidebar-filter-error",
+    "connections-sidebar-filter-idle",
+    "credential-row-web_search-brave.api_key",
+    "danger-card-clear-logs",
+    "danger-card-clear-memories",
+    "danger-card-factory-reset",
+    "danger-card-reset-onboarding",
+    "empty-state-plan-cache",
+    "getting-started-milestone-automate",
+    "getting-started-milestone-chat",
+    "getting-started-milestone-connect",
+    "getting-started-milestone-follow",
+    "getting-started-milestone-frame",
+    "global-event-agent.degraded",
+    "global-event-task.completed",
+    "global-event-task.failed",
+    "help-link-community",
+    "help-link-docs",
+    "help-link-report",
+    "help-link-shortcuts",
+    "help-topic-tour",
+    "inbox-activity-filter-all",
+    "inbox-activity-filter-degradations",
+    "inbox-activity-filter-failures",
+    "inbox-activity-filter-llm",
+    "inbox-filter-all",
+    "inbox-filter-approval",
+    "inbox-filter-ask_user",
+    "inbox-tab-activity",
+    "inbox-tab-notifications",
+    "inbox-tab-pending",
+    "language-en",
+    "language-fr",
+    "mcp-detail-tab-overview",
+    "mcp-detail-tab-settings",
+    "mcp-detail-tab-tools",
+    "memory-type-tab-all",
+    "memory-type-tab-episodic",
+    "memory-type-tab-procedural",
+    "memory-type-tab-semantic",
+    "mode-builder",
+    "mode-operator",
+    "namespace-sidebar-cat-agent",
+    "namespace-sidebar-cat-all",
+    "namespace-sidebar-cat-other",
+    "namespace-sidebar-cat-project",
+    "namespace-sidebar-cat-user",
+    "namespace-sidebar-item-apollia-guide",
+    "native-detail-tab-accounts",
+    "native-detail-tab-capabilities",
+    "native-detail-tab-settings",
+    "nav-agents",
+    "nav-automations",
+    "nav-chat",
+    "nav-dashboard",
+    "nav-inbox",
+    "nav-integrations",
+    "nav-llm",
+    "nav-memory",
+    "nav-notifications",
+    "nav-observability",
+    "nav-projects",
+    "nav-settings",
+    "nav-tasks",
+    "nav-transcriptions",
+    "oauth-add-account-google",
+    "oauth-add-account-microsoft",
+    "oauth-card-google",
+    "oauth-card-microsoft",
+    "observability-tab-audit-trail",
+    "observability-tab-delegation",
+    "observability-tab-hooks",
+    "observability-tab-llm-costs",
+    "observability-tab-plan-cache",
+    "observability-tab-timeline",
+    "package-detail-tab-agents",
+    "package-detail-tab-overview",
+    "package-detail-tab-triggers",
+    "period-14d",
+    "period-30d",
+    "period-365d",
+    "period-7d",
+    "period-90d",
+    "profile-compliance-rgpd",
+    "profile-integ-github",
+    "project-agent-remove-cancel-seed-classifier",
+    "project-agent-remove-confirm-seed-classifier",
+    "project-agent-remove-seed-classifier",
+    "project-agent-row-apollia-guide",
+    "project-agent-row-seed-classifier",
+    "project-doc-remove-cancel-seed-document-alpha-readme",
+    "project-doc-remove-confirm-seed-document-alpha-readme",
+    "project-doc-remove-seed-document-alpha-readme",
+    "project-tab-agents",
+    "project-tab-context",
+    "project-tab-conversations",
+    "project-tab-memory",
+    "project-tab-settings",
+    "project-tab-tasks",
+    "quickpicker-agent-seed-classifier",
+    "settings-nav-about",
+    "settings-nav-appearance",
+    "settings-nav-configuration",
+    "settings-nav-danger",
+    "settings-nav-help",
+    "settings-nav-integrations",
+    "settings-nav-llm",
+    "settings-nav-model-hub",
+    "settings-nav-observability",
+    "settings-nav-permissions",
+    "settings-nav-profile",
+    "settings-nav-shortcuts",
+    "settings-nav-stt",
+    "settings-nav-system",
+    "settings-nav-tools",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator",
+    "sidebar-native-google",
+    "sidebar-native-microsoft",
+    "task-detail-tab-output",
+    "task-detail-tab-overview",
+    "task-detail-tab-technical",
+    "task-detail-tab-trace",
+    "task-detail-title",
+    "tasks-filter-all",
+    "tasks-filter-approval",
+    "tasks-filter-done",
+    "tasks-filter-error",
+    "tasks-filter-running",
+    "tasks-filter-todo",
+    "tasks-split-filter-all",
+    "tasks-split-filter-done",
+    "theme-dark",
+    "theme-light",
+    "theme-system",
+    "tool-card-bash_executor",
+    "tool-card-file_read",
+    "tool-card-web_search",
+    "tool-configure-web_read",
+    "tool-configure-web_search",
+    "tool-contract-credential-brave.api_key",
+    "tool-contract-field-query",
+    "tool-inspect-web_search",
+    "tool-toggle-web_search",
+    "trigger-logs-filter-all",
+    "trigger-logs-filter-fired",
+    "trigger-type-card-cron",
+    "trigger-type-card-file_watch",
+    "trigger-type-card-interval",
+    "trigger-type-card-oneshot",
+    "trigger-type-card-webhook"
+  ],
   "steps": [
     {
       "kind": "screenshot",
@@ -64,13 +266,11 @@
     },
     {
       "kind": "expect",
-      "testid": "sidebar",
-      "timeoutMs": 3000
+      "testid": "sidebar"
     },
     {
       "kind": "expect",
-      "testid": "topbar",
-      "timeoutMs": 3000
+      "testid": "topbar"
     },
     {
       "kind": "click",
@@ -230,8 +430,7 @@
     },
     {
       "kind": "expect",
-      "testid": "topbar-search",
-      "timeoutMs": 3000
+      "testid": "topbar-search"
     },
     {
       "kind": "click",
@@ -337,28 +536,23 @@
     },
     {
       "kind": "expect",
-      "testid": "user-menu-settings",
-      "timeoutMs": 3000
+      "testid": "user-menu-settings"
     },
     {
       "kind": "expect",
-      "testid": "user-menu-shortcuts",
-      "timeoutMs": 3000
+      "testid": "user-menu-shortcuts"
     },
     {
       "kind": "expect",
-      "testid": "user-menu-reset-onboarding",
-      "timeoutMs": 3000
+      "testid": "user-menu-reset-onboarding"
     },
     {
       "kind": "expect",
-      "testid": "user-menu-about",
-      "timeoutMs": 3000
+      "testid": "user-menu-about"
     },
     {
       "kind": "expect",
-      "testid": "user-menu-quit",
-      "timeoutMs": 3000
+      "testid": "user-menu-quit"
     },
     {
       "kind": "screenshot",
@@ -599,18 +793,15 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
+      "testid": "dashboard-page"
     },
     {
       "kind": "expect",
-      "testid": "dashboard-cta-projects",
-      "timeoutMs": 3000
+      "testid": "dashboard-cta-projects"
     },
     {
       "kind": "expect",
-      "testid": "dashboard-cta-new-chat",
-      "timeoutMs": 3000
+      "testid": "dashboard-cta-new-chat"
     },
     {
       "kind": "waitFor",
@@ -623,8 +814,7 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-recent-see-all",
-      "timeoutMs": 3000
+      "testid": "dashboard-recent-see-all"
     },
     {
       "kind": "waitFor",
@@ -637,8 +827,7 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-projects-see-all",
-      "timeoutMs": 3000
+      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "screenshot",
@@ -682,8 +871,7 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-projects-see-all",
-      "timeoutMs": 3000
+      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "click",
@@ -851,13 +1039,11 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-header",
-      "timeoutMs": 3000
+      "testid": "chat-header"
     },
     {
       "kind": "expect",
-      "testid": "chat-active-list",
-      "timeoutMs": 3000
+      "testid": "chat-active-list"
     },
     {
       "kind": "waitFor",
@@ -916,8 +1102,7 @@
     },
     {
       "kind": "expect",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
+      "testid": "quickpicker"
     },
     {
       "kind": "screenshot",
@@ -980,8 +1165,7 @@
     },
     {
       "kind": "expect",
-      "testid": "quickpicker-submit",
-      "timeoutMs": 3000
+      "testid": "quickpicker-submit"
     },
     {
       "kind": "screenshot",
@@ -989,14 +1173,12 @@
     },
     {
       "kind": "expect",
-      "testid": "quickpicker-plan-mode-label",
-      "timeoutMs": 3000
+      "testid": "quickpicker-plan-mode-label"
     },
     {
       "kind": "setChecked",
       "testid": "quickpicker-plan-mode",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "screenshot",
@@ -1005,8 +1187,7 @@
     {
       "kind": "setChecked",
       "testid": "quickpicker-plan-mode",
-      "checked": false,
-      "timeoutMs": 3000
+      "checked": false
     },
     {
       "kind": "press",
@@ -1054,48 +1235,39 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-conversation",
-      "timeoutMs": 3000
+      "testid": "chat-conversation"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-title",
-      "timeoutMs": 3000
+      "testid": "chat-header-title"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-meta",
-      "timeoutMs": 3000
+      "testid": "chat-header-meta"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-meta-mode",
-      "timeoutMs": 3000
+      "testid": "chat-header-meta-mode"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-meta-messages",
-      "timeoutMs": 3000
+      "testid": "chat-header-meta-messages"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-meta-duration",
-      "timeoutMs": 3000
+      "testid": "chat-header-meta-duration"
     },
     {
       "kind": "expect",
-      "testid": "chat-close-button",
-      "timeoutMs": 3000
+      "testid": "chat-close-button"
     },
     {
       "kind": "expect",
-      "testid": "chat-input",
-      "timeoutMs": 3000
+      "testid": "chat-input"
     },
     {
       "kind": "expect",
-      "testid": "chat-send-button",
-      "timeoutMs": 3000
+      "testid": "chat-send-button"
     },
     {
       "kind": "waitFor",
@@ -1104,8 +1276,7 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-attach-input",
-      "timeoutMs": 3000
+      "testid": "chat-attach-input"
     },
     {
       "kind": "waitFor",
@@ -1128,8 +1299,7 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-slash-menu-item",
-      "timeoutMs": 3000
+      "testid": "chat-slash-menu-item"
     },
     {
       "kind": "screenshot",
@@ -1161,13 +1331,11 @@
     },
     {
       "kind": "expect",
-      "testid": "composer-plan-toggle",
-      "timeoutMs": 3000
+      "testid": "composer-plan-toggle"
     },
     {
       "kind": "expect",
-      "testid": "chat-plan-mode-chip",
-      "timeoutMs": 3000
+      "testid": "chat-plan-mode-chip"
     },
     {
       "kind": "click",
@@ -1207,8 +1375,7 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-inspector-plan-tab",
-      "timeoutMs": 3000
+      "testid": "chat-inspector-plan-tab"
     },
     {
       "kind": "screenshot",
@@ -1238,8 +1405,7 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-inspector-config",
-      "timeoutMs": 3000
+      "testid": "chat-inspector-config"
     },
     {
       "kind": "screenshot",
@@ -1247,8 +1413,7 @@
     },
     {
       "kind": "expect",
-      "testid": "config-system-prompt",
-      "timeoutMs": 3000
+      "testid": "config-system-prompt"
     },
     {
       "kind": "fill",
@@ -1258,8 +1423,7 @@
     },
     {
       "kind": "expect",
-      "testid": "config-step-budget",
-      "timeoutMs": 3000
+      "testid": "config-step-budget"
     },
     {
       "kind": "fill",
@@ -1275,8 +1439,7 @@
     },
     {
       "kind": "expect",
-      "testid": "toggle-user-memory",
-      "timeoutMs": 3000
+      "testid": "toggle-user-memory"
     },
     {
       "kind": "click",
@@ -1299,8 +1462,7 @@
     },
     {
       "kind": "expect",
-      "testid": "config-save",
-      "timeoutMs": 3000
+      "testid": "config-save"
     },
     {
       "kind": "click",
@@ -1323,23 +1485,19 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-header-menu-drawer",
-      "timeoutMs": 3000
+      "testid": "chat-header-menu-drawer"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-menu-rename",
-      "timeoutMs": 3000
+      "testid": "chat-header-menu-rename"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-menu-delete",
-      "timeoutMs": 3000
+      "testid": "chat-header-menu-delete"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
+      "testid": "chat-header-menu-link-project"
     },
     {
       "kind": "screenshot",
@@ -1452,18 +1610,15 @@
     },
     {
       "kind": "expect",
-      "testid": "conversation-row-menu-rename",
-      "timeoutMs": 3000
+      "testid": "conversation-row-menu-rename"
     },
     {
       "kind": "expect",
-      "testid": "conversation-row-menu-configure",
-      "timeoutMs": 3000
+      "testid": "conversation-row-menu-configure"
     },
     {
       "kind": "expect",
-      "testid": "conversation-row-menu-delete",
-      "timeoutMs": 3000
+      "testid": "conversation-row-menu-delete"
     },
     {
       "kind": "screenshot",
@@ -1522,8 +1677,7 @@
     },
     {
       "kind": "expect",
-      "testid": "conversation-row-delete-confirm-btn",
-      "timeoutMs": 3000
+      "testid": "conversation-row-delete-confirm-btn"
     },
     {
       "kind": "screenshot",
@@ -1611,18 +1765,15 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-conversation",
-      "timeoutMs": 3000
+      "testid": "chat-conversation"
     },
     {
       "kind": "expect",
-      "testid": "chat-messages-list",
-      "timeoutMs": 3000
+      "testid": "chat-messages-list"
     },
     {
       "kind": "expect",
-      "testid": "chat-header-meta-mode",
-      "timeoutMs": 3000
+      "testid": "chat-header-meta-mode"
     },
     {
       "kind": "waitFor",
@@ -1733,8 +1884,7 @@
     },
     {
       "kind": "expect",
-      "testid": "agents-list",
-      "timeoutMs": 3000
+      "testid": "agents-list"
     },
     {
       "kind": "waitFor",
@@ -1743,8 +1893,7 @@
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-pinned",
-      "timeoutMs": 3000
+      "testid": "apollia-chat-pinned"
     },
     {
       "kind": "waitFor",
@@ -1799,8 +1948,7 @@
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-config-save",
-      "timeoutMs": 3000
+      "testid": "apollia-chat-config-save"
     },
     {
       "kind": "waitFor",
@@ -1809,8 +1957,7 @@
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-llm-backend",
-      "timeoutMs": 3000
+      "testid": "apollia-chat-llm-backend"
     },
     {
       "kind": "waitFor",
@@ -1870,12 +2017,87 @@
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content",
-      "timeoutMs": 3000
+      "testid": "agent-detail-tab-content"
     },
     {
       "kind": "screenshot",
       "label": "05-agent-detail-overview"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-update-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-uninstall-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-agent-update-and-uninstall-actions (update opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05c-agent-uninstall-armed"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "agent-uninstall-memory",
+      "checked": true
+    },
+    {
+      "kind": "screenshot",
+      "label": "05d-agent-uninstall-memory-opted-in (confirm NEVER clicked, nothing removed)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
     },
     {
       "kind": "click",
@@ -2052,8 +2274,7 @@
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content",
-      "timeoutMs": 3000
+      "testid": "agent-detail-tab-content"
     },
     {
       "kind": "screenshot",
@@ -2314,12 +2535,124 @@
     },
     {
       "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "project-agent-add-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-apollia-guide",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-project-agents"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "index": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-project-agent-candidate-picked (add NEVER clicked, no link created)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "project-agent-select",
+      "value": "",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-confirm-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-project-agent-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-cancel-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-project-agent-detach-cancelled (the link survives)"
+    },
+    {
+      "kind": "click",
       "testid": "project-tab-memory",
       "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
       "label": "08-project-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "project-doc-attach-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-project-documents (attach opens a native file picker, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08c-project-document-detach-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-cancel-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08d-project-document-detach-cancelled (the document stays attached)"
     },
     {
       "kind": "click",
@@ -2415,18 +2748,15 @@
     },
     {
       "kind": "expect",
-      "testid": "settings-description-input",
-      "timeoutMs": 3000
+      "testid": "settings-description-input"
     },
     {
       "kind": "expect",
-      "testid": "settings-instructions-input",
-      "timeoutMs": 3000
+      "testid": "settings-instructions-input"
     },
     {
       "kind": "expect",
-      "testid": "settings-workspace-input",
-      "timeoutMs": 3000
+      "testid": "settings-workspace-input"
     },
     {
       "kind": "fill",
@@ -2619,13 +2949,11 @@
     },
     {
       "kind": "expect",
-      "testid": "tasks-filter-bar",
-      "timeoutMs": 3000
+      "testid": "tasks-filter-bar"
     },
     {
       "kind": "expect",
-      "testid": "tasks-filter-all",
-      "timeoutMs": 3000
+      "testid": "tasks-filter-all"
     },
     {
       "kind": "click",
@@ -2739,18 +3067,15 @@
     },
     {
       "kind": "expect",
-      "testid": "task-detail",
-      "timeoutMs": 3000
+      "testid": "task-detail"
     },
     {
       "kind": "expect",
-      "testid": "tasks-split-sidebar",
-      "timeoutMs": 3000
+      "testid": "tasks-split-sidebar"
     },
     {
       "kind": "expect",
-      "testid": "tasks-split-list",
-      "timeoutMs": 3000
+      "testid": "tasks-split-list"
     },
     {
       "kind": "waitFor",
@@ -2760,8 +3085,7 @@
     },
     {
       "kind": "expect",
-      "testid": "task-overview-input",
-      "timeoutMs": 3000
+      "testid": "task-overview-input"
     },
     {
       "kind": "waitFor",
@@ -3006,6 +3330,30 @@
     },
     {
       "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "automation-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-automations-refreshed"
+    },
+    {
+      "kind": "click",
       "testid": "automations-new-btn",
       "timeoutMs": 3000
     },
@@ -3045,8 +3393,7 @@
     },
     {
       "kind": "expect",
-      "testid": "trigger-input-cron",
-      "timeoutMs": 3000
+      "testid": "trigger-input-cron"
     },
     {
       "kind": "click",
@@ -3055,8 +3402,7 @@
     },
     {
       "kind": "expect",
-      "testid": "trigger-input-interval",
-      "timeoutMs": 3000
+      "testid": "trigger-input-interval"
     },
     {
       "kind": "click",
@@ -3109,8 +3455,7 @@
     {
       "kind": "setChecked",
       "testid": "trigger-recursive-toggle",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "click",
@@ -3130,8 +3475,7 @@
     {
       "kind": "setChecked",
       "testid": "trigger-enabled-toggle",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "screenshot",
@@ -3165,8 +3509,7 @@
     },
     {
       "kind": "expect",
-      "testid": "create-trigger-submit-btn",
-      "timeoutMs": 3000
+      "testid": "create-trigger-submit-btn"
     },
     {
       "kind": "click",
@@ -3282,13 +3625,11 @@
     },
     {
       "kind": "expect",
-      "testid": "delete-automation-skip",
-      "timeoutMs": 3000
+      "testid": "delete-automation-skip"
     },
     {
       "kind": "expect",
-      "testid": "delete-automation-confirm",
-      "timeoutMs": 3000
+      "testid": "delete-automation-confirm"
     },
     {
       "kind": "screenshot",
@@ -3307,6 +3648,124 @@
     {
       "kind": "screenshot",
       "label": "10-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-agent",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-type-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-cron"
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-enabled"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-automation-edit-loaded (stored definition, cron)"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-advanced-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-id-readonly",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-on-busy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-input-template",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-automation-edit-advanced (identifier immutable on the edit path)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "automation-edit-on-busy",
+      "value": "drop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-secret-generate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-secret-warning",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10d-automation-edit-secret-rotation-warned"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-type-cron",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-edit-submit"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10e-automation-edit-cancelled (submit NEVER clicked, the definition is untouched)"
     },
     {
       "kind": "click",
@@ -3508,8 +3967,7 @@
     },
     {
       "kind": "expect",
-      "testid": "inbox-tabbar",
-      "timeoutMs": 3000
+      "testid": "inbox-tabbar"
     },
     {
       "kind": "click",
@@ -3556,6 +4014,27 @@
     {
       "kind": "screenshot",
       "label": "05-inbox-pending-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-origin",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-inbox-history-merged (one list, each row tagged with its origin)"
     },
     {
       "kind": "click",
@@ -3804,18 +4283,15 @@
     },
     {
       "kind": "expect",
-      "testid": "global-event-task.completed",
-      "timeoutMs": 3000
+      "testid": "global-event-task.completed"
     },
     {
       "kind": "expect",
-      "testid": "global-event-task.failed",
-      "timeoutMs": 3000
+      "testid": "global-event-task.failed"
     },
     {
       "kind": "expect",
-      "testid": "global-event-agent.degraded",
-      "timeoutMs": 3000
+      "testid": "global-event-agent.degraded"
     },
     {
       "kind": "waitFor",
@@ -3833,33 +4309,27 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-toggle-seed-channel-desktop",
-      "timeoutMs": 3000
+      "testid": "channel-toggle-seed-channel-desktop"
     },
     {
       "kind": "expect",
-      "testid": "channel-edit-btn-seed-channel-desktop",
-      "timeoutMs": 3000
+      "testid": "channel-edit-btn-seed-channel-desktop"
     },
     {
       "kind": "expect",
-      "testid": "channel-test-btn-seed-channel-desktop",
-      "timeoutMs": 3000
+      "testid": "channel-test-btn-seed-channel-desktop"
     },
     {
       "kind": "expect",
-      "testid": "channel-delete-btn-seed-channel-desktop",
-      "timeoutMs": 3000
+      "testid": "channel-delete-btn-seed-channel-desktop"
     },
     {
       "kind": "expect",
-      "testid": "notifications-history-moved",
-      "timeoutMs": 3000
+      "testid": "notifications-history-moved"
     },
     {
       "kind": "expect",
-      "testid": "notifications-history-link",
-      "timeoutMs": 3000
+      "testid": "notifications-history-link"
     },
     {
       "kind": "click",
@@ -3877,8 +4347,7 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-label-input",
-      "timeoutMs": 3000
+      "testid": "channel-label-input"
     },
     {
       "kind": "click",
@@ -3892,23 +4361,19 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-id-input",
-      "timeoutMs": 3000
+      "testid": "channel-id-input"
     },
     {
       "kind": "expect",
-      "testid": "channel-type-select",
-      "timeoutMs": 3000
+      "testid": "channel-type-select"
     },
     {
       "kind": "expect",
-      "testid": "channel-throttle-select",
-      "timeoutMs": 3000
+      "testid": "channel-throttle-select"
     },
     {
       "kind": "expect",
-      "testid": "channel-enabled-toggle",
-      "timeoutMs": 3000
+      "testid": "channel-enabled-toggle"
     },
     {
       "kind": "waitFor",
@@ -3985,8 +4450,7 @@
     {
       "kind": "setChecked",
       "testid": "channel-enabled-toggle",
-      "checked": false,
-      "timeoutMs": 3000
+      "checked": false
     },
     {
       "kind": "screenshot",
@@ -3995,8 +4459,7 @@
     {
       "kind": "setChecked",
       "testid": "channel-enabled-toggle",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "screenshot",
@@ -4018,8 +4481,7 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-toggle-det-auto-channel",
-      "timeoutMs": 3000
+      "testid": "channel-toggle-det-auto-channel"
     },
     {
       "kind": "click",
@@ -4059,28 +4521,23 @@
     },
     {
       "kind": "expect",
-      "testid": "edit-channel-label-input",
-      "timeoutMs": 3000
+      "testid": "edit-channel-label-input"
     },
     {
       "kind": "expect",
-      "testid": "edit-channel-id-input",
-      "timeoutMs": 3000
+      "testid": "edit-channel-id-input"
     },
     {
       "kind": "expect",
-      "testid": "edit-channel-type-select",
-      "timeoutMs": 3000
+      "testid": "edit-channel-type-select"
     },
     {
       "kind": "expect",
-      "testid": "edit-channel-throttle-select",
-      "timeoutMs": 3000
+      "testid": "edit-channel-throttle-select"
     },
     {
       "kind": "expect",
-      "testid": "edit-channel-enabled-toggle",
-      "timeoutMs": 3000
+      "testid": "edit-channel-enabled-toggle"
     },
     {
       "kind": "fill",
@@ -4170,8 +4627,7 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-id-error",
-      "timeoutMs": 3000
+      "testid": "channel-id-error"
     },
     {
       "kind": "screenshot",
@@ -4594,6 +5050,179 @@
     {
       "kind": "screenshot",
       "label": "12-entry-sheet-cancelled"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-data-actions",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-export-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-button"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-purge-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-memory-data-actions (export opens a native save dialog, NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-pick"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-mode"
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-submit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-memory-import-dialog (no file picked, submit stays disabled)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "replace",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-warning",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-memory-import-replace-warning"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "merge",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-memory-import-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-scope",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-days",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-preview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12f-memory-purge-dialog"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-purge-scope",
+      "value": "episodic",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "memory-purge-days",
+      "text": "3650",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "12g-memory-purge-scoped (3650 days, so the preview counts nothing)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-continue",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12h-memory-purge-confirm (irreversible, cancelled below)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12i-memory-purge-cancelled (nothing was purged)"
     },
     {
       "kind": "click",
@@ -5158,8 +5787,7 @@
     {
       "kind": "setChecked",
       "testid": "custom-mcp-approval-toggle",
-      "checked": false,
-      "timeoutMs": 3000
+      "checked": false
     },
     {
       "kind": "screenshot",
@@ -5168,8 +5796,7 @@
     {
       "kind": "setChecked",
       "testid": "custom-mcp-approval-toggle",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "selectOption",
@@ -5565,23 +6192,19 @@
     },
     {
       "kind": "expect",
-      "testid": "observability-tabbar",
-      "timeoutMs": 3000
+      "testid": "observability-tabbar"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-timeline",
-      "timeoutMs": 3000
+      "testid": "observability-tab-timeline"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-llm-costs",
-      "timeoutMs": 3000
+      "testid": "observability-tab-llm-costs"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-audit-trail",
-      "timeoutMs": 3000
+      "testid": "observability-tab-audit-trail"
     },
     {
       "kind": "screenshot",
@@ -5629,6 +6252,76 @@
     {
       "kind": "screenshot",
       "label": "04-operator-timeline-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-all"
+    },
+    {
+      "kind": "expect",
+      "testid": "timeline-scope-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-task",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-task-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-operator-task-timeline"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "timeline-task-select",
+      "index": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-timeline",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-operator-task-timeline-other-task"
+    },
+    {
+      "kind": "click",
+      "testid": "timeline-scope-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "timeline-controls",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04d-operator-timeline-back-to-window"
     },
     {
       "kind": "click",
@@ -5705,6 +6398,30 @@
       "label": "08-operator-audit-empty"
     },
     {
+      "kind": "waitFor",
+      "testid": "audit-global-stats",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-events",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-tools",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-global-agents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-operator-audit-global-stats (journal-wide totals, not the loaded page)"
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip",
       "timeoutMs": 3000
@@ -5734,28 +6451,27 @@
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-timeline",
-      "timeoutMs": 3000
+      "testid": "observability-tab-timeline"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-llm-costs",
-      "timeoutMs": 3000
+      "testid": "observability-tab-llm-costs"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-audit-trail",
-      "timeoutMs": 3000
+      "testid": "observability-tab-audit-trail"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-delegation",
-      "timeoutMs": 3000
+      "testid": "observability-tab-delegation"
     },
     {
       "kind": "expect",
-      "testid": "observability-tab-plan-cache",
-      "timeoutMs": 3000
+      "testid": "observability-tab-plan-cache"
+    },
+    {
+      "kind": "expect",
+      "testid": "observability-tab-hooks"
     },
     {
       "kind": "screenshot",
@@ -5972,6 +6688,34 @@
     {
       "kind": "screenshot",
       "label": "17-builder-plan-cache-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-hooks",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "active-hooks-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-builder-active-hooks-empty (the seed declares no lifecycle hook)"
     },
     {
       "kind": "click",
@@ -6404,8 +7148,7 @@
     },
     {
       "kind": "expect",
-      "testid": "settings-content",
-      "timeoutMs": 3000
+      "testid": "settings-content"
     },
     {
       "kind": "screenshot",
@@ -6872,8 +7615,7 @@
     },
     {
       "kind": "expect",
-      "testid": "update-check-btn",
-      "timeoutMs": 3000
+      "testid": "update-check-btn"
     },
     {
       "kind": "screenshot",
@@ -7289,6 +8031,157 @@
     {
       "kind": "screenshot",
       "label": "50-back-operator"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-help",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-hero",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "help-hero-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-docs",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-report",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-link-shortcuts",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "help-faq",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "51-help-resources"
+    },
+    {
+      "kind": "click",
+      "testid": "help-link-shortcuts",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "52-help-shortcuts-in-app"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-about",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-hero",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "about-logo"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-version"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-os"
+    },
+    {
+      "kind": "screenshot",
+      "label": "53-about-hero-logo"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "captureText",
+      "testid": "about-data",
+      "as": "about-data-dir"
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-data-dir",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "54-about-data-dir-copied"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-local",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "55-about-runs-locally"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-links",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "about-link-report"
+    },
+    {
+      "kind": "expect",
+      "testid": "about-link-github"
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-diagnostics",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "56-about-diagnostic-copied"
     },
     {
       "kind": "screenshot",
@@ -7831,6 +8724,20 @@
       "label": "05-llm-builder-stats"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-cost-threshold-unset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
+    },
+    {
       "kind": "goto",
       "route": "settings"
     },
@@ -7921,28 +8828,23 @@
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-name"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-provider",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-provider"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-model",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-model"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-save",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-save"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-cancel",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-cancel"
     },
     {
       "kind": "screenshot",
@@ -7969,28 +8871,23 @@
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-name"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-provider",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-provider"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-model",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-model"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-browse",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-browse"
     },
     {
       "kind": "expect",
-      "testid": "llm-dialog-scan",
-      "timeoutMs": 3000
+      "testid": "llm-dialog-scan"
     },
     {
       "kind": "screenshot",
@@ -8062,13 +8959,11 @@
     },
     {
       "kind": "expect",
-      "testid": "llm-delete-cancel",
-      "timeoutMs": 3000
+      "testid": "llm-delete-cancel"
     },
     {
       "kind": "expect",
-      "testid": "llm-delete-confirm-btn",
-      "timeoutMs": 3000
+      "testid": "llm-delete-confirm-btn"
     },
     {
       "kind": "screenshot",
@@ -8226,13 +9121,11 @@
     },
     {
       "kind": "expect",
-      "testid": "installed-model-delete-dialog-confirm",
-      "timeoutMs": 3000
+      "testid": "installed-model-delete-dialog-confirm"
     },
     {
       "kind": "expect",
-      "testid": "installed-model-delete-dialog-cancel",
-      "timeoutMs": 3000
+      "testid": "installed-model-delete-dialog-cancel"
     },
     {
       "kind": "screenshot",
@@ -8265,8 +9158,7 @@
     },
     {
       "kind": "expect",
-      "testid": "hf-token-save",
-      "timeoutMs": 3000
+      "testid": "hf-token-save"
     },
     {
       "kind": "screenshot",
@@ -8307,28 +9199,23 @@
     },
     {
       "kind": "expect",
-      "testid": "model-filter-language",
-      "timeoutMs": 3000
+      "testid": "model-filter-language"
     },
     {
       "kind": "expect",
-      "testid": "model-filter-license",
-      "timeoutMs": 3000
+      "testid": "model-filter-license"
     },
     {
       "kind": "expect",
-      "testid": "model-filter-type",
-      "timeoutMs": 3000
+      "testid": "model-filter-type"
     },
     {
       "kind": "expect",
-      "testid": "model-filter-gated",
-      "timeoutMs": 3000
+      "testid": "model-filter-gated"
     },
     {
       "kind": "expect",
-      "testid": "model-filter-incompatible",
-      "timeoutMs": 3000
+      "testid": "model-filter-incompatible"
     },
     {
       "kind": "screenshot",
@@ -8507,13 +9394,11 @@
     },
     {
       "kind": "expect",
-      "testid": "installed-models-section",
-      "timeoutMs": 3000
+      "testid": "installed-models-section"
     },
     {
       "kind": "expect",
-      "testid": "model-hub-search-input",
-      "timeoutMs": 3000
+      "testid": "model-hub-search-input"
     },
     {
       "kind": "screenshot",
@@ -8604,13 +9489,11 @@
     },
     {
       "kind": "expect",
-      "testid": "stt-section-essential",
-      "timeoutMs": 3000
+      "testid": "stt-section-essential"
     },
     {
       "kind": "expect",
-      "testid": "stt-enable-toggle",
-      "timeoutMs": 3000
+      "testid": "stt-enable-toggle"
     },
     {
       "kind": "waitFor",
@@ -8755,8 +9638,7 @@
     },
     {
       "kind": "expect",
-      "testid": "stt-config-hint",
-      "timeoutMs": 3000
+      "testid": "stt-config-hint"
     },
     {
       "kind": "screenshot",
@@ -8959,8 +9841,7 @@
     },
     {
       "kind": "expect",
-      "testid": "stt-section-status",
-      "timeoutMs": 3000
+      "testid": "stt-section-status"
     },
     {
       "kind": "screenshot",
@@ -9069,8 +9950,7 @@
     },
     {
       "kind": "expect",
-      "testid": "settings-tools",
-      "timeoutMs": 3000
+      "testid": "settings-tools"
     },
     {
       "kind": "waitFor",
@@ -9155,6 +10035,91 @@
     },
     {
       "kind": "waitFor",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-identity",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-field-query",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-tool-contract-web-search"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input-raw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tool-contract-raw-input-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credentials",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credential-brave.api_key",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-tool-contract-closed"
+    },
+    {
+      "kind": "waitFor",
       "testid": "tool-configure-web_search",
       "timeoutMs": 3000
     },
@@ -9209,8 +10174,7 @@
     },
     {
       "kind": "expect",
-      "testid": "tool-config-save",
-      "timeoutMs": 3000
+      "testid": "tool-config-save"
     },
     {
       "kind": "screenshot",
@@ -9231,8 +10195,7 @@
     {
       "kind": "setChecked",
       "testid": "require-configured",
-      "checked": true,
-      "timeoutMs": 3000
+      "checked": true
     },
     {
       "kind": "sleep",
@@ -9325,8 +10288,7 @@
     },
     {
       "kind": "expect",
-      "testid": "tool-config-save",
-      "timeoutMs": 3000
+      "testid": "tool-config-save"
     },
     {
       "kind": "screenshot",
@@ -9349,6 +10311,48 @@
     {
       "kind": "screenshot",
       "label": "15-web-read-closed-unsaved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credential-row-web_search-brave.api_key",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-credential-inventory"
+    },
+    {
+      "kind": "click",
+      "testid": "credentials-reload",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15c-credential-inventory-reloaded"
     },
     {
       "kind": "goto",
@@ -9496,8 +10500,7 @@
     },
     {
       "kind": "expect",
-      "testid": "tool-config-save",
-      "timeoutMs": 3000
+      "testid": "tool-config-save"
     },
     {
       "kind": "screenshot",
@@ -9602,8 +10605,7 @@
     },
     {
       "kind": "expect",
-      "testid": "settings-permissions",
-      "timeoutMs": 3000
+      "testid": "settings-permissions"
     },
     {
       "kind": "waitFor",
@@ -9813,8 +10815,7 @@
     },
     {
       "kind": "expect",
-      "testid": "permission-rule-add-submit",
-      "timeoutMs": 3000
+      "testid": "permission-rule-add-submit"
     },
     {
       "kind": "screenshot",
@@ -10133,8 +11134,7 @@
     },
     {
       "kind": "expect",
-      "testid": "help-topic-tour",
-      "timeoutMs": 3000
+      "testid": "help-topic-tour"
     },
     {
       "kind": "screenshot",
@@ -10152,38 +11152,31 @@
     },
     {
       "kind": "expect",
-      "testid": "getting-started-milestone-chat",
-      "timeoutMs": 3000
+      "testid": "getting-started-milestone-chat"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-milestone-frame",
-      "timeoutMs": 3000
+      "testid": "getting-started-milestone-frame"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-milestone-automate",
-      "timeoutMs": 3000
+      "testid": "getting-started-milestone-automate"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-milestone-connect",
-      "timeoutMs": 3000
+      "testid": "getting-started-milestone-connect"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-milestone-follow",
-      "timeoutMs": 3000
+      "testid": "getting-started-milestone-follow"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-landmarks",
-      "timeoutMs": 3000
+      "testid": "getting-started-landmarks"
     },
     {
       "kind": "expect",
-      "testid": "getting-started-hide",
-      "timeoutMs": 3000
+      "testid": "getting-started-hide"
     },
     {
       "kind": "screenshot",
@@ -10201,18 +11194,15 @@
     },
     {
       "kind": "expect",
-      "testid": "tour-spotlight",
-      "timeoutMs": 3000
+      "testid": "tour-spotlight"
     },
     {
       "kind": "expect",
-      "testid": "tour-counter",
-      "timeoutMs": 3000
+      "testid": "tour-counter"
     },
     {
       "kind": "expect",
-      "testid": "tour-next",
-      "timeoutMs": 3000
+      "testid": "tour-next"
     },
     {
       "kind": "waitGone",
@@ -10343,8 +11333,7 @@
     },
     {
       "kind": "expect",
-      "testid": "tour-step-card",
-      "timeoutMs": 3000
+      "testid": "tour-step-card"
     },
     {
       "kind": "screenshot",
@@ -10471,8 +11460,7 @@
     },
     {
       "kind": "expect",
-      "testid": "tour-spotlight",
-      "timeoutMs": 3000
+      "testid": "tour-spotlight"
     },
     {
       "kind": "screenshot",

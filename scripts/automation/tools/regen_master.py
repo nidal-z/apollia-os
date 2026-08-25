@@ -59,11 +59,19 @@ if "--write" in sys.argv:
     json.dump(regen, open(f"{SCRIPTS}/master-det.json", "w"), indent=2)
     open(f"{SCRIPTS}/master-det.json", "a").write("\n")
     print(f"WROTE master-det.json: {len(out)} steps")
+    sys.exit(0)
+
+same = regen == master
+print(f"regen {len(out)} steps vs current {len(msteps)} steps; identical={same}")
+if same:
+    sys.exit(0)
+for i, (a, b) in enumerate(zip(out, msteps)):
+    if a != b:
+        print(f"first diff at {i}:\n  regen: {a}\n  curr:  {b}")
+        break
 else:
-    same = regen == master
-    print(f"regen {len(out)} steps vs current {len(msteps)} steps; identical={same}")
-    if not same:
-        for i, (a, b) in enumerate(zip(out, msteps)):
-            if a != b:
-                print(f"first diff at {i}:\n  regen: {a}\n  curr:  {b}")
-                break
+    print("steps differ in length, or a top-level key differs "
+          f"(regen keys {sorted(regen)}, current keys {sorted(master)})")
+# A dry run that saw a drift and exited 0 was the defect: the derived file
+# stayed 201 steps stale with the generator answering "fine" to every caller.
+sys.exit(1)
