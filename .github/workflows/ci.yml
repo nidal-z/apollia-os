@@ -361,6 +361,14 @@ jobs:
         run: python3 scripts/check_i18n_catalogue.py
       - name: No production panic path escapes the lint
         run: python3 scripts/check_panic_free.py
+      # The workflows themselves: SHA pins, resolved needs, dispatch coverage,
+      # bot exclusions, advisory naming, no forced single-thread test runs.
+      # Selftest first, so a rule that cannot fire is reported before its
+      # green on the real tree is believed.
+      - name: The workflows hold their declared form
+        run: |
+          python3 scripts/check_ci_workflows.py --selftest
+          python3 scripts/check_ci_workflows.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:

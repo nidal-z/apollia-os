@@ -197,6 +197,17 @@ repos:
         files: ^sdk/
         pass_filenames: false
 
+      # The workflows were written job by job and nothing read them as a set:
+      # nine movable tags, two jobs no dispatch could trigger and a policy
+      # closing Dependabot PRs all lived there at once. The defect is born in
+      # a commit that touches a workflow, so the guard runs there.
+      - id: check-ci-workflows
+        name: workflow form (SHA pins, needs, dispatch, bot filter, threads)
+        entry: python3 scripts/check_ci_workflows.py
+        language: system
+        files: '^(\.github/workflows/.+|scripts/check_ci_workflows\.py)$'
+        pass_filenames: false
+
       # Blocks a commit that breaks the documentation build. The second branch
       # of the filter is measured, not guessed: docusaurus.config.js reads
       # ../../clients/openapi.json, so a spec change can break the site without

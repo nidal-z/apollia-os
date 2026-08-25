@@ -455,6 +455,7 @@ guards:
     guards=(
       "scripts/automation/tools/validate.py"
       "scripts/check_automation_derived.py"
+      "scripts/check_ci_workflows.py"
       "scripts/check_claim_anchors.py"
       "scripts/check_claims.py"
       "scripts/check_crate_lints.py"
