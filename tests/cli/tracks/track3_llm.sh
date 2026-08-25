@@ -77,4 +77,4 @@ fi
 section "C.6 other non-deterministic surfaces"
 capture_run_soft "a2a invoke classify_text" 90 '{"text":"the app crashes on login","labels":["bug","feature"]}' -- \
     "${Q[@]}" a2a invoke classify_text --args '{"text":"the app crashes on login","labels":["bug","feature"]}' --timeout 60
-skip "audit replay <run>" "requires a completed run in the journal to replay"
+skip "audit replay <run> (completed run)" "requires a completed run in the journal to replay; the unknown-run refusal is asserted in Track 2"

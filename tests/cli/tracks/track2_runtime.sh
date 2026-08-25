@@ -17,6 +17,10 @@ Q=("$BIN" --socket "$SOCK")   # convenience prefix
 section "seeded runtime reads"
 check         "status (daemon on)"                 "${Q[@]}" status
 check_json    "status --json"                      "${Q[@]}" status --json
+# The orchestrator owns the daemon lifecycle, so the track exercises `start`
+# through its other deterministic path: a second start on the held socket
+# refuses fast, before binding anything.
+check_exit    "start (already running) → 1"  1     "$BIN" start --socket "$SOCK" --port 0
 check_content "status shows active seeded agents" "active"  "${Q[@]}" status
 check_content "agent list has apollia-chat"  "apollia-chat"  "${Q[@]}" agent list
 check_content "agent list has seed-classifier" "seed-classifier" "${Q[@]}" agent list
@@ -60,8 +64,11 @@ check_content "mcp update persisted requires_approval" "requires_approval.*true|
 check         "mcp restart filesystem"             "${Q[@]}" mcp restart filesystem
 check         "mcp remove notes --confirm"         "${Q[@]}" mcp remove notes --confirm
 check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
-skip          "mcp add <name>" "needs a single-binary MCP server; a bad command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
-skip          "mcp server / mcp oauth discover" "long-running stdio JSON-RPC server / live network discovery"
+# `mcp add` on a command whose binary does not exist refuses immediately with a
+# spawn error (ENOENT), well before the 30s init timeout a bad-but-spawnable
+# command would hit; nothing is persisted on that path.
+check_exit    "mcp add (unspawnable command) → 1"  1 "${Q[@]}" mcp add e2e-ghost --command /nonexistent-mcp-server-binary
+skip          "mcp add (live server)" "needs a single-binary MCP server; a bad-but-spawnable command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 
 # ── tools / audit ───────────────────────────────────────────────────────────
 section "tools / audit"
@@ -82,7 +89,9 @@ check         "tools reload"                        "${Q[@]}" tools reload
 check         "tools enable bash_executor"          "${Q[@]}" tools enable bash_executor
 check         "tools approvals pending"             "${Q[@]}" tools approvals pending
 check         "audit verify (empty journal ok)"    "${Q[@]}" audit verify
+check         "audit journal (empty journal ok)"   "${Q[@]}" audit journal
 check_exit    "audit anchor (empty journal) → 1" 1 "${Q[@]}" audit anchor
+check_exit    "audit replay (unknown run) → 1"   1 "${Q[@]}" audit replay ghost-run-id
 check         "audit export"                        "${Q[@]}" audit export --output "$RUN_TMP/audit.json" --limit 100
 
 # ── triggers CRUD (target: seeded apollia-chat) ─────────────────────────────
@@ -113,6 +122,12 @@ check         "notify update --enabled false"      "${Q[@]}" notify update e2e-h
 check         "notify logs --last 5"               "${Q[@]}" notify logs --last 5
 check         "notify delete e2e-hook"             "${Q[@]}" notify delete e2e-hook --confirm
 check         "notify delete e2e-desk"             "${Q[@]}" notify delete e2e-desk --confirm
+# `notify test` dispatches to every ACTIVE channel and exits 0 when none is
+# active. The seeded webhook channel is born disabled; the desktop channel is
+# disabled for the call so nothing real is dispatched, then restored.
+check         "notify test setup: disable seeded desktop channel" "${Q[@]}" notify update seed-channel-desktop --enabled false
+check         "notify test (no active channel, dispatches nothing)" "${Q[@]}" notify test
+check         "notify test teardown: re-enable seeded desktop channel" "${Q[@]}" notify update seed-channel-desktop --enabled true
 
 # ── llm backends CRUD (metadata; no model needed) ───────────────────────────
 section "llm backends CRUD"
@@ -130,11 +145,12 @@ check         "llm reload"                          "${Q[@]}" llm reload
 
 # ── stt / resilience / plan cache / chat --list ─────────────────────────
 section "stt / resilience / plan cache"
-# The seed writes a configured stt_config row (fragments/system.sql:82-93), so
-# with the daemon up the command answers and names the seeded model. It returns
-# a non-zero code only when the daemon does not answer, which Track 1 already
-# asserts (track1_offline.sh:236, exit 2 against a dead socket).
-check_content "stt status names the seeded model" "ggml-base" "${Q[@]}" stt status
+# The seed writes a configured stt_config row (fragments/system.sql:82-93),
+# but its ggml-base.bin is a placeholder no whisper backend can load, so the
+# daemon holds no STT engine and `GET /stt/status` answers 503 by contract
+# (routes_stt.rs, stt_unavailable). The deterministic path on this fixture is
+# therefore the refusal; Track 1 already asserts the daemon-off exit 2.
+check_exit    "stt status (placeholder model, engine unavailable) → 1" 1 "${Q[@]}" stt status
 check         "stt model list"                      "${Q[@]}" stt model list
 check         "stt config get"                      "${Q[@]}" stt config get
 check         "stt config update --language en"    "${Q[@]}" stt config update --language en
@@ -173,7 +189,11 @@ if [[ -n "$TID" ]]; then
 else
     skip    "task lifecycle" "run --detach did not return a task_id (out: ${TRUN:0:120})"
 fi
-skip          "task resume --approve/--reject" "needs a task suspended in input_required; the model-free stub never suspends"
+# `task resume` resolves the task id before touching its state, so an unknown
+# id is a deterministic refusal; the approve path on a real suspension stays a
+# variant below.
+check_exit    "task resume (unknown task) → 1"  1  "${Q[@]}" task resume ghost-task-id --approve
+skip          "task resume (suspended task)" "needs a task suspended in input_required; the model-free stub never suspends"
 
 # ── agent lifecycle (stub agent; degrades to skip if runner unavailable) ─────
 section "agent lifecycle (stub)"
@@ -213,9 +233,17 @@ check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
 check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react
 check         "agent uninstall e2e-hello"          "${Q[@]}" agent uninstall e2e-hello
-skip          "agent repair / agent package uninstall" "repair re-provisions a packaged agent's venv; uninstall needs the bundle (seed-office-pack is show-only here)"
+# Both leaves resolve their target before acting, so an unknown name is a
+# deterministic refusal; the success paths need an installed bundle and stay
+# variants below.
+check_exit    "agent repair (unknown agent) → 1"           1 "${Q[@]}" agent repair e2e-ghost-agent
+check_exit    "agent package uninstall (unknown pack) → 1" 1 "${Q[@]}" agent package uninstall e2e-ghost-pack
+skip          "agent repair / agent package uninstall (installed bundle)" "repair re-provisions a packaged agent's venv; uninstall needs the bundle (seed-office-pack is show-only here)"
 
 # ── eval (report offline; run needs a model → Track 3) ──────────────────────
 section "eval"
 check         "eval report (empty jsonl)"          bash -c "printf '' > '$RUN_TMP/eval.jsonl'; '$BIN' --socket '$SOCK' eval report '$RUN_TMP/eval.jsonl'"
-skip          "eval run <suite>" "runs the agent against a real model; covered as a capture in Track 3 when a model is wired"
+# `eval run` reads the suite file before involving any agent or model, so a
+# missing suite is a deterministic refusal.
+check_exit    "eval run (missing suite) → 1"  1    "${Q[@]}" eval run "$RUN_TMP/never-written-suite.yaml"
+skip          "eval run <suite> (real model)" "runs the agent against a real model; covered as a capture in Track 3 when a model is wired"

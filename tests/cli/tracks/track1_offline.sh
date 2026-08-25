@@ -24,6 +24,18 @@ check_json "doctor --json"      "$BIN" doctor --json
 check      "completions bash"   "$BIN" completions bash
 check      "completions zsh"    "$BIN" completions zsh
 check_grep "guide lists topics" "chat|agents" "$BIN" guide
+# `inspect` loads the module statically, no runtime involved. A plain Python
+# file is not an agent, and the refusal is the deterministic path.
+printf 'x = 1\n' > "$SCRATCH/not-an-agent.py"
+check_exit "inspect (non-agent file) → 1"  1  "$BIN" inspect "$SCRATCH/not-an-agent.py"
+# `logs` tails ~/.apollia/logs/runtime.log; the seed carries no run, so the
+# file is written here to exercise the read path rather than the absence path.
+/bin/mkdir -p "$DATA/logs"
+printf '2026-07-01T00:00:00Z INFO seeded log line\n' > "$DATA/logs/runtime.log"
+check      "logs --last (seeded log file)"    "$BIN" logs --last 5
+# `update` acquires /tmp/apollia-update.lock before any network call, so a held
+# lock is the one deterministic, offline path through the command.
+check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch /tmp/apollia-update.lock; '$BIN' update --yes; rc=\$?; /bin/rm -f /tmp/apollia-update.lock; exit \$rc"
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
@@ -99,6 +111,11 @@ check        "chat config reset --confirm"           "$BIN" chat config reset --
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
+# Session authorizations live only in the daemon's memory and the HTTP route is
+# not wired for v0.1.0: both leaves refuse with that explanation, exit 1. The
+# assertion pins the documented refusal, so wiring the route flips it loudly.
+check_exit   "chat config authorizations list → 1 (route not wired)"   1 "$BIN" chat config authorizations list
+check_exit   "chat config authorizations revoke → 1 (route not wired)" 1 "$BIN" chat config authorizations revoke seed-session-1 bash_executor
 
 # ── A.6 permissions (4 seeded rules) ────────────────────────────────────────
 section "A.6 permissions"
@@ -184,6 +201,13 @@ check        "mcp oauth client-id clear"             "$BIN" mcp oauth client-id 
 check        "mcp oauth status"                      "$BIN" mcp oauth status --db "$SCRATCH/mcp.db"
 check        "mcp oauth logout --confirm (no token)" "$BIN" mcp oauth logout some-server --confirm
 check_exit   "mcp oauth logout (no --confirm)"  1    "$BIN" mcp oauth logout some-server
+# Both leaves resolve the server in mcp.db before any browser or network step,
+# so an unconfigured name is a deterministic, offline refusal.
+check_exit   "mcp oauth login (unconfigured server) → 1"    1 "$BIN" mcp oauth login e2e-unconfigured
+check_exit   "mcp oauth discover (unconfigured server) → 1" 1 "$BIN" mcp oauth discover e2e-unconfigured
+# `mcp server` speaks JSON-RPC over stdio and exits cleanly on stdin EOF; the
+# explicit /dev/null keeps it from blocking on a terminal when run by hand.
+check        "mcp server exits on stdin EOF"         bash -c "'$BIN' mcp server </dev/null"
 
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"
@@ -211,7 +235,22 @@ section "A.12 local services"
 check        "tools list"                            "$BIN" tools list
 check_content "tools list has bash_executor" "bash_executor" "$BIN" tools list
 check        "tools config get bash_executor"        "$BIN" tools config get bash_executor
+# Tool credentials run against the file backend here (APOLLIA_TOKEN_STORAGE=file
+# is exported by the orchestrator), so nothing reaches the OS keychain. The
+# seed ships one row for web_search, with a deliberately non-decryptable blob.
+check_content "tools credentials list has seeded web_search" "web_search" "$BIN" tools credentials list
+check_exit   "tools credentials set refuses non-TTY"  1 bash -c "'$BIN' tools credentials set web_search api_key </dev/null"
+check        "tools credentials delete (absent key, idempotent)" "$BIN" tools credentials delete web_search e2e-absent-key
+check_exit   "tools credentials test (seeded undecryptable blob) → 1" 1 "$BIN" tools credentials test web_search
 check_content "model list shows 2 seeded gguf" "Qwen3.6|Phi-3" "$BIN" model list
+# `model show` validates the org/repo shape before any network request.
+check_exit   "model show (invalid spec) → 1"          1 "$BIN" model show not-an-org-repo
+# `stt transcribe` checks the audio file before loading any model.
+check_exit   "stt transcribe (missing file) → 1"      1 "$BIN" stt transcribe "$SCRATCH/never-recorded.wav"
+# `stt model download` answers "already exists" before any network request
+# when the destination file is present; the stub makes that path real.
+/usr/bin/touch "$DATA/models/e2e-stt-present.bin"
+check        "stt model download (already present)"   "$BIN" stt model download e2e-stt-present
 # model delete round-trip on a throwaway stub dropped into the seed models dir.
 STUB_GGUF="$DATA/models/e2e-stub-delete.gguf"; /usr/bin/touch "$STUB_GGUF"
 check         "model delete --confirm"                "$BIN" model delete "e2e-stub-delete.gguf" --confirm
@@ -238,26 +277,29 @@ check_exit   "resilience list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" resilien
 check_exit   "a2a skills (off) → 2"    2  "$BIN" --socket "$OFFSOCK" a2a skills
 check_exit   "digest (off) → 2"        2  "$BIN" --socket "$OFFSOCK" digest --since 24h
 check_exit   "chat --list (off) → 1"   1  "$BIN" --socket "$OFFSOCK" chat --list
+check_exit   "stop (off) → 2"          2  "$BIN" --socket "$OFFSOCK" stop
+check_exit   "onboard (off) → 2"       2  "$BIN" --socket "$OFFSOCK" onboard
+# `model search` reaches the runtime before HuggingFace, and its daemon-off
+# refusal exits 1 where the other runtime-bound leaves exit 2.
+check_exit   "model search (off) → 1"  1  "$BIN" --socket "$OFFSOCK" model search whisper
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
 
-# ── A.14 justified offline skips (network / UI / browser) ────────────────────
-section "A.14 justified skips"
-skip "chat (REPL)"            "interactive rustyline REPL - covered in Track 3 via pty"
-skip "update / update --check" "outbound HTTPS to api.github.com"
-skip "model search / model show" "outbound HTTPS to huggingface.co"
-skip "stt model download"     "whisper model HF download (~1 GB)"
-skip "agent install <git-url>" "git clone over network"
-skip "mcp oauth login"        "AS authorize URL + browser callback"
-skip "mcp oauth discover"     "live network discovery against a remote MCP endpoint"
-skip "onboard"                "interactive chat-based onboarding agent"
-skip "notify test"            "dispatches a real desktop notification / webhook POST"
-skip "stt transcribe"         "needs an audio file + a loaded Whisper model"
-# Exact leaf paths below so the coverage report buckets them as justified-skip.
-skip "tools credentials set" "masked stdin passphrase prompt (no tty in the suite)"
-skip "tools credentials list" "reads the OS keychain; no seeded credentials"
-skip "tools credentials delete" "mutates the OS keychain"
-skip "tools credentials test" "live call to the credentialed backend"
-skip "chat config authorizations list" "deferred v0.1.1 - in-memory runtime state, no HTTP route yet"
-skip "chat config authorizations revoke" "deferred v0.1.1 - in-memory runtime state, no HTTP route yet"
+# ── A.14 un-exercised VARIANTS (every leaf itself has a real invocation) ─────
+# Coverage counts real invocations only (scripts/check_cli_e2e_coverage.py), so
+# a skip line justifies nothing anymore. The lines below record the variants
+# the suite still does not drive, labelled as variants so no leaf appears both
+# exercised and skipped.
+section "A.14 un-exercised variants"
+skip "chat (interactive REPL turn)"   "covered in Track 3 via pty capture"
+skip "update (live GitHub check)"     "outbound HTTPS to api.github.com; the lock refusal is asserted above"
+skip "model search (live HF query)"   "outbound HTTPS to huggingface.co; the daemon-off refusal is asserted above"
+skip "stt model download (real download)" "whisper model HF download (~1 GB); the already-present path is asserted above"
+skip "agent install <git-url>"        "git clone over network; file install is asserted in Track 2"
+skip "mcp oauth login (browser flow)" "AS authorize URL + browser callback; the unconfigured refusal is asserted above"
+skip "mcp oauth discover (live endpoint)" "network discovery; the unconfigured refusal is asserted above"
+skip "onboard (interactive session)"  "chat-based onboarding agent; the daemon-off refusal is asserted above"
+skip "stt transcribe (real audio)"    "needs an audio file + a loaded Whisper model; the missing-file refusal is asserted above"
+skip "tools credentials set (with a TTY)" "masked stdin passphrase prompt; the non-TTY refusal is asserted above"
+skip "tools credentials test (decryptable credential)" "needs a live credentialed backend; the seeded undecryptable blob is asserted above"
