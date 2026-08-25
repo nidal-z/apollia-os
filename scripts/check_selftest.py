@@ -1396,6 +1396,7 @@ WORKFLOW_DIR = ".github/workflows"
 # Several of these existed only as CI jobs while the CI was not running, which
 # left them green by absence on every machine.
 EXTERNAL_GUARDS = {
+    "cargo clippy --workspace": r"\bcargo clippy --workspace\b",
     "cargo machete": r"\bcargo machete\b",
     "cargo audit": r"\bcargo audit\b",
     "cargo deny check": r"\bcargo deny check\b",

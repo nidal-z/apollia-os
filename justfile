@@ -562,10 +562,19 @@ guards:
     # External gates: not check_*.py scripts, but rules of the same corpus.
     # The crossing in scripts/check_selftest.py requires each to be launched
     # by at least one boundary; this recipe is the local boundary for the
-    # five below, which previously ran only as CI jobs while the CI was not
+    # seven below, which previously ran only as CI jobs while the CI was not
     # running. cargo audit needs the advisory database (network on first
     # run); mypy comes from the SDK toolchain.
+    # clippy is first because it is the only gate here that can hide the
+    # others: it stopped at the first crate that failed to compile, and the
+    # seven lints behind that crate went unseen. Its pre-commit entry is
+    # staged on pre-push, so on a tree nobody pushes it never ran, and a
+    # release campaign integrated a red workspace for four waves. Warm, it
+    # adds 11s to this recipe against 86s for the rest; cold it costs a
+    # minute or two, which is the price of the red being seen before the
+    # integration rather than after it.
     externals=(
+      "cargo clippy --workspace --all-targets -- -D warnings"
       "cargo machete"
       "cargo audit"
       "cargo deny check advisories"
