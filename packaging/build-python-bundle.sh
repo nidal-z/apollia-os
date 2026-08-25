@@ -49,8 +49,14 @@ fi
 echo "==> Step 2/4: install bundled requirements"
 # Use --no-compile to avoid burning disk on .pyc (re-generated at first import).
 # Use --no-cache-dir to keep the build cache out of the distributed bundle.
-"$PYTHON_BIN" -m pip install --no-cache-dir --no-compile --upgrade pip
-"$PYTHON_BIN" -m pip install --no-cache-dir --no-compile -r "$REQUIREMENTS"
+# pip itself is pinned: an unpinned `--upgrade pip` changes the installer under
+# the build from one run to the next, which is the opposite of a reproducible
+# bundle. Bump the pin deliberately, with the requirements file.
+"$PYTHON_BIN" -m pip install --no-cache-dir --no-compile pip==26.2.1
+# --require-hashes: every wheel is checked against the sums pinned in
+# requirements-bundled.txt, so a compromised index or mirror cannot slip a
+# different artifact into the bundle. A missing or wrong sum is a hard error.
+"$PYTHON_BIN" -m pip install --no-cache-dir --no-compile --require-hashes -r "$REQUIREMENTS"
 # The Apollia SDK itself: agents import `apollia`, so the package must live in
 # the bundled site-packages. Without this, every Python agent (onboarding,
 # guide, chat) fails to load with a ModuleNotFoundError surfaced to the user as
