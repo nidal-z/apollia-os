@@ -109,7 +109,7 @@ jobs:
           exit 1
 
       - name: Run E2E tests
-        run: cargo test -p apollia-desktop --test e2e -- --ignored --test-threads=1
+        run: cargo test -p apollia-desktop --test e2e -- --ignored
 
       - name: Stop runtime
         if: always()
@@ -224,15 +224,14 @@ jobs:
           cargo test -p apollia-runner --release \
             --no-default-features \
             --features local-cpu \
-            --target ${{ matrix.triple }} \
-            -- --test-threads=1
+            --target ${{ matrix.triple }}
 
       - name: Run apollia-runtime supervisor smoke tests
         shell: bash
         run: |
           cargo test -p apollia-runtime --release \
             --target ${{ matrix.triple }} \
-            runner_supervisor:: -- --test-threads=1
+            runner_supervisor::
 
   # ── Feature matrix sanity (apollia-runner backends) ────────────────────────
   feature-matrix:

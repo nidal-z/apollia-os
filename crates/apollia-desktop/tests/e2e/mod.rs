@@ -7,7 +7,7 @@
 //! Run with:
 //!
 //! ```text
-//! cargo test -p apollia-desktop --test e2e -- --ignored --test-threads=1
+//! cargo test -p apollia-desktop --test e2e -- --ignored
 //! ```
 
 mod test_agents;
