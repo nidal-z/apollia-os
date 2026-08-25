@@ -1,0 +1,31 @@
+# SHA256 checksums for the pinned python-build-standalone archives bundled as
+# the embedded Python runtime. One line per archive:
+# "<sha256>  <archive-filename>". Same format as llama-server-checksums.txt.
+#
+# Provenance: every hash below was computed locally with `shasum -a 256` on the
+# downloaded archive, then cross-checked against the digest GitHub reports for
+# the same release asset. All six matched. The local hash is what is pinned
+# here, so a later download is verified against bytes that were hashed here
+# rather than against a value the serving side could simply restate.
+#
+# To bump the pin: change PBS_TAG / CPYTHON_VERSION in
+# fetch-python-standalone.sh, then for each archive run
+# `curl -fsSL <archive-url> -o <archive> && shasum -a 256 <archive>` and
+# replace the lines below. Never leave a line out: fetch-python-standalone.sh
+# refuses to extract an archive it cannot verify, and
+# scripts/check_download_sums.py refuses a triple without a pinned sum.
+#
+# Tag: 20260414
+
+# macOS: the shipped desktop target (arm64) and the x86_64 half of universal2.
+c652dad552122cd2e76968ec41c803f8222038169b11310dba0c85928265f5c1  cpython-3.13.13+20260414-aarch64-apple-darwin-install_only.tar.gz
+540337412d2c4220e99280f741dbf45c1e3da3a39edaaab20c6ba1d53e1692ef  cpython-3.13.13+20260414-x86_64-apple-darwin-install_only.tar.gz
+
+# Linux: CPU baseline on both architectures.
+e5ec3b2c5693215d153c434ac018e75511b2c4f96d2bce30468a477cb3a89d5e  cpython-3.13.13+20260414-x86_64-unknown-linux-gnu-install_only.tar.gz
+6a65f68043d7fadcd580415493d2929d1fd686013f9ae44ddbd3a81307ab256d  cpython-3.13.13+20260414-aarch64-unknown-linux-gnu-install_only.tar.gz
+
+# Windows: x86_64 shipped, aarch64 pinned ahead of the platform being
+# supported, so the bundling path is verifiable the day it is exercised.
+ee0cb26453d6e025d36502d765c1639c34830355e46ab3ad31c0360bc4cd9b79  cpython-3.13.13+20260414-x86_64-pc-windows-msvc-install_only.tar.gz
+586ba71c75f341e1d111399b7f719ae784dc11e8672e93e017388f28684226d0  cpython-3.13.13+20260414-aarch64-pc-windows-msvc-install_only.tar.gz

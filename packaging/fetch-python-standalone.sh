@@ -66,6 +66,24 @@ esac
 ARCHIVE="cpython-${CPYTHON_VERSION}+${PBS_TAG}-${PBS_TRIPLE}-install_only.tar.gz"
 URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/${ARCHIVE}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CHECKSUMS="${SCRIPT_DIR}/python-standalone-checksums.txt"
+
+# SHA256 of a file, on both macOS (shasum, from perl) and Linux (sha256sum,
+# from coreutils). Absence of both is a hard error, never a skipped
+# verification: that is the whole point of this step.
+sha256_of() {
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        echo "==> neither shasum nor sha256sum is available; cannot verify the" >&2
+        echo "    python-build-standalone archive. Install one rather than bypassing." >&2
+        return 1
+    fi
+}
+
 mkdir -p "$OUT_DIR"
 CACHE_DIR="${OUT_DIR}/.cache"
 mkdir -p "$CACHE_DIR"
@@ -77,6 +95,22 @@ else
     echo "==> Downloading $URL"
     curl --fail --location --output "$CACHED_ARCHIVE" "$URL"
 fi
+
+# Verify against the pinned checksum before extracting anything, cached copies
+# included: the cache directory is plain files anyone can rewrite.
+if [[ ! -f "$CHECKSUMS" ]] || ! grep -q " ${ARCHIVE}\$" "$CHECKSUMS"; then
+    echo "==> no pinned checksum for ${ARCHIVE} in ${CHECKSUMS}." >&2
+    echo "    Add it (\`shasum -a 256 ${ARCHIVE}\`); see the header of that file." >&2
+    exit 1
+fi
+EXPECTED="$(grep " ${ARCHIVE}\$" "$CHECKSUMS" | awk '{print $1}')"
+ACTUAL="$(sha256_of "$CACHED_ARCHIVE")"
+if [[ "$EXPECTED" != "$ACTUAL" ]]; then
+    echo "==> checksum mismatch for ${ARCHIVE}: expected ${EXPECTED}, got ${ACTUAL}" >&2
+    rm -f "$CACHED_ARCHIVE"
+    exit 1
+fi
+echo "==> checksum ok for ${ARCHIVE}"
 
 PYTHON_DIR="${OUT_DIR}/python"
 # python-build-standalone ships some macOS files with the user-immutable (uchg)
