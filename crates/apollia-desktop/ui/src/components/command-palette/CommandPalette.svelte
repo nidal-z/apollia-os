@@ -35,7 +35,6 @@
 
   function onExecute(id: string): void {
     // Telemetry hook - observability pipeline picks this up via console.
-    // eslint-disable-next-line no-console
     console.debug("[command-palette] executed", id);
   }
 </script>

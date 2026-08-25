@@ -369,7 +369,6 @@ export function buildPaletteActions(): PaletteAction[] {
             icon: Terminal,
             kind: "help" as const,
             execute: () => {
-              // eslint-disable-next-line no-console
               console.info("[apollia] dev console toggle requested");
             },
           },
