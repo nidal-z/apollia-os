@@ -9,13 +9,12 @@
    * Data sources:
    *   - `list_agents` Tauri command - enumerates agents + runtime status.
    *   - `list_a2a_skills` - skills declared by worker agents.
-   *   - Optional Tauri event `a2a:worker_status` - pushed live status updates.
    *
-   * Graceful degradation: if the event is not emitted, the badge still refreshes
-   * on mount and when the popover opens.
+   * The badge refreshes on mount and when the popover opens. It listened to an
+   * `a2a:worker_status` Tauri event for a while; no crate has ever emitted that
+   * channel, so the listener was a live subscription to nothing.
    */
-  import { onMount, onDestroy } from "svelte";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Users, ChevronDown, Dot } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
@@ -28,7 +27,6 @@
   let agents = $state<AgentListItem[]>([]);
   let skills = $state<A2ASkillListing[]>([]);
   let loading = $state(false);
-  let unlisten: UnlistenFn | undefined;
 
   const workers = $derived(
     agents.filter((a) => a.supports_a2a === true && a.agent_type === "worker"),
@@ -63,17 +61,6 @@
 
   onMount(async () => {
     await refresh();
-    try {
-      unlisten = await listen<unknown>("a2a:worker_status", () => {
-        void refresh();
-      });
-    } catch {
-      // Event bus unavailable - manual refresh only.
-    }
-  });
-
-  onDestroy(() => {
-    unlisten?.();
   });
 
   function statusTone(status: AgentListItem["runtime_status"]): string {

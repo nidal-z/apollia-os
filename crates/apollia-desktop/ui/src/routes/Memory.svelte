@@ -4,6 +4,7 @@
   import { searchMemory, deleteMemoryEntry } from "$lib/ipc/memory";
   import { listMemoryNamespaces, listMemoryEntries } from "$lib/ipc/projects";
   import { listAgents } from "$lib/ipc/connections";
+  import { memoryChanged } from "$lib/stores/sse";
   import type { MemoryEntry, MemorySearchResult } from "$lib/types";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import NamespaceSidebar, { type NamespaceCategory } from "../components/memory/NamespaceSidebar.svelte";
@@ -247,6 +248,17 @@
     } else {
       loadingMemory = false;
     }
+  });
+
+  // A shared namespace granted to an agent while this route is open changes the
+  // sidebar without any action from the user, so the list is re-read rather
+  // than left showing the state of the last visit.
+  let seenMemoryChange = 0;
+  $effect(() => {
+    const tick = $memoryChanged;
+    if (tick === seenMemoryChange) return;
+    seenMemoryChange = tick;
+    void loadNamespaces();
   });
 </script>
 

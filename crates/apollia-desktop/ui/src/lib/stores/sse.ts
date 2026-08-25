@@ -18,14 +18,12 @@ import {
 } from "@tauri-apps/plugin-notification";
 import type {
   AgentListItem,
-  AgentMessage,
   TaskSummary,
   PendingApproval,
   ConnectionStatus,
   LlmBackendConfig,
   TriggerStatus,
   ChatSessionSummary,
-  PlanCacheHitEvent,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
@@ -82,14 +80,17 @@ export const triggers = writable<TriggerStatus[]>([]);
 /** List of chat sessions from the runtime. */
 export const chatSessions = writable<ChatSessionSummary[]>([]);
 
-/** Dernier événement de cache hit reçu (`null` si aucun). */
-export const lastPlanCacheHit = writable<PlanCacheHitEvent | null>(null);
+/**
+ * Last inter-agent send announced by the bridge (`null` before the first one).
+ *
+ * The bridge carries the identities and a payload hash, never the message body
+ * on the default path, so this is a signal to re-read rather than a message to
+ * render: `AgentMessagesPanel` refetches when the send concerns its agent.
+ */
+export const lastAgentMessageSent = writable<AgentMessageSent | null>(null);
 
-/** Compteur cumulé de cache hits depuis le démarrage du store. */
-export const planCacheHitCount = writable<number>(0);
-
-/** Dernier message inter-agents reçu via SSE (`null` si aucun). */
-export const lastAgentMessage = writable<AgentMessage | null>(null);
+/** Ticks once per `SharedNamespaceAdded`, so the memory route can re-read. */
+export const memoryChanged = writable<number>(0);
 
 /** Real-time session LLM cost - updated on every TokenBudgetUpdated event. */
 export const sessionBudget = writable<SessionBudgetState | null>(null);
@@ -306,29 +307,24 @@ function variantPayload(
   return payload;
 }
 
-/** Narrow a raw bridge payload to a `PlanCacheHitEvent`, field by field. */
-function isPlanCacheHitEvent(raw: unknown): raw is PlanCacheHitEvent {
-  if (typeof raw !== "object" || raw === null) return false;
-  const r = raw as Record<string, unknown>;
-  return (
-    typeof r.task_id === "string" &&
-    typeof r.cache_key === "string" &&
-    typeof r.plan_id === "string" &&
-    typeof r.timestamp === "string"
-  );
+/** Identities the bridge carries with an `AgentMessageSent`. */
+export interface AgentMessageSent {
+  /** Sending agent, or `host:<id>` for a host injection. */
+  from: string;
+  /** Receiving agent. */
+  to: string;
+  /** Unique identifier of the message. */
+  message_id: string;
 }
 
-/** Narrow a raw bridge payload to an `AgentMessage`, field by field. */
-function isAgentMessage(raw: unknown): raw is AgentMessage {
+/** Narrow the `AgentMessageSent` payload of a bridge event, field by field. */
+function isAgentMessageSent(raw: unknown): raw is AgentMessageSent {
   if (typeof raw !== "object" || raw === null) return false;
   const r = raw as Record<string, unknown>;
   return (
-    typeof r.id === "string" &&
-    typeof r.from_agent === "string" &&
-    typeof r.to_agent === "string" &&
-    typeof r.sent_at === "string" &&
-    typeof r.payload === "object" &&
-    r.payload !== null
+    typeof r.from === "string" &&
+    typeof r.to === "string" &&
+    typeof r.message_id === "string"
   );
 }
 
@@ -555,9 +551,16 @@ function dispatchPlanModeEvent(event: TauriRuntimeEvent): void {
  */
 function dispatchEvent(event: TauriRuntimeEvent): void {
   switch (event.category) {
-    case "agent-changed":
+    case "agent-changed": {
+      if (event.event_type === "AgentMessageSent") {
+        const sent = variantPayload(event.payload, "AgentMessageSent");
+        if (isAgentMessageSent(sent)) {
+          lastAgentMessageSent.set(sent);
+        }
+      }
       void refreshAgentsViaIpc();
       break;
+    }
     case "task-changed":
       void refreshTasksViaIpc();
       break;
@@ -587,17 +590,11 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
     case "plan-mode":
       dispatchPlanModeEvent(event);
       break;
-    case "plan-cache-hit":
-      if (isPlanCacheHitEvent(event.payload)) {
-        lastPlanCacheHit.set(event.payload);
-      }
-      planCacheHitCount.update((n) => n + 1);
+    case "session-metrics":
+      void import("./chatMetrics").then((m) => m.refreshActiveSessionMetrics());
       break;
-    case "agent-message-sent":
-      if (isAgentMessage(event.payload)) {
-        lastAgentMessage.set(event.payload);
-      }
-      void refreshAgentsViaIpc();
+    case "memory-changed":
+      memoryChanged.update((n) => n + 1);
       break;
     case "stt-changed":
       void refreshSttStatus();

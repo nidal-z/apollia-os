@@ -3,7 +3,7 @@
   import { fly } from "svelte/transition";
   import type { AgentMessage } from "$lib/types";
   import { listAgentMessages } from "$lib/ipc/agents";
-  import { lastAgentMessage } from "$lib/stores/sse";
+  import { lastAgentMessageSent } from "$lib/stores/sse";
   import { ArrowRight, ArrowLeft, MessageSquare } from "lucide-svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
 
@@ -64,13 +64,13 @@
     }
   });
 
+  // The bridge announces a send without its body (the default path carries a
+  // payload hash, not the content), so a live send is a reason to re-read the
+  // list rather than a row to prepend.
   $effect(() => {
-    const msg = $lastAgentMessage;
-    if (
-      msg &&
-      (msg.from_agent === agentName || msg.to_agent === agentName)
-    ) {
-      messages = [msg, ...messages];
+    const sent = $lastAgentMessageSent;
+    if (sent && (sent.from === agentName || sent.to === agentName)) {
+      void fetchMessages();
     }
   });
 </script>

@@ -54,19 +54,6 @@ pub struct HitlFsRequiredPayload {
     pub preview: serde_json::Value,
 }
 
-/// Payload emitted to the Svelte frontend via `app.emit("todo-updated", …)`.
-///
-/// Dedicated fast-path for the live todo panel, lets `TodoPanel.svelte` refresh
-/// its sections from a single typed event without parsing the generic
-/// `"runtime-event"` envelope.
-#[derive(Debug, Clone, Serialize)]
-pub struct TodoUpdatedPayload {
-    /// Chat session whose todo list changed.
-    pub session_id: String,
-    /// Full snapshot of the session's todo items after the change.
-    pub items: Vec<apollia_core::todo::TodoItem>,
-}
-
 /// Payload emitted to the Svelte frontend via `app.emit("hook-decision", …)`.
 ///
 /// Dedicated fast-path for the PreToolUse decision log: the Builder hooks view
@@ -216,14 +203,14 @@ fn emit_tokens(app: &AppHandle, payloads: Vec<ChatTokenPayload>) {
 
 /// Re-emit a single `RuntimeEvent` to the frontend.
 ///
-/// Some events take a dedicated fast-path Tauri channel; all of them are also
-/// emitted via the generic `"runtime-event"` envelope. Streamed tokens never
+/// Some events take a dedicated fast-path Tauri channel, and every channel
+/// opened here has a listener in `ui/src`; all events are also emitted via the
+/// generic `"runtime-event"` envelope. Streamed tokens never
 /// reach this function: [`coalesce_step`] absorbs them into the dedicated
 /// `"chat-token"` channel.
 fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
     emit_hitl_fs_fastpath(app, event);
     emit_stt_fastpath(app, event);
-    emit_todo_fastpath(app, event);
     emit_hook_decision_fastpath(app, event);
 
     let tauri_event = map_runtime_event(event);
@@ -280,22 +267,6 @@ fn emit_stt_fastpath(app: &AppHandle, event: &RuntimeEvent) {
             }
         }
         _ => {}
-    }
-}
-
-/// Dedicated fast-path for the live todo panel, emits "todo-updated" so
-/// `TodoPanel.svelte` refreshes its sections without parsing the generic
-/// envelope. Falls through afterwards so the generic `"runtime-event"` is still
-/// emitted.
-fn emit_todo_fastpath(app: &AppHandle, event: &RuntimeEvent) {
-    if let RuntimeEvent::TodoUpdated { session_id, items } = event {
-        let payload = TodoUpdatedPayload {
-            session_id: session_id.clone(),
-            items: items.clone(),
-        };
-        if let Err(e) = app.emit("todo-updated", &payload) {
-            tracing::warn!(error = %e, "failed to emit todo-updated event");
-        }
     }
 }
 
@@ -1236,9 +1207,9 @@ mod tests {
     }
 
     #[test]
-    fn test_todo_updated_payload_serialization() {
-        // GIVEN a TodoUpdatedPayload carrying one in_progress item
-        let payload = TodoUpdatedPayload {
+    fn test_todo_updated_travels_under_task_changed() {
+        // GIVEN a todo snapshot for a session
+        let event = RuntimeEvent::TodoUpdated {
             session_id: "sess-9".into(),
             items: vec![apollia_core::todo::TodoItem {
                 id: "t1".into(),
@@ -1248,13 +1219,13 @@ mod tests {
             }],
         };
 
-        // WHEN serialized for the "todo-updated" Tauri event
-        let json = serde_json::to_value(&payload).expect("serialize");
+        // WHEN mapped for the generic envelope
+        let mapped = map_runtime_event(&event);
 
-        // THEN the session and the item snapshot are present with the wire shape
-        assert_eq!(json["session_id"], "sess-9");
-        assert_eq!(json["items"][0]["id"], "t1");
-        assert_eq!(json["items"][0]["status"], "in_progress");
+        // THEN it reaches the webview under task-changed, with its snapshot
+        assert_eq!(mapped.category, "task-changed");
+        assert_eq!(mapped.event_type, "TodoUpdated");
+        assert_eq!(mapped.payload["TodoUpdated"]["items"][0]["id"], "t1");
     }
 
     #[test]

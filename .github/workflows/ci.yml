@@ -478,8 +478,14 @@ jobs:
       # install artefacts (node_modules, built binaries) and macOS codesign,
       # and both exit non-zero by design when a subject is absent, so a runner
       # without a development machine can only report their zero coverage.
-      - name: Every emitted custom event has a listener
-        run: python3 scripts/check_custom_event_listeners.py
+      # Two buses, not one: the webview's DOM events with themselves, and the
+      # Tauri channels between the shell and the webview. The second crossing
+      # held three one-sided channels at once, so the selftest runs first and a
+      # permanent red cannot pass for a guard that works.
+      - name: Every event channel has an emitter and a listener
+        run: |
+          python3 scripts/check_custom_event_listeners.py --selftest
+          python3 scripts/check_custom_event_listeners.py
       - name: Documentation frontmatter is well formed
         run: python3 scripts/check_docs_frontmatter.py
       # check_i18n_catalogue.py used to run here, but it now judges the theme

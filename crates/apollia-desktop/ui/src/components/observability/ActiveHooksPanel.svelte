@@ -11,9 +11,15 @@
    * showing that dead state until the operator leaves the tab. The retry reads
    * again and the panel switches to the registry as soon as one call succeeds.
    *
+   * Under the registry, the decisions the PreToolUse hooks actually took. The
+   * bridge pushes them on the `hook-decision` Tauri channel and nothing is
+   * persisted, so this list is what the current session produced and nothing
+   * more: it starts empty on every visit and keeps the last `MAX_DECISIONS`.
+   *
    * Builder-only surface: it exposes wire event names, argv and timeouts.
    */
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { Webhook } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
@@ -21,9 +27,23 @@
   import { ErrorBanner } from "$lib/components/operator";
   import { getActiveHooks, type ActiveHook } from "$lib/ipc/observability";
 
+  /** A PreToolUse decision as the bridge pushes it. */
+  interface HookDecision {
+    run_id: string;
+    session_id: string;
+    tool_name: string;
+    decision: string;
+    rewritten_args: string | null;
+  }
+
+  /** Kept in memory only, so the list is bounded rather than unbounded. */
+  const MAX_DECISIONS = 50;
+
   let hooks = $state<ActiveHook[]>([]);
   let loading = $state(true);
   let errorMessage = $state<string | null>(null);
+  let decisions = $state<HookDecision[]>([]);
+  let unlisten: UnlistenFn | undefined;
 
   async function load(): Promise<void> {
     loading = true;
@@ -38,8 +58,23 @@
     }
   }
 
+  function decisionTone(decision: string): "success" | "danger" | "neutral" {
+    if (decision === "allow") return "success";
+    if (decision === "deny") return "danger";
+    return "neutral";
+  }
+
   onMount(() => {
     void load();
+    void listen<HookDecision>("hook-decision", (event) => {
+      decisions = [event.payload, ...decisions].slice(0, MAX_DECISIONS);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+  });
+
+  onDestroy(() => {
+    unlisten?.();
   });
 </script>
 
@@ -101,6 +136,38 @@
               </span>
             {/each}
           </div>
+        </div>
+      {/each}
+    </Card>
+  {/if}
+
+  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-2">
+    <h3 class="m-0 text-body-sm font-semibold text-foreground">
+      {$t("observability.hook_decisions_title")}
+    </h3>
+    <span class="section-meta tabular-nums" data-testid="hook-decisions-count">
+      {$t("observability.hook_decisions_count", { values: { n: decisions.length } })}
+    </span>
+    <p class="w-full text-caption text-muted-foreground">
+      {$t("observability.hook_decisions_subtitle")}
+    </p>
+  </div>
+
+  {#if decisions.length === 0}
+    <Card class="flex flex-col items-center justify-center py-8" data-testid="hook-decisions-empty">
+      <p class="text-body-sm text-muted-foreground">
+        {$t("observability.hook_decisions_empty")}
+      </p>
+    </Card>
+  {:else}
+    <Card class="divide-y divide-border/30 overflow-hidden" data-testid="hook-decisions-list">
+      {#each decisions as decision (decision.run_id + decision.tool_name + decision.decision)}
+        <div class="flex flex-wrap items-center gap-2 px-4 py-2" data-testid="hook-decision-row">
+          <Badge variant={decisionTone(decision.decision)} size="sm">{decision.decision}</Badge>
+          <code class="min-w-0 flex-1 break-all font-mono text-code-sm text-foreground/85">
+            {decision.tool_name}
+          </code>
+          <span class="font-mono text-caption text-muted-foreground">{decision.run_id}</span>
         </div>
       {/each}
     </Card>
