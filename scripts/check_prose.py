@@ -56,13 +56,38 @@ EM_DASH_EXEMPT = re.compile(
 # match by the backslash or the alternation bar that follows its prefix. The
 # surrounding prose still has to avoid a matchable form, or this file fails the
 # rule it carries.
+#
+# Three of the branches are narrower than the vocabulary they refuse, and each
+# bound was measured on this tree rather than guessed:
+#
+# - `A.<n>` needs a third numeric level, because the CLI end-to-end suite
+#   names its sections `A.1` through `A.14` and those labels are the suite's
+#   own structure, not a plan. `F`, `E` and `D` carry no such collision and
+#   match at two levels.
+# - `lot` requires a separator before the number: the concatenated form still
+#   names one SDK test identifier, and a guard cannot refuse a form the tree
+#   it guards carries.
+#   TODO(once `lot3_exports` leaves sdk/tests/test_public_api.py): also refuse
+#   the concatenated form.
+# - `Story` matches capitalized only: lowercase `story<n>` names 27 Rust test
+#   functions across five crates, live code that a prose rule must not judge.
+#
+# `Phase <n>` and `Batch <n>` are deliberately absent: measured on this tree,
+# `Phase` names the Supervisor startup sequence and other in-domain phases on
+# some seventy lines, and every `Batch <n>` is fiction served by the seeded
+# MCP stub. Both would make the rule fire on compliant content, and a guard
+# that fails on compliant input gets switched off.
 TRACKING_IDENTIFIER = re.compile(
     r"(?<![A-Za-z0-9])(?:CAP|LOT|GRP)-\d{3}(?![0-9])"
     r"|(?<![A-Za-z0-9])AC-\d+(?![0-9])"
     r"|(?<![A-Za-z0-9])B\.\d+(?![0-9])"
     r"|(?<![A-Za-z0-9])C\.I\.\d+"
+    r"|(?<![A-Za-z0-9])[FED]\.\d{1,2}(?:\.\d+)?(?![0-9])"
+    r"|(?<![A-Za-z0-9])A\.\d{1,2}\.\d+(?![0-9])"
+    r"|(?<![A-Za-z0-9])Story[ _-]\d+"
     r"|(?:follow-up|user) story"
     r"|(?i:(?:sprint|epic)[ _-]?\d+)"
+    r"|(?<![A-Za-z0-9])(?i:lot[ _-]\d+)"
 )
 
 # The single named hole in that rule: the Figma twin manifest carries the

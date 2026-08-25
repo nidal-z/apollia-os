@@ -600,6 +600,22 @@ DIRTY_NAME = "tests/integration/test_" + "sprint" + "_28_config.rs"
 CLEAN_NAME = "tests/integration/test_system_config_and_routing.rs"
 TWIN_MANIFEST = "crates/apollia-desktop/ui/figma/manifest.json"
 
+# One pair per widened form of the tracker rule: the shape it must flag, and
+# the nearest compliant neighbour it must stay silent on. The negatives are
+# the measured bounds of the rule, not inventions: the CLI suite's two-level
+# section labels, an abbreviation ending in a matchable letter, a Rust test
+# name, an English word that embeds the vocabulary, and the one concatenated
+# identifier the rule defers (see the TODO beside the pattern).
+LETTERED_ID_SAMPLE = "the audit is described at " + "F" + ".76 of the plan"
+LETTERED_ID_CLEAN = "the audit exports its findings as PDF.76 revisions"
+DEEP_ID_SAMPLE = "the shortcut ships under " + "A" + ".1.13 of the plan"
+DEEP_ID_CLEAN = "the suite runs section A.14 before the runtime tracks"
+STORY_NUM_SAMPLE = "landed by " + "Sto" + "ry 42, kept for the release"
+STORY_NUM_CLEAN = "a history 42 pages long, kept for the release"
+LOT_NUM_SAMPLE = "connected by " + "Lo" + "t 4 end to end"
+LOT_NUM_CLEAN = "slot 4 stays pinned while the model loads"
+LOT_CONCAT_DEFERRED = "the set is named " + "lot3" + "_exports for now"
+
 
 def _prose_tree(tmp: Path, files: dict[str, bytes]) -> list[str]:
     for rel, blob in files.items():
@@ -624,6 +640,15 @@ def check_prose_tracker_rule() -> None:
                 + TRACKED_SAMPLE.encode("utf-8"),
                 DIRTY_NAME: CLEAN_SAMPLE.encode("utf-8"),
                 CLEAN_NAME: CLEAN_SAMPLE.encode("utf-8"),
+                "docs/lettered.md": LETTERED_ID_SAMPLE.encode("utf-8"),
+                "docs/lettered-clean.md": LETTERED_ID_CLEAN.encode("utf-8"),
+                "docs/deep.md": DEEP_ID_SAMPLE.encode("utf-8"),
+                "docs/deep-clean.md": DEEP_ID_CLEAN.encode("utf-8"),
+                "docs/storynum.md": STORY_NUM_SAMPLE.encode("utf-8"),
+                "docs/storynum-clean.md": STORY_NUM_CLEAN.encode("utf-8"),
+                "docs/lotnum.md": LOT_NUM_SAMPLE.encode("utf-8"),
+                "docs/lotnum-clean.md": LOT_NUM_CLEAN.encode("utf-8"),
+                "docs/lotconcat.md": LOT_CONCAT_DEFERRED.encode("utf-8"),
             },
         )
 
@@ -649,6 +674,64 @@ def check_prose_tracker_rule() -> None:
             f"a byte match inside an undecodable file was reported. Six such "
             f"files exist under the documentation site, and none of them can "
             f"be corrected. findings: {found!r}",
+        )
+        case(
+            "flags a two-level lettered plan identifier",
+            any(f.startswith("docs/lettered.md:1:") for f in found),
+            f"the widened rule stayed silent on the lettered identifier "
+            f"family. findings: {found!r}",
+        )
+        case(
+            "stays silent on an abbreviation ending in a matchable letter",
+            "docs/lettered-clean.md" not in hits,
+            f"a compliant abbreviation was reported, so any file mentioning "
+            f"PDF revisions would fail the rule. findings: {found!r}",
+        )
+        case(
+            "flags a three-level plan identifier",
+            any(f.startswith("docs/deep.md:1:") for f in found),
+            f"the three-level identifier family escaped the rule. "
+            f"findings: {found!r}",
+        )
+        case(
+            "stays silent on a two-level CLI suite section label",
+            "docs/deep-clean.md" not in hits,
+            f"a suite section label was reported; the CLI end-to-end suite "
+            f"names 28 of them, and none is a plan reference. "
+            f"findings: {found!r}",
+        )
+        case(
+            "flags a capitalized numbered story reference",
+            any(f.startswith("docs/storynum.md:1:") for f in found),
+            f"the numbered story form escaped the rule. findings: {found!r}",
+        )
+        case(
+            "stays silent on an English word embedding the vocabulary",
+            "docs/storynum-clean.md" not in hits,
+            f"an embedding word was reported, so compliant prose would fail "
+            f"the rule. findings: {found!r}",
+        )
+        case(
+            "flags a numbered lot reference",
+            any(f.startswith("docs/lotnum.md:1:") for f in found),
+            f"the numbered lot form escaped the rule. findings: {found!r}",
+        )
+        case(
+            "stays silent on a word ending in the lot vocabulary",
+            "docs/lotnum-clean.md" not in hits,
+            f"a compliant embedding word was reported. findings: {found!r}",
+        )
+        # The deferred bound, asserted so its removal is a decision rather
+        # than an accident: the concatenated form is excused until the SDK
+        # identifier it collides with is renamed (see the TODO beside the
+        # pattern in check_prose.py). When the pattern is widened, this case
+        # must flip to a positive in the same change.
+        case(
+            "the concatenated lot form is still deferred",
+            "docs/lotconcat.md" not in hits,
+            f"the concatenated form was reported, but the tree still carries "
+            f"the SDK identifier it collides with; widen the pattern and this "
+            f"case together. findings: {found!r}",
         )
         case(
             "flags the vocabulary carried by a file name",
