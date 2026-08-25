@@ -301,6 +301,11 @@ jobs:
       # the boundary invokes the script.
       - name: Prose rules, the same guard the pre-commit hook runs
         run: python3 scripts/check_prose.py
+      # The Python rules no ruff configuration expresses: the AgentError
+      # exception root, the print() carve-out (with its written REASON
+      # exemptions), PEP 563 + TypedDict, and the agent module contract.
+      - name: Python rules beyond ruff, on sdk/ and agents/
+        run: python3 scripts/check_python_rules.py
       # Runs before the checks it covers. Two of them independently counted a
       # symbol named in a doc-comment as a live call site, always in the
       # direction that declares a dead capability alive. This pins that case on a

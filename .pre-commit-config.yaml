@@ -78,6 +78,16 @@ repos:
         language: system
         pass_filenames: false
 
+      # The Python rules ruff cannot express: exception hierarchy rooted at
+      # AgentError, the print() carve-out with written REASON exemptions,
+      # PEP 563 + TypedDict, third-party imports, the agent module contract.
+      - id: check-python-rules
+        name: python rules beyond ruff (sdk/ and agents/)
+        entry: python3 scripts/check_python_rules.py
+        language: system
+        files: ^(sdk|agents)/.*\.py$
+        pass_filenames: false
+
       # The guards below run where the defect they catch is born, which is a
       # commit. The rest of the corpus stays in `just guards` alone: some need
       # a built tree, so a pre-commit entry would refuse the first commit of

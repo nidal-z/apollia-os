@@ -8,6 +8,10 @@ schema builder warns and still recovers the correct split via ``get_type_hints``
 Do NOT copy this into real worker ``schemas.py`` files.
 """
 
+# REASON: future-typeddict: the PEP 563 + TypedDict combination is this
+# fixture's whole purpose (see the module docstring); it is quarantined
+# here so no real payload module copies it. Read by
+# scripts/check_python_rules.py.
 from __future__ import annotations
 
 from typing import NotRequired, TypedDict

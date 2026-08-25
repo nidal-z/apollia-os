@@ -6,6 +6,10 @@ file as a module, extracts the canonical manifest produced by ``@agent``
 either a human-readable summary or a JSON document.
 """
 
+# REASON: print-call: this module is the SDK's command-line surface and has
+# no ctx; print() is its user-facing output channel, the same carve-out the
+# Rust rule grants apollia-cli. Read by scripts/check_python_rules.py.
+
 from __future__ import annotations
 
 import importlib.util
