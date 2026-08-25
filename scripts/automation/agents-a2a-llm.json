@@ -1,6 +1,9 @@
 {
   "name": "agents-a2a-llm (A2A infra: worker chip + delegation best-effort)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "a2a-skill-chip-classify_text"
+  ],
   "steps": [
     {
       "kind": "click",

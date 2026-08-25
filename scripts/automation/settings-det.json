@@ -14,6 +14,43 @@
     "about-copy-data-dir is asserted, not about-data-dir-unknown. They are the two arms of one #if on SystemInfo.data_dir, the runner has no either/or step, and the seeded HOME always resolves, so the unknown arm is unreachable under this harness. It stays covered by the Rust test test_system_info_reports_the_resolved_data_directory.",
     "The three external help cards (docs, community, report) and about-link-github / about-link-report are asserted with expect/waitFor and never clicked: they hand off to the system browser, which the runner cannot come back from. help-link-shortcuts is the one card that navigates in-app, so it is the one that is clicked."
   ],
+  "dynamicTestids": [
+    "config-file-card-copy-oria",
+    "config-file-card-copy-runtime",
+    "config-file-card-oria",
+    "danger-card-clear-logs",
+    "danger-card-clear-memories",
+    "danger-card-factory-reset",
+    "danger-card-reset-onboarding",
+    "help-link-community",
+    "help-link-docs",
+    "help-link-report",
+    "help-link-shortcuts",
+    "language-en",
+    "language-fr",
+    "mode-builder",
+    "mode-operator",
+    "settings-nav-about",
+    "settings-nav-appearance",
+    "settings-nav-configuration",
+    "settings-nav-danger",
+    "settings-nav-help",
+    "settings-nav-integrations",
+    "settings-nav-llm",
+    "settings-nav-model-hub",
+    "settings-nav-observability",
+    "settings-nav-permissions",
+    "settings-nav-profile",
+    "settings-nav-shortcuts",
+    "settings-nav-stt",
+    "settings-nav-system",
+    "settings-nav-tools",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator",
+    "theme-dark",
+    "theme-light",
+    "theme-system"
+  ],
   "steps": [
     {
       "kind": "click",
@@ -991,7 +1028,7 @@
     {
       "kind": "captureText",
       "testid": "about-data",
-      "label": "about-data-dir"
+      "as": "about-data-dir"
     },
     {
       "kind": "click",

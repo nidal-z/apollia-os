@@ -1,6 +1,9 @@
 {
   "name": "mailbox-det (inter-agent mailbox observability surface; seeded mailbox.db, asserts populated rows on Observability > Mailbox)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "observability-tab-mailbox"
+  ],
   "steps": [
     {
       "kind": "click",

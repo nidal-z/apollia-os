@@ -5,6 +5,16 @@
   "notes": [
     "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into."
   ],
+  "dynamicTestids": [
+    "mcp-detail-tab-settings",
+    "project-tab-settings",
+    "settings-nav-danger",
+    "settings-nav-llm",
+    "settings-nav-model-hub",
+    "settings-nav-permissions",
+    "settings-nav-profile",
+    "sidebar-mode-option-builder"
+  ],
   "steps": [
     {
       "kind": "waitFor",

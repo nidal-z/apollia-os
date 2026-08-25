@@ -4,7 +4,8 @@
 master-det = head (section-00 start + global onboarding dismiss) then, for each
 page in section order: [screenshot section-NN-<page>, goto dashboard, waitFor
 app-main] + the page's steps minus its leading 2-step onboarding preamble
-(onboarding-skip + waitGone).
+(onboarding-skip + waitGone). The master's `dynamicTestids` declaration is the
+union of the pages' declarations, since its steps are the union of theirs.
 
 Validates against the current committed master-det unless --write is passed.
 """
@@ -30,26 +31,36 @@ i01 = next(i for i, s in enumerate(msteps) if s.get("label") == "section-01-nav-
 head = msteps[:i01]
 
 out = list(head)
+dynamics = set()
 for n, page in enumerate(ORDER, start=1):
     d = load(page)
     ps = d["steps"]
     # strip the leading onboarding-skip + waitGone preamble (2 steps)
     assert ps[0].get("testid") == "onboarding-skip" and ps[1].get("kind") == "waitGone", page
     body = ps[2:]
+    dynamics.update(d.get("dynamicTestids", []))
     out.append({"kind": "screenshot", "label": f"section-{n:02d}-{page}"})
     out.append({"kind": "goto", "route": "dashboard"})
     out.append({"kind": "waitFor", "testid": "app-main"})
     out.extend(body)
 
-regen = dict(master)
-regen["steps"] = out
+regen = {}
+for key, value in master.items():
+    if key == "dynamicTestids":
+        continue
+    if key == "steps":
+        if dynamics:
+            regen["dynamicTestids"] = sorted(dynamics)
+        regen["steps"] = out
+        continue
+    regen[key] = value
 
 if "--write" in sys.argv:
     json.dump(regen, open(f"{SCRIPTS}/master-det.json", "w"), indent=2)
     open(f"{SCRIPTS}/master-det.json", "a").write("\n")
     print(f"WROTE master-det.json: {len(out)} steps")
 else:
-    same = out == msteps
+    same = regen == master
     print(f"regen {len(out)} steps vs current {len(msteps)} steps; identical={same}")
     if not same:
         for i, (a, b) in enumerate(zip(out, msteps)):

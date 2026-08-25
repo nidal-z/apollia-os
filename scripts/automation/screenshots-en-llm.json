@@ -7,6 +7,15 @@
     "Les deux captures mid-stream s'appuient sur chat-stop-button, qui n'existe que pendant la generation : waitFor le voit apparaitre, waitGone le voit disparaitre, et les deux sleeps tombent entre les deux. C'est le seul signal deterministe de cet etat ; un sleep seul depend de la vitesse du modele."
   ],
   "stopOnError": false,
+  "dynamicTestids": [
+    "inbox-filter-all",
+    "inbox-filter-approval",
+    "inbox-filter-ask_user",
+    "inbox-tab-pending",
+    "language-en",
+    "settings-nav-appearance",
+    "settings-nav-llm"
+  ],
   "steps": [
     {
       "kind": "click",

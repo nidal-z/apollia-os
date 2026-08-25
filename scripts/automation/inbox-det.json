@@ -1,79 +1,318 @@
 {
   "name": "inbox-det (inbox page, operator + builder, seeded activity + notifications; pending in-memory set empty at cold boot so pending reduced to empty state, merged decision history asserted)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "inbox-activity-filter-all",
+    "inbox-activity-filter-degradations",
+    "inbox-activity-filter-failures",
+    "inbox-activity-filter-llm",
+    "inbox-filter-all",
+    "inbox-filter-approval",
+    "inbox-filter-ask_user",
+    "inbox-tab-activity",
+    "inbox-tab-notifications",
+    "inbox-tab-pending",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
-    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
-
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-operator" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
-
-    { "kind": "goto", "route": "inbox" },
-    { "kind": "waitFor", "testid": "inbox-page", "timeoutMs": 15000 },
-    { "kind": "screenshot", "label": "01-inbox-operator" },
-
-    { "kind": "expect", "testid": "inbox-tabbar" },
-    { "kind": "click", "testid": "inbox-tab-pending", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "02-inbox-tab-pending" },
-
-    { "kind": "waitFor", "testid": "inbox-filter-all", "timeoutMs": 2500 },
-    { "kind": "click", "testid": "inbox-filter-all", "timeoutMs": 2500 },
-    { "kind": "click", "testid": "inbox-filter-approval", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "03-inbox-filter-approval" },
-    { "kind": "click", "testid": "inbox-filter-ask_user", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "04-inbox-filter-ask-user" },
-    { "kind": "click", "testid": "inbox-filter-all", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "05-inbox-pending-empty" },
-
-    { "kind": "waitFor", "testid": "inbox-history-list", "timeoutMs": 6000 },
-    { "kind": "waitFor", "testid": "inbox-history-row", "nth": 0, "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "inbox-history-origin", "nth": 0, "timeoutMs": 3000 },
-    { "kind": "screenshot", "label": "05b-inbox-history-merged (one list, each row tagged with its origin)" },
-
-    { "kind": "click", "testid": "inbox-tab-activity", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "06-inbox-tab-activity" },
-    { "kind": "waitFor", "testid": "inbox-activity-filter-all", "timeoutMs": 2500 },
-    { "kind": "click", "testid": "inbox-activity-filter-all", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 5000 },
-    { "kind": "screenshot", "label": "07-activity-rows" },
-    { "kind": "click", "testid": "inbox-activity-filter-failures", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "08-activity-failures" },
-    { "kind": "click", "testid": "inbox-activity-filter-degradations", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "09-activity-degradations" },
-    { "kind": "click", "testid": "inbox-activity-filter-llm", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "10-activity-llm" },
-    { "kind": "click", "testid": "inbox-activity-filter-all", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "11-activity-all" },
-
-    { "kind": "click", "testid": "inbox-tab-notifications", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "12-inbox-tab-notifications" },
-
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-builder" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "goto", "route": "inbox" },
-    { "kind": "waitFor", "testid": "inbox-page", "timeoutMs": 15000 },
-    { "kind": "screenshot", "label": "13-inbox-builder" },
-    { "kind": "click", "testid": "inbox-tab-pending", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "14-inbox-pending-builder" },
-    { "kind": "click", "testid": "inbox-tab-activity", "timeoutMs": 2500 },
-    { "kind": "waitFor", "testidPrefix": "activity-row", "nth": 0, "timeoutMs": 5000 },
-    { "kind": "screenshot", "label": "15-inbox-activity-builder" },
-    { "kind": "click", "testid": "inbox-tab-notifications", "timeoutMs": 2500 },
-    { "kind": "screenshot", "label": "16-inbox-notifications-builder" },
-
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-operator" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "screenshot", "label": "17-back-operator" }
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-inbox-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "inbox-tabbar"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-inbox-tab-pending"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-inbox-filter-approval"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-ask_user",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-inbox-filter-ask-user"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-inbox-pending-empty"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-history-origin",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-inbox-history-merged (one list, each row tagged with its origin)"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-inbox-tab-activity"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-activity-rows"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-failures",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-activity-failures"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-degradations",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-activity-degradations"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-llm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-activity-llm"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-activity-all"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-notifications",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-inbox-tab-notifications"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-inbox-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-inbox-pending-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-inbox-activity-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-notifications",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-inbox-notifications-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-back-operator"
+    }
   ]
 }

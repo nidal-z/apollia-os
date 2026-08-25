@@ -1,6 +1,11 @@
 {
   "name": "chat-det (chat page, operator + builder, deterministic UI against the seeded ecosystem, no inference)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "quickpicker-agent-seed-classifier",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

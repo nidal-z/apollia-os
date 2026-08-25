@@ -1,6 +1,9 @@
 {
   "name": "coach-llm",
   "stopOnError": false,
+  "dynamicTestids": [
+    "command-item-companion.toggle"
+  ],
   "steps": [
     {
       "kind": "waitFor",

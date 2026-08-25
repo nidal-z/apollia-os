@@ -1,6 +1,23 @@
 {
   "name": "tasks-det (tasks page, seeded ecosystem, operator + builder, every step green)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator",
+    "task-detail-tab-output",
+    "task-detail-tab-overview",
+    "task-detail-tab-technical",
+    "task-detail-tab-trace",
+    "task-detail-title",
+    "tasks-filter-all",
+    "tasks-filter-approval",
+    "tasks-filter-done",
+    "tasks-filter-error",
+    "tasks-filter-running",
+    "tasks-filter-todo",
+    "tasks-split-filter-all",
+    "tasks-split-filter-done"
+  ],
   "steps": [
     {
       "kind": "click",

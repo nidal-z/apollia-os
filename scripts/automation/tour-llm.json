@@ -8,6 +8,10 @@
     "The approval step docks to the top edge while its card is absent (TourStepCard annotated anchorless dock), so the annotation never covers the conversation and its Next button stays reachable.",
     "Turn is driven with awaitTurn (auto-accepts the HITL card whether or not it appears: bash non-git raises it, but appearance is model-dependent). awaitTurn now handles both the builder (approval-accept-) and operator (operator-approval-accept-) cards. The annotation text is shown regardless; the card, when present, is auto-accepted so the turn completes."
   ],
+  "dynamicTestids": [
+    "getting-started-milestone-chat",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",
@@ -82,7 +86,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Exécute la commande shell \"ls -la\" dans le dossier courant."
+      "text": "Ex\u00e9cute la commande shell \"ls -la\" dans le dossier courant."
     },
     {
       "kind": "click",

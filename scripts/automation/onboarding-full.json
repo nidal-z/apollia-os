@@ -1,6 +1,10 @@
 {
   "name": "onboarding-full",
   "stopOnError": false,
+  "dynamicTestids": [
+    "onboarding-lang-en",
+    "onboarding-lang-fr"
+  ],
   "steps": [
     {
       "kind": "waitFor",

@@ -1,6 +1,9 @@
 {
   "name": "a2a (seed-classifier delegation via chat)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "a2a-skill-chip-classify_text"
+  ],
   "steps": [
     {
       "kind": "click",

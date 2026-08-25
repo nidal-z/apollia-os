@@ -9,6 +9,24 @@
     "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
     "topbar-agents-at-work renders only when running tasks > 0 (data-dependent) and topbar-sidebar-toggle only when sidebarState === 'drawer' (mobile viewport). Both are observed by screenshot only, never hard-asserted."
   ],
+  "dynamicTestids": [
+    "nav-agents",
+    "nav-automations",
+    "nav-chat",
+    "nav-dashboard",
+    "nav-inbox",
+    "nav-integrations",
+    "nav-llm",
+    "nav-memory",
+    "nav-notifications",
+    "nav-observability",
+    "nav-projects",
+    "nav-settings",
+    "nav-tasks",
+    "nav-transcriptions",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

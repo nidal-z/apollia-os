@@ -1,6 +1,20 @@
 {
   "name": "memory-det (memory namespace explorer over the seeded ecosystem, operator + builder; export, import and purge opened at their boundary and cancelled)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "memory-type-tab-all",
+    "memory-type-tab-episodic",
+    "memory-type-tab-procedural",
+    "memory-type-tab-semantic",
+    "namespace-sidebar-cat-agent",
+    "namespace-sidebar-cat-all",
+    "namespace-sidebar-cat-other",
+    "namespace-sidebar-cat-project",
+    "namespace-sidebar-cat-user",
+    "namespace-sidebar-item-apollia-guide",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

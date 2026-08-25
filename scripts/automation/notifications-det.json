@@ -1,6 +1,22 @@
 {
   "name": "notifications-det (seeded channels + global events, native selects, create det-auto-channel, operator + builder, every step green)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "channel-card-det-auto-channel",
+    "channel-card-seed-channel-desktop",
+    "channel-card-seed-channel-webhook",
+    "channel-delete-btn-seed-channel-desktop",
+    "channel-edit-btn-seed-channel-desktop",
+    "channel-event-task.completed",
+    "channel-test-btn-seed-channel-desktop",
+    "channel-toggle-det-auto-channel",
+    "channel-toggle-seed-channel-desktop",
+    "global-event-agent.degraded",
+    "global-event-task.completed",
+    "global-event-task.failed",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

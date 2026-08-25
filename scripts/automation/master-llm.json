@@ -1,6 +1,11 @@
 {
   "name": "master-llm (inference smoke, needs -llama backend)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "command-item-companion.toggle",
+    "getting-started-milestone-chat",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "screenshot",
@@ -80,7 +85,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Écris une phrase qui contient le mot banane."
+      "text": "\u00c9cris une phrase qui contient le mot banane."
     },
     {
       "kind": "awaitTurn",
@@ -212,7 +217,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Retiens que mon plat préféré est le couscous."
+      "text": "Retiens que mon plat pr\u00e9f\u00e9r\u00e9 est le couscous."
     },
     {
       "kind": "awaitTurn",
@@ -234,7 +239,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Quel est mon plat préféré ?"
+      "text": "Quel est mon plat pr\u00e9f\u00e9r\u00e9 ?"
     },
     {
       "kind": "awaitTurn",
@@ -387,7 +392,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Prépare un plan en trois étapes pour organiser une réunion d'équipe hebdomadaire."
+      "text": "Pr\u00e9pare un plan en trois \u00e9tapes pour organiser une r\u00e9union d'\u00e9quipe hebdomadaire."
     },
     {
       "kind": "awaitTurn",
@@ -423,7 +428,7 @@
     {
       "kind": "fill",
       "testid": "chat-plan-review-adjust",
-      "text": "Ajoute une quatrième étape de bilan à la fin."
+      "text": "Ajoute une quatri\u00e8me \u00e9tape de bilan \u00e0 la fin."
     },
     {
       "kind": "screenshot",
@@ -481,7 +486,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Demande-moi mon prénom avec l'outil ask_user, puis répète-le."
+      "text": "Demande-moi mon pr\u00e9nom avec l'outil ask_user, puis r\u00e9p\u00e8te-le."
     },
     {
       "kind": "click",
@@ -548,7 +553,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Bonjour, prêt à travailler ?"
+      "text": "Bonjour, pr\u00eat \u00e0 travailler ?"
     },
     {
       "kind": "click",
@@ -840,7 +845,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Comment créer un agent ?"
+      "text": "Comment cr\u00e9er un agent ?"
     },
     {
       "kind": "waitFor",

@@ -1,159 +1,667 @@
 {
   "name": "tools-det (settings > tools page against the seeded governance credential, operator + builder; contract sheet and credential inventory asserted, live test button is a boundary, never clicked)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "credential-row-web_search-brave.api_key",
+    "mcp-detail-tab-overview",
+    "mcp-detail-tab-tools",
+    "settings-nav-tools",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator",
+    "tool-card-bash_executor",
+    "tool-card-file_read",
+    "tool-card-web_search",
+    "tool-configure-web_read",
+    "tool-configure-web_search",
+    "tool-contract-credential-brave.api_key",
+    "tool-contract-field-query",
+    "tool-inspect-web_search",
+    "tool-toggle-web_search"
+  ],
   "steps": [
-    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-operator" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
-    { "kind": "goto", "route": "settings" },
-    { "kind": "waitFor", "testid": "settings-page", "timeoutMs": 15000 },
-    { "kind": "click", "testid": "settings-nav-tools" },
-    { "kind": "waitFor", "testid": "settings-tools", "timeoutMs": 15000 },
-    { "kind": "screenshot", "label": "01-settings-tools-operator" },
-    { "kind": "expect", "testid": "settings-tools" },
-
-    { "kind": "waitFor", "testid": "tools-list", "timeoutMs": 8000 },
-    { "kind": "screenshot", "label": "02-tools-list" },
-    { "kind": "click", "testid": "tools-reload", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 700 },
-    { "kind": "waitFor", "testid": "tools-list", "timeoutMs": 6000 },
-    { "kind": "screenshot", "label": "03-tools-reloaded" },
-
-    { "kind": "waitFor", "testid": "tool-card-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-card-bash_executor", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-card-file_read", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "04-tool-cards" },
-
-    { "kind": "waitFor", "testid": "tool-toggle-web_search", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "05-tool-toggle-before" },
-    { "kind": "click", "testid": "tool-toggle-web_search", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 700 },
-    { "kind": "screenshot", "label": "06-tool-toggle-off" },
-    { "kind": "click", "testid": "tool-toggle-web_search", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 700 },
-    { "kind": "screenshot", "label": "07-tool-toggle-restored" },
-
-    { "kind": "waitFor", "testid": "tool-inspect-web_search", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "tool-inspect-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-contract-sheet", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "tool-contract-identity", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "tool-contract-input", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-contract-field-query", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "07b-tool-contract-web-search" },
-    { "kind": "click", "testid": "tool-contract-input-raw-toggle", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-contract-input-raw", "timeoutMs": 3000 },
-    { "kind": "screenshot", "label": "07c-tool-contract-raw-input-schema" },
-    { "kind": "click", "testid": "tool-contract-input-raw-toggle", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-contract-credentials", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-contract-credential-brave.api_key", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "07d-tool-contract-credentials (key names and dates only, never a value)" },
-    { "kind": "click", "testid": "sheet-close", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 400 },
-    { "kind": "waitGone", "testid": "tool-contract-sheet", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "07e-tool-contract-closed" },
-
-    { "kind": "waitFor", "testid": "tool-configure-web_search", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "tool-configure-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-config-drawer-body", "timeoutMs": 8000 },
-    { "kind": "screenshot", "label": "08-tool-config-drawer-web-search" },
-    { "kind": "waitFor", "testid": "web-search-backend-group", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-api-key", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-timeout", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-max-results", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "ddg-timeout", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "ddg-max-response-kb", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "require-configured", "timeoutMs": 4000 },
-    { "kind": "expect", "testid": "tool-config-save" },
-    { "kind": "screenshot", "label": "09-tool-config-fields" },
-
-    { "kind": "fill", "testid": "brave-timeout", "text": "20", "timeoutMs": 4000 },
-    { "kind": "fill", "testid": "brave-max-results", "text": "8", "timeoutMs": 4000 },
-    { "kind": "setChecked", "testid": "require-configured", "checked": true },
-    { "kind": "sleep", "ms": 300 },
-    { "kind": "screenshot", "label": "10-tool-config-edited-unsaved" },
-
-    { "kind": "waitFor", "testid": "brave-api-key-delete", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-api-key-test", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "11-brave-credential-configured (delete + live-test present; test hits network so it is a boundary, NEVER clicked and NEVER asserted)" },
-
-    { "kind": "click", "testid": "brave-api-key-edit", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-api-key-input", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-api-key-save", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "12-credential-editor-open (input + save present; save NEVER clicked, nothing persisted)" },
-
-    { "kind": "click", "testid": "sheet-close", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 400 },
-    { "kind": "waitGone", "testid": "tool-config-drawer-body", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "13-tool-config-closed-unsaved (edits and credential draft discarded)" },
-
-    { "kind": "waitFor", "testid": "tool-configure-web_read", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "tool-configure-web_read", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-config-drawer-body", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "web-read-timeout", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "web-read-max-response-kb", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "web-read-ssrf-guard", "timeoutMs": 4000 },
-    { "kind": "expect", "testid": "tool-config-save" },
-    { "kind": "screenshot", "label": "14-tool-config-web-read" },
-    { "kind": "click", "testid": "sheet-close", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 400 },
-    { "kind": "waitGone", "testid": "tool-config-drawer-body", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "15-web-read-closed-unsaved" },
-
-    { "kind": "waitFor", "testid": "credentials-section", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "credentials-count", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "credentials-list", "timeoutMs": 6000 },
-    { "kind": "waitFor", "testid": "credential-row-web_search-brave.api_key", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "15b-credential-inventory" },
-    { "kind": "click", "testid": "credentials-reload", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "waitFor", "testid": "credentials-list", "timeoutMs": 6000 },
-    { "kind": "screenshot", "label": "15c-credential-inventory-reloaded" },
-
-    { "kind": "goto", "route": "integrations" },
-    { "kind": "waitFor", "testid": "connections-route", "timeoutMs": 15000 },
-    { "kind": "click", "testidPrefix": "sidebar-mcp-", "nth": 0, "timeoutMs": 6000 },
-    { "kind": "waitFor", "testid": "mcp-detail-tab-overview", "timeoutMs": 6000 },
-    { "kind": "click", "testid": "mcp-detail-tab-overview", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "mcp-tools-count", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "16-mcp-tools-count" },
-    { "kind": "click", "testid": "mcp-detail-tab-tools", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "mcp-tools-list", "timeoutMs": 6000 },
-    { "kind": "screenshot", "label": "17-mcp-tools-list" },
-    { "kind": "click", "testidPrefix": "mcp-tool-", "nth": 0, "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 300 },
-    { "kind": "screenshot", "label": "18-mcp-tool-schema-expanded" },
-
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-builder" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "goto", "route": "settings" },
-    { "kind": "waitFor", "testid": "settings-page", "timeoutMs": 15000 },
-    { "kind": "click", "testid": "settings-nav-tools" },
-    { "kind": "waitFor", "testid": "settings-tools", "timeoutMs": 15000 },
-    { "kind": "screenshot", "label": "19-settings-tools-builder" },
-    { "kind": "waitFor", "testid": "tools-list", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "tool-card-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-toggle-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-configure-web_search", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "tool-configure-web_search", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "tool-config-drawer-body", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "brave-api-key-delete", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "brave-api-key-test", "timeoutMs": 4000 },
-    { "kind": "expect", "testid": "tool-config-save" },
-    { "kind": "screenshot", "label": "20-tool-config-drawer-builder" },
-    { "kind": "click", "testid": "sheet-close", "timeoutMs": 4000 },
-    { "kind": "sleep", "ms": 400 },
-    { "kind": "waitGone", "testid": "tool-config-drawer-body", "timeoutMs": 4000 },
-
-    { "kind": "click", "testid": "sidebar-mode-chip" },
-    { "kind": "waitFor", "testid": "sidebar-mode-menu", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "sidebar-mode-option-operator" },
-    { "kind": "sleep", "ms": 800 },
-    { "kind": "screenshot", "label": "21-back-operator" }
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-tools",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-settings-tools-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-tools-list"
+    },
+    {
+      "kind": "click",
+      "testid": "tools-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-tools-reloaded"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-file_read",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-tool-cards"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-toggle-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-tool-toggle-before"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-toggle-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-tool-toggle-off"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-toggle-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 700
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-tool-toggle-restored"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-identity",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-field-query",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-tool-contract-web-search"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input-raw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tool-contract-raw-input-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credentials",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credential-brave.api_key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-tool-contract-closed"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-configure-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-configure-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-tool-config-drawer-web-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "web-search-backend-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-timeout",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-max-results",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ddg-timeout",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ddg-max-response-kb",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "require-configured",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "tool-config-save"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-tool-config-fields"
+    },
+    {
+      "kind": "fill",
+      "testid": "brave-timeout",
+      "text": "20",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "brave-max-results",
+      "text": "8",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "require-configured",
+      "checked": true
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-tool-config-edited-unsaved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-brave-credential-configured (delete + live-test present; test hits network so it is a boundary, NEVER clicked and NEVER asserted)"
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-edit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-credential-editor-open (input + save present; save NEVER clicked, nothing persisted)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-tool-config-closed-unsaved (edits and credential draft discarded)"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-configure-web_read",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-configure-web_read",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "web-read-timeout",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "web-read-max-response-kb",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "web-read-ssrf-guard",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "tool-config-save"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-tool-config-web-read"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-web-read-closed-unsaved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credential-row-web_search-brave.api_key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-credential-inventory"
+    },
+    {
+      "kind": "click",
+      "testid": "credentials-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "credentials-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15c-credential-inventory-reloaded"
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "sidebar-mcp-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-overview",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-count",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-mcp-tools-count"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-tools",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-tools-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-mcp-tools-list"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "mcp-tool-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-mcp-tool-schema-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-tools",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-settings-tools-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-toggle-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-configure-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-configure-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "tool-config-save"
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-tool-config-drawer-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-config-drawer-body",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-back-operator"
+    }
   ]
 }

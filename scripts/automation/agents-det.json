@@ -1,6 +1,19 @@
 {
   "name": "agents-det (assistants page, operator + builder, deterministic against the seed; file replacement and uninstall opened then retired, never committed)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "agent-detail-tab-activity",
+    "agent-detail-tab-memory",
+    "agent-detail-tab-overview",
+    "agent-detail-tab-settings",
+    "agent-detail-tab-tools",
+    "agent-detail-title",
+    "package-detail-tab-agents",
+    "package-detail-tab-overview",
+    "package-detail-tab-triggers",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

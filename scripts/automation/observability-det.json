@@ -1,6 +1,22 @@
 {
   "name": "observability-det (observability surface, operator gated + builder full; only llm-costs populated, task timeline driven per task, journal-wide audit totals and the hook registry asserted)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "empty-state-plan-cache",
+    "observability-tab-audit-trail",
+    "observability-tab-delegation",
+    "observability-tab-hooks",
+    "observability-tab-llm-costs",
+    "observability-tab-plan-cache",
+    "observability-tab-timeline",
+    "period-14d",
+    "period-30d",
+    "period-365d",
+    "period-7d",
+    "period-90d",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

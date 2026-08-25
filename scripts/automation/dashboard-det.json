@@ -1,6 +1,10 @@
 {
   "name": "dashboard-det (dashboard page, operator + builder, deterministic against the seed)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

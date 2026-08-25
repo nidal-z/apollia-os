@@ -1,6 +1,11 @@
 {
   "name": "model-hub-det (settings Model Hub, operator + builder, seeded 2 installed models, guarded delete to boundary, selectOption filters, gibberish empty state, download button to boundary only)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "settings-nav-model-hub",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

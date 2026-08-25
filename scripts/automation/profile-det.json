@@ -12,6 +12,13 @@
     "showEnrichmentBanner is derived (calibrationDone AND tier2 has an empty field). It is treated as best-effort: observed by screenshot only, never hard-asserted and never used as a click target, so no step can fail on it.",
     "Profile.svelte has zero uiMode-conditional rendering; the builder pass asserts mode-invariance of the same fields."
   ],
+  "dynamicTestids": [
+    "profile-compliance-rgpd",
+    "profile-integ-github",
+    "settings-nav-profile",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

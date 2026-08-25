@@ -5,6 +5,11 @@
     "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
     "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend."
   ],
+  "dynamicTestids": [
+    "settings-nav-llm",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",

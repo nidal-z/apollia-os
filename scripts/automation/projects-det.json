@@ -1,6 +1,24 @@
 {
   "name": "projects-det (projects page, seeded ecosystem, operator + builder; the agents tab and the documents section drive their detach confirm and cancel it)",
   "stopOnError": false,
+  "dynamicTestids": [
+    "project-agent-remove-cancel-seed-classifier",
+    "project-agent-remove-confirm-seed-classifier",
+    "project-agent-remove-seed-classifier",
+    "project-agent-row-apollia-guide",
+    "project-agent-row-seed-classifier",
+    "project-doc-remove-cancel-seed-document-alpha-readme",
+    "project-doc-remove-confirm-seed-document-alpha-readme",
+    "project-doc-remove-seed-document-alpha-readme",
+    "project-tab-agents",
+    "project-tab-context",
+    "project-tab-conversations",
+    "project-tab-memory",
+    "project-tab-settings",
+    "project-tab-tasks",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
   "steps": [
     {
       "kind": "click",
