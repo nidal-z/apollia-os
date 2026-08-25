@@ -144,6 +144,13 @@ repos:
         files: '^(crates/.+\.rs|scripts/check_optional_builders\.py)$'
         pass_filenames: false
 
+      - id: check-desktop-csp
+        name: the desktop production CSP keeps its second-belt form
+        entry: python3 scripts/check_desktop_csp.py
+        language: system
+        files: '^(crates/apollia-desktop/tauri\.conf\.json|scripts/check_desktop_csp\.py)$'
+        pass_filenames: false
+
       - id: check-tauri-ipc-args
         name: Tauri command arguments match their callers
         entry: python3 scripts/check_tauri_ipc_args.py
