@@ -767,18 +767,10 @@ fn write_notification_log(
         }
     };
 
-    if let Err(e) = conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS notification_logs (
-            id          TEXT    PRIMARY KEY,
-            event_name  TEXT    NOT NULL,
-            task_id     TEXT,
-            agent_id    TEXT,
-            sent_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-            channels    TEXT    NOT NULL DEFAULT '{}',
-            error       TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_notif_logs_sent_at ON notification_logs(sent_at);",
-    ) {
+    // `notification_logs` lives in `hitl.db`, whose schema (and
+    // `PRAGMA user_version`) is owned by `apollia_tools::hitl_schema`; going
+    // through it also refuses a database written by a newer binary.
+    if let Err(e) = apollia_tools::hitl_schema::open_hitl_schema(&conn) {
         tracing::warn!(error = %e, "notification_logs : migration échouée");
         return;
     }

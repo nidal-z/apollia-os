@@ -50,8 +50,6 @@ EXEMPT_UNVERSIONED = {
     "crates/apollia-mcp/src/approvals.rs",
     "crates/apollia-mcp/src/server_repository.rs",
     "crates/apollia-memory/src/file_timestamp_cache.rs",
-    "crates/apollia-notifications/src/engine.rs",
-    "crates/apollia-notifications/src/repository.rs",
     "crates/apollia-oria/src/plan_cache.rs",
     "crates/apollia-oria/src/plan_repository.rs",
     "crates/apollia-triggers/src/definition_repository.rs",

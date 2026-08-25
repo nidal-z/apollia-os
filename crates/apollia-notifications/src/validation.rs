@@ -42,6 +42,9 @@ pub enum NotificationConfigError {
     /// Underlying SQLite error.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 /// Maximum length of a channel `label`, in Unicode characters (`char`).

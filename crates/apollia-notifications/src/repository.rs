@@ -73,13 +73,17 @@ pub struct NotificationConfigRepository {
 impl NotificationConfigRepository {
     /// Opens (or creates) the `notifications.db` database at the given path.
     ///
-    /// Enables WAL, creates the 3 tables and the index if absent, then applies
-    /// the incremental migrations (column additions via [`ensure_columns`]).
+    /// Enables WAL, then brings the file to the current schema version; a
+    /// database written by a newer binary is refused instead of misread.
     pub fn open(path: &Path) -> Result<Self, NotificationConfigError> {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.execute_batch(Self::MIGRATION_SQL)?;
-        ensure_columns(&conn)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Notifications.file_name(),
+            NOTIFICATIONS_SCHEMA_VERSION,
+            NOTIFICATIONS_MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 
@@ -389,31 +393,37 @@ fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChann
     })
 }
 
-/// Applies the incremental migrations (column additions).
-///
-/// SQLite does not support `ALTER TABLE ADD COLUMN IF NOT EXISTS`; we read
-/// `PRAGMA table_info` and only attempt the `ALTER` if the column is missing.
-/// Idempotent: safe to call on every open.
-fn ensure_columns(conn: &Connection) -> Result<(), NotificationConfigError> {
-    let mut stmt = conn.prepare("PRAGMA table_info(notification_channels)")?;
-    let existing: Vec<String> = stmt
-        .query_map([], |r| r.get::<_, String>(1))?
-        .collect::<Result<_, _>>()?;
-    drop(stmt);
+/// Applies the incremental column additions, tolerating only the
+/// duplicate-column failure.
+fn ensure_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE notification_channels ADD COLUMN label TEXT",
+    )?;
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE notification_channels ADD COLUMN min_interval_seconds INTEGER NOT NULL DEFAULT 0",
+    )
+}
 
-    if !existing.iter().any(|c| c == "label") {
-        conn.execute(
-            "ALTER TABLE notification_channels ADD COLUMN label TEXT",
-            [],
-        )?;
-    }
-    if !existing.iter().any(|c| c == "min_interval_seconds") {
-        conn.execute(
-            "ALTER TABLE notification_channels ADD COLUMN min_interval_seconds INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-    Ok(())
+/// Current schema version of `notifications.db`.
+const NOTIFICATIONS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `notifications.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`NOTIFICATIONS_SCHEMA_VERSION`].
+const NOTIFICATIONS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning lineage of the file, replayed idempotently.
+///
+/// Every `notifications.db` written before the versioned layer is at
+/// `user_version = 0` whatever columns it carries, so this step must accept
+/// a fresh file, the initial shape, and the shape with the label and
+/// min_interval_seconds columns, and bring each of them to the same state.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(NotificationConfigRepository::MIGRATION_SQL)?;
+    ensure_columns(conn)
 }
 
 #[cfg(test)]
@@ -761,5 +771,65 @@ mod tests {
         // AND reopening a second time does not crash (idempotent)
         drop(repo);
         let _repo2 = NotificationConfigRepository::open(&path).expect("open again");
+    }
+
+    /// Pre-versioning `notifications.db` schema, frozen as the oldest shape a
+    /// published binary wrote (`user_version = 0`, no label column).
+    const NOTIFICATIONS_V0_SQL: &str =
+        include_str!("../tests/fixtures/schemas/notifications_v0.sql");
+
+    // GIVEN a database written by a pre-versioning binary, with a channel row
+    // WHEN opening it through the versioned layer
+    // THEN the row survives, the missing columns appear and the version is stamped
+    #[test]
+    fn test_notifications_db_old_format_migrates_and_keeps_rows() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("notifications.db");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open");
+            conn.execute_batch(NOTIFICATIONS_V0_SQL).expect("seed v0");
+            conn.execute(
+                "INSERT INTO notification_channels (id, channel_type) VALUES ('c-1', 'desktop')",
+                [],
+            )
+            .expect("insert");
+        }
+
+        let repo = NotificationConfigRepository::open(&path).expect("open versioned");
+
+        let ch = repo.get_channel("c-1").expect("get").expect("Some");
+        assert_eq!(ch.channel_type, "desktop");
+        assert_eq!(ch.label, None);
+        drop(repo);
+        let conn = rusqlite::Connection::open(&path).expect("reopen");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("version");
+        assert_eq!(version, i64::from(NOTIFICATIONS_SCHEMA_VERSION));
+    }
+
+    // GIVEN a database stamped by a newer binary
+    // WHEN opening it
+    // THEN the open is refused
+    #[test]
+    fn test_notifications_db_newer_version_is_refused() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("notifications.db");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open");
+            conn.pragma_update(None, "user_version", NOTIFICATIONS_SCHEMA_VERSION + 1)
+                .expect("stamp");
+        }
+
+        let err = NotificationConfigRepository::open(&path)
+            .map(|_| ())
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            NotificationConfigError::Schema(
+                apollia_core::schema::SchemaError::NewerThanBinary { .. }
+            )
+        ));
     }
 }

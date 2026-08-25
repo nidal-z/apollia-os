@@ -809,7 +809,7 @@ fn map_notif_error(err: NotificationConfigError) -> (StatusCode, Json<serde_json
         NotificationConfigError::ValidationError(_) => {
             (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
         }
-        NotificationConfigError::Database(_) => {
+        NotificationConfigError::Database(_) | NotificationConfigError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
     };
