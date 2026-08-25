@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, NamedTuple, Optional, TypedDict, Union
+from typing import Annotated, Any, Literal, NamedTuple, Optional, Union
 
 import pytest
 from apollia._internal.inference import (
@@ -151,11 +151,12 @@ def test_annotation_dataclass() -> None:
 
 
 def test_annotation_typed_dict() -> None:
-    class Foo(TypedDict):
-        a: int
-        b: str
+    # A TypedDict defined in this module would sit under PEP 563 (line 3)
+    # and trigger the stringified-annotations warning another test checks
+    # deliberately; the fixture module has no `from __future__` import.
+    from tests._typeddict_fixtures import PlainTD
 
-    schema = annotation_to_schema(Foo)
+    schema = annotation_to_schema(PlainTD)
     assert schema["type"] == "object"
     assert set(schema["required"]) == {"a", "b"}
 

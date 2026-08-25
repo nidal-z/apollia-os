@@ -10,6 +10,11 @@ same convention.
 from typing import NotRequired, Required, TypedDict
 
 
+class PlainTD(TypedDict):
+    a: int
+    b: str
+
+
 class NotRequiredTD(TypedDict):
     name: str
     data: list[float]
