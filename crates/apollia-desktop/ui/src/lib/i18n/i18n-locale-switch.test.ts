@@ -10,13 +10,15 @@ import fr from "./fr.json";
  * store immediately updates resolved values - the guarantee
  * asks for: changing locale in dev swaps strings without a reload.
  *
- * Uses a handful of spec-called-out keys (Workspace / Thinking / Libre
- * / Plan cache / icon-only aria-label) so regressions on those specific
- * findings fail loudly.
+ * Uses a handful of spec-called-out keys (Copy / Thinking / Libre / Plan cache
+ * / icon-only aria-label) so regressions on those specific findings fail
+ * loudly. The sixth, `common.workspace`, left with the screen that showed it:
+ * a locale-switch proof pinned on a string the product no longer renders keeps
+ * the entry alive for its own sake.
  */
 
 const SPEC_KEYS = [
-  { key: "common.workspace", en: "Workspace", fr: "Espace de travail" },
+  { key: "common.copy", en: "Copy", fr: "Copier" },
   { key: "chat.thinking", en: "Thinking...", fr: "Réflexion en cours..." },
   { key: "chat.legend_free", en: "Free", fr: "Libre" },
   { key: "a11y.close", en: "Close", fr: "Fermer" },
@@ -29,12 +31,10 @@ const SPEC_KEYS = [
 
 function lookup(locale: "en" | "fr", key: string): string {
   const source = locale === "en" ? en : fr;
-  return key
-    .split(".")
-    .reduce<unknown>((node, segment) => {
-      if (typeof node !== "object" || node === null) return undefined;
-      return (node as Record<string, unknown>)[segment];
-    }, source) as string;
+  return key.split(".").reduce<unknown>((node, segment) => {
+    if (typeof node !== "object" || node === null) return undefined;
+    return (node as Record<string, unknown>)[segment];
+  }, source) as string;
 }
 
 beforeAll(async () => {
@@ -64,16 +64,16 @@ describe("locale switching", () => {
   test("toggling EN → FR → EN returns distinct values", async () => {
     locale.set("en");
     await waitLocale();
-    const before = lookup("en", "common.workspace");
+    const before = lookup("en", "common.copy");
     locale.set("fr");
     await waitLocale();
-    const frValue = lookup("fr", "common.workspace");
+    const frValue = lookup("fr", "common.copy");
     locale.set("en");
     await waitLocale();
-    const after = lookup("en", "common.workspace");
-    expect(before).toBe("Workspace");
-    expect(frValue).toBe("Espace de travail");
-    expect(after).toBe("Workspace");
+    const after = lookup("en", "common.copy");
+    expect(before).toBe("Copy");
+    expect(frValue).toBe("Copier");
+    expect(after).toBe("Copy");
     expect(before).not.toBe(frValue);
   });
 });

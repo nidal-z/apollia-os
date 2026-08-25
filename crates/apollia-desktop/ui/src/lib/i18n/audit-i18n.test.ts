@@ -152,7 +152,7 @@ describe("audit-i18n scanner - script and expressions", () => {
   it("reports a literal built inside <script>", () => {
     // GIVEN a status label assembled in the component script
     const source = [
-      "<script lang=\"ts\">",
+      '<script lang="ts">',
       '  const msg = "Outil exécuté avec succès.";',
       "</script>",
       "<p>{msg}</p>",
@@ -168,7 +168,7 @@ describe("audit-i18n scanner - script and expressions", () => {
   it("reports a single word stored under a label property", () => {
     // GIVEN the filter-chip shape that hid behind the `key:` line filter
     const source = [
-      "<script lang=\"ts\">",
+      '<script lang="ts">',
       '  const FILTERS = [{ key: "all", label: "Toutes" }];',
       "</script>",
     ].join("\n");
@@ -194,11 +194,11 @@ describe("audit-i18n scanner - script and expressions", () => {
   it("stays silent on catalogue keys and routed calls", () => {
     // GIVEN literals that are keys or live inside $t()
     const source = [
-      "<script lang=\"ts\">",
-      '  const k = "settings.about.title";',
+      '<script lang="ts">',
+      '  const k = "settings.about.subtitle";',
       '  const v = $t("chat.thinking", { default: "Thinking..." });',
       "</script>",
-      '<p>{$t("common.workspace")}</p>',
+      '<p>{$t("common.copy")}</p>',
     ].join("\n");
 
     // WHEN the scanner reads it
@@ -211,7 +211,7 @@ describe("audit-i18n scanner - script and expressions", () => {
   it("honours the code form of the ignore directive", () => {
     // GIVEN a deliberate confirmation token
     const source = [
-      "<script lang=\"ts\">",
+      '<script lang="ts">',
       "  // i18n-ignore: confirmation token, deliberately not localized",
       '  const word = "FACTORY RESET TOKEN";',
       "</script>",

@@ -49,21 +49,6 @@ const EXPECTED_DESCRIPTIONS = [
   "mcp_generic",
 ];
 
-const EXPECTED_OUTPUT_KEYS = [
-  "file_read_summary",
-  "file_read_truncated",
-  "file_write_summary",
-  "file_edit_summary",
-  "file_list_summary",
-  "file_glob_summary",
-  "file_grep_summary",
-  "file_grep_truncated",
-  "http_fetch_summary",
-  "memory_search_summary",
-  "bash_executor_summary",
-  "python_executor_summary",
-];
-
 const EXPECTED_OUTPUTS_KEYS = [
   "file_read",
   "file_write",
@@ -77,7 +62,13 @@ const EXPECTED_OUTPUTS_KEYS = [
   "python_executor",
 ];
 
-const EXPECTED_STATUS_KEYS = ["pending", "authorized", "executed", "refused"];
+/**
+ * Two families this file used to assert are gone with the entries they named.
+ * `tools.output.*` was the singular ancestor of `tools.outputs.*`, and only
+ * `tools.output.web_read_truncated` ever kept a reader (`lib/tools/tool-display.ts`);
+ * `tools.status.*` had none at all. A test is not a reader: asserting a
+ * namespace nothing renders is what let a quarter of the catalogue survive.
+ */
 
 // ─── EN completeness ──────────────────────────────────────────────────────────
 
@@ -97,21 +88,17 @@ describe("i18n tools - EN completeness", () => {
     // GIVEN en.json loaded
     // WHEN checking tools.descriptions
     // THEN at least 19 keys are present including all contextual variants
-    const descriptions = getSection(en as unknown as JsonObject, "tools", "descriptions");
+    const descriptions = getSection(
+      en as unknown as JsonObject,
+      "tools",
+      "descriptions",
+    );
     for (const key of EXPECTED_DESCRIPTIONS) {
-      expect(descriptions, `missing tools.descriptions.${key}`).toHaveProperty(key);
+      expect(descriptions, `missing tools.descriptions.${key}`).toHaveProperty(
+        key,
+      );
     }
     expect(Object.keys(descriptions).length).toBeGreaterThanOrEqual(19);
-  });
-
-  test("tools.output has 12 summary keys", () => {
-    // GIVEN en.json loaded
-    // WHEN checking tools.output
-    // THEN all 12 output summary keys are present
-    const output = getSection(en as unknown as JsonObject, "tools", "output");
-    for (const key of EXPECTED_OUTPUT_KEYS) {
-      expect(output, `missing tools.output.${key}`).toHaveProperty(key);
-    }
   });
 
   test("tools.outputs has keys for all 10 native tools", () => {
@@ -124,24 +111,15 @@ describe("i18n tools - EN completeness", () => {
     }
   });
 
-  test("tools.status has the 4 status keys", () => {
-    // GIVEN en.json loaded
-    // WHEN checking tools.status
-    // THEN pending, authorized, executed, refused are all present
-    const status = getSection(en as unknown as JsonObject, "tools", "status");
-    for (const key of EXPECTED_STATUS_KEYS) {
-      expect(status, `missing tools.status.${key}`).toHaveProperty(key);
-    }
-    expect(Object.keys(status).length).toBe(4);
-  });
-
   test("chat.authorize_action is present with expected value", () => {
     // GIVEN en.json loaded
     // WHEN checking chat.authorize_action
     // THEN the key exists with the correct value
     const chat = getSection(en as unknown as JsonObject, "chat");
     expect(chat).toHaveProperty("authorize_action");
-    expect(chat.authorize_action).toBe("The assistant would like to perform an action");
+    expect(chat.authorize_action).toBe(
+      "The assistant would like to perform an action",
+    );
   });
 });
 
@@ -156,31 +134,24 @@ describe("i18n tools - FR completeness", () => {
   });
 
   test("tools.descriptions has 19+ template keys", () => {
-    const descriptions = getSection(fr as unknown as JsonObject, "tools", "descriptions");
+    const descriptions = getSection(
+      fr as unknown as JsonObject,
+      "tools",
+      "descriptions",
+    );
     for (const key of EXPECTED_DESCRIPTIONS) {
-      expect(descriptions, `missing FR tools.descriptions.${key}`).toHaveProperty(key);
+      expect(
+        descriptions,
+        `missing FR tools.descriptions.${key}`,
+      ).toHaveProperty(key);
     }
     expect(Object.keys(descriptions).length).toBeGreaterThanOrEqual(19);
-  });
-
-  test("tools.output has 12 summary keys", () => {
-    const output = getSection(fr as unknown as JsonObject, "tools", "output");
-    for (const key of EXPECTED_OUTPUT_KEYS) {
-      expect(output, `missing FR tools.output.${key}`).toHaveProperty(key);
-    }
   });
 
   test("tools.outputs has keys for all 10 native tools", () => {
     const outputs = getSection(fr as unknown as JsonObject, "tools", "outputs");
     for (const key of EXPECTED_OUTPUTS_KEYS) {
       expect(outputs, `missing FR tools.outputs.${key}`).toHaveProperty(key);
-    }
-  });
-
-  test("tools.status has the 4 status keys", () => {
-    const status = getSection(fr as unknown as JsonObject, "tools", "status");
-    for (const key of EXPECTED_STATUS_KEYS) {
-      expect(status, `missing FR tools.status.${key}`).toHaveProperty(key);
     }
   });
 

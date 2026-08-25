@@ -218,7 +218,9 @@ describe("visual matrix - display metadata completeness", () => {
       const { templateParams } = resolveToolDisplay(call);
 
       for (const [key, value] of Object.entries(templateParams)) {
-        expect(typeof value, `templateParams.${key} must be a string`).toBe("string");
+        expect(typeof value, `templateParams.${key} must be a string`).toBe(
+          "string",
+        );
       }
     },
   );
@@ -514,24 +516,5 @@ describe("visual matrix - FR translation quality", () => {
     expect(resolveKey(en as I18nJson, descriptionKey)).not.toBe(
       resolveKey(fr as I18nJson, descriptionKey),
     );
-  });
-
-  test("all 4 status values are non-empty in FR", () => {
-    // GIVEN the 4 status keys
-    // WHEN resolved in FR
-    // THEN each has a non-empty translation
-    for (const status of ["pending", "authorized", "executed", "refused"] as const) {
-      const frStatus = resolveKey(fr as I18nJson, `tools.status.${status}`);
-      expect(frStatus, `FR missing tools.status.${status}`).not.toBeNull();
-      expect(frStatus!.length).toBeGreaterThan(0);
-    }
-  });
-
-  test("all 4 status values are non-empty in EN", () => {
-    for (const status of ["pending", "authorized", "executed", "refused"] as const) {
-      const enStatus = resolveKey(en as I18nJson, `tools.status.${status}`);
-      expect(enStatus, `EN missing tools.status.${status}`).not.toBeNull();
-      expect(enStatus!.length).toBeGreaterThan(0);
-    }
   });
 });
