@@ -33,15 +33,34 @@ The code says the same, `plugin-content-docs/lib/sidebars/index.js` calling
 ever saw, and the guard used to walk them and count them as coverage. They are
 reported now so that one coming back is loud rather than decorative.
 
+A third rule, on the page inventory rather than the category walk. The site's
+default locale is English, and the route of a page under it must read as
+English: no accented character, no French word among its segments. Fifty pages
+of the operator help were served under French URLs because a migration
+translated their content without touching their file names and nothing judged
+the language of a route. The route is the declared `slug:` when the front
+matter carries one, and the file path otherwise, which is exactly the order
+Docusaurus applies. The inventory is `git ls-files`, never the disk, so the
+rule reads the same set of files whatever tree it runs in, and a fixture is
+driven through the detector on every run: a French path, a French accent and a
+clean English slug, so a run that measured a clean tree is distinguishable
+from a detector that stopped firing.
+
 What this does not catch, and it is deliberate: every other reason a source
 page may fail to render, such as `draft: true` or a route collision introduced
 by a plugin. That class is only observable after a build, and this guard reads
-sources.
+sources. The `slug` a `_category_.json` gives its generated index is also not
+judged here: those files are shared by every locale, so an English slug there
+would rename the French category routes with it, and that trade is a decision,
+not a guard's.
 
 Exit codes:
-    0  every category file read, no masked index page, no dead file
-    1  an index page is masked by its own category link, or a dead file exists
-    2  nothing was measured, or a section that must be covered was not read
+    0  every category file read, no masked index page, no dead file, every
+       default-locale route in English
+    1  an index page is masked by its own category link, a dead file exists,
+       or a default-locale page has a French route
+    2  nothing was measured, a section that must be covered was not read, or
+       the French-route detector failed its own fixture
 
 Usage:
     python3 scripts/check_docs_routes.py
@@ -49,6 +68,8 @@ Usage:
 
 import argparse
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -77,6 +98,49 @@ EXCLUDED_DIRS = {
 }
 
 INDEX_NAMES = ("index.md", "index.mdx")
+
+# The default locale of the site, whose routes must read as English.
+DEFAULT_LOCALE_ROOT = Path("docs/site/docs")
+
+FRONT_MATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
+SLUG_LINE = re.compile(r"^slug\s*:\s*(\S+)\s*$", re.MULTILINE)
+
+# French words, matched as whole hyphen-separated route segments. The list is
+# closed and short on purpose: every word here is unambiguously French in a
+# URL, so a hit is a verdict and not a suspicion. English words that France
+# also spells (`installation`, `notifications`, `chat`, `action`) are absent
+# by construction.
+FRENCH_ROUTE_WORDS = frozenset({
+    # articles, pronouns, prepositions
+    "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
+    "et", "ou", "sur", "avec", "au", "aux", "votre", "vos", "sa", "ses",
+    "son", "mon", "ne", "pas", "est",
+    # verbs seen in a slug
+    "installer", "configurer", "connecter", "telecharger", "choisir",
+    "consulter", "demarrer", "mesurer", "programmer", "suivre", "activer",
+    "discuter", "approuver", "refuser", "inspecter", "cabler", "comprendre",
+    "gerer", "tester", "nettoyer", "surveiller", "creer", "lier", "naviguer",
+    "trouver", "utiliser", "reinitialiser", "mettre", "repond", "transcrit",
+    "demarre",
+    # nouns and adjectives seen in a slug or a directory name
+    "depannage", "dictee", "vocale", "memoire", "historique", "taches",
+    "couts", "portee", "chargement", "differe", "palier", "autonomie",
+    "fichiers", "outil", "projet", "projets", "profil", "modele", "modeles",
+    "locaux", "routage", "hybride", "serveur", "propre", "connexion",
+    "fournisseur", "compagnonne", "clavier", "visite", "guidee", "donnees",
+    "controle", "observabilite", "automatisations", "canal", "vue",
+    "ensemble", "jour", "bloque", "refusee", "rien",
+})
+
+# The fixture the detector must fire on, and the case it must let through,
+# driven on every run. The French entries are composed so that a clean tree
+# and a dead detector cannot both answer green.
+ROUTE_FIXTURE = [
+    ("operator-help/installer-un-agent.md", None, True),
+    ("guide/présentation.md", None, True),
+    ("operator-help/agents/install-an-agent.md",
+     "/operator-help/agents/install-an-agent", False),
+]
 
 # The sections this guard was written for, asserted positively so that
 # narrowing SCAN_ROOT fails the run instead of quietly reporting green on a
@@ -173,6 +237,99 @@ def dead_localized_files(root: Path) -> list[Path]:
     return dead
 
 
+def tracked_default_locale_pages() -> list[tuple[str, str | None]]:
+    """Return `(path, slug)` for every page git tracks under the default locale.
+
+    The path is relative to the locale root, the slug is the raw front-matter
+    value when the page declares one. Raises `RuntimeError` when git itself
+    fails, so that an inventory nobody could read reports nothing measured
+    rather than an empty list.
+    """
+    pathspecs = [
+        f"{DEFAULT_LOCALE_ROOT}/**/*.md",
+        f"{DEFAULT_LOCALE_ROOT}/**/*.mdx",
+        f"{DEFAULT_LOCALE_ROOT}/*.md",
+        f"{DEFAULT_LOCALE_ROOT}/*.mdx",
+    ]
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--", *pathspecs],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"`git ls-files` exited {result.returncode}: {result.stderr.strip()!r}"
+        )
+    pages = []
+    for entry in sorted(set(result.stdout.split("\0"))):
+        if not entry:
+            continue
+        rel = Path(entry).relative_to(DEFAULT_LOCALE_ROOT)
+        text = (REPO_ROOT / entry).read_text(encoding="utf-8")
+        slug = None
+        matter = FRONT_MATTER.match(text)
+        if matter:
+            found = SLUG_LINE.search(matter.group(1))
+            if found:
+                slug = found.group(1).strip().strip("'\"")
+        pages.append((str(rel), slug))
+    return pages
+
+
+def route_of(rel_path: str, slug: str | None) -> str:
+    """Return the route Docusaurus serves for a page, as the guard models it.
+
+    An absolute slug is the whole route. A relative slug replaces the last
+    path segment. Without a slug the route is the file path, extension
+    dropped, an `index` stem folding into its directory. Number prefixes are
+    left in place: they carry no language, so the rule reads through them.
+    """
+    if slug and slug.startswith("/"):
+        return slug.strip("/")
+    stem = re.sub(r"\.mdx?$", "", rel_path)
+    parts = stem.split("/")
+    if parts[-1] == "index":
+        parts = parts[:-1]
+    if slug:
+        parts = parts[:-1] + [slug.strip("/")]
+    return "/".join(parts)
+
+
+def french_routes(pages: list[tuple[str, str | None]]) -> list[tuple[str, str, str]]:
+    """Return `(path, route, reason)` for every page whose route is not English.
+
+    Pure with respect to the inventory it is given, so a caller can drive it
+    on a fixture that violates the rule as well as on the repository, which is
+    the only way to know the detector fires at all.
+    """
+    hits = []
+    for rel_path, slug in pages:
+        route = route_of(rel_path, slug)
+        accented = sorted({ch for ch in route if ord(ch) > 127})
+        if accented:
+            hits.append((rel_path, route, f"accented: {' '.join(accented)}"))
+            continue
+        tokens = [t for t in re.split(r"[/_.-]+", route.lower()) if t]
+        words = sorted(set(tokens) & FRENCH_ROUTE_WORDS)
+        if words:
+            hits.append((rel_path, route, f"french: {' '.join(words)}"))
+    return hits
+
+
+def route_detector_broken() -> str | None:
+    """Drive the fixture through the detector, return what failed, if anything."""
+    hits = french_routes([(p, s) for p, s, _ in ROUTE_FIXTURE])
+    flagged = {path for path, _, _ in hits}
+    for path, _, expected in ROUTE_FIXTURE:
+        if expected and path not in flagged:
+            return f"fixture {path} should be flagged and was not"
+        if not expected and path in flagged:
+            return f"fixture {path} should pass and was flagged"
+    return None
+
+
 def uncovered_required(root: Path) -> list[Path]:
     """Return the sections that exist on disk but fell outside the walk."""
     scanned = set(iter_category_files(root))
@@ -211,12 +368,36 @@ def main() -> int:
         print(f"check_docs_routes: unreadable category file, {exc}", file=sys.stderr)
         return 2
 
+    broken = route_detector_broken()
+    if broken:
+        print(
+            f"check_docs_routes: NO COVERAGE, the French-route detector failed "
+            f"its own fixture: {broken}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        pages = tracked_default_locale_pages()
+    except (RuntimeError, OSError, UnicodeDecodeError) as exc:
+        print(f"check_docs_routes: unreadable page inventory, {exc}", file=sys.stderr)
+        return 2
+    if not pages:
+        print(
+            f"check_docs_routes: NO COVERAGE, git tracks no page under "
+            f"{DEFAULT_LOCALE_ROOT}",
+            file=sys.stderr,
+        )
+        return 2
+    french = french_routes(pages)
+
     dead = dead_localized_files(root)
     with_index = sum(1 for path in files if index_sibling(path) is not None)
     print(
         f"check_docs_routes: {len(files)} category files read under {SCAN_ROOT}, "
         f"{with_index} next to an index page, {len(hits)} masked, "
-        f"{len(dead)} dead under a localized tree"
+        f"{len(dead)} dead under a localized tree, {len(pages)} default-locale "
+        f"pages read, {len(french)} on a French route"
     )
     sys.stdout.flush()
 
@@ -259,7 +440,30 @@ def main() -> int:
         )
         return 1
 
-    print("check_docs_routes: every index page owns its route")
+    if french:
+        print(
+            f"\n{len(french)} page(s) under the default locale are served on a "
+            f"route that does not read as English. The default locale promises "
+            f"English, and the route is part of the page:\n",
+            file=sys.stderr,
+        )
+        for rel_path, route, reason in french:
+            print(f"  {DEFAULT_LOCALE_ROOT / rel_path}", file=sys.stderr)
+            print(f"    route  /{route}", file=sys.stderr)
+            print(f"    {reason}", file=sys.stderr)
+        print(
+            "\nDeclare an English `slug:` in the page's front matter. The file "
+            "keeps its name, its history and its French mirror; only the URL "
+            "changes, and the old URL gets a redirect in "
+            "docs/site/plugins/operator-help-redirects.js.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        "check_docs_routes: every index page owns its route, every "
+        "default-locale route reads as English"
+    )
     return 0
 
 
