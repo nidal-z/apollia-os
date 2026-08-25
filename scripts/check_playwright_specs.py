@@ -67,9 +67,11 @@ def tracked(pattern: str) -> list[str]:
 def testid_corpus():
     """Execute the automation validator for its testid resolution.
 
-    Returns its `testid_ok` callable and the size of its literal-id corpus.
-    The validator prints its own report and exits; both are discarded here,
-    only the corpus it built matters.
+    Calls its `build_corpus()` and returns a resolver equivalent to the
+    validator's own: equality against the literal and composed ids, plus
+    the dynamic prefixes (a spec cannot declare `dynamicTestids`, so an
+    instance id resolves through the prefix that generates it). Also
+    returns the size of the literal-id corpus.
     """
     src = (REPO_ROOT / VALIDATOR).read_text(encoding="utf-8")
     ns: dict = {"__name__": "check_playwright_specs.corpus"}
@@ -79,9 +81,19 @@ def testid_corpus():
         with contextlib.redirect_stdout(io.StringIO()):
             with contextlib.suppress(SystemExit):
                 exec(compile(src, VALIDATOR, "exec"), ns)
+        build = ns.get("build_corpus")
+        if build is None:
+            return None, 0
+        static_ids, prefixes, composed_ids, _ = build()
     finally:
         os.chdir(cwd)
-    return ns.get("testid_ok"), len(ns.get("static_ids") or ())
+
+    def testid_ok(tid: str) -> bool:
+        if tid in static_ids or tid in composed_ids:
+            return True
+        return any(p and tid.startswith(p) for p in prefixes)
+
+    return testid_ok, len(static_ids)
 
 
 def configured_testdirs(config_text: str) -> list[PurePosixPath]:
