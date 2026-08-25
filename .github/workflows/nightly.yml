@@ -4,15 +4,19 @@
 #   - cron : tous les lundis 06:00 UTC (1 fois/semaine, suffisant)
 #   - workflow_dispatch : trigger manuel quand tu veux valider à la demande
 #
-# Jobs :
-#   - e2e-desktop      : tests E2E Tauri (lents, parfois flaky)
-#   - python-tests     : suite AIP gated PyO3 (agents Python via le pont)
-#   - feature-matrix   : sanity-check des features GPU sur apollia-llm/stt
-#   - coverage         : rapport coverage HTML/LCOV (heavy)
-#   - deep-audit       : cargo-deny check all avec advisory DB rechargée
-#   - loom             : modeles Loom d'entrelacement des actors (advisory)
-#   - miri             : detection UB sur les helpers purs proches du FFI (advisory)
-#   - kani             : preuves symboliques bornees des invariants cardinaux (advisory)
+# Jobs (les 12, chacun déclenchable seul via workflow_dispatch.inputs.job) :
+#   - e2e-desktop         : tests E2E Tauri (lents, parfois flaky)
+#   - python-tests        : suite AIP gated PyO3 (agents Python via le pont)
+#   - multirunner-cpu-e2e : daemon + sidecar runner CPU sur les 3 OS
+#   - feature-matrix      : sanity-check des features GPU sur apollia-llm/stt
+#   - coverage            : rapport coverage HTML/LCOV (heavy)
+#   - mutants             : cargo-mutants sur permissions + core (advisory)
+#   - deep-audit          : cargo-deny check all avec advisory DB rechargée
+#   - geiger              : rapport cargo-geiger de la surface unsafe (advisory)
+#   - loom                : modeles Loom d'entrelacement des actors (advisory)
+#   - miri                : detection UB sur les helpers purs proches du FFI (advisory)
+#   - kani                : preuves symboliques bornees des invariants cardinaux (advisory)
+#   - fuzz-deep           : session libFuzzer longue sur les parseurs (advisory)
 #
 # Si un job échoue : alerte mail GH, mais main reste vert (pas de PR bloquée).
 
@@ -35,7 +39,9 @@ on:
           - "multirunner-cpu-e2e"
           - "feature-matrix"
           - "coverage"
+          - "mutants"
           - "deep-audit"
+          - "geiger"
           - "loom"
           - "miri"
           - "kani"
