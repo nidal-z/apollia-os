@@ -1080,11 +1080,6 @@ EXTERNAL_GUARDS_AWAITING_BOUNDARY = {
         "would only relay a permanent red; it enters one once the findings "
         "are cleared"
     ),
-    "automation validate.py": (
-        "it exits 0 today whatever it measures, so a boundary would launch "
-        "a guard with no verdict; it enters one once its exit code renders "
-        "one"
-    ),
 }
 
 _YAML_LAUNCH_KEY = re.compile(r"^(\s*)(?:-\s+)?(?:run|entry):\s*(.*?)\s*$")
