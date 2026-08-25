@@ -31,7 +31,8 @@ set "PYO3_PYTHON=%HERE%\python.exe"
 
 if not exist "%PYO3_PYTHON%" (
     echo error: bundled Python missing at %PYO3_PYTHON% 1>&2
-    echo        l'archive est incomplete - re-telecharger depuis apollia.fr/download 1>&2
+    echo        l'archive est incomplete - re-telecharger depuis 1>&2
+    echo        https://github.com/Apollia-OS/apollia-os/releases 1>&2
     exit /b 1
 )
 

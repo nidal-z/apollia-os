@@ -1,0 +1,195 @@
+{
+  "_readme": [
+    "Single naming contract between the release producer and its consumers.",
+    "Producer: .github/workflows/release.yml derives every published file name",
+    "from this file. Consumers: `apollia-os update` embeds it via include_str!",
+    "(crates/apollia-cli/src/commands/update.rs), the desktop updater endpoint",
+    "names the manifest (crates/apollia-desktop/tauri.conf.json), and the",
+    "installation page carries a block spliced from it by docs/site/regen.sh.",
+    "scripts/check_release_artifacts.py holds the sides together; editing one",
+    "side without the others is exactly the defect this file exists to end.",
+    "Desktop names follow tauri-bundler 2.10.1 ({productName}_{version}_{arch},",
+    "space kept). `{version}` expands to the `version` of tauri.conf.json.",
+    "`llama_server` names the backend of the upstream llama.cpp asset",
+    "packaging/fetch-llama-server.sh can stage for that preset, null when the",
+    "pinned upstream release publishes none for the couple.",
+    "`self_update` marks the archive `apollia-os update` installs from for its",
+    "platform: the CPU preset, whose `apollia-os` binary is identical across",
+    "the presets of the same target triple."
+  ],
+  "repo": "Apollia-OS/apollia-os",
+  "updater_manifest": "latest.json",
+  "cli": [
+    {
+      "preset": "macos-silicon",
+      "os": "macos",
+      "arch": "aarch64",
+      "triple": "aarch64-apple-darwin",
+      "archive": "apollia-os-macos-silicon.tar.gz",
+      "sha256": true,
+      "llama_server": "metal",
+      "self_update": true
+    },
+    {
+      "preset": "linux-x86-cpu",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-x86-cpu.tar.gz",
+      "sha256": true,
+      "llama_server": "cpu",
+      "self_update": true
+    },
+    {
+      "preset": "windows-x86-cpu",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "archive": "apollia-os-windows-x86-cpu.zip",
+      "sha256": true,
+      "llama_server": "cpu",
+      "self_update": true
+    },
+    {
+      "preset": "linux-x86-cuda",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-x86-cuda.tar.gz",
+      "sha256": true,
+      "llama_server": null,
+      "self_update": false
+    },
+    {
+      "preset": "linux-x86-rocm",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-x86-rocm.tar.gz",
+      "sha256": true,
+      "llama_server": "rocm",
+      "self_update": false
+    },
+    {
+      "preset": "linux-x86-vulkan",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-x86-vulkan.tar.gz",
+      "sha256": true,
+      "llama_server": "vulkan",
+      "self_update": false
+    },
+    {
+      "preset": "linux-arm-cpu",
+      "os": "linux",
+      "arch": "aarch64",
+      "triple": "aarch64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-arm-cpu.tar.gz",
+      "sha256": true,
+      "llama_server": "cpu",
+      "self_update": true
+    },
+    {
+      "preset": "linux-arm-cuda",
+      "os": "linux",
+      "arch": "aarch64",
+      "triple": "aarch64-unknown-linux-gnu",
+      "archive": "apollia-os-linux-arm-cuda.tar.gz",
+      "sha256": true,
+      "llama_server": null,
+      "self_update": false
+    },
+    {
+      "preset": "windows-x86-cuda",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "archive": "apollia-os-windows-x86-cuda.zip",
+      "sha256": true,
+      "llama_server": "cuda",
+      "self_update": false
+    },
+    {
+      "preset": "windows-x86-rocm",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "archive": "apollia-os-windows-x86-rocm.zip",
+      "sha256": true,
+      "llama_server": null,
+      "self_update": false
+    },
+    {
+      "preset": "windows-x86-vulkan",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "archive": "apollia-os-windows-x86-vulkan.zip",
+      "sha256": true,
+      "llama_server": "vulkan",
+      "self_update": false
+    },
+    {
+      "preset": "windows-arm-cpu",
+      "os": "windows",
+      "arch": "aarch64",
+      "triple": "aarch64-pc-windows-msvc",
+      "archive": "apollia-os-windows-arm-cpu.zip",
+      "sha256": true,
+      "llama_server": null,
+      "self_update": true
+    },
+    {
+      "preset": "windows-arm-cuda",
+      "os": "windows",
+      "arch": "aarch64",
+      "triple": "aarch64-pc-windows-msvc",
+      "archive": "apollia-os-windows-arm-cuda.zip",
+      "sha256": true,
+      "llama_server": null,
+      "self_update": false
+    }
+  ],
+  "desktop": [
+    {
+      "platform": "darwin-aarch64",
+      "os": "macos",
+      "arch": "aarch64",
+      "triple": "aarch64-apple-darwin",
+      "installers": ["Apollia OS_{version}_aarch64.dmg"],
+      "updater": {
+        "artifact": "Apollia OS.app.tar.gz",
+        "signature": "Apollia OS.app.tar.gz.sig"
+      }
+    },
+    {
+      "platform": "linux-x86_64",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "installers": [
+        "Apollia OS_{version}_amd64.AppImage",
+        "Apollia OS_{version}_amd64.deb"
+      ],
+      "updater": {
+        "artifact": "Apollia OS_{version}_amd64.AppImage",
+        "signature": "Apollia OS_{version}_amd64.AppImage.sig"
+      }
+    },
+    {
+      "platform": "windows-x86_64",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "installers": [
+        "Apollia OS_{version}_x64_en-US.msi",
+        "Apollia OS_{version}_x64-setup.exe"
+      ],
+      "updater": {
+        "artifact": "Apollia OS_{version}_x64-setup.exe",
+        "signature": "Apollia OS_{version}_x64-setup.exe.sig"
+      }
+    }
+  ]
+}

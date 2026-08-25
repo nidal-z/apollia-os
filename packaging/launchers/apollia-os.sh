@@ -27,7 +27,8 @@ export PYO3_PYTHON="${HERE}/python/bin/python3.13"
 
 if [[ ! -x "$PYO3_PYTHON" ]]; then
     echo "error: bundled Python missing at $PYO3_PYTHON" >&2
-    echo "       l'archive est incomplète - re-télécharger depuis apollia.fr/download" >&2
+    echo "       l'archive est incomplète - re-télécharger depuis" >&2
+    echo "       https://github.com/Apollia-OS/apollia-os/releases" >&2
     exit 1
 fi
 

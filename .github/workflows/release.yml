@@ -85,22 +85,26 @@ jobs:
           # acceleration of the STT sidecar. Local LLM inference runs through the
           # pinned llama-server binary, which upstream publishes per platform, so
           # a GPU preset failing here costs STT acceleration, never inference.
+          # Archive names live in packaging/artifacts.json (the naming
+          # contract), never here: each job reads its name from the contract,
+          # so a preset absent from it fails loudly instead of shipping a
+          # name no consumer knows.
           read -r -d '' FULL <<'JSON' || true
           {
             "include": [
-              {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal", "archive":"tar.gz"},
-              {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
-              {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true,   "allow_fail":true},
-              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true, "allow_fail":true},
-              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz", "allow_fail":true},
-              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
-              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip",    "needs_cuda":true,   "allow_fail":true},
-              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "archive":"zip",    "needs_rocm":true,   "allow_fail":true},
-              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"zip",    "needs_vulkan":true, "allow_fail":true},
-              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip",    "allow_fail":true},
-              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip",    "needs_cuda":true,   "allow_fail":true}
+              {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal"},
+              {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp"},
+              {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp"},
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "needs_rocm":true,   "allow_fail":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "needs_vulkan":true, "allow_fail":true},
+              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "allow_fail":true},
+              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
+              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
+              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "needs_rocm":true,   "allow_fail":true},
+              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "needs_vulkan":true, "allow_fail":true},
+              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "allow_fail":true},
+              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true}
             ]
           }
           JSON
@@ -335,6 +339,44 @@ jobs:
           fi
 
       # ── Package self-contained ────────────────────────────────────────────
+      # The archive name comes from the naming contract, the same file
+      # `apollia-os update` embeds at build time. A preset missing from the
+      # contract is a red here, not a name invented on the spot.
+      - name: Read the archive name from the naming contract
+        id: contract
+        shell: bash
+        run: |
+          NAME=$(jq -r --arg p "${{ matrix.preset }}" \
+            '.cli[] | select(.preset == $p) | .archive' packaging/artifacts.json)
+          if [ -z "$NAME" ] || [ "$NAME" = "null" ]; then
+            echo "::error::preset ${{ matrix.preset }} is absent from packaging/artifacts.json"
+            exit 1
+          fi
+          echo "archive=$NAME" >> "$GITHUB_OUTPUT"
+
+      # The self-contained promise includes the inference engine. Exit 2 means
+      # the pinned upstream release has no build for this couple: the bundle
+      # ships without it, and its README says so instead of implying it.
+      - name: Stage the llama-server engine
+        shell: bash
+        env:
+          RUNNER_BACKEND: ${{ steps.runner_feat.outputs.backend }}
+        run: |
+          STAGE="target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
+          mkdir -p "$STAGE"
+          set +e
+          bash packaging/fetch-llama-server.sh "$RUNNER_BACKEND" "$STAGE/runners"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "LLAMA_BUNDLED=1" >> "$GITHUB_ENV"
+          elif [ "$rc" -eq 2 ]; then
+            echo "::warning::no upstream llama-server build for preset ${{ matrix.preset }}; the bundle ships without the embedded engine"
+            echo "LLAMA_BUNDLED=0" >> "$GITHUB_ENV"
+          else
+            exit "$rc"
+          fi
+
       - name: Assemble bundle (Unix)
         if: runner.os != 'Windows'
         env:
@@ -352,17 +394,26 @@ jobs:
             chmod +x "$STAGE/apollia-runner-$RUNNER_BACKEND"
             echo "  Runner bundled : apollia-runner-$RUNNER_BACKEND"
           fi
+          if [ "${LLAMA_BUNDLED:-0}" = "1" ]; then
+            ENGINE=" + moteur llama-server"
+            ENGINE_NOTE=""
+          else
+            ENGINE=""
+            ENGINE_NOTE="Note : moteur llama-server non embarqué pour ce preset (pas de build amont) ; le daemon utilise un llama-server présent sur le PATH."
+          fi
           cat > "$STAGE/README.txt" <<EOF
           Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
           Lance : ./apollia-os.sh start
-          Doc   : https://apollia.fr/docs/install
-          Inclus : daemon apollia-os + sidecar runner ($RUNNER_BACKEND) + Python 3.13.
+          Doc   : https://docs.apollia.fr/how-to/install-and-run
+          Inclus : daemon apollia-os + sidecar runner ($RUNNER_BACKEND)$ENGINE + Python 3.13.
           Requis : driver GPU à jour si preset GPU.
+          $ENGINE_NOTE
           EOF
+          ARCHIVE="${{ steps.contract.outputs.archive }}"
           cd target/${{ matrix.triple }}/bundle
-          tar -czf apollia-os-${{ matrix.preset }}.tar.gz apollia-os-${{ matrix.preset }}/
-          shasum -a 256 apollia-os-${{ matrix.preset }}.tar.gz > apollia-os-${{ matrix.preset }}.tar.gz.sha256
+          tar -czf "$ARCHIVE" apollia-os-${{ matrix.preset }}/
+          shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
 
       - name: Assemble bundle (Windows)
         if: runner.os == 'Windows'
@@ -380,18 +431,27 @@ jobs:
               Copy-Item "target/${{ matrix.triple }}/release/apollia-runner.exe" "$stage/apollia-runner-$rb.exe"
               Write-Host "  Runner bundled : apollia-runner-$rb.exe"
           }
+          if ("${env:LLAMA_BUNDLED}" -eq "1") {
+              $engine = " + moteur llama-server"
+              $engineNote = ""
+          } else {
+              $engine = ""
+              $engineNote = "Note : moteur llama-server non embarque pour ce preset (pas de build amont) ; le daemon utilise un llama-server present sur le PATH."
+          }
           @"
           Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
           Lance : apollia-os.bat start
-          Doc   : https://apollia.fr/docs/install
-          Inclus : daemon apollia-os.exe + sidecar runner ($rb) + Python 3.13 + CRT statique.
+          Doc   : https://docs.apollia.fr/how-to/install-and-run
+          Inclus : daemon apollia-os.exe + sidecar runner ($rb)$engine + Python 3.13 + CRT statique.
           Requis cote user : driver GPU a jour. Pas de VC++ Redist necessaire.
+          $engineNote
           "@ | Out-File "$stage/README.txt" -Encoding ASCII
+          $archive = "${{ steps.contract.outputs.archive }}"
           Push-Location "target/${{ matrix.triple }}/bundle"
-          Compress-Archive -Path "apollia-os-${{ matrix.preset }}" -DestinationPath "apollia-os-${{ matrix.preset }}.zip"
-          $hash = (Get-FileHash "apollia-os-${{ matrix.preset }}.zip" -Algorithm SHA256).Hash
-          "$hash  apollia-os-${{ matrix.preset }}.zip" | Out-File "apollia-os-${{ matrix.preset }}.zip.sha256" -Encoding ASCII
+          Compress-Archive -Path "apollia-os-${{ matrix.preset }}" -DestinationPath $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash
+          "$hash  $archive" | Out-File "$archive.sha256" -Encoding ASCII
           Pop-Location
 
       # ── SBOM (whole bundle : Rust crates + embedded CPython) ────────────────
@@ -415,8 +475,8 @@ jobs:
         with:
           name: apollia-os-${{ matrix.preset }}
           path: |
-            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}
-            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}.sha256
+            target/${{ matrix.triple }}/bundle/${{ steps.contract.outputs.archive }}
+            target/${{ matrix.triple }}/bundle/${{ steps.contract.outputs.archive }}.sha256
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.cdx.json
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.spdx.json
           if-no-files-found: error
@@ -530,6 +590,22 @@ jobs:
           codesign --verify --verbose=2 \
             "target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
 
+      # When the signing key is present, `cargo tauri build` emits the updater
+      # archive and its minisign signature next to the .app. Stage them beside
+      # the .dmg so one upload carries everything; their absence is the no-key
+      # build and is said out loud, because latest.json is composed from the
+      # signatures the release job receives.
+      - name: Collect updater artifacts
+        shell: bash
+        run: |
+          BUNDLE=target/aarch64-apple-darwin/release/bundle
+          if [ -f "$BUNDLE/macos/Apollia OS.app.tar.gz.sig" ]; then
+            cp "$BUNDLE/macos/Apollia OS.app.tar.gz" \
+               "$BUNDLE/macos/Apollia OS.app.tar.gz.sig" "$BUNDLE/dmg/"
+          else
+            echo "::warning::no macOS updater artifact (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover darwin-aarch64"
+          fi
+
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
@@ -551,6 +627,8 @@ jobs:
           name: apollia-desktop-macos-arm64-dmg
           path: |
             target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            target/aarch64-apple-darwin/release/bundle/dmg/*.app.tar.gz
+            target/aarch64-apple-darwin/release/bundle/dmg/*.app.tar.gz.sig
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.cdx.json
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.spdx.json
           if-no-files-found: error
@@ -651,6 +729,14 @@ jobs:
           BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
           mkdir -p "$BUNDLE/dist"
           cp "$BUNDLE"/deb/*.deb "$BUNDLE"/appimage/*.AppImage "$BUNDLE/dist/"
+          # The updater signature of the AppImage exists only on a keyed build;
+          # its absence is said out loud, because latest.json is composed from
+          # the signatures the release job receives.
+          if compgen -G "$BUNDLE/appimage/*.AppImage.sig" > /dev/null; then
+            cp "$BUNDLE"/appimage/*.AppImage.sig "$BUNDLE/dist/"
+          else
+            echo "::warning::no Linux updater signature (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover linux-x86_64"
+          fi
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -785,6 +871,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$bundle/dist" | Out-Null
           Copy-Item "$bundle/msi/*.msi" "$bundle/dist/"
           Copy-Item "$bundle/nsis/*.exe" "$bundle/dist/"
+          # Updater signatures exist only on a keyed build; their absence is
+          # said out loud, because latest.json is composed from the signatures
+          # the release job receives.
+          $sigs = @(Get-ChildItem "$bundle/msi/*.msi.sig", "$bundle/nsis/*.exe.sig" -ErrorAction SilentlyContinue)
+          if ($sigs.Count -gt 0) {
+              $sigs | Copy-Item -Destination "$bundle/dist/"
+          } else {
+              Write-Output "::warning::no Windows updater signature (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover windows-x86_64"
+          }
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -868,6 +963,59 @@ jobs:
                   review before publishing"
           fi
 
+      # The updater manifest. `cargo tauri build` does NOT emit latest.json:
+      # it emits one minisign signature per updater artifact, and composing
+      # the manifest from them is this step's job (tauri-action does the same
+      # for projects that use it). The version is read from tauri.conf.json,
+      # never from the git tag: SemVer ranks the numeric pre-release `0.1.0-1`
+      # below the alphanumeric `0.1.0-preview`, so a manifest stamped with the
+      # tag would read as permanently newer than every installed build. A
+      # platform whose signature is absent (no signing key on the build) is
+      # left out, and an empty manifest is still published: the updater plugin
+      # reports it as "channel unavailable", which is the true state.
+      - name: Compose the updater manifest (latest.json)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'EOF'
+          import datetime
+          import json
+          import os
+          import pathlib
+          import urllib.parse
+
+          contract = json.loads(pathlib.Path("packaging/artifacts.json").read_text())
+          conf = json.loads(pathlib.Path("crates/apollia-desktop/tauri.conf.json").read_text())
+          version = conf["version"]
+          repo = contract["repo"]
+          tag = os.environ["TAG"]
+          base = f"https://github.com/{repo}/releases/download/{tag}/"
+
+          platforms = {}
+          for entry in contract["desktop"]:
+              artifact = entry["updater"]["artifact"].replace("{version}", version)
+              signature = entry["updater"]["signature"].replace("{version}", version)
+              sig_path = pathlib.Path("artifacts") / signature
+              if not sig_path.is_file():
+                  print(f"::warning::{signature} missing, {entry['platform']} left out of latest.json")
+                  continue
+              platforms[entry["platform"]] = {
+                  "url": base + urllib.parse.quote(artifact),
+                  "signature": sig_path.read_text().strip(),
+              }
+
+          manifest = {
+              "version": version,
+              "notes": f"Apollia OS {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc)
+                  .isoformat(timespec="seconds").replace("+00:00", "Z"),
+              "platforms": platforms,
+          }
+          out = pathlib.Path("artifacts") / contract["updater_manifest"]
+          out.write_text(json.dumps(manifest, indent=2) + "\n")
+          print(f"wrote {out} covering {sorted(platforms)}")
+          EOF
+
       # One SHA256SUMS covering every artifact. The three per-job files of the
       # previous shape were homonyms: merged into one directory, two of the
       # three were silently overwritten.
@@ -944,6 +1092,7 @@ jobs:
             artifacts/*.AppImage
             artifacts/*.msi
             artifacts/*.exe
+            artifacts/latest.json
             artifacts/SHA256SUMS*
             artifacts/*.cdx.json
             artifacts/*.spdx.json
