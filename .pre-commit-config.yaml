@@ -39,9 +39,9 @@ repos:
     hooks:
       - id: ruff-check
         args: ["--fix"]
-        files: ^sdk/
+        files: ^(sdk|agents)/
       - id: ruff-format
-        files: ^sdk/
+        files: ^(sdk|agents)/
 
   - repo: local
     hooks:
