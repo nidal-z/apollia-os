@@ -95,7 +95,6 @@ fn print_human(report: &serde_json::Value) {
         .map(Vec::as_slice)
         .unwrap_or(&[]);
 
-    // Score bar.
     let bar_len = (score / 10) as usize;
     let bar = "█".repeat(bar_len) + &"░".repeat(10 - bar_len);
     println!("Score  {score:3}/100  [{bar}]");

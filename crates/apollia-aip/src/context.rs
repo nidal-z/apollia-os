@@ -857,7 +857,7 @@ async fn execute_tool(
         None => return Err(ToolProxyError::ToolNotFound(tool_name.to_string())),
     };
 
-    // 3. Execute the tool
+    // 3. Execute, timed so the audit record below carries the duration
     let exec_result = ctx.executor.execute(tool_name, input);
     let duration = start.elapsed();
 

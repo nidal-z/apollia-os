@@ -62,7 +62,6 @@ pub(in crate::commands::agent) fn run_new(name: &str, agent_type: &str, json: bo
         return print_error_and_exit(&msg, json);
     }
 
-    // List generated files.
     let files = list_generated_files(&target_dir);
 
     if json {

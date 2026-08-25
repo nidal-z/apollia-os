@@ -135,7 +135,7 @@ impl FileEdit {
                     path: input.path.clone(),
                 })?;
 
-        // 3. Open file
+        // 3. Open, the first real I/O on the resolved path
         let mut file = fs::File::open(&resolved)
             .await
             .map_err(|e| match e.kind() {

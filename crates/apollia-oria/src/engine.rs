@@ -709,7 +709,6 @@ impl ORIAEngine {
         // unresolved steps are handled just in time.
         self.enrich_plan_with_args(&mut plan).await;
 
-        // Store in cache
         self.store_plan_in_cache(&cache_key, &plan, &manifest);
 
         let task_id_str = task.task_id.clone();

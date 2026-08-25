@@ -638,7 +638,6 @@ impl TriggerEngine {
             }
         }
 
-        // Render the input template.
         let text = def.input_template.render(&event.payload);
         let input = AIPInput {
             parts: vec![AIPPart::Text(TextPart { text })],

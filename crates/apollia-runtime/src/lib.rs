@@ -56,7 +56,6 @@ pub use shutdown::{wait_for_shutdown_signal, ShutdownConfig, ShutdownController,
 pub use supervisor::{Supervisor, SupervisorConfig, SupervisorError, SupervisorHandles};
 pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
 
-// Embedded runtime.
 pub use embedded::{init_embedded, worker_runtime, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
@@ -75,11 +74,9 @@ pub use a2a::{
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;
 
-// Session config
 pub use session::SessionConfig;
 pub use session_metrics::{SessionMetricsActor, SessionMetricsStore};
 
-// STT engine
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};
 
 // Custom slash commands

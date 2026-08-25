@@ -335,7 +335,6 @@ impl AuditTrailHandle {
                 return;
             }
 
-            // Observability columns migration.
             for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
                 if let Err(e) = conn.execute_batch(ddl) {
                     let msg = e.to_string();
