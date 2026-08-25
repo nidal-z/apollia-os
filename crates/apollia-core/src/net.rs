@@ -213,7 +213,6 @@ pub fn public_redirect_policy(max_redirects: usize) -> reqwest::redirect::Policy
 /// Call sites add their own timeout, user agent and headers on top. Building a
 /// client any other way is refused by `scripts/check_http_clients.py`, because
 /// the policy is exactly what every copy of this code kept forgetting.
-#[must_use]
 pub fn safe_client_builder() -> reqwest::ClientBuilder {
     reqwest::Client::builder().redirect(public_redirect_policy(DEFAULT_MAX_REDIRECTS))
 }
@@ -227,13 +226,11 @@ pub fn safe_client_builder() -> reqwest::ClientBuilder {
 /// is, so a configured endpoint cannot walk the client through an unbounded
 /// redirect chain. Prefer [`safe_client_builder`] wherever the destination is a
 /// third-party host: this one is the named exception, not the default.
-#[must_use]
 pub fn configured_endpoint_client_builder() -> reqwest::ClientBuilder {
     configured_endpoint_client_builder_with_redirects(DEFAULT_MAX_REDIRECTS)
 }
 
 /// The same builder with an explicit hop cap.
-#[must_use]
 pub fn configured_endpoint_client_builder_with_redirects(
     max_redirects: usize,
 ) -> reqwest::ClientBuilder {
@@ -245,7 +242,6 @@ pub fn configured_endpoint_client_builder_with_redirects(
 /// A call site that means to follow fewer hops than reqwest's default says so
 /// here rather than by installing a policy of its own, which is how the copies
 /// this module replaced came to differ from one another.
-#[must_use]
 pub fn safe_client_builder_with_redirects(max_redirects: usize) -> reqwest::ClientBuilder {
     reqwest::Client::builder().redirect(public_redirect_policy(max_redirects))
 }
