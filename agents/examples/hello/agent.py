@@ -18,8 +18,11 @@ from apollia.types import Ctx
     description="Echoes back whatever message you send.",
 )
 class Hello:
+    """Echo agent: the minimal contract, one class and one handler."""
+
     @on_message
     async def handle(self, message: str, history: list[dict], ctx: Ctx) -> str:
+        """Echo the incoming message back to the sender."""
         # `ctx.logger` is a stdlib `logging.Logger` routed into the runtime
         # tracer, so it takes printf-style arguments. Passing structured
         # keyword fields raises TypeError at the first message.

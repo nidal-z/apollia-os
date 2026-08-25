@@ -47,7 +47,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from apollia import DomainError, agent, on_message
 
@@ -160,8 +160,7 @@ TIER2_LABELS: dict[str, str] = {
     "user.domain.team_size": "team size (solo, small team, larger org)",
     "user.tech.stack": "their technical stack (languages, frameworks)",
     "user.tech.integrations": (
-        "SENSITIVE: services to connect (e.g. github, slack, notion, gmail); "
-        "confirm before writing"
+        "SENSITIVE: services to connect (e.g. github, slack, notion, gmail); confirm before writing"
     ),
     "user.constraints.compliance": (
         "SENSITIVE: compliance constraints (e.g. RGPD, HIPAA); confirm before writing"
@@ -329,17 +328,11 @@ def _normalise_key(raw: str) -> str:
 
 
 def _extract_remember(text: str) -> list[tuple[str, str]]:
-    return [
-        (_normalise_key(m.group(1)), m.group(2).strip())
-        for m in _REMEMBER_RE.finditer(text)
-    ]
+    return [(_normalise_key(m.group(1)), m.group(2).strip()) for m in _REMEMBER_RE.finditer(text)]
 
 
 def _extract_infer(text: str) -> list[tuple[str, str]]:
-    return [
-        (_normalise_key(m.group(1)), m.group(2).strip())
-        for m in _INFER_RE.finditer(text)
-    ]
+    return [(_normalise_key(m.group(1)), m.group(2).strip()) for m in _INFER_RE.finditer(text)]
 
 
 def _extract_profile(text: str) -> str | None:
@@ -385,9 +378,7 @@ def _value_passes_guards(key: str, value: str) -> bool:
         return False
     if _is_pii_key(key):
         return False
-    if _is_suspicious_value(value):
-        return False
-    return True
+    return not _is_suspicious_value(value)
 
 
 def _normalise_select_value(key: str, value: str) -> str | None:
@@ -476,7 +467,7 @@ _RSE_KEYWORDS: tuple[str, ...] = (
 
 
 def _infer_profile_type(role: str | None) -> str:
-    """operator | builder - falls back to operator when role is empty."""
+    """Return ``operator`` or ``builder``; an empty role reads as operator."""
     if not role:
         return "operator"
     low = role.lower()
@@ -487,13 +478,10 @@ def _infer_profile_type(role: str | None) -> str:
 
 def _compute_suggested_agents(role: str | None, hitl: str | None) -> list[str]:
     profile = _infer_profile_type(role)
-    if profile == "builder":
-        agents = ["veille-ia", "email-triage"]
-    else:
-        agents = ["email-triage"]
-    if role and any(kw in role.lower() for kw in _RSE_KEYWORDS):
-        if "veille-rse" not in agents:
-            agents.append("veille-rse")
+    agents = ["veille-ia", "email-triage"] if profile == "builder" else ["email-triage"]
+    rse = role and any(kw in role.lower() for kw in _RSE_KEYWORDS)
+    if rse and "veille-rse" not in agents:
+        agents.append("veille-rse")
     return agents
 
 
@@ -503,7 +491,7 @@ def _compute_suggested_agents(role: str | None, hitl: str | None) -> list[str]:
 
 
 async def _remember(
-    ctx: Any,
+    ctx: Ctx,
     key: str,
     value: str,
     *,
@@ -533,7 +521,7 @@ async def _remember(
         )
 
 
-async def _all_keys_present(ctx: Any, keys: tuple[str, ...]) -> bool:
+async def _all_keys_present(ctx: Ctx, keys: tuple[str, ...]) -> bool:
     """True iff every ``key`` in ``keys`` resolves to a non-empty memory entry.
 
     Routes ``user.*`` keys to ``ctx.profile`` and every other key
@@ -620,13 +608,9 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
 
     if key == "user.agents.hitl":
         # "Critical-only" → keywords + Q-option (2)
-        if any(
-            w in text for w in ("critical-only", "critique", "important", "sensible")
-        ):
+        if any(w in text for w in ("critical-only", "critique", "important", "sensible")):
             return "critical-only"
-        if "2" in tokens or any(
-            w in text for w in ("(2)", "deuxième", "deuxieme", "second")
-        ):
+        if "2" in tokens or any(w in text for w in ("(2)", "deuxième", "deuxieme", "second")):
             return "critical-only"
         # "Never" → autonomy keywords + (3)
         if any(
@@ -642,9 +626,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
             )
         ):
             return "never"
-        if "3" in tokens or any(
-            w in text for w in ("(3)", "troisième", "troisieme", "third")
-        ):
+        if "3" in tokens or any(w in text for w in ("(3)", "troisième", "troisieme", "third")):
             return "never"
         # "Always" → most cautious; check last so single-digit "1" doesn't win.
         if any(
@@ -659,9 +641,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
             )
         ):
             return "always"
-        if "1" in tokens or any(
-            w in text for w in ("(1)", "première", "premiere", "first")
-        ):
+        if "1" in tokens or any(w in text for w in ("(1)", "première", "premiere", "first")):
             return "always"
         return None
 
@@ -817,8 +797,7 @@ _TIER2_PROMPTS: dict[str, str] = {
     "user.goals": "what would you like to accomplish with Apollia?",
     "user.domain.sector": "what industry or field do you work in?",
     "user.tech.proficiency": (
-        "how comfortable are you with technical tools "
-        "(beginner, intermediate, advanced, expert)?"
+        "how comfortable are you with technical tools (beginner, intermediate, advanced, expert)?"
     ),
     "user.tools.daily": "which tools do you use daily?",
     "user.domain.team_size": "are you solo, a small team, or a larger organization?",
@@ -845,7 +824,7 @@ _CLOSURE_FALLBACK_TEXT: str = (
 )
 
 
-async def _has_key(ctx: Any, key: str) -> bool:
+async def _has_key(ctx: Ctx, key: str) -> bool:
     """True iff ``key`` resolves to a non-empty stored value.
 
     Routes ``user.*`` to ``ctx.profile`` and every other key to the agent's
@@ -869,18 +848,12 @@ def _tier2_followup_text(next_keys: list[str]) -> str:
     stalls on an empty agent turn.
     """
     if not next_keys:
-        return (
-            "Thanks, that is noted. That covers the optional questions, "
-            "you are all set."
-        )
+        return "Thanks, that is noted. That covers the optional questions, you are all set."
     topic = _TIER2_PROMPTS.get(next_keys[0], "a bit more about your setup")
-    return (
-        "Thanks, that is noted. One more optional question, skip it if you "
-        f"like: {topic}"
-    )
+    return f"Thanks, that is noted. One more optional question, skip it if you like: {topic}"
 
 
-async def _fallback_reply(ctx: Any, *, did_finalize: bool) -> str:
+async def _fallback_reply(ctx: Ctx, *, did_finalize: bool) -> str:
     """Compute a non-empty, phase-aware reply from authoritative state.
 
     Invoked when the stripped model output is empty. It reflects the real
@@ -893,10 +866,7 @@ async def _fallback_reply(ctx: Any, *, did_finalize: bool) -> str:
         next_key = tier1_missing[0]
         if next_key in _DETERMINISTIC_QUESTION:
             return "Thanks for that. " + _DETERMINISTIC_QUESTION[next_key]
-        return (
-            "Thanks. To start, could you tell me your first name and what you "
-            "do day to day?"
-        )
+        return "Thanks. To start, could you tell me your first name and what you do day to day?"
     if did_finalize:
         return _CLOSURE_FALLBACK_TEXT
     try:
@@ -909,7 +879,7 @@ async def _fallback_reply(ctx: Any, *, did_finalize: bool) -> str:
     return _tier2_followup_text(tier2_missing[:1])
 
 
-async def _build_progress_note(ctx: Any) -> str:
+async def _build_progress_note(ctx: Ctx) -> str:
     """Compose a runtime system note with the agent's progress + next action.
 
     The note is injected as an extra ``system`` message right before the
@@ -970,7 +940,7 @@ async def _build_progress_note(ctx: Any) -> str:
     )
 
 
-async def _persist_proposed_permission_rules(ctx: Any) -> None:
+async def _persist_proposed_permission_rules(ctx: Ctx) -> None:
     """Serialize the profile-derived permission rules into memory.
 
     The agent does NOT create the rules directly: it writes the serialized
@@ -1015,9 +985,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     sovereignty = await ctx.profile.get("user.constraints.sovereignty")
     hitl = await ctx.profile.get("user.agents.hitl")
     integrations_raw = await ctx.profile.get("user.tech.integrations") or ""
-    integrations = {
-        item.strip().lower() for item in integrations_raw.split(",") if item.strip()
-    }
+    integrations = {item.strip().lower() for item in integrations_raw.split(",") if item.strip()}
 
     proposals: list[dict[str, object]] = []
 
@@ -1109,12 +1077,12 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
                 source=MEMORY_SOURCE,
                 confidence=CONFIDENCE_EXPLICIT,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            ctx.logger.debug("clearing onboarding.proposed_rules failed: %s", exc)
         return
 
     ctx.logger.info(
-        "persisting %d proposed permission rules in memory (sovereignty=%s hitl=%s integrations=%s)",
+        "persisting %d proposed rules (sovereignty=%s hitl=%s integrations=%s)",
         len(proposals),
         sovereignty,
         hitl,
@@ -1134,9 +1102,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     )
 
 
-async def _finalize(
-    ctx: Any, profile_hint: str | None, suggested_hint: list[str]
-) -> None:
+async def _finalize(ctx: Ctx, profile_hint: str | None, suggested_hint: list[str]) -> None:
     """Write the meta keys in strict order - completed_at LAST.
 
     The strict ordering matters: ``onboarding.completed_at`` is the desktop's
@@ -1153,17 +1119,13 @@ async def _finalize(
     hitl = await ctx.profile.get("user.agents.hitl")
 
     profile_type = (
-        profile_hint
-        if profile_hint in {"operator", "builder"}
-        else _infer_profile_type(role)
+        profile_hint if profile_hint in {"operator", "builder"} else _infer_profile_type(role)
     )
     await _remember(ctx, "onboarding.profile_type", profile_type)
 
     await _remember(ctx, "onboarding.version", ONBOARDING_VERSION)
 
-    suggested = (
-        suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
-    )
+    suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
 
     # Serialize the rule proposals. The desktop renders them as approval
@@ -1344,10 +1306,7 @@ class OnboardingAgent:
                         missing_key = key
                         break
                 if missing_key in _DETERMINISTIC_QUESTION:
-                    raw_text = (
-                        "Thanks for your answer. "
-                        + _DETERMINISTIC_QUESTION[missing_key]
-                    )
+                    raw_text = "Thanks for your answer. " + _DETERMINISTIC_QUESTION[missing_key]
 
         # Hide internal [REMEMBER]/[INFER]/[PROFILE]/[SUGGEST] tags from the
         # user-facing transcript (private contract between this agent and the
@@ -1366,9 +1325,7 @@ class OnboardingAgent:
                 processed_text = await _fallback_reply(ctx, did_finalize=did_finalize)
             except Exception as exc:  # never let the safety net crash the turn
                 ctx.logger.warning("onboarding fallback reply failed: %s", exc)
-                processed_text = (
-                    "Thanks. We can continue from Settings whenever you like."
-                )
+                processed_text = "Thanks. We can continue from Settings whenever you like."
 
         if ctx.memory is not None:
             try:

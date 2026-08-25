@@ -98,6 +98,7 @@ Knowledge base:
 
 
 def build_system_prompt(mode: str | None) -> str:
+    """Assemble the mode-specific prompt with the knowledge base inlined."""
     template = _BUILDER_PROMPT if mode == "builder" else _OPERATOR_PROMPT
     return template.replace("{knowledge_base}", _KNOWLEDGE_BASE)
 
@@ -152,9 +153,7 @@ async def build_environment_block(ctx: Ctx) -> str:
                 desc = ""
             lines.append(f"  {name}: {desc}" if desc else f"  {name}")
         if lines:
-            sections.append(
-                "<available_tools>\n" + "\n".join(lines) + "\n</available_tools>"
-            )
+            sections.append("<available_tools>\n" + "\n".join(lines) + "\n</available_tools>")
 
     if ctx.a2a is not None:
         try:
@@ -183,9 +182,22 @@ async def build_environment_block(ctx: Ctx) -> str:
 
 _ACTION_RE = re.compile(r"```apollia-actions\s*(\[.*?\])\s*```", re.DOTALL)
 _ALLOWED_ROUTES = {
-    "/dashboard", "/agents", "/projects", "/tasks", "/chat", "/automations",
-    "/integrations", "/inbox", "/onboarding", "/llm", "/triggers", "/pipelines",
-    "/memory", "/observability", "/notifications", "/settings",
+    "/dashboard",
+    "/agents",
+    "/projects",
+    "/tasks",
+    "/chat",
+    "/automations",
+    "/integrations",
+    "/inbox",
+    "/onboarding",
+    "/llm",
+    "/triggers",
+    "/pipelines",
+    "/memory",
+    "/observability",
+    "/notifications",
+    "/settings",
 }
 
 
@@ -227,6 +239,8 @@ def _has_only_allowed_routes(raw: str) -> bool:
     step_budget={"max_steps": 8, "max_tool_calls": 4, "wall_clock_secs": 120},
 )
 class ApolliaGuide:
+    """Conversational coach wired to the product's real capabilities."""
+
     @on_message
     async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
         """Run one coaching turn and return the reply text.
@@ -248,10 +262,12 @@ class ApolliaGuide:
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
         for m in history or []:
             role = m.get("role", "user")
-            messages.append({
-                "role": "assistant" if role == "agent" else role,
-                "content": m.get("content", ""),
-            })
+            messages.append(
+                {
+                    "role": "assistant" if role == "agent" else role,
+                    "content": m.get("content", ""),
+                }
+            )
         messages.append({"role": "user", "content": message})
 
         response = await ctx.llm.complete(messages)

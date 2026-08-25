@@ -1,0 +1,6 @@
+# The agents subtree is judged by the same rule set as the SDK: one rule
+# source, sdk/pyproject.toml, two subtrees. Without this file ruff falls
+# back to its default rules here, and `agents/` drifts out from under the
+# guard that covers `sdk/` (the pre-commit hook, the python-quality CI job
+# and scripts/check_python_rules.py all assume the SDK rules apply).
+extend = "../sdk/pyproject.toml"
