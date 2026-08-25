@@ -205,6 +205,15 @@ impl ToolDispatcher {
         }
     }
 
+    /// Names of every executor this dispatcher holds, in registration order.
+    ///
+    /// Lets embedders and tests enumerate the production tool surface
+    /// without dispatching anything; the desktop catalogue coverage test
+    /// crosses this list with the i18n catalogues.
+    pub fn tool_names(&self) -> Vec<&str> {
+        self.executors.iter().map(|e| e.name()).collect()
+    }
+
     /// Attach a session-level tool filter to this dispatcher.
     ///
     /// When set, every `dispatch()` call checks the filter first. Tools blocked by
