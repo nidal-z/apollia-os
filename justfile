@@ -491,6 +491,7 @@ guards:
       "scripts/check_testid_anchors.py"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
+      "scripts/check_playwright_specs.py"
     )
     # External gates: not check_*.py scripts, but rules of the same corpus.
     # The crossing in scripts/check_selftest.py requires each to be launched
