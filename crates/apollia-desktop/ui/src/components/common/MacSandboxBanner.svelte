@@ -7,7 +7,7 @@
    * Renders nothing on non-macOS platforms.
    */
   import { t } from "svelte-i18n";
-  import { AlertTriangle } from "lucide-svelte";
+  import { AlertTriangle, X } from "lucide-svelte";
   import { Banner } from "$lib/components/ui/banner";
 
   const STORAGE_KEY = "apollia_mac_sandbox_dismissed";
@@ -44,7 +44,7 @@
         onclick={dismiss}
         aria-label={$t("a11y.dismiss_warning")}
       >
-        ✕
+        <X class="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     {/snippet}
   </Banner>

@@ -38,7 +38,7 @@
   } from "$lib/stores/sse";
   import { onboardingResumeMode } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
-  import { AlertCircle, CheckCircle2, Loader2 } from "lucide-svelte";
+  import { AlertCircle, Check, CheckCircle2, Loader2 } from "lucide-svelte";
 
   interface Props {
     onback: () => void;
@@ -293,7 +293,9 @@
         aria-current={i === turnIndex && !completed ? "step" : undefined}
       ></span>
     {/each}
-    <span class="chat-progress-check" class:active={completed}>✓</span>
+    <span class="chat-progress-check" class:active={completed}>
+      <Check size={12} aria-hidden="true" />
+    </span>
   </div>
   {#if sessionId && !completed}
     <p class="chat-phase" data-testid="onboarding-chat-phase">
