@@ -2,8 +2,9 @@
 //! Apollia OS: Agent Interface Protocol (AIP) bridge.
 //!
 //! The PyO3-based bridge enabling Python agents to run inside the Rust runtime.
-//! Implements duck-typing validation: any Python object with `manifest()` and
-//! `async run()` is AIP-compatible.
+//! Validates the minimal contract the `@agent` decorator installs: a class
+//! attribute `__apollia_manifest__` and an async `__apollia_dispatch__` method.
+//! An object without them is refused; there is no legacy fallback.
 //!
 //! Components:
 //! - `loader`: loads a Python module and validates AIP duck-typing.

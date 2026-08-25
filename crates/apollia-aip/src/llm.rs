@@ -2,8 +2,8 @@
 //!
 //! All async methods use `pyo3_async_runtimes::tokio::future_into_py`.
 //!
-//! Tests requiring a full Python environment are gated behind
-//! `#[cfg(feature = "python-tests")]`.
+//! Tests requiring a full Python environment live in the `#[cfg(test)]`
+//! module at the end of this file.
 
 use std::sync::Arc;
 

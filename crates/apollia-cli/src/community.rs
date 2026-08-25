@@ -1,8 +1,9 @@
 //! Community agent validation: checks a Python agent file before installation.
 //!
-//! Enforces the community contract: the file must implement the AIP duck-typing
-//! contract (`manifest()` + async `run()`), the manifest must carry the required
-//! fields (`name`, `version`, `tools_required`), and an optional test suite is
+//! Enforces the community contract: the file must carry the attributes the
+//! `@agent` decorator installs (`__apollia_manifest__` + async
+//! `__apollia_dispatch__`), the manifest must carry the required fields
+//! (`name`, `version`, `tools_required`), and an optional test suite is
 //! executed via `python3 -m pytest` unless the caller requests to skip it.
 //!
 //! A security warning is emitted (via `tracing`) whenever the manifest declares
@@ -141,8 +142,8 @@ pub enum AgentValidationError {
 ///
 /// Performs the following checks in order:
 /// 1. Verifies the file exists on disk.
-/// 2. Loads the Python module via PyO3 and validates the AIP duck-typing contract
-///    (`manifest()` callable + async `run()`).
+/// 2. Loads the Python module via PyO3 and validates the decorator-installed
+///    contract (`__apollia_manifest__` + async `__apollia_dispatch__`).
 /// 3. Emits a `tracing::warn!` when the manifest declares `dangerous_tools_allowed`.
 /// 4. Runs the sibling `tests/` directory via `python3 -m pytest` unless
 ///    `skip_tests` is `true` or no `tests/` directory exists next to the file.
