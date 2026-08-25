@@ -45,6 +45,28 @@ pub struct FileTimestampEntry {
     pub last_read_at: i64,
 }
 
+/// Current schema version of the file-timestamp cache database.
+const FILE_TIMESTAMPS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of the file-timestamp cache database.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`FILE_TIMESTAMPS_SCHEMA_VERSION`].
+const FILE_TIMESTAMPS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS file_timestamps (
+             path         TEXT PRIMARY KEY,
+             mtime_ms     INTEGER NOT NULL,
+             last_read_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_file_timestamps_mtime
+             ON file_timestamps(mtime_ms);",
+    )
+}
+
 /// Cache of file read timestamps for detecting stale plan conditions.
 ///
 /// Each call to [`record_read`] compares the file's current `mtime` to the
@@ -83,14 +105,11 @@ impl FileTimestampCache {
         let db = Connection::open(db_path)
             .map_err(|e| FileTimestampCacheError::OpenFailed(e.to_string()))?;
 
-        db.execute_batch(
-            "CREATE TABLE IF NOT EXISTS file_timestamps (
-                 path         TEXT PRIMARY KEY,
-                 mtime_ms     INTEGER NOT NULL,
-                 last_read_at INTEGER NOT NULL
-             );
-             CREATE INDEX IF NOT EXISTS idx_file_timestamps_mtime
-                 ON file_timestamps(mtime_ms);",
+        apollia_core::schema::open_versioned(
+            &db,
+            "file-timestamps.db",
+            FILE_TIMESTAMPS_SCHEMA_VERSION,
+            FILE_TIMESTAMPS_MIGRATIONS,
         )
         .map_err(|e| FileTimestampCacheError::OpenFailed(e.to_string()))?;
 

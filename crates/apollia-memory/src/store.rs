@@ -118,6 +118,17 @@ pub enum MemoryStoreError {
     /// A raw SQLite error propagated from rusqlite.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+
+    /// The database on disk carries a version this binary does not know.
+    #[error(
+        "memory database schema version {found} on disk is newer than the supported version {supported}; refusing to open"
+    )]
+    NewerThanBinary {
+        /// Version read from the `_schema_version` table.
+        found: u32,
+        /// Highest version this binary supports.
+        supported: u32,
+    },
 }
 
 impl MemoryStore {
@@ -137,6 +148,14 @@ impl MemoryStore {
 
         let current_version = Self::read_schema_version(&conn)?;
 
+        if current_version > SCHEMA_VERSION {
+            // Opening anyway could misread or destroy rows written by the
+            // newer binary, so surface the refusal instead of migrating.
+            return Err(MemoryStoreError::NewerThanBinary {
+                found: current_version,
+                supported: SCHEMA_VERSION,
+            });
+        }
         if current_version < SCHEMA_VERSION {
             Self::apply_migrations(&conn, current_version)?;
         }
@@ -426,6 +445,77 @@ mod tests {
             )
             .unwrap();
         assert!(count >= 1);
+    }
+
+    // GIVEN a database migrated to v1 only, holding a row
+    // WHEN opening it (v2 is current)
+    // THEN the v1 rows survive, plan_choices appears and the version is bumped
+    #[test]
+    fn test_v1_database_migrates_to_v2_and_keeps_rows() {
+        let path = temp_db_path();
+        {
+            // Build the database exactly as a v1 binary left it: v1 schema,
+            // stamped 1 (migrate_to_v1 cannot be used here: it stamps the
+            // current SCHEMA_VERSION).
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(SCHEMA_V1).unwrap();
+            conn.execute(FTS5_DDL, []).unwrap();
+            conn.execute("INSERT INTO _schema_version (version) VALUES (1)", [])
+                .unwrap();
+            conn.execute(
+                "INSERT INTO episodic_memories (id, namespace, agent_id, content, created_at)
+                 VALUES ('m-1', 'ns', 'agent', 'remembered', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let store = MemoryStore::open(&path).unwrap();
+
+        assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+        let kept: String = store
+            .conn()
+            .query_row("SELECT content FROM episodic_memories", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(kept, "remembered");
+        let plan_choices: i64 = store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='plan_choices'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(plan_choices, 1);
+    }
+
+    // GIVEN a database stamped by a newer binary
+    // WHEN opening it
+    // THEN the open is refused
+    #[test]
+    fn test_newer_database_is_refused() {
+        let path = temp_db_path();
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(SCHEMA_V1).unwrap();
+            conn.execute(
+                "INSERT INTO _schema_version (version) VALUES (?1)",
+                [SCHEMA_VERSION + 1],
+            )
+            .unwrap();
+        }
+
+        let err = MemoryStore::open(&path).map(|_| ()).unwrap_err();
+
+        assert!(matches!(
+            err,
+            MemoryStoreError::NewerThanBinary {
+                supported: SCHEMA_VERSION,
+                ..
+            }
+        ));
     }
 
     // Reopen existing DB without re-migration
