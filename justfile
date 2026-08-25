@@ -116,16 +116,19 @@ worktree-prep *GROUPS:
 # `worktree-compare` reads two such records, and refuses them unless they were
 # made on the same commit.
 
-# Record the verdict of the expensive guards in this tree, the containerised
-# Linux test suite among them (recorded, exempt from the comparison).
+# The containerised Linux test suite is among the guards (recorded, exempt
+# from the comparison).
+
+# Record the verdict of the expensive guards in this tree
 worktree-verdicts OUT:
     python3 scripts/worktree_verdicts.py --record {{OUT}}
 
-# Read the machine verdict of the last seeded desktop automation run
-# (.apollia-automation/report.json). The report only exists after:
+# The report (.apollia-automation/report.json) only exists after:
 #   just desktop-dev-automation-seeded scripts/automation/master-det.json
 # Exit 0 fresh and green, 1 fresh and red (red sections listed), 2 when the
 # report is absent or predates HEAD (nothing measured, which is not a pass).
+
+# Read the machine verdict of the last seeded desktop automation run
 desktop-automation-verdict:
     python3 scripts/check_automation_report.py
 
@@ -451,9 +454,10 @@ desktop-build-host runners=desktop_runners:
 cli-build:
     cargo build -p apollia-cli
 
-# CLI E2E suite, Tracks 1 + 2: boots the daemon on a throwaway seeded HOME.
 # The GGUF path is pointed at a file that does not exist so Track 3 records a
 # justified skip instead of silently loading the model of the real HOME.
+
+# CLI E2E suite, Tracks 1 + 2: boots the daemon on a throwaway seeded HOME
 cli-e2e-runtime:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF=/nonexistent-apollia-e2e.gguf bash tests/cli/cli-e2e.sh
 
@@ -485,10 +489,12 @@ release-windows target=windows_target runners=windows_runners:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
-# Audit the dependency surfaces the release ships: the bundled Python
-# site-packages, the desktop UI runtime deps, and the Rust crates. The three
-# advisory databases live upstream, so the network is required: offline, the
-# recipe answers 2 (nothing measured), never a green.
+# The surfaces are the bundled Python site-packages, the desktop UI runtime
+# deps, and the Rust crates. The three advisory databases live upstream, so
+# the network is required: offline, the recipe answers 2 (nothing measured),
+# never a green.
+
+# Audit the dependency surfaces the release ships
 audit-deps:
     #!/usr/bin/env bash
     set -uo pipefail
