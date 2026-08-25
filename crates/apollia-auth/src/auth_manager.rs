@@ -209,7 +209,10 @@ mod tests {
 
     fn temp_manager() -> (AuthManager, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let storage = MultiAccountStorage::with_index_path(dir.path().join("idx.json"));
+        // File-backed token store: the keyring resolves through the
+        // operator's real profile (macOS default keychain under ~/Library),
+        // which a test must never write, whatever HOME points at.
+        let storage = MultiAccountStorage::with_file_store(dir.path());
         (AuthManager::with_storage(storage), dir)
     }
 
@@ -246,9 +249,9 @@ mod tests {
         assert!(is_near_expiry(&token));
     }
 
-    /// Generate a unique account id per test so concurrent / repeated runs
-    /// don't collide on the same OS keychain entry (the keyring backend now
-    /// writes through to the real macOS keychain).
+    /// Generate a unique account id per test. Tokens now live in the test's
+    /// own file store rather than the OS keychain, so this uniqueness only
+    /// keeps parallel tests from sharing a name inside one tempdir.
     fn unique_account(label: &str) -> AccountId {
         AccountId::new(format!(
             "apollia-test-{label}-{}@example.invalid",

@@ -65,6 +65,21 @@ pub struct MultiAccountStorage {
     index_path: PathBuf,
     /// Serialize index reads + writes to prevent torn updates.
     index_lock: Mutex<()>,
+    /// Where the tokens themselves live. Production is the OS keyring; tests
+    /// substitute a directory of files, because the keyring resolves through
+    /// the operator's real profile (on macOS the default keychain sits under
+    /// `~/Library`), which a test must never write, the same isolation rule
+    /// as the real `~/.apollia`.
+    tokens: TokenBackend,
+}
+
+/// Token storage backend of [`MultiAccountStorage`].
+enum TokenBackend {
+    /// OS-native keyring (production).
+    Keyring,
+    /// Plain JSON files under a test-owned directory.
+    #[cfg(test)]
+    Files(PathBuf),
 }
 
 impl MultiAccountStorage {
@@ -78,6 +93,7 @@ impl MultiAccountStorage {
         Ok(Self {
             index_path: dir.join("connectors-index.json"),
             index_lock: Mutex::new(()),
+            tokens: TokenBackend::Keyring,
         })
     }
 
@@ -88,7 +104,37 @@ impl MultiAccountStorage {
         Self {
             index_path,
             index_lock: Mutex::new(()),
+            tokens: TokenBackend::Keyring,
         }
+    }
+
+    /// Build a [`MultiAccountStorage`] whose index AND tokens live under
+    /// `dir`, for tests. The keyring resolves through the operator's real
+    /// profile (macOS keeps the default keychain under `~/Library`), so a
+    /// test that stores a token through it writes outside every sandbox a
+    /// test HOME can provide; this backend keeps the whole round-trip on
+    /// test-owned files instead.
+    #[cfg(test)]
+    pub(crate) fn with_file_store(dir: &std::path::Path) -> Self {
+        Self {
+            index_path: dir.join("connectors-index.json"),
+            index_lock: Mutex::new(()),
+            tokens: TokenBackend::Files(dir.to_path_buf()),
+        }
+    }
+
+    /// Filesystem name of one token in the [`TokenBackend::Files`] backend.
+    #[cfg(test)]
+    fn token_file(
+        dir: &std::path::Path,
+        provider: ConnectorProvider,
+        account_id: &AccountId,
+    ) -> PathBuf {
+        dir.join(format!(
+            "token-{}-{}.json",
+            provider.id(),
+            account_id.as_str().replace(['/', ':'], "_")
+        ))
     }
 
     /// Store a token for `(provider, account_id)` and register the account in the index.
@@ -100,27 +146,36 @@ impl MultiAccountStorage {
     ) -> Result<(), AuthError> {
         let json =
             serde_json::to_string(token).map_err(|e| AuthError::Serialization(e.to_string()))?;
-        let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
-        // Delete-then-set so the entry's macOS ACL is rebound to the current
-        // binary's identity. Without this, rebuilding the CLI rotates the
-        // signing identity and `set_password` silently falls through
-        // SecItemUpdate, leaving the daemon reading a stale token. Same
-        // pattern as `KeyringSecretStore::set`.
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => {}
-            Err(e) => {
-                tracing::warn!(
-                    provider = %provider.id(),
-                    account = %account_id.as_str(),
-                    error = %e,
-                    "keyring: pre-write delete failed; falling back to in-place update"
-                );
+        match &self.tokens {
+            TokenBackend::Keyring => {
+                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
+                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
+                // Delete-then-set so the entry's macOS ACL is rebound to the
+                // current binary's identity. Without this, rebuilding the CLI
+                // rotates the signing identity and `set_password` silently
+                // falls through SecItemUpdate, leaving the daemon reading a
+                // stale token. Same pattern as `KeyringSecretStore::set`.
+                match entry.delete_credential() {
+                    Ok(()) | Err(keyring::Error::NoEntry) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            provider = %provider.id(),
+                            account = %account_id.as_str(),
+                            error = %e,
+                            "keyring: pre-write delete failed; falling back to in-place update"
+                        );
+                    }
+                }
+                entry
+                    .set_password(&json)
+                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
+            }
+            #[cfg(test)]
+            TokenBackend::Files(dir) => {
+                std::fs::write(Self::token_file(dir, provider, account_id), &json)
+                    .map_err(|e| AuthError::Keyring(format!("write token file: {e}")))?;
             }
         }
-        entry
-            .set_password(&json)
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
 
         let _guard = self.index_lock.lock().await;
         let mut index = self.read_index()?;
@@ -141,17 +196,28 @@ impl MultiAccountStorage {
         provider: ConnectorProvider,
         account_id: &AccountId,
     ) -> Result<Option<StoredToken>, AuthError> {
-        let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
-        match entry.get_password() {
-            Ok(json) => {
-                let token = serde_json::from_str(&json)
-                    .map_err(|e| AuthError::Serialization(e.to_string()))?;
-                Ok(Some(token))
+        let json = match &self.tokens {
+            TokenBackend::Keyring => {
+                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
+                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
+                match entry.get_password() {
+                    Ok(json) => json,
+                    Err(keyring::Error::NoEntry) => return Ok(None),
+                    Err(e) => return Err(AuthError::Keyring(e.to_string())),
+                }
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(AuthError::Keyring(e.to_string())),
-        }
+            #[cfg(test)]
+            TokenBackend::Files(dir) => {
+                match std::fs::read_to_string(Self::token_file(dir, provider, account_id)) {
+                    Ok(json) => json,
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                    Err(e) => return Err(AuthError::Keyring(format!("read token file: {e}"))),
+                }
+            }
+        };
+        let token =
+            serde_json::from_str(&json).map_err(|e| AuthError::Serialization(e.to_string()))?;
+        Ok(Some(token))
     }
 
     /// Delete the stored token for `(provider, account_id)` and remove the account from the index.
@@ -162,11 +228,23 @@ impl MultiAccountStorage {
         provider: ConnectorProvider,
         account_id: &AccountId,
     ) -> Result<(), AuthError> {
-        let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => {}
-            Err(e) => return Err(AuthError::Keyring(e.to_string())),
+        match &self.tokens {
+            TokenBackend::Keyring => {
+                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
+                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
+                match entry.delete_credential() {
+                    Ok(()) | Err(keyring::Error::NoEntry) => {}
+                    Err(e) => return Err(AuthError::Keyring(e.to_string())),
+                }
+            }
+            #[cfg(test)]
+            TokenBackend::Files(dir) => {
+                match std::fs::remove_file(Self::token_file(dir, provider, account_id)) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(AuthError::Keyring(format!("delete token file: {e}"))),
+                }
+            }
         }
 
         let _guard = self.index_lock.lock().await;
