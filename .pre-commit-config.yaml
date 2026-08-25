@@ -78,14 +78,12 @@ repos:
         language: system
         pass_filenames: false
 
-      # The eight guards below run where the defect they catch is born, which
-      # is a commit. The eight others of the corpus stay in `just guards`
-      # alone: two need a built tree, so a pre-commit entry would refuse the
-      # first commit of anyone who has not run `npm install` or `cargo build`,
-      # three cost more than the commit they would sit on, and three joined the
-      # corpus after this list was drawn without a hook entry being measured
-      # for them (`check_docs_frontmatter.py`, `check_i18n_catalogue.py`,
-      # `check_ctx_contract.py`).
+      # The guards below run where the defect they catch is born, which is a
+      # commit. The rest of the corpus stays in `just guards` alone: some need
+      # a built tree, so a pre-commit entry would refuse the first commit of
+      # anyone who has not run `npm install` or `cargo build`, some cost more
+      # than the 3 s budget a commit can carry, and some joined the corpus
+      # without a hook entry being measured for them.
       #
       # Every filter is derived from the roots the guard declares in its own
       # source, never from an intuition, and every filter names the guard's own
@@ -177,6 +175,26 @@ repos:
         entry: python3 scripts/check_automation_derived.py
         language: system
         files: '^(scripts/automation/.+|scripts/check_automation_derived\.py)$'
+        pass_filenames: false
+
+      # Measured at 2.45 s on the full tree against the 3 s budget above, so
+      # it runs on the commit rather than in `just guards` alone. No `files:`
+      # filter narrows the cost: the sweep reads its whole corpus either way.
+      - id: check-panic-free
+        name: no unwrap/expect/panic in production Rust
+        entry: python3 scripts/check_panic_free.py
+        language: system
+        files: '^(crates/.+\.rs|scripts/check_panic_free\.py)$'
+        pass_filenames: false
+
+      # The strict gate of the python-types CI job, runnable on the commit:
+      # a stale `type: ignore` sat red on the tree for weeks while the CI
+      # that carried this command was not running.
+      - id: mypy-sdk
+        name: mypy (strict, apollia package)
+        entry: bash -c 'cd sdk && mypy apollia'
+        language: system
+        files: ^sdk/
         pass_filenames: false
 
       # Blocks a commit that breaks the documentation build. The second branch

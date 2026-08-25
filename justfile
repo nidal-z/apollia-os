@@ -445,7 +445,7 @@ release-windows target=windows_target runners=windows_runners:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
-# Run the seventeen tracked guard scripts, unfiltered, and report every red one.
+# Run every tracked guard script and the external gates, and report every red one.
 guards:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -476,6 +476,19 @@ guards:
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
     )
+    # External gates: not check_*.py scripts, but rules of the same corpus.
+    # The crossing in scripts/check_selftest.py requires each to be launched
+    # by at least one boundary; this recipe is the local boundary for the
+    # five below, which previously ran only as CI jobs while the CI was not
+    # running. cargo audit needs the advisory database (network on first
+    # run); mypy comes from the SDK toolchain.
+    externals=(
+      "cargo machete"
+      "cargo audit"
+      "cargo deny check advisories"
+      "cd sdk && mypy apollia"
+      "cd crates/apollia-desktop/ui && npm run audit:i18n"
+    )
     # Reds accumulate instead of stopping the run: an operator wants the whole
     # list, and stopping on the first one hides the twelve behind it.
     reds=()
@@ -490,13 +503,21 @@ guards:
         reds+=("$guard")
       fi
     done
+    for gate in "${externals[@]}"; do
+      if bash -c "$gate"; then
+        echo "== ok   $gate"
+      else
+        echo "== RED  $gate"
+        reds+=("$gate")
+      fi
+    done
     echo
     if [ "${#reds[@]}" -ne 0 ]; then
       echo "${#reds[@]} guard(s) red:" >&2
       for guard in "${reds[@]}"; do echo "  $guard" >&2; done
       exit 1
     fi
-    echo "${#guards[@]} guards green"
+    echo "$(( ${#guards[@]} + ${#externals[@]} )) guards green"
 
 # Local CI: guards + lint + tests
 ci: guards lint test
