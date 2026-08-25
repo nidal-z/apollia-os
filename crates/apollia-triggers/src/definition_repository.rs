@@ -19,6 +19,20 @@ use crate::validation;
 
 // --- Migration ---------------------------------------------------------------
 
+/// Current schema version of the trigger-definition store.
+const TRIGGERS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of the trigger-definition store.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`TRIGGERS_SCHEMA_VERSION`].
+const TRIGGERS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(MIGRATION_008)
+}
+
 /// Idempotent migration for the `trigger_definitions` table.
 const MIGRATION_008: &str = "\
 CREATE TABLE IF NOT EXISTS trigger_definitions (
@@ -229,6 +243,9 @@ pub enum TriggerDefinitionError {
     /// Underlying SQLite error.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 // --- Repository --------------------------------------------------------------
@@ -249,7 +266,12 @@ impl TriggerDefinitionRepository {
     pub fn open(path: &Path) -> Result<Self, TriggerDefinitionError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(MIGRATION_008)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::TriggersDef.file_name(),
+            TRIGGERS_SCHEMA_VERSION,
+            TRIGGERS_MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 

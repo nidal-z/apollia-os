@@ -47,7 +47,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXEMPT_UNVERSIONED = {
     "crates/apollia-desktop/src/commands/artifacts.rs",
     "crates/apollia-memory/src/file_timestamp_cache.rs",
-    "crates/apollia-triggers/src/definition_repository.rs",
 }
 
 CREATE_RE = re.compile(

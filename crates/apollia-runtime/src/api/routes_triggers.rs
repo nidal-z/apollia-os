@@ -227,7 +227,7 @@ fn map_repo_error(err: DefinitionRepositoryError) -> (StatusCode, Json<ErrorResp
         DefinitionRepositoryError::ValidationError(_) => {
             (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
         }
-        DefinitionRepositoryError::Database(_) => {
+        DefinitionRepositoryError::Database(_) | DefinitionRepositoryError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
     };
