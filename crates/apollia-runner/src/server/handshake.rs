@@ -24,6 +24,8 @@ pub async fn handle(State(_state): State<AppState>) -> Json<Response<HandshakeDa
 }
 
 fn supported_endpoints() -> Vec<String> {
+    // REASON: `mut` is used only by the `local-cpu` push below; without the
+    // feature the binding never mutates and the lint would fire.
     #[allow(unused_mut)]
     let mut endpoints = vec![
         "/handshake".to_string(),

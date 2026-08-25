@@ -340,8 +340,6 @@ impl AgentRegistryHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[allow(unused_imports)]
-    use apollia_core::AgentId;
     use apollia_core::{AgentManifest, AgentSkill, ProcessState};
     use tokio::sync::broadcast;
 
