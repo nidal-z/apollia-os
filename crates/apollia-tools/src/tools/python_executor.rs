@@ -226,8 +226,6 @@ const MAX_PACKAGE_SPEC_LEN: usize = 200;
 /// optional version specifiers. Deliberately narrower than the full grammar,
 /// which also allows direct URL references.
 static PACKAGE_SPEC_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    // SAFETY: compiled from a literal pattern, so it cannot fail at runtime.
-    #[allow(clippy::unwrap_used)]
     regex::Regex::new(concat!(
         r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?",
         r"(?:\[[A-Za-z0-9][A-Za-z0-9._,-]*\])?",
