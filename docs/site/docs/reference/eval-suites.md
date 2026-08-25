@@ -11,7 +11,7 @@ typed assertions that decide pass or fail. `apollia-os eval run` parses it,
 executes it, and exits non-zero if any assertion fails on any run.
 
 For the operator walkthrough, with the interface steps and how to read a report,
-see [Measure an agent with eval](/operator-help/agents/mesurer-un-agent-avec-eval).
+see [Measure an agent with eval](/operator-help/agents/measure-an-agent-with-eval).
 
 The tables below are generated from the Rust types that parse the file, so they
 cannot drift from what the parser accepts. A field absent from them is a field

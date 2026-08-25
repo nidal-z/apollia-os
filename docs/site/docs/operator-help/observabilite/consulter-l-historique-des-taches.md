@@ -1,5 +1,6 @@
 ---
 title: Read the activity timeline
+slug: /operator-help/observability/read-the-activity-timeline
 sidebar_position: 1
 ---
 

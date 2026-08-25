@@ -96,4 +96,4 @@ offers no tier control.
 
 - [The accountability model](/explanation/accountability-model)
 - [The plan and orchestrated execution model](/explanation/the-plan-model)
-- [Choose an autonomy level](/operator-help/agents/choisir-un-palier-d-autonomie)
+- [Choose an autonomy level](/operator-help/agents/choose-an-autonomy-level)

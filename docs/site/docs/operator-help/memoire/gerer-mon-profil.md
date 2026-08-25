@@ -1,5 +1,6 @@
 ---
 title: Manage my profile
+slug: /operator-help/memory/manage-my-profile
 sidebar_position: 1
 ---
 

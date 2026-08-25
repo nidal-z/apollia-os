@@ -1,5 +1,6 @@
 ---
 title: The sidecar runner does not start
+slug: /operator-help/troubleshooting/the-runner-does-not-start
 sidebar_position: 2
 ---
 

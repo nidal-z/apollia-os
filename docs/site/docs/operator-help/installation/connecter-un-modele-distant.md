@@ -1,5 +1,6 @@
 ---
 title: Connect a remote model
+slug: /operator-help/installation/connect-a-remote-model
 sidebar_position: 6
 ---
 

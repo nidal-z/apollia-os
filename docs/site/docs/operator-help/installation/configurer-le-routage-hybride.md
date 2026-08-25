@@ -1,5 +1,6 @@
 ---
 title: Configure hybrid local + frontier routing
+slug: /operator-help/installation/configure-hybrid-routing
 sidebar_position: 7
 ---
 

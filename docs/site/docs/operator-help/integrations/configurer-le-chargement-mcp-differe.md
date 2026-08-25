@@ -1,5 +1,6 @@
 ---
 title: Configure deferred loading of MCP tools
+slug: /operator-help/integrations/configure-deferred-mcp-loading
 sidebar_position: 8
 ---
 

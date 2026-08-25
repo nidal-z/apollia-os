@@ -51,13 +51,13 @@ The two connectors differ, and the variables below behave accordingly.
 **Microsoft** ships ready to use: Apollia registers a public client application
 and embeds its identifier, so nothing has to be configured. A public client
 holds no secret, which is what makes shipping the identifier harmless; see
-[Connect Microsoft 365](/operator-help/integrations/connecter-microsoft-365).
+[Connect Microsoft 365](/operator-help/integrations/connect-microsoft-365).
 
 **Google** ships **without** a client, and no published build embeds one. You
 register your own application and give Apollia its credentials, because Google
 requires a verified consent screen and a client secret that a distributed binary
 cannot hold. See
-[Connect Google Workspace](/operator-help/integrations/connecter-google-workspace)
+[Connect Google Workspace](/operator-help/integrations/connect-google-workspace)
 and [Set up a Google OAuth client](/how-to/set-up-a-google-oauth-client).
 
 Either way, the supported route is Settings → OAuth integrations, which writes

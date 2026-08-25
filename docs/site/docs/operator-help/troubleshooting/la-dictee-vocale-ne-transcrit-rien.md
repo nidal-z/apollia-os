@@ -1,5 +1,6 @@
 ---
 title: Voice dictation transcribes nothing
+slug: /operator-help/troubleshooting/voice-dictation-transcribes-nothing
 sidebar_position: 5
 ---
 

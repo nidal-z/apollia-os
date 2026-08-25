@@ -1,5 +1,6 @@
 ---
 title: Set up your profile on first launch
+slug: /operator-help/installation/set-up-your-profile
 sidebar_position: 4
 ---
 

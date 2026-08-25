@@ -1,5 +1,6 @@
 ---
 title: Measure an agent's performance with apollia-os eval
+slug: /operator-help/agents/measure-an-agent-with-eval
 sidebar_position: 5
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Review and clean up memory
+slug: /operator-help/memory/review-and-clean-up-memory
 sidebar_position: 2
 ---
 

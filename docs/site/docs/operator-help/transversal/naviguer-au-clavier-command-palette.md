@@ -1,5 +1,6 @@
 ---
 title: Navigate with the keyboard (command palette)
+slug: /operator-help/transversal/navigate-with-the-keyboard
 sidebar_position: 3
 ---
 

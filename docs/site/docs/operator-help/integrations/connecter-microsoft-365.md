@@ -1,5 +1,6 @@
 ---
 title: Connect Microsoft 365
+slug: /operator-help/integrations/connect-microsoft-365
 sidebar_position: 4
 ---
 
@@ -15,7 +16,7 @@ sidebar_position: 4
 - If your Entra ID tenant requires administrative approval, the administrator has to pre-approve the application.
 - An active internet connection.
 
-There is nothing to register and nothing to paste. If you have just read the Google page, that difference is deliberate and explained in [the integrations overview](/operator-help/integrations/vue-d-ensemble-integrations).
+There is nothing to register and nothing to paste. If you have just read the Google page, that difference is deliberate and explained in [the integrations overview](/operator-help/integrations/integrations-overview).
 
 ## Nothing to configure
 

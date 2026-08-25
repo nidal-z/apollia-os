@@ -1,5 +1,6 @@
 ---
 title: Connect Google Workspace
+slug: /operator-help/integrations/connect-google-workspace
 sidebar_position: 3
 ---
 

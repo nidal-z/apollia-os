@@ -92,6 +92,9 @@ const config = {
         },
       },
     ],
+    // The old French operator-help URLs, served as redirects to the English
+    // routes the pages now declare. Local plugin, no dependency.
+    './plugins/operator-help-redirects.js',
   ],
 
   themes: ['docusaurus-theme-openapi-docs', '@docusaurus/theme-mermaid'],

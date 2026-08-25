@@ -1,5 +1,6 @@
 ---
 title: Start an agent or a package
+slug: /operator-help/agents/start-an-agent
 sidebar_position: 2
 ---
 

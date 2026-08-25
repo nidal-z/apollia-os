@@ -1,5 +1,6 @@
 ---
 title: Schedule a trigger
+slug: /operator-help/automations/schedule-a-trigger
 sidebar_position: 1
 ---
 

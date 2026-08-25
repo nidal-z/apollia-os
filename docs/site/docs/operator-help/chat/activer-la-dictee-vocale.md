@@ -1,5 +1,6 @@
 ---
 title: Enable voice dictation
+slug: /operator-help/chat/enable-voice-dictation
 sidebar_position: 2
 ---
 

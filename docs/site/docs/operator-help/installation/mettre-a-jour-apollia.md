@@ -1,5 +1,6 @@
 ---
 title: Update Apollia
+slug: /operator-help/installation/update-apollia
 sidebar_position: 8
 ---
 

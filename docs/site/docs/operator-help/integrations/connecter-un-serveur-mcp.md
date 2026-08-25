@@ -1,5 +1,6 @@
 ---
 title: Connect an MCP server from the catalogue
+slug: /operator-help/integrations/connect-an-mcp-server
 sidebar_position: 5
 ---
 

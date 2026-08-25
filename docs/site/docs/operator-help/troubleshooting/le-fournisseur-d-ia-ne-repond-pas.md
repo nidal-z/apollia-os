@@ -1,5 +1,6 @@
 ---
 title: The AI provider does not answer
+slug: /operator-help/troubleshooting/the-ai-provider-does-not-answer
 sidebar_position: 1
 ---
 

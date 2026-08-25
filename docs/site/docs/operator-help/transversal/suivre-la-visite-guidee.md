@@ -1,5 +1,6 @@
 ---
 title: Take the guided tour
+slug: /operator-help/transversal/take-the-guided-tour
 sidebar_position: 1
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Chat with your AI
+slug: /operator-help/chat/chat-with-your-ai
 sidebar_position: 1
 ---
 

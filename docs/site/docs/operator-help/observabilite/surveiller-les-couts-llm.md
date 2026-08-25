@@ -1,5 +1,6 @@
 ---
 title: Monitor AI costs
+slug: /operator-help/observability/monitor-ai-costs
 sidebar_position: 3
 ---
 

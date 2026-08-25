@@ -1,5 +1,6 @@
 ---
 title: Test an MCP connection
+slug: /operator-help/integrations/test-an-mcp-connection
 sidebar_position: 6
 ---
 

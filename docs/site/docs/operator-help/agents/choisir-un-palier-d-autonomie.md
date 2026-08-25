@@ -1,5 +1,6 @@
 ---
 title: Choose an autonomy level for an agent
+slug: /operator-help/agents/choose-an-autonomy-level
 sidebar_position: 3
 ---
 

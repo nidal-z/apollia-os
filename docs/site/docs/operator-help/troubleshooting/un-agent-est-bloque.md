@@ -1,5 +1,6 @@
 ---
 title: An agent is stuck
+slug: /operator-help/troubleshooting/an-agent-is-stuck
 sidebar_position: 4
 ---
 

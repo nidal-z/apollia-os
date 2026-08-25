@@ -1,5 +1,6 @@
 ---
 title: Use the Inbox
+slug: /operator-help/transversal/use-the-inbox
 sidebar_position: 2
 ---
 

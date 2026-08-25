@@ -1,5 +1,6 @@
 ---
 title: Approve or reject an agent action
+slug: /operator-help/control/approve-or-reject-an-action
 sidebar_position: 1
 ---
 

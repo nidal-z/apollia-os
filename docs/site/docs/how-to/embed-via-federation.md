@@ -49,8 +49,8 @@ through the same governed path as native tools, so they are subject to
 permissions and land in the audit trail.
 
 For the desktop setup details, see the operator help (in French) on
-[connecting an MCP server](/operator-help/integrations/connecter-un-serveur-mcp)
-and [wiring your own MCP server](/operator-help/integrations/cabler-son-propre-serveur-mcp).
+[connecting an MCP server](/operator-help/integrations/connect-an-mcp-server)
+and [wiring your own MCP server](/operator-help/integrations/wire-your-own-mcp-server).
 
 ## Step 3: gate writes with human approval
 

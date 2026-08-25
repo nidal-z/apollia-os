@@ -1,5 +1,6 @@
 ---
 title: Create a project
+slug: /operator-help/projects/create-a-project
 sidebar_position: 1
 ---
 

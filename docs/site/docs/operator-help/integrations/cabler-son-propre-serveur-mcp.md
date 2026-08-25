@@ -1,5 +1,6 @@
 ---
 title: Wire your own MCP server
+slug: /operator-help/integrations/wire-your-own-mcp-server
 sidebar_position: 9
 ---
 

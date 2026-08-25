@@ -1,5 +1,6 @@
 ---
 title: Understand the scope of an integration
+slug: /operator-help/integrations/understand-integration-scope
 sidebar_position: 2
 ---
 

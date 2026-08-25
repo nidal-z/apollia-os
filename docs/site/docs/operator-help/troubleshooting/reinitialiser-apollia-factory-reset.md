@@ -1,5 +1,6 @@
 ---
 title: Reset Apollia (factory reset)
+slug: /operator-help/troubleshooting/factory-reset
 sidebar_position: 6
 ---
 

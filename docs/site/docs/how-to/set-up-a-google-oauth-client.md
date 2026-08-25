@@ -13,7 +13,7 @@ Budget ten to fifteen minutes. Nothing here costs money, and none of it requires
 a Google Workspace subscription: a personal `@gmail.com` account is enough.
 
 If you only want the short version, the same steps are condensed on
-[Connect Google Workspace](/operator-help/integrations/connecter-google-workspace).
+[Connect Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 :::note Microsoft 365 needs none of this
 Microsoft connects with nothing to configure, because Apollia ships the
@@ -147,7 +147,7 @@ secret starts with `GOCSPX-`.
 
 You are done in the console. To connect an account, go to **Connections**,
 select **Google Workspace**, and follow
-[Connect Google Workspace](/operator-help/integrations/connecter-google-workspace).
+[Connect Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 ## What Testing status costs you
 

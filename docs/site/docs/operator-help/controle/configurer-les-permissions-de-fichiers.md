@@ -1,5 +1,6 @@
 ---
 title: Manage tool permissions
+slug: /operator-help/control/manage-tool-permissions
 sidebar_position: 2
 ---
 

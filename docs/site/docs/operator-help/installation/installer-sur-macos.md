@@ -1,5 +1,6 @@
 ---
 title: Install Apollia on macOS
+slug: /operator-help/installation/install-on-macos
 sidebar_position: 1
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Enable Apollia Help
+slug: /operator-help/transversal/enable-apollia-help
 sidebar_position: 4
 ---
 

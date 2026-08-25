@@ -1,5 +1,6 @@
 ---
 title: Link a project to a chat
+slug: /operator-help/projects/link-a-project-to-a-chat
 sidebar_position: 2
 ---
 

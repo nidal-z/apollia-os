@@ -1,5 +1,6 @@
 ---
 title: Manage OAuth tokens
+slug: /operator-help/integrations/manage-oauth-tokens
 sidebar_position: 10
 ---
 
