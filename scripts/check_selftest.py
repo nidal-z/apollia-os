@@ -50,6 +50,11 @@ properties rather than the fixes:
      going wrong is the mirror image: a `#[cfg(test)]` matched by proximity
      instead of by what it binds to drops production files from the sweep, and
      the count that serves as a control does not move while it happens.
+  9. A script reads its arguments before acting on them. `make_scan.py --help`
+     regenerated a tracked file and `check_prose.py --help` rendered a verdict,
+     because both executed their measure whatever the arguments said. Every
+     tracked script must answer `--help` with its usage, exit 0, and leave the
+     tree exactly as it found it.
 
 Each case asserts both directions. A check that always answered "not wired", or
 that printed a coverage table of zeros, would satisfy the negative half while
@@ -59,6 +64,7 @@ Usage:
     python3 scripts/check_selftest.py
 """
 
+import argparse
 import json
 import re
 import subprocess
@@ -1639,6 +1645,107 @@ def check_guards_are_launched() -> None:
     )
 
 
+# ── The invocation contract ──────────────────────────────────────────────────
+# A script that answers `--help` by running its measure has not read its
+# arguments: `make_scan.py --help` regenerated a tracked file, and
+# `check_prose.py --help` rendered a verdict on an argument it never read.
+# The contract is argparse's: `--help` prints the usage, exits 0, and touches
+# nothing. The sweep asserts it over every tracked Python script, and the
+# fixture controls pin that the predicate can tell a measure from an answer.
+
+
+def _help_reply(script: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+
+def _breaks_help_contract(proc: subprocess.CompletedProcess[str]) -> str | None:
+    """Why a `--help` reply breaks the contract, or None if it holds."""
+    if proc.returncode != 0:
+        return f"exit {proc.returncode}"
+    if "usage" not in (proc.stdout + proc.stderr).lower():
+        return "no usage in the reply"
+    return None
+
+
+def check_help_contract() -> None:
+    print("invocation contract: every script answers --help without measuring")
+
+    inventory = subprocess.run(
+        ["git", "ls-files", "scripts/*.py", "scripts/**/*.py"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    tracked = sorted(set(inventory.stdout.split()))
+    case(
+        "the script inventory is readable and non-trivial",
+        inventory.returncode == 0 and len(tracked) >= 2,
+        f"`git ls-files` exited {inventory.returncode} with {len(tracked)} "
+        f"script(s). A sweep over an empty corpus proves nothing",
+    )
+    if inventory.returncode != 0:
+        return
+
+    status = ["git", "status", "--porcelain"]
+    before = subprocess.run(
+        status, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    )
+    offenders = []
+    for rel in tracked:
+        why = _breaks_help_contract(_help_reply(REPO_ROOT / rel, REPO_ROOT))
+        if why is not None:
+            offenders.append(f"{rel} ({why})")
+    after = subprocess.run(
+        status, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    )
+    case(
+        "every tracked script replies to --help with its usage, exit 0",
+        not offenders,
+        f"{len(offenders)} script(s) measured instead of answering: "
+        f"{offenders!r}. Each one reads its arguments by position or not at "
+        f"all; route them through argparse",
+    )
+    case(
+        "the --help sweep left the tree unchanged",
+        before.stdout == after.stdout,
+        f"`git status --porcelain` changed across the sweep:\n"
+        f"before: {before.stdout!r}\nafter: {after.stdout!r}. A --help that "
+        f"writes a file is the defect this contract exists to close",
+    )
+
+    # Both directions, on fixtures rather than on the tree: a predicate that
+    # accepted everything would turn the sweep above green for free.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bad = root / "measures_anyway.py"
+        bad.write_text("import sys\nprint('scanned 12 files')\nsys.exit(1)\n")
+        case(
+            "positive control: a script without --help is reported",
+            _breaks_help_contract(_help_reply(bad, root)) is not None,
+            "a script that ran its measure and exited 1 satisfied the "
+            "predicate, so the sweep above matches anything",
+        )
+        good = root / "answers.py"
+        good.write_text(
+            "import argparse\n"
+            "argparse.ArgumentParser(description='fixture').parse_args()\n"
+        )
+        case(
+            "negative control: a compliant script passes the predicate",
+            _breaks_help_contract(_help_reply(good, root)) is None,
+            "a script that answered usage on exit 0 was reported, so the "
+            "sweep would demand what argparse cannot provide",
+        )
+
+
 # ── The panic-free sweep ─────────────────────────────────────────────────────
 # Same family as the font CDN block above, and the same reason to be here: a
 # sweep whose tree is clean has never been shown to work. This one is worse off
@@ -1874,6 +1981,8 @@ def main() -> int:
     print()
     check_guards_are_launched()
     print()
+    check_help_contract()
+    print()
     check_panic_sweep_fires()
     print()
     check_panic_sweep_scope()
@@ -1883,14 +1992,15 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\neleven properties hold: neither a comment nor a re-export is a use, "
+        "\ntwelve properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
         "nothing to it, every tracked guard is named by a file that launches "
-        "it, the panic-free sweep names the sites a lint gracies while "
+        "it, every tracked script answers --help without measuring, "
+        "the panic-free sweep names the sites a lint gracies while "
         "keeping the production an attribute read by proximity would drop, "
         "and the desktop automation verdict is read with staleness treated "
         "as nothing measured"
@@ -1899,4 +2009,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())
