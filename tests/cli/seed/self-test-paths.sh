@@ -33,6 +33,25 @@ if [ ! -d "$DATA" ]; then
   exit 1
 fi
 
+# Every root database in the directory must be named by the catalogue. The
+# reference list is generated from the sibling schemas/ directory, which
+# scripts/check_data_layout.py holds equal to the DataFile catalogue of
+# crates/apollia-core/src/paths.rs, so a database the catalogue does not know
+# fails here instead of drifting silently.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+unknown=0
+for db in "$DATA"/*.db; do
+  [ -e "$db" ] || continue
+  name="$(basename "$db" .db)"
+  if [ ! -f "$HERE/schemas/$name.sql" ]; then
+    echo "unknown root database: $(basename "$db") (no schemas/$name.sql, not in the catalogue)" >&2
+    unknown=$((unknown + 1))
+  fi
+done
+if [ "$unknown" -ne 0 ]; then
+  exit 1
+fi
+
 python3 - "$DATA" <<'PY'
 import glob, os, re, sqlite3, sys
 

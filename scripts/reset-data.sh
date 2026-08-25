@@ -10,7 +10,8 @@
 #   - models/  (GGUF/Whisper - téléchargements lourds)
 #
 # Supprimé :
-#   - Toutes les bases SQLite (17 DBs + WAL + SHM)
+#   - Toutes les bases SQLite du catalogue DataFile
+#     (crates/apollia-core/src/paths.rs) + WAL + SHM
 #   - Tous les agents installés (y compris onboarding-agent, re-extrait au prochain lancement)
 #   - Mémoire, rapports, pipelines, venvs
 #   - Configuration (apollia.toml, api-token, mcp-registry.json, .onboarded)
