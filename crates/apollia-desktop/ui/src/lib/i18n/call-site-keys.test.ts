@@ -4,6 +4,11 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import en from "./en.json";
 import fr from "./fr.json";
+import {
+  IDENTICAL_ACROSS_LOCALES,
+  IDENTICAL_BY_DECISION,
+  IDENTICAL_BY_NATURE,
+} from "./identicalLocales";
 
 /**
  * The catalogues answer to the code, not the other way round.
@@ -112,7 +117,8 @@ const CATALOGUES: [string, JsonObject][] = [
  * counterpart is the defect coming back under a key that now exists.
  *
  * `chat.assistant` is deliberately absent from the divergence list: "Assistant"
- * is the same word in both languages.
+ * is the same word in both languages, and it is named in `identicalLocales.ts`
+ * with every other entry the two locales legitimately share.
  */
 const REPAIRED = [
   "chat.ask_user_pending",
@@ -132,8 +138,6 @@ const REPAIRED = [
   "common.copy",
   "settings.profile.title",
 ];
-
-const IDENTICAL_ACROSS_LOCALES = new Set(["chat.assistant"]);
 
 describe("i18n call sites - the scanner reaches the tree", () => {
   test("the scan covers the source tree and resolves a known key", () => {
@@ -156,25 +160,33 @@ describe("i18n call sites - the scanner reaches the tree", () => {
   });
 });
 
-describe.each(CATALOGUES)("i18n call sites - %s answers the code", (file, catalogue) => {
-  test("every key a call site asks for exists", () => {
-    // GIVEN every i18n key the source tree references literally
-    // WHEN each is resolved against the catalogue
-    const missing = REQUESTED.filter((name) => leafAt(catalogue, name) === undefined);
-    // THEN none is absent: an absent key shows English or its own identifier
-    expect(missing, `${file} is missing ${missing.length} key(s): ${missing.join(", ")}`).toEqual(
-      [],
-    );
-  });
+describe.each(CATALOGUES)(
+  "i18n call sites - %s answers the code",
+  (file, catalogue) => {
+    test("every key a call site asks for exists", () => {
+      // GIVEN every i18n key the source tree references literally
+      // WHEN each is resolved against the catalogue
+      const missing = REQUESTED.filter(
+        (name) => leafAt(catalogue, name) === undefined,
+      );
+      // THEN none is absent: an absent key shows English or its own identifier
+      expect(
+        missing,
+        `${file} is missing ${missing.length} key(s): ${missing.join(", ")}`,
+      ).toEqual([]);
+    });
 
-  test("every key this repair introduced resolves to a non-empty string", () => {
-    // GIVEN the sixteen keys the repair added
-    // WHEN each is resolved against the catalogue
-    const empty = REPAIRED.filter((name) => (leafAt(catalogue, name) ?? "").trim() === "");
-    // THEN each carries text
-    expect(empty, `${file} has no text for: ${empty.join(", ")}`).toEqual([]);
-  });
-});
+    test("every key this repair introduced resolves to a non-empty string", () => {
+      // GIVEN the sixteen keys the repair added
+      // WHEN each is resolved against the catalogue
+      const empty = REPAIRED.filter(
+        (name) => (leafAt(catalogue, name) ?? "").trim() === "",
+      );
+      // THEN each carries text
+      expect(empty, `${file} has no text for: ${empty.join(", ")}`).toEqual([]);
+    });
+  },
+);
 
 describe("i18n call sites - the repaired French entries are French", () => {
   test("no repaired key carries the English string on the French side", () => {
@@ -183,13 +195,15 @@ describe("i18n call sites - the repaired French entries are French", () => {
     const untranslated = REPAIRED.filter(
       (name) =>
         !IDENTICAL_ACROSS_LOCALES.has(name) &&
-        leafAt(fr as unknown as JsonObject, name) === leafAt(en as unknown as JsonObject, name),
+        leafAt(fr as unknown as JsonObject, name) ===
+          leafAt(en as unknown as JsonObject, name),
     );
     // THEN none repeats its English counterpart, which is the defect returning
     // under a key that now exists
-    expect(untranslated, `fr.json repeats the English text for: ${untranslated.join(", ")}`).toEqual(
-      [],
-    );
+    expect(
+      untranslated,
+      `fr.json repeats the English text for: ${untranslated.join(", ")}`,
+    ).toEqual([]);
   });
 
   test("the interpolation placeholders survive on both sides", () => {
@@ -205,8 +219,82 @@ describe("i18n call sites - the repaired French entries are French", () => {
     for (const [name, placeholder] of interpolated) {
       for (const [file, catalogue] of CATALOGUES) {
         const text = leafAt(catalogue, name) ?? "";
-        expect(text, `${file}: ${name} lost ${placeholder}`).toContain(placeholder);
+        expect(text, `${file}: ${name} lost ${placeholder}`).toContain(
+          placeholder,
+        );
       }
     }
+  });
+});
+
+/** Does this value carry a word, as opposed to a number, a symbol or a code? */
+function carriesAWord(value: string): boolean {
+  return /[A-Za-zÀ-ÿ]{3,}/.test(value);
+}
+
+/** Every leaf of a catalogue, flattened to its dotted key. */
+function leaves(catalogue: JsonObject, prefix = ""): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [key, value] of Object.entries(catalogue)) {
+    const full = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === "object") {
+      for (const [k, v] of leaves(value as JsonObject, full)) out.set(k, v);
+    } else if (typeof value === "string") {
+      out.set(full, value);
+    }
+  }
+  return out;
+}
+
+const EN_LEAVES = leaves(en as unknown as JsonObject);
+const FR_LEAVES = leaves(fr as unknown as JsonObject);
+
+describe("i18n call sites - the French catalogue says something French", () => {
+  test("no key carrying a word repeats its English value unnamed", () => {
+    // GIVEN every catalogue key whose English value carries a word
+    // WHEN the French entry is compared to the English one
+    const repeated = [...EN_LEAVES]
+      .filter(
+        ([key, value]) =>
+          carriesAWord(value) &&
+          FR_LEAVES.get(key) === value &&
+          !IDENTICAL_ACROSS_LOCALES.has(key),
+      )
+      .map(([key, value]) => `${key} = ${value}`);
+    // THEN each one is either translated or named in identicalLocales.ts, so
+    // an English label in the French interface is a decision and not an
+    // oversight buried among the hundreds that are the same string on purpose
+    expect(
+      repeated,
+      `${repeated.length} untranslated label(s): ${repeated.slice(0, 10).join(" | ")}`,
+    ).toEqual([]);
+  });
+
+  test("every named exception is still an identical pair", () => {
+    // GIVEN the two exception lists
+    // WHEN each name is resolved in both catalogues
+    const stale = [...IDENTICAL_BY_NATURE, ...IDENTICAL_BY_DECISION].filter(
+      (key) => !EN_LEAVES.has(key) || FR_LEAVES.get(key) !== EN_LEAVES.get(key),
+    );
+    // THEN none excuses a key that has since been translated or removed: an
+    // exemption that outlives what it excuses is how the list stops meaning
+    // anything
+    expect(
+      stale,
+      `${stale.length} exception(s) no longer identical or no longer present: ${stale.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  test("the two exception lists are disjoint and sorted", () => {
+    // GIVEN the by-nature and by-decision lists
+    // WHEN each is compared to itself sorted, and to the other
+    const both = IDENTICAL_BY_NATURE.filter((key) =>
+      IDENTICAL_BY_DECISION.includes(key),
+    );
+    // THEN no key is excused twice, so removing one entry removes the exemption
+    expect(both, `named in both lists: ${both.join(", ")}`).toEqual([]);
+    expect(
+      new Set([...IDENTICAL_BY_NATURE, ...IDENTICAL_BY_DECISION]).size,
+    ).toBe(IDENTICAL_BY_NATURE.length + IDENTICAL_BY_DECISION.length);
   });
 });
