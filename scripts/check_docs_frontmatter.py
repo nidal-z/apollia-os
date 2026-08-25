@@ -29,6 +29,13 @@ whose front matter is absent, whose `title` is missing or blank, or whose
 slot between two existing ranks. A guard demanding an integer would be red on a
 tree Docusaurus is happy with, which is a rule inventing its own defect.
 
+A rank must also be unique among the sibling pages of its directory. Two pages
+of `how-to` shared rank 9 and three pages of `reference` shared rank 6, so the
+reading order of five pages was the alphabetical order of their file names,
+which is exactly the fallback the rank exists to replace, invisible from the
+source while every page dutifully carried a number. Docusaurus does not warn:
+at equal rank it silently falls back to the file name.
+
 What this does not catch, and it is deliberate: whether the `title` matches the
 first heading of the page. Measured over the 210 tracked pages, 17 legitimately
 differ, 15 of them because the heading wraps the same text in backticks, and 3
@@ -37,8 +44,9 @@ a list nobody re-reads, so the equality is checked once, by the change that
 introduces it, and not by a standing guard.
 
 Exit codes:
-    0  every tracked page read, all carry a title and a rank
-    1  at least one page is missing a title or a rank
+    0  every tracked page read, all carry a title and a unique rank
+    1  at least one page is missing a title or a rank, or shares its rank
+       with a sibling page
     2  nothing was measured, or a root that must be covered was not read
 
 Usage:
@@ -174,6 +182,50 @@ def page_faults(root_path: Path, pages: list[Path]) -> list[tuple[Path, str]]:
     return faults
 
 
+def rank_faults(root_path: Path, pages: list[Path]) -> list[tuple[Path, str]]:
+    """Return each page whose rank collides with a sibling page's rank.
+
+    The grouping key is the page's own directory, which is the unit Docusaurus
+    sorts: two equal ranks in one directory fall back to file-name order, and
+    that order is visible nowhere in the source. Ranks are compared as
+    numbers, so `6` and `6.0` collide. Pages whose rank is absent or not a
+    number are `page_faults`'s subject and are skipped here, one fault per
+    defect.
+
+    Pure with respect to the tree it is given, for the same reason as
+    `page_faults`.
+    """
+    by_dir: dict[tuple[Path, float], list[Path]] = {}
+    for page in pages:
+        text = (root_path / page).read_text(encoding="utf-8", errors="replace")
+        front = parse_front_matter(text)
+        if front is None:
+            continue
+        rank = front.get("sidebar_position")
+        if rank is None:
+            continue
+        try:
+            value = float(rank)
+        except ValueError:
+            continue
+        by_dir.setdefault((page.parent, value), []).append(page)
+    faults: list[tuple[Path, str]] = []
+    for (_, value), sharers in sorted(by_dir.items()):
+        if len(sharers) < 2:
+            continue
+        names = ", ".join(p.name for p in sharers)
+        for page in sharers:
+            faults.append(
+                (
+                    page,
+                    f"`sidebar_position` {value:g} shared by {len(sharers)} "
+                    f"sibling pages ({names}), so their order is the file-name "
+                    f"fallback",
+                )
+            )
+    return faults
+
+
 def uncovered_required(inventory: set[Path]) -> list[Path]:
     """Return the anchor pages that exist on disk but fell outside the walk."""
     return [
@@ -212,6 +264,7 @@ def report(roots: tuple[Path, ...] = ROOTS) -> int:
         return 2
 
     faults = page_faults(REPO_ROOT, inventory)
+    duplicates = rank_faults(REPO_ROOT, inventory)
     counts = {
         "no front matter": sum(1 for _, why in faults if why == "no front matter"),
         "title": sum(1 for _, why in faults if "`title`" in why),
@@ -219,6 +272,7 @@ def report(roots: tuple[Path, ...] = ROOTS) -> int:
             1 for _, why in faults if "`sidebar_position`" in why
         ),
     }
+    faults += duplicates
     breakdown = " + ".join(
         f"{len(pages)} under {root}" for root, pages in per_root.items()
     )
@@ -229,7 +283,8 @@ def report(roots: tuple[Path, ...] = ROOTS) -> int:
     print(
         f"check_docs_frontmatter: {counts['no front matter']} with no front "
         f"matter, {counts['title']} with no usable `title`, "
-        f"{counts['sidebar_position']} with no usable `sidebar_position`"
+        f"{counts['sidebar_position']} with no usable `sidebar_position`, "
+        f"{len(duplicates)} sharing a rank with a sibling"
     )
     sys.stdout.flush()
 
@@ -245,9 +300,10 @@ def report(roots: tuple[Path, ...] = ROOTS) -> int:
             print(f"  {page}", file=sys.stderr)
             print(f"    {why}", file=sys.stderr)
         print(
-            "\nAdd a front matter carrying `title` and `sidebar_position`. Both "
-            "locales: the build reads the French mirror's own front matter when "
-            "the page has one.",
+            "\nAdd a front matter carrying `title` and a `sidebar_position` no "
+            "sibling page already uses (decimals such as 6.5 slot between two "
+            "ranks). Both locales: the build reads the French mirror's own "
+            "front matter when the page has one.",
             file=sys.stderr,
         )
         return 1
@@ -386,6 +442,39 @@ def selftest() -> int:
                 == ["`sidebar_position` is not a number: 'first'"],
             ),
         ]
+
+        # Rank uniqueness, both directions, on a multi-page fixture: the rule
+        # groups by directory and compares numerically, and each of those two
+        # choices is asserted so a rewrite cannot quietly drop one.
+        def ranked(relative: str, rank: str) -> Path:
+            return _write(
+                root,
+                relative,
+                f"---\ntitle: A page\nsidebar_position: {rank}\n---\n\n# A page\n",
+            )
+
+        collide = [ranked("how-to/a.md", "6"), ranked("how-to/b.md", "6.0")]
+        results.append(
+            _case(
+                "two sibling pages sharing a rank are both named, 6 == 6.0",
+                len(rank_faults(root, collide)) == 2
+                and all("shared by 2" in why for _, why in rank_faults(root, collide)),
+            )
+        )
+        distinct = [ranked("how-to/a.md", "6"), ranked("how-to/b.md", "6.5")]
+        results.append(
+            _case(
+                "distinct ranks in one directory raise nothing",
+                not rank_faults(root, distinct),
+            )
+        )
+        elsewhere = [ranked("how-to/a.md", "6"), ranked("reference/b.md", "6")]
+        results.append(
+            _case(
+                "the same rank in two directories is not a collision",
+                not rank_faults(root, elsewhere),
+            )
+        )
 
         # Nothing measured is not the same as nothing wrong. A root that
         # matches no tracked page must reach a distinct code, or a `pathspec`
