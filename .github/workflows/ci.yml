@@ -410,7 +410,7 @@ jobs:
           } > docs/site/docs/reference/cli/index.md
       - name: Fail if the committed pages drifted
         run: |
-          if ! git diff --exit-code -- docs/site/docs/reference/cli docs/site/docs/reference/sdk docs/site/docs/reference/configuration.md; then
+          if ! git diff --exit-code -- docs/site/docs/reference/cli docs/site/docs/reference/sdk docs/site/docs/reference/configuration.md docs/site/docs/reference/eval-suites.md; then
             echo "::error::generated docs are stale; run 'bash docs/site/regen.sh' and commit the result"
             exit 1
           fi
