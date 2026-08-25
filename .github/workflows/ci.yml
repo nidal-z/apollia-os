@@ -430,6 +430,15 @@ jobs:
         run: |
           python3 scripts/check_tauri_ipc_callers.py --selftest
           python3 scripts/check_tauri_ipc_callers.py
+      # A source file no bundle entry reaches ships with nobody: the bundle
+      # drops it, svelte-check still type-checks it, and its defects are
+      # invisible. Four components and a knip.json nothing executed sat in
+      # that state; the barrels' blanket re-exports laundered them past
+      # `noUnusedLocals`.
+      - name: Every desktop UI source is reached from a bundle entry
+        run: |
+          python3 scripts/check_unimported_files.py --selftest
+          python3 scripts/check_unimported_files.py
       # `ctx` is published on one side and executed on the other, and for a
       # long time the reference pages rendered only the published half:
       # twenty-two divergences of signature, method name and class name

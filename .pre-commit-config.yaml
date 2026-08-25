@@ -155,6 +155,13 @@ repos:
         files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_tauri_ipc_callers\.py)$'
         pass_filenames: false
 
+      - id: check-unimported-files
+        name: every desktop UI source is reached from a bundle entry
+        entry: python3 scripts/check_unimported_files.py
+        language: system
+        files: '^(crates/apollia-desktop/ui/src/.+|scripts/check_unimported_files\.py)$'
+        pass_filenames: false
+
       - id: check-custom-event-listeners
         name: every emitted custom event has a listener
         entry: python3 scripts/check_custom_event_listeners.py

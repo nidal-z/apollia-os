@@ -551,6 +551,7 @@ guards:
       "scripts/check_subprocess_window.py"
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
+      "scripts/check_unimported_files.py"
       "scripts/check_testid_anchors.py"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
