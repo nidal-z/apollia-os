@@ -123,10 +123,35 @@ pub fn check_git_available() -> Result<(), RemoteInstallError> {
     }
 }
 
+/// The argument vector `git` receives, without the program name.
+///
+/// Split out so the separator can be asserted: the defect it fixes is a string
+/// reaching git as an option, and the only way to pin that is to look at the
+/// vector rather than at the process.
+fn clone_argv(url: &str, tag: Option<&str>, target: &Path) -> Vec<std::ffi::OsString> {
+    let mut argv: Vec<std::ffi::OsString> = vec!["clone".into(), "--depth".into(), "1".into()];
+    if let Some(t) = tag {
+        argv.push("--branch".into());
+        argv.push(t.into());
+    }
+    // Everything after `--` is an operand. Without it a URL such as
+    // `--upload-pack=<cmd>://x` passes the `://` filter above and git reads it
+    // as the option it looks like.
+    argv.push("--".into());
+    argv.push(url.into());
+    argv.push(target.as_os_str().to_owned());
+    argv
+}
+
 /// Shallow-clone a Git repository into `target` (depth 1).
 ///
 /// When `tag` is provided, `--branch <tag>` is appended so the clone checks
 /// out the specified tag or branch instead of the default.
+///
+/// The URL and the target are passed after the `--` separator, so a string that
+/// begins with a dash reaches git as an operand and never as an option. The
+/// `://` filter alone did not achieve that: `--upload-pack=<cmd>://x` contains
+/// `://`, passes the filter, and git reads it as the option it looks like.
 pub async fn git_clone(
     url: &str,
     tag: Option<&str>,
@@ -138,13 +163,7 @@ pub async fn git_clone(
 
     let mut cmd = tokio::process::Command::new("git");
     apollia_core::subprocess_window::hide_console_async(&mut cmd);
-    cmd.arg("clone").arg("--depth").arg("1");
-
-    if let Some(t) = tag {
-        cmd.arg("--branch").arg(t);
-    }
-
-    cmd.arg(url).arg(target);
+    cmd.args(clone_argv(url, tag, target));
 
     let output = cmd
         .output()
@@ -480,6 +499,53 @@ mod tests {
         let mut f = std::fs::File::create(dir.join("manifest.json"))?;
         f.write_all(manifest.to_string().as_bytes())?;
         Ok(())
+    }
+
+    // ── git argv ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_clone_argv_puts_the_url_after_the_separator() {
+        // GIVEN a URL shaped like a git option, which the `://` filter accepts
+        let url = "--upload-pack=touch /tmp/pwned;://x";
+
+        // WHEN the argument vector is built
+        let argv = clone_argv(url, None, Path::new("/tmp/target"));
+
+        // THEN `--` precedes it, so git reads it as an operand and not as the
+        //      option it looks like
+        let separator = argv
+            .iter()
+            .position(|a| a == "--")
+            .expect("the separator is present");
+        let operand = argv
+            .iter()
+            .position(|a| a == url)
+            .expect("the url is passed");
+        assert!(
+            separator < operand,
+            "url at {operand} must follow the separator at {separator}: {argv:?}"
+        );
+        assert_eq!(
+            argv.last().map(|a| a.as_os_str()),
+            Some(Path::new("/tmp/target").as_os_str())
+        );
+    }
+
+    #[test]
+    fn test_clone_argv_keeps_the_branch_before_the_separator() {
+        // GIVEN a tag
+        // WHEN the argument vector is built
+        let argv = clone_argv(
+            "https://example.com/a.git",
+            Some("v1.0"),
+            Path::new("/tmp/t"),
+        );
+
+        // THEN `--branch <tag>` stays an option, ahead of the separator
+        let branch = argv.iter().position(|a| a == "--branch").expect("branch");
+        let separator = argv.iter().position(|a| a == "--").expect("separator");
+        assert!(branch < separator, "{argv:?}");
+        assert_eq!(argv[branch + 1], std::ffi::OsString::from("v1.0"));
     }
 
     // ── URL parsing ──────────────────────────────────────────────────────────
