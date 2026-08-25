@@ -33,6 +33,7 @@ on a healthy tree (positive control). `--selftest` checks the guard itself
 against a built subject.
 """
 
+import argparse
 import os
 import re
 import subprocess
@@ -312,16 +313,21 @@ def selftest() -> int:
 
 
 def main() -> None:
-    argv = sys.argv[1:]
-    if "--selftest" in argv:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest", action="store_true", help="check the guard itself against a built subject"
+    )
+    parser.add_argument(
+        "--entries",
+        metavar="LIST",
+        help="comma-separated entry roots, relative to the ui directory (positive control)",
+    )
+    args = parser.parse_args()
+    if args.selftest:
         sys.exit(selftest())
     entries = DEFAULT_ENTRIES
-    if "--entries" in argv:
-        index = argv.index("--entries")
-        if index + 1 >= len(argv):
-            print("usage: check_unimported_files.py [--entries src/a.ts,src/b.ts]")
-            sys.exit(2)
-        entries = argv[index + 1].split(",")
+    if args.entries is not None:
+        entries = args.entries.split(",")
     ui_root = REPO_ROOT / UI_SUBTREE
     if not ui_root.is_dir():
         print(f"NOTHING MEASURED: {ui_root} is absent from this tree.")
