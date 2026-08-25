@@ -105,7 +105,7 @@ async def react(
     ]
     tool_list: list[dict[str, Any]] = list(tools) if tools else []
 
-    result = await ctx.llm.run_tools(  # type: ignore[attr-defined]
+    result = await ctx.llm.run_tools(
         messages,
         tool_list,
         max_iterations=max_steps,
