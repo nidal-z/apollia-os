@@ -118,10 +118,10 @@ repos:
         pass_filenames: false
 
       - id: check-crate-lints
-        name: every crate inherits the workspace lints
+        name: every manifest inherits the workspace tables
         entry: python3 scripts/check_crate_lints.py
         language: system
-        files: '^(Cargo\.toml|crates/[^/]+/Cargo\.toml|scripts/check_crate_lints\.py)$'
+        files: '^(Cargo\.toml|crates/[^/]+/Cargo\.toml|tests/Cargo\.toml|scripts/check_crate_lints\.py)$'
         pass_filenames: false
 
       - id: check-subprocess-window

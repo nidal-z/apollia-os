@@ -314,9 +314,15 @@ jobs:
         run: python3 scripts/check_selftest.py
       # A rule in a document is not a gate. This one exists because the trap it
       # catches was invisible: five crates lost `unwrap_used = "deny"` by
-      # declaring a local [lints] table, and clippy kept passing.
-      - name: Every crate actually gets the workspace lints
-        run: python3 scripts/check_crate_lints.py
+      # declaring a local [lints] table, and clippy kept passing. It now also
+      # holds the [workspace.package] and [workspace.dependencies] inheritance
+      # that RUST-PATTERNS.md promises: 19 packages published without the MSRV
+      # the document announced, and 65 dependency versions lived outside the
+      # single source. The selftest replays every rule on an altered manifest.
+      - name: Every manifest actually gets the workspace tables
+        run: |
+          python3 scripts/check_crate_lints.py --selftest
+          python3 scripts/check_crate_lints.py
       # The mechanisable Rust rules of FORBIDDEN.md, each held at zero or on a
       # named two-sided ratchet. Before this guard, eighteen tracing format
       # strings and twelve wildcard re-exports sat green behind rules only a
