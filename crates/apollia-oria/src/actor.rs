@@ -653,6 +653,7 @@ impl ActorLoop {
     // REASON: batch execution dependencies (proxy, router, resilience) plus the
     // step set and accumulated outputs; the router is needed to resolve each
     // step's arguments before invocation.
+    // REASON: threads the actor's borrowed state through one execution pass; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn execute_tool_steps(
         &self,
@@ -765,6 +766,7 @@ impl ActorLoop {
     /// upstream still bounds the run.
     // REASON: argument resolution needs the step, its interpolated description,
     // the tool name, the schema source (proxy) and the model source (router).
+    // REASON: threads the actor's borrowed state through one step resolution; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn resolve_step_payload(
         &self,
@@ -840,6 +842,7 @@ impl ActorLoop {
     // REASON: cohesive execution dependencies (proxy, router, resilience) plus
     // the step context. A future consolidation may move the resilience layer
     // into the StepDeps bundle once the batch path needs it too.
+    // REASON: threads the actor's borrowed state through one step execution; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn execute_step(
         &self,
@@ -1173,6 +1176,7 @@ impl ActorLoop {
     // REASON: replanning needs the failed step, the error, accumulated outputs,
     // the execution deps and the resilience layer; the set is cohesive. A future
     // consolidation may move the resilience layer into the StepDeps bundle.
+    // REASON: threads the actor's borrowed state into the recursive replan future; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     fn replan_and_continue<'a>(
         &'a mut self,

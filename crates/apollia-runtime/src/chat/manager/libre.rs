@@ -220,6 +220,7 @@ pub(in crate::chat::manager) fn apply_libre_overrides(
 /// size of the exchange's last LLM call, i.e. the current context occupancy.
 /// Both feed the token-based context gauge; a `None` window is stored as `0` so
 /// the gauge renders as unknown rather than a misleading fill.
+// REASON: each argument is one metric of the exchange summary being accumulated.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::chat::manager) fn accumulate_exchange_metrics(
     entry: &mut SessionMetrics,

@@ -21,6 +21,7 @@ impl BuiltInChatAgent {
     ///
     /// - [`ChatError::BudgetExhausted`] if the step budget is exceeded
     /// - [`ChatError::InternalError`] for LLM backend failures
+    // REASON: public entry of the ReAct loop: the arguments are the session's live handles, threaded not owned.
     #[allow(clippy::too_many_arguments)]
     pub async fn execute(
         &self,
@@ -302,6 +303,7 @@ impl BuiltInChatAgent {
     ///
     /// - [`ChatError::BudgetExhausted`] if the step budget is exceeded.
     /// - [`ChatError::InternalError`] for LLM backend failures.
+    // REASON: threads the loop's borrowed state through one iteration; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn run_react_loop(
         &self,

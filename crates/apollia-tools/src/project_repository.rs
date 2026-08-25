@@ -418,6 +418,7 @@ impl ProjectRepository {
     /// If `provider_id` is `Some(id)` and a row with that id exists for this
     /// project, it is updated. Otherwise a new row is inserted with a fresh
     /// UUID. Returns the id of the row that was actually affected.
+    // REASON: each argument is one column of the provider row; the table schema is the struct.
     #[allow(clippy::too_many_arguments)]
     pub fn set_provider(
         &self,

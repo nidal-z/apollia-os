@@ -230,6 +230,7 @@ impl LlmProxy {
     /// Returns a Python awaitable resolving to `LlmResponse`.
     // The parameter list mirrors the Python-facing signature (backend + sampling
     // overrides); PyO3 requires them flat, so they cannot be grouped into a struct.
+    // REASON: mirrors the Python keyword signature of `ctx.llm.chat`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (system, user, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn chat<'py>(
@@ -310,6 +311,7 @@ impl LlmProxy {
     /// one per item: `{"index": int, "ok": bool, "text"?: str, "error"?: str,
     /// "usage"?: {...}}`. A single item failing never aborts the batch.
     // Flat parameters mirror the Python-facing signature (see `chat`).
+    // REASON: mirrors the Python keyword signature of `ctx.llm.map`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (prefix, items, *, backend = None, temperature = None, max_tokens = None, max_concurrency = None))]
     fn map<'py>(
@@ -408,6 +410,7 @@ impl LlmProxy {
     /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
     /// when left `None` the per-model defaults apply.
     // Flat parameters mirror the Python-facing signature (see `chat`).
+    // REASON: mirrors the Python keyword signature of `ctx.llm.complete`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn complete<'py>(
@@ -558,6 +561,7 @@ impl LlmProxy {
     ///     await ctx.emit_token(chunk)  # route to frontend
     /// ```
     // Flat parameters mirror the Python-facing signature (see `chat`).
+    // REASON: mirrors the Python keyword signature of `ctx.llm.stream`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn stream<'py>(

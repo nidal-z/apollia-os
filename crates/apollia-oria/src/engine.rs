@@ -871,6 +871,7 @@ impl ORIAEngine {
     ///
     /// The final verdict is emitted as [`RuntimeEvent::VerificationCompleted`] so it
     /// lands in the signed audit journal.
+    // REASON: threads the engine's borrowed state through the verification run; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn run_plan_with_verification(
         &self,
@@ -1181,6 +1182,7 @@ impl ORIAEngine {
     /// and replan to [`run_plan_with_verification`](Self::run_plan_with_verification).
     // Explicit dependency list for the cached-plan execution path; bundling
     // these into a struct would only relocate the argument list.
+    // REASON: threads the engine's borrowed state through the cached-plan run; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn execute_cached_plan(
         &self,
@@ -3124,6 +3126,7 @@ mod orchestrated_tests {
     /// Build an orchestrated engine whose single mock backend serves both planning
     /// and the critic, wired for the given tier and replan bound.
     // Test builder wiring many independent knobs; a struct adds no clarity here.
+    // REASON: test builder mirroring the production engine constructor, dependency by dependency.
     #[allow(clippy::too_many_arguments)]
     fn make_engine_with_critic(
         plan: String,

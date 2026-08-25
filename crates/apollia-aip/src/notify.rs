@@ -41,6 +41,7 @@ impl PyNotifyInterface {
     /// Raises ValueError for any other severity value.
     #[pyo3(signature = (message, *, severity = "info", title = None, channel = None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    // REASON: mirrors the Python keyword signature of `ctx.notify.publish`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     fn publish<'py>(
         &self,

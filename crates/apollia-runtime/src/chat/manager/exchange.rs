@@ -788,6 +788,7 @@ impl ChatSessionManager {
     // The session/message/tool-call/tool identifiers plus the decision map
     // one-to-one onto the resolve request; grouping them into a struct would
     // only add indirection.
+    // REASON: flattened fields of one resolve-tool message, handled in one place.
     #[allow(clippy::too_many_arguments)]
     pub(in crate::chat::manager) fn handle_resolve_tool(
         &mut self,

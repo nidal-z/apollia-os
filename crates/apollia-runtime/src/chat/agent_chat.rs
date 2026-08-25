@@ -180,6 +180,7 @@ impl AgentChatExecutor {
     }
 
     /// Process the AIPResult from the agent and produce a ChatAgentResponse.
+    // REASON: threads the runner's borrowed state through one result pass; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     async fn process_result(
         &self,

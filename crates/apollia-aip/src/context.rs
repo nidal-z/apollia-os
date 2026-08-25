@@ -1269,6 +1269,7 @@ impl RuntimeContext {
     ///
     /// The context never panics at construction: degradation is signaled, but
     /// the agent decides whether the absence of a capability is fatal.
+    // REASON: test constructor mirroring the production bridge wiring, handle by handle.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,

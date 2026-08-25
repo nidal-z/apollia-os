@@ -232,6 +232,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
     /// 4. Dispatch to the coordinator
     // Submit path threads several independent request fields; a struct would
     // just move the argument list.
+    // REASON: flattened fields of one submit message, handled in one place.
     #[allow(clippy::too_many_arguments)]
     async fn handle_submit(
         &mut self,

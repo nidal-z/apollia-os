@@ -523,6 +523,7 @@ pub async fn pause_chat_session(
 #[tauri::command]
 // Tauri command: the session/message/tool identifiers plus the decision, reason
 // and scope exceed 5 by design; they map one-to-one onto the IPC call.
+// REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 pub async fn authorize_chat_tool(
     state: State<'_, RuntimeHandle>,

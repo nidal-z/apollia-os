@@ -46,6 +46,7 @@ impl ChatSessionManagerHandle {
     ///
     /// `agent_runner` enables Chat Agent mode. When `None`,
     /// Agent mode sessions will return an error at message time.
+    // REASON: one-time actor spawn wiring every repository and handle the manager owns.
     #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         db_path: &Path,
@@ -274,6 +275,7 @@ impl ChatSessionManagerHandle {
     /// Resolve a pending tool approval.
     // Session/message/tool-call/tool identifiers plus the decision map one-to-one
     // onto the actor command; a struct would only add indirection.
+    // REASON: mirrors the resolve-tool message it builds, field by field.
     #[allow(clippy::too_many_arguments)]
     pub async fn resolve_tool(
         &self,

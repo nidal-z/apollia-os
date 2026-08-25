@@ -71,6 +71,7 @@ impl MemoryInterface {
     /// expires_in: lifetime in seconds; `None` = no expiration
     #[pyo3(signature = (content, *, importance=None, task_id=None, metadata=None, expires_in=None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    // REASON: mirrors the Python keyword signature of `ctx.memory.record`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     fn record<'py>(
         &self,
@@ -116,6 +117,7 @@ impl MemoryInterface {
     ///     is preserved (no overwrite).
     #[pyo3(signature = (key, value, *, source=None, confidence=None))]
     // pyo3-exposed method: the argument list mirrors the Python keyword API.
+    // REASON: mirrors the Python keyword signature of `ctx.memory.remember`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
     fn remember<'py>(
         &self,
@@ -602,6 +604,7 @@ fn record_injected_entry(
 // ---------------------------------------------------------------------------
 
 /// Records an episodic event in the agent's namespace.
+// REASON: shared worker behind the two pymethods above, taking their flattened keyword arguments.
 #[allow(clippy::too_many_arguments)]
 fn record_inner(
     manager: &Arc<Mutex<MemoryManager>>,

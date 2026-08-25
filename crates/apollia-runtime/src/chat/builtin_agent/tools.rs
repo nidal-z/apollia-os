@@ -9,6 +9,7 @@ impl BuiltInChatAgent {
     /// 0 on the first success, so the loop can derive an escalation signal.
     // Records one tool turn from its independent signals; grouping them into a
     // struct would obscure the call site.
+    // REASON: flattened fields of one tool turn, recorded into the same timeline row.
     #[allow(clippy::too_many_arguments)]
     pub(in crate::chat::builtin_agent) async fn record_tool_turn(
         &self,

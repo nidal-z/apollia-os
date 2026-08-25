@@ -422,6 +422,7 @@ pub async fn list_projects_for_agent(
 ///
 /// If `provider_id` is `Some`, updates the existing row; otherwise inserts a
 /// new row. Returns the id of the affected row.
+// REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn set_project_provider(

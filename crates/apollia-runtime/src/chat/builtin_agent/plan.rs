@@ -220,6 +220,7 @@ impl BuiltInChatAgent {
     // REASON: six borrowed parameters (handle, ids, call, two sinks, optional
     // injection) are each independent; bundling them into a struct would not
     // improve clarity, so the threshold is relaxed for this in-loop dispatcher.
+    // REASON: threads the exchange's borrowed state through one plan-tool turn; a struct would borrow the same fields.
     #[allow(clippy::too_many_arguments)]
     pub(in crate::chat::builtin_agent) async fn handle_plan_tool(
         plan: &PlanHandle,

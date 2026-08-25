@@ -308,6 +308,7 @@ fn scan_hitl_tasks(
 /// Entries older than `cutoff_str` are skipped.
 // Timeline builder helper: the row plus cutoff, ids, duration and the events
 // accumulator exceed 5 by design; a struct would not clarify this internal call.
+// REASON: internal helper pushing one transition row; the arguments are that row's columns.
 #[allow(clippy::too_many_arguments)]
 fn push_transition_event(
     tr: &serde_json::Value,

@@ -62,6 +62,7 @@ pub(in crate::chat::builtin_agent) fn correction_message(
 /// avoids capturing borrowed locals in the retry closure, which keeps the
 /// returned future `Send` for `tokio::spawn`. The second tuple element is the
 /// final state so the caller can recover the latest run's response.
+// REASON: generic retry driver: the arguments are the closures and bounds of one verification pass.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::chat::builtin_agent) async fn run_verification_with_retry<I, S, F, Fut>(
     autonomy: &AutonomyLevel,

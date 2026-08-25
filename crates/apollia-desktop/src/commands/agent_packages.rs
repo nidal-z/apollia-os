@@ -250,6 +250,7 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
 #[tauri::command]
 // Tauri command: the State<'_, _> injections plus the user-facing args push the
 // count past 5 by design; grouping them into a struct would only obscure the IPC signature.
+// REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 pub async fn install_agent_package(
     path: String,
@@ -707,6 +708,7 @@ async fn unregister_runtime_agents(
 /// disk. Non-fatal `remove_dir_all` failures are aggregated into `errors`.
 // Purge helper: the several disk roots plus the name/list/errors accumulator
 // exceed 5 args by design; a struct here would not clarify the call site.
+// REASON: internal helper taking the flattened uninstall context its one caller just computed.
 #[allow(clippy::too_many_arguments)]
 fn purge_uninstall_filesystem(
     root_path: &Path,

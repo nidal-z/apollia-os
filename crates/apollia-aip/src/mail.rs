@@ -58,6 +58,7 @@ impl MailInterface {
     /// Builds the interface from the shared handle, the caller identity, the
     /// caller's current run, the declared mailbox capability, the send gate, and
     /// the registry-backed directory for recipient validation.
+    // REASON: one-time constructor wiring every mail handle the bridge injects at agent boot.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox: Option<AgentMailboxHandle>,

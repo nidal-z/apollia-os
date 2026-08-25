@@ -339,6 +339,7 @@ impl ChatSessionRepository {
     }
 
     /// Persist a new chat session.
+    // REASON: each argument is one column of the session row; the table schema is the struct.
     #[allow(clippy::too_many_arguments)]
     pub fn create_session(
         &self,

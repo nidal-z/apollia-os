@@ -72,6 +72,7 @@ impl<'a> EpisodicMemory<'a> {
     ///
     /// Inserts into `episodic_memories` and into `memory_fts` (content indexed
     /// for full-text search).
+    // REASON: each argument is one column of the episodic row; the table schema is the struct.
     #[allow(clippy::too_many_arguments)]
     pub fn record(
         &self,

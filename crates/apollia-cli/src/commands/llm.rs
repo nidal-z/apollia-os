@@ -1352,6 +1352,7 @@ async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i3
 /// Builds the full payload expected by `POST /api/v1/llm/backends`
 /// (canonical provider + provider-specific config_json) instead of sending
 /// only the `kind/model` fields, which the runtime rejects with a 400.
+// REASON: each argument is one clap flag of `llm backends create`; the parser hands them over one by one.
 #[allow(clippy::too_many_arguments)]
 async fn run_backends_create(
     client: &RuntimeClient,
@@ -1441,6 +1442,7 @@ fn emit_backend_create_server_error(status: u16, body: &str, json: bool) -> i32 
 /// first reads the current state via `GET /api/v1/llm/backends/:name`, applies
 /// the provided flags in merge mode, then sends the full payload. This allows
 /// `--model X` without having to re-specify provider/config_json/enabled.
+// REASON: each argument is one clap flag of `llm backends update`; the parser hands them over one by one.
 #[allow(clippy::too_many_arguments)]
 async fn run_backends_update(
     client: &RuntimeClient,

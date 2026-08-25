@@ -727,6 +727,7 @@ pub async fn disable_agent(
 /// the stop and the start.
 // REASON: four of the six are Tauri-injected State, not a call signature an
 // author picks; splitting them into a bag would only hide the injection.
+// REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn update_agent(

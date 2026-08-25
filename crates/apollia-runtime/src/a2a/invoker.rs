@@ -339,6 +339,7 @@ impl A2AInvoker {
     ///
     /// - `parent_task_id`: identifier of the parent task that initiates the delegation.
     /// - Other arguments: same as [`invoke`].
+    // REASON: flattened invocation context of one A2A call; every argument feeds the same log record.
     #[allow(clippy::too_many_arguments)]
     pub async fn invoke_with_logging(
         &self,
