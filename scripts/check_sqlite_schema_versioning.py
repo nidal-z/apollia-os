@@ -44,9 +44,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # `open_versioned`, so the list only ever shrinks, toward zero. Adding an
 # entry here is the one thing this guard exists to refuse: a new store starts
 # versioned.
-EXEMPT_UNVERSIONED = {
-    "crates/apollia-desktop/src/commands/artifacts.rs",
-}
+EXEMPT_UNVERSIONED: set[str] = set()
 
 CREATE_RE = re.compile(
     r"CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)", re.I

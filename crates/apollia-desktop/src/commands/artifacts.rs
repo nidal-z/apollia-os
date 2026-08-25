@@ -59,6 +59,37 @@ pub struct SaveArtifactRequest {
 /// Process-wide connection guarded by a mutex (single-writer SQLite).
 static ARTIFACT_DB: Mutex<Option<Connection>> = Mutex::new(None);
 
+/// Current schema version of `artifacts.db`.
+const ARTIFACTS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `artifacts.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`ARTIFACTS_SCHEMA_VERSION`].
+const ARTIFACTS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS chat_artifacts (
+            id                 TEXT PRIMARY KEY,
+            session_id         TEXT NOT NULL,
+            source_message_id  TEXT,
+            kind               TEXT NOT NULL,
+            language           TEXT,
+            source_tool        TEXT,
+            title              TEXT NOT NULL,
+            content            TEXT NOT NULL,
+            created_at         TEXT NOT NULL,
+            updated_at         TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_artifacts_session
+            ON chat_artifacts(session_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_chat_artifacts_source_message
+            ON chat_artifacts(source_message_id);",
+    )
+}
+
 fn db_path() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
@@ -81,23 +112,11 @@ fn with_conn<R>(f: impl FnOnce(&Connection) -> Result<R, String>) -> Result<R, S
             Connection::open(&path).map_err(|e| format!("failed to open artifacts.db: {e}"))?;
         conn.execute_batch("PRAGMA journal_mode = WAL;")
             .map_err(|e| format!("WAL pragma failed: {e}"))?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS chat_artifacts (
-                id                 TEXT PRIMARY KEY,
-                session_id         TEXT NOT NULL,
-                source_message_id  TEXT,
-                kind               TEXT NOT NULL,
-                language           TEXT,
-                source_tool        TEXT,
-                title              TEXT NOT NULL,
-                content            TEXT NOT NULL,
-                created_at         TEXT NOT NULL,
-                updated_at         TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_chat_artifacts_session
-                ON chat_artifacts(session_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_chat_artifacts_source_message
-                ON chat_artifacts(source_message_id);",
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Artifacts.file_name(),
+            ARTIFACTS_SCHEMA_VERSION,
+            ARTIFACTS_MIGRATIONS,
         )
         .map_err(|e| format!("artifacts schema failed: {e}"))?;
         *guard = Some(conn);
