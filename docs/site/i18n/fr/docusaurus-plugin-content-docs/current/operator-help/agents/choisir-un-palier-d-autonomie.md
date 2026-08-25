@@ -73,7 +73,7 @@ Après le lancement, les premières lignes de log de la tâche indiquent le pali
 autonomy.level=supervised agent=mon-agent "autonomy.activated"
 ```
 
-Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent logs mon-agent --follow`.
+Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent logs mon-agent --last 20`.
 
 ## Si ca ne marche pas
 

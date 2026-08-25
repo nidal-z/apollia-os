@@ -69,7 +69,7 @@ Pour un serveur MCP que vous enregistrez, l'approbation se règle par serveur
 ou par outil :
 
 ```sh
-apollia-os mcp add my-product https://example.internal/mcp --require-approval
+apollia-os mcp add my-product --url https://example.internal/mcp --require-approval
 apollia-os mcp set-approval my-product write_record
 apollia-os mcp list-pending
 ```

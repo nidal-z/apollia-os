@@ -150,7 +150,7 @@ de code sans règle correspondante demande une personne à chaque invocation.
 <!-- claim:permission-decision-is-not-recorded -->
 La décision de permission elle-même n'est écrite nulle part. Rien, dans un
 binaire livré, n'écrit dans la table `permission_audit` : elle est lue par
-`apollia permissions audit` et par la vue d'audit du bureau, et par rien
+`apollia-os permissions audit` et par la vue d'audit du bureau, et par rien
 d'autre. Ce qui est enregistré, c'est l'invocation : `tool_invocations` retient
 ce qui a tourné, pas qui l'a autorisé.
 

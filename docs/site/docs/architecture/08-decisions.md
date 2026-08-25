@@ -138,7 +138,7 @@ asks a person on every invocation.
 <!-- claim:permission-decision-is-not-recorded -->
 The permission decision itself is not written anywhere. Nothing in a shipped
 binary writes to the `permission_audit` table; it is read by
-`apollia permissions audit` and by the desktop audit view, and by nothing else.
+`apollia-os permissions audit` and by the desktop audit view, and by nothing else.
 What is recorded is the invocation: `tool_invocations` holds what ran, not who
 allowed it.
 

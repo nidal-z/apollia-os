@@ -72,7 +72,7 @@ After launch, the first log lines of the task show the active level:
 autonomy.level=supervised agent=my-agent "autonomy.activated"
 ```
 
-Open the logs from the agent detail panel or with `apollia-os agent logs my-agent --follow`.
+Open the logs from the agent detail panel or with `apollia-os agent logs my-agent --last 20`.
 
 ## If it does not work
 

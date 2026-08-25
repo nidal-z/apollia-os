@@ -13,14 +13,14 @@ releases.
 ## 1. Command shape
 
 the canonical taxonomy below. Every command is
-`apollia <noun> <verb> [args]`, EXCEPT the bare-verb whitelist below.
+`apollia-os <noun> <verb> [args]`, EXCEPT the bare-verb whitelist below.
 
 ```
-apollia agent list
-apollia agent show <id>
-apollia agent create <name>
-apollia mcp add <name> <url>
-apollia task list --pending-approval
+apollia-os agent list
+apollia-os agent show <id>
+apollia-os agent create <name>
+apollia-os mcp add <name> --url <url>
+apollia-os task list --pending-approval
 ```
 
 **Canonical verbs.** One verb per intent:

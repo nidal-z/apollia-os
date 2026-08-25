@@ -20,7 +20,7 @@ Avant de continuer, demandez-vous :
 
 ## Étape 1 - Sauvegarder ce qui compte (recommandé)
 
-1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace> --output <fichier>` pour exporter la mémoire de chaque agent. Réimport ensuite avec `apollia-os memory import <namespace> --input <fichier>`.
+1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace> --output <fichier>` pour exporter la mémoire de chaque agent. Réimport ensuite avec `apollia-os memory import --namespace <namespace> --input <fichier>`.
 2. **Transcriptions :** ouvrez **Transcriptions** *(mode Builder)* et notez les transcriptions importantes.
 3. **Liste de vos agents et connexions :** prenez une capture d'écran ou notez les noms : vous devrez les réinstaller manuellement après le reset.
 
@@ -46,7 +46,7 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
 3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) - la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un modele distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
 4. Une fois le parcours terminé, réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
-5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import <namespace> --input <fichier>`.
+5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --namespace <namespace> --input <fichier>`.
 
 ## Si quelque chose se passe mal
 

@@ -60,7 +60,7 @@ human in the loop on those.
 For an MCP server you register, approval is per server or per tool:
 
 ```sh
-apollia-os mcp add my-product https://example.internal/mcp --require-approval
+apollia-os mcp add my-product --url https://example.internal/mcp --require-approval
 apollia-os mcp set-approval my-product write_record
 apollia-os mcp list-pending
 ```
