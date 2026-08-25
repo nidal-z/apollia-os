@@ -233,6 +233,10 @@ jobs:
         run: |
           python3 scripts/check_cli_e2e_coverage.py --selftest
           python3 scripts/check_cli_e2e_coverage.py
+      - name: JSON error envelope and exit-code contract
+        run: |
+          python3 scripts/check_cli_json_contract.py --selftest
+          python3 scripts/check_cli_json_contract.py
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report
