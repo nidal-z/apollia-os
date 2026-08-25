@@ -174,8 +174,22 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 2
 fi
 
-if ! docker info >/dev/null 2>&1; then
-    echo "ERROR: the Docker daemon does not answer, nothing was measured." >&2
+# The probe is bounded: the daemon can be present and mute, and on this
+# machine `docker info` has hung past two minutes with com.docker.backend
+# alive. Unbounded, the recipe holds the terminal without a verdict, which
+# reads as a measure in progress. Crossing the boundary is exit 2, the same
+# "nothing was measured" a missing daemon answers. `timeout` is preferred
+# when the host has one; perl ships on every host this script supports.
+docker_daemon_answers() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 60 docker info >/dev/null 2>&1
+    else
+        perl -e 'alarm 60; exec @ARGV' docker info >/dev/null 2>&1
+    fi
+}
+
+if ! docker_daemon_answers; then
+    echo "ERROR: the Docker daemon did not answer within 60 s, nothing was measured." >&2
     echo "       Start Docker Desktop, wait until it reports running, then run" >&2
     echo "       this again. It has already needed a force quit and a relaunch" >&2
     echo "       on this machine before it answered." >&2
