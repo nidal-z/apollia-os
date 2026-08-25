@@ -95,4 +95,4 @@ la raison. Le tableau complet se trouve dans
 
 Les décisions qui encadrent cela sont [le modèle de permissions](/architecture/decisions#permission-model),
 [l'humain dans la boucle](/architecture/decisions#human-in-the-loop), et [secrets et
-authentification API).
+authentification API](/architecture/decisions#secrets-and-api-auth).

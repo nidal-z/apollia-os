@@ -116,12 +116,26 @@ The number and nature of the cards offered depend on your earlier choices:
 
 | Your choices | Suggested rules |
 |---|---|
-| Sovereignty `Strictly local` | `deny http_fetch https://` and `http://` (global) - blocks all network egress |
+| Sovereignty `Strictly local` | `deny http_fetch https://` and `http://` (global) - only reaches `http_fetch` |
 | Sovereignty `Local preferred` | `deny http_fetch` on `api.openai.com` and `api.anthropic.com` (global) - blocks cloud LLMs by default |
 | Sovereignty `Cloud allowed` | no network rule |
 | Supervision `Critical only` or `Never` | `allow file_read` (global) - reduces friction on read actions |
 | Supervision `Always confirm` | no allow rule - every sensitive action will raise an approval card |
 | Integrations ticked (GitHub, Slack, Notion, Gmail) | `allow http_fetch` on the matching API (global) |
+
+:::caution What sovereignty covers, and what it does not
+
+The rules suggested here are permission rules on `http_fetch`, and that is
+the only tool they reach. `Strictly local` is therefore not a network
+cut-off for the machine.
+
+Whatever the setting, these stay open: `web_search` and `web_read`, MCP
+servers joined over HTTP, a remote model backend you may have configured,
+and any outbound command launched by `bash_executor`, `curl` for example.
+If you need a real cut-off, it belongs at the system level, firewall or
+network namespace, not in this profile.
+
+:::
 
 ![Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com and api.anthropic.com, allow file_read, Dismiss and Apply buttons on each card](/img/operator-help/installation-configurer-votre-profil-6.png)
 
