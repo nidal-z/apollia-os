@@ -15,7 +15,7 @@
 # Job final `release` agrège tout dans une GitHub Release draft (review manuel
 # avant publication).
 #
-# Wall-clock cold : ~35-40 min · warm cache : ~20 min. Cf. BUILD.md.
+# Wall-clock cold : ~35-40 min · warm cache : ~20 min.
 
 name: Release
 
@@ -89,11 +89,11 @@ jobs:
           {
             "include": [
               {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal", "archive":"tar.gz"},
-              {"preset":"linux-x86-cpu",      "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
+              {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
               {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true,   "allow_fail":true},
-              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true, "allow_fail":true},
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true,   "allow_fail":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true, "allow_fail":true},
               {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz", "allow_fail":true},
               {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true,   "allow_fail":true},
               {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip",    "needs_cuda":true,   "allow_fail":true},
@@ -162,7 +162,7 @@ jobs:
       # ── GPU SDK install (only if matrix says so) ──────────────────────────
       # CUDA Linux x86 : sub-packages minimaux suffisent (CMake trouve nvcc + libs).
       - name: Install CUDA Toolkit (Linux x86)
-        if: matrix.needs_cuda && matrix.runner == 'ubuntu-22.04'
+        if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04'
         uses: Jimver/cuda-toolkit@9b295696791d75d658d8de64c4a85097ad8abeaf # v0.2.16
         with:
           cuda: '12.4.0'
@@ -186,8 +186,15 @@ jobs:
       - name: Install CUDA aarch64 (Jetson SBSA)
         if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04-arm'
         run: |
-          wget -q https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda-repo-ubuntu2204-12-4-local_12.4.0-550.54.14-1_arm64.deb -O /tmp/cuda.deb || true
-          sudo dpkg -i /tmp/cuda.deb || true
+          # The toolchain installer runs on the host that produces artifacts
+          # later signed by cosign, so its integrity is pinned. The sha256 is
+          # computed from the archive at this URL, whose md5 matches the value
+          # NVIDIA publishes (docs/sidebar/md5sum.txt:
+          # 60899beff4a21e54b5e1057d7cf7dbd9).
+          CUDA_DEB_SHA256=4bf5241c91f8af8d73c974d30142eac053e71278bbe7cbe748c998dd4e5b42fc
+          wget -q https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda-repo-ubuntu2204-12-4-local_12.4.0-550.54.14-1_arm64.deb -O /tmp/cuda.deb
+          echo "${CUDA_DEB_SHA256}  /tmp/cuda.deb" | sha256sum -c -
+          sudo dpkg -i /tmp/cuda.deb
           sudo cp /var/cuda-repo-*/cuda-*-keyring.gpg /usr/share/keyrings/ || true
           sudo apt-get update -q
           sudo apt-get install -y cuda-toolkit-12-4 || echo "::warning::CUDA aarch64 install failed (L4T only)"
@@ -211,8 +218,16 @@ jobs:
         if: matrix.needs_rocm && startsWith(matrix.runner, 'windows')
         shell: pwsh
         run: |
+          # Same integrity rule as the CUDA installer above: verified before
+          # execution, sha256 computed from the archive at this URL (AMD
+          # publishes no digest for it).
           $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe"
+          $expected = "e27223f1c01b8f0f04abca18560aa2b236d4299a2ef37df014b48dead2b6a650"
           Invoke-WebRequest -Uri $url -OutFile hip-installer.exe -UseBasicParsing
+          $actual = (Get-FileHash hip-installer.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "hip-installer.exe sha256 mismatch: expected $expected, got $actual"
+          }
           Start-Process -FilePath ".\hip-installer.exe" -ArgumentList "-install","-quiet" -Wait
           echo "HIP_PATH=C:\Program Files\AMD\ROCm\6.1" >> $env:GITHUB_ENV
           echo "C:\Program Files\AMD\ROCm\6.1\bin" >> $env:GITHUB_PATH
@@ -222,7 +237,7 @@ jobs:
         run: |
           wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | \
             sudo gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
-          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan/1.3.290 jammy main" | \
+          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan/1.3.290 noble main" | \
             sudo tee /etc/apt/sources.list.d/vulkan.list
           sudo apt-get update -q
           sudo apt-get install -y vulkan-sdk
@@ -231,8 +246,15 @@ jobs:
         if: matrix.needs_vulkan && startsWith(matrix.runner, 'windows')
         shell: pwsh
         run: |
+          # Same integrity rule as the CUDA installer above: verified before
+          # execution, sha256 computed from the archive at this URL.
           $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
+          $expected = "0ba0392a78157b82354157c5c988d74ddc6bc15573cc9c8653aa60245355fe8a"
           Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe -UseBasicParsing
+          $actual = (Get-FileHash VulkanSDK.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "VulkanSDK.exe sha256 mismatch: expected $expected, got $actual"
+          }
           Start-Process -FilePath ".\VulkanSDK.exe" -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install" -Wait
           $sdk = "C:\VulkanSDK\1.3.290.0"
           echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
@@ -410,7 +432,7 @@ jobs:
     runs-on: macos-latest
     env:
       APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
@@ -439,71 +461,74 @@ jobs:
           ./packaging/build-python-bundle.sh aarch64-apple-darwin \
             target/python-bundle/aarch64-apple-darwin
 
-      - name: Build Tauri app
-        working-directory: crates/apollia-desktop
+      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
+      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
+      # with the secret it emits updater artifacts, without it it builds with
+      # createUpdaterArtifacts=false and the run summary says so. Configuring
+      # the secret stays a human act.
+      - name: Guard the updater signing key
+        shell: bash
         env:
-          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13
-          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/lib
-          APOLLIA_DESKTOP_RUNNERS: "cpu metal"
-        run: cargo tauri build --target aarch64-apple-darwin
-
-      - name: Post-bundle (install_names + ad-hoc sign)
-        working-directory: crates/apollia-desktop
-        env:
-          TAURI_TARGET_TRIPLE: aarch64-apple-darwin
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          bash scripts/after-bundle.sh
-          APP="../../target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
-          codesign --force --deep --sign - \
-            --options runtime \
-            --entitlements entitlements.plist \
-            "$APP"
-          codesign --verify --verbose=2 "$APP" || true
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
+            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+          fi
 
-      # ── Apple Developer ID signing + notarization (gated by secrets) ────────
-      # Reste no-op si les secrets ne sont pas configurés ; permet une release
-      # interne non-signée pour les tests internes avant achat du cert Apple.
-      - name: Apple Developer ID sign + notarize (if secrets present)
-        if: env.APPLE_SIGNING_IDENTITY != '' && env.APPLE_API_KEY != ''
+      # Tauri reads the APPLE_* variables itself: it imports the certificate
+      # into a temporary keychain, signs the .app (hardened runtime and
+      # entitlements from tauri.conf.json), then notarizes and staples it,
+      # all BEFORE the .dmg is sealed from that .app. The previous shape
+      # re-signed the .app on disk after the build, so the sealed .dmg kept
+      # the ad hoc payload and notarization could only refuse it.
+      - name: Prepare Apple Developer ID signing (if secrets present)
+        if: env.APPLE_SIGNING_IDENTITY != '' && env.APPLE_API_KEY_P8_BASE64 != ''
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          set -e
-          KEYCHAIN=apollia-build.keychain
-          security create-keychain -p "" "$KEYCHAIN"
-          security default-keychain -s "$KEYCHAIN"
-          security unlock-keychain -p "" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          echo "$APPLE_CERT_P12_BASE64" | base64 -d > /tmp/cert.p12
-          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" \
-            -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+          echo "$APPLE_API_KEY_P8_BASE64" | base64 -d > "$RUNNER_TEMP/AuthKey.p8"
+          {
+            echo "APPLE_CERTIFICATE=$APPLE_CERT_P12_BASE64"
+            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERT_PASSWORD"
+            echo "APPLE_API_KEY=$APPLE_API_KEY_ID"
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8"
+          } >> "$GITHUB_ENV"
 
-          APP="target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
-          codesign --force --deep --options runtime \
-            --entitlements crates/apollia-desktop/entitlements.plist \
-            --sign "$APPLE_SIGNING_IDENTITY" \
-            --timestamp \
-            "$APP"
-          codesign --verify --verbose=2 "$APP"
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        env:
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13
+          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/lib
+          APOLLIA_DESKTOP_RUNNERS: "cpu metal"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          PATCH="${TAURI_BUNDLE_CONFIG:-}"
+          if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            # tauri.conf.json pins the ad hoc identity "-"; a merge-patch null
+            # hands the choice back to APPLE_SIGNING_IDENTITY.
+            [ -n "$PATCH" ] || PATCH='{}'
+            PATCH=$(jq -c '.bundle.macOS.signingIdentity = null' <<<"$PATCH")
+          fi
+          if [ -n "$PATCH" ]; then
+            cargo tauri build --target aarch64-apple-darwin --config "$PATCH"
+          else
+            cargo tauri build --target aarch64-apple-darwin
+          fi
 
-          DMG=$(ls target/aarch64-apple-darwin/release/bundle/dmg/*.dmg | head -1)
-          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG"
-
-          echo "$APPLE_API_KEY" | base64 -d > /tmp/AuthKey.p8
-          xcrun notarytool submit "$DMG" \
-            --key /tmp/AuthKey.p8 \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER" \
-            --wait
-          xcrun stapler staple "$DMG"
-
-      - name: SHA256SUMS
-        working-directory: target/aarch64-apple-darwin/release/bundle/dmg
-        run: shasum -a 256 *.dmg > SHA256SUMS
+      # The libpython relocation runs before bundling (beforeBundleCommand,
+      # scripts/patch-prebundle-libpython.sh), so what Tauri signs is what the
+      # .dmg carries. This verification renders a verdict: no `|| true`.
+      - name: Verify the .app signature
+        run: |
+          codesign --verify --verbose=2 \
+            "target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -526,7 +551,6 @@ jobs:
           name: apollia-desktop-macos-arm64-dmg
           path: |
             target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.cdx.json
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.spdx.json
           if-no-files-found: error
@@ -539,11 +563,9 @@ jobs:
     name: Desktop Linux (x86_64)
     needs: setup
     if: needs.setup.outputs.run_desktop == 'true'
-    # Pin sur 22.04 (jammy) pour cohérence avec les CLI Linux : webkit2gtk-4.1
-    # est dispo sur noble mais on garde une base unique pour les builds.
-    runs-on: ubuntu-22.04
-    env:
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+    # Pinned to 24.04 (noble), the same base as the Linux CLI builds; GitHub
+    # retires the 22.04 image on 2026-09-17.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
@@ -588,40 +610,54 @@ jobs:
           ./packaging/build-python-bundle.sh x86_64-unknown-linux-gnu \
             target/python-bundle/x86_64-unknown-linux-gnu
 
+      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
+      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
+      # with the secret it emits updater artifacts, without it it builds with
+      # createUpdaterArtifacts=false and the run summary says so. Configuring
+      # the secret stays a human act.
+      - name: Guard the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
+            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+          fi
+
       - name: Build Tauri app
         working-directory: crates/apollia-desktop
         env:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
           RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
           APOLLIA_DESKTOP_RUNNERS: "cpu"
-        run: cargo tauri build --target x86_64-unknown-linux-gnu
-
-      - name: SHA256SUMS
-        working-directory: target/x86_64-unknown-linux-gnu/release/bundle
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          set -e
-          shasum -a 256 deb/*.deb appimage/*.AppImage 2>/dev/null > SHA256SUMS || true
-          cat SHA256SUMS
+          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
+            cargo tauri build --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
+          else
+            cargo tauri build --target x86_64-unknown-linux-gnu
+          fi
 
-      # ── GPG sign SHA256SUMS (gated by secrets) ──────────────────────────────
-      - name: GPG-sign SHA256SUMS (if key present)
-        if: env.GPG_PRIVATE_KEY != ''
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        working-directory: target/x86_64-unknown-linux-gnu/release/bundle
+      # Flat staging: actions/upload-artifact roots the artifact at the
+      # longest common ancestor of its paths, so uploading deb/*.deb and
+      # appimage/*.AppImage as-is buries the installers in sub-folders the
+      # release job's flat globs never see. An unmatched glob here fails the
+      # copy, loudly.
+      - name: Collect installers (flat paths)
         run: |
-          set -e
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
-            --pinentry-mode loopback \
-            --detach-sign --armor --output SHA256SUMS.asc SHA256SUMS
+          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
+          mkdir -p "$BUNDLE/dist"
+          cp "$BUNDLE"/deb/*.deb "$BUNDLE"/appimage/*.AppImage "$BUNDLE/dist/"
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: target/x86_64-unknown-linux-gnu/release/bundle
           format: cyclonedx-json
-          output-file: target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.cdx.json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.cdx.json
           upload-artifact: false
 
       - name: Generate SBOM (SPDX)
@@ -629,19 +665,13 @@ jobs:
         with:
           path: target/x86_64-unknown-linux-gnu/release/bundle
           format: spdx-json
-          output-file: target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.spdx.json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.spdx.json
           upload-artifact: false
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-desktop-linux-x86_64
-          path: |
-            target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
-            target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
-            target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS
-            target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS.asc
-            target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.cdx.json
-            target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.spdx.json
+          path: target/x86_64-unknown-linux-gnu/release/bundle/dist/*
           if-no-files-found: error
           retention-days: 30
 
@@ -688,6 +718,22 @@ jobs:
           ./packaging/build-python-bundle.sh x86_64-pc-windows-msvc \
             target/python-bundle/x86_64-pc-windows-msvc
 
+      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
+      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
+      # with the secret it emits updater artifacts, without it it builds with
+      # createUpdaterArtifacts=false and the run summary says so. Configuring
+      # the secret stays a human act.
+      - name: Guard the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
+            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+          fi
+
       - name: Build Tauri app
         working-directory: crates/apollia-desktop
         shell: bash
@@ -695,7 +741,14 @@ jobs:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
           APOLLIA_DESKTOP_RUNNERS: "cpu"
-        run: cargo tauri build --target x86_64-pc-windows-msvc
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
+            cargo tauri build --target x86_64-pc-windows-msvc --config "$TAURI_BUNDLE_CONFIG"
+          else
+            cargo tauri build --target x86_64-pc-windows-msvc
+          fi
 
       # ── Code-signing avec signtool (gated by secrets) ──────────────────────
       # Le cert PFX est passé en base64, signé via signtool de Windows SDK
@@ -721,26 +774,24 @@ jobs:
               & $signtool verify /pa $t.FullName
           }
 
-      - name: SHA256SUMS
-        working-directory: target/x86_64-pc-windows-msvc/release/bundle
+      # Flat staging, same reason as the Linux job: keep the installers out
+      # of msi/ and nsis/ sub-folders the release job's flat globs never see.
+      # GitHub's pwsh shell runs with $ErrorActionPreference = 'Stop', so an
+      # unmatched glob fails the step.
+      - name: Collect installers (flat paths)
         shell: pwsh
         run: |
-          $files = @()
-          if (Test-Path msi) { $files += Get-ChildItem msi/*.msi }
-          if (Test-Path nsis) { $files += Get-ChildItem nsis/*.exe }
-          $lines = $files | ForEach-Object {
-              $h = (Get-FileHash $_ -Algorithm SHA256).Hash
-              "$h  $($_.Name)"
-          }
-          $lines | Out-File SHA256SUMS -Encoding ASCII
-          Get-Content SHA256SUMS
+          $bundle = "target/x86_64-pc-windows-msvc/release/bundle"
+          New-Item -ItemType Directory -Force -Path "$bundle/dist" | Out-Null
+          Copy-Item "$bundle/msi/*.msi" "$bundle/dist/"
+          Copy-Item "$bundle/nsis/*.exe" "$bundle/dist/"
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: target/x86_64-pc-windows-msvc/release/bundle
           format: cyclonedx-json
-          output-file: target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.cdx.json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-x86_64.cdx.json
           upload-artifact: false
 
       - name: Generate SBOM (SPDX)
@@ -748,18 +799,13 @@ jobs:
         with:
           path: target/x86_64-pc-windows-msvc/release/bundle
           format: spdx-json
-          output-file: target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.spdx.json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-x86_64.spdx.json
           upload-artifact: false
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-desktop-windows-x86_64
-          path: |
-            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            target/x86_64-pc-windows-msvc/release/bundle/SHA256SUMS
-            target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.cdx.json
-            target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.spdx.json
+          path: target/x86_64-pc-windows-msvc/release/bundle/dist/*
           if-no-files-found: error
           retention-days: 30
 
@@ -769,15 +815,15 @@ jobs:
   release:
     name: Publish GitHub Release (draft)
     needs: [cli, desktop-macos, desktop-linux, desktop-windows]
-    # `always()` so a tag still produces a reviewable draft when one platform
-    # fails. The alternative, which is what the workflow did before, is that a
-    # single failing desktop job discards every artifact the others produced and
-    # the tag yields nothing at all. The draft is never auto-published: the
-    # "Report coverage" step below states which platforms are present, and the
-    # reviewer decides whether the set is publishable. An empty artifact set
-    # still fails, so this cannot publish a hollow release.
-    if: always() && startsWith(github.ref, 'refs/tags/v')
+    # No `always()`: a missing installer is a broken release, not something a
+    # reviewer discovers after the draft exists. When one platform fails, fix
+    # it or re-run the failed job; the three blocking presets and three
+    # desktop jobs are the contract a tag promises. The draft itself is never
+    # auto-published.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    env:
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     permissions:
       contents: write # publish the release draft
       id-token: write # cosign keyless OIDC + provenance
@@ -793,9 +839,9 @@ jobs:
       - name: List artifacts
         run: ls -lh artifacts/
 
-      # Refuse an empty draft, and say plainly which platforms made it. A release
-      # missing an installer is a decision for the reviewer, not something to
-      # discover after publishing.
+      # Say plainly which platforms made it, and refuse an empty set outright.
+      # The job only runs when every producing job succeeded, so a missing
+      # family here means an upload contract broke, not a failed build.
       - name: Report coverage and refuse an empty draft
         run: |
           shopt -s nullglob
@@ -821,6 +867,29 @@ jobs:
             echo "::warning::this draft does not cover every supported platform, \
                   review before publishing"
           fi
+
+      # One SHA256SUMS covering every artifact. The three per-job files of the
+      # previous shape were homonyms: merged into one directory, two of the
+      # three were silently overwritten.
+      - name: SHA256SUMS
+        working-directory: artifacts
+        run: |
+          # NUL-separated: the tauri-bundler artifact names carry a space
+          # ("Apollia OS_...").
+          find . -maxdepth 1 -type f -printf '%f\0' | sort -z | \
+            xargs -0 shasum -a 256 > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: GPG-sign SHA256SUMS (if key present)
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        working-directory: artifacts
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+            --pinentry-mode loopback \
+            --detach-sign --armor --output SHA256SUMS.asc SHA256SUMS
 
       # ── Cryptographic signing (cosign keyless, Sigstore OIDC) ───────────────
       # Every published file gets a detached .sig + the signing .pem certificate.
@@ -875,11 +944,11 @@ jobs:
             artifacts/*.AppImage
             artifacts/*.msi
             artifacts/*.exe
-            artifacts/SHA256SUMS
+            artifacts/SHA256SUMS*
             artifacts/*.cdx.json
             artifacts/*.spdx.json
             artifacts/*.sig
             artifacts/*.pem
           draft: true
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
