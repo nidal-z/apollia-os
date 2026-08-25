@@ -180,6 +180,11 @@ jobs:
         run: cargo build -p apollia-cli
       - name: Seed builder self-test
         run: bash tests/cli/seed/self-test.sh
+      # Lives here and not in prose-guard because its subject is the built
+      # binary: it replays every documented command line of the entry documents
+      # against target/debug/apollia-os, which the step above just produced.
+      - name: Documented command lines are accepted by the binary
+        run: python3 scripts/check_entry_doc_commands.py
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report
@@ -206,6 +211,18 @@ jobs:
       - name: Run Vitest
         working-directory: crates/apollia-desktop/ui
         run: npm test
+      # The three verdicts below existed only as npm scripts an operator types:
+      # a frontend that does not build, a type error, or an i18n key missing in
+      # one locale all crossed this boundary unjudged.
+      - name: Build the frontend
+        working-directory: crates/apollia-desktop/ui
+        run: npm run build
+      - name: Type check (svelte-check, errors only)
+        working-directory: crates/apollia-desktop/ui
+        run: npx svelte-check --threshold error
+      - name: i18n catalogue audit
+        working-directory: crates/apollia-desktop/ui
+        run: npm run audit:i18n
 
   # ── Security / dependencies ──────────────────────────────────────────────
   deny:
@@ -328,6 +345,22 @@ jobs:
       # pages, five sections in two locales, were in that state.
       - name: Every documentation index page owns its route
         run: python3 scripts/check_docs_routes.py
+      # The four guards below were launched by `just guards` alone, so a defect
+      # born in a PR crossed this boundary unjudged. They are static sweeps of
+      # tracked files, which is exactly what this job can judge on a bare
+      # checkout. Two guards of the same corpus stay local on purpose:
+      # check_guard_verdicts.py and check_instrument_verdicts.py measure
+      # install artefacts (node_modules, built binaries) and macOS codesign,
+      # and both exit non-zero by design when a subject is absent, so a runner
+      # without a development machine can only report their zero coverage.
+      - name: Every emitted custom event has a listener
+        run: python3 scripts/check_custom_event_listeners.py
+      - name: Documentation frontmatter is well formed
+        run: python3 scripts/check_docs_frontmatter.py
+      - name: The i18n catalogue is complete in both locales
+        run: python3 scripts/check_i18n_catalogue.py
+      - name: No production panic path escapes the lint
+        run: python3 scripts/check_panic_free.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:
