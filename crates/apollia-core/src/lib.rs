@@ -36,6 +36,7 @@ pub mod result;
 pub mod retry_attempt;
 pub mod review;
 pub mod sandbox;
+pub mod schema;
 pub mod security_posture;
 pub mod session_metrics;
 pub mod stt_config;

@@ -16,10 +16,139 @@
 //! deprecated. Callers that genuinely cannot proceed without a home directory
 //! should surface the `None`, not invent a path.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Name of the runtime's directory inside the user's home.
 pub const DATA_DIR_NAME: &str = ".apollia";
+
+/// Name of the legacy permission store, kept only so [`DataFile::Governance`]
+/// openers can migrate it. Nothing creates a file under this name any more.
+pub const LEGACY_PERMISSIONS_DB_NAME: &str = "permissions.db";
+
+/// One database at the root of the data directory.
+///
+/// This catalogue is the single source for the layout of the databases under
+/// `~/.apollia`. Every module resolves its database file through it, the CLI
+/// seed fixture keeps one schema per entry, and `scripts/check_data_layout.py`
+/// refuses a database-name literal outside this file. A new database starts by
+/// adding a variant here; the guard then walks the seed into agreement.
+///
+/// Per-namespace memory stores (`memory/<namespace>.db`) are the one family
+/// not listed: their names are data, not layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DataFile {
+    /// Installed-agents inventory.
+    Agents,
+    /// Chat artifacts produced by sessions.
+    Artifacts,
+    /// Tool-invocation audit log.
+    Audit,
+    /// Hash-chained audit journal.
+    AuditJournal,
+    /// Chat sessions, messages and approvals.
+    Chat,
+    /// Consolidated tool and permission governance store.
+    Governance,
+    /// Human-in-the-loop tasks and notification log.
+    Hitl,
+    /// Per-call LLM usage log.
+    LlmCalls,
+    /// Inter-agent mailbox.
+    Mailbox,
+    /// MCP server registry and approvals cache.
+    Mcp,
+    /// MCP tool-approval decisions.
+    McpApprovals,
+    /// Notification channels and delivery log.
+    Notifications,
+    /// ORIA plan cache.
+    PlanCache,
+    /// Execution plans and steps.
+    Plans,
+    /// Projects, documents and providers.
+    Projects,
+    /// Persisted runtime events (observability).
+    RuntimeEvents,
+    /// A2A task sidechains.
+    Sidechains,
+    /// Dictation transcription history.
+    SttTranscriptions,
+    /// System-wide settings (LLM backends, STT configuration).
+    System,
+    /// Filesystem and cron trigger state.
+    Triggers,
+    /// Trigger definitions.
+    TriggersDef,
+    /// User-level memory store.
+    UserMemory,
+}
+
+impl DataFile {
+    /// Every root database, one entry per file the product creates.
+    ///
+    /// The seed fixture (`tests/cli/seed/schemas/`) carries one schema per
+    /// entry, and `scripts/check_data_layout.py` holds the two lists equal.
+    pub const ALL: [DataFile; 22] = [
+        DataFile::Agents,
+        DataFile::Artifacts,
+        DataFile::Audit,
+        DataFile::AuditJournal,
+        DataFile::Chat,
+        DataFile::Governance,
+        DataFile::Hitl,
+        DataFile::LlmCalls,
+        DataFile::Mailbox,
+        DataFile::Mcp,
+        DataFile::McpApprovals,
+        DataFile::Notifications,
+        DataFile::PlanCache,
+        DataFile::Plans,
+        DataFile::Projects,
+        DataFile::RuntimeEvents,
+        DataFile::Sidechains,
+        DataFile::SttTranscriptions,
+        DataFile::System,
+        DataFile::Triggers,
+        DataFile::TriggersDef,
+        DataFile::UserMemory,
+    ];
+
+    /// Base name of the database file at the root of the data directory.
+    #[must_use]
+    pub const fn file_name(self) -> &'static str {
+        match self {
+            DataFile::Agents => "agents.db",
+            DataFile::Artifacts => "artifacts.db",
+            DataFile::Audit => "audit.db",
+            DataFile::AuditJournal => "audit_journal.db",
+            DataFile::Chat => "chat.db",
+            DataFile::Governance => "governance.db",
+            DataFile::Hitl => "hitl.db",
+            DataFile::LlmCalls => "llm_calls.db",
+            DataFile::Mailbox => "mailbox.db",
+            DataFile::Mcp => "mcp.db",
+            DataFile::McpApprovals => "mcp_approvals.db",
+            DataFile::Notifications => "notifications.db",
+            DataFile::PlanCache => "plan_cache.db",
+            DataFile::Plans => "plans.db",
+            DataFile::Projects => "projects.db",
+            DataFile::RuntimeEvents => "runtime_events.db",
+            DataFile::Sidechains => "sidechains.db",
+            DataFile::SttTranscriptions => "stt_transcriptions.db",
+            DataFile::System => "system.db",
+            DataFile::Triggers => "triggers.db",
+            DataFile::TriggersDef => "triggers_def.db",
+            DataFile::UserMemory => "user_memory.db",
+        }
+    }
+
+    /// Path of this database under the given data directory root.
+    #[must_use]
+    pub fn path(self, data_dir: &Path) -> PathBuf {
+        data_dir.join(self.file_name())
+    }
+}
 
 /// The current user's home directory.
 ///
@@ -36,6 +165,15 @@ pub fn home_dir() -> Option<PathBuf> {
 /// Returns `None` when the home directory cannot be resolved.
 pub fn data_dir() -> Option<PathBuf> {
     home_dir().map(|h| h.join(DATA_DIR_NAME))
+}
+
+/// The runtime data directory under an explicit home.
+///
+/// For call sites that carry their own home (a `$HOME` override, a seeded
+/// profile, a test), so the directory name is composed in one place rather
+/// than by each caller.
+pub fn data_dir_under(home: impl Into<PathBuf>) -> PathBuf {
+    home.into().join(DATA_DIR_NAME)
 }
 
 /// The home directory, falling back to the platform temporary directory.
@@ -102,5 +240,44 @@ mod tests {
     #[test]
     fn test_fallible_accessor_agrees_with_optional_one() {
         assert_eq!(data_dir_or_err().ok(), data_dir());
+    }
+
+    // GIVEN the catalogue of root databases
+    // WHEN collecting every file name
+    // THEN each name is distinct, ends in .db, and is a bare base name,
+    //      so two variants cannot silently share a file
+    #[test]
+    fn test_catalogue_names_are_distinct_flat_db_files() {
+        let names: std::collections::BTreeSet<&str> =
+            DataFile::ALL.iter().map(|f| f.file_name()).collect();
+        assert_eq!(names.len(), DataFile::ALL.len());
+        for name in names {
+            assert!(name.ends_with(".db"), "{name} should end with .db");
+            assert!(!name.contains('/'), "{name} should be a base name");
+        }
+    }
+
+    // GIVEN a data directory root
+    // WHEN resolving a catalogue entry
+    // THEN the path is the root joined with the entry's file name
+    #[test]
+    fn test_catalogue_path_joins_root_and_file_name() {
+        let root = PathBuf::from("/data/root");
+        assert_eq!(
+            DataFile::Chat.path(&root),
+            PathBuf::from("/data/root/chat.db")
+        );
+    }
+
+    // GIVEN an explicit home directory
+    // WHEN composing the data directory under it
+    // THEN the result carries the runtime's directory name under that home
+    #[test]
+    fn test_data_dir_under_composes_home_and_name() {
+        let home = PathBuf::from("/somewhere/home");
+        assert_eq!(
+            data_dir_under(home),
+            PathBuf::from("/somewhere/home").join(DATA_DIR_NAME)
+        );
     }
 }
