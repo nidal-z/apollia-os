@@ -108,7 +108,7 @@
       {:else}
         <div class="flex flex-col gap-1">
           <div class="tb-iolabel">
-            {$t("chat.reasoning.output_label", { default: "Output" })}
+            {$t("chat.reasoning.output_label")}
           </div>
           <pre class="tb-code font-mono"><code>{rawJson || item.output}</code></pre>
         </div>

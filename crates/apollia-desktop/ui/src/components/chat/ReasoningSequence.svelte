@@ -125,7 +125,6 @@
         >
           <ChevronRight size={11} />
           {$t("chat.reasoning.group_expand", {
-            default: "Show {n} more steps",
             values: { n: Math.min(hiddenCount, PAGE_SIZE) },
           })}
         </Button>
@@ -137,9 +136,7 @@
           data-testid="reasoning-collapse"
         >
           <ChevronDown size={11} />
-          {$t("chat.reasoning.group_collapse", {
-            default: "Hide steps",
-          })}
+          {$t("chat.reasoning.group_collapse")}
         </Button>
       {/if}
     </div>

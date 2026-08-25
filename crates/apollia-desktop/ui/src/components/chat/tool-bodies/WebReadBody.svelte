@@ -110,14 +110,14 @@
         <div class="flex flex-col gap-2">
           <div class="flex flex-col gap-1">
             <div class="tb-iolabel">
-              {$t("chat.reasoning.input_label", { default: "Input" })}
+              {$t("chat.reasoning.input_label")}
             </div>
             <pre class="tb-code font-mono"><code>{inputJson}</code></pre>
           </div>
           {#if outputJson}
             <div class="flex flex-col gap-1">
               <div class="tb-iolabel">
-                {$t("chat.reasoning.output_label", { default: "Output" })}
+                {$t("chat.reasoning.output_label")}
               </div>
               <pre class="tb-code font-mono"><code>{outputJson}</code></pre>
             </div>

@@ -275,7 +275,7 @@
       for (const a of answers) {
         const q = byId.get(a.id);
         const text = a.skipped
-          ? $t("chat.ask_user_skipped_label", { default: "Skipped" })
+          ? $t("chat.ask_user_skipped_label")
           : a.values && a.values.length > 0
             ? a.values.join(", ")
             : (a.value ?? "");
@@ -414,9 +414,7 @@
       type="button"
       class="chat-ft-head"
       aria-expanded={expanded}
-      aria-label={$t("chat.reasoning.toggle_tool", {
-        default: "Toggle tool call details",
-      })}
+      aria-label={$t("chat.reasoning.toggle_tool")}
       onclick={toggle}
     >
       <span class="chat-ft-chev" aria-hidden="true">›</span>
@@ -497,7 +495,7 @@
                 <span class="text-muted-foreground/50 normal-case tracking-normal">
                   · {askUserCounts.answered}/{askUserCounts.total}
                   {#if askUserCounts.skipped > 0}
-                    · {askUserCounts.skipped} {$t("chat.ask_user_skipped_label", { default: "skipped" })}
+                    · {askUserCounts.skipped} {$t("chat.ask_user_skipped_label")}
                   {/if}
                 </span>
               {/if}
@@ -509,7 +507,7 @@
                   <p class="text-foreground/85">{pair.question}</p>
                   <p class="pl-2 border-l-2 {pair.skipped ? 'border-muted-foreground/30 italic text-muted-foreground' : 'border-success/40 text-foreground'}">
                     {pair.skipped
-                      ? $t("chat.ask_user_skipped_label", { default: "Skipped" })
+                      ? $t("chat.ask_user_skipped_label")
                       : (pair.answerText || $t("chat.ask_user_pending"))}
                   </p>
                 </li>
@@ -520,7 +518,7 @@
         {#if rationale}
           <div data-testid="tool-rationale-header" class="space-y-0.5">
             <p class="text-foreground/85">
-              <span class="text-muted-foreground/70">{$t("chat.reasoning.rationale_label", { default: "Rationale" })}:</span>
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.rationale_label")}:</span>
               {rationale.summary}
             </p>
             {#if rationale.inputs_recap.length > 0}
@@ -543,7 +541,7 @@
         {#if skin === "builder" && !askUserPairs}
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-              <span>{$t("chat.reasoning.input_label", { default: "Input" })}</span>
+              <span>{$t("chat.reasoning.input_label")}</span>
               <Separator variant="inline" />
             </div>
             {#if bashDisplay !== null}
@@ -567,7 +565,7 @@
                 >
                   {showFullJson
                     ? $t("chat.tool_collapse")
-                    : $t("chat.reasoning.see_all", { default: "See all" })}
+                    : $t("chat.reasoning.see_all")}
                 </button>
               {/if}
             {/if}
@@ -576,7 +574,7 @@
           {#if item.output !== null && (item.status === "error" || (item.status === "success" && !isWebTool))}
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
-                <span>{$t("chat.reasoning.output_label", { default: "Output" })}</span>
+                <span>{$t("chat.reasoning.output_label")}</span>
                 <Separator variant="inline" class={isError ? "bg-destructive/30" : undefined} />
               </div>
               <pre
@@ -595,7 +593,7 @@
                 >
                   {showFullOutput
                     ? $t("chat.tool_collapse")
-                    : $t("chat.reasoning.see_all", { default: "See all" })}
+                    : $t("chat.reasoning.see_all")}
                 </button>
               {/if}
             </div>
@@ -672,8 +670,8 @@
       </span>
       <span class="chat-ft-name chat-ft-thought">
         {item.kind === "thinking"
-          ? $t("chat.reasoning.thinking_label", { default: "Reasoning" })
-          : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
+          ? $t("chat.reasoning.thinking_label")
+          : $t("chat.reasoning.rationale_label")}
       </span>
     </button>
 
@@ -699,7 +697,6 @@
     {#snippet icon()}<RotateCcw class="h-3 w-3 text-muted-foreground" />{/snippet}
     {#snippet title()}
       {$t("chat.reasoning.retry_label", {
-        default: "Retry ({n} attempts)",
         values: { n: item.attempts.length },
       })}
     {/snippet}
