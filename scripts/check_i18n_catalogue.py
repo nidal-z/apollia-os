@@ -46,10 +46,33 @@ label while still being English, say `Operator help` translated as
 and this file legitimately contains English words. The defect this guard exists
 for is a translation never written, which is the shape it does catch.
 
+The sidebar catalogue is not the only one. Twelve theme strings sat in English
+or unaccented French under the French locale while this guard was green,
+because it read `current.json` and nothing else. Three more subjects are
+therefore judged, each with the same both-ways exemption discipline:
+
+  - `code.json`, the theme's own strings. A translation never written is a
+    message equal to the English default, and the defaults are read from
+    `@docusaurus/theme-translations/locales/base` rather than hard-coded, so
+    a theme upgrade moves the reference with it. That directory arrives with
+    `npm ci` under `docs/site`, and its absence is zero coverage, never a
+    pass: this guard's CI boundary is the `docs-build` job, after the
+    install. `theme.blog.*` keys are skipped and counted, `blog: false` in
+    `docusaurus.config.js`.
+  - `docusaurus-theme-classic/navbar.json` and `footer.json`. Their keys
+    embed the English source (`item.label.Reference`), so a message equal to
+    its own key suffix is a translation never written, the same rule the
+    sidebar catalogue already had.
+  - unaccented French. `Signaler un probleme` and `Francais` are not English,
+    not the default, and not French either. A short named list of unaccented
+    spellings that are never correct French is matched as whole words against
+    every French message and the `fr` locale label of `docusaurus.config.js`.
+
 Exit codes:
-    0  the catalogue was read, every expected label carries a French message
+    0  every catalogue was read, every expected label carries a French message
     1  at least one label is untranslated, orphaned, missing, or wrongly exempt
-    2  nothing was measured: no catalogue, no category file, or no label key
+    2  nothing was measured: no catalogue, no category file, no label key, or
+       the theme's base defaults are absent (run `npm ci` under docs/site)
 
 Usage:
     python3 scripts/check_i18n_catalogue.py
@@ -59,6 +82,7 @@ Usage:
 import contextlib
 import io
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -93,6 +117,145 @@ KEY_WITHOUT_A_FILE = ("api",)
 # rather than dropped by a silent filter: `version.label` holds `Next`, the
 # Docusaurus default, and the site publishes no version selector.
 NOT_A_LABEL = ("version.label",)
+
+# ── The theme catalogues ─────────────────────────────────────────────────────
+
+CODE_CATALOGUE = Path("docs/site/i18n/fr/code.json")
+THEME_CLASSIC_DIR = Path("docs/site/i18n/fr/docusaurus-theme-classic")
+BASE_LOCALE_DIR = Path("docs/site/node_modules/@docusaurus/theme-translations/locales/base")
+SITE_CONFIG = Path("docs/site/docusaurus.config.js")
+
+# `code.json` keys whose French message legitimately equals the English
+# default. Written by hand, one line per key, because it is a judgement about
+# language and not a measurement; driven from both sides like every exemption
+# here, so an entry that gains a real translation is reported as stale.
+CODE_IDENTICAL = (
+    "theme.admonition.danger",
+    "theme.admonition.info",
+    "theme.navbar.mobileVersionsDropdown.label",
+    "theme.tags.tagsPageTitle",
+)
+
+# Navbar and footer labels both languages spell identically.
+CLASSIC_IDENTICAL = (
+    "Architecture",
+    "Discussions",
+    "GitHub",
+)
+
+# Unaccented spellings that are never correct French, mapped to the word that
+# was meant. Whole-word matches only, so `problème` spelled correctly never
+# fires, and the list stays short enough to re-read.
+UNACCENTED = {
+    "evenement": "événement",
+    "evenements": "événements",
+    "francais": "français",
+    "francaise": "française",
+    "probleme": "problème",
+    "problemes": "problèmes",
+    "reference": "référence",
+    "references": "références",
+    "systeme": "système",
+    "systemes": "systèmes",
+}
+
+LABEL_KEY = re.compile(r"(?:^|\.)(?:label|title)\.(.+)$")
+FR_LOCALE_LABEL = re.compile(r"fr:\s*\{\s*label:\s*'([^']*)'")
+WORD = re.compile(r"[A-Za-zàâçéèêëîïôûùüÿœÀÂÇÉÈÊËÎÏÔÛÙÜŸŒ]+")
+
+
+def base_defaults(base_dir: Path) -> dict[str, str]:
+    """Return the theme's English default messages, keyed like `code.json`."""
+    defaults: dict[str, str] = {}
+    if not base_dir.is_dir():
+        return defaults
+    for path in sorted(base_dir.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for key, value in data.items():
+            if isinstance(value, dict) and isinstance(value.get("message"), str):
+                defaults[key] = value["message"]
+            elif isinstance(value, str):
+                defaults[key] = value
+    return defaults
+
+
+def code_catalogue_faults(
+    entries: dict[str, str],
+    defaults: dict[str, str],
+    exemption: tuple[str, ...] = CODE_IDENTICAL,
+) -> tuple[list[tuple[str, str]], int]:
+    """Judge `code.json` against the English defaults.
+
+    Returns the faults and the count of `theme.blog.*` keys skipped, so the
+    caller can print the skip instead of letting it happen silently.
+    """
+    faults: list[tuple[str, str]] = []
+    exempt = set(exemption)
+    skipped = 0
+    for key in sorted(entries):
+        if key.startswith("theme.blog."):
+            skipped += 1
+            continue
+        message = entries[key]
+        default = defaults.get(key)
+        if default is None:
+            continue
+        if message == default and key not in exempt:
+            faults.append(
+                (key, "message equals the English default, never translated")
+            )
+        elif message != default and key in exempt:
+            faults.append(
+                (
+                    key,
+                    "exempted as identical in both languages, yet a real "
+                    "translation was written, so the exemption line is now false",
+                )
+            )
+    return faults, skipped
+
+
+def classic_catalogue_faults(
+    entries: dict[str, str],
+    exemption: tuple[str, ...] = CLASSIC_IDENTICAL,
+) -> list[tuple[str, str]]:
+    """Judge a navbar or footer catalogue by its own key suffixes."""
+    faults: list[tuple[str, str]] = []
+    exempt = set(exemption)
+    for key in sorted(entries):
+        found = LABEL_KEY.search(key)
+        if found is None:
+            continue
+        source = found.group(1)
+        message = entries[key]
+        if message == source and source not in exempt:
+            faults.append((key, "message equals the key's English label, never translated"))
+        elif message != source and source in exempt:
+            faults.append(
+                (
+                    key,
+                    "exempted as identical in both languages, yet a real "
+                    "translation was written, so the exemption line is now false",
+                )
+            )
+    return faults
+
+
+def unaccented_faults(
+    messages: dict[str, str],
+    unaccented: dict[str, str] = None,
+) -> list[tuple[str, str]]:
+    """Report every message carrying a whole word from the unaccented list."""
+    table = UNACCENTED if unaccented is None else unaccented
+    faults: list[tuple[str, str]] = []
+    for key in sorted(messages):
+        for word in WORD.findall(messages[key]):
+            meant = table.get(word.lower())
+            if meant is not None:
+                faults.append(
+                    (key, f"unaccented French: {word!r} where {meant!r} was meant")
+                )
+    return faults
 
 
 def declared_labels(root: Path) -> dict[str, Path]:
@@ -238,11 +401,82 @@ def report(
     )
     untouched = [key for key in NOT_A_LABEL if key in catalogue]
 
+    # ── The theme catalogues ─────────────────────────────────────────────────
+    defaults = base_defaults(REPO_ROOT / BASE_LOCALE_DIR)
+    if not defaults:
+        print(
+            f"check_i18n_catalogue: NO COVERAGE, no English default read under "
+            f"{BASE_LOCALE_DIR}. The theme's base locale arrives with the "
+            f"install: cd docs/site && npm ci",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        code_entries = {
+            key: value["message"]
+            for key, value in json.loads(
+                (REPO_ROOT / CODE_CATALOGUE).read_text(encoding="utf-8")
+            ).items()
+            if isinstance(value, dict) and isinstance(value.get("message"), str)
+        }
+        classic_entries: dict[str, dict[str, str]] = {}
+        for name in ("navbar.json", "footer.json"):
+            classic_entries[name] = {
+                key: value["message"]
+                for key, value in json.loads(
+                    (REPO_ROOT / THEME_CLASSIC_DIR / name).read_text(encoding="utf-8")
+                ).items()
+                if isinstance(value, dict) and isinstance(value.get("message"), str)
+            }
+        config_text = (REPO_ROOT / SITE_CONFIG).read_text(encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        print(f"check_i18n_catalogue: NO COVERAGE, theme catalogue unreadable, {exc}",
+              file=sys.stderr)
+        return 2
+    fr_label = FR_LOCALE_LABEL.search(config_text)
+    if fr_label is None:
+        print(
+            f"check_i18n_catalogue: NO COVERAGE, no `fr:` locale label found in "
+            f"{SITE_CONFIG}",
+            file=sys.stderr,
+        )
+        return 2
+
+    theme_faults: list[tuple[str, str]] = []
+    code_faults, blog_skipped = code_catalogue_faults(code_entries, defaults)
+    theme_faults += [(f"{CODE_CATALOGUE.name}: {key}", why) for key, why in code_faults]
+    for name, file_entries in classic_entries.items():
+        theme_faults += [
+            (f"{name}: {key}", why)
+            for key, why in classic_catalogue_faults(file_entries)
+        ]
+    accent_subjects = {
+        f"{CODE_CATALOGUE.name}: {key}": message
+        for key, message in code_entries.items()
+    }
+    for name, file_entries in classic_entries.items():
+        for key, message in file_entries.items():
+            accent_subjects[f"{name}: {key}"] = message
+    accent_subjects["docusaurus.config.js fr locale label"] = fr_label.group(1)
+    theme_faults += unaccented_faults(accent_subjects)
+
     print(
         f"check_i18n_catalogue: {len(entries)} label entries read in "
         f"{catalogue_path}, {len(expected)} expected from "
         f"{category_root}/**/_category_.json"
     )
+    print(
+        f"check_i18n_catalogue: {len(code_entries)} theme strings in "
+        f"{CODE_CATALOGUE.name} judged against {len(defaults)} English defaults "
+        f"({blog_skipped} `theme.blog.*` skipped, blog disabled), plus "
+        f"{sum(len(v) for v in classic_entries.values())} navbar and footer "
+        f"labels and the `fr` locale label"
+    )
+    print(
+        f"check_i18n_catalogue: code.json exempted as identical in both "
+        f"languages: {', '.join(CODE_IDENTICAL)}"
+    )
+    faults += theme_faults
     print(
         f"check_i18n_catalogue: {len(exempt_present)} exempted as identical in "
         f"both languages: {', '.join(exempt_present)}"
@@ -262,13 +496,15 @@ def report(
             file=sys.stderr,
         )
         for label, why in faults:
-            print(f"  {LABEL_PREFIX}{label}", file=sys.stderr)
+            shown = label if ": " in label or "locale label" in label else LABEL_PREFIX + label
+            print(f"  {shown}", file=sys.stderr)
             print(f"    {why}", file=sys.stderr)
         print(
             "\nWrite the French message in the catalogue. If the two languages "
-            "really spell the label the same, add it to "
-            "`IDENTICAL_IN_BOTH_LANGUAGES` in this file, where the next reader "
-            "sees it and where the count above moves.",
+            "really spell the label the same, add it to the matching exemption "
+            "list in this file (`IDENTICAL_IN_BOTH_LANGUAGES`, `CODE_IDENTICAL` "
+            "or `CLASSIC_IDENTICAL`), where the next reader sees it and where "
+            "the count above moves.",
             file=sys.stderr,
         )
         return 1
@@ -362,6 +598,82 @@ def selftest() -> int:
                 == ["entry in the catalogue but no category declares this label"],
             ),
         ]
+
+        # The theme catalogues, both directions each: equality with the
+        # English default, the key-suffix rule, and the unaccented list.
+        defaults = {
+            "theme.x.expand": "Expand",
+            "theme.blog.read": "Read more",
+            "theme.adm.info": "info",
+        }
+        ok_entries = {
+            "theme.x.expand": "Déplier",
+            "theme.blog.read": "Read more",
+            "theme.adm.info": "info",
+        }
+        code_ok, skipped = code_catalogue_faults(
+            ok_entries, defaults, exemption=("theme.adm.info",)
+        )
+        results.append(
+            _case(
+                "a translated theme string and an exempted identical one pass, "
+                "blog keys skipped and counted",
+                not code_ok and skipped == 1,
+            )
+        )
+        code_bad, _ = code_catalogue_faults(
+            {"theme.x.expand": "Expand"}, defaults, exemption=()
+        )
+        results.append(
+            _case(
+                "a theme string equal to its English default is named",
+                [why for _, why in code_bad]
+                == ["message equals the English default, never translated"],
+            )
+        )
+        code_stale, _ = code_catalogue_faults(
+            {"theme.adm.info": "infos"}, defaults, exemption=("theme.adm.info",)
+        )
+        results.append(
+            _case(
+                "an exempted theme key carrying a real translation is stale",
+                len(code_stale) == 1
+                and "exemption line is now false" in code_stale[0][1],
+            )
+        )
+        results.append(
+            _case(
+                "an untranslated navbar label is named, a translated one passes",
+                [
+                    why
+                    for _, why in classic_catalogue_faults(
+                        {"item.label.Reference": "Reference"}, exemption=()
+                    )
+                ]
+                == ["message equals the key's English label, never translated"]
+                and not classic_catalogue_faults(
+                    {"item.label.Reference": "Référence"}, exemption=()
+                ),
+            )
+        )
+        results.append(
+            _case(
+                "an exempted classic label carrying a real translation is stale",
+                len(
+                    classic_catalogue_faults(
+                        {"item.label.GitHub": "Forge"}, exemption=("GitHub",)
+                    )
+                )
+                == 1,
+            )
+        )
+        results.append(
+            _case(
+                "unaccented French is named, accented French passes",
+                len(unaccented_faults({"a": "Signaler un probleme"})) == 1
+                and not unaccented_faults({"a": "Signaler un problème"}),
+            )
+        )
 
         # The derivation itself, on a built subject, so that the key set the
         # rules above are fed is known to come from files and not from a
