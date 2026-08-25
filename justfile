@@ -542,6 +542,7 @@ guards:
       "scripts/check_panic_free.py"
       "scripts/check_prose.py"
       "scripts/check_python_rules.py"
+      "scripts/check_release_artifacts.py"
       "scripts/check_rust_rules.py"
       "scripts/check_selftest.py"
       "scripts/check_subprocess_window.py"

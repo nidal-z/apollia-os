@@ -239,6 +239,17 @@ repos:
         files: '^(\.github/workflows/.+|scripts/check_ci_workflows\.py)$'
         pass_filenames: false
 
+      # The artifact naming contract: producer (release.yml) and consumers
+      # (update.rs, the updater endpoint, the install pages) read the same
+      # packaging/artifacts.json, and this guard refuses a commit that moves
+      # one side alone. 0.07 s measured, under the 3 s pre-commit budget.
+      - id: check-release-artifacts
+        name: artifact names bind producer and consumers
+        entry: python3 scripts/check_release_artifacts.py
+        language: system
+        files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
+        pass_filenames: false
+
       # The four roots the guard declares: the packaging scripts and their
       # sums files, the desktop bundling scripts, and the workflow run blocks.
       # A download without a pinned sum is born in a commit touching one of

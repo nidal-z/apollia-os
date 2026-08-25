@@ -416,6 +416,14 @@ jobs:
         run: |
           python3 scripts/check_ci_workflows.py --selftest
           python3 scripts/check_ci_workflows.py
+      # The artifact naming contract: every name a consumer expects has a
+      # producing step in release.yml, judged by parsing rather than mention.
+      # Selftest first, so a rule that cannot fire is reported before its
+      # green on the real tree is believed.
+      - name: The artifact names bind producer and consumers
+        run: |
+          python3 scripts/check_release_artifacts.py --selftest
+          python3 scripts/check_release_artifacts.py
       # A `testDir` narrowed to one subdirectory left 5 of the 7 Playwright
       # specs invisible to the runner: `--list` answered "0 tests in 0 files",
       # which is an error to no caller, and 5 of their testid anchors had been
