@@ -4,13 +4,17 @@ use tracing::Instrument;
 /// Merge the session's authorized tools with the live Chat-Libre overrides
 /// (additive: never removes an in-session authorization). Overrides are only
 /// applied for [`ChatMode::Libre`]; other modes return the base set as-is.
+///
+/// `governance_db` is the injected governance database path; `None` (tests,
+/// minimal runtimes) keeps the base set untouched by persisted overrides.
 pub(in crate::chat::manager) fn merge_live_authorized_tools(
     base: &std::collections::HashSet<String>,
     mode: &ChatMode,
+    governance_db: Option<&std::path::Path>,
 ) -> std::collections::HashSet<String> {
     let mut authorized_tools = base.clone();
     if *mode == ChatMode::Libre {
-        let live = load_chat_libre_overrides();
+        let live = load_chat_libre_overrides(governance_db);
         for tool in live.pre_authorized_tools {
             authorized_tools.insert(tool);
         }
@@ -29,22 +33,21 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
 /// [`PrefixRuleEngine`] per call, the same pattern as the per-message override
 /// load above: a checker call happens exactly where the loop would otherwise
 /// block on a human, so the open cost is irrelevant and the rules are always
-/// current. Returns `None` when the home directory cannot be resolved; the
+/// current. Returns `None` when no governance database path is injected; the
 /// closure itself answers `None` while the database does not exist yet, so a
 /// database created mid-session is picked up without a restart.
 ///
-/// `project_path` scopes the lookup: project rules are consulted first when
-/// the session is attached to a project (see
-/// [`PrefixRuleEngine::check_with_scope`]).
+/// `governance_db` is the injected governance database path; `None` (tests,
+/// minimal runtimes) disables the checker. `project_path` scopes the lookup:
+/// project rules are consulted first when the session is attached to a
+/// project (see [`PrefixRuleEngine::check_with_scope`]).
 pub(in crate::chat::manager) fn build_prefix_checker(
     project_path: Option<std::path::PathBuf>,
+    governance_db: Option<std::path::PathBuf>,
 ) -> Option<std::sync::Arc<crate::chat::builtin_agent::PrefixChecker>> {
     use apollia_permissions::prefix_rule_engine::{PermissionScope, ScopeContext};
 
-    let home = apollia_core::paths::home_string()?;
-    let db_path = std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join(GOVERNANCE_DB_FILENAME);
+    let db_path = governance_db?;
     let scope_ctx = ScopeContext {
         // Informational field; filtering is driven by the two options below.
         scope: PermissionScope::Global,
@@ -66,20 +69,24 @@ pub(in crate::chat::manager) fn build_prefix_checker(
     ))
 }
 
-pub(in crate::chat::manager) fn load_chat_libre_overrides() -> ChatLibreOverrides {
+/// Load the persisted Chat-Libre overrides from the injected governance
+/// database. `None`, or a database that does not exist yet, yields the empty
+/// overrides: this function never resolves a path from the process home
+/// directory, so a mount without a governance path reads nothing.
+pub(in crate::chat::manager) fn load_chat_libre_overrides(
+    governance_db: Option<&std::path::Path>,
+) -> ChatLibreOverrides {
     let mut out = ChatLibreOverrides::default();
-    let home = match apollia_core::paths::home_string() {
-        Some(h) => h,
+    let db_path = match governance_db {
+        Some(p) => p,
         None => return out,
     };
-    let base_dir = std::path::PathBuf::from(home).join(".apollia");
-    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
     if !db_path.exists() {
         return out;
     }
 
-    apply_chat_libre_config(&mut out, &db_path);
-    apply_chat_prefix_allow_rules(&mut out, &db_path);
+    apply_chat_libre_config(&mut out, db_path);
+    apply_chat_prefix_allow_rules(&mut out, db_path);
 
     out
 }
@@ -187,11 +194,12 @@ pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
 pub(in crate::chat::manager) fn apply_libre_overrides(
     is_libre: bool,
     prompt: &mut String,
+    governance_db: Option<&std::path::Path>,
 ) -> LibreSessionDefaults {
     if !is_libre {
         return LibreSessionDefaults::default();
     }
-    let overrides = load_chat_libre_overrides();
+    let overrides = load_chat_libre_overrides(governance_db);
     if let Some(sp) = overrides.system_prompt {
         if prompt.trim().is_empty() {
             *prompt = sp;
@@ -402,6 +410,13 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_ref()
         .and_then(|c| c.tool_turn_temperature);
 
+    // Same moment, same reason: the governance database path is derived from
+    // the injected data directory, never from the process home directory, so
+    // a mount without a tools config runs with no governance database at all.
+    let governance_db_path = chat_tools_config_for_session
+        .as_ref()
+        .map(|c| c.data_dir.join(GOVERNANCE_DB_FILENAME));
+
     // Resolve per-session sandbox root from project workspace_path.
     // On error (project not found) surface as ExchangeError, no panic.
     let session_invoker = match build_session_invoker(
@@ -453,7 +468,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         } else {
             None
         };
-        build_prefix_checker(project_path)
+        build_prefix_checker(project_path, governance_db_path)
     };
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router,
@@ -601,12 +616,16 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
 ///
 /// Driven by the chat "Always allow" button according to the scope the
 /// operator picked. Best-effort: logs and continues on failure (the in-memory
-/// authorization in `session.authorized_tools` stays in place).
+/// authorization in `session.authorized_tools` stays in place). The write
+/// goes to the injected `governance_db` path; `None` (tests, minimal
+/// runtimes) skips the persistence rather than resolving a path from the
+/// process home directory.
 pub(in crate::chat::manager) fn persist_chat_allow_rule(
     scope: apollia_permissions::PermissionScope,
     project_path: Option<std::path::PathBuf>,
     agent_id: Option<String>,
     tool_name: &str,
+    governance_db: Option<&std::path::Path>,
 ) {
     // A code executor (bash/python) is never blanket-authorized: persisting an
     // arg-prefix-less allow rule would grant a permanent blank check over the
@@ -619,22 +638,29 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
         return;
     }
 
-    let home = match apollia_core::paths::home_string() {
-        Some(h) => h,
+    let db_path = match governance_db {
+        Some(p) => p,
         None => {
-            warn!("home directory not resolvable; skipping governance.db rule persistence");
+            warn!("no governance database configured; skipping chat rule persistence");
             return;
         }
     };
-    let base_dir = std::path::PathBuf::from(home).join(".apollia");
+    let base_dir = match db_path.parent() {
+        Some(dir) => dir,
+        None => {
+            warn!(
+                "governance database path has no parent directory; skipping chat rule persistence"
+            );
+            return;
+        }
+    };
 
-    if let Err(e) = apollia_tools::governance_db::GovernanceDb::open(&base_dir) {
+    if let Err(e) = apollia_tools::governance_db::GovernanceDb::open(base_dir) {
         warn!(error = %e, "failed to open governance.db for chat rule persistence");
         return;
     }
-    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
 
-    let mut engine = match PrefixRuleEngine::new(&db_path) {
+    let mut engine = match PrefixRuleEngine::new(db_path) {
         Ok(e) => e,
         Err(e) => {
             warn!(error = %e, "failed to open prefix rule engine for chat rule persistence");
@@ -678,8 +704,8 @@ mod code_executor_guard_tests {
         let mut base = std::collections::HashSet::new();
         base.insert("bash_executor".to_string());
         base.insert("web_read".to_string());
-        // WHEN the effective set is assembled (non-Libre mode: no HOME lookup)
-        let merged = merge_live_authorized_tools(&base, &ChatMode::Agent);
+        // WHEN the effective set is assembled (no governance database injected)
+        let merged = merge_live_authorized_tools(&base, &ChatMode::Agent, None);
         // THEN the code executor is dropped, the normal tool is kept
         assert!(!merged.contains("bash_executor"));
         assert!(merged.contains("web_read"));

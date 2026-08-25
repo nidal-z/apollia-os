@@ -134,7 +134,11 @@ impl ChatSessionManager {
         let LibreSessionDefaults {
             llm_backend: libre_llm_backend,
             pre_authorized,
-        } = apply_libre_overrides(mode == ChatMode::Libre, &mut prompt);
+        } = apply_libre_overrides(
+            mode == ChatMode::Libre,
+            &mut prompt,
+            self.governance_db_path.as_deref(),
+        );
 
         // Persist to SQLite
         self.repository.create_session(

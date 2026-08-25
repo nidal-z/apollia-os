@@ -353,8 +353,11 @@ impl ChatSessionManager {
             // conversation. The merge is purely additive: an authorization
             // granted during the session is never removed, only added to if the
             // config has been enriched since.
-            let authorized_tools =
-                merge_live_authorized_tools(&session.authorized_tools, &session.mode);
+            let authorized_tools = merge_live_authorized_tools(
+                &session.authorized_tools,
+                &session.mode,
+                self.governance_db_path.as_deref(),
+            );
             let pending_approvals = self.pending_chat_approvals.clone();
 
             // Resolve the autonomy tier and build the effective budget from it.
@@ -922,6 +925,7 @@ impl ChatSessionManager {
                         None,
                         Some(aid),
                         tool_name,
+                        self.governance_db_path.as_deref(),
                     );
                 }
             }
@@ -933,6 +937,7 @@ impl ChatSessionManager {
                             Some(ws),
                             None,
                             tool_name,
+                            self.governance_db_path.as_deref(),
                         );
                     }
                     None => {
@@ -950,6 +955,7 @@ impl ChatSessionManager {
                     None,
                     None,
                     tool_name,
+                    self.governance_db_path.as_deref(),
                 );
             }
         }

@@ -145,6 +145,12 @@ struct ChatSessionManager {
     /// tools_config) for the chat dispatcher. `None` in tests / minimal
     /// runtimes, falls back to the minimal dispatcher.
     chat_tools_config: Option<Arc<ChatToolsConfig>>,
+    /// Path of the governance database (`<data_dir>/governance.db`), derived
+    /// at spawn from [`ChatToolsConfig::data_dir`]. `None` (tests, minimal
+    /// runtimes) disables every governance read and write in this actor: no
+    /// code path here resolves the process home directory on its own, so a
+    /// test mount never reaches the operator's real profile.
+    governance_db_path: Option<std::path::PathBuf>,
     /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
     pending_user_replies: HashMap<

@@ -117,6 +117,15 @@ impl ChatSessionManagerHandle {
         // Keep a handle-side clone so the API can list active hook handlers.
         let hook_executor_for_handle = hook_executor.clone();
 
+        // The governance database lives beside the other runtime databases.
+        // Deriving the path here, from the injected data directory, is what
+        // keeps this actor off the process home directory: a mount without a
+        // tools config (tests, minimal runtimes) simply has no governance
+        // database rather than the operator's real one.
+        let governance_db_path = chat_tools_config
+            .as_ref()
+            .map(|cfg| cfg.data_dir.join(GOVERNANCE_DB_FILENAME));
+
         let mut manager = ChatSessionManager {
             sessions: HashMap::new(),
             repository,
@@ -138,6 +147,7 @@ impl ChatSessionManagerHandle {
             pending_user_inputs: pending_user_inputs.clone(),
             mcp_handle,
             chat_tools_config,
+            governance_db_path,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             mcp_loading,

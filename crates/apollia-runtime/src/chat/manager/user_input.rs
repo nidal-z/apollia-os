@@ -126,7 +126,7 @@ impl ChatSessionManager {
             // Libre sessions: also seed from governance.db agent-scoped allow
             // rules so cross-session "always allow" decisions survive.
             if mode == ChatMode::Libre {
-                let overrides = load_chat_libre_overrides();
+                let overrides = load_chat_libre_overrides(self.governance_db_path.as_deref());
                 for tool in overrides.pre_authorized_tools {
                     authorized_tools.insert(tool);
                 }
