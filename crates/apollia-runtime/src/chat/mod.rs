@@ -16,6 +16,7 @@ pub mod plan_prompt;
 pub mod plan_tool;
 pub mod project_context;
 pub mod repository;
+pub(crate) mod schema;
 pub mod summarizer;
 pub mod todo_actor;
 pub mod todo_handle;

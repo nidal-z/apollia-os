@@ -14,9 +14,6 @@ use super::types::{
     RecentSessionSummary, SessionStatus, ToolCallRecord,
 };
 
-/// SQL migration applied on first open.
-const MIGRATION_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
-
 /// Raw row from the `chat_sessions` table.
 #[derive(Debug, Clone)]
 pub struct SessionRow {
@@ -139,6 +136,10 @@ pub struct ChatSessionRepository {
 
 impl ChatSessionRepository {
     /// Open (or create) the chat database at the given path and run migrations.
+    ///
+    /// The whole migration history of the file (session, todo, and plan
+    /// tables) lives in [`super::schema`]; this opener applies it through the
+    /// versioned layer, which refuses a database written by a newer binary.
     pub fn open(path: &Path) -> Result<Self, ChatError> {
         let conn = Connection::open(path)
             .map_err(|e| ChatError::InternalError(format!("failed to open chat.db: {e}")))?;
@@ -146,152 +147,8 @@ impl ChatSessionRepository {
         conn.execute_batch("PRAGMA journal_mode = WAL;")
             .map_err(|e| ChatError::InternalError(format!("WAL pragma failed: {e}")))?;
 
-        conn.execute_batch(MIGRATION_SQL)
-            .map_err(|e| ChatError::InternalError(format!("migration failed: {e}")))?;
-
-        // v2 migration: add llm_backend column for existing databases.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN llm_backend TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v2 migration failed: {e}")))?;
-
-        // v3 migration: add summary column for conversation summarization.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN summary TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v3 migration failed: {e}")))?;
-
-        // v4 migration: FTS5 index on session summaries for cross-session recall.
-        conn.execute_batch(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS chat_sessions_fts USING fts5(
-                session_id UNINDEXED,
-                created_at UNINDEXED,
-                summary
-            );",
-        )
-        .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
-
-        // v5 migration: add title column for user-defined session names.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN title TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v5 migration failed: {e}")))?;
-
-        // v6 migration: conversation forking support.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id)",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER NOT NULL DEFAULT 0",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
-        conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v6 migration failed: {e}")))?;
-
-        // v7 migration: project linkage (application-level, no FK, separate databases).
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN project_id TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v7 migration failed: {e}")))?;
-        conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v7 migration failed: {e}")))?;
-
-        // v8 migration: metadata column on messages (thinking trace, etc.).
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_messages ADD COLUMN metadata TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v8 migration failed: {e}")))?;
-
-        // v9 migration: chat approval log for resolved tool approvals history.
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS chat_approval_log (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id  TEXT NOT NULL,
-                message_id  TEXT NOT NULL,
-                tool_name   TEXT NOT NULL,
-                decision    TEXT NOT NULL CHECK (decision IN ('accept', 'refuse', 'always_accept')),
-                resolved_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_chat_approval_log_resolved
-                ON chat_approval_log(resolved_at DESC);",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
-
-        // v11 migration (pre-v10 path): store the operator-provided refusal
-        // reason. NULL for accept / always_accept.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_approval_log ADD COLUMN reason TEXT",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v11 migration failed: {e}")))?;
-
-        // v10 migration: add 'companion' to the mode CHECK constraint.
-        // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the
-        // table. This recreate drops every column added after it, so it must run
-        // exactly once: the `plan_mode` column (added by v12) is the witness that
-        // it already ran. Re-running it on a migrated database would silently wipe
-        // the plan-mode columns.
-        if !column_exists(&conn, "chat_sessions", "plan_mode")? {
-            conn.execute_batch(
-                "PRAGMA foreign_keys = OFF;
-                BEGIN;
-                CREATE TABLE IF NOT EXISTS chat_sessions_new (
-                    id              TEXT PRIMARY KEY,
-                    mode            TEXT NOT NULL CHECK (mode IN ('libre', 'agent', 'companion')),
-                    agent_name      TEXT,
-                    system_prompt   TEXT NOT NULL DEFAULT '',
-                    status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),
-                    available_tools TEXT NOT NULL DEFAULT '[]',
-                    created_at      TEXT NOT NULL,
-                    closed_at       TEXT,
-                    llm_backend     TEXT,
-                    summary         TEXT,
-                    title           TEXT,
-                    parent_session_id TEXT REFERENCES chat_sessions_new(id),
-                    fork_depth      INTEGER NOT NULL DEFAULT 0,
-                    project_id      TEXT
-                );
-                INSERT OR IGNORE INTO chat_sessions_new
-                    SELECT id, mode, agent_name, system_prompt, status, available_tools,
-                           created_at, closed_at, llm_backend, summary, title,
-                           parent_session_id, fork_depth, project_id
-                    FROM chat_sessions;
-                DROP TABLE chat_sessions;
-                ALTER TABLE chat_sessions_new RENAME TO chat_sessions;
-                CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON chat_sessions(status);
-                CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id);
-                CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id);
-                COMMIT;
-                PRAGMA foreign_keys = ON;",
-            )
-            .map_err(|e| ChatError::InternalError(format!("v10 migration failed: {e}")))?;
-        }
-
-        // v12 migration: per-session plan-mode state. Additive columns, applied
-        // after the v10 table recreate so they survive it. Existing sessions
-        // default to plan mode off in the neutral 'done' phase.
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v12 migration failed: {e}")))?;
-        apollia_core::schema::add_column_if_missing(
-            &conn,
-            "ALTER TABLE chat_sessions ADD COLUMN plan_phase TEXT NOT NULL DEFAULT 'done'",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v12 migration failed: {e}")))?;
+        super::schema::migrate(&conn)
+            .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
         Ok(Self { conn })
     }
@@ -302,72 +159,8 @@ impl ChatSessionRepository {
         let conn = Connection::open_in_memory()
             .map_err(|e| ChatError::InternalError(format!("in-memory open failed: {e}")))?;
 
-        conn.execute_batch(MIGRATION_SQL)
-            .map_err(|e| ChatError::InternalError(format!("migration failed: {e}")))?;
-
-        // v3 migration: summary column (already in CREATE TABLE for fresh DBs,
-        // but needed here since MIGRATION_SQL predates this column).
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
-
-        // v4 migration: FTS5 index on session summaries for cross-session recall.
-        conn.execute_batch(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS chat_sessions_fts USING fts5(
-                session_id UNINDEXED,
-                created_at UNINDEXED,
-                summary
-            );",
-        )
-        .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
-
-        // v5 migration: title column.
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
-
-        // v6 migration: conversation forking support.
-        let _ = conn.execute_batch(
-            "ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id)",
-        );
-        let _ = conn.execute_batch(
-            "ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER NOT NULL DEFAULT 0",
-        );
-        let _ = conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
-        );
-
-        // v7 migration: project linkage.
-        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT");
-        let _ = conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
-        );
-
-        // v8 migration: metadata column on messages.
-        let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
-
-        // v9 migration: chat approval log.
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS chat_approval_log (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id  TEXT NOT NULL,
-                message_id  TEXT NOT NULL,
-                tool_name   TEXT NOT NULL,
-                decision    TEXT NOT NULL CHECK (decision IN ('accept', 'refuse', 'always_accept')),
-                resolved_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_chat_approval_log_resolved
-                ON chat_approval_log(resolved_at DESC);",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
-
-        // v11 migration: store the operator-provided refusal reason so it can
-        // be displayed in the inbox history view. NULL for accept / always_accept.
-        let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
-
-        // v12 migration: per-session plan-mode state (additive columns).
-        let _ = conn.execute_batch(
-            "ALTER TABLE chat_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0",
-        );
-        let _ = conn.execute_batch(
-            "ALTER TABLE chat_sessions ADD COLUMN plan_phase TEXT NOT NULL DEFAULT 'done'",
-        );
+        super::schema::migrate(&conn)
+            .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
         Ok(Self { conn })
     }
@@ -1318,31 +1111,6 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
     })
 }
 
-/// Returns `true` when `table` already declares a column named `column`.
-///
-/// Used to make the destructive v10 table recreate idempotent: it must not run a
-/// second time once later additive columns exist, or those columns are lost.
-fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, ChatError> {
-    let mut stmt = conn
-        .prepare(&format!("PRAGMA table_info({table})"))
-        .map_err(|e| ChatError::InternalError(format!("table_info prepare: {e}")))?;
-    let mut rows = stmt
-        .query([])
-        .map_err(|e| ChatError::InternalError(format!("table_info query: {e}")))?;
-    while let Some(row) = rows
-        .next()
-        .map_err(|e| ChatError::InternalError(format!("table_info row: {e}")))?
-    {
-        let name: String = row
-            .get(1)
-            .map_err(|e| ChatError::InternalError(format!("table_info name: {e}")))?;
-        if name == column {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
 /// Helper: map a rusqlite row to `MessageRow`.
 fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRow> {
     Ok(MessageRow {
@@ -2260,5 +2028,105 @@ mod tests {
         // THEN the child row exists and carries exactly the 3 copied messages
         assert_eq!(child.parent_session_id.as_deref(), Some("parent"));
         assert_eq!(repo.get_messages("child", None).expect("msgs").len(), 3);
+    }
+
+    /// chat.db as the first shipped binary wrote it, with rows.
+    const CHAT_V1_FIXTURE: &str = include_str!("../../tests/fixtures/schemas/chat_v1.sql");
+
+    #[test]
+    fn test_open_v1_database_migrates_schema_and_keeps_rows() {
+        // GIVEN a chat.db written by the first shipped binary (schema v1,
+        // user_version 0, one closed session, two messages, one authorization)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("chat.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.execute_batch(CHAT_V1_FIXTURE).expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it through the repository (versioned migration)
+        let repo = ChatSessionRepository::open(&path).expect("open migrated");
+
+        // THEN the file is stamped at the current version, the rows survived
+        // the v10 table recreate, and the migrated columns carry their defaults
+        let version: i64 = repo
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, i64::from(super::super::schema::SCHEMA_VERSION));
+        let session = repo
+            .get_session("legacy-session")
+            .expect("get")
+            .expect("row kept");
+        assert_eq!(session.status, "closed");
+        assert!(!session.plan_mode);
+        assert_eq!(session.plan_phase, "done");
+        assert_eq!(session.fork_depth, 0);
+        let messages = repo.get_messages("legacy-session", None).expect("messages");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[1].content, "hi there");
+    }
+
+    #[test]
+    fn test_open_v1_database_lifts_mode_check_and_creates_actor_tables() {
+        // GIVEN the same v1 database, whose mode CHECK forbids 'companion'
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("chat.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.execute_batch(CHAT_V1_FIXTURE).expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it and creating a companion session
+        let repo = ChatSessionRepository::open(&path).expect("open migrated");
+        repo.create_session(
+            "comp-1",
+            &ChatMode::Companion,
+            None,
+            "",
+            &[],
+            "2026-01-01T00:00:00Z",
+            None,
+            None,
+        )
+        .expect("companion accepted after the v10 recreate");
+
+        // THEN the todo and plan tables of the shared file also exist
+        let actor_tables: i64 = repo
+            .conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN
+                 ('session_todos', 'session_plans', 'session_plan_steps', 'session_plan_mutations')",
+                [],
+                |r| r.get(0),
+            )
+            .expect("count");
+        assert_eq!(actor_tables, 4);
+    }
+
+    #[test]
+    fn test_open_newer_database_is_refused() {
+        // GIVEN a chat.db stamped one version above what this binary supports
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("chat.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.pragma_update(
+            None,
+            "user_version",
+            super::super::schema::SCHEMA_VERSION + 1,
+        )
+        .expect("stamp");
+        drop(seed);
+
+        // WHEN opening it through the repository
+        let result = ChatSessionRepository::open(&path);
+
+        // THEN the open is refused instead of misreading the newer schema
+        let err = match result {
+            Err(e) => e,
+            Ok(_) => panic!("a newer database must be refused"),
+        };
+        assert!(
+            format!("{err}").contains("newer"),
+            "unexpected error: {err}"
+        );
     }
 }

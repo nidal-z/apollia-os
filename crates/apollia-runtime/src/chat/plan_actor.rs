@@ -34,30 +34,6 @@ use crate::eventbus::EventBusSender;
 /// actor's sizing.
 const PLAN_CHANNEL_CAPACITY: usize = 64;
 
-/// SQL applied on actor startup to create the three plan tables if absent.
-const PLAN_MIGRATION_SQL: &str = "\
-CREATE TABLE IF NOT EXISTS session_plans (
-    session_id  TEXT PRIMARY KEY,
-    plan_id     TEXT NOT NULL,
-    revision    INTEGER NOT NULL DEFAULT 0,
-    status      TEXT NOT NULL,
-    summary     TEXT,
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS session_plan_steps (
-    session_id  TEXT NOT NULL,
-    step_id     TEXT NOT NULL,
-    ordinal     INTEGER NOT NULL,
-    payload     TEXT NOT NULL,
-    PRIMARY KEY (session_id, step_id)
-);
-CREATE TABLE IF NOT EXISTS session_plan_mutations (
-    session_id  TEXT NOT NULL,
-    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
-    payload     TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_session_plan_mut ON session_plan_mutations(session_id);";
-
 /// Errors of the per-session plan subsystem.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -526,12 +502,6 @@ pub struct PlanActor {
 }
 
 impl PlanActor {
-    /// Apply the plan migration on `conn`, validating it at startup (fail fast).
-    fn migrate(conn: &Connection) -> Result<(), PlanStoreError> {
-        conn.execute_batch(PLAN_MIGRATION_SQL)?;
-        Ok(())
-    }
-
     /// Emit a [`RuntimeEvent::PlanUpdated`] for a successful mutation.
     ///
     /// Fire-and-forget: a saturated or closed bus is silently ignored, exactly
@@ -922,12 +892,14 @@ impl PlanActor {
 ///
 /// # Errors
 ///
-/// - [`PlanStoreError::Sqlite`] when the plan migration cannot be applied.
+/// - [`apollia_core::schema::SchemaError`] when the chat schema cannot be
+///   brought to the current version (the plan tables live in the chat
+///   database, whose whole migration list is applied here, fail fast).
 pub fn spawn_plan_actor(
     conn: Connection,
     event_bus: Option<EventBusSender>,
-) -> Result<PlanHandle, PlanStoreError> {
-    PlanActor::migrate(&conn)?;
+) -> Result<PlanHandle, apollia_core::schema::SchemaError> {
+    super::schema::migrate(&conn)?;
     let (tx, rx) = mpsc::channel(PLAN_CHANNEL_CAPACITY);
     let actor = PlanActor { conn, event_bus };
     tokio::spawn(actor.run(rx));
@@ -1709,5 +1681,23 @@ mod tests {
         let unique = ids.len();
         ids.dedup();
         assert_eq!(unique, ids.len(), "duplicate step id in reconstructed plan");
+    }
+
+    #[tokio::test]
+    async fn test_spawn_plan_actor_refuses_newer_database() {
+        // GIVEN a chat database stamped one version above this binary
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(
+            None,
+            "user_version",
+            super::super::schema::SCHEMA_VERSION + 1,
+        )
+        .expect("stamp");
+
+        // WHEN spawning the plan actor on it
+        let result = spawn_plan_actor(conn, None);
+
+        // THEN the spawn is refused instead of misreading the newer schema
+        assert!(result.is_err());
     }
 }

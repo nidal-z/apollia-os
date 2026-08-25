@@ -20,20 +20,6 @@ use crate::eventbus::EventBusSender;
 /// small buffer absorbs bursts without unbounded growth.
 const TODO_CHANNEL_CAPACITY: usize = 64;
 
-/// SQL applied on actor startup to create the todo table if it is absent.
-const TODO_MIGRATION_SQL: &str = "\
-CREATE TABLE IF NOT EXISTS session_todos (
-    id          TEXT NOT NULL,
-    session_id  TEXT NOT NULL,
-    content     TEXT NOT NULL,
-    status      TEXT NOT NULL CHECK(status IN ('pending','in_progress','completed')),
-    depends_on  TEXT NOT NULL DEFAULT '[]',
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (id, session_id)
-);
-CREATE INDEX IF NOT EXISTS idx_session_todos_session ON session_todos(session_id);";
-
 /// Actor owning the SQLite connection backing the todo store.
 ///
 /// Created via [`spawn_todo_actor`]; never constructed directly by callers.
@@ -45,16 +31,6 @@ pub struct TodoActor {
 }
 
 impl TodoActor {
-    /// Apply the todo migration on `conn`, validating it at startup (fail fast).
-    ///
-    /// # Errors
-    ///
-    /// - [`TodoError::Sqlite`] when the migration cannot be applied.
-    fn migrate(conn: &Connection) -> Result<(), TodoError> {
-        conn.execute_batch(TODO_MIGRATION_SQL)?;
-        Ok(())
-    }
-
     /// Replace the full todo list for a session inside a single transaction.
     ///
     /// Validates the at-most-one-`InProgress` invariant before touching the
@@ -163,12 +139,14 @@ impl TodoActor {
 ///
 /// # Errors
 ///
-/// - [`TodoError::Sqlite`] when the todo migration cannot be applied.
+/// - [`apollia_core::schema::SchemaError`] when the chat schema cannot be
+///   brought to the current version (the `session_todos` table lives in the
+///   chat database, whose whole migration list is applied here, fail fast).
 pub fn spawn_todo_actor(
     conn: Connection,
     event_bus: Option<EventBusSender>,
-) -> Result<TodoHandle, TodoError> {
-    TodoActor::migrate(&conn)?;
+) -> Result<TodoHandle, apollia_core::schema::SchemaError> {
+    super::schema::migrate(&conn)?;
     let (tx, rx) = mpsc::channel(TODO_CHANNEL_CAPACITY);
     let actor = TodoActor { conn, event_bus };
     tokio::spawn(actor.run(rx));
@@ -380,5 +358,23 @@ mod tests {
 
         // THEN depends_on is preserved verbatim
         assert_eq!(got[0].depends_on, vec!["t1".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_spawn_todo_actor_refuses_newer_database() {
+        // GIVEN a chat database stamped one version above this binary
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        conn.pragma_update(
+            None,
+            "user_version",
+            super::super::schema::SCHEMA_VERSION + 1,
+        )
+        .expect("stamp");
+
+        // WHEN spawning the todo actor on it
+        let result = spawn_todo_actor(conn, None);
+
+        // THEN the spawn is refused instead of misreading the newer schema
+        assert!(result.is_err());
     }
 }
