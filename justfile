@@ -52,9 +52,11 @@ build:
 build-release:
     cargo build --workspace --release
 
-# Full tests, under a sentinel HOME: the envelope proves the run leaves
-# ~/.apollia untouched (scripts/check_test_home_isolation.py, exit 1 on a
-# write, 2 when nothing was measured).
+# The envelope proves the run leaves ~/.apollia untouched
+# (scripts/check_test_home_isolation.py, exit 1 on a write, 2 when nothing
+# was measured).
+
+# Full tests under a sentinel HOME
 test:
     python3 scripts/check_test_home_isolation.py --wrap cargo test --workspace --no-fail-fast
 
@@ -157,7 +159,8 @@ desktop-ui-install:
 # died red in 0 ms, which read as a product regression while nothing had been
 # measured. The install is the declared precondition; when it cannot provide a
 # browser the recipe answers 2, nothing measured, distinct from a red run.
-# Run the Playwright perf suite of the desktop UI against the built bundle.
+
+# Run the Playwright perf suite of the desktop UI against the built bundle
 desktop-ui-perf:
     #!/usr/bin/env bash
     set -uo pipefail
