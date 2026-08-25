@@ -16,7 +16,7 @@
     "description": "The label of footer link with label=How-to guides linking to /how-to"
   },
   "link.item.label.Reference": {
-    "message": "Reference",
+    "message": "Référence",
     "description": "The label of footer link with label=Reference linking to /reference"
   },
   "link.item.label.Explanation": {
@@ -52,7 +52,7 @@
     "description": "The label of footer link with label=Discussions linking to https://github.com/Apollia-OS/apollia-os/discussions"
   },
   "link.item.label.Report a problem": {
-    "message": "Signaler un probleme",
+    "message": "Signaler un problème",
     "description": "The label of footer link with label=Report a problem linking to https://github.com/Apollia-OS/apollia-os/issues/new"
   },
   "copyright": {

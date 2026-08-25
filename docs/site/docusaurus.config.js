@@ -50,7 +50,7 @@ const config = {
     locales: ['en', 'fr'],
     localeConfigs: {
       en: { label: 'English' },
-      fr: { label: 'Francais' },
+      fr: { label: 'Français' },
     },
   },
 
