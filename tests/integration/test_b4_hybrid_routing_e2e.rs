@@ -137,9 +137,11 @@ fn make_hybrid_router(ceiling_usd: f64) -> (Arc<LlmRouter>, Arc<AtomicU32>) {
         }),
     );
     let routing = LlmRoutingConfig {
+        format_version: 1,
         precise: "local".into(),
         fast: "local".into(),
         hybrid: Some(HybridRoutingConfig {
+            format_version: 1,
             frontier: "frontier".into(),
             cost_ceiling_usd: ceiling_usd,
             ceiling_action: Default::default(),
@@ -292,9 +294,11 @@ async fn b4_below_threshold_never_escalates() {
         }),
     );
     let routing = LlmRoutingConfig {
+        format_version: 1,
         precise: "local".into(),
         fast: "local".into(),
         hybrid: Some(HybridRoutingConfig {
+            format_version: 1,
             frontier: "frontier".into(),
             cost_ceiling_usd: 100.0,
             ceiling_action: Default::default(),

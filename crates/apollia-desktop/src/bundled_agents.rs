@@ -133,6 +133,7 @@ fn provision_onboarding_agent(
 /// component with a stable, well-known contract.
 fn onboarding_manifest() -> AgentManifest {
     AgentManifest {
+        format_version: 1,
         name: "onboarding-agent".to_string(),
         version: ONBOARDING_AGENT_VERSION.to_string(),
         description: "Agent d'onboarding conversationnel - fait connaissance \
@@ -235,6 +236,7 @@ fn provision_apollia_guide_agent(
 /// Mirrors the `manifest()` dict from `agents/system/apollia-guide/agent.py`.
 fn apollia_guide_manifest() -> AgentManifest {
     AgentManifest {
+        format_version: 1,
         name: "apollia-guide".to_string(),
         version: APOLLIA_GUIDE_VERSION.to_string(),
         description: "Conversational coach for Apollia OS - knows product \

@@ -6,6 +6,7 @@ struct AlwaysOkLoader;
 impl AgentLoader for AlwaysOkLoader {
     fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
         Ok(AgentManifest {
+            format_version: 1,
             name: "test-agent".into(),
             version: "0.1.0".into(),
             description: "test".into(),

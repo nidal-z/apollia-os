@@ -83,6 +83,7 @@ fn fixed_backend(name: &str, model: &str) -> Arc<dyn CompletionModel> {
 
 fn mcp_server(name: &str) -> McpServerConfig {
     McpServerConfig {
+        format_version: 1,
         name: name.to_owned(),
         command: "npx".to_owned(),
         args: vec!["-y".to_owned(), format!("@{name}/server")],

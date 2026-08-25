@@ -436,6 +436,7 @@ mod tests {
 
     fn make_config() -> VertexConfig {
         VertexConfig {
+            format_version: 1,
             enabled: true,
             project_id: "test-project".to_owned(),
             location: "us-east5".to_owned(),
@@ -578,6 +579,7 @@ mod tests {
     #[ignore = "requires valid GCP credentials and network access"]
     async fn test_vertex_integration() {
         let config = VertexConfig {
+            format_version: 1,
             enabled: true,
             project_id: std::env::var("GCP_PROJECT_ID").expect("GCP_PROJECT_ID required"),
             location: "us-east5".to_owned(),

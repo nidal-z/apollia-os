@@ -2501,6 +2501,7 @@ mod tests {
         let registry = ToolRegistryHandle::start();
         let audit = open_test_audit().await;
         let mcp_config = McpServerConfig {
+            format_version: 1,
             name: "calc".to_string(),
             command: "python3".to_string(),
             args: vec![concat!(
@@ -3134,6 +3135,7 @@ mod tool_proxy_a2a_tests {
 
     fn make_excel_manifest() -> AgentManifest {
         AgentManifest {
+            format_version: 1,
             name: "excel-worker".to_string(),
             version: "0.1.0".to_string(),
             description: "Excel worker".to_string(),

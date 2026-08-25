@@ -601,9 +601,11 @@ fn make_hybrid_router(
     backends.insert("default".to_string(), model);
     let router = LlmRouter::with_backends(backends, "default").with_routing(
         apollia_core::LlmRoutingConfig {
+            format_version: 1,
             precise: "default".to_owned(),
             fast: "default".to_owned(),
             hybrid: Some(apollia_core::HybridRoutingConfig {
+                format_version: 1,
                 frontier: "default".to_owned(),
                 cost_ceiling_usd: ceiling,
                 ceiling_action: action,
@@ -2890,6 +2892,7 @@ fn write_hook_script(dir: &std::path::Path, name: &str, decision_json: &str) -> 
 fn pre_tool_use_executor(script: String) -> Arc<HookExecutor> {
     let registry = crate::hooks::HookRegistry::from_config(&apollia_core::HooksConfig {
         handlers: vec![apollia_core::HookHandlerConfig {
+            format_version: 1,
             events: vec![apollia_core::HookEventKind::PreToolUse],
             kind: apollia_core::HookHandlerKind::Command {
                 command: vec![script],
@@ -3226,6 +3229,7 @@ async fn test_posttooluse_injection_reaches_next_turn() {
     let script = write_hook_script(dir.path(), "inject.sh", r#"{"inject":"INJECTED-CTX"}"#);
     let registry = crate::hooks::HookRegistry::from_config(&apollia_core::HooksConfig {
         handlers: vec![apollia_core::HookHandlerConfig {
+            format_version: 1,
             events: vec![apollia_core::HookEventKind::PostToolUse],
             kind: apollia_core::HookHandlerKind::Command {
                 command: vec![script],

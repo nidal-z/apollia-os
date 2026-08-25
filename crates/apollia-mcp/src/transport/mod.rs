@@ -176,6 +176,7 @@ mod tests {
 
     fn make_config(transport: &str) -> McpServerConfig {
         McpServerConfig {
+            format_version: 1,
             name: "test".to_string(),
             command: "cat".to_string(),
             args: vec![],

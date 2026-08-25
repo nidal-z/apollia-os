@@ -139,6 +139,7 @@ mod tests {
             .collect();
 
         AgentManifest {
+            format_version: 1,
             name: name.to_string(),
             version: "0.1.0".to_string(),
             description: name.to_string(),

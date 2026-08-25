@@ -259,6 +259,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
 
     Ok(McpServerConfig {
+        format_version: 1,
         name: row.get(0)?,
         command: row.get(1)?,
         args,
@@ -282,6 +283,7 @@ mod tests {
 
     fn stdio_config(name: &str) -> McpServerConfig {
         McpServerConfig {
+            format_version: 1,
             name: name.to_string(),
             command: "npx".to_string(),
             args: vec!["-y".to_string(), format!("@{name}/mcp-server")],
@@ -375,6 +377,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
         let config = McpServerConfig {
+            format_version: 1,
             name: "My Server!".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -431,6 +434,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec!["-y".to_string(), "@notionhq/notion-mcp-server".to_string()],

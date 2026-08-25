@@ -360,6 +360,7 @@ mod tests {
 
     fn make_pdf_manifest() -> AgentManifest {
         AgentManifest {
+            format_version: 1,
             name: "pdf-worker".to_string(),
             version: "0.1.0".to_string(),
             description: "PDF worker".to_string(),

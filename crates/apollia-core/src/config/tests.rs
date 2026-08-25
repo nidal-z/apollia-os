@@ -32,6 +32,7 @@ fn test_hybrid_config_hard_stop_parsed() {
 fn test_hybrid_config_negative_ceiling_rejected() {
     // GIVEN a config with a negative ceiling
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: "claude-opus-4".into(),
         cost_ceiling_usd: -1.0,
         ceiling_action: CeilingAction::StayLocal,
@@ -51,6 +52,7 @@ fn test_hybrid_config_negative_ceiling_rejected() {
 fn test_hybrid_config_empty_frontier_rejected() {
     // GIVEN a config with an empty frontier
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: String::new(),
         cost_ceiling_usd: 1.0,
         ceiling_action: CeilingAction::HardStop,
@@ -68,6 +70,7 @@ fn test_hybrid_config_empty_frontier_rejected() {
 fn test_hybrid_config_zero_ceiling_rejected() {
     // GIVEN a config with a zero ceiling (exact limit)
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: "claude-opus-4".into(),
         cost_ceiling_usd: 0.0,
         ceiling_action: CeilingAction::StayLocal,

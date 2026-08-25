@@ -221,6 +221,7 @@ mod tests {
 
     fn minimal_manifest() -> AgentManifest {
         AgentManifest {
+            format_version: 1,
             name: "test-agent".to_string(),
             version: "1.0.0".to_string(),
             description: "test".to_string(),

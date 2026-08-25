@@ -615,6 +615,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
     impl AIPAgent for SimpleAgent {
         fn manifest(&self) -> AgentManifest {
             AgentManifest {
+                format_version: 1,
                 name: "simple-agent".to_string(),
                 version: "1.0.0".to_string(),
                 description: "Test agent without hook".to_string(),

@@ -6,6 +6,12 @@ use super::ConfigError;
 // LlmRoutingConfig
 // ─────────────────────────────────────────────
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// Per-precision LLM routing configuration (`[llm.routing]` section in `apollia.toml`).
 ///
 /// Splits LLM calls along two natural axes from the scaling laws (Kaplan et al., 2020):
@@ -23,6 +29,11 @@ use super::ConfigError;
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmRoutingConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Backend for deep-reasoning tasks (ORIA planning, analysis, judgment).
     ///
     /// Criterion: a task where an error has high impact or needs nuance.
@@ -78,6 +89,11 @@ pub enum CeilingAction {
 /// both `frontier` and `cost_ceiling_usd` are required and validated at startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HybridRoutingConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Name of the frontier backend to use when an escalation signal fires.
     ///
     /// Must match the name of a backend declared in `[[llm.backends]]`.
@@ -176,6 +192,11 @@ fn default_runner_backend() -> String {
 /// `enabled` is `false` and the backend is not loaded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VertexConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Enable this backend (false by default).
     #[serde(default)]
     pub enabled: bool,

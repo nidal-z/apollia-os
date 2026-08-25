@@ -52,10 +52,21 @@ pub const DRIVE_PREFS_FILENAME: &str = "drive-prefs.toml";
 /// hardcoded `Apollia` constant so existing installs keep their files.
 pub const DEFAULT_ROOT_FOLDER_PATH: &str = "Apollia";
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// A folder the user designated via Google Picker; Apollia gained
 /// `drive.file` access to it (plus its descendants) on pick.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PickedFolder {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Google Drive file ID. Stable.
     pub id: String,
     /// Folder name at pick time (display only; may drift if the user
@@ -529,6 +540,7 @@ mod tests {
         let (_dir, path) = tmp();
         set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();
         let f = PickedFolder {
+            format_version: 1,
             id: "id-1".into(),
             name: "Docs".into(),
             mime_type: default_folder_mime(),
@@ -570,11 +582,13 @@ mod tests {
     fn picked_folders_round_trip_per_account() {
         let (_dir, path) = tmp();
         let f1 = PickedFolder {
+            format_version: 1,
             id: "id-1".into(),
             name: "Docs".into(),
             mime_type: default_folder_mime(),
         };
         let f2 = PickedFolder {
+            format_version: 1,
             id: "id-2".into(),
             name: "Travail".into(),
             mime_type: default_folder_mime(),
@@ -592,12 +606,14 @@ mod tests {
     fn picked_folders_dedupe_by_id() {
         let (_dir, path) = tmp();
         let f = PickedFolder {
+            format_version: 1,
             id: "id-1".into(),
             name: "Old".into(),
             mime_type: default_folder_mime(),
         };
         add_picked_folder_at(&path, "google", "nidal@x", f).unwrap();
         let renamed = PickedFolder {
+            format_version: 1,
             id: "id-1".into(),
             name: "New".into(),
             mime_type: default_folder_mime(),
@@ -619,11 +635,13 @@ mod tests {
     fn picked_folder_remove_keeps_others() {
         let (_dir, path) = tmp();
         let f1 = PickedFolder {
+            format_version: 1,
             id: "a".into(),
             name: "A".into(),
             mime_type: default_folder_mime(),
         };
         let f2 = PickedFolder {
+            format_version: 1,
             id: "b".into(),
             name: "B".into(),
             mime_type: default_folder_mime(),
@@ -641,6 +659,7 @@ mod tests {
         let (_dir, path) = tmp();
         set_folder_path_at(&path, "google", "nidal@x", "Documents/Apollia").unwrap();
         let f = PickedFolder {
+            format_version: 1,
             id: "id-1".into(),
             name: "Travail".into(),
             mime_type: default_folder_mime(),

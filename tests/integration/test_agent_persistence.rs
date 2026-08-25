@@ -117,6 +117,7 @@ fn agent_name_from_path(path: &Path) -> String {
 /// Build a minimal `AgentManifest` for tests.
 fn test_manifest(name: &str, version: &str) -> AgentManifest {
     AgentManifest {
+        format_version: 1,
         name: name.to_string(),
         version: version.to_string(),
         description: format!("Test agent {name}"),

@@ -1796,6 +1796,7 @@ mod tests {
         // GIVEN a server config with requires_approval=true
         use crate::config::McpServerConfig;
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -1818,6 +1819,7 @@ mod tests {
         // GIVEN a server config with requires_approval=false
         use crate::config::McpServerConfig;
         let config = McpServerConfig {
+            format_version: 1,
             name: "sqlite".to_string(),
             command: "npx".to_string(),
             args: vec![],

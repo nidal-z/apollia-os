@@ -33,9 +33,20 @@ pub enum AgentInstallSource {
     },
 }
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// Record persisted in `registry.json` after a successful community agent install.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryEntry {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Declared name of the agent.
     pub name: String,
     /// Declared version of the agent.
@@ -232,6 +243,7 @@ pub fn install_from_dir(
     }
 
     let entry = RegistryEntry {
+        format_version: 1,
         name: manifest.name.clone(),
         version: manifest.version.clone(),
         source,
@@ -265,6 +277,7 @@ pub fn update_registry(
 
     entries.retain(|e| e.name != entry.name);
     entries.push(RegistryEntry {
+        format_version: 1,
         name: entry.name.clone(),
         version: entry.version.clone(),
         source: entry.source.clone(),
@@ -678,6 +691,7 @@ mod tests {
         let registry_path = tmp.path().join("registry.json");
 
         let old_entry = RegistryEntry {
+            format_version: 1,
             name: "my-agent".to_string(),
             version: "0.1.0".to_string(),
             source: AgentInstallSource::Local {
@@ -689,6 +703,7 @@ mod tests {
 
         // WHEN the same agent is re-installed with a newer version
         let new_entry = RegistryEntry {
+            format_version: 1,
             name: "my-agent".to_string(),
             version: "0.2.0".to_string(),
             source: AgentInstallSource::Local {

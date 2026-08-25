@@ -97,6 +97,7 @@ fn make_manifest(
     execution_mode: &str,
 ) -> AgentManifest {
     AgentManifest {
+        format_version: 1,
         name: name.to_owned(),
         version: "1.0.0".to_owned(),
         description: format!("Test agent {name}"),

@@ -268,6 +268,7 @@ mod tests {
 
     fn make_server(name: &str, command: &str) -> McpServerConfig {
         McpServerConfig {
+            format_version: 1,
             name: name.to_string(),
             command: command.to_string(),
             args: vec![],

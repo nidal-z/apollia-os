@@ -1060,6 +1060,7 @@ mod tests {
         call_timeout_secs: u64,
     ) -> McpServerConfig {
         McpServerConfig {
+            format_version: 1,
             name: name.to_string(),
             command: command.to_string(),
             args,

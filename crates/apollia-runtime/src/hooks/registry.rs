@@ -110,6 +110,7 @@ mod tests {
 
     fn handler(events: Vec<HookEventKind>, kind: HookHandlerKind) -> HookHandlerConfig {
         HookHandlerConfig {
+            format_version: 1,
             events,
             kind,
             timeout_ms: 5_000,

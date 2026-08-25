@@ -1759,6 +1759,7 @@ mod tests {
             backends.insert(fast.to_owned(), make_mock_backend(fast));
         }
         let routing = Some(LlmRoutingConfig {
+            format_version: 1,
             precise: precise.to_owned(),
             fast: fast.to_owned(),
             hybrid: None,
@@ -2424,6 +2425,7 @@ mod tests {
         backends.insert("opus".to_owned(), make_mock_backend("opus"));
         backends.insert("haiku".to_owned(), make_mock_backend("haiku"));
         let router = make_test_router(backends, "haiku").with_routing(LlmRoutingConfig {
+            format_version: 1,
             precise: "opus".to_owned(),
             fast: "haiku".to_owned(),
             hybrid: None,
@@ -2564,9 +2566,11 @@ mod tests {
             make_mock_backend("frontier-model"),
         );
         let routing = Some(LlmRoutingConfig {
+            format_version: 1,
             precise: "local".to_owned(),
             fast: "local".to_owned(),
             hybrid: Some(apollia_core::HybridRoutingConfig {
+                format_version: 1,
                 frontier: "frontier-model".to_owned(),
                 cost_ceiling_usd: ceiling,
                 ceiling_action: apollia_core::CeilingAction::StayLocal,
@@ -2612,9 +2616,11 @@ mod tests {
             make_mock_backend("frontier-model"),
         );
         let routing = Some(LlmRoutingConfig {
+            format_version: 1,
             precise: "local".to_owned(),
             fast: "local".to_owned(),
             hybrid: Some(apollia_core::HybridRoutingConfig {
+                format_version: 1,
                 frontier: "frontier-model".to_owned(),
                 cost_ceiling_usd: 2.0,
                 ceiling_action: CeilingAction::HardStop,
@@ -2695,9 +2701,11 @@ mod tests {
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
         backends.insert("local".to_owned(), make_mock_backend("local"));
         let routing = LlmRoutingConfig {
+            format_version: 1,
             precise: "local".to_owned(),
             fast: "local".to_owned(),
             hybrid: Some(apollia_core::HybridRoutingConfig {
+                format_version: 1,
                 frontier: "phantom".to_owned(),
                 cost_ceiling_usd: 1.00,
                 ceiling_action: apollia_core::CeilingAction::StayLocal,

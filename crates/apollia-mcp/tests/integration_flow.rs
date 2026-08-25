@@ -8,6 +8,7 @@ use apollia_tools::ToolRegistryHandle;
 
 fn mock_server_config(name: &str) -> McpServerConfig {
     McpServerConfig {
+        format_version: 1,
         name: name.to_string(),
         command: "python3".to_string(),
         args: vec![format!(

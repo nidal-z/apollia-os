@@ -43,6 +43,7 @@ async fn test_config_unresolved_env_var_fails() {
     let previous = std::env::var_os(var_name);
     std::env::remove_var(var_name);
     let config = McpServerConfig {
+        format_version: 1,
         name: "test".to_string(),
         command: "python3".to_string(),
         args: vec![],

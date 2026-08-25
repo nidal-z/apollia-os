@@ -187,6 +187,7 @@ fn test_hybrid_complete_deserializes_correctly() {
 fn test_validate_rejects_zero_ceiling() {
     // GIVEN a hybrid config with a zero ceiling
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: "claude-opus-4-6".to_owned(),
         cost_ceiling_usd: 0.0,
         ceiling_action: CeilingAction::StayLocal,
@@ -206,6 +207,7 @@ fn test_validate_rejects_zero_ceiling() {
 fn test_validate_rejects_empty_frontier() {
     // GIVEN a hybrid config with an empty frontier
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: String::new(),
         cost_ceiling_usd: 1.00,
         ceiling_action: CeilingAction::StayLocal,
@@ -222,6 +224,7 @@ fn test_validate_rejects_empty_frontier() {
 fn test_validate_rejects_negative_ceiling() {
     // GIVEN a hybrid config with a negative ceiling
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: "claude-opus-4-6".to_owned(),
         cost_ceiling_usd: -0.5,
         ceiling_action: CeilingAction::StayLocal,
@@ -241,6 +244,7 @@ fn test_validate_rejects_negative_ceiling() {
 fn test_validate_accepts_complete_hybrid() {
     // GIVEN a valid hybrid config
     let cfg = HybridRoutingConfig {
+        format_version: 1,
         frontier: "claude-opus-4-6".to_owned(),
         cost_ceiling_usd: 1.00,
         ceiling_action: CeilingAction::StayLocal,
@@ -280,6 +284,7 @@ fn test_hooks_ac2_missing_command_argv_rejected() {
     // GIVEN a command handler with an empty argv
     let cfg = HooksConfig {
         handlers: vec![HookHandlerConfig {
+            format_version: 1,
             events: vec![HookEventKind::PreToolUse],
             kind: HookHandlerKind::Command { command: vec![] },
             timeout_ms: default_hook_timeout_ms(),
@@ -346,6 +351,7 @@ fn test_hooks_empty_events_rejected() {
     // GIVEN a handler subscribing to no event
     let cfg = HooksConfig {
         handlers: vec![HookHandlerConfig {
+            format_version: 1,
             events: vec![],
             kind: HookHandlerKind::Http {
                 url: "http://127.0.0.1:9000/hook".to_string(),
@@ -367,6 +373,7 @@ fn test_hooks_timeout_out_of_bounds_rejected() {
     // GIVEN a handler with a timeout below the lower bound
     let cfg = HooksConfig {
         handlers: vec![HookHandlerConfig {
+            format_version: 1,
             events: vec![HookEventKind::PreToolUse],
             kind: HookHandlerKind::Http {
                 url: "http://127.0.0.1:9000/hook".to_string(),

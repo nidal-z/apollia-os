@@ -1023,6 +1023,7 @@ async fn test_story187_appstate_contains_repos() {
 /// Creates a test [`AgentManifest`] with minimal fields.
 fn test_manifest(name: &str) -> apollia_core::AgentManifest {
     apollia_core::AgentManifest {
+        format_version: 1,
         name: name.to_string(),
         version: "1.0.0".to_string(),
         description: format!("Test agent {name}"),

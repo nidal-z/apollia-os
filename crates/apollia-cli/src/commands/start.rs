@@ -2249,6 +2249,7 @@ agent = A()
         assert!(!engine.has_reasoner());
 
         let manifest = AgentManifest {
+            format_version: 1,
             name: "regression-orchestrated".to_string(),
             version: "0.1.0".to_string(),
             description: "BUG-004 regression guard".to_string(),

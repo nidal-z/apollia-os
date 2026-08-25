@@ -134,6 +134,7 @@ mod tests {
         // GIVEN a valid hooks config with one command handler
         let cfg = HooksConfig {
             handlers: vec![HookHandlerConfig {
+                format_version: 1,
                 events: vec![HookEventKind::PreToolUse],
                 kind: HookHandlerKind::Command {
                     command: vec!["/usr/bin/hook".to_string()],

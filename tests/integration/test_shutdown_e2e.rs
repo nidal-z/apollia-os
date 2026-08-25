@@ -92,6 +92,7 @@ impl ExecutionBackend for NeverBackend {
 
 fn test_manifest(name: &str) -> AgentManifest {
     AgentManifest {
+        format_version: 1,
         name: name.to_string(),
         version: "1.0.0".to_string(),
         description: String::new(),

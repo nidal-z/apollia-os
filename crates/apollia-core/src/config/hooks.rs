@@ -83,9 +83,20 @@ impl HookHandlerKind {
     }
 }
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// A single registered lifecycle hook handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookHandlerConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Lifecycle events this handler subscribes to.
     ///
     /// A handler can subscribe to multiple events; the runtime invokes it once

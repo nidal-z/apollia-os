@@ -7,6 +7,7 @@ use apollia_mcp::session::{LoadingMode, McpSession, McpSessionError};
 
 fn mock_server_config() -> McpServerConfig {
     McpServerConfig {
+        format_version: 1,
         name: "mock".to_string(),
         command: "python3".to_string(),
         args: vec![format!(
@@ -27,6 +28,7 @@ fn mock_server_config() -> McpServerConfig {
 
 fn crash_server_config() -> McpServerConfig {
     McpServerConfig {
+        format_version: 1,
         name: "crash".to_string(),
         command: "python3".to_string(),
         args: vec![format!(
@@ -49,6 +51,7 @@ fn crash_server_config() -> McpServerConfig {
 /// used to prove the deferred-mode schema cache.
 fn deferred_server_config() -> McpServerConfig {
     McpServerConfig {
+        format_version: 1,
         name: "deferred".to_string(),
         command: "python3".to_string(),
         args: vec![format!(
@@ -167,6 +170,7 @@ async fn test_full_flow_add_tool_call() {
 async fn test_initialize_timeout_on_slow_server() {
     // GIVEN a process that idles without producing any stdout output (sleep)
     let config = McpServerConfig {
+        format_version: 1,
         name: "slow".to_string(),
         command: "sleep".to_string(),
         args: vec!["100".to_string()],

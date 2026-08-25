@@ -81,6 +81,7 @@ fn write_bundled_manifest(tmp: &TempDir) -> PathBuf {
 /// Construit un `InstalledAgent` minimal avec l'horodatage fourni.
 fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
     let manifest = AgentManifest {
+        format_version: 1,
         name: name.to_string(),
         version: "1.0.0".to_string(),
         description: format!("Pre-installed {name}"),

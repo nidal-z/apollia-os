@@ -30,6 +30,12 @@ pub struct MemoryConfig {
     pub auto_purge: bool,
 }
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// Declared identity and capabilities of an agent.
 ///
 /// Single source of truth for tool resolution and runtime configuration at
@@ -37,6 +43,11 @@ pub struct MemoryConfig {
 /// Returned by the `manifest()` method of each Python agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentManifest {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Unique name of the agent within the runtime.
     pub name: String,
     /// Semver version (e.g. "1.0.0").
@@ -302,6 +313,7 @@ mod tests {
     fn test_agent_manifest_serialization() {
         // GIVEN
         let manifest = AgentManifest {
+            format_version: default_format_version(),
             name: "devis-agent".into(),
             version: "1.0.0".into(),
             description: "Génère des devis".into(),
@@ -347,6 +359,7 @@ mod tests {
     fn test_manifest_optional_defaults() {
         // GIVEN / WHEN
         let manifest = AgentManifest {
+            format_version: default_format_version(),
             name: "agent".into(),
             version: "1.0.0".into(),
             description: "desc".into(),
@@ -497,6 +510,7 @@ mod tests {
     fn test_tools_requiring_approval_roundtrip() {
         // GIVEN an AgentManifest with tools_requiring_approval
         let manifest = AgentManifest {
+            format_version: default_format_version(),
             name: "roundtrip-agent".into(),
             version: "1.0.0".into(),
             description: "test".into(),

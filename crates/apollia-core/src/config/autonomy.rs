@@ -108,12 +108,23 @@ pub struct AutonomyLevelParseError {
     pub given: String,
 }
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// Per-level configuration: effective budget plus behavioral flags.
 ///
 /// When absent from `apollia.toml`, each level uses the values defined by
 /// [`AutonomyLevelConfig::default_for`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutonomyLevelConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Effective budget for this tier. Always capped by the runtime ceiling.
     pub budget: StepBudgetConfig,
     /// Inject user memory context into the system prompt for this tier.
@@ -141,11 +152,13 @@ impl AutonomyLevelConfig {
     pub fn default_for(level: AutonomyLevel) -> Self {
         match level {
             AutonomyLevel::Assisted => Self {
+                format_version: default_format_version(),
                 budget: StepBudgetConfig::chat_default(),
                 inject_memory: false,
                 run_verification: false,
             },
             AutonomyLevel::Supervised => Self {
+                format_version: default_format_version(),
                 budget: StepBudgetConfig {
                     max_steps: 200,
                     max_tool_calls: 400,
@@ -155,6 +168,7 @@ impl AutonomyLevelConfig {
                 run_verification: true,
             },
             AutonomyLevel::BoundedAutonomous => Self {
+                format_version: default_format_version(),
                 budget: StepBudgetConfig {
                     max_steps: 300,
                     max_tool_calls: 600,
@@ -164,6 +178,7 @@ impl AutonomyLevelConfig {
                 run_verification: true,
             },
             AutonomyLevel::LongAutonomous => Self {
+                format_version: default_format_version(),
                 budget: StepBudgetConfig {
                     max_steps: 500,
                     max_tool_calls: 1000,

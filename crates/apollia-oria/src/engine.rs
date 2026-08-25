@@ -2129,6 +2129,7 @@ mod orchestrated_tests {
 
     fn orchestrated_manifest_with_prompt() -> AgentManifest {
         AgentManifest {
+            format_version: 1,
             name: "test-agent".into(),
             version: "1.0.0".into(),
             description: "Test orchestrated agent".into(),
@@ -2288,6 +2289,7 @@ mod orchestrated_tests {
         let engine = ORIAEngine::new();
         let agent = MockAgent {
             manifest: AgentManifest {
+                format_version: 1,
                 name: "no-prompt-agent".into(),
                 version: "1.0.0".into(),
                 description: "Agent without system_prompt".into(),

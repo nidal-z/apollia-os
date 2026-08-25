@@ -467,6 +467,7 @@ mod tests {
 
     fn command_handler(argv: Vec<String>, timeout_ms: u64) -> HookHandlerConfig {
         HookHandlerConfig {
+            format_version: 1,
             events: vec![HookEventKind::PreToolUse],
             kind: HookHandlerKind::Command { command: argv },
             timeout_ms,
@@ -637,6 +638,7 @@ mod tests {
         timeout_ms: u64,
     ) -> HookHandlerConfig {
         HookHandlerConfig {
+            format_version: 1,
             events,
             kind: HookHandlerKind::Command { command: argv },
             timeout_ms,

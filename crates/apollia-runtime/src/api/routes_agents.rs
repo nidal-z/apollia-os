@@ -60,6 +60,7 @@ impl AgentLoader for StubAgentLoader {
             .unwrap_or("stub-agent")
             .replace('_', "-");
         Ok(AgentManifest {
+            format_version: 1,
             name,
             version: "0.0.0".to_string(),
             description: "stub agent for tests".to_string(),
@@ -635,6 +636,7 @@ mod tests {
                 .unwrap_or("unknown")
                 .replace('_', "-");
             Ok(AgentManifest {
+                format_version: 1,
                 name,
                 version: "1.0.0".to_string(),
                 description: "mock agent".to_string(),
@@ -683,6 +685,7 @@ mod tests {
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
+            format_version: 1,
             name: name.to_string(),
             version: "0.1.0".to_string(),
             description: String::new(),
@@ -1168,6 +1171,7 @@ mod tests {
         impl AgentLoader for DegradedLoader {
             fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
                 Ok(AgentManifest {
+                    format_version: 1,
                     name: "degraded-agent".to_string(),
                     version: "1.0.0".to_string(),
                     description: "agent with optional tools".to_string(),
@@ -1231,6 +1235,7 @@ mod tests {
         impl AgentLoader for A2aOnlyLoader {
             fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
                 Ok(AgentManifest {
+                    format_version: 1,
                     name: "a2a-director".to_string(),
                     version: "1.0.0".to_string(),
                     description: "director with only A2A optional deps".to_string(),

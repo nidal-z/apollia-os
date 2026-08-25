@@ -98,9 +98,20 @@ pub struct McpConfig {
     pub mdns_discovery: bool,
 }
 
+/// Current version of the persisted format, and the value read for files
+/// written before the key existed.
+fn default_format_version() -> u32 {
+    1
+}
+
 /// Configuration for a single MCP server process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
+    /// Version of this on-disk format. A file written before versioning has
+    /// no key and reads as format 1; a future format bumps the default and the
+    /// reader branches on the value it finds.
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     /// Unique server name (e.g. `"notion"`). Used in tool name prefixes: `mcp:notion/search`.
     /// Allowed characters: `[a-z0-9_-]`.
     pub name: String,
@@ -671,6 +682,7 @@ mod tests {
     fn test_invalid_server_name_fails() {
         // GIVEN a server name containing characters outside [a-z0-9_-]
         let config = McpServerConfig {
+            format_version: 1,
             name: "My Server!".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -698,6 +710,7 @@ mod tests {
         let previous = std::env::var_os("TEST_MCP_KEY_327");
         std::env::set_var("TEST_MCP_KEY_327", "secret123");
         let config = McpServerConfig {
+            format_version: 1,
             name: "test".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -727,6 +740,7 @@ mod tests {
         let _guard = ENV_LOCK.lock().await;
         std::env::remove_var("TOTALLY_MISSING_VAR_327");
         let config = McpServerConfig {
+            format_version: 1,
             name: "test".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -751,6 +765,7 @@ mod tests {
     fn test_unsupported_transport_fails() {
         // GIVEN a server configured with transport = "http"
         let config = McpServerConfig {
+            format_version: 1,
             name: "test".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -778,6 +793,7 @@ mod tests {
         let previous = std::env::var_os("TEST_MCP_HOST_327");
         std::env::set_var("TEST_MCP_HOST_327", "localhost");
         let config = McpServerConfig {
+            format_version: 1,
             name: "test".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -808,6 +824,7 @@ mod tests {
     fn test_empty_server_name_fails() {
         // GIVEN a server with an empty name
         let config = McpServerConfig {
+            format_version: 1,
             name: String::new(),
             command: "npx".to_string(),
             args: vec![],
@@ -832,6 +849,7 @@ mod tests {
     fn test_empty_command_fails() {
         // GIVEN a server with a valid name but empty command
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: String::new(),
             args: vec![],
@@ -857,6 +875,7 @@ mod tests {
         // GIVEN a stdio server whose `command` is the scoped npm identifier
         // (the bug shape produced by older catalog wizard versions).
         let config = McpServerConfig {
+            format_version: 1,
             name: "local-files".to_string(),
             command: "@modelcontextprotocol/server-filesystem".to_string(),
             args: vec!["/tmp".to_string()],
@@ -883,6 +902,7 @@ mod tests {
     fn test_dotted_reverse_dns_package_as_command_is_rejected() {
         // GIVEN a Java-style reverse-DNS package identifier in `command`.
         let config = McpServerConfig {
+            format_version: 1,
             name: "github".to_string(),
             command: "io.github.github/github-mcp-server".to_string(),
             args: vec![],
@@ -915,6 +935,7 @@ mod tests {
             "./local-bin/mcp",
         ] {
             let config = McpServerConfig {
+                format_version: 1,
                 name: "ok".to_string(),
                 command: cmd.to_string(),
                 args: vec![],
@@ -976,6 +997,7 @@ mod tests {
 
     fn server_with_env(name: &str, env: HashMap<String, String>) -> McpServerConfig {
         McpServerConfig {
+            format_version: 1,
             name: name.to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -1146,6 +1168,7 @@ mod tests {
     fn test_mcp_init_timeout_zero_returns_validation_error() {
         // GIVEN init_timeout_secs = 0 (below minimum of 1)
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -1170,6 +1193,7 @@ mod tests {
     fn test_mcp_init_timeout_301_returns_validation_error() {
         // GIVEN init_timeout_secs = 301 (above maximum of 300)
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -1194,6 +1218,7 @@ mod tests {
     fn test_mcp_call_timeout_zero_returns_validation_error() {
         // GIVEN call_timeout_secs = 0 (below minimum of 1)
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec![],
@@ -1218,6 +1243,7 @@ mod tests {
     fn test_mcp_url_without_scheme_returns_validation_error() {
         // GIVEN transport = "streamable-http" with a URL that has no scheme
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: String::new(),
             args: vec![],
@@ -1242,6 +1268,7 @@ mod tests {
     fn test_mcp_url_with_http_scheme_passes_validation() {
         // GIVEN transport = "streamable-http" with an http:// URL
         let config = McpServerConfig {
+            format_version: 1,
             name: "local-mcp".to_string(),
             command: String::new(),
             args: vec![],
@@ -1263,6 +1290,7 @@ mod tests {
     fn test_streamable_http_with_url_passes_validation() {
         // GIVEN a config with transport = "streamable-http" and a valid url
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: String::new(),
             args: vec![],
@@ -1284,6 +1312,7 @@ mod tests {
     fn test_streamable_http_without_url_fails() {
         // GIVEN a config with transport = "streamable-http" but no url
         let config = McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: String::new(),
             args: vec![],
@@ -1308,6 +1337,7 @@ mod tests {
     fn test_sse_with_url_passes_validation() {
         // GIVEN a config with transport = "sse" and a valid url
         let config = McpServerConfig {
+            format_version: 1,
             name: "brave".to_string(),
             command: String::new(),
             args: vec![],

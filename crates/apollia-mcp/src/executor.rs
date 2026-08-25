@@ -432,6 +432,7 @@ mod tests {
     fn server_requires_approval_config_flag_readable() {
         // GIVEN a server config with requires_approval=true
         let config = crate::config::McpServerConfig {
+            format_version: 1,
             name: "notion".to_string(),
             command: "npx".to_string(),
             args: vec![],
