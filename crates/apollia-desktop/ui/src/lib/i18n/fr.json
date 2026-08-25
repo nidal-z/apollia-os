@@ -109,6 +109,7 @@
     "copy": "Copier",
     "relative": {
       "just_now": "à l'instant",
+      "seconds": "il y a {n} s",
       "minutes": "il y a {n} min",
       "hours": "il y a {n} h",
       "days": "il y a {n} j",
@@ -875,7 +876,9 @@
       "adding": "Ajout en cours…",
       "test_unavailable": "Test de connexion indisponible - aucune configuration trouvée pour ce serveur.",
       "no_package_title": "Serveur non configurable",
-      "no_package_body": "Ce serveur ne possède ni paquet installable ni point d'accès distant. Il ne peut pas être ajouté automatiquement."
+      "no_package_body": "Ce serveur ne possède ni paquet installable ni point d'accès distant. Il ne peut pas être ajouté automatiquement.",
+      "client_id_empty": "Le Client ID est vide.",
+      "connector_not_configured": "Ce connecteur n'est pas encore configuré dans ce build d'Apollia. Voir l'aide ci-dessus."
     },
     "manage": {
       "title": "Gérer {name}",
@@ -1267,7 +1270,11 @@
     "update_restart_stop_failed": "Le nouveau fichier est installé, mais {name} n'a pas pu être arrêté : il exécute toujours la version précédente.",
     "update_restart_stop_failed_action": "Arrêtez l'agent, puis redémarrez-le pour charger la nouvelle version.",
     "update_restart_start_failed": "{name} a été arrêté pour charger la nouvelle version et n'a pas redémarré : il n'exécute plus rien.",
-    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé."
+    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé.",
+    "package_start_errors": {
+      "trigger": "déclencheur {id} : {error}",
+      "missing_install_path": "{name} : install_path manquant"
+    }
   },
   "tasks": {
     "title": "Tâches",
@@ -1384,7 +1391,18 @@
     "delete": "Supprimer",
     "delete_confirm_title": "Supprimer la tâche",
     "delete_confirm_message": "Voulez-vous vraiment supprimer cette tâche ? Cette action est irréversible.",
-    "delete_confirm_yes": "Supprimer"
+    "delete_confirm_yes": "Supprimer",
+    "row_status": {
+      "queued": "en file",
+      "running": "en cours",
+      "awaiting_approval": "attend accord",
+      "completed": "terminée",
+      "review": "à valider",
+      "failed": "erreur",
+      "paused": "en pause",
+      "scheduled": "planifié",
+      "cancelled": "annulé"
+    }
   },
   "inbox": {
     "row": {
@@ -1944,7 +1962,49 @@
     },
     "technical_details": "Détails techniques",
     "edit": "Modifier",
-    "status_filters_aria": "Filtres de statut"
+    "status_filters_aria": "Filtres de statut",
+    "filters": {
+      "all": "Toutes",
+      "active": "Actives",
+      "paused": "En pause",
+      "error": "Erreur"
+    },
+    "humanize": {
+      "cron_every_minute": "Toutes les minutes",
+      "cron_hourly": "Toutes les heures pile",
+      "cron_daily_midnight": "Tous les jours à minuit",
+      "cron_daily_noon": "Tous les jours à midi",
+      "cron_sunday_midnight": "Chaque dimanche à minuit",
+      "cron_monday_midnight": "Chaque lundi à minuit",
+      "cron_first_of_month": "Le 1er de chaque mois",
+      "every_n_minutes": "Toutes les {n} minutes",
+      "every_n_hours": "Toutes les {n, plural, one {# heure} other {# heures}}",
+      "every_n_days": "Tous les {n, plural, one {# jour} other {# jours}}",
+      "every_n_seconds": "Toutes les {n, plural, one {# seconde} other {# secondes}}",
+      "weekday_at": "Tous les matins à {time} en semaine",
+      "weekend_at": "Le week-end à {time}",
+      "daily_at": "Tous les jours à {time}",
+      "monthly_at": "Le {day} de chaque mois à {time}",
+      "dow_sunday": "Chaque dimanche à {time}",
+      "dow_monday": "Chaque lundi à {time}",
+      "dow_tuesday": "Chaque mardi à {time}",
+      "dow_wednesday": "Chaque mercredi à {time}",
+      "dow_thursday": "Chaque jeudi à {time}",
+      "dow_friday": "Chaque vendredi à {time}",
+      "dow_saturday": "Chaque samedi à {time}",
+      "custom_schedule": "Planification personnalisée",
+      "file_watch_changes": "Quand {path} change",
+      "file_watch_changes_default": "Quand un chemin change",
+      "webhook_from": "Quand Apollia reçoit un webhook depuis {source}",
+      "webhook": "Quand Apollia reçoit un webhook",
+      "oneshot": "Une seule fois",
+      "next_run_scheduled": "Prochaine exécution planifiée",
+      "overdue": "En retard",
+      "next_run_under_minute": "Prochaine exécution dans moins d'1 min",
+      "next_run_minutes": "Prochaine exécution dans {n} min",
+      "next_run_hours": "Prochaine exécution dans {time}",
+      "next_run_days": "Prochaine exécution dans {n, plural, one {# jour} other {# jours}}"
+    }
   },
   "triggers": {
     "title": "Triggers",
@@ -2076,7 +2136,16 @@
     "edit_load_error": "Ce trigger n'a pas pu être chargé.",
     "edit_not_editable_title": "Ce trigger ne se modifie pas ici.",
     "edit_not_editable_hint": "Il provient du fichier de configuration apollia.toml, pas des triggers enregistrés par Apollia. Modifiez-le dans ce fichier, puis rechargez la configuration.",
-    "cron_syntax_hint": "Syntaxe cron standard : min heure jour mois jour-semaine"
+    "cron_syntax_hint": "Syntaxe cron standard : min heure jour mois jour-semaine",
+    "dow_short": {
+      "mon": "lun",
+      "tue": "mar",
+      "wed": "mer",
+      "thu": "jeu",
+      "fri": "ven",
+      "sat": "sam",
+      "sun": "dim"
+    }
   },
   "memory": {
     "title": "Mémoire",
@@ -2370,7 +2439,13 @@
     },
     "native": {
       "approval_title": "Action requise",
-      "approval_body": "Agent {agentName} attend une approbation"
+      "approval_body": "Agent {agentName} attend une approbation",
+      "task_approval_title": "Action requise - Apollia OS",
+      "task_approval_body": "Tâche {id} attend votre approbation",
+      "chat_approval_title": "Approbation requise - Chat",
+      "chat_approval_body": "L'outil « {tool} » demande votre autorisation (session {id})",
+      "tool_failure_title": "Outil échoué - Apollia OS",
+      "tool_failure_body": "L'outil « {tool} » a échoué (session {id})"
     },
     "toggle_action": "Activer / désactiver",
     "error_details": "Détails techniques"
@@ -2409,7 +2484,141 @@
     "hide_raw": "Masquer le brut",
     "expand": "Déplier",
     "collapse": "Replier",
-    "tool_denied_operator": "L'agent a tenté d'utiliser {tool}, l'action a été bloquée."
+    "tool_denied_operator": "L'agent a tenté d'utiliser {tool}, l'action a été bloquée.",
+    "describe": {
+      "checking_current_directory": "Consultation du répertoire courant",
+      "changing_file_permissions": "Modification des permissions de fichier",
+      "writing_text_output": "Écriture de texte",
+      "testing_network_connection": "Test de la connexion réseau",
+      "connecting_ssh": "Connexion via SSH",
+      "transferring_ssh": "Transfert de fichiers via SSH",
+      "synchronizing_files": "Synchronisation de fichiers",
+      "locating_program": "Localisation d'un programme",
+      "counting_lines": "Comptage de lignes ou de mots",
+      "sorting_data": "Tri de données",
+      "deduplicating_data": "Déduplication de données",
+      "processing_text": "Traitement de texte",
+      "processing_json": "Traitement de données JSON",
+      "running_batch_commands": "Exécution de commandes par lot",
+      "checking_env": "Consultation des variables d'environnement",
+      "setting_env": "Définition d'une variable d'environnement",
+      "loading_script": "Chargement d'un script",
+      "cloud_operation": "Opération cloud",
+      "checking_condition": "Vérification d'une condition",
+      "waiting": "Attente",
+      "stopping_process": "Arrêt d'un processus",
+      "listing_processes": "Liste des processus",
+      "checking_resources": "Consultation des ressources système",
+      "checking_datetime": "Consultation de la date et de l'heure",
+      "checking_code_changes": "Consultation des modifications du code",
+      "viewing_commit_details": "Consultation du détail d'un commit",
+      "checking_commit_history": "Consultation de l'historique des commits",
+      "checking_repo_status": "Consultation de l'état du dépôt",
+      "staging_changes": "Préparation des modifications",
+      "saving_commit": "Enregistrement d'un commit",
+      "publishing_changes": "Publication des modifications",
+      "downloading_latest_changes": "Téléchargement des dernières modifications",
+      "fetching_remote_changes": "Récupération des modifications distantes",
+      "cloning_repository": "Clonage du dépôt",
+      "switching_branch": "Changement de branche",
+      "managing_branches": "Gestion des branches",
+      "merging_changes": "Fusion des modifications",
+      "rebasing_commits": "Rebasage des commits",
+      "resetting_changes": "Réinitialisation des modifications",
+      "stashing_changes": "Mise de côté des modifications",
+      "managing_tags": "Gestion des étiquettes",
+      "managing_remotes": "Gestion des dépôts distants",
+      "checking_file_history": "Consultation de l'historique d'un fichier",
+      "searching_code_history": "Recherche dans l'historique du code",
+      "applying_patch": "Application d'un correctif",
+      "cherry_picking": "Report d'un commit",
+      "formatting_patch": "Mise en forme d'un correctif",
+      "bisecting_history": "Bissection de l'historique",
+      "git_operation": "Opération Git",
+      "building_rust_project": "Compilation du projet Rust",
+      "checking_rust_code": "Vérification du code Rust",
+      "running_rust_tests": "Exécution des tests Rust",
+      "running_rust_program": "Exécution du programme Rust",
+      "formatting_rust_code": "Mise en forme du code Rust",
+      "linting_rust_code": "Analyse du code Rust",
+      "generating_documentation": "Génération de la documentation",
+      "cleaning_build_artifacts": "Nettoyage des artefacts de build",
+      "adding_rust_dependency": "Ajout d'une dépendance Rust",
+      "updating_rust_dependencies": "Mise à jour des dépendances Rust",
+      "publishing_crate": "Publication du crate",
+      "running_benchmarks": "Exécution des benchmarks",
+      "cargo_command": "Commande Cargo",
+      "installing_dependencies": "Installation des dépendances",
+      "adding_dependency": "Ajout d'une dépendance",
+      "removing_dependency": "Retrait d'une dépendance",
+      "building_the_project": "Compilation du projet",
+      "running_tests": "Exécution des tests",
+      "starting_application": "Démarrage de l'application",
+      "starting_dev_server": "Démarrage du serveur de développement",
+      "linting_code": "Analyse du code",
+      "formatting_code": "Mise en forme du code",
+      "publishing_package": "Publication du paquet",
+      "updating_dependencies": "Mise à jour des dépendances",
+      "upgrading_dependencies": "Montée de version des dépendances",
+      "checking_for_updates": "Vérification des mises à jour",
+      "auditing_dependencies": "Audit des dépendances",
+      "running_script_named": "Exécution du script {name}",
+      "running_named_command": "Exécution d'une commande {name}",
+      "running_named": "Exécution de {name}",
+      "running_python_script": "Exécution d'un script Python",
+      "installing_python_packages": "Installation de paquets Python",
+      "removing_python_packages": "Désinstallation de paquets Python",
+      "managing_python_packages": "Gestion des paquets Python",
+      "running_node_script": "Exécution d'un script Node.js",
+      "fetching_named": "Récupération de {name}",
+      "fetching_web": "Récupération depuis le web",
+      "building_named": "Compilation de {name}",
+      "building_project": "Compilation du projet",
+      "building_docker_image": "Construction de l'image Docker",
+      "starting_container": "Démarrage du conteneur",
+      "stopping_container": "Arrêt du conteneur",
+      "downloading_docker_image": "Téléchargement de l'image Docker",
+      "pushing_docker_image": "Publication de l'image Docker",
+      "listing_containers": "Liste des conteneurs",
+      "listing_images": "Liste des images",
+      "running_in_container": "Exécution d'une commande dans le conteneur",
+      "reading_container_logs": "Lecture des journaux du conteneur",
+      "docker_compose_named": "Docker Compose : {name}",
+      "docker_operation": "Opération Docker",
+      "kubernetes_named": "Kubernetes : {name}",
+      "kubernetes_operation": "Opération Kubernetes",
+      "reading_named": "Lecture de {name}",
+      "reading_file": "Lecture d'un fichier",
+      "exploring_named": "Exploration de {name}",
+      "exploring_directory": "Exploration d'un répertoire",
+      "navigating_named": "Navigation vers {name}",
+      "navigating": "Navigation",
+      "copying_named": "Copie de {name}",
+      "copying_files": "Copie de fichiers",
+      "moving_named": "Déplacement de {name}",
+      "moving_files": "Déplacement de fichiers",
+      "deleting_named": "Suppression de {name}",
+      "deleting_files": "Suppression de fichiers",
+      "creating_directory_named": "Création du répertoire {name}",
+      "creating_directory": "Création d'un répertoire",
+      "creating_file_named": "Création du fichier {name}",
+      "creating_file": "Création d'un fichier",
+      "searching_named": "Recherche de « {pattern} »",
+      "searching_in_files": "Recherche dans les fichiers",
+      "finding_named": "Recherche des fichiers {name}",
+      "finding_files": "Recherche de fichiers",
+      "writing_named": "Écriture dans {name}",
+      "writing_to_file": "Écriture dans un fichier",
+      "running_command": "Exécution d'une commande",
+      "editing_named": "Modification de {name}",
+      "listing_named": "Liste de {name}",
+      "running_python_code": "Exécution Python : {code}",
+      "searching_web": "Recherche web de « {query} »",
+      "searching_memory": "Recherche en mémoire de « {query} »",
+      "asking_user": "Question posée à l'utilisateur",
+      "delegating_named": "Délégation à {name}",
+      "calling_external_tool": "Appel de l'outil externe {name}"
+    }
   },
   "observability": {
     "title": "Tout ce que font vos agents, en clair.",
@@ -2768,7 +2977,13 @@
       "credits_title": "Bâti sur",
       "credits_desc": "Les briques open-source embarquées dans Apollia. Merci à leurs auteurs.",
       "license_public_domain": "Domaine public",
-      "ethos": "Tout tourne sur votre machine. Aucun compte, aucun cloud, aucune télémétrie. Vos données ne quittent jamais l'appareil sans une action explicite de votre part."
+      "ethos": "Tout tourne sur votre machine. Aucun compte, aucun cloud, aucune télémétrie. Vos données ne quittent jamais l'appareil sans une action explicite de votre part.",
+      "diag_unknown": "inconnu",
+      "diag_platform": "Plateforme",
+      "diag_data_dir": "Répertoire de données",
+      "diag_engine": "Moteur",
+      "diag_transcription": "Transcription",
+      "diag_license": "Licence"
     },
     "observability": {
       "title": "Observabilité",
@@ -4327,11 +4542,16 @@
       "result_label": "Résultat",
       "error_label": "Erreur",
       "running_hint": "En cours…",
-      "toggle_thought": "Afficher ou masquer le détail du raisonnement"
+      "toggle_thought": "Afficher ou masquer le détail du raisonnement",
+      "exit_code": "sortie {code}"
     },
     "retry": {
       "badge_title": "{n} réessais",
-      "timeline_label": "{n} tentatives"
+      "timeline_label": "{n} tentatives",
+      "success": "succès",
+      "failed": "échec",
+      "timed_out": "délai dépassé",
+      "fallback": "repli"
     },
     "activity": {
       "toggle": "Afficher l'activité de l'agent",
@@ -4453,7 +4673,38 @@
     "assertion_citation_aria": "Citation {number} : {title}",
     "context_gauge": "Ctx {ctx} · Budget {budget} %",
     "retry_timeline_aria": "Chronologie des tentatives",
-    "conversation_configure": "Configuration"
+    "conversation_configure": "Configuration",
+    "journal": {
+      "tool_heading": "Outil - {name}",
+      "tool_executed": "Outil exécuté avec succès.",
+      "tool_refused": "Outil refusé par l'opérateur.",
+      "tool_authorized": "Outil autorisé, exécution en cours.",
+      "tool_pending": "Outil en attente d'approbation.",
+      "you": "Vous",
+      "agent": "Agent",
+      "system": "Système"
+    },
+    "conversation_live": "en cours",
+    "a2a": {
+      "delegation_failed": "Délégation échouée ({duration})",
+      "unknown_duration": "durée inconnue",
+      "guard_triggered": "Garde : {type}",
+      "step": "étape {n}"
+    },
+    "export": {
+      "default_title": "Conversation de chat",
+      "meta_session": "Session",
+      "meta_mode": "Mode",
+      "meta_created": "Créée le",
+      "meta_closed": "Fermée le",
+      "input_label": "Entrée",
+      "output_label": "Sortie",
+      "role_user": "Utilisateur",
+      "role_assistant": "Assistant",
+      "role_tool": "Outil",
+      "role_system": "Système"
+    },
+    "plan_abandoned_reason": "plan abandonné"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -4509,7 +4760,8 @@
     "feature_llm_desc": "Local (llama.cpp) ou cloud (Anthropic, OpenAI…).",
     "feature_agents_title": "Agents autonomes",
     "feature_agents_desc": "ReAct natif, pas un pipeline déterministe.",
-    "cta_start": "Commencer la configuration"
+    "cta_start": "Commencer la configuration",
+    "switch_locale": "Passer en {code}"
   },
   "onboarding_chat": {
     "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix - chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
@@ -4601,7 +4853,15 @@
       "plan_set_step_status": "Mise à jour d'étape",
       "connector": "{provider}",
       "mcp_generic": "Outil externe",
-      "mcp_tool": "Outil externe"
+      "mcp_tool": "Outil externe",
+      "notebook_read": "Lecture de notebook",
+      "notebook_edit": "Modification de notebook",
+      "permission_rule_add": "Ajout de règle de permission",
+      "permission_rule_remove": "Retrait de règle de permission",
+      "permission_rule_list": "Liste des règles de permission",
+      "tool_search": "Recherche d'outils",
+      "mcp_resources_list": "Liste des ressources de connecteurs",
+      "mcp_resources_read": "Lecture de ressource de connecteur"
     },
     "descriptions": {
       "file_read": "Lecture de {path}",
@@ -4637,7 +4897,15 @@
       "todo_write": "Mise à jour de la liste de tâches",
       "ask_user": "Question qui vous est posée",
       "mcp_generic": "Utilisation de {server_name} : {tool_description}",
-      "mcp_tool": "Utilisation de {server_name} : {tool_description}"
+      "mcp_tool": "Utilisation de {server_name} : {tool_description}",
+      "notebook_read": "Lecture d'un notebook Jupyter",
+      "notebook_edit": "Modification d'une cellule de notebook Jupyter",
+      "permission_rule_add": "Ajout d'une règle de permission",
+      "permission_rule_remove": "Retrait d'une règle de permission",
+      "permission_rule_list": "Liste des règles de permission en vigueur",
+      "tool_search": "Recherche dans l'index des outils externes disponibles",
+      "mcp_resources_list": "Liste des ressources exposées par les serveurs MCP connectés",
+      "mcp_resources_read": "Lecture d'une ressource exposée par un serveur MCP connecté"
     },
     "status": {
       "pending": "En attente…",
@@ -5027,7 +5295,15 @@
     "detach_agent_confirm_action": "Retirer",
     "detach_document_confirm": "Retirer « {name} » de ce projet ? Le fichier reste sur le disque.",
     "detach_document_confirm_action": "Retirer",
-    "document_filter_text": "Fichier texte"
+    "document_filter_text": "Fichier texte",
+    "card_status": {
+      "active": "actif",
+      "paused": "en pause",
+      "blocked": "bloqué",
+      "done": "terminé"
+    },
+    "card_delivered": "livré",
+    "card_agents": "{n, plural, one {# agent} other {# agents}}"
   },
   "hitl": {
     "impact": {

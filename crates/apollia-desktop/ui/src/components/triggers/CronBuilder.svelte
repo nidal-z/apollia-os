@@ -21,7 +21,15 @@
   type Preset = CronPreset;
 
   // cron day-of-week: 0=Sun,1=Mon,...,6=Sat - displayed as Mon-Sun
-  const DAYS_LABEL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAYS_LABEL_KEYS = [
+    "triggers.dow_short.mon",
+    "triggers.dow_short.tue",
+    "triggers.dow_short.wed",
+    "triggers.dow_short.thu",
+    "triggers.dow_short.fri",
+    "triggers.dow_short.sat",
+    "triggers.dow_short.sun",
+  ];
 
   let preset = $state<Preset>("custom");
   let dailyTime = $state("08:00");
@@ -166,7 +174,7 @@
     <div class="space-y-2">
       <div class="flex items-center gap-1.5 flex-wrap">
         <span class="min-w-[2rem] text-xs text-muted-foreground">{$t("triggers.cron_on_days")}</span>
-        {#each DAYS_LABEL as day, i}
+        {#each DAYS_LABEL_KEYS as dayKey, i}
           <button
             type="button"
             class="rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors
@@ -175,7 +183,7 @@
                 : 'border-border text-muted-foreground hover:border-border/60'}"
             onclick={() => toggleDay(i)}
           >
-            {day}
+            {$t(dayKey)}
           </button>
         {/each}
       </div>

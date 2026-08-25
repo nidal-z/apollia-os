@@ -109,6 +109,7 @@
     "copy": "Copy",
     "relative": {
       "just_now": "just now",
+      "seconds": "{n}s ago",
       "minutes": "{n} min ago",
       "hours": "{n} h ago",
       "days": "{n} d ago",
@@ -875,7 +876,9 @@
       "adding": "Adding…",
       "test_unavailable": "Connection test is unavailable - no configuration found for this server.",
       "no_package_title": "Server not configurable",
-      "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically."
+      "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically.",
+      "client_id_empty": "The Client ID is empty.",
+      "connector_not_configured": "This connector is not yet configured in this build of Apollia. See the help above."
     },
     "manage": {
       "title": "Manage {name}",
@@ -1267,7 +1270,11 @@
     "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
-    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused."
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
+    "package_start_errors": {
+      "trigger": "trigger {id}: {error}",
+      "missing_install_path": "{name}: install_path missing"
+    }
   },
   "tasks": {
     "title": "Tasks",
@@ -1384,7 +1391,18 @@
     "delete": "Delete",
     "delete_confirm_title": "Delete task",
     "delete_confirm_message": "Are you sure you want to delete this task? This action cannot be undone.",
-    "delete_confirm_yes": "Delete"
+    "delete_confirm_yes": "Delete",
+    "row_status": {
+      "queued": "queued",
+      "running": "in progress",
+      "awaiting_approval": "awaiting approval",
+      "completed": "completed",
+      "review": "to review",
+      "failed": "error",
+      "paused": "paused",
+      "scheduled": "scheduled",
+      "cancelled": "cancelled"
+    }
   },
   "inbox": {
     "row": {
@@ -1944,7 +1962,49 @@
     },
     "technical_details": "Technical details",
     "edit": "Edit",
-    "status_filters_aria": "Status filters"
+    "status_filters_aria": "Status filters",
+    "filters": {
+      "all": "All",
+      "active": "Active",
+      "paused": "Paused",
+      "error": "Error"
+    },
+    "humanize": {
+      "cron_every_minute": "Every minute",
+      "cron_hourly": "Every hour on the hour",
+      "cron_daily_midnight": "Every day at midnight",
+      "cron_daily_noon": "Every day at noon",
+      "cron_sunday_midnight": "Every Sunday at midnight",
+      "cron_monday_midnight": "Every Monday at midnight",
+      "cron_first_of_month": "First day of every month",
+      "every_n_minutes": "Every {n} minutes",
+      "every_n_hours": "Every {n, plural, one {# hour} other {# hours}}",
+      "every_n_days": "Every {n, plural, one {# day} other {# days}}",
+      "every_n_seconds": "Every {n, plural, one {# second} other {# seconds}}",
+      "weekday_at": "Every weekday at {time}",
+      "weekend_at": "On weekends at {time}",
+      "daily_at": "Every day at {time}",
+      "monthly_at": "Monthly on the {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} at {time}",
+      "dow_sunday": "Every Sunday at {time}",
+      "dow_monday": "Every Monday at {time}",
+      "dow_tuesday": "Every Tuesday at {time}",
+      "dow_wednesday": "Every Wednesday at {time}",
+      "dow_thursday": "Every Thursday at {time}",
+      "dow_friday": "Every Friday at {time}",
+      "dow_saturday": "Every Saturday at {time}",
+      "custom_schedule": "Custom schedule",
+      "file_watch_changes": "When {path} changes",
+      "file_watch_changes_default": "When a path changes",
+      "webhook_from": "When Apollia receives a webhook from {source}",
+      "webhook": "When Apollia receives a webhook",
+      "oneshot": "One time only",
+      "next_run_scheduled": "Next run scheduled",
+      "overdue": "Overdue",
+      "next_run_under_minute": "Next run in under 1 min",
+      "next_run_minutes": "Next run in {n} min",
+      "next_run_hours": "Next run in {time}",
+      "next_run_days": "Next run in {n, plural, one {# day} other {# days}}"
+    }
   },
   "triggers": {
     "title": "Triggers",
@@ -2076,7 +2136,16 @@
     "edit_load_error": "This trigger could not be loaded.",
     "edit_not_editable_title": "This trigger cannot be edited here.",
     "edit_not_editable_hint": "It comes from the apollia.toml configuration file, not from the triggers Apollia stores itself. Edit it there, then reload the configuration.",
-    "cron_syntax_hint": "Standard cron syntax: min hour day month weekday"
+    "cron_syntax_hint": "Standard cron syntax: min hour day month weekday",
+    "dow_short": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    }
   },
   "memory": {
     "title": "Memory",
@@ -2370,7 +2439,13 @@
     },
     "native": {
       "approval_title": "Action required",
-      "approval_body": "Agent {agentName} is waiting for approval"
+      "approval_body": "Agent {agentName} is waiting for approval",
+      "task_approval_title": "Action required - Apollia OS",
+      "task_approval_body": "Task {id} is waiting for your approval",
+      "chat_approval_title": "Approval required - Chat",
+      "chat_approval_body": "Tool “{tool}” requests your authorization (session {id})",
+      "tool_failure_title": "Tool failed - Apollia OS",
+      "tool_failure_body": "Tool “{tool}” failed (session {id})"
     },
     "toggle_action": "Enable / disable",
     "error_details": "Technical details"
@@ -2409,7 +2484,141 @@
     "hide_raw": "Hide raw",
     "expand": "Expand",
     "collapse": "Collapse",
-    "tool_denied_operator": "The agent tried to use {tool}, and the action was blocked."
+    "tool_denied_operator": "The agent tried to use {tool}, and the action was blocked.",
+    "describe": {
+      "checking_current_directory": "Checking current directory",
+      "changing_file_permissions": "Changing file permissions",
+      "writing_text_output": "Writing text output",
+      "testing_network_connection": "Testing network connection",
+      "connecting_ssh": "Connecting via SSH",
+      "transferring_ssh": "Transferring files via SSH",
+      "synchronizing_files": "Synchronizing files",
+      "locating_program": "Locating a program",
+      "counting_lines": "Counting lines or words",
+      "sorting_data": "Sorting data",
+      "deduplicating_data": "Deduplicating data",
+      "processing_text": "Processing text",
+      "processing_json": "Processing JSON data",
+      "running_batch_commands": "Running batch commands",
+      "checking_env": "Checking environment variables",
+      "setting_env": "Setting environment variable",
+      "loading_script": "Loading script",
+      "cloud_operation": "Cloud operation",
+      "checking_condition": "Checking condition",
+      "waiting": "Waiting",
+      "stopping_process": "Stopping process",
+      "listing_processes": "Listing processes",
+      "checking_resources": "Checking system resources",
+      "checking_datetime": "Checking date and time",
+      "checking_code_changes": "Checking code changes",
+      "viewing_commit_details": "Viewing commit details",
+      "checking_commit_history": "Checking commit history",
+      "checking_repo_status": "Checking repository status",
+      "staging_changes": "Staging changes",
+      "saving_commit": "Saving a commit",
+      "publishing_changes": "Publishing changes",
+      "downloading_latest_changes": "Downloading latest changes",
+      "fetching_remote_changes": "Fetching remote changes",
+      "cloning_repository": "Cloning repository",
+      "switching_branch": "Switching branch",
+      "managing_branches": "Managing branches",
+      "merging_changes": "Merging changes",
+      "rebasing_commits": "Rebasing commits",
+      "resetting_changes": "Resetting changes",
+      "stashing_changes": "Stashing changes",
+      "managing_tags": "Managing tags",
+      "managing_remotes": "Managing remotes",
+      "checking_file_history": "Checking file history",
+      "searching_code_history": "Searching in code history",
+      "applying_patch": "Applying patch",
+      "cherry_picking": "Cherry-picking commit",
+      "formatting_patch": "Formatting patch",
+      "bisecting_history": "Bisecting history",
+      "git_operation": "Git operation",
+      "building_rust_project": "Building Rust project",
+      "checking_rust_code": "Checking Rust code",
+      "running_rust_tests": "Running Rust tests",
+      "running_rust_program": "Running Rust program",
+      "formatting_rust_code": "Formatting Rust code",
+      "linting_rust_code": "Linting Rust code",
+      "generating_documentation": "Generating documentation",
+      "cleaning_build_artifacts": "Cleaning build artifacts",
+      "adding_rust_dependency": "Adding Rust dependency",
+      "updating_rust_dependencies": "Updating Rust dependencies",
+      "publishing_crate": "Publishing crate",
+      "running_benchmarks": "Running benchmarks",
+      "cargo_command": "Cargo command",
+      "installing_dependencies": "Installing dependencies",
+      "adding_dependency": "Adding a dependency",
+      "removing_dependency": "Removing a dependency",
+      "building_the_project": "Building the project",
+      "running_tests": "Running tests",
+      "starting_application": "Starting the application",
+      "starting_dev_server": "Starting development server",
+      "linting_code": "Linting code",
+      "formatting_code": "Formatting code",
+      "publishing_package": "Publishing package",
+      "updating_dependencies": "Updating dependencies",
+      "upgrading_dependencies": "Upgrading dependencies",
+      "checking_for_updates": "Checking for updates",
+      "auditing_dependencies": "Auditing dependencies",
+      "running_script_named": "Running script {name}",
+      "running_named_command": "Running {name} command",
+      "running_named": "Running {name}",
+      "running_python_script": "Running Python script",
+      "installing_python_packages": "Installing Python packages",
+      "removing_python_packages": "Removing Python packages",
+      "managing_python_packages": "Managing Python packages",
+      "running_node_script": "Running Node.js script",
+      "fetching_named": "Fetching {name}",
+      "fetching_web": "Fetching from web",
+      "building_named": "Building {name}",
+      "building_project": "Building project",
+      "building_docker_image": "Building Docker image",
+      "starting_container": "Starting container",
+      "stopping_container": "Stopping container",
+      "downloading_docker_image": "Downloading Docker image",
+      "pushing_docker_image": "Pushing Docker image",
+      "listing_containers": "Listing containers",
+      "listing_images": "Listing images",
+      "running_in_container": "Running command in container",
+      "reading_container_logs": "Reading container logs",
+      "docker_compose_named": "Docker Compose: {name}",
+      "docker_operation": "Docker operation",
+      "kubernetes_named": "Kubernetes: {name}",
+      "kubernetes_operation": "Kubernetes operation",
+      "reading_named": "Reading {name}",
+      "reading_file": "Reading a file",
+      "exploring_named": "Exploring {name}",
+      "exploring_directory": "Exploring a directory",
+      "navigating_named": "Navigating to {name}",
+      "navigating": "Navigating",
+      "copying_named": "Copying {name}",
+      "copying_files": "Copying files",
+      "moving_named": "Moving {name}",
+      "moving_files": "Moving files",
+      "deleting_named": "Deleting {name}",
+      "deleting_files": "Deleting files",
+      "creating_directory_named": "Creating directory {name}",
+      "creating_directory": "Creating directory",
+      "creating_file_named": "Creating file {name}",
+      "creating_file": "Creating a file",
+      "searching_named": "Searching for “{pattern}”",
+      "searching_in_files": "Searching in files",
+      "finding_named": "Finding {name} files",
+      "finding_files": "Finding files",
+      "writing_named": "Writing to {name}",
+      "writing_to_file": "Writing to file",
+      "running_command": "Running a command",
+      "editing_named": "Editing {name}",
+      "listing_named": "Listing {name}",
+      "running_python_code": "Running Python: {code}",
+      "searching_web": "Searching the web for “{query}”",
+      "searching_memory": "Searching memory for “{query}”",
+      "asking_user": "Asking the user a question",
+      "delegating_named": "Delegating to {name}",
+      "calling_external_tool": "Calling external tool {name}"
+    }
   },
   "observability": {
     "title": "Everything your agents do, in plain sight.",
@@ -2768,7 +2977,13 @@
       "credits_title": "Built on",
       "credits_desc": "The open-source components embedded in Apollia. Thanks to their authors.",
       "license_public_domain": "Public domain",
-      "ethos": "Everything runs on your machine. No account, no cloud, no telemetry. Your data never leaves the device without an explicit action from you."
+      "ethos": "Everything runs on your machine. No account, no cloud, no telemetry. Your data never leaves the device without an explicit action from you.",
+      "diag_unknown": "unknown",
+      "diag_platform": "Platform",
+      "diag_data_dir": "Data directory",
+      "diag_engine": "Engine",
+      "diag_transcription": "Transcription",
+      "diag_license": "License"
     },
     "observability": {
       "title": "Observability",
@@ -4327,11 +4542,16 @@
       "result_label": "Result",
       "error_label": "Error",
       "running_hint": "Running…",
-      "toggle_thought": "Toggle reasoning details"
+      "toggle_thought": "Toggle reasoning details",
+      "exit_code": "exit {code}"
     },
     "retry": {
       "badge_title": "{n} retries",
-      "timeline_label": "{n} attempts"
+      "timeline_label": "{n} attempts",
+      "success": "success",
+      "failed": "failed",
+      "timed_out": "timed out",
+      "fallback": "fallback"
     },
     "activity": {
       "toggle": "Show agent activity",
@@ -4453,7 +4673,38 @@
     "assertion_citation_aria": "Citation {number}: {title}",
     "context_gauge": "Ctx {ctx} · Budget {budget}%",
     "retry_timeline_aria": "Retry timeline",
-    "conversation_configure": "Configuration"
+    "conversation_configure": "Configuration",
+    "journal": {
+      "tool_heading": "Tool - {name}",
+      "tool_executed": "Tool executed successfully.",
+      "tool_refused": "Tool refused by the operator.",
+      "tool_authorized": "Tool authorized, execution in progress.",
+      "tool_pending": "Tool awaiting approval.",
+      "you": "You",
+      "agent": "Agent",
+      "system": "System"
+    },
+    "conversation_live": "live",
+    "a2a": {
+      "delegation_failed": "Delegation failed ({duration})",
+      "unknown_duration": "unknown duration",
+      "guard_triggered": "Guard: {type}",
+      "step": "step {n}"
+    },
+    "export": {
+      "default_title": "Chat conversation",
+      "meta_session": "Session",
+      "meta_mode": "Mode",
+      "meta_created": "Created",
+      "meta_closed": "Closed",
+      "input_label": "Input",
+      "output_label": "Output",
+      "role_user": "User",
+      "role_assistant": "Assistant",
+      "role_tool": "Tool",
+      "role_system": "System"
+    },
+    "plan_abandoned_reason": "plan abandoned"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -4509,7 +4760,8 @@
     "feature_llm_desc": "Local (llama.cpp) or cloud (Anthropic, OpenAI…).",
     "feature_agents_title": "Autonomous agents",
     "feature_agents_desc": "Native ReAct, not a deterministic pipeline.",
-    "cta_start": "Start configuration"
+    "cta_start": "Start configuration",
+    "switch_locale": "Switch to {code}"
   },
   "onboarding_chat": {
     "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers - each rule appears as a card you can approve or refuse.",
@@ -4601,7 +4853,15 @@
       "plan_set_step_status": "Step update",
       "connector": "{provider}",
       "mcp_generic": "External tool",
-      "mcp_tool": "External tool"
+      "mcp_tool": "External tool",
+      "notebook_read": "Notebook reading",
+      "notebook_edit": "Notebook editing",
+      "permission_rule_add": "Permission rule addition",
+      "permission_rule_remove": "Permission rule removal",
+      "permission_rule_list": "Permission rules listing",
+      "tool_search": "Tool search",
+      "mcp_resources_list": "Connector resources listing",
+      "mcp_resources_read": "Connector resource reading"
     },
     "descriptions": {
       "file_read": "Reading {path}",
@@ -4637,7 +4897,15 @@
       "todo_write": "Updating the to-do list",
       "ask_user": "Asking you a question",
       "mcp_generic": "Using {server_name}: {tool_description}",
-      "mcp_tool": "Using {server_name}: {tool_description}"
+      "mcp_tool": "Using {server_name}: {tool_description}",
+      "notebook_read": "Reading a Jupyter notebook",
+      "notebook_edit": "Editing a Jupyter notebook cell",
+      "permission_rule_add": "Adding a permission rule",
+      "permission_rule_remove": "Removing a permission rule",
+      "permission_rule_list": "Listing the permission rules in force",
+      "tool_search": "Searching the index of available external tools",
+      "mcp_resources_list": "Listing the resources exposed by connected MCP servers",
+      "mcp_resources_read": "Reading a resource exposed by a connected MCP server"
     },
     "status": {
       "pending": "Waiting...",
@@ -5027,7 +5295,15 @@
     "detach_agent_confirm_action": "Detach",
     "detach_document_confirm": "Detach \"{name}\" from this project? The file stays on disk.",
     "detach_document_confirm_action": "Detach",
-    "document_filter_text": "Text file"
+    "document_filter_text": "Text file",
+    "card_status": {
+      "active": "active",
+      "paused": "paused",
+      "blocked": "blocked",
+      "done": "done"
+    },
+    "card_delivered": "delivered",
+    "card_agents": "{n, plural, one {# agent} other {# agents}}"
   },
   "hitl": {
     "impact": {

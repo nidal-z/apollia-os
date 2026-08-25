@@ -62,6 +62,9 @@
   const humanized = $derived(
     humanizeSchedule(trigger.source_kind, trigger.source_config, locale),
   );
+  const humanizedLabel = $derived(
+    $t(humanized.label.key, { values: humanized.label.values }),
+  );
   const rawSchedule = $derived(`${trigger.source_kind} · ${trigger.source_config}`);
 
   const lastFiredDate = $derived(trigger.last_fired ? new Date(trigger.last_fired) : null);
@@ -70,9 +73,11 @@
       ? estimateNextRun(trigger.source_kind, trigger.source_config, lastFiredDate)
       : null,
   );
-  const nextRunLabel = $derived(
-    trigger.enabled ? formatNextRun(nextRun, locale) : $t("automations.paused_hint"),
-  );
+  const nextRunLabel = $derived.by(() => {
+    if (!trigger.enabled) return $t("automations.paused_hint");
+    const spec = formatNextRun(nextRun, locale);
+    return $t(spec.key, { values: spec.values });
+  });
   const nextRunRaw = $derived(
     !trigger.enabled
       ? $t("automations.paused_hint")
@@ -243,7 +248,7 @@
           <span class="truncate font-mono text-muted-foreground/70" title={rawSchedule}>{rawSchedule}</span>
         {:else}
           <span class="truncate" title={humanized.isCustom ? trigger.source_config : ""}>
-            {humanized.label}
+            {humanizedLabel}
           </span>
         {/if}
       </div>

@@ -8,7 +8,8 @@
 // machine, and exposes typed setters. Components never call `invoke` directly:
 // they read this store and submit decisions through `$lib/ipc/planMode`.
 
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
+import { t } from "svelte-i18n";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ProposedPlan, PlanStep } from "$lib/ipc/planMode";
 
@@ -141,7 +142,7 @@ function dispatch(event: TauriRuntimeEvent): void {
               status: "error",
               errorMessage: asString(
                 variantPayload(event.payload, "PlanAbandoned").reason,
-                "plan abandoned",
+                get(t)("chat.plan_abandoned_reason"),
               ),
             }
           : s,

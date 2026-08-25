@@ -2,11 +2,18 @@
  * Conversation export - formats a chat session as Markdown, JSON, or
  * Markdown-with-tools export.
  *
- * Pure functions, no Tauri/IPC coupling - the backend command
- * `export_conversation` reuses the same logic server-side, but the UI
- * may also render a preview locally without a round-trip.
+ * No Tauri/IPC coupling - the document is formatted here and the backend
+ * command `export_conversation` only writes the bytes to disk. The labels
+ * written into the exported document come from the catalogue
+ * (`chat.export.*`), resolved in the interface locale at export time.
  */
+import { get } from "svelte/store";
+import { t } from "svelte-i18n";
 import type { ChatMessageView, ChatSessionDetail } from "$lib/types";
+
+function tr(key: string): string {
+  return get(t)(key);
+}
 
 export type ExportFormat = "markdown" | "json" | "markdown-with-tools";
 
@@ -41,16 +48,18 @@ export function exportConversation(
 
 function toMarkdown(session: ChatSessionDetail, withTools: boolean): string {
   const lines: string[] = [];
-  const title = session.title ?? session.agent_name ?? "Chat conversation";
+  const title = session.title ?? session.agent_name ?? tr("chat.export.default_title");
   const modeSuffix = session.agent_name ? ` (${session.agent_name})` : "";
   lines.push(
     `# ${title}`,
     "",
-    `- **Session:** ${session.id}`,
-    `- **Mode:** ${session.mode}${modeSuffix}`,
-    `- **Created:** ${session.created_at}`,
+    `- **${tr("chat.export.meta_session")}:** ${session.id}`,
+    `- **${tr("chat.export.meta_mode")}:** ${session.mode}${modeSuffix}`,
+    `- **${tr("chat.export.meta_created")}:** ${session.created_at}`,
   );
-  if (session.closed_at) lines.push(`- **Closed:** ${session.closed_at}`);
+  if (session.closed_at) {
+    lines.push(`- **${tr("chat.export.meta_closed")}:** ${session.closed_at}`);
+  }
   if (session.llm_backend) lines.push(`- **LLM:** ${session.llm_backend}`);
   lines.push("", "---", "");
 
@@ -75,19 +84,19 @@ function renderMessage(msg: ChatMessageView, withTools: boolean): string[] {
       out.push(
         `<details><summary>🔧 ${call.tool_name} · ${call.status}</summary>`,
         "",
-        "**Input:**",
+        `**${tr("chat.export.input_label")}:**`,
         "```json",
         inputJson,
         "```",
       );
       if (call.output) {
-        out.push("", "**Output:**", "```", call.output, "```");
+        out.push("", `**${tr("chat.export.output_label")}:**`, "```", call.output, "```");
       }
       out.push("", "</details>");
     }
   }
   if (withTools && msg.role === "tool" && msg.tool_name) {
-    out.push("", `> Tool: \`${msg.tool_name}\``);
+    out.push("", `> ${tr("chat.export.role_tool")}: \`${msg.tool_name}\``);
   }
   return out;
 }
@@ -95,13 +104,13 @@ function renderMessage(msg: ChatMessageView, withTools: boolean): string[] {
 function roleLabel(role: string): string {
   switch (role) {
     case "user":
-      return "🧑 User";
+      return `🧑 ${tr("chat.export.role_user")}`;
     case "assistant":
-      return "🤖 Assistant";
+      return `🤖 ${tr("chat.export.role_assistant")}`;
     case "tool":
-      return "🔧 Tool";
+      return `🔧 ${tr("chat.export.role_tool")}`;
     case "system":
-      return "⚙️ System";
+      return `⚙️ ${tr("chat.export.role_system")}`;
     default:
       return role;
   }

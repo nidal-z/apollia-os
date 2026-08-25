@@ -2,26 +2,54 @@
  * Human-friendly labels for automation schedules.
  *
  * Operator vocabulary - never exposes cron digits, payload, or on-busy.
- * Returns a complete sentence usable inline in an `AutomationScheduleLabel`.
- * Falls back to "Custom schedule" / "Planification personnalisée" with the
- * raw config moved to a tooltip by the caller.
+ * Every label is a catalogue key under `automations.humanize.*` plus its
+ * interpolation values ([`ScheduleLabel`]); the caller renders it through
+ * `$t(label.key, { values: label.values })`. Falls back to the
+ * custom-schedule key with the raw config moved to a tooltip by the caller.
+ *
+ * The `locale` argument only drives locale-specific *formatting* of the
+ * interpolated values (clock style, day names); the copy itself lives in
+ * `en.json` / `fr.json`.
  */
 
 export type ScheduleKind = "cron" | "interval" | "file_watch" | "webhook" | "oneshot";
 export type Locale = "en" | "fr";
 
-const CRON_EXACT: Record<string, Record<Locale, string>> = {
-  "* * * * *": { en: "Every minute", fr: "Toutes les minutes" },
-  "0 * * * *": { en: "Every hour on the hour", fr: "Toutes les heures pile" },
-  "0 0 * * *": { en: "Every day at midnight", fr: "Tous les jours à minuit" },
-  "0 12 * * *": { en: "Every day at noon", fr: "Tous les jours à midi" },
-  "0 0 * * 0": { en: "Every Sunday at midnight", fr: "Chaque dimanche à minuit" },
-  "0 0 * * 1": { en: "Every Monday at midnight", fr: "Chaque lundi à minuit" },
-  "0 0 1 * *": { en: "First day of every month", fr: "Le 1er de chaque mois" },
+/** A catalogue key plus the values its message interpolates. */
+export interface ScheduleLabel {
+  key: string;
+  values?: Record<string, string | number>;
+}
+
+const BASE = "automations.humanize";
+
+function label(
+  suffix: string,
+  values?: Record<string, string | number>,
+): ScheduleLabel {
+  return values ? { key: `${BASE}.${suffix}`, values } : { key: `${BASE}.${suffix}` };
+}
+
+const CRON_EXACT: Record<string, string> = {
+  "* * * * *": "cron_every_minute",
+  "0 * * * *": "cron_hourly",
+  "0 0 * * *": "cron_daily_midnight",
+  "0 12 * * *": "cron_daily_noon",
+  "0 0 * * 0": "cron_sunday_midnight",
+  "0 0 * * 1": "cron_monday_midnight",
+  "0 0 1 * *": "cron_first_of_month",
 };
 
-const DOW_LABEL_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DOW_LABEL_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+/** Day-of-week catalogue key suffixes, indexed by cron day number. */
+const DOW_KEYS = [
+  "dow_sunday",
+  "dow_monday",
+  "dow_tuesday",
+  "dow_wednesday",
+  "dow_thursday",
+  "dow_friday",
+  "dow_saturday",
+] as const;
 
 const INTERVAL_RE = /^(\d+)\s*([smhd])?$/;
 const STEP_RE = /^\*\/\d+$/;
@@ -43,84 +71,75 @@ export function stripSecondsField(expr: string): string {
 }
 
 /**
- * Formats a hour/minute pair in French operator vocabulary (`8h`, `8h30`).
- * Drops the minutes when they are zero, matching the operator's mental model.
+ * Formats a hour/minute pair in the operator vocabulary of the locale:
+ * `8h` / `8h30` in French (minutes dropped when zero), `08:00` / `08:30`
+ * elsewhere. Formatting, not copy: the sentence around it is a catalogue key.
  */
-function frenchClock(hour: number, minute: number): string {
-  return minute === 0 ? `${hour}h` : `${hour}h${pad(minute)}`;
+function clock(hour: number, minute: number, loc: Locale): string {
+  if (loc === "fr") {
+    return minute === 0 ? `${hour}h` : `${hour}h${pad(minute)}`;
+  }
+  return `${pad(hour)}:${pad(minute)}`;
 }
 
 /**
- * Recognises `*\/N * * * *` (every N minutes) and returns the localised
- * label, or null when the expression doesn't match.
+ * Recognises `*\/N * * * *` (every N minutes) and returns the label,
+ * or null when the expression doesn't match.
  */
-function matchEveryNMinutes(
-  parts: readonly string[],
-  loc: Locale,
-): string | null {
+function matchEveryNMinutes(parts: readonly string[]): ScheduleLabel | null {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
   if (!STEP_RE.test(minute) || hour !== "*" || dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") {
     return null;
   }
   const n = Number.parseInt(minute.slice(2), 10);
   if (n <= 0) return null;
-  return loc === "fr" ? `Toutes les ${n} minutes` : `Every ${n} minutes`;
+  return label("every_n_minutes", { n });
 }
 
 /**
- * Recognises `0 *\/N * * *` (every N hours) and returns the localised label,
+ * Recognises `0 *\/N * * *` (every N hours) and returns the label,
  * or null when the expression doesn't match.
  */
-function matchEveryNHours(parts: readonly string[], loc: Locale): string | null {
+function matchEveryNHours(parts: readonly string[]): ScheduleLabel | null {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
   if (minute !== "0" || !STEP_RE.test(hour) || dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") {
     return null;
   }
   const n = Number.parseInt(hour.slice(2), 10);
   if (n <= 0) return null;
-  return loc === "fr" ? `Toutes les ${n} heures` : `Every ${n} hours`;
+  return label("every_n_hours", { n });
 }
 
 /**
  * Recognises `M H * * <dow-spec>` patterns: weekdays (`1-5`), weekends
  * (`0,6` / `6,0`), single day-of-week (`0..6`), or all days (`*`).
  */
-function matchDailyWithDow(parts: readonly string[], loc: Locale): string | null {
+function matchDailyWithDow(
+  parts: readonly string[],
+  loc: Locale,
+): ScheduleLabel | null {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
   if (!ONE_OR_TWO_DIGITS.test(minute) || !ONE_OR_TWO_DIGITS.test(hour)) return null;
   if (dayOfMonth !== "*" || month !== "*") return null;
 
   const hRaw = Number.parseInt(hour, 10);
   const mRaw = Number.parseInt(minute, 10);
+  const time = clock(hRaw, mRaw, loc);
 
-  if (dayOfWeek === "1-5") {
-    return loc === "fr"
-      ? `Tous les matins à ${frenchClock(hRaw, mRaw)} en semaine`
-      : `Every weekday at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
-  if (dayOfWeek === "0,6" || dayOfWeek === "6,0") {
-    return loc === "fr"
-      ? `Le week-end à ${frenchClock(hRaw, mRaw)}`
-      : `On weekends at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
+  if (dayOfWeek === "1-5") return label("weekday_at", { time });
+  if (dayOfWeek === "0,6" || dayOfWeek === "6,0") return label("weekend_at", { time });
   if (DOW_SINGLE.test(dayOfWeek)) {
     const d = Number.parseInt(dayOfWeek, 10);
-    return loc === "fr"
-      ? `Chaque ${DOW_LABEL_FR[d]} à ${frenchClock(hRaw, mRaw)}`
-      : `Every ${DOW_LABEL_EN[d]} at ${pad(hRaw)}:${pad(mRaw)}`;
+    return { key: `${BASE}.${DOW_KEYS[d]}`, values: { time } };
   }
-  if (dayOfWeek === "*") {
-    return loc === "fr"
-      ? `Tous les jours à ${frenchClock(hRaw, mRaw)}`
-      : `Every day at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
+  if (dayOfWeek === "*") return label("daily_at", { time });
   return null;
 }
 
 /**
  * Recognises `0 H D * *` (monthly on the Dth at H:00).
  */
-function matchMonthly(parts: readonly string[], loc: Locale): string | null {
+function matchMonthly(parts: readonly string[], loc: Locale): ScheduleLabel | null {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
   if (
     minute !== "0" ||
@@ -133,31 +152,23 @@ function matchMonthly(parts: readonly string[], loc: Locale): string | null {
   }
   const hRaw = Number.parseInt(hour, 10);
   const d = Number.parseInt(dayOfMonth, 10);
-  return loc === "fr"
-    ? `Le ${d} de chaque mois à ${hRaw}h`
-    : `Monthly on the ${d}${ordinalSuffix(d)} at ${pad(hRaw)}:00`;
+  return label("monthly_at", { day: d, time: clock(hRaw, 0, loc) });
 }
 
-function humanizeCron(expr: string, loc: Locale): string | null {
+function humanizeCron(expr: string, loc: Locale): ScheduleLabel | null {
   const trimmed = stripSecondsField(expr).trim();
   const exact = CRON_EXACT[trimmed];
-  if (exact) return exact[loc];
+  if (exact) return label(exact);
 
   const parts = trimmed.split(/\s+/);
   if (parts.length < 5) return null;
 
   return (
-    matchEveryNMinutes(parts, loc) ??
-    matchEveryNHours(parts, loc) ??
+    matchEveryNMinutes(parts) ??
+    matchEveryNHours(parts) ??
     matchDailyWithDow(parts, loc) ??
     matchMonthly(parts, loc)
   );
-}
-
-function ordinalSuffix(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return s[(v - 20) % 10] ?? s[v] ?? s[0];
 }
 
 /**
@@ -195,34 +206,19 @@ function pickIntervalBucket(
   return { count: seconds, unit: "s" };
 }
 
-const INTERVAL_LABELS: Record<
-  "d" | "h" | "m" | "s",
-  Record<Locale, (n: number, plural: string) => string>
-> = {
-  d: {
-    fr: (n, p) => `Tous les ${n} jour${p}`,
-    en: (n, p) => `Every ${n} day${p}`,
-  },
-  h: {
-    fr: (n, p) => `Toutes les ${n} heure${p}`,
-    en: (n, p) => `Every ${n} hour${p}`,
-  },
-  m: {
-    fr: (n) => `Toutes les ${n} minutes`,
-    en: (n) => `Every ${n} minutes`,
-  },
-  s: {
-    fr: (n, p) => `Toutes les ${n} seconde${p}`,
-    en: (n, p) => `Every ${n} second${p}`,
-  },
+/** Catalogue key suffix per interval bucket; ICU plural rules do the rest. */
+const INTERVAL_KEYS: Record<"d" | "h" | "m" | "s", string> = {
+  d: "every_n_days",
+  h: "every_n_hours",
+  m: "every_n_minutes",
+  s: "every_n_seconds",
 };
 
-function humanizeInterval(config: string, loc: Locale): string | null {
+function humanizeInterval(config: string): ScheduleLabel | null {
   const seconds = intervalToSeconds(config);
   if (seconds === null) return null;
   const { count, unit } = pickIntervalBucket(seconds);
-  const plural = count > 1 ? "s" : "";
-  return INTERVAL_LABELS[unit][loc](count, plural);
+  return label(INTERVAL_KEYS[unit], { n: count });
 }
 
 function extractWebhookSource(config: string): string | null {
@@ -241,27 +237,17 @@ function extractWebhookSource(config: string): string | null {
 }
 
 /**
- * Builds the localised "custom schedule" fallback label.
+ * Builds the "custom schedule" fallback label.
  */
-function customScheduleLabel(loc: Locale): { label: string; isCustom: true } {
-  return {
-    label: loc === "fr" ? "Planification personnalisée" : "Custom schedule",
-    isCustom: true,
-  };
+function customScheduleLabel(): { label: ScheduleLabel; isCustom: true } {
+  return { label: label("custom_schedule"), isCustom: true };
 }
 
 /**
- * Builds the localised webhook label, with or without an explicit source.
+ * Builds the webhook label, with or without an explicit source.
  */
-function webhookLabel(source: string | null, loc: Locale): string {
-  if (source) {
-    return loc === "fr"
-      ? `Quand Apollia reçoit un webhook depuis ${source}`
-      : `When Apollia receives a webhook from ${source}`;
-  }
-  return loc === "fr"
-    ? "Quand Apollia reçoit un webhook"
-    : "When Apollia receives a webhook";
+function webhookLabel(source: string | null): ScheduleLabel {
+  return source ? label("webhook_from", { source }) : label("webhook");
 }
 
 /**
@@ -274,37 +260,38 @@ export function humanizeSchedule(
   kind: ScheduleKind,
   config: string,
   locale: string,
-): { label: string; isCustom: boolean } {
+): { label: ScheduleLabel; isCustom: boolean } {
   const loc: Locale = locale.startsWith("fr") ? "fr" : "en";
 
   switch (kind) {
     case "cron": {
-      const label = humanizeCron(config, loc);
-      return label ? { label, isCustom: false } : customScheduleLabel(loc);
+      const cronLabel = humanizeCron(config, loc);
+      return cronLabel ? { label: cronLabel, isCustom: false } : customScheduleLabel();
     }
     case "interval": {
-      const label = humanizeInterval(config, loc);
-      return label ? { label, isCustom: false } : customScheduleLabel(loc);
+      const intervalLabel = humanizeInterval(config);
+      return intervalLabel
+        ? { label: intervalLabel, isCustom: false }
+        : customScheduleLabel();
     }
     case "file_watch": {
-      const path = config.trim() || (loc === "fr" ? "un chemin" : "a path");
+      const path = config.trim();
       return {
-        label: loc === "fr" ? `Quand ${path} change` : `When ${path} changes`,
+        label: path
+          ? label("file_watch_changes", { path })
+          : label("file_watch_changes_default"),
         isCustom: false,
       };
     }
     case "webhook":
       return {
-        label: webhookLabel(extractWebhookSource(config), loc),
+        label: webhookLabel(extractWebhookSource(config)),
         isCustom: false,
       };
     case "oneshot":
-      return {
-        label: loc === "fr" ? "Une seule fois" : "One time only",
-        isCustom: false,
-      };
+      return { label: label("oneshot"), isCustom: false };
     default:
-      return customScheduleLabel(loc);
+      return customScheduleLabel();
   }
 }
 
@@ -349,7 +336,7 @@ function estimateCronNextRun(config: string, now: Date): Date | null {
  *
  * Returns a Date or null. Only handles patterns also covered by
  * `humanizeSchedule()`; complex expressions yield null so the UI can
- * fall back to "Next run scheduled".
+ * fall back to the "next run scheduled" label.
  */
 export function estimateNextRun(
   kind: ScheduleKind,
@@ -381,50 +368,40 @@ function parseDowRange(spec: string): Set<number> | null {
 }
 
 /**
- * Renders a localised "next run" countdown for the given diff (ms).
+ * Renders the "next run" countdown label for the given diff (ms).
  * Returns null when the diff doesn't match this bucket so the caller can
  * fall through to the next granularity.
  */
-function formatMinutesBucket(diffMs: number, loc: Locale): string | null {
+function formatMinutesBucket(diffMs: number): ScheduleLabel | null {
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) {
-    return loc === "fr" ? "Prochaine exécution dans <1 min" : "Next run in <1 min";
-  }
-  if (minutes < 60) {
-    return loc === "fr" ? `Prochaine exécution dans ${minutes} min` : `Next run in ${minutes} min`;
-  }
+  if (minutes < 1) return label("next_run_under_minute");
+  if (minutes < 60) return label("next_run_minutes", { n: minutes });
   return null;
 }
 
 /**
- * Renders a natural-language countdown: "Next run in 2h34m",
- * "Next run tomorrow at 08:00". Past dates render as "Overdue".
+ * Builds a natural-language countdown label: "Next run in 2h34m",
+ * "Next run in 3 days". Past dates yield the "overdue" key.
  */
-export function formatNextRun(next: Date | null, locale: string, now: Date = new Date()): string {
-  const loc: Locale = locale.startsWith("fr") ? "fr" : "en";
-  if (!next) {
-    return loc === "fr" ? "Prochaine exécution planifiée" : "Next run scheduled";
-  }
+export function formatNextRun(
+  next: Date | null,
+  _locale: string,
+  now: Date = new Date(),
+): ScheduleLabel {
+  if (!next) return label("next_run_scheduled");
   const diffMs = next.getTime() - now.getTime();
-  if (diffMs <= 0) {
-    return loc === "fr" ? "En retard" : "Overdue";
-  }
-  const minutesLabel = formatMinutesBucket(diffMs, loc);
+  if (diffMs <= 0) return label("overdue");
+  const minutesLabel = formatMinutesBucket(diffMs);
   if (minutesLabel) return minutesLabel;
 
   const minutes = Math.floor(diffMs / 60_000);
   const hours = Math.floor(minutes / 60);
   const remMin = minutes % 60;
   if (hours < 24) {
-    return loc === "fr"
-      ? `Prochaine exécution dans ${hours}h${pad(remMin)}`
-      : `Next run in ${hours}h${pad(remMin)}`;
+    return label("next_run_hours", { time: `${hours}h${pad(remMin)}` });
   }
   const days = Math.floor(hours / 24);
-  const plural = days > 1 ? "s" : "";
-  return loc === "fr"
-    ? `Prochaine exécution dans ${days} jour${plural}`
-    : `Next run in ${days} day${plural}`;
+  return label("next_run_days", { n: days });
 }
 
 /**

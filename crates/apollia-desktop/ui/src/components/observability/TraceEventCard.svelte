@@ -122,10 +122,7 @@
 {:else if event.kind === "tool_call_started"}
   {@const toolName = String(event.payload.tool_name ?? "")}
   {@const argsJson = (event.payload.args_json ?? null) as string | null}
-  {@const fallback = toolName.startsWith("a2a:")
-    ? `Delegating to ${toolName.slice(4)}`
-    : toolName}
-  {@const operator = describeToolCall(toolName, argsJson, fallback)}
+  {@const operator = describeToolCall(toolName, argsJson)}
   {@const isCompleted = completion !== null}
   {@const isDenied = completion?.kind === "tool_call_denied"}
   {@const deniedPayload = (isDenied ? completion?.payload : null) as
@@ -165,7 +162,11 @@
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 text-body-xs text-foreground">
           {#if skin === "operator"}
-            <span class="truncate">{operator}</span>
+            <span class="truncate"
+              >{operator
+                ? $t(operator.key, { values: operator.values })
+                : toolName}</span
+            >
             {#if isDenied}
               <span class="font-mono text-caption text-destructive/80 shrink-0">
                 · {$t("trace.tool_denied")}
@@ -176,7 +177,7 @@
             <span class="font-mono truncate">{toolName}</span>
             {#if isDenied}
               <span class="font-mono text-caption text-destructive/80 shrink-0">
-                · denied ({String(deniedPayload?.reason ?? "")})
+                · {$t("trace.tool_denied")} ({String(deniedPayload?.reason ?? "")})
               </span>
             {:else if durationMs !== null && skin === "builder"}
               <span class="font-mono text-caption text-muted-foreground shrink-0">
@@ -249,7 +250,8 @@
         {#if skin === "operator"}
           {$t("trace.tool_denied_operator", { values: { tool: toolName } })}
         {:else}
-          <span class="font-mono">{toolName}</span> denied - {reason}
+          <span class="font-mono">{toolName}</span>
+          {$t("trace.tool_denied")} - {reason}
           {#if event.payload.detail}
             <span class="text-muted-foreground"> ({String(event.payload.detail)})</span>
           {/if}

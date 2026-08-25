@@ -3,7 +3,7 @@
   import { t, locale } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { listTasks } from "$lib/ipc/tasks";
-  import { formatDuration } from "$lib/utils";
+  import { formatDuration, formatRelativeTime as sharedRelativeTime } from "$lib/utils";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -87,18 +87,7 @@
   }
 
   function formatRelativeTime(isoDate: string): string {
-    if (!isoDate) return "-";
-    const now = Date.now();
-    const then = new Date(isoDate).getTime();
-    const diffSecs = Math.floor((now - then) / 1000);
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}min ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(isoDate).toLocaleDateString($locale ?? "en");
+    return sharedRelativeTime(isoDate, $locale ?? "en");
   }
 
   function formatAbsoluteTime(isoDate: string): string {

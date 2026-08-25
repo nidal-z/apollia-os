@@ -203,7 +203,7 @@
       {#if live}
         <span>·</span>
         <span class="text-primary inline-flex items-center gap-1">
-          <StatusDot color="hsl(var(--primary))" glow /> en cours
+          <StatusDot color="hsl(var(--primary))" glow /> {$t("chat.conversation_live")}
         </span>
       {/if}
     </div>

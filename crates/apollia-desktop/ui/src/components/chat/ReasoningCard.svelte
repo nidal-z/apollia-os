@@ -449,7 +449,9 @@
       <span class="chat-ft-meta">
         {@render statusBadge(item.duration_ms)}
         {#if isError && item.exit_code != null}
-          <span class="text-[11px] tabular-nums text-destructive">exit {item.exit_code}</span>
+          <span class="text-[11px] tabular-nums text-destructive"
+            >{$t("chat.reasoning.exit_code", { values: { code: item.exit_code } })}</span
+          >
         {/if}
         {#if rationale?.performance_hint}
           <PerformanceHint hint={rationale.performance_hint} />

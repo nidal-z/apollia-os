@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { NotificationChannel, NotificationLogEntry } from "$lib/types";
+  import { formatRelativeTime as sharedRelativeTime } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import { Select } from "$lib/components/ui/select";
   import { eventLabelKey } from "$lib/notifications/event-labels";
@@ -52,15 +53,7 @@
   );
 
   function formatRelativeTime(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const seconds = Math.floor(diff / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return sharedRelativeTime(iso, $locale ?? "en");
   }
 
   function entryStatus(

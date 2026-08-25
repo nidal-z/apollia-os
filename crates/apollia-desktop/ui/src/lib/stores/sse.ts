@@ -8,6 +8,7 @@
  * Replaces the previous 3-second polling loop.
  */
 import { writable, get } from "svelte/store";
+import { t } from "svelte-i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -210,8 +211,10 @@ async function sendNativeNotification(taskId: string): Promise<void> {
     }
     if (!granted) return;
     sendNotification({
-      title: "Action requise - Apollia OS",
-      body: `Tâche ${taskId.slice(0, 8)} attend votre approbation`,
+      title: get(t)("notifications.native.task_approval_title"),
+      body: get(t)("notifications.native.task_approval_body", {
+        values: { id: taskId.slice(0, 8) },
+      }),
     });
   } catch {
     // Notification API unavailable - silently ignore
@@ -230,8 +233,10 @@ async function sendChatApprovalNotification(
     }
     if (!granted) return;
     sendNotification({
-      title: "Approbation requise - Chat",
-      body: `L'outil « ${toolName} » demande votre autorisation (session ${sessionId.slice(0, 8)})`,
+      title: get(t)("notifications.native.chat_approval_title"),
+      body: get(t)("notifications.native.chat_approval_body", {
+        values: { tool: toolName, id: sessionId.slice(0, 8) },
+      }),
     });
   } catch {
     // Notification API unavailable - silently ignore
@@ -250,8 +255,10 @@ async function sendToolFailureNotification(
     }
     if (!granted) return;
     sendNotification({
-      title: "Outil échoué - Apollia OS",
-      body: `L'outil « ${toolName} » a échoué (session ${sessionId.slice(0, 8)})`,
+      title: get(t)("notifications.native.tool_failure_title"),
+      body: get(t)("notifications.native.tool_failure_body", {
+        values: { tool: toolName, id: sessionId.slice(0, 8) },
+      }),
     });
   } catch {
     // Notification API unavailable - silently ignore

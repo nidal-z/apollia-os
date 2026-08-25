@@ -300,7 +300,13 @@
           const finalStatus = p.status ?? "completed";
           const finalDuration = p.duration_ms;
           if (finalStatus === "failed" && activeA2A) {
-            a2aGuardMessage = `Delegation failed (${finalDuration ? `${finalDuration}ms` : "unknown duration"})`;
+            a2aGuardMessage = $t("chat.a2a.delegation_failed", {
+              values: {
+                duration: finalDuration
+                  ? `${finalDuration}ms`
+                  : $t("chat.a2a.unknown_duration"),
+              },
+            });
           }
           setTimeout(() => {
             activeA2A = null;
@@ -311,7 +317,9 @@
           }, finalStatus === "failed" ? 2000 : 300);
         } else if (evt.event_type === "A2AGuardTriggered") {
           const p = evt.payload as { detail?: string; guard_type?: string };
-          a2aGuardMessage = p.detail ?? `Guard: ${p.guard_type}`;
+          a2aGuardMessage =
+            p.detail ??
+            $t("chat.a2a.guard_triggered", { values: { type: p.guard_type ?? "" } });
           scrollToBottom();
         }
       },
@@ -1278,7 +1286,10 @@
                           <X size={9} class="text-destructive/70" />
                         {/if}
                       </div>
-                      <span class="truncate text-[11px] text-muted-foreground">{step.desc || `step ${step.step_num}`}</span>
+                      <span class="truncate text-[11px] text-muted-foreground"
+                        >{step.desc ||
+                          $t("chat.a2a.step", { values: { n: step.step_num } })}</span
+                      >
                       {#if step.total > 0}
                         <span class="flex-shrink-0 text-[10px] text-muted-foreground/40">{step.step_num}/{step.total}</span>
                       {/if}

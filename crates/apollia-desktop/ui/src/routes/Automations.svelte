@@ -73,11 +73,11 @@
       : $triggers.filter((t) => statusOf(t) === activeFilter),
   );
 
-  const FILTERS: { key: Filter; label: string; tone: "primary" | "success" | "neutral" | "danger"; color: string }[] = [
-    { key: "all",    label: "Toutes", tone: "primary", color: "hsl(var(--muted-foreground))" },
-    { key: "active", label: "Actives", tone: "success", color: "hsl(var(--success))" },
-    { key: "paused", label: "En pause", tone: "neutral", color: "hsl(var(--muted-foreground))" },
-    { key: "error",  label: "Erreur",  tone: "danger", color: "hsl(var(--destructive))" },
+  const FILTERS: { key: Filter; labelKey: string; tone: "primary" | "success" | "neutral" | "danger"; color: string }[] = [
+    { key: "all",    labelKey: "automations.filters.all",    tone: "primary", color: "hsl(var(--muted-foreground))" },
+    { key: "active", labelKey: "automations.filters.active", tone: "success", color: "hsl(var(--success))" },
+    { key: "paused", labelKey: "automations.filters.paused", tone: "neutral", color: "hsl(var(--muted-foreground))" },
+    { key: "error",  labelKey: "automations.filters.error",  tone: "danger", color: "hsl(var(--destructive))" },
   ];
 
   function handleFired(taskId: string) {
@@ -257,7 +257,7 @@
     <FilterChipBar
       chips={FILTERS.map((f) => ({
         key: f.key,
-        label: f.label,
+        label: $t(f.labelKey),
         color: f.color,
         count: counts[f.key],
         glowWhenActive: f.key === "active",

@@ -45,13 +45,13 @@
     const reason = a.reason?.human_message ?? a.reason?.technical_details ?? "";
     switch (a.outcome.kind) {
       case "success":
-        return `#${a.attempt_number} · success`;
+        return `#${a.attempt_number} · ${$t("chat.retry.success")}`;
       case "failed":
-        return `#${a.attempt_number} · failed${reason ? ` · ${reason}` : ""}`;
+        return `#${a.attempt_number} · ${$t("chat.retry.failed")}${reason ? ` · ${reason}` : ""}`;
       case "timed_out":
-        return `#${a.attempt_number} · timed out${reason ? ` · ${reason}` : ""}`;
+        return `#${a.attempt_number} · ${$t("chat.retry.timed_out")}${reason ? ` · ${reason}` : ""}`;
       case "fallback":
-        return `#${a.attempt_number} · fallback → ${a.outcome.to}`;
+        return `#${a.attempt_number} · ${$t("chat.retry.fallback")} → ${a.outcome.to}`;
     }
   }
 

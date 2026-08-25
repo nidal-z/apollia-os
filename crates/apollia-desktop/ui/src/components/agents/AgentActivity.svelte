@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { listTasks } from "$lib/ipc/tasks";
-  import { formatDuration } from "$lib/utils";
+  import { formatDuration, formatRelativeTime as sharedRelativeTime } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
   import { createIdentityGuard } from "$lib/utils/identityGuard";
@@ -30,17 +30,7 @@
   };
 
   function formatRelativeTime(isoDate: string): string {
-    if (!isoDate) return "-";
-    const now = Date.now();
-    const then = new Date(isoDate).getTime();
-    const diffSecs = Math.floor((now - then) / 1000);
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return sharedRelativeTime(isoDate, $locale ?? "en");
   }
 
   // The panel instance survives a change of assistant, so a listing that comes

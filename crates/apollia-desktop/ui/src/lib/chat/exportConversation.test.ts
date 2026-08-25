@@ -1,6 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
+import { waitLocale } from "svelte-i18n";
+import "$lib/i18n";
 import { exportConversation } from "./exportConversation";
 import type { ChatSessionDetail } from "$lib/types";
+
+// The export labels resolve through the catalogue at export time, so the
+// locale must be loaded before the first export renders.
+beforeAll(async () => {
+  await waitLocale();
+});
 
 function makeSession(): ChatSessionDetail {
   return {

@@ -72,10 +72,17 @@
 
   // A copy-ready diagnostic block composed only from real, present fields.
   const diagnostic = $derived.by(() => {
-    const lines = [`Apollia OS v${version ?? "unknown"}`, `Platform: ${os ?? "unknown"}`];
+    const lines = [
+      `Apollia OS v${version ?? $t("settings.about.diag_unknown")}`,
+      `${$t("settings.about.diag_platform")}: ${os ?? $t("settings.about.diag_unknown")}`,
+    ];
     if (pythonPath) lines.push(`Python: ${pythonPath}`);
-    if (dataDir) lines.push(`Data directory: ${dataDir}`);
-    lines.push(`Engine: ${ENGINE}`, `Transcription: ${STT_ENGINE}`, `License: ${LICENSE_SPDX}`);
+    if (dataDir) lines.push(`${$t("settings.about.diag_data_dir")}: ${dataDir}`);
+    lines.push(
+      `${$t("settings.about.diag_engine")}: ${ENGINE}`,
+      `${$t("settings.about.diag_transcription")}: ${STT_ENGINE}`,
+      `${$t("settings.about.diag_license")}: ${LICENSE_SPDX}`,
+    );
     return lines.join("\n");
   });
 

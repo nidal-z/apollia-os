@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { get } from "svelte/store";
+import { t } from "svelte-i18n";
 
 /** Merge Tailwind classes with clsx and tailwind-merge (shadcn-svelte pattern). */
 export function cn(...inputs: ClassValue[]) {
@@ -33,15 +35,24 @@ export function formatRelativeTime(isoDate: string, locale: string): string {
   if (!isoDate) return "-";
   const then = parseTimestampMs(isoDate);
   if (Number.isNaN(then)) return "-";
+  const tr = get(t);
   const diffSecs = Math.floor((Date.now() - then) / 1000);
-  if (diffSecs < 0) return "just now";
-  if (diffSecs < 60) return `${diffSecs}s ago`;
+  if (diffSecs < 0) return tr("common.relative.just_now");
+  if (diffSecs < 60) {
+    return tr("common.relative.seconds", { values: { n: diffSecs } });
+  }
   const diffMins = Math.floor(diffSecs / 60);
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 60) {
+    return tr("common.relative.minutes", { values: { n: diffMins } });
+  }
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) {
+    return tr("common.relative.hours", { values: { n: diffHours } });
+  }
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 7) {
+    return tr("common.relative.days", { values: { n: diffDays } });
+  }
   return new Date(isoDate).toLocaleDateString(locale);
 }
 

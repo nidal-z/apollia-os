@@ -51,7 +51,9 @@
           : 'text-muted-foreground hover:bg-muted'}"
         onclick={() => changeLocale(code)}
         data-testid={`onboarding-lang-${code}`}
-        aria-label={`Switch to ${code.toUpperCase()}`}
+        aria-label={$t("onboarding_welcome.switch_locale", {
+          values: { code: code.toUpperCase() },
+        })}
       >
         {code}
       </button>

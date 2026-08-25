@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { Folder, Check, Shield, Sparkles } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
 
@@ -61,12 +62,12 @@
 
   const statusLabel = $derived(
     status === "active"
-      ? "actif"
+      ? $t("projects.card_status.active")
       : status === "pause"
-        ? "en pause"
+        ? $t("projects.card_status.paused")
         : status === "blocked"
-          ? "bloqué"
-          : "terminé",
+          ? $t("projects.card_status.blocked")
+          : $t("projects.card_status.done"),
   );
 </script>
 
@@ -161,7 +162,7 @@
         <div
           class="text-[10px] text-muted-foreground/80 mt-1 font-mono"
         >
-          {Math.round(progress)}%{isDone ? " · livré" : ""}
+          {Math.round(progress)}%{isDone ? ` · ${$t("projects.card_delivered")}` : ""}
         </div>
       </div>
     {/if}
@@ -188,7 +189,7 @@
         >
           {agents.length > 0
             ? agents.join(", ")
-            : `${agentCount} agent${(agentCount ?? 0) > 1 ? "s" : ""}`}
+            : $t("projects.card_agents", { values: { n: agentCount ?? 0 } })}
         </span>
       </div>
     {/if}

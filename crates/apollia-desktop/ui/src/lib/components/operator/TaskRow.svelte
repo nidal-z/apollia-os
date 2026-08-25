@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { Shield, Sparkles } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import ListRow from "./ListRow.svelte";
@@ -42,17 +43,17 @@
 
   const STATUS: Record<
     TaskStatus,
-    { label: string; tone: "primary" | "warning" | "success" | "danger" | "info" | "neutral" }
+    { key: string; tone: "primary" | "warning" | "success" | "danger" | "info" | "neutral" }
   > = {
-    queued: { label: "en file", tone: "neutral" },
-    running: { label: "en cours", tone: "primary" },
-    awaiting_approval: { label: "attend accord", tone: "warning" },
-    completed: { label: "terminée", tone: "success" },
-    review: { label: "à valider", tone: "success" },
-    failed: { label: "erreur", tone: "danger" },
-    paused: { label: "en pause", tone: "neutral" },
-    scheduled: { label: "planifié", tone: "info" },
-    cancelled: { label: "annulé", tone: "neutral" },
+    queued: { key: "tasks.row_status.queued", tone: "neutral" },
+    running: { key: "tasks.row_status.running", tone: "primary" },
+    awaiting_approval: { key: "tasks.row_status.awaiting_approval", tone: "warning" },
+    completed: { key: "tasks.row_status.completed", tone: "success" },
+    review: { key: "tasks.row_status.review", tone: "success" },
+    failed: { key: "tasks.row_status.failed", tone: "danger" },
+    paused: { key: "tasks.row_status.paused", tone: "neutral" },
+    scheduled: { key: "tasks.row_status.scheduled", tone: "info" },
+    cancelled: { key: "tasks.row_status.cancelled", tone: "neutral" },
   };
 
   const cfg = $derived(STATUS[task.status]);
@@ -123,7 +124,7 @@
           <StatusDot color="hsl(var(--destructive))" glow />
         {/if}
       {/snippet}
-      {cfg.label}
+      {$t(cfg.key)}
     </Badge>
   </div>
   <div

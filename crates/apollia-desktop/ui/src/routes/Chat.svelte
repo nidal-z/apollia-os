@@ -347,7 +347,9 @@
       const calls = m.tool_calls ?? [];
       for (const tc of calls) {
         const status = tc.status;
-        const heading = isBuilder ? tc.tool_name : `Outil - ${tc.tool_name}`;
+        const heading = isBuilder
+          ? tc.tool_name
+          : $t("chat.journal.tool_heading", { values: { name: tc.tool_name } });
         let body: string;
         if (isBuilder) {
           const inputJson = (() => {
@@ -357,12 +359,12 @@
           body = `input=${previewText(inputJson, 240)}${outputStr ? ` · output=${previewText(outputStr, 240)}` : ""}${tc.duration_ms != null ? ` · ${tc.duration_ms}ms` : ""}`;
         } else {
           body = status === "executed"
-            ? "Outil exécuté avec succès."
+            ? $t("chat.journal.tool_executed")
             : status === "refused"
-              ? "Outil refusé par l'opérateur."
+              ? $t("chat.journal.tool_refused")
               : status === "authorized"
-                ? "Outil autorisé, exécution en cours."
-                : "Outil en attente d'approbation.";
+                ? $t("chat.journal.tool_authorized")
+                : $t("chat.journal.tool_pending");
         }
         const evType: JournalEvent["type"] = status === "pending" || status === "authorized" ? "wait" : "tool";
         out.push({ type: evType, heading, body, time });
@@ -375,7 +377,8 @@
         case "user":
           out.push({
             type: "msg",
-            heading: isBuilder ? "user" : "Vous",
+            // i18n-ignore: builder skin shows the raw runtime role
+            heading: isBuilder ? "user" : $t("chat.journal.you"),
             body: previewText(content, isBuilder ? 400 : 200),
             time,
           });
@@ -385,7 +388,8 @@
           const isHitl = Boolean(meta.hitl) || Boolean(meta.approval);
           out.push({
             type: isHitl ? "hitl" : "msg_out",
-            heading: isBuilder ? "assistant" : "Agent",
+            // i18n-ignore: builder skin shows the raw runtime role
+            heading: isBuilder ? "assistant" : $t("chat.journal.agent"),
             body: previewText(content, isBuilder ? 400 : 200),
             time,
           });
@@ -395,6 +399,7 @@
           if (isBuilder) {
             out.push({
               type: "tool",
+              // i18n-ignore: builder skin shows the raw runtime role
               heading: m.tool_name ?? "tool",
               body: previewText(content, 400),
               time,
@@ -405,7 +410,8 @@
         case "system":
           out.push({
             type: "err",
-            heading: isBuilder ? "system" : "Système",
+            // i18n-ignore: builder skin shows the raw runtime role
+            heading: isBuilder ? "system" : $t("chat.journal.system"),
             body: previewText(content, 240),
             time,
           });

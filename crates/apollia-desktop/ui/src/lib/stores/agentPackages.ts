@@ -1,4 +1,5 @@
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
+import { t } from "svelte-i18n";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentPackageListItem,
@@ -125,7 +126,11 @@ export async function startPackage(
     try {
       await invoke("set_trigger_enabled", { id: tr.id, enabled: true });
     } catch (e) {
-      errors.push(`trigger ${tr.id} : ${String(e)}`);
+      errors.push(
+        get(t)("agents.package_start_errors.trigger", {
+          values: { id: tr.id, error: String(e) },
+        }),
+      );
     }
   }
 
@@ -145,7 +150,11 @@ export async function startPackage(
   for (const agent of ordered) {
     if (isRunning(agent)) continue;
     if (!agent.install_path) {
-      errors.push(`${agent.name} : install_path manquant`);
+      errors.push(
+        get(t)("agents.package_start_errors.missing_install_path", {
+          values: { name: agent.name },
+        }),
+      );
       continue;
     }
     try {
@@ -199,7 +208,11 @@ export async function stopPackage(
     try {
       await invoke("set_trigger_enabled", { id: tr.id, enabled: false });
     } catch (e) {
-      errors.push(`trigger ${tr.id} : ${String(e)}`);
+      errors.push(
+        get(t)("agents.package_start_errors.trigger", {
+          values: { id: tr.id, error: String(e) },
+        }),
+      );
     }
   }
 

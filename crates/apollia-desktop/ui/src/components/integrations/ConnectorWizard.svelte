@@ -561,7 +561,7 @@
     if (!envVar) return;
     const trimmed = value.trim();
     if (!trimmed) {
-      oauthSaveClientIdError = "Le Client ID est vide.";
+      oauthSaveClientIdError = $t("integrations.wizard.client_id_empty");
       return;
     }
     oauthSavingClientId = true;
@@ -602,7 +602,7 @@
       // the build var wasn't set AND the operator hasn't exported the
       // runtime var either. The help_text card above documents the
       // registration procedure.
-      oauthSigninError = `Ce connecteur n'est pas encore configuré dans ce build d'Apollia. Voir l'aide ci-dessus.`;
+      oauthSigninError = $t("integrations.wizard.connector_not_configured");
       return;
     }
     oauthSigningIn = true;
