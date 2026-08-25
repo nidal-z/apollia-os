@@ -1031,38 +1031,162 @@ def check_e2e_failure_detail() -> None:
         )
 
 
-# ── The crossing: a guard nobody launches ────────────────────────────────────
+# ── The crossing: a guard nobody launches ────────────────────────────────────────────
 
-# The files that declare where a command runs. A guard whose basename appears in
-# none of them is declared and launched by nothing, which is the same bias as
-# the six above one step further out: the corpus reports green because nothing
-# ran, and the reader who cannot tell a guard that passed from a guard that was
-# never started falls back on believing the green.
+# The files that declare where a command runs. A guard whose command appears in
+# none of their launching lines is declared and launched by nothing, which is
+# the same bias as the six above one step further out: the corpus reports green
+# because nothing ran, and the reader who cannot tell a guard that passed from
+# a guard that was never started falls back on believing the green.
+#
+# A mention is not a launch. Only the lines that make something run reach the
+# text this crossing searches: `entry:` values in the pre-commit config, `run:`
+# values in the workflows (block scalars included), recipe bodies in the
+# justfile, and the argv of the heavy-guards table of worktree_verdicts.py.
+# The previous crossing searched whole files, so a guard named only by a
+# comment satisfied it; three guards of this corpus were in exactly that state
+# inside the pre-commit config while a fourth boundary really launched them,
+# which made the verdict right by accident.
 BOUNDARY_FILES = (".pre-commit-config.yaml", "justfile")
 WORKFLOW_DIR = ".github/workflows"
+
+# Guards that are not `scripts/check_*.py` files but belong to the same corpus:
+# each maps to the pattern a launching line must carry, searched per line.
+# Several of these existed only as CI jobs while the CI was not running, which
+# left them green by absence on every machine.
+EXTERNAL_GUARDS = {
+    "cargo machete": r"\bcargo machete\b",
+    "cargo audit": r"\bcargo audit\b",
+    "cargo deny check": r"\bcargo deny check\b",
+    "mypy apollia": r"\bmypy apollia\b",
+    "pytest": r"(?:^|&&|;)\s*pytest\b",
+    "npm run audit:i18n": r"\bnpm run audit:i18n\b",
+    "npm run audit:a11y": r"\bnpm run audit:a11y\b",
+    "npx svelte-check": r"\bnpx svelte-check\b",
+    "npm run build": r"\bnpm run build\b",
+    "automation validate.py": r"\bscripts/automation/tools/validate\.py\b",
+    "cli-e2e.sh": r"\btests/cli/cli-e2e\.sh\b",
+    "linux-check.sh": r"\bscripts/linux-check\.sh\b",
+    "worktree_verdicts.py": r"\bscripts/worktree_verdicts\.py\b",
+}
+
+# Externals the corpus carries without a boundary yet, waived one by one so the
+# list can only shrink: an entry whose pattern shows up in a launching line is
+# stale and fails the crossing, and the entry leaves with the condition that
+# justifies it. An unnamed waiver would be the ratchet growing in the dark.
+EXTERNAL_GUARDS_AWAITING_BOUNDARY = {
+    "npm run audit:a11y": (
+        "red on this tree, 127 violations at last measure, so a boundary "
+        "would only relay a permanent red; it enters one once the findings "
+        "are cleared"
+    ),
+    "automation validate.py": (
+        "it exits 0 today whatever it measures, so a boundary would launch "
+        "a guard with no verdict; it enters one once its exit code renders "
+        "one"
+    ),
+}
+
+_YAML_LAUNCH_KEY = re.compile(r"^(\s*)(?:-\s+)?(?:run|entry):\s*(.*?)\s*$")
+
+
+def _yaml_launch_lines(text: str) -> list[str]:
+    """Values of `run:` and `entry:` keys, block scalars included."""
+    out: list[str] = []
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        m = _YAML_LAUNCH_KEY.match(lines[i])
+        if m is None:
+            i += 1
+            continue
+        indent, value = len(m.group(1)), m.group(2)
+        i += 1
+        if value and not value.startswith(("|", ">")):
+            out.append(value)
+            continue
+        while i < len(lines):
+            line = lines[i]
+            if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                break
+            out.append(line)
+            i += 1
+    return out
+
+
+def _justfile_launch_lines(text: str) -> list[str]:
+    """Recipe body lines: indented, non-empty, not shell comments."""
+    return [
+        line
+        for line in text.splitlines()
+        if line[:1] in (" ", "\t")
+        and line.strip()
+        and not line.lstrip().startswith("#")
+    ]
+
+
+def _launching_only(text: str) -> str:
+    """Drop the lines that cannot start a command: comments and blanks."""
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith(("#", "//"))
+    )
 
 
 def _boundary_text() -> tuple[str, list[str]]:
     read: list[str] = []
-    chunks: list[str] = []
-    paths = [REPO_ROOT / name for name in BOUNDARY_FILES]
-    paths += sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yml"))
-    paths += sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yaml"))
-    for path in paths:
+    lines: list[str] = []
+    pre_commit = REPO_ROOT / ".pre-commit-config.yaml"
+    if pre_commit.is_file():
+        lines += _yaml_launch_lines(
+            pre_commit.read_text(encoding="utf-8", errors="replace")
+        )
+        read.append(".pre-commit-config.yaml")
+    justfile = REPO_ROOT / "justfile"
+    if justfile.is_file():
+        lines += _justfile_launch_lines(
+            justfile.read_text(encoding="utf-8", errors="replace")
+        )
+        read.append("justfile")
+    workflows = sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yml"))
+    workflows += sorted((REPO_ROOT / WORKFLOW_DIR).glob("*.yaml"))
+    for path in workflows:
         if not path.is_file():
             continue
-        chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+        lines += _yaml_launch_lines(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
         read.append(str(path.relative_to(REPO_ROOT)))
-    return "\n".join(chunks), read
+    # The heavy guards run through `just worktree-verdicts`, whose commands
+    # live in the GUARDS table rather than in a recipe body.
+    lines += [" ".join(guard.command) for guard in worktree_verdicts.GUARDS]
+    read.append("scripts/worktree_verdicts.py:GUARDS")
+    return "\n".join(lines), read
 
 
 def orphan_guards(basenames: list[str], text: str) -> list[str]:
-    """Guard basenames that no boundary file names."""
-    return sorted(name for name in basenames if name not in text)
+    """Guard basenames that no launching line carries.
+
+    Comment lines are dropped before the search: a `#` line naming a guard is
+    a mention, and a mention is not a launch. The previous version searched
+    the raw text, which is how a name cited in a comment passed for a boundary.
+    """
+    launching = _launching_only(text)
+    return sorted(name for name in basenames if name not in launching)
+
+
+def launched_externals(patterns: dict[str, str], text: str) -> dict[str, bool]:
+    """For each external guard, whether one launching line matches its pattern."""
+    lines = _launching_only(text).splitlines()
+    return {
+        name: any(re.search(pattern, line) for line in lines)
+        for name, pattern in patterns.items()
+    }
 
 
 def check_guards_are_launched() -> None:
-    print("guard corpus: every tracked guard is named by a file that launches it")
+    print("guard corpus: every tracked guard is launched by a boundary file")
 
     inventory = subprocess.run(
         ["git", "ls-files", "scripts/check_*.py"],
@@ -1095,7 +1219,7 @@ def check_guards_are_launched() -> None:
     text, read = _boundary_text()
     case(
         "the boundary files were read",
-        len(read) >= 3 and ".pre-commit-config.yaml" in read and "justfile" in read,
+        len(read) >= 4 and ".pre-commit-config.yaml" in read and "justfile" in read,
         f"read {read!r}. A crossing over an empty text would report every guard "
         f"as an orphan, and one over a partial text would invent orphans",
     )
@@ -1104,7 +1228,7 @@ def check_guards_are_launched() -> None:
     case(
         "no tracked guard is orphaned of a boundary",
         not orphans,
-        f"{len(orphans)} guard(s) named by no boundary file: {orphans!r}. Each "
+        f"{len(orphans)} guard(s) launched by no boundary file: {orphans!r}. Each "
         f"is a rule the corpus carries and nothing enforces. Add it to the "
         f"`guards` recipe of the justfile, or to a pre-commit entry",
     )
@@ -1120,6 +1244,68 @@ def check_guards_are_launched() -> None:
         f"the crossing found {invented!r} inside the boundary text, so the case "
         f"above would be green because the crossing matches anything, not "
         f"because the corpus is launched",
+    )
+
+    # Both directions of the mention rule, on fixtures rather than on the
+    # tree: the defect this crossing had was accepting a comment as a launch,
+    # so its correction is pinned from the failing side and from the passing
+    # side at once.
+    case(
+        "a guard named only by a comment is an orphan",
+        orphan_guards(["check_x.py"], "# check_x.py is not launched")
+        == ["check_x.py"],
+        "a comment satisfied the crossing, which is the exact bias this file "
+        "exists to catch: a mention is not a launch",
+    )
+    case(
+        "a guard named by a launching line is not an orphan",
+        orphan_guards(["check_x.py"], "python3 scripts/check_x.py") == [],
+        "a real launching line was reported as an orphan, so the crossing "
+        "would demand boundaries no file can provide",
+    )
+
+    # External guards: the rules of this corpus that are not check_*.py files.
+    launched = launched_externals(EXTERNAL_GUARDS, text)
+    missing = sorted(
+        name
+        for name, ok in launched.items()
+        if not ok and name not in EXTERNAL_GUARDS_AWAITING_BOUNDARY
+    )
+    case(
+        "every external guard is launched by at least one boundary",
+        not missing,
+        f"{len(missing)} external guard(s) launched by no boundary: {missing!r}. "
+        f"Each ran only as a CI job or not at all, which is how three of them "
+        f"sat red on the tree while every local gate stayed green",
+    )
+
+    stale = sorted(
+        name for name in EXTERNAL_GUARDS_AWAITING_BOUNDARY if launched.get(name)
+    )
+    case(
+        "no waiver outlives its boundary",
+        not stale,
+        f"waived external(s) now launched by a boundary: {stale!r}. Remove the "
+        f"entry from EXTERNAL_GUARDS_AWAITING_BOUNDARY: a waiver that outlives "
+        f"its condition is the ratchet growing in the dark",
+    )
+
+    unknown = sorted(set(EXTERNAL_GUARDS_AWAITING_BOUNDARY) - set(EXTERNAL_GUARDS))
+    case(
+        "every waiver names a known external guard",
+        not unknown,
+        f"waiver(s) naming no external guard: {unknown!r}. A waiver on a name "
+        f"the table does not carry excuses nothing and hides a typo",
+    )
+
+    # Positive control for the external table, same shape as the one above.
+    invented_external = {"external nothing launches": r"\bcheck-nothing-launches-this\b"}
+    case(
+        "positive control: an external no boundary launches is reported",
+        launched_externals(invented_external, text)
+        == {"external nothing launches": False},
+        "the external crossing matched a pattern no boundary carries, so its "
+        "green would mean the search matches anything",
     )
 
 
