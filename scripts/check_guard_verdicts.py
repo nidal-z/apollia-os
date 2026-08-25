@@ -164,6 +164,26 @@ def check_corpus_validator() -> None:
                 f"expected exit {expected}, got {run.returncode}. Output:\n"
                 f"{run.stdout}{run.stderr}",
             )
+    # An empty measurement is not a pass. Launched from the wrong directory the
+    # validator builds a corpus of zero anchors and validates zero scripts, and
+    # it used to answer the same "ALL CLEAN" exit 0 as a sane tree. The empty
+    # case must answer its own code, distinct from both the pass and the red.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _corpus_fixture(root, CLEAN_STEP)
+        (root / "crates/apollia-desktop/ui/src/Fixture.svelte").unlink()
+        run = subprocess.run(
+            [sys.executable, str(validator)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        case(
+            "a tree with no anchor at all answers 2, not a pass",
+            run.returncode == 2,
+            f"expected exit 2 (nothing measured), got {run.returncode}. Output:\n"
+            f"{run.stdout}{run.stderr}",
+        )
 
 
 # ── The signature verification ───────────────────────────────────────────────

@@ -136,6 +136,14 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
   its own literals (`` `${action.id}-btn` ``, `{testid}-{opt.value}`). A
   `testidPrefix` step is checked strictly: something in the corpus must really
   start with it, because that is what `[data-testid^="..."]` does at runtime.
+  An exact `testid` resolves by equality only. A step that targets an instance
+  id built from data (`automation-row-<seed id>`) is declared in the script's
+  top-level `dynamicTestids` list; the declaration must sit under a dynamic
+  prefix of the source and is refused when the id also resolves exactly. Step
+  keys are validated per kind against `types.ts` (a `captureText` without `as`,
+  or a `timeoutMs` on a kind the runner never reads it from, is an error).
+  Exit codes: 0 clean, 1 problems, 2 nothing measured (empty corpus or no
+  script, e.g. launched outside the repository root).
   What it cannot see is FLOW: an anchor that exists on another route, a panel
   that needs an extra click to open, a tab that kept its previous selection. A
   runtime round is the only way to catch those.
