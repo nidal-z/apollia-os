@@ -10,6 +10,9 @@
  * A parsed object cannot answer the question, since the evidence is gone by
  * then. This scanner reads the raw text instead, and reports every key an
  * object declares more than once, with the lines that declare it.
+ *
+ * i18n-ignore-file: the strings below are the diagnostics this guard prints
+ * in its own test output, never interface copy.
  */
 
 /** One key declared more than once inside the same object. */

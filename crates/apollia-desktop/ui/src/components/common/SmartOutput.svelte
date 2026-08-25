@@ -73,6 +73,7 @@
     | "alert"
     | "error";
 
+  // i18n-ignore-start: renderer identifiers keyed by payload field names, not copy
   const FIELD_RENDERERS: Record<string, FieldRenderer> = {
     title: "heading",
     name: "heading",
@@ -95,6 +96,7 @@
     error: "error",
     errors: "error",
   };
+  // i18n-ignore-end
 
   /** Rendering order - known fields first in logical order, then unknowns. */
   const FIELD_ORDER: string[] = [

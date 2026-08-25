@@ -89,6 +89,9 @@ const CATEGORY_KEY: Record<ErrorCategory, string> = {
  * ones. Permission patterns carry `legacy` English used by the backward-compat
  * `permissionErrorHumanize` shim; the general `humanize` uses i18n per category.
  */
+// i18n-ignore-start: the `legacy` payloads are the resolved English of the
+// backward-compat `permissionErrorHumanize` shim, dead outside its own test;
+// the live `humanize` path resolves `errors.*` catalogue keys per category.
 const MATCHERS: ErrorMatcher[] = [
   {
     code: "POLICY_DENIED",
@@ -242,6 +245,7 @@ const MATCHERS: ErrorMatcher[] = [
     regex: /\b(ipc|invoke|tauri)\b|\b500\b|internal server error|command failed|backend unavailable/i,
   },
 ];
+// i18n-ignore-end
 
 function rawText(raw: unknown): string {
   if (typeof raw === "string") return raw;

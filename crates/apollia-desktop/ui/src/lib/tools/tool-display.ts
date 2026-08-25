@@ -503,6 +503,10 @@ export function truncateString(s: string, max: number): string {
  */
 type OutputSummariser = (params: Record<string, string>) => string | null;
 
+// i18n-ignore-start: technical belt behind the localized path. Every tool
+// listed here also carries a `tools.outputs.*` outputSummaryKey, and
+// ReasoningCard prefers that key whenever output params exist; these compose
+// from the same params, so they cannot render while the key path works.
 const OUTPUT_SUMMARISERS: Record<string, OutputSummariser> = {
   file_grep: (params) => {
     const matches = params.matches_count ?? params.match_count ?? params.count;
@@ -557,6 +561,7 @@ const OUTPUT_SUMMARISERS: Record<string, OutputSummariser> = {
     return count === undefined ? null : `${count} results`;
   },
 };
+// i18n-ignore-end
 
 export function buildOutputSummary(
   toolName: string,

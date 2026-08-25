@@ -162,8 +162,10 @@
         <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-caption">
           <dt class="text-muted-foreground/75">id</dt>
           <dd class="break-all tabular-nums text-foreground/85">{entry.id}</dd>
+          <!-- i18n-ignore: raw technical record, JSON field name -->
           <dt class="text-muted-foreground/75">type</dt>
           <dd class="text-success">"{entry.entry_type}"</dd>
+          <!-- i18n-ignore: raw technical record, JSON field name -->
           <dt class="text-muted-foreground/75">score</dt>
           <dd class="text-warning tabular-nums">{entry.score ?? "null"}</dd>
           <dt class="text-muted-foreground/75">created_at</dt>

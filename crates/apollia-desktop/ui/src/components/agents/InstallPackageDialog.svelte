@@ -298,6 +298,7 @@
                 <Badge variant="outline" class="text-[9px] px-1.5 py-0 shrink-0">{trigger.source_type}</Badge>
                 {#if trigger.needs_config}
                   <Badge variant="warning" class="text-[9px] px-1.5 py-0 gap-0.5 shrink-0">
+                    <!-- i18n-ignore: abbreviation of configuration, shared by both languages -->
                     <Settings size={8} />config
                   </Badge>
                 {/if}

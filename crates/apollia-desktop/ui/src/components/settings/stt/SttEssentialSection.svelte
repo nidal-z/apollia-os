@@ -32,6 +32,7 @@
   // model-name language detection on the Rust side; a code offered by one and
   // not the other would leave this field with a value no option carries, and a
   // select in that state displays nothing.
+  // i18n-ignore-start: language autonyms, written in their own language
   const STT_LANGUAGES: ReadonlyArray<{ code: string; label: string }> = [
     { code: "fr", label: "Français" },
     { code: "en", label: "English" },
@@ -47,6 +48,7 @@
     { code: "ko", label: "한국어" },
     { code: "ar", label: "العربية" },
   ];
+  // i18n-ignore-end
 
   // A persisted language outside the list above, or a microphone that has since
   // been unplugged, would otherwise leave its select blank. Listing the stored
