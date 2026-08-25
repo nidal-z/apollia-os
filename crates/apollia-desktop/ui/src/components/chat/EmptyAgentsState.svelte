@@ -18,7 +18,7 @@
   }
 
   let {
-    docsHref = "https://docs.apollia.fr/operator-help/agents/installer-un-agent",
+    docsHref = "https://docs.apollia.fr/operator-help/agents/install-an-agent",
   }: Props = $props();
 </script>
 

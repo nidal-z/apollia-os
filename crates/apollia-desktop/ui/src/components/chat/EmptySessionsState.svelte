@@ -19,7 +19,7 @@
 
   function openGettingStarted(): void {
     void openExternalUrl(
-      "https://docs.apollia.fr/operator-help/chat/discuter-avec-votre-ia",
+      "https://docs.apollia.fr/operator-help/chat/chat-with-your-ai",
     );
   }
 </script>

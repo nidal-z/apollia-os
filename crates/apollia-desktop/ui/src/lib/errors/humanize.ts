@@ -97,7 +97,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "POLICY_DENIED",
     category: "permission",
     regex: /permission denied by policy|policy denied|policy violation/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/controle/approuver-ou-refuser-une-action`,
+    learn_more_url: `${DOCS_BASE}/operator-help/control/approve-or-reject-an-action`,
     legacy: {
       title: "Blocked by policy",
       friendly_message:
@@ -110,7 +110,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EACCES",
     category: "permission",
     regex: /\bEACCES\b|permission denied/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/controle/configurer-les-permissions-de-fichiers`,
+    learn_more_url: `${DOCS_BASE}/operator-help/control/manage-tool-permissions`,
     legacy: {
       title: "Permission denied",
       friendly_message:
@@ -123,7 +123,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EPERM",
     category: "permission",
     regex: /\bEPERM\b|operation not permitted/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/controle/configurer-les-permissions-de-fichiers`,
+    learn_more_url: `${DOCS_BASE}/operator-help/control/manage-tool-permissions`,
     legacy: {
       title: "Operation not permitted",
       friendly_message:
