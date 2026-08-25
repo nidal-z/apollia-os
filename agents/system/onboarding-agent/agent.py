@@ -45,7 +45,6 @@ SDK signatures used:
 from __future__ import annotations
 
 import json
-import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, TYPE_CHECKING
@@ -54,9 +53,6 @@ from apollia import DomainError, agent, on_message
 
 if TYPE_CHECKING:
     from apollia.types import Ctx, Message
-
-_logger = logging.getLogger("onboarding-agent")
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1097,7 +1093,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
             )
 
     if not proposals:
-        _logger.info(
+        ctx.logger.info(
             "no permission rule to propose (sovereignty=%s hitl=%s integrations=%s)",
             sovereignty,
             hitl,
@@ -1117,7 +1113,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
             pass
         return
 
-    _logger.info(
+    ctx.logger.info(
         "persisting %d proposed permission rules in memory (sovereignty=%s hitl=%s integrations=%s)",
         len(proposals),
         sovereignty,
@@ -1244,11 +1240,7 @@ class OnboardingAgent:
                 # The static SYSTEM_PROMPT alone still gives reasonable
                 # behaviour, just less robust against premature closure.
                 # Logged so flakey persistence surfaces rather than hiding.
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    "onboarding progress note skipped: %s", exc
-                )
+                ctx.logger.warning("onboarding progress note skipped: %s", exc)
 
         messages.append({"role": "user", "content": user_message})
 
@@ -1298,7 +1290,7 @@ class OnboardingAgent:
                     continue
                 recovered = _heuristic_value_from_user_text(key, user_message)
                 if recovered is not None:
-                    _logger.info(
+                    ctx.logger.info(
                         "heuristic recovery: %s=%s from user text",
                         key,
                         recovered,
@@ -1373,7 +1365,7 @@ class OnboardingAgent:
             try:
                 processed_text = await _fallback_reply(ctx, did_finalize=did_finalize)
             except Exception as exc:  # never let the safety net crash the turn
-                _logger.warning("onboarding fallback reply failed: %s", exc)
+                ctx.logger.warning("onboarding fallback reply failed: %s", exc)
                 processed_text = (
                     "Thanks. We can continue from Settings whenever you like."
                 )
@@ -1385,7 +1377,7 @@ class OnboardingAgent:
                     importance=0.3,
                 )
             except Exception as exc:
-                _logger.debug("memory.record failed: %s", exc)
+                ctx.logger.debug("memory.record failed: %s", exc)
 
         return processed_text
 
