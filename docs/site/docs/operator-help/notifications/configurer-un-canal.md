@@ -41,7 +41,7 @@ In order: first enable globally what interests you, then narrow down channel by 
 1. In the sidebar, click **Notifications**.
 2. Spot the **Global events** section at the top of the page: a grid of checkboxes, one per type, with a label, a short description and the technical identifier.
 
-   ![Global events section, grid of 7 checkboxes with label, description and technical identifier](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
+   ![Notification scope section: the row of 7 event toggles, with the channel list and the "New channel" button below](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Check or uncheck according to what you want surfaced.
 4. Click **Save**. A *"Global events saved"* toast confirms. **Without that click, nothing is applied**: the checkmarks stay local to the screen.
@@ -55,7 +55,7 @@ Apollia automatically creates a default **Desktop** channel on the very first st
 1. In the sidebar, click **Notifications**. The list shows your existing channels, plus a *"Global events"* section at the top.
 
 2. Click **+ New channel** at the top right. The **Create channel** dialog opens.
-   ![Notifications page - Global events section, channel list, "New channel" button at the top right](/img/operator-help/notifications-configurer-un-canal-1.png)
+   ![Notifications page - Notification scope section, channel list, "New channel" button at the top right](/img/operator-help/notifications-configurer-un-canal-1.png)
 
 3. **Name** (first field, auto-focused) - type a clear, free-form name (spaces, accents and emojis accepted, 80 characters max). Examples: *Slack team alerts*, *Supervision webhook*, *Personal desktop*. This name will appear in the list, in the delivery history and in the toasts.
 
