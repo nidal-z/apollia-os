@@ -52,9 +52,11 @@ build:
 build-release:
     cargo build --workspace --release
 
-# Full tests
+# Full tests, under a sentinel HOME: the envelope proves the run leaves
+# ~/.apollia untouched (scripts/check_test_home_isolation.py, exit 1 on a
+# write, 2 when nothing was measured).
 test:
-    cargo test --workspace --no-fail-fast
+    python3 scripts/check_test_home_isolation.py --wrap cargo test --workspace --no-fail-fast
 
 # Tests with Python features
 test-python:

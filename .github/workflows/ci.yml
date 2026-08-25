@@ -140,8 +140,11 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - name: cargo test (workspace)
-        run: cargo test --workspace --no-fail-fast
+      # The envelope points HOME at a seeded sentinel and fails the step if
+      # any test writes into it: a green suite that edits the operator's real
+      # ~/.apollia is exactly the defect this line exists to stop.
+      - name: cargo test (workspace, sentinel HOME)
+        run: python3 scripts/check_test_home_isolation.py --wrap cargo test --workspace --no-fail-fast
       - name: cargo test (python-tests)
         run: cargo test -p apollia-e2e-tests --features python-tests
 

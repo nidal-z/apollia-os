@@ -89,8 +89,14 @@ TEST_SUMMARY = re.compile(
 )
 
 
+# Appended by scripts/check_test_home_isolation.py --wrap: the verdict of the
+# sentinel HOME the wrapped command ran under. CLEAN is zero changes.
+HOME_SENTINEL = re.compile(r"^HOME-SENTINEL: (?:CLEAN|CHANGED (\d+))$", re.M)
+
+
 def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
-    """Test binaries that reported a result, and tests they executed.
+    """Test binaries that reported a result, tests they executed, and the
+    home-sentinel verdict.
 
     Ignored tests are counted out: they are compiled and skipped, so counting
     them would let a `#[ignore]` added on one side hide a test that stopped
@@ -99,12 +105,24 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
     No summary line at all means nothing was measured, and that is not the same
     as a tree whose tests are all `#[ignore]`: the second one reported, and it
     reported zero. `summaries` empty is the discriminant, not the total.
+
+    `home_changes` counts what the run wrote into the sentinel `~/.apollia`
+    the wrapper pointed HOME at; an absent verdict line records None, which
+    reads `not measured`, because a run that never watched the sentinel is not
+    a run that left it untouched.
     """
     summaries = TEST_SUMMARY.findall(output)
+    sentinel = HOME_SENTINEL.search(output)
+    home_changes = None if sentinel is None else int(sentinel.group(1) or 0)
     if not summaries:
-        return {"exit": code, "binaries": None, "tests": None}
+        return {"exit": code, "binaries": None, "tests": None, "home_changes": home_changes}
     executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
-    return {"exit": code, "binaries": len(summaries), "tests": executed}
+    return {
+        "exit": code,
+        "binaries": len(summaries),
+        "tests": executed,
+        "home_changes": home_changes,
+    }
 
 
 def measure_cli_e2e(output: str, code: int) -> dict[str, int | None]:
@@ -180,7 +198,9 @@ def render_exit(m: dict[str, int | None]) -> str:
 
 
 def render_cargo_test(m: dict[str, int | None]) -> str:
-    return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst"
+    # `.get`: a record written by the pre-sentinel version of this script has
+    # no `home_changes` key, and rendering it must not crash the comparison.
+    return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst, home {m.get('home_changes')}"
 
 
 def render_cli_e2e(m: dict[str, int | None]) -> str:
@@ -223,12 +243,24 @@ GUARDS = [
     ),
     Guard(
         "cargo-test",
-        "cargo test --workspace --no-fail-fast",
-        ["cargo", "test", "--workspace", "--no-fail-fast"],
+        "cargo test --workspace --no-fail-fast (sentinel HOME)",
+        # The envelope points HOME at a seeded sentinel and appends the
+        # HOME-SENTINEL verdict line this file measures as `home_changes`:
+        # a test that writes into the operator's real ~/.apollia is a
+        # difference between trees whatever the test summary says.
+        [
+            "python3",
+            "scripts/check_test_home_isolation.py",
+            "--wrap",
+            "cargo",
+            "test",
+            "--workspace",
+            "--no-fail-fast",
+        ],
         ".",
         (),
         measure_cargo_test,
-        ("binaries", "tests"),
+        ("binaries", "tests", "home_changes"),
         render_cargo_test,
     ),
     Guard(

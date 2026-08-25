@@ -681,7 +681,7 @@ def check_prose_tracker_rule() -> None:
 MATCHING_MEASURES = {
     "cargo-check": {"exit": 0},
     "cargo-clippy": {"exit": 0},
-    "cargo-test": {"exit": 101, "binaries": 77, "tests": 4370},
+    "cargo-test": {"exit": 101, "binaries": 77, "tests": 4370, "home_changes": 0},
     "cli-e2e": {"exit": 0, "pass": 154, "fail": 0},
     "ui-build": {"exit": 0},
     "svelte-check": {"exit": 1, "files": 4943, "errors": 1},
@@ -809,7 +809,7 @@ def check_worktree_comparator() -> None:
             {
                 "cargo-test": {
                     "prepared": True,
-                    "measures": {"exit": 0, "binaries": 77, "tests": 4370},
+                    "measures": {"exit": 0, "binaries": 77, "tests": 4370, "home_changes": 0},
                     "seconds": 1.0,
                 }
             },
@@ -829,7 +829,7 @@ def check_worktree_comparator() -> None:
             {
                 "cargo-test": {
                     "prepared": True,
-                    "measures": {"exit": 101, "binaries": 0, "tests": 0},
+                    "measures": {"exit": 101, "binaries": 0, "tests": 0, "home_changes": 0},
                     "seconds": 1.0,
                 }
             },
@@ -841,6 +841,36 @@ def check_worktree_comparator() -> None:
             f"exit {run.returncode} while one tree ran 4370 tests and the other "
             f"ran none, both exiting 101. That is exactly the fresh-worktree "
             f"verdict this tool exists to separate from a real run. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        # The home sentinel is the third compared measure of cargo test: a run
+        # that wrote into the sentinel ~/.apollia differs from one that left it
+        # alone even when every test summary agrees. The conforming direction
+        # is already held by the identical-records control above.
+        dirty_home = _record(
+            "/worktree",
+            {
+                "cargo-test": {
+                    "prepared": True,
+                    "measures": {
+                        "exit": 101,
+                        "binaries": 77,
+                        "tests": 4370,
+                        "home_changes": 2,
+                    },
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), dirty_home)
+        case(
+            "cargo test: a dirty home sentinel alone is a gap",
+            run.returncode == 1 and "home_changes" in run.stdout + run.stderr,
+            f"exit {run.returncode} while one run wrote 2 entries into the "
+            f"sentinel home and the other wrote none, with identical test "
+            f"summaries. A write into the operator's profile hidden behind a "
+            f"green suite is the defect this measure exists to expose. "
             f"Output:\n{run.stdout}{run.stderr}",
         )
 
