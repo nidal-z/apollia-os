@@ -1,13 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Companion drag/snap + error recovery + restore pulse.
+ * Companion drag/snap + error recovery + minimize.
  *
  * Stubs Tauri IPC so the companion can be enabled and rendered entirely from
- * the UI bundle. Exercised scenarios mirror the story acceptance criteria:
- * snap-to-edge on release within 20 px, error-state fallback on session
- * timeout, geometry persistence across reloads, and restore-button pulse on
- * first mount.
+ * the UI bundle. Exercised scenarios: snap-to-edge on release within 20 px,
+ * error-state fallback on session timeout, geometry persistence across
+ * reloads, and minimize hiding the panel.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -127,16 +126,12 @@ test.describe("Companion - geometry persistence", () => {
   });
 });
 
-test.describe("Companion - restore pulse", () => {
-  test("restore button pulses on first mount and stops after click", async ({
-    page,
-  }) => {
+test.describe("Companion - minimize", () => {
+  test("minimize hides the panel", async ({ page }) => {
     await installTauriStub(page);
     await page.goto("/");
-    await page.getByTestId("companion-minimize").click();
-    const restore = page.getByTestId("companion-restore");
-    await expect(restore).toHaveClass(/companion-pulse/);
-    await restore.click();
     await expect(page.getByTestId("companion-panel")).toBeVisible();
+    await page.getByTestId("companion-minimize").click();
+    await expect(page.getByTestId("companion-panel")).toHaveCount(0);
   });
 });

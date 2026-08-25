@@ -55,16 +55,16 @@ test.describe("settings dirty-state", () => {
     await installTauriStub(page);
   });
 
-  test("STT: edit hotkey, Cmd+S saves, status badge shows 'Saved'", async ({ page }) => {
+  test("STT: edit silence threshold, Cmd+S saves, saved hint returns", async ({ page }) => {
     await page.goto("/?route=settings&sub=stt");
 
     // Wait for form to mount.
     await page.waitForSelector('[data-testid="stt-config-form"]');
-    await page.waitForSelector('[data-testid="stt-hotkey-input"]');
 
-    // Mutate the language field - easier to drive than a hotkey capture.
-    const langInput = page.locator('[data-testid="stt-language-input"]');
-    await langInput.fill("en");
+    // Mutate the silence-threshold field - a plain numeric input, easier to
+    // drive than a hotkey capture.
+    const silenceInput = page.locator('[data-testid="stt-silence"]');
+    await silenceInput.fill("-50");
 
     await expect(page.locator('[data-testid="settings-unsaved-badge"]')).toBeVisible();
 
@@ -74,14 +74,14 @@ test.describe("settings dirty-state", () => {
     const isMac = await page.evaluate(() => /Mac/.test(navigator.platform)); // NOSONAR typescript:S1874
     await page.keyboard.press(isMac ? "Meta+s" : "Control+s");
 
-    await expect(page.locator('[data-testid="stt-save-status-saved"]')).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('[data-testid="settings-saved-hint"]')).toBeVisible({ timeout: 3_000 });
     await expect(page.locator('[data-testid="settings-unsaved-badge"]')).toBeHidden();
   });
 
   test("nav with dirty form opens 3-option dialog (Discard / Save & Continue / Stay)", async ({ page }) => {
     await page.goto("/?route=settings&sub=stt");
     await page.waitForSelector('[data-testid="stt-config-form"]');
-    await page.locator('[data-testid="stt-language-input"]').fill("fr");
+    await page.locator('[data-testid="stt-silence"]').fill("-45");
 
     // Attempt to navigate to another sub-route - the nav should be blocked.
     await page.locator('[data-testid="settings-nav-llm"]').click();

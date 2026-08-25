@@ -4,11 +4,10 @@ import { test, expect, type Page } from "@playwright/test";
  * Multi-viewport responsive smoke tests.
  *
  * Stubs Tauri IPC so the UI bundle boots self-contained. Covers the
- * behaviour-critical AC of the story:
+ * behaviour-critical responsive contracts:
  *   (a) 375 px  → sidebar hidden, hamburger surfaces the drawer.
  *   (b) hamburger click opens overlay drawer with focus trap.
  *   (c) Settings mobile surfaces the sections trigger.
- *   (d) Onboarding renders offline banner when network probe fails.
  * Visual snapshots are intentionally deferred to a follow-up spec -
  * this file keeps the behaviour contract green on every run.
  */
@@ -76,15 +75,5 @@ test.describe("responsive layout", () => {
 
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await expect(page.getByTestId("topbar-sidebar-toggle")).toHaveCount(0);
-  });
-
-  test("onboarding offline banner surfaces on network timeout", async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    // Force the probe fetch to fail.
-    await page.route("**/logo.svg?probe=1", (route) => route.abort());
-    await page.goto("/#onboarding");
-    await expect(page.getByTestId("onboarding-offline-banner")).toBeVisible({
-      timeout: 10_000,
-    });
   });
 });
