@@ -184,6 +184,33 @@ class {class_name}:
         return {{"echo": input_text}}
 '''
 
+ORCHESTRATED_TEST_TEMPLATE = '''\
+"""Tests for orchestrated agent {name}."""
+
+import pytest
+
+from apollia.testing import mock
+
+
+@pytest.mark.asyncio
+async def test_{module_name}_joins_step_results() -> None:
+    """Verify on_plan_complete concatenates the step outputs.
+
+    An @orchestrated agent has no @on_message handler: ORIA drives the
+    plan and the class only post-processes step results, so that hook is
+    what a unit test can exercise directly.
+    """
+    from {module_name}_agent import {class_name}
+
+    agent_ref, ctx = mock({class_name})
+
+    result = await agent_ref.on_plan_complete(
+        {{"step-1": "drafted", "step-2": "sent"}}, ctx
+    )
+
+    assert result == "drafted\\n\\nsent"
+'''
+
 TEST_TEMPLATE = '''\
 """Tests for {class_name}."""
 
@@ -216,12 +243,17 @@ from apollia.testing import mock, assert_result_completed, assert_result_failed
 
 def _load_agent_class():
     import importlib.util
+    import sys
     from pathlib import Path
 
     agent_path = Path(__file__).resolve().parent.parent / "{name}.py"
     spec = importlib.util.spec_from_file_location("{module_name}_agent", agent_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # The module must be importable by name while it executes: the SDK
+    # resolves an agent class back to its defining module through
+    # sys.modules, and mock() refuses a class whose module it cannot find.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module.agent.__class__
 
@@ -308,6 +340,11 @@ def scaffold_agent(
     if agent_type == "worker":
         agent_content = WORKER_TEMPLATE.format(**replacements)
         test_content = WORKER_TEST_TEMPLATE.format(**replacements)
+    elif agent_type == "orchestrated":
+        # The shared test template drives invoke_message, which an
+        # @orchestrated agent does not have: it needs its own test.
+        agent_content = _TEMPLATES[agent_type].format(**replacements)
+        test_content = ORCHESTRATED_TEST_TEMPLATE.format(**replacements)
     else:
         agent_content = _TEMPLATES[agent_type].format(**replacements)
         test_content = TEST_TEMPLATE.format(**replacements)

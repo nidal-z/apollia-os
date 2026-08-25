@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from apollia.cli.scaffold import (
+    VALID_AGENT_TYPES,
     scaffold_agent,
     to_class_name,
     to_module_name,
@@ -198,3 +201,48 @@ class TestScaffoldWorkerAgent:
         )
         compile(Path(agent_path).read_text(encoding="utf-8"), agent_path, "exec")
         compile(Path(test_path).read_text(encoding="utf-8"), test_path, "exec")
+
+
+class TestScaffoldedProjectsRun:
+    """The generated test suite of every agent type passes as generated.
+
+    Compiling the sources is not enough: the shared test template once
+    drove ``invoke_message`` on an ``@orchestrated`` agent that has no
+    such handler, and the worker test loaded its module outside
+    ``sys.modules``; both compiled cleanly and failed on first run.
+    """
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("agent_type", VALID_AGENT_TYPES)
+    def test_generated_tests_pass(self, tmp_path: Path, agent_type: str) -> None:
+        # GIVEN a freshly scaffolded project of this type
+        _agent_path, test_path = scaffold_agent(
+            f"my-{agent_type}",
+            agent_type=agent_type,
+            output_dir=str(tmp_path / "project"),
+        )
+
+        # WHEN its generated test file runs under pytest, with a throwaway
+        # HOME and the same apollia package this suite imports
+        import apollia
+
+        sdk_root = str(Path(apollia.__file__).resolve().parent.parent)
+        home = tmp_path / "home"
+        home.mkdir()
+        env = dict(os.environ, HOME=str(home))
+        env["PYTHONPATH"] = os.pathsep.join(p for p in (sdk_root, env.get("PYTHONPATH")) if p)
+        # The command is built from sys.executable and a path this test just
+        # created; nothing user-controlled reaches it.
+        proc = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", test_path],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=os.path.dirname(test_path),
+            check=False,
+        )
+
+        # THEN the generated suite is green
+        assert proc.returncode == 0, (
+            f"generated {agent_type} tests failed:\n{proc.stdout}\n{proc.stderr}"
+        )
