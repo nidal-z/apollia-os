@@ -250,7 +250,8 @@ fn post_resume_decision(resume_url: &str, approved: bool) {
         tracing::warn!(
             error = %err,
             resume_url = %resume_url,
-            "DesktopChannel : POST resume ({label}) échoué"
+            action = label,
+            "DesktopChannel resume POST failed"
         );
     }
 }

@@ -42,8 +42,7 @@ impl CronTrigger {
                         schedule = %schedule_str,
                         error = %e,
                         "invalid cron schedule, source will not fire \
-                         (fix it with `apollia-os trigger update {} --detail \"<expr>\"`)",
-                        def.id
+                         (fix it with `apollia-os trigger update <id> --detail \"<expr>\"`)"
                     );
                     return;
                 }

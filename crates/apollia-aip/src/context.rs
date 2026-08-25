@@ -1949,10 +1949,10 @@ impl RuntimeContext {
     fn log(&self, level: &str, message: &str) -> PyResult<()> {
         let agent = &self.agent_name;
         match level {
-            "debug" => tracing::debug!(agent = %agent, "{}", message),
-            "info" => tracing::info!(agent = %agent, "{}", message),
-            "warn" => tracing::warn!(agent = %agent, "{}", message),
-            "error" => tracing::error!(agent = %agent, "{}", message),
+            "debug" => tracing::debug!(agent = %agent, message = %message, "agent.log"),
+            "info" => tracing::info!(agent = %agent, message = %message, "agent.log"),
+            "warn" => tracing::warn!(agent = %agent, message = %message, "agent.log"),
+            "error" => tracing::error!(agent = %agent, message = %message, "agent.log"),
             other => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "Invalid log level '{other}'. Expected: debug, info, warn, error"

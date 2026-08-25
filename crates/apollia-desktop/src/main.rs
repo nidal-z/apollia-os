@@ -148,8 +148,8 @@ fn setup_bundled_python() {
         },
         None => {
             tracing::warn!(
-                "no bundled Python found adjacent to {} - falling back to system Python",
-                exe.display()
+                exe = %exe.display(),
+                "no bundled Python found adjacent to the executable - falling back to system Python"
             );
             return;
         }

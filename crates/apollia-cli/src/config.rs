@@ -252,8 +252,8 @@ fn check_deprecated_sections(content: &str) {
             {
                 tracing::warn!(
                     section = %section,
-                    "apollia.toml contains deprecated section [{section}], \
-                     use the desktop app or API to manage {section}"
+                    "apollia.toml contains a deprecated section, \
+                     use the desktop app or the API to manage it"
                 );
                 break;
             }

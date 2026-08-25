@@ -150,8 +150,10 @@ impl DatasourcesInterface {
                         Err(_) => {
                             tracing::warn!(
                                 target: "apollia.aip.datasources",
-                                "datasource '{name}' declared but file missing ({}): {e}",
-                                path.display()
+                                name = %name,
+                                path = %path.display(),
+                                error = %e,
+                                "datasource declared but file missing"
                             );
                             continue;
                         }
@@ -166,7 +168,9 @@ impl DatasourcesInterface {
                 Err(e) => {
                     tracing::warn!(
                         target: "apollia.aip.datasources",
-                        "datasource '{name}' parse error: {e}"
+                        name = %name,
+                        error = %e,
+                        "datasource parse error"
                     );
                 }
             }

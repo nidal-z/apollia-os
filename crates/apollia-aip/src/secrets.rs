@@ -70,7 +70,9 @@ impl SecretsInterface {
                     Err(p) => {
                         tracing::error!(
                             target: "apollia.aip.secrets",
-                            "secret store mutex poisoned for '{key}': {p}"
+                            key = %key,
+                            error = %p,
+                            "secret store mutex poisoned"
                         );
                         return Ok(None);
                     }
@@ -80,7 +82,9 @@ impl SecretsInterface {
                     Err(e) => {
                         tracing::warn!(
                             target: "apollia.aip.secrets",
-                            "secret read error for '{key}': {e}"
+                            key = %key,
+                            error = %e,
+                            "secret read error"
                         );
                         Ok(None)
                     }

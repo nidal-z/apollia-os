@@ -71,7 +71,7 @@ impl EventsInterface {
     fn emit_thought(&self, text: String, step: u32) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
             // Structured fallback for tests without a bus.
-            tracing::info!(target: "apollia.agent.thought", step = step, "{}", text);
+            tracing::info!(target: "apollia.agent.thought", step = step, text = %text, "agent.thought");
             return Ok(());
         };
         let _ = bus.send(RuntimeEvent::Thought {
@@ -99,8 +99,8 @@ impl EventsInterface {
                 target: "apollia.agent.retry",
                 step = step,
                 count = count,
-                "{}",
-                reason
+                reason = %reason,
+                "agent.retry"
             );
             return Ok(());
         };
@@ -127,8 +127,8 @@ impl EventsInterface {
                 target: "apollia.agent.action_parse_error",
                 step = step,
                 fatal = fatal,
-                "{}",
-                raw
+                raw = %raw,
+                "agent.action_parse_error"
             );
             return Ok(());
         };

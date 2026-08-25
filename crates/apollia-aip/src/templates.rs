@@ -148,8 +148,9 @@ impl TemplatesInterface {
             let Some(content) = content_opt else {
                 tracing::warn!(
                     target: "apollia.aip.templates",
-                    "template '{name}' declared but no file found in {}",
-                    dir.display()
+                    name = %name,
+                    dir = %dir.display(),
+                    "template declared but no file found"
                 );
                 continue;
             };
@@ -158,7 +159,9 @@ impl TemplatesInterface {
                 Err(e) => {
                     tracing::warn!(
                         target: "apollia.aip.templates",
-                        "template '{name}' compile error: {e}"
+                        name = %name,
+                        error = %e,
+                        "template compile error"
                     );
                 }
             }

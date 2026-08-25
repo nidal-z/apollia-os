@@ -152,11 +152,7 @@ impl Supervisor {
             self.config.obs_config.clone(),
         )
         .await;
-        tracing::info!(
-            active = enabled_count,
-            "✔ TriggerEngine - {} trigger(s) actif(s)",
-            enabled_count
-        );
+        tracing::info!(active = enabled_count, "TriggerEngine started");
         let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
             count: enabled_count,
         });
