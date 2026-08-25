@@ -26,7 +26,7 @@ entries by role.
 | `tests/` | The workspace-level integration and end-to-end test crate (`apollia-e2e-tests`), plus the CLI suite (`tests/cli/`) that exercises the runtime across crate boundaries. Per-crate unit tests live inside each crate instead. |
 | `fuzz/` | The `cargo-fuzz` crate: libFuzzer targets (`fuzz/fuzz_targets/`) and their corpora (`fuzz/seeds/`). Built on its own with a nightly toolchain and excluded from the stable workspace, so the normal gates never try to compile it. |
 | `packaging/` | Scripts and manifests that assemble a self-contained, relocatable Python runtime to bundle with the app (fetch a standalone interpreter, build the universal bundle, pin `requirements-bundled.txt`), plus platform launchers. Supports the zero-external-dependency principle. |
-| `scripts/` | Developer and CI helper scripts: build wrappers (`build.sh`, `build.ps1`), data/cache reset utilities, the model-evaluation harness (`model-eval/`), and the desktop end-to-end automaton (`automation/`). |
+| `scripts/` | Developer and CI helper scripts: the guard corpus (`check_*.py`), the desktop end-to-end automaton (`automation/`), the Docker-backed Linux verification (`linux-check.sh`), and the linked-worktree helpers (`worktree-prep.sh`, `worktree_verdicts.py`). |
 | `docs/` | All documentation (detailed below). |
 
 ## Documentation (`docs/`)

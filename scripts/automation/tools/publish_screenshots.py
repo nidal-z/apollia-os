@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Copy an automaton run's captures into the documentation's image directory.
 
 The automaton writes `NNN-<label>.png` into `.apollia-automation/`; the pages

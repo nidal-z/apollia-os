@@ -28,7 +28,7 @@ rôle.
 | `tests/` | La crate de tests d'intégration et de bout en bout au niveau de l'espace de travail (`apollia-e2e-tests`), ainsi que la suite CLI (`tests/cli/`) qui exerce le runtime à travers les frontières des crates. Les tests unitaires par crate vivent quant à eux à l'intérieur de chaque crate. |
 | `fuzz/` | La crate `cargo-fuzz` : les cibles libFuzzer (`fuzz/fuzz_targets/`) et leurs corpus (`fuzz/seeds/`). Compilée à part avec une chaîne d'outils nightly et exclue de l'espace de travail stable, de sorte que les contrôles habituels n'essaient jamais de la compiler. |
 | `packaging/` | Scripts et manifestes qui assemblent un runtime Python autonome et déplaçable à embarquer avec l'application (récupérer un interpréteur autonome, construire le bundle universel, figer `requirements-bundled.txt`), plus les lanceurs par plateforme. Sert le principe de zéro dépendance externe. |
-| `scripts/` | Scripts d'assistance pour le développement et la CI : wrappers de build (`build.sh`, `build.ps1`), utilitaires de réinitialisation des données/caches, le harnais d'évaluation de modèles (`model-eval/`), et l'automate de bout en bout du desktop (`automation/`). |
+| `scripts/` | Scripts d'assistance pour le développement et la CI : le corpus de gardes (`check_*.py`), l'automate de bout en bout du desktop (`automation/`), la vérification Linux adossée à Docker (`linux-check.sh`), et les assistants de worktree lié (`worktree-prep.sh`, `worktree_verdicts.py`). |
 | `docs/` | Toute la documentation (détaillée ci-dessous). |
 
 ## Documentation (`docs/`)
