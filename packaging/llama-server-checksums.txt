@@ -3,7 +3,7 @@
 #
 # Provenance: every hash below was computed locally with `shasum -a 256` on the
 # downloaded asset, then cross-checked against the digest GitHub reports for the
-# same asset. All seven matched. The local hash is what is pinned here, so a
+# same asset. All ten matched. The local hash is what is pinned here, so a
 # later download is verified against bytes that were hashed here rather than
 # against a value the serving side could simply restate.
 #
@@ -15,16 +15,22 @@
 #
 # Tag: b10092 (published 2026-07-23)
 
-# macOS Apple Silicon: the shipped desktop target.
+# macOS: the shipped Apple Silicon desktop target, plus the Intel CPU build.
 f3ec2351e06322478e3f38f23f5339cd834cca5e3740f334ce2bdc5de95f90e0  llama-b10092-bin-macos-arm64.tar.gz
+5b4da2d7fe2670265f8adc48765e69f0253f27f9ed2ebd1c09bf692d47127b99  llama-b10092-bin-macos-x64.tar.gz
 
-# Linux x86_64: CPU baseline, plus the two GPU paths.
+# Linux x86_64: CPU baseline, plus the two GPU paths. Linux aarch64: CPU only,
+# the pinned upstream release publishes no GPU build for that arch.
 b047abca5eb5186afb8c6fe816b008b34063f484613c3453b27ebc5600f937fe  llama-b10092-bin-ubuntu-x64.tar.gz
 751811bf24857c9491749c3ea0c6be5680a035903ccae01c0facb5e10ca510cc  llama-b10092-bin-ubuntu-vulkan-x64.tar.gz
 0a7d613fcdf269a7df2d81aade4ff9ec4e0429feb77c41905de482199ee39813  llama-b10092-bin-ubuntu-rocm-7.2-x64.tar.gz
+fb3241aa451d502707727878008ed5ff8a9f130b920d48c7f06899992b46e3f4  llama-b10092-bin-ubuntu-arm64.tar.gz
 
 # Windows x86_64: pinned ahead of the platform being supported, so the bundling
-# path is verifiable the day it is exercised.
+# path is verifiable the day it is exercised. The cudart companion carries the
+# CUDA runtime DLLs the CUDA server build dlopens; upstream publishes it once
+# per CUDA major, not per llama.cpp tag.
 c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e  llama-b10092-bin-win-cpu-x64.zip
 e7489486ba36ab1819c141ba11405c83a29ff4fdc41dd79c6cfbab180b15b887  llama-b10092-bin-win-cuda-12.4-x64.zip
 af0787692f10ed66d8f3db1d67e90337fc31b8efce297e8491906220fd0a4798  llama-b10092-bin-win-vulkan-x64.zip
+8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6  cudart-llama-bin-win-cuda-12.4-x64.zip

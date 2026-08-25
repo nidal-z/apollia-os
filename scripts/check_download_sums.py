@@ -101,6 +101,7 @@ def check_pinned_set(
     tag: str,
     file_tag: str | None,
     subject: str,
+    tag_exempt: frozenset[str] = frozenset(),
 ) -> int:
     """Compare selectable archives against pinned sums, both directions."""
     problems = 0
@@ -122,7 +123,7 @@ def check_pinned_set(
         if asset not in expected.values():
             print(f"  ECART  {subject}: somme orpheline: {asset}")
             problems += 1
-        elif tag not in asset:
+        elif tag not in asset and asset not in tag_exempt:
             print(f"  ECART  {subject}: somme hors tag {tag}: {asset}")
             problems += 1
     return problems
@@ -142,15 +143,28 @@ def check_llama(script_path: Path, sums_path: Path) -> int:
     selectable = {
         m.group(1).strip(): m.group(2).replace("${LLAMA_CPP_TAG}", tag)
         for m in re.finditer(
-            r'^\s*([A-Za-z*:| ]+?)\)\s+asset="([^"]+)"', script, re.M
+            r'^\s*([A-Za-z0-9*:| ]+?)\)\s+asset="([^"]+)"', script, re.M
         )
     }
+    # Companion archives (the Windows CUDA runtime): selected next to a main
+    # asset, verified against the same sums file, but named by upstream
+    # without the llama.cpp tag, so the same-tag rule does not apply to them.
+    companions = {
+        f"companion {m.group(1)}": m.group(1)
+        for m in re.finditer(r'^\s*extra_asset="([^"$]+)"', script, re.M)
+    }
+    selectable.update(companions)
     if not selectable:
         print("no selectable asset in fetch-llama-server.sh", file=sys.stderr)
         sys.exit(2)
     file_tag, pinned, problems = parse_sums(sums, sums_path.name)
     return problems + check_pinned_set(
-        selectable, pinned, tag, file_tag, sums_path.name
+        selectable,
+        pinned,
+        tag,
+        file_tag,
+        sums_path.name,
+        tag_exempt=frozenset(companions.values()),
     )
 
 
