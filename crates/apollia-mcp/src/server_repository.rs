@@ -31,9 +31,59 @@ pub enum McpRepoError {
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+
     /// A JSON serialisation or deserialisation failed.
     #[error("serialization error: {0}")]
     Serialization(String),
+}
+
+/// Current schema version of `mcp.db`.
+const MCP_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `mcp.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`MCP_SCHEMA_VERSION`].
+const MCP_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning lineage of the file, replayed idempotently.
+///
+/// Every `mcp.db` written before the versioned layer is at
+/// `user_version = 0` whatever columns it carries, so this step must accept
+/// a fresh file, the initial shape, and the shapes before the
+/// max_response_bytes and max_tools columns, and bring each of them to the
+/// same state.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS mcp_servers (
+            name               TEXT PRIMARY KEY,
+            command            TEXT NOT NULL DEFAULT '',
+            args_json          TEXT NOT NULL DEFAULT '[]',
+            env_json           TEXT NOT NULL DEFAULT '{}',
+            transport          TEXT NOT NULL DEFAULT 'stdio',
+            url                TEXT,
+            requires_approval  INTEGER NOT NULL DEFAULT 0,
+            init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
+            call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
+            max_response_bytes INTEGER NOT NULL DEFAULT 8388608,
+            max_tools          INTEGER NOT NULL DEFAULT 256,
+            tags_json          TEXT NOT NULL DEFAULT '[]',
+            enabled            INTEGER NOT NULL DEFAULT 1,
+            created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )?;
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE mcp_servers ADD COLUMN max_response_bytes INTEGER NOT NULL DEFAULT 8388608;",
+    )?;
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE mcp_servers ADD COLUMN max_tools INTEGER NOT NULL DEFAULT 256;",
+    )
 }
 
 /// SQLite-backed repository for [`McpServerConfig`] entries.
@@ -54,46 +104,12 @@ impl McpServerRepository {
     pub fn open(path: &Path) -> Result<Self, McpRepoError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS mcp_servers (
-                name               TEXT PRIMARY KEY,
-                command            TEXT NOT NULL DEFAULT '',
-                args_json          TEXT NOT NULL DEFAULT '[]',
-                env_json           TEXT NOT NULL DEFAULT '{}',
-                transport          TEXT NOT NULL DEFAULT 'stdio',
-                url                TEXT,
-                requires_approval  INTEGER NOT NULL DEFAULT 0,
-                init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
-                call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
-                max_response_bytes INTEGER NOT NULL DEFAULT 8388608,
-                max_tools          INTEGER NOT NULL DEFAULT 256,
-                tags_json          TEXT NOT NULL DEFAULT '[]',
-                enabled            INTEGER NOT NULL DEFAULT 1,
-                created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-                updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-            );",
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Mcp.file_name(),
+            MCP_SCHEMA_VERSION,
+            MCP_MIGRATIONS,
         )?;
-        // Additive migration for databases created before max_response_bytes
-        // existed. `CREATE TABLE IF NOT EXISTS` above never alters an existing
-        // table, so the column is added here. A "duplicate column name" error
-        // means the column is already present (fresh DB or prior migration),
-        // which is expected; any other error is a real migration failure.
-        if let Err(e) = conn.execute_batch(
-            "ALTER TABLE mcp_servers ADD COLUMN max_response_bytes INTEGER NOT NULL DEFAULT 8388608;",
-        ) {
-            if !e.to_string().contains("duplicate column name") {
-                return Err(McpRepoError::Db(e));
-            }
-        }
-        // Additive migration for databases created before max_tools existed.
-        // Same idempotency contract as the max_response_bytes migration above.
-        if let Err(e) = conn.execute_batch(
-            "ALTER TABLE mcp_servers ADD COLUMN max_tools INTEGER NOT NULL DEFAULT 256;",
-        ) {
-            if !e.to_string().contains("duplicate column name") {
-                return Err(McpRepoError::Db(e));
-            }
-        }
         Ok(Self { conn })
     }
 

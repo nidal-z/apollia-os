@@ -29,6 +29,41 @@ pub enum McpApprovalError {
     /// A JSON serialisation failed.
     #[error("serialization error: {0}")]
     Serialization(String),
+
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+}
+
+/// Current schema version of `mcp_approvals.db`.
+const APPROVALS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `mcp_approvals.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`APPROVALS_SCHEMA_VERSION`].
+const APPROVALS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS mcp_approvals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_name TEXT NOT NULL,
+            tool_name   TEXT NOT NULL,
+            approved_at TEXT NOT NULL,
+            expires_at  TEXT,
+            UNIQUE(server_name, tool_name)
+        );
+        CREATE TABLE IF NOT EXISTS mcp_pending_approvals (
+            id           TEXT PRIMARY KEY,
+            server_name  TEXT NOT NULL,
+            tool_name    TEXT NOT NULL,
+            arguments    TEXT NOT NULL,
+            requested_at TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending'
+        );",
+    )
 }
 
 // ─── public types ────────────────────────────────────────────────────────────
@@ -92,23 +127,11 @@ impl McpApprovalStore {
 
     fn init_schema(conn: &Connection) -> Result<(), McpApprovalError> {
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS mcp_approvals (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                server_name TEXT NOT NULL,
-                tool_name   TEXT NOT NULL,
-                approved_at TEXT NOT NULL,
-                expires_at  TEXT,
-                UNIQUE(server_name, tool_name)
-            );
-            CREATE TABLE IF NOT EXISTS mcp_pending_approvals (
-                id           TEXT PRIMARY KEY,
-                server_name  TEXT NOT NULL,
-                tool_name    TEXT NOT NULL,
-                arguments    TEXT NOT NULL,
-                requested_at TEXT NOT NULL,
-                status       TEXT NOT NULL DEFAULT 'pending'
-            );",
+        apollia_core::schema::open_versioned(
+            conn,
+            apollia_core::paths::DataFile::McpApprovals.file_name(),
+            APPROVALS_SCHEMA_VERSION,
+            APPROVALS_MIGRATIONS,
         )?;
         Ok(())
     }

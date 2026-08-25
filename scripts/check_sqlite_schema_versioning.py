@@ -47,8 +47,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXEMPT_UNVERSIONED = {
     "crates/apollia-desktop/src/commands/artifacts.rs",
     "crates/apollia-llm/src/repository.rs",
-    "crates/apollia-mcp/src/approvals.rs",
-    "crates/apollia-mcp/src/server_repository.rs",
     "crates/apollia-memory/src/file_timestamp_cache.rs",
     "crates/apollia-oria/src/plan_cache.rs",
     "crates/apollia-oria/src/plan_repository.rs",
