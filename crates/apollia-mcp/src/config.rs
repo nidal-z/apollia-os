@@ -606,6 +606,11 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
+    /// Serialises the tests that mutate the process environment (a process
+    /// global), and lets each restore the previous value before it returns.
+    /// A tokio mutex, because the mutation must span `resolve_env(..).await`.
+    static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
     #[test]
     fn test_load_valid_toml() {
         // GIVEN a valid mcp.toml with two configured servers
@@ -689,6 +694,8 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_env_interpolates_variable() {
         // GIVEN an env map containing ${TEST_MCP_KEY_327} and that variable set in the process env
+        let _guard = ENV_LOCK.lock().await;
+        let previous = std::env::var_os("TEST_MCP_KEY_327");
         std::env::set_var("TEST_MCP_KEY_327", "secret123");
         let config = McpServerConfig {
             name: "test".to_string(),
@@ -708,12 +715,16 @@ mod tests {
         let resolved = config.resolve_env(None).await.unwrap();
         // THEN
         assert_eq!(resolved["API_KEY"], "secret123");
-        std::env::remove_var("TEST_MCP_KEY_327");
+        match previous {
+            Some(v) => std::env::set_var("TEST_MCP_KEY_327", v),
+            None => std::env::remove_var("TEST_MCP_KEY_327"),
+        }
     }
 
     #[tokio::test]
     async fn test_unresolved_env_var_fails() {
         // GIVEN an env map referencing a variable absent from the process environment
+        let _guard = ENV_LOCK.lock().await;
         std::env::remove_var("TOTALLY_MISSING_VAR_327");
         let config = McpServerConfig {
             name: "test".to_string(),
@@ -763,6 +774,8 @@ mod tests {
     #[tokio::test]
     async fn test_partial_interpolation_with_surrounding_text() {
         // GIVEN a value that mixes literal text and a placeholder
+        let _guard = ENV_LOCK.lock().await;
+        let previous = std::env::var_os("TEST_MCP_HOST_327");
         std::env::set_var("TEST_MCP_HOST_327", "localhost");
         let config = McpServerConfig {
             name: "test".to_string(),
@@ -785,7 +798,10 @@ mod tests {
         let resolved = config.resolve_env(None).await.unwrap();
         // THEN
         assert_eq!(resolved["BASE_URL"], "http://localhost:8080");
-        std::env::remove_var("TEST_MCP_HOST_327");
+        match previous {
+            Some(v) => std::env::set_var("TEST_MCP_HOST_327", v),
+            None => std::env::remove_var("TEST_MCP_HOST_327"),
+        }
     }
 
     #[test]

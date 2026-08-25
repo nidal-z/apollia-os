@@ -545,7 +545,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "flaky: dirs::home_dir() race with parallel tests overriding $HOME"]
     async fn suggest_falls_back_to_documents() {
         // GIVEN $HOME/Apollia/ absent, $HOME/Documents/ present
         with_fake_home(|home| {

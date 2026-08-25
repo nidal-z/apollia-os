@@ -1063,26 +1063,26 @@ mod tests {
     // THEN the client is built without panicking and backend_name() returns config.name
     #[test]
     fn test_new_does_not_panic() {
-        std::env::set_var("APOLLIA_ANT_TEST_KEY", "sk-ant-test");
-        let config = ApiBackendConfig {
-            name: "anthropic".into(),
-            api_url: "https://api.anthropic.com".into(),
-            api_key_env: "APOLLIA_ANT_TEST_KEY".into(),
-            model: "claude-haiku-4-5-20251001".into(),
-            context_window: None,
-        };
+        crate::backends::test_env::with_env_var("APOLLIA_ANT_TEST_KEY", "sk-ant-test", || {
+            let config = ApiBackendConfig {
+                name: "anthropic".into(),
+                api_url: "https://api.anthropic.com".into(),
+                api_key_env: "APOLLIA_ANT_TEST_KEY".into(),
+                model: "claude-haiku-4-5-20251001".into(),
+                context_window: None,
+            };
 
-        let client = AnthropicClient::new(
-            &config,
-            "sk-ant-test".into(),
-            std::collections::HashMap::new(),
-            tokio_util::sync::CancellationToken::new(),
-        );
+            let client = AnthropicClient::new(
+                &config,
+                "sk-ant-test".into(),
+                std::collections::HashMap::new(),
+                tokio_util::sync::CancellationToken::new(),
+            );
 
-        std::env::remove_var("APOLLIA_ANT_TEST_KEY");
-        assert!(client.is_available());
-        assert_eq!(client.backend_name(), "anthropic");
-        assert_eq!(client.model_id(), "claude-haiku-4-5-20251001");
+            assert!(client.is_available());
+            assert_eq!(client.backend_name(), "anthropic");
+            assert_eq!(client.model_id(), "claude-haiku-4-5-20251001");
+        });
     }
 
     // GIVEN a response with stop_reason = "max_tokens"

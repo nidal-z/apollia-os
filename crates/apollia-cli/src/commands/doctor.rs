@@ -424,13 +424,24 @@ mod tests {
         assert_eq!(r.hint.as_deref(), Some("create it"));
     }
 
+    /// Serialises the HOME mutation below: the variable is a process global,
+    /// and the same binary carries tests that read the resolved home.
+    static HOME_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
     #[tokio::test]
     async fn doctor_runs_without_runtime() {
-        // GIVEN no runtime is running and a fresh temp HOME.
+        // GIVEN no runtime is running and a fresh temp HOME, held under the
+        // lock and restored before the test returns.
+        let _guard = HOME_LOCK.lock().await;
         let tmp = tempfile::tempdir().unwrap();
+        let previous = std::env::var_os("HOME");
         std::env::set_var("HOME", tmp.path());
         // WHEN doctor runs.
         let code = run(Some(tmp.path().join("nonexistent.sock")), true).await;
+        match previous {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
         // THEN we must not crash; exit code is either 0 or 1 depending on warns.
         assert!(code == 0 || code == 1);
     }

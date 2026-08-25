@@ -555,21 +555,22 @@ mod tests {
     // THEN LlmError::Unauthorized is returned
     #[test]
     fn test_new_returns_unauthorized_when_adc_absent() {
-        // Point at a file that does not exist
-        std::env::set_var(
+        // Point at a file that does not exist, serialised and restored by the
+        // shared lock so a developer's real ADC value survives the test.
+        crate::backends::test_env::with_env_var(
             "GOOGLE_APPLICATION_CREDENTIALS",
             "/tmp/apollia-test-nonexistent-adc.json",
-        );
-        let config = make_config();
-        let cancel = CancellationToken::new();
-        let result = VertexClient::new(&config, cancel);
-        // Clean up the env var for the other tests
-        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+            || {
+                let config = make_config();
+                let cancel = CancellationToken::new();
+                let result = VertexClient::new(&config, cancel);
 
-        assert!(
-            matches!(result, Err(LlmError::Unauthorized)),
-            "absent ADC must produce Unauthorized, got: {:?}",
-            result.err()
+                assert!(
+                    matches!(result, Err(LlmError::Unauthorized)),
+                    "absent ADC must produce Unauthorized, got: {:?}",
+                    result.err()
+                );
+            },
         );
     }
 

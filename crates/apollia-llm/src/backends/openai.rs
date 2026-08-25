@@ -1120,23 +1120,26 @@ mod tests {
     // THEN Ok("sk-test-key") is returned
     #[test]
     fn test_resolve_api_key_present() {
-        // GIVEN: set env var for this test only
-        // Safety: test isolation via unique key name
-        std::env::set_var("APOLLIA_TEST_KEY_PRESENT_XYZ", "sk-test-key");
-        let config = ApiBackendConfig {
-            name: "openai".into(),
-            api_url: "https://api.openai.com/v1".into(),
-            api_key_env: "APOLLIA_TEST_KEY_PRESENT_XYZ".into(),
-            model: "gpt-4o-mini".into(),
-            context_window: None,
-        };
+        // GIVEN: the env var set, serialised and restored by the shared lock
+        crate::backends::test_env::with_env_var(
+            "APOLLIA_TEST_KEY_PRESENT_XYZ",
+            "sk-test-key",
+            || {
+                let config = ApiBackendConfig {
+                    name: "openai".into(),
+                    api_url: "https://api.openai.com/v1".into(),
+                    api_key_env: "APOLLIA_TEST_KEY_PRESENT_XYZ".into(),
+                    model: "gpt-4o-mini".into(),
+                    context_window: None,
+                };
 
-        let result = config.resolve_api_key();
+                let result = config.resolve_api_key();
 
-        std::env::remove_var("APOLLIA_TEST_KEY_PRESENT_XYZ");
-        assert_eq!(
-            result.expect("resolve_api_key must succeed when env var is set"),
-            "sk-test-key"
+                assert_eq!(
+                    result.expect("resolve_api_key must succeed when env var is set"),
+                    "sk-test-key"
+                );
+            },
         );
     }
 

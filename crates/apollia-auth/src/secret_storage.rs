@@ -253,6 +253,23 @@ fn sanitise(s: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Serialises the tests that mutate `APOLLIA_TOKEN_STORAGE`: environment
+    /// variables are process globals, so two parallel tests race without it.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Runs `f` with the variable set to `value`, restoring the previous
+    /// value before returning.
+    fn with_env_var<F: FnOnce()>(key: &str, value: &str, f: F) {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var_os(key);
+        std::env::set_var(key, value);
+        f();
+        match previous {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
+    }
+
     fn temp_store() -> (AgeFileSecretStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         let store = AgeFileSecretStore::new(dir.path().to_path_buf(), "test-passphrase".into())
@@ -340,31 +357,29 @@ mod tests {
         // GIVEN APOLLIA_TOKEN_STORAGE unset (cannot reliably unset in tests,
         // so relax to "keyring" or unset depending on the runner). We probe
         // the explicit "keyring" branch.
-        std::env::set_var("APOLLIA_TOKEN_STORAGE", "keyring");
-        let store = select_default().expect("select");
-        assert_eq!(store.backend_id(), "keyring");
-        std::env::remove_var("APOLLIA_TOKEN_STORAGE");
+        with_env_var("APOLLIA_TOKEN_STORAGE", "keyring", || {
+            let store = select_default().expect("select");
+            assert_eq!(store.backend_id(), "keyring");
+        });
     }
 
     #[test]
     fn test_select_default_unknown_value_fails() {
-        std::env::set_var("APOLLIA_TOKEN_STORAGE", "unknown");
-        let result = select_default();
-        // Use match instead of unwrap_err since Box<dyn SecretStore> does not
-        // implement Debug (sealed at the trait level for v0.1.0).
-        match result {
-            Ok(_) => {
-                std::env::remove_var("APOLLIA_TOKEN_STORAGE");
-                panic!("expected an error for unknown APOLLIA_TOKEN_STORAGE value");
+        with_env_var("APOLLIA_TOKEN_STORAGE", "unknown", || {
+            let result = select_default();
+            // Use match instead of unwrap_err since Box<dyn SecretStore> does
+            // not implement Debug (sealed at the trait level for v0.1.0).
+            match result {
+                Ok(_) => {
+                    panic!("expected an error for unknown APOLLIA_TOKEN_STORAGE value");
+                }
+                Err(AuthError::Keyring(msg)) => {
+                    assert!(msg.contains("unknown"));
+                }
+                Err(other) => {
+                    panic!("expected Keyring error, got {other:?}");
+                }
             }
-            Err(AuthError::Keyring(msg)) => {
-                std::env::remove_var("APOLLIA_TOKEN_STORAGE");
-                assert!(msg.contains("unknown"));
-            }
-            Err(other) => {
-                std::env::remove_var("APOLLIA_TOKEN_STORAGE");
-                panic!("expected Keyring error, got {other:?}");
-            }
-        }
+        });
     }
 }
