@@ -55,11 +55,12 @@ Three exclusions, and nothing else:
   3. Comments and the inside of string literals. Doc examples such as
      `apollia-workspace/src/lib.rs:26` are prose, not production.
 
-Known limits, written down rather than discovered later. A `#[cfg(not(test))]`
-predicate would be read as a gate and would drop production code; this tree
-carries none, `git grep -n 'cfg(not(test' -- 'crates/*/src/*'` returns nothing.
+Known limits, written down rather than discovered later. A cfg predicate is
+judged by satisfiability with `test` and `kani` off, so `cfg(not(test))` and
+`cfg(any(target_os = "linux", test))` are production and only a predicate that
+cannot hold outside a test build gates its item.
 A `#[path = "..."]` module declaration is not resolved; this tree carries none
-either. And the guard checks that an exemption is present, never that it is
+of those. And the guard checks that an exemption is present, never that it is
 true: the ceiling is what makes a new one visible in a diff.
 
 Exit codes: 0 clean, 1 a rule was broken, 2 nothing was measured.
@@ -202,12 +203,63 @@ _MOD_DECL = re.compile(r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z
 _QUOTED = re.compile(r"\"[^\"]*\"")
 
 
+def _predicate_value(predicate: str) -> str:
+    """Three-valued verdict of a cfg predicate with test and kani off.
+
+    `test` and `kani` evaluate false, every other atom is unknown, and the
+    verdict is "F" only when no assignment of the unknowns can make the
+    predicate hold. `any(target_os = "linux", test)` is therefore not a gate:
+    it compiles on Linux with test off, and reading it as test code silently
+    dropped four production items of `gpu_detection.rs` from this sweep.
+    """
+    tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[(),]", _QUOTED.sub('""', predicate))
+    position = 0
+
+    def parse() -> str:
+        nonlocal position
+        name = tokens[position]
+        position += 1
+        if position < len(tokens) and tokens[position] == "(":
+            position += 1
+            arguments: list[str] = []
+            while tokens[position] != ")":
+                if tokens[position] == ",":
+                    position += 1
+                    continue
+                arguments.append(parse())
+            position += 1
+            if name == "cfg":
+                return arguments[0] if arguments else "U"
+            if name == "not":
+                inner = arguments[0]
+                return {"T": "F", "F": "T"}.get(inner, "U")
+            if name == "all":
+                if "F" in arguments:
+                    return "F"
+                return "U" if "U" in arguments else "T"
+            if name == "any":
+                if "T" in arguments:
+                    return "T"
+                return "U" if "U" in arguments else "F"
+            return "U"
+        return "F" if name in ("test", "kani") else "U"
+
+    try:
+        verdict = parse()
+        return verdict if position == len(tokens) else "U"
+    except IndexError:
+        return "U"
+
+
 def gates_tests(attribute: str) -> bool:
     """True when this outer attribute puts what follows it under test or kani.
 
-    Two shapes count: a `cfg` predicate naming `test` or `kani`, and a test
-    attribute such as `#[test]` or `#[tokio::test]`. `cfg_attr` never counts:
-    it applies an attribute under a condition, it removes no item.
+    Two shapes count: a `cfg` predicate that cannot hold outside a test or
+    kani build, and a test attribute such as `#[test]` or `#[tokio::test]`.
+    `cfg_attr` never counts: it applies an attribute under a condition, it
+    removes no item. A predicate satisfiable with test and kani off, such as
+    `cfg(any(target_os = "linux", test))` or `cfg(not(test))`, gates nothing:
+    the item is production on some build this sweep must keep.
     """
     body = attribute.strip()
     if not body.startswith("#[") or body.startswith("#!["):
@@ -218,8 +270,7 @@ def gates_tests(attribute: str) -> bool:
         return True
     if head != "cfg":
         return False
-    predicate = _QUOTED.sub("", body)
-    return bool(re.search(r"\b(test|kani)\b", predicate))
+    return _predicate_value(body) == "F"
 
 
 def _attribute_span(lines: list[str], index: int) -> tuple[str, int]:

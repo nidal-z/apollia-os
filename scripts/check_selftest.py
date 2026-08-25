@@ -1594,6 +1594,22 @@ fn run() -> usize {
 }
 """
 
+PANIC_CFG_ANY_TARGET = """\
+#[cfg(any(target_os = "linux", test))]
+pub fn run() -> usize {
+    Some(2).unwrap()
+}
+"""
+
+PANIC_CFG_ANY_KANI = """\
+#[cfg(any(test, kani))]
+mod proofs {
+    fn p() {
+        Some(1).unwrap();
+    }
+}
+"""
+
 
 def _accused(text: str) -> list[int]:
     return [
@@ -1609,6 +1625,7 @@ def check_panic_sweep_fires() -> None:
         ("an unwrap under #[allow] alone", PANIC_ALLOW_ONLY, 4),
         ("an unwrap whose SAFETY line is four lines up", PANIC_SAFETY_TOO_FAR, 6),
         ("an unwrap after a closed test module", PANIC_AFTER_TEST_MOD, 10),
+        ("an unwrap under cfg(any(<target>, test)), production on that target", PANIC_CFG_ANY_TARGET, 3),
     ):
         case(
             f"accuses {name}",
@@ -1627,6 +1644,7 @@ def check_panic_sweep_fires() -> None:
     )
     for name, sample in (
         ("a #[cfg(all(test, feature = ...))] module", PANIC_CLOUD_TEST_BLOCK),
+        ("a #[cfg(any(test, kani))] module", PANIC_CFG_ANY_KANI),
         ("a doc example that unwraps", PANIC_DOC_EXAMPLE),
     ):
         case(
