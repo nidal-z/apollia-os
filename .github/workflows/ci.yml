@@ -399,8 +399,13 @@ jobs:
         run: python3 scripts/check_custom_event_listeners.py
       - name: Documentation frontmatter is well formed
         run: python3 scripts/check_docs_frontmatter.py
-      - name: The i18n catalogue is complete in both locales
-        run: python3 scripts/check_i18n_catalogue.py
+      # check_i18n_catalogue.py used to run here, but it now judges the theme
+      # strings against the English defaults that `npm ci` installs, so its
+      # boundary is the docs-build job, after the install.
+      - name: French mirrors match their English pages in structure
+        run: python3 scripts/check_docs_mirror.py
+      - name: Every documentation page sits under the locale of its language
+        run: python3 scripts/check_docs_lang.py
       - name: No production panic path escapes the lint
         run: python3 scripts/check_panic_free.py
       # The workflows themselves: SHA pins, resolved needs, dispatch coverage,
@@ -549,9 +554,18 @@ jobs:
       - name: Install dependencies
         working-directory: docs/site
         run: npm ci
+      # After the install on purpose: the guard reads the theme's English
+      # defaults from node_modules to spot a French message never translated.
+      - name: The i18n catalogue is complete in both locales
+        run: python3 scripts/check_i18n_catalogue.py
       - name: Build site (onBrokenLinks throw)
         working-directory: docs/site
         run: npm run build
+      # After the build on purpose: `onBrokenAnchors` defaults to warn, so the
+      # build alone says nothing about fragment links. This resolves them all
+      # against the rendered HTML.
+      - name: Every fragment link of the built site resolves
+        run: python3 scripts/check_docs_anchors.py docs/site/build
 
   # ── Unused dependencies : keeps the Cargo graph honest ─────────────────────
   machete:

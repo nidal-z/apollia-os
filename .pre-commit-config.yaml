@@ -169,6 +169,27 @@ repos:
         files: '^(docs/site/.+|scripts/check_docs_routes\.py)$'
         pass_filenames: false
 
+      - id: check-docs-mirror
+        name: French mirrors match their English pages in structure
+        entry: python3 scripts/check_docs_mirror.py
+        language: system
+        files: '^(docs/site/.+|scripts/check_docs_mirror\.py)$'
+        pass_filenames: false
+
+      - id: check-docs-lang
+        name: every documentation page sits under the locale of its language
+        entry: python3 scripts/check_docs_lang.py
+        language: system
+        files: '^(docs/site/.+|scripts/check_docs_lang\.py)$'
+        pass_filenames: false
+
+      - id: check-docs-frontmatter
+        name: documentation pages declare a title and a unique rank
+        entry: python3 scripts/check_docs_frontmatter.py
+        language: system
+        files: '^(docs/site/.+|scripts/check_docs_frontmatter\.py)$'
+        pass_filenames: false
+
       # The two roots the validator declares: the gesture scripts and the UI
       # source their anchors resolve against. An anchor renamed in a Svelte
       # component is the defect this guard exists to catch, so the UI side of
