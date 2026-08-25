@@ -8,7 +8,7 @@
 /// A 503 from the user-profile endpoint is treated as a pass: user memory is
 /// an optional subsystem and its absence does not impair runtime operation.
 #[tokio::test]
-#[ignore = "E2E test - requires running runtime and desktop app"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_onboarding_first_launch_skip_to_dashboard() {
     super::with_retry(|| async {
         let client = super::http_client()?;

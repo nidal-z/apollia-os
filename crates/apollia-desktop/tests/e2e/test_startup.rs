@@ -8,7 +8,7 @@
 /// - The SSE task-stream endpoint responds with a structured HTTP reply (not a
 ///   connection error), confirming the server accepts event-stream connections.
 #[tokio::test]
-#[ignore = "E2E test - requires running runtime and desktop app"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_startup_sse_connect_dashboard_render() {
     super::with_retry(|| async {
         let client = super::http_client()?;

@@ -83,7 +83,7 @@ const ROUTE_PROBES: &[RouteProbe] = &[
 /// All 15 routes are probed before failures are reported so that a single
 /// run surfaces all broken routes rather than stopping at the first.
 #[tokio::test]
-#[ignore = "E2E test - requires running runtime and desktop app"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_navigation_all_15_routes_no_crash() {
     assert_eq!(
         ROUTE_PROBES.len(),

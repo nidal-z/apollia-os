@@ -9,7 +9,7 @@
 /// A 503 from the sessions endpoint signals that the chat subsystem is not
 /// configured; the test exits early with a pass in that case.
 #[tokio::test]
-#[ignore = "E2E test - requires running runtime and desktop app"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_chat_create_session_send_receive() {
     super::with_retry(|| async {
         let client = super::http_client()?;
