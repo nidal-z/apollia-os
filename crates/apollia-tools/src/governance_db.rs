@@ -12,8 +12,10 @@
 //!
 //! On first startup with an existing `permissions.db`, the file is copied to
 //! `governance.db` then renamed `permissions.db.bak`. The backup is kept but no
-//! longer used by the runtime. Schema migrations (ALTER TABLE) are idempotent:
-//! a later restart produces no error and no duplicate.
+//! longer used by the runtime. The schema itself lives in
+//! `apollia_permissions::governance_schema`: the file is also opened by
+//! `PrefixRuleEngine` and `PermissionAuditLog`, so the three openers share
+//! one versioned migration list.
 
 use std::path::{Path, PathBuf};
 
@@ -34,6 +36,9 @@ pub enum GovernanceError {
     /// SQLite error while opening or migrating the schema.
     #[error("governance.db SQLite error: {0}")]
     Database(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 /// Filename of the consolidated store.
@@ -107,7 +112,7 @@ impl GovernanceDb {
         )?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
 
-        migrate_schema(&conn)?;
+        apollia_permissions::governance_schema::open_governance_schema(&conn)?;
 
         Ok(Self { path, conn })
     }
@@ -121,116 +126,6 @@ impl GovernanceDb {
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
-}
-
-fn migrate_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS permission_rules (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            tool_name    TEXT NOT NULL,
-            arg_prefix   TEXT,
-            action       TEXT NOT NULL,
-            created_at   INTEGER NOT NULL,
-            created_by   TEXT,
-            scope        TEXT NOT NULL DEFAULT 'global',
-            project_path TEXT,
-            expires_at   INTEGER
-        );
-        CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);
-
-        CREATE TABLE IF NOT EXISTS permission_audit (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            tool_name   TEXT NOT NULL,
-            first_arg   TEXT,
-            decision    TEXT NOT NULL,
-            decided_at  INTEGER NOT NULL,
-            scope       TEXT,
-            rule_id     INTEGER,
-            agent       TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_audit_tool ON permission_audit(tool_name, decided_at);
-
-        CREATE TABLE IF NOT EXISTS tools (
-            name        TEXT PRIMARY KEY,
-            enabled     BOOLEAN NOT NULL DEFAULT TRUE,
-            config_json TEXT,
-            updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
-        );
-
-        CREATE TABLE IF NOT EXISTS tool_credentials (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            tool_name       TEXT NOT NULL,
-            key_name        TEXT NOT NULL,
-            value_encrypted BLOB NOT NULL,
-            created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
-            last_used_at    INTEGER,
-            UNIQUE(tool_name, key_name)
-        );
-
-        CREATE TABLE IF NOT EXISTS chat_libre_config (
-            id              INTEGER PRIMARY KEY CHECK (id = 1),
-            system_prompt   TEXT NOT NULL DEFAULT '',
-            allowed_tools   TEXT NOT NULL DEFAULT '[]',
-            llm_backend     TEXT,
-            updated_at      TEXT NOT NULL
-                            DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-        );
-        INSERT OR IGNORE INTO chat_libre_config (id) VALUES (1);",
-    )?;
-
-    add_column_if_missing(
-        conn,
-        "permission_rules",
-        "scope",
-        "TEXT NOT NULL DEFAULT 'global'",
-    )?;
-    add_column_if_missing(conn, "permission_rules", "project_path", "TEXT")?;
-    add_column_if_missing(conn, "permission_rules", "agent_id", "TEXT")?;
-    add_column_if_missing(conn, "permission_rules", "expires_at", "INTEGER")?;
-
-    add_column_if_missing(conn, "permission_audit", "scope", "TEXT")?;
-    add_column_if_missing(conn, "permission_audit", "rule_id", "INTEGER")?;
-    add_column_if_missing(conn, "permission_audit", "agent", "TEXT")?;
-
-    conn.execute_batch(
-        "CREATE TRIGGER IF NOT EXISTS no_update_audit
-         BEFORE UPDATE ON permission_audit BEGIN
-             SELECT RAISE(ABORT, 'permission_audit is append-only');
-         END;
-         CREATE TRIGGER IF NOT EXISTS no_delete_audit
-         BEFORE DELETE ON permission_audit BEGIN
-             SELECT RAISE(ABORT, 'permission_audit is append-only');
-         END;",
-    )?;
-
-    Ok(())
-}
-
-fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, rusqlite::Error> {
-    let sql = format!("PRAGMA table_info(\"{table}\")");
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-    while let Some(row) = rows.next()? {
-        let name: String = row.get(1)?;
-        if name == column {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-fn add_column_if_missing(
-    conn: &Connection,
-    table: &str,
-    column: &str,
-    type_def: &str,
-) -> Result<(), rusqlite::Error> {
-    if column_exists(conn, table, column)? {
-        return Ok(());
-    }
-    let sql = format!("ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {type_def}");
-    conn.execute_batch(&sql)?;
-    Ok(())
 }
 
 #[cfg(test)]

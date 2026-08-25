@@ -30,12 +30,15 @@
 pub mod audit_log;
 pub mod error;
 pub mod executor_guard;
-pub(crate) mod migrations;
+pub mod governance_schema;
 pub mod prefix_rule_engine;
 
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
 pub use error::PermissionError;
 pub use executor_guard::{is_code_executor, is_single_simple_command, CODE_EXECUTOR_TOOLS};
+pub use governance_schema::{
+    open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
+};
 pub use prefix_rule_engine::{
     extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
 };

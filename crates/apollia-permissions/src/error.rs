@@ -7,6 +7,10 @@ pub enum PermissionError {
     #[error("SQLite error: {0}")]
     Database(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+
     /// Explicit denial decision (AutoDenied*).
     #[error("permission denied: {reason}")]
     Denied {
