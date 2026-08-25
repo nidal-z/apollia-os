@@ -634,6 +634,10 @@ jobs:
               | tail -n +2 \
               | perl -C -pe 's/\x{2014}/-/g'
           } > docs/site/docs/reference/cli/index.md
+      - name: The OpenAPI spec declares every route the runtime serves
+        run: |
+          python3 scripts/check_openapi_routes.py
+          python3 scripts/check_openapi_routes.py --selftest
       - name: Fail if the committed pages drifted
         run: |
           if ! git diff --exit-code -- docs/site/docs/reference/cli docs/site/docs/reference/sdk docs/site/docs/reference/configuration.md docs/site/docs/reference/eval-suites.md; then

@@ -274,6 +274,16 @@ repos:
         files: '^(crates/.+\.(rs|sql)|scripts/check_sqlite_schema_versioning\.py)$'
         pass_filenames: false
 
+      # 0.04 s on the full tree: it reads twenty-three router modules and one
+      # JSON document. The defect it catches is born in a commit that touches
+      # exactly those files, so the commit is where it belongs.
+      - id: check-openapi-routes
+        name: the OpenAPI spec declares every route the runtime serves
+        entry: python3 scripts/check_openapi_routes.py
+        language: system
+        files: '^(crates/apollia-runtime/src/api/.+\.rs|clients/openapi\.json|scripts/check_openapi_routes\.py)$'
+        pass_filenames: false
+
       - id: check-serde-persisted-defaults
         name: persisted serde structs survive the addition of a field
         entry: python3 scripts/check_serde_persisted_defaults.py
