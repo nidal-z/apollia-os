@@ -247,10 +247,16 @@ fi
 WALL=$(( $(/bin/date +%s) - WALL0 ))
 /bin/mkdir -p "$REPORT_DIR"
 report_finalize "$REPORT_DIR/report.json" "$REPORT_DIR/report.md" "$PASS" "$FAIL" "$SKIP" "$WALL"
-# Command-coverage: enumerate every clap leaf and classify exercised / skipped /
-# uncovered against the track sources, appended to report.md.
-/usr/bin/python3 "$LIB_DIR/coverage.py" --bin "$BIN" --tracks-dir "$TRACK_DIR" \
-    --append-md "$REPORT_DIR/report.md" 2>/dev/null || true
+# Command-coverage: enumerate every clap leaf and classify it against the REAL
+# invocations of the track sources, appended to report.md. The floor (zero
+# leaves without a track) is enforced by scripts/check_cli_e2e_coverage.py in
+# `just guards` and in CI; here a violation is surfaced without flipping the
+# suite's own verdict, which is about the assertions that ran.
+if ! /usr/bin/python3 "$LIB_DIR/coverage.py" --bin "$BIN" --tracks-dir "$TRACK_DIR" \
+    --append-md "$REPORT_DIR/report.md"; then
+    echo "$(yellow "WARNING"): command-coverage floor violated or unmeasured;" \
+         "run python3 scripts/check_cli_e2e_coverage.py for the verdict." >&2
+fi
 
 echo
 echo "$(bold "═══ Summary ═══")"

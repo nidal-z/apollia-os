@@ -185,6 +185,13 @@ jobs:
       # against target/debug/apollia-os, which the step above just produced.
       - name: Documented command lines are accepted by the binary
         run: python3 scripts/check_entry_doc_commands.py
+      # Same placement rationale: the floor is measured against the built
+      # binary's own command tree. Selftest first, so a classifier that cannot
+      # fire is reported before its green on the real tracks is believed.
+      - name: Every CLI leaf is invoked by a track
+        run: |
+          python3 scripts/check_cli_e2e_coverage.py --selftest
+          python3 scripts/check_cli_e2e_coverage.py
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report
