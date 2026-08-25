@@ -769,7 +769,7 @@ fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResp
         LlmBackendError::InvalidName(_) | LlmBackendError::Serialization(_) => {
             (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
         }
-        LlmBackendError::Db(_) | LlmBackendError::Io(_) => {
+        LlmBackendError::Db(_) | LlmBackendError::Io(_) | LlmBackendError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
     };

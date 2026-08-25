@@ -17,20 +17,10 @@ use thiserror::Error;
 // ────────────────────────────────────────────────────────────────────────────
 // Migration
 // ────────────────────────────────────────────────────────────────────────────
-
-const MIGRATION_SQL: &str = "
-CREATE TABLE IF NOT EXISTS llm_backends (
-    name         TEXT PRIMARY KEY,
-    provider     TEXT NOT NULL,
-    model        TEXT NOT NULL,
-    config_json  TEXT NOT NULL DEFAULT '{}',
-    enabled      INTEGER NOT NULL DEFAULT 1,
-    is_default   INTEGER NOT NULL DEFAULT 0,
-    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    CHECK (provider IN ('llama-cpp', 'openai', 'mistral', 'anthropic', 'ollama'))
-);
-";
+//
+// The `llm_backends` DDL lives in `crate::system_db`: `system.db` is shared
+// with the STT configuration store, and `PRAGMA user_version` belongs to the
+// file, so the two stores migrate through one numbered list.
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -126,6 +116,10 @@ pub enum LlmBackendError {
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] crate::schema::SchemaError),
+
     /// JSON serialization error.
     #[error("serialization error: {0}")]
     Serialization(String),
@@ -167,16 +161,24 @@ pub struct LlmBackendRepository {
 }
 
 impl LlmBackendRepository {
-    /// Opens (or creates) `system.db` at the given path and applies the migration.
+    /// Opens (or creates) `system.db` at the given path and migrates it.
     ///
-    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is safe
-    /// to re-run on an existing database.
+    /// The file is brought to the current `system.db` schema version through
+    /// [`crate::schema::open_versioned`]; a database written by a newer binary
+    /// is refused instead of misread.
     ///
     /// # Errors
-    /// Returns [`LlmBackendError::Db`] if opening or migrating fails.
+    /// Returns [`LlmBackendError::Db`] if opening fails, and
+    /// [`LlmBackendError::Schema`] if the migration fails or the database is
+    /// newer than this binary.
     pub fn open(path: &Path) -> Result<Self, LlmBackendError> {
         let conn = Connection::open(path)?;
-        conn.execute_batch(MIGRATION_SQL)?;
+        crate::schema::open_versioned(
+            &conn,
+            crate::paths::DataFile::System.file_name(),
+            crate::system_db::SYSTEM_DB_SCHEMA_VERSION,
+            crate::system_db::SYSTEM_DB_MIGRATIONS,
+        )?;
         Ok(Self {
             conn: RefCell::new(conn),
         })

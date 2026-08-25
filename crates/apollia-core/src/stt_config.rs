@@ -10,31 +10,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // ── Migration ────────────────────────────────────────────────────────
-
-const MIGRATION_SQL: &str = "
-CREATE TABLE IF NOT EXISTS stt_config (
-    id                   INTEGER PRIMARY KEY CHECK (id = 1),
-    enabled              INTEGER NOT NULL DEFAULT 0,
-    model_path           TEXT    NOT NULL DEFAULT '',
-    hotkey               TEXT    NOT NULL DEFAULT 'ctrl+shift+space',
-    clipboard_mode       TEXT    NOT NULL DEFAULT 'paste',
-    clipboard_restore    INTEGER NOT NULL DEFAULT 1,
-    silence_threshold_db REAL    NOT NULL DEFAULT -40.0,
-    max_recording_sec    INTEGER NOT NULL DEFAULT 60,
-    language             TEXT,
-    trigger_mode         TEXT    NOT NULL DEFAULT 'toggle',
-    input_device         TEXT,
-    updated_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-";
-
-/// Nullable column added after the initial `stt_config` schema shipped.
-///
-/// A fresh database gets it from [`MIGRATION_SQL`]; a database created before
-/// this column existed gets it via an additive `ALTER TABLE ... ADD COLUMN`
-/// guarded by a `PRAGMA table_info` check so upgrades never fail and existing
-/// rows keep their values (the new column defaults to `NULL` = system default).
-const ADDITIVE_COLUMNS: &[(&str, &str)] = &[("input_device", "TEXT")];
+//
+// The `stt_config` DDL lives in `crate::system_db`: `system.db` is shared
+// with the LLM backend registry, and `PRAGMA user_version` belongs to the
+// file, so the two stores migrate through one numbered list.
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -125,6 +104,10 @@ pub enum SttConfigError {
     /// Underlying SQLite error.
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
+
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] crate::schema::SchemaError),
 }
 
 // ── Repository ───────────────────────────────────────────────────────
@@ -141,45 +124,25 @@ pub struct SttConfigRepository {
 }
 
 impl SttConfigRepository {
-    /// Open (or create) `system.db` at the given path and apply the migration.
+    /// Open (or create) `system.db` at the given path and migrate it.
     ///
-    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`) and safe to
-    /// run on a database that already has the `stt_config` table.
+    /// The file is brought to the current `system.db` schema version through
+    /// [`crate::schema::open_versioned`]; a database written by a newer binary
+    /// is refused instead of misread.
     ///
     /// # Errors
-    /// Returns [`SttConfigError::Db`] if the file cannot be opened or the migration fails.
+    /// Returns [`SttConfigError::Db`] if the file cannot be opened, and
+    /// [`SttConfigError::Schema`] if the migration fails or the database is
+    /// newer than this binary.
     pub fn open(path: &Path) -> Result<Self, SttConfigError> {
         let conn = Connection::open(path)?;
-        conn.execute_batch(MIGRATION_SQL)?;
-        Self::apply_additive_columns(&conn)?;
+        crate::schema::open_versioned(
+            &conn,
+            crate::paths::DataFile::System.file_name(),
+            crate::system_db::SYSTEM_DB_SCHEMA_VERSION,
+            crate::system_db::SYSTEM_DB_MIGRATIONS,
+        )?;
         Ok(Self { conn })
-    }
-
-    /// Add any nullable column introduced after the initial schema shipped.
-    ///
-    /// Idempotent: each column is added only when `PRAGMA table_info` shows it
-    /// missing, so upgrading a pre-existing database never fails and never
-    /// rewrites existing rows.
-    fn apply_additive_columns(conn: &Connection) -> Result<(), SttConfigError> {
-        for (name, ty) in ADDITIVE_COLUMNS {
-            if !Self::column_exists(conn, name)? {
-                conn.execute_batch(&format!("ALTER TABLE stt_config ADD COLUMN {name} {ty};"))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Returns whether `column` already exists on the `stt_config` table.
-    fn column_exists(conn: &Connection, column: &str) -> Result<bool, SttConfigError> {
-        let mut stmt = conn.prepare("PRAGMA table_info(stt_config)")?;
-        let mut rows = stmt.query([])?;
-        while let Some(row) = rows.next()? {
-            let existing: String = row.get(1)?;
-            if existing == column {
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 
     /// Return the current configuration, inserting defaults if the table is empty.

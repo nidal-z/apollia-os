@@ -42,6 +42,7 @@ pub mod session_metrics;
 pub mod stt_config;
 pub mod subprocess_env;
 pub mod subprocess_window;
+pub(crate) mod system_db;
 pub mod task;
 pub mod temporal_context;
 pub mod todo;
