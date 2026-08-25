@@ -16,7 +16,14 @@ permissions:
 # interpolated into a shell `run:`. Keep it that way.
 jobs:
   close:
-    if: github.event.pull_request.user.login != github.repository_owner
+    # The policy targets external human contributors only. Dependabot and the
+    # github-actions bot are repository tooling, not external contributors: in
+    # July this filter closed 32 Dependabot security PRs because neither bot
+    # login equals the repository owner.
+    if: >
+      github.event.pull_request.user.login != github.repository_owner &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Comment, label, close
