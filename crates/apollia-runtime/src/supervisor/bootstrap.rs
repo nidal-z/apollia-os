@@ -195,9 +195,9 @@ pub(in crate::supervisor) async fn start_mcp_manager(
 /// the Supervisor is consumed by `start()`. The caller runs `watch()` as a
 /// background task after obtaining handles.
 ///
-/// Listens for `ShutdownRequested` or `FatalError` events and returns when
-/// either occurs. It does not restart actors: the runtime is fail-fast at
-/// startup then degrades on a post-startup crash (see the module docs).
+/// Listens for `ShutdownRequested` and returns when it arrives. It does not
+/// restart actors: the runtime is fail-fast at startup then degrades on a
+/// post-startup crash (see the module docs).
 pub async fn watch(event_sender: &EventBusSender) -> Result<(), SupervisorError> {
     let mut rx = event_sender.subscribe();
 
@@ -206,13 +206,6 @@ pub async fn watch(event_sender: &EventBusSender) -> Result<(), SupervisorError>
             Ok(RuntimeEvent::ShutdownRequested) => {
                 info!("Supervisor watch: shutdown requested");
                 return Ok(());
-            }
-            Ok(RuntimeEvent::FatalError(reason)) => {
-                error!(reason = %reason, "Supervisor watch: fatal error");
-                return Err(SupervisorError::ActorStartFailed {
-                    actor: "runtime".to_string(),
-                    reason,
-                });
             }
             Ok(_) => {
                 // Non-terminal events are not acted on: no restart-on-crash.

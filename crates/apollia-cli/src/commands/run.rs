@@ -458,17 +458,6 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             false
         }
 
-        // ── Direct mode legacy: step progress ─────────────────────────────
-        "step" => {
-            let step = event.data["step"].as_u64().unwrap_or(0);
-            let tool = event.data["tool"]
-                .as_str()
-                .map(|t| format!(" tool_call {t}"))
-                .unwrap_or_default();
-            println!("  ~ Step {step}:{tool}");
-            false
-        }
-
         // ── Plan alternatives: display plans, read choice ─────────────────
         "plan_alternatives_generated" => {
             handle_plan_alternatives(event, state);
@@ -1401,10 +1390,10 @@ mod tests {
         assert!(terminal);
     }
 
-    // direct-mode events (no plan_* events) still work
+    // an event type the stream never carries is ignored, not terminal
     #[test]
-    fn test_direct_mode_step_not_terminal() {
-        // GIVEN legacy direct-mode step event
+    fn test_unknown_event_type_not_terminal() {
+        // GIVEN an event type no route emits
         let event = make_event("step", serde_json::json!({"step": 1, "tool": "file_io"}));
         let mut state = RunDisplayState::new(false, false);
 

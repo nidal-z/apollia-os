@@ -82,7 +82,6 @@ pub struct HookDecisionPayload {
 /// - `approval-changed`
 /// - `llm-changed`
 /// - `trigger-fired`
-/// - `pipeline-changed`
 /// - `system`
 #[derive(Debug, Clone, Serialize)]
 pub struct TauriRuntimeEvent {
@@ -326,7 +325,6 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskStarted { .. }
         | RuntimeEvent::TaskCompleted { .. }
         | RuntimeEvent::TaskCanceled { .. }
-        | RuntimeEvent::StepExecuted { .. }
         | RuntimeEvent::TodoUpdated { .. } => "task-changed",
 
         // ── Hook decisions ───────────────────────────────────────────────
@@ -336,8 +334,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskInputRequired { .. }
         | RuntimeEvent::TaskResumed { .. }
         | RuntimeEvent::TaskApprovalTimeout { .. }
-        | RuntimeEvent::HitlFilesystemRequired { .. }
-        | RuntimeEvent::HitlRejected { .. } => "approval-changed",
+        | RuntimeEvent::HitlFilesystemRequired { .. } => "approval-changed",
 
         // ── LLM ──────────────────────────────────────────────────────────
         RuntimeEvent::LlmModelLoading { .. }
@@ -357,17 +354,6 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::TriggerEnabled { .. }
         | RuntimeEvent::TriggerDisabled { .. }
         | RuntimeEvent::TriggersReloaded { .. } => "trigger-fired",
-
-        // ── Pipelines ────────────────────────────────────────────────────
-        RuntimeEvent::PipelineStarted { .. }
-        | RuntimeEvent::PipelineStepStarted { .. }
-        | RuntimeEvent::PipelineStepCompleted { .. }
-        | RuntimeEvent::PipelineStepFailed { .. }
-        | RuntimeEvent::PipelineStepSkipped { .. }
-        | RuntimeEvent::PipelineSuspended { .. }
-        | RuntimeEvent::PipelineResumed { .. }
-        | RuntimeEvent::PipelineCompleted { .. }
-        | RuntimeEvent::PipelineFailed { .. } => "pipeline-changed",
 
         // ── Plan-mode approval gate ──────────────────────────────────────
         RuntimeEvent::PlanApprovalRequired { .. }
@@ -452,22 +438,16 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::PermissionRequired { .. } => "approval-changed",
 
         // ── Binary feedback / plan alternatives ───────────────────────────
-        RuntimeEvent::PlanAlternativesGenerated { .. } | RuntimeEvent::PlanChosen { .. } => {
-            "task-changed"
-        }
+        RuntimeEvent::PlanAlternativesGenerated { .. } => "task-changed",
 
         // ── Context manager ──────────────────────────────────────────────
         RuntimeEvent::ContextCompacted { .. } => "system",
 
         // ── Replay capture (internal, not surfaced in the UI) ─────────────
-        RuntimeEvent::ToolOutputCaptured { .. }
-        | RuntimeEvent::ClockSampled { .. }
-        | RuntimeEvent::RandomSampled { .. } => "system",
+        RuntimeEvent::ToolOutputCaptured { .. } => "system",
 
         // ── System-level ─────────────────────────────────────────────────
-        RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
-            "system"
-        }
+        RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested => "system",
 
         // ── Triggers (extended) ───────────────────────────────────────────
         RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
@@ -682,21 +662,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_runtime_event_pipeline_category() {
-        // GIVEN a PipelineStarted event
-        let event = RuntimeEvent::PipelineStarted {
-            run_id: "r-1".into(),
-            pipeline_id: "p-1".into(),
-            trigger_id: None,
-            step_count: 3,
-        };
-        // WHEN mapped
-        let tauri_event = map_runtime_event(&event);
-        // THEN category is "pipeline-changed"
-        assert_eq!(tauri_event.category, "pipeline-changed");
-    }
-
-    #[test]
     fn test_map_runtime_event_system_category() {
         // GIVEN an AllReady event
         let event = RuntimeEvent::AllReady;
@@ -782,11 +747,6 @@ mod tests {
             RuntimeEvent::TaskCanceled {
                 task_id: "t".into(),
             },
-            RuntimeEvent::StepExecuted {
-                task_id: "t".into(),
-                step: 1,
-                tool: None,
-            },
             RuntimeEvent::ToolCircuitBroken {
                 tool_name: "x".into(),
             },
@@ -795,7 +755,6 @@ mod tests {
             },
             RuntimeEvent::AllReady,
             RuntimeEvent::ShutdownRequested,
-            RuntimeEvent::FatalError("err".into()),
             RuntimeEvent::LlmModelLoading {
                 backend: "b".into(),
                 model_path: "p".into(),
@@ -897,53 +856,6 @@ mod tests {
             RuntimeEvent::TaskResumed {
                 task_id: "t".into(),
                 approved: true,
-            },
-            RuntimeEvent::PipelineStarted {
-                run_id: "r".into(),
-                pipeline_id: "p".into(),
-                trigger_id: None,
-                step_count: 1,
-            },
-            RuntimeEvent::PipelineStepStarted {
-                run_id: "r".into(),
-                step_id: "s".into(),
-                task_id: "t".into(),
-                agent: "a".into(),
-            },
-            RuntimeEvent::PipelineStepCompleted {
-                run_id: "r".into(),
-                step_id: "s".into(),
-            },
-            RuntimeEvent::PipelineStepFailed {
-                run_id: "r".into(),
-                step_id: "s".into(),
-                reason: "r".into(),
-                on_failure: "fail".into(),
-            },
-            RuntimeEvent::PipelineStepSkipped {
-                run_id: "r".into(),
-                step_id: "s".into(),
-                reason: "r".into(),
-            },
-            RuntimeEvent::PipelineSuspended {
-                run_id: "r".into(),
-                step_id: "s".into(),
-                task_id: "t".into(),
-            },
-            RuntimeEvent::PipelineResumed {
-                run_id: "r".into(),
-                step_id: "s".into(),
-            },
-            RuntimeEvent::PipelineCompleted {
-                run_id: "r".into(),
-                pipeline_id: "p".into(),
-                duration_ms: 0,
-            },
-            RuntimeEvent::PipelineFailed {
-                run_id: "r".into(),
-                pipeline_id: "p".into(),
-                step_id: "s".into(),
-                reason: "r".into(),
             },
             // ── Chat events ────────────────────────────────────────────
             RuntimeEvent::ChatSessionCreated {
@@ -1069,7 +981,6 @@ mod tests {
             "approval-changed",
             "llm-changed",
             "trigger-fired",
-            "pipeline-changed",
             "chat-changed",
             "chat-token",
             "onboarding-required",

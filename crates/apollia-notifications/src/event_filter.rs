@@ -87,7 +87,6 @@ fn build_dashboard_url(base_url: &str) -> String {
 /// The events that produce a notification:
 /// - `TaskInputRequired`, `TaskCompleted` (success and failure), `AgentDegraded`,
 ///   `LlmModelFailed`, `TriggerError`
-/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended`
 ///
 /// Everything else returns `None`.
 pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
@@ -199,80 +198,6 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 message: format!("Erreur trigger : {}", error),
                 metadata,
                 severity: Severity::Error,
-            })
-        }
-
-        // --- Pipeline events -------------------------------------------------
-        RuntimeEvent::PipelineCompleted {
-            run_id,
-            pipeline_id,
-            duration_ms,
-        } => {
-            let duration_s = *duration_ms as f64 / 1000.0;
-            let mut metadata = HashMap::new();
-            metadata.insert("run_id".into(), run_id.clone());
-            metadata.insert("pipeline_id".into(), pipeline_id.clone());
-            metadata.insert("dashboard_url".into(), dashboard_url);
-            Some(Notification {
-                event: "pipeline.completed".into(),
-                timestamp: Utc::now(),
-                task_id: None,
-                agent: None,
-                message: format!(
-                    "Pipeline {pipeline_id} terminé - run {run_id} en {duration_s:.1}s"
-                ),
-                metadata,
-                severity: Severity::Info,
-            })
-        }
-
-        RuntimeEvent::PipelineFailed {
-            run_id,
-            pipeline_id,
-            step_id,
-            reason,
-        } => {
-            let mut metadata = HashMap::new();
-            metadata.insert("run_id".into(), run_id.clone());
-            metadata.insert("step_id".into(), step_id.clone());
-            metadata.insert("dashboard_url".into(), dashboard_url);
-            Some(Notification {
-                event: "pipeline.failed".into(),
-                timestamp: Utc::now(),
-                task_id: None,
-                agent: None,
-                message: format!("Pipeline {pipeline_id} échoué - step [{step_id}] : {reason}"),
-                metadata,
-                severity: Severity::Warning,
-            })
-        }
-
-        RuntimeEvent::PipelineSuspended {
-            run_id,
-            step_id,
-            task_id,
-        } => {
-            let mut metadata = HashMap::new();
-            metadata.insert("task_id".into(), task_id.clone());
-            metadata.insert(
-                "resume_approve".into(),
-                format!("apollia-os task resume {task_id} --approve"),
-            );
-            metadata.insert(
-                "resume_reject".into(),
-                format!("apollia-os task resume {task_id} --reject"),
-            );
-            metadata.insert("dashboard_url".into(), dashboard_url);
-            Some(Notification {
-                event: "pipeline.suspended".into(),
-                timestamp: Utc::now(),
-                task_id: Some(task_id.clone()),
-                agent: None,
-                message: format!(
-                    "Pipeline suspendu - step [{step_id}] attend approbation (run {run_id})\napollia-os task resume {task_id} --approve"
-                ),
-                metadata,
-                severity: Severity::Warning,
             })
         }
 
@@ -498,76 +423,6 @@ mod tests {
         let event = RuntimeEvent::AllReady;
         // WHEN / THEN
         assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
-    }
-
-    // --- Pipeline notifications ------------------------------------------
-
-    #[test]
-    fn test_pipeline_completed_maps_to_info_notification() {
-        // GIVEN
-        let event = RuntimeEvent::PipelineCompleted {
-            run_id: "r-0017".into(),
-            pipeline_id: "traitement-facture".into(),
-            duration_ms: 9400,
-        };
-        // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
-        // THEN
-        assert_eq!(notif.severity, Severity::Info);
-        assert_eq!(notif.event, "pipeline.completed");
-        assert!(notif.message.contains("traitement-facture"));
-        assert!(notif.message.contains("9.4s"));
-        assert_eq!(
-            notif.metadata.get("pipeline_id").map(String::as_str),
-            Some("traitement-facture")
-        );
-        assert_eq!(
-            notif.metadata.get("run_id").map(String::as_str),
-            Some("r-0017")
-        );
-    }
-
-    #[test]
-    fn test_pipeline_failed_maps_to_warning_notification() {
-        // GIVEN
-        let event = RuntimeEvent::PipelineFailed {
-            run_id: "r-0016".into(),
-            pipeline_id: "traitement-facture".into(),
-            step_id: "validation".into(),
-            reason: "timeout".into(),
-        };
-        // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
-        // THEN
-        assert_eq!(notif.severity, Severity::Warning);
-        assert_eq!(notif.event, "pipeline.failed");
-        assert!(notif.message.contains("validation"));
-        assert!(notif.message.contains("timeout"));
-        assert_eq!(
-            notif.metadata.get("step_id").map(String::as_str),
-            Some("validation")
-        );
-    }
-
-    #[test]
-    fn test_pipeline_suspended_maps_to_warning_with_resume_metadata() {
-        // GIVEN
-        let event = RuntimeEvent::PipelineSuspended {
-            run_id: "r-0018".into(),
-            step_id: "comptabilite".into(),
-            task_id: "t-0051".into(),
-        };
-        // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
-        // THEN
-        assert_eq!(notif.severity, Severity::Warning);
-        assert_eq!(notif.event, "pipeline.suspended");
-        assert!(notif.message.contains("t-0051"));
-        assert!(notif.metadata.contains_key("resume_approve"));
-        assert!(notif.metadata.contains_key("resume_reject"));
-        let approve_cmd = notif.metadata.get("resume_approve").expect("clé présente");
-        assert!(approve_cmd.contains("--approve"));
-        assert_eq!(notif.task_id.as_deref(), Some("t-0051"));
     }
 
     // --- Chat approval notification --------------------------------------

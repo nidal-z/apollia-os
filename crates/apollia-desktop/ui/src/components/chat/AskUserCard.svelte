@@ -173,8 +173,7 @@
   /**
    * Reject the HITL request. Forces a non-empty reason (min
    * `MIN_REJECT_REASON_LENGTH` chars) - the textarea is mandatory.
-   * The reason is forwarded to the agent via `approval_outcome`
-   * (SDK-side) and emitted on the event bus as `HitlRejected`.
+   * The reason is forwarded to the agent via `approval_outcome` (SDK-side).
    */
   async function handleRejectConfirm(): Promise<void> {
     if (!rejectReasonValid) return;

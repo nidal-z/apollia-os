@@ -15,9 +15,8 @@
 //!   short plain-text narration. Cost: ~400 in / 200 out tokens per HITL.
 //!
 //! Reject workflow : when the operator rejects, the textarea reason is
-//! required (non-empty). The runtime emits
-//! [`crate::RuntimeEvent::HitlRejected`] and propagates the reason to the
-//! agent via `approval_outcome` on the SDK side.
+//! required (non-empty). The runtime propagates the reason to the agent via
+//! `approval_outcome` on the SDK side.
 
 use serde::{Deserialize, Serialize};
 

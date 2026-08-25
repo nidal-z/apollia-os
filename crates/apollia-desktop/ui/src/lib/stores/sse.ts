@@ -614,7 +614,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
         void import("./chatMetrics").then((m) => m.refreshActiveSessionMetrics());
         break;
       }
-      // AllReady / ShutdownRequested / FatalError - refresh everything
+      // AllReady / ShutdownRequested and the rest - refresh everything
       void refreshAll();
       break;
   }

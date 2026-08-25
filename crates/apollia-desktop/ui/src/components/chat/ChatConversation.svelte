@@ -356,20 +356,6 @@
           a2aSteps = a2aSteps.map((s) =>
             s.step_id === p.step_id ? { ...s, status: "failed" as const } : s,
           );
-        } else if (evt.event_type === "StepExecuted") {
-          // Direct-mode agents emit StepExecuted instead of StepStarted/Completed.
-          const p = evt.payload as { step?: number; tool?: string };
-          a2aSteps = [
-            ...a2aSteps,
-            {
-              step_id: `step-${p.step ?? a2aSteps.length}`,
-              step_num: (p.step ?? a2aSteps.length) + 1,
-              total: 0,
-              desc: p.tool ?? "step",
-              status: "done",
-            },
-          ];
-          scrollToBottom();
         }
       },
     ));

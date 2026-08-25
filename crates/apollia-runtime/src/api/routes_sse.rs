@@ -26,7 +26,8 @@ use crate::coordinator::ExecutionBackend;
 /// the event type and additional data fields depending on the variant.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SseTaskEvent {
-    /// Event type: "step", "tool_call", "completed", "failed", "canceled", "started".
+    /// Event type: "tool_call", "completed", "failed", "canceled", "started",
+    /// "plan", "step_started", "step_completed", "step_failed".
     pub event: String,
     /// Additional event data (flattened into the top-level JSON object).
     #[serde(flatten)]
@@ -50,23 +51,6 @@ struct ErrorResponse {
 fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskEvent, bool)> {
     match event {
         // Direct-mode events
-        RuntimeEvent::StepExecuted {
-            task_id: tid,
-            step,
-            tool,
-        } if tid == task_id => {
-            let data = match tool {
-                Some(t) => serde_json::json!({ "step": step, "tool": t }),
-                None => serde_json::json!({ "step": step }),
-            };
-            Some((
-                SseTaskEvent {
-                    event: "step".into(),
-                    data,
-                },
-                false,
-            ))
-        }
         RuntimeEvent::TaskStarted {
             task_id: tid,
             agent_id,
@@ -604,32 +588,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_runtime_event_to_sse_step_event() {
-        // GIVEN a StepExecuted event for task "t-001"
-        let event = RuntimeEvent::StepExecuted {
-            task_id: "t-001".into(),
-            step: 3,
-            tool: Some("file_io".into()),
-        };
-
-        // WHEN converting it
-        let result = runtime_event_to_sse(&event, "t-001");
-
-        // THEN we get a non-terminal "step" SseTaskEvent
-        let (sse, is_terminal) = result.expect("should match");
-        assert_eq!(sse.event, "step");
-        assert_eq!(sse.data["step"], 3);
-        assert_eq!(sse.data["tool"], "file_io");
-        assert!(!is_terminal);
-    }
-
-    #[tokio::test]
     async fn test_runtime_event_to_sse_filters_by_task_id() {
-        // GIVEN a StepExecuted event for task "t-002"
-        let event = RuntimeEvent::StepExecuted {
+        // GIVEN a TaskStarted event for task "t-002"
+        let event = RuntimeEvent::TaskStarted {
+            agent_id: "agent-1".into(),
             task_id: "t-002".into(),
-            step: 1,
-            tool: None,
         };
 
         // WHEN converting it with task_id "t-001"

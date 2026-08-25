@@ -7,7 +7,7 @@
 //! actors are stopped in reverse order.
 //!
 //! After startup, the model is fail-fast then degrade: `watch()` listens for a
-//! `ShutdownRequested` or `FatalError` event and coordinates shutdown. There is no
+//! `ShutdownRequested` event and coordinates shutdown. There is no
 //! actor restart-on-crash. A crashed actor leaves the runtime running in a degraded
 //! state until an explicit shutdown. The inference sidecar is the exception: its own
 //! `RunnerSupervisor` restarts that process (see `runner_supervisor`).
@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use apollia_core::{
     HitlConfig, LlmBackendRepository, PendingApprovals, ProcessState, RuntimeConfig, RuntimeEvent,

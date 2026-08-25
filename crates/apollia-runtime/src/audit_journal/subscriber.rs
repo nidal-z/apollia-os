@@ -27,7 +27,7 @@ use crate::audit_journal::entry::{
     JournalEntryDraft, JournalEntryKind, MessageSnapshot, PlanMutationSnapshot,
 };
 use crate::audit_journal::handle::AuditJournalHandle;
-use crate::replay::{ClockSample, LlmCompletionSnapshot, RandomSample, ToolOutputSnapshot};
+use crate::replay::{LlmCompletionSnapshot, ToolOutputSnapshot};
 
 /// Per-run step-ordinal counters for captured replay inputs.
 ///
@@ -40,10 +40,6 @@ struct RunOrdinals {
     llm: u32,
     /// Next ordinal for `ToolOutput` captures.
     tool: u32,
-    /// Next ordinal for `ClockSample` captures.
-    clock: u32,
-    /// Next ordinal for `RandomSample` captures.
-    random: u32,
     /// Next ordinal for `PlanMutation` captures.
     plan: u32,
 }
@@ -269,62 +265,6 @@ fn map_capture(
             Some(draft(
                 run_id.as_str().to_string(),
                 JournalEntryKind::ToolOutput,
-                payload,
-            ))
-        }
-        RuntimeEvent::ClockSampled {
-            run_id,
-            timestamp_ms,
-            ..
-        } => {
-            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
-            let step_ordinal = counters.clock;
-            counters.clock += 1;
-
-            let snapshot = ClockSample {
-                run_id: run_id.clone(),
-                step_ordinal,
-                timestamp_ms: *timestamp_ms,
-            };
-            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
-            Some(draft(
-                run_id.as_str().to_string(),
-                JournalEntryKind::ClockSample,
-                payload,
-            ))
-        }
-        RuntimeEvent::RandomSampled {
-            run_id,
-            bytes,
-            captured,
-            source_site,
-        } => {
-            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
-            let step_ordinal = counters.random;
-            counters.random += 1;
-
-            // An un-captured draw is journaled with the flag and warned, never
-            // dropped: the replay would otherwise diverge silently (Principle #7).
-            if !*captured {
-                tracing::warn!(
-                    run_id = %run_id.as_str(),
-                    step_ordinal,
-                    source_site = %source_site,
-                    "replay.random.uncaptured"
-                );
-            }
-
-            let snapshot = RandomSample {
-                run_id: run_id.clone(),
-                step_ordinal,
-                bytes: bytes.clone(),
-                captured: *captured,
-                source_site: source_site.clone(),
-            };
-            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
-            Some(draft(
-                run_id.as_str().to_string(),
-                JournalEntryKind::RandomSample,
                 payload,
             ))
         }
@@ -836,50 +776,6 @@ mod tests {
         assert_eq!(snap.step_ordinal, 0);
         assert_eq!(snap.tool_call_id, "c1");
         assert_eq!(snap.status, "success");
-    }
-
-    // A clock read maps to a ClockSample entry
-    #[test]
-    fn test_clock_sample_capture_maps_with_ordinal() {
-        // GIVEN a captured clock reading
-        let mut ordinals = HashMap::new();
-        let run = RunId::new();
-        let event = RuntimeEvent::ClockSampled {
-            run_id: run.clone(),
-            timestamp_ms: 1_700_000_000_123,
-            source_site: "agent.turn".into(),
-        };
-
-        // WHEN mapped
-        let draft = map_capture(&mut ordinals, &event).expect("draft");
-
-        // THEN it is a ClockSample entry carrying the timestamp
-        assert_eq!(draft.kind, JournalEntryKind::ClockSample);
-        let snap: ClockSample = serde_json::from_value(draft.payload.clone()).expect("snapshot");
-        assert_eq!(snap.timestamp_ms, 1_700_000_000_123);
-    }
-
-    // An un-captured random draw is journaled with captured=false
-    #[test]
-    fn test_uncaptured_random_journaled_with_flag() {
-        // GIVEN a random draw flagged as un-captured (a capture bug)
-        let mut ordinals = HashMap::new();
-        let run = RunId::new();
-        let event = RuntimeEvent::RandomSampled {
-            run_id: run.clone(),
-            bytes: vec![],
-            captured: false,
-            source_site: "hitl.request_id".into(),
-        };
-
-        // WHEN mapped
-        let draft = map_capture(&mut ordinals, &event).expect("draft");
-
-        // THEN the entry is still produced with captured=false (no silent loss)
-        assert_eq!(draft.kind, JournalEntryKind::RandomSample);
-        let snap: RandomSample = serde_json::from_value(draft.payload.clone()).expect("snapshot");
-        assert!(!snap.captured);
-        assert_eq!(snap.source_site, "hitl.request_id");
     }
 
     // The shared per-run ordinal sequences are independent per capture type

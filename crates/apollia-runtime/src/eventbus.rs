@@ -87,10 +87,8 @@ mod tests {
 
         // WHEN we send 9 messages without consuming (buffer saturated)
         for i in 0..9u32 {
-            let _ = tx.send(RuntimeEvent::StepExecuted {
+            let _ = tx.send(RuntimeEvent::TaskCanceled {
                 task_id: format!("task-{}", i).into(),
-                step: i,
-                tool: None,
             });
         }
 

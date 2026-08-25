@@ -5,9 +5,6 @@ mod runtime_event;
 
 #[cfg(test)]
 mod tests;
-// ── Pipeline event tests ─────────────────────────────────────────
-#[cfg(test)]
-mod pipeline_event_tests;
 #[cfg(test)]
 mod tool_call_rationale_tests;
 

@@ -25,11 +25,6 @@ fn test_all_variants_exist_and_clone() {
         RuntimeEvent::TaskCanceled {
             task_id: "task-1".into(),
         },
-        RuntimeEvent::StepExecuted {
-            task_id: "task-1".into(),
-            step: 1,
-            tool: Some("file_io".into()),
-        },
         RuntimeEvent::ToolCircuitBroken {
             tool_name: "bash_executor".into(),
         },
@@ -38,7 +33,6 @@ fn test_all_variants_exist_and_clone() {
         },
         RuntimeEvent::AllReady,
         RuntimeEvent::ShutdownRequested,
-        RuntimeEvent::FatalError("out of memory".into()),
         RuntimeEvent::AgentLoadFailed {
             name: "broken-agent".into(),
             error: "module not found".into(),
@@ -175,54 +169,6 @@ fn test_all_variants_exist_and_clone() {
             task_id: "task-1".into(),
             approved: true,
         },
-        // ── Pipeline ──────────────────────────────────────
-        RuntimeEvent::PipelineStarted {
-            run_id: "r-0001".into(),
-            pipeline_id: "traitement-facture".into(),
-            trigger_id: None,
-            step_count: 3,
-        },
-        RuntimeEvent::PipelineStepStarted {
-            run_id: "r-0001".into(),
-            step_id: "ocr".into(),
-            task_id: "t-0001".into(),
-            agent: "ocr-agent".into(),
-        },
-        RuntimeEvent::PipelineStepCompleted {
-            run_id: "r-0001".into(),
-            step_id: "ocr".into(),
-        },
-        RuntimeEvent::PipelineStepFailed {
-            run_id: "r-0001".into(),
-            step_id: "validation".into(),
-            reason: "timeout".into(),
-            on_failure: "fail".into(),
-        },
-        RuntimeEvent::PipelineStepSkipped {
-            run_id: "r-0001".into(),
-            step_id: "archivage".into(),
-            reason: "on_failure=skip".into(),
-        },
-        RuntimeEvent::PipelineSuspended {
-            run_id: "r-0001".into(),
-            step_id: "comptabilite".into(),
-            task_id: "t-0051".into(),
-        },
-        RuntimeEvent::PipelineResumed {
-            run_id: "r-0001".into(),
-            step_id: "comptabilite".into(),
-        },
-        RuntimeEvent::PipelineCompleted {
-            run_id: "r-0001".into(),
-            pipeline_id: "traitement-facture".into(),
-            duration_ms: 9400,
-        },
-        RuntimeEvent::PipelineFailed {
-            run_id: "r-0001".into(),
-            pipeline_id: "traitement-facture".into(),
-            step_id: "validation".into(),
-            reason: "timeout".into(),
-        },
         // ── Chat ────────────────────────────────
         RuntimeEvent::ChatSessionCreated {
             session_id: "sess-001".into(),
@@ -303,10 +249,6 @@ fn test_all_variants_exist_and_clone() {
         RuntimeEvent::ChatUserInputResolved {
             request_id: "req-001".into(),
             session_id: "sess-001".into(),
-        },
-        RuntimeEvent::HitlRejected {
-            request_id: "req-001".into(),
-            reason: "Cost too high for this session.".into(),
         },
         // ── Plan Cache ────────────────────────
         RuntimeEvent::PlanCacheHit {

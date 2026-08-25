@@ -42,12 +42,6 @@ pub enum RuntimeEvent {
     },
     /// A task was canceled.
     TaskCanceled { task_id: TaskId },
-    /// A step was executed within a task.
-    StepExecuted {
-        task_id: TaskId,
-        step: u32,
-        tool: Option<String>,
-    },
     /// A tool circuit breaker opened.
     ToolCircuitBroken { tool_name: String },
     /// A tool circuit breaker closed again after recovery.
@@ -56,8 +50,6 @@ pub enum RuntimeEvent {
     AllReady,
     /// Shutdown requested (SIGTERM or CLI command).
     ShutdownRequested,
-    /// Unrecoverable fatal error.
-    FatalError(String),
 
     /// Loading an installed agent failed at boot.
     ///
@@ -258,37 +250,6 @@ pub enum RuntimeEvent {
         output: serde_json::Value,
         /// Outcome: `"success"`, `"error"`, or `"rejected"`.
         status: String,
-    },
-
-    /// A clock reading captured for deterministic replay.
-    ///
-    /// Emitted when run logic reads the wall clock through a `ClockSource`. The
-    /// journal subscriber maps it to a chained `ClockSample` entry with a
-    /// per-run step ordinal.
-    ClockSampled {
-        /// Run that read the clock.
-        run_id: RunId,
-        /// Unix timestamp in milliseconds that was observed.
-        timestamp_ms: u64,
-        /// Call-site hint for diagnostics.
-        source_site: String,
-    },
-
-    /// A random draw captured for deterministic replay.
-    ///
-    /// Emitted when run logic draws randomness through a `RandomSource`. The
-    /// journal subscriber maps it to a chained `RandomSample` entry with a
-    /// per-run step ordinal. `captured = false` marks a draw that escaped
-    /// capture (a bug), journaled explicitly rather than diverging silently.
-    RandomSampled {
-        /// Run that drew the value.
-        run_id: RunId,
-        /// Raw bytes of the drawn value.
-        bytes: Vec<u8>,
-        /// `false` when the draw was detected as un-captured.
-        captured: bool,
-        /// Call-site hint for diagnostics.
-        source_site: String,
     },
 
     // ── Plan / Step events ─────────────────────────────────────
@@ -514,101 +475,6 @@ pub enum RuntimeEvent {
         approved: bool,
     },
 
-    // ── Pipeline events ──────────────────────────
-    /// A pipeline run started, emitted by `PipelineExecutor::execute()`.
-    PipelineStarted {
-        /// Unique run identifier (e.g. `"r-0017"`).
-        run_id: String,
-        /// Identifier of the pipeline declared in `apollia.toml`.
-        pipeline_id: String,
-        /// Trigger that launched the run; `None` if started manually.
-        trigger_id: Option<String>,
-        /// Number of steps in the pipeline definition.
-        step_count: usize,
-    },
-
-    /// A step was submitted to the TaskRouter and is executing.
-    PipelineStepStarted {
-        /// Identifier of the parent run.
-        run_id: String,
-        /// Step identifier (as declared in `[[pipelines.steps]]`).
-        step_id: String,
-        /// Task submitted to the TaskRouter for this step.
-        task_id: String,
-        /// Name of the target agent.
-        agent: String,
-    },
-
-    /// A step completed successfully.
-    PipelineStepCompleted {
-        /// Identifier of the parent run.
-        run_id: String,
-        /// Identifier of the completed step.
-        step_id: String,
-    },
-
-    /// A step failed; the `on_failure` policy was applied.
-    PipelineStepFailed {
-        /// Identifier of the parent run.
-        run_id: String,
-        /// Identifier of the failed step.
-        step_id: String,
-        /// Reason for the failure.
-        reason: String,
-        /// Applied policy: `"skip"`, `"fallback"` or `"fail"`.
-        on_failure: String,
-    },
-
-    /// A step was skipped (condition=false or on_failure=skip).
-    PipelineStepSkipped {
-        /// Identifier of the parent run.
-        run_id: String,
-        /// Identifier of the skipped step.
-        step_id: String,
-        /// Reason for the skip (e.g. `"condition=false"`, `"on_failure=skip"`).
-        reason: String,
-    },
-
-    /// The pipeline is suspended awaiting a HITL approval.
-    PipelineSuspended {
-        /// Identifier of the suspended run.
-        run_id: String,
-        /// Step awaiting approval.
-        step_id: String,
-        /// Task in `input_required`.
-        task_id: String,
-    },
-
-    /// The pipeline resumed after a HITL approval.
-    PipelineResumed {
-        /// Identifier of the resumed run.
-        run_id: String,
-        /// Step that was approved.
-        step_id: String,
-    },
-
-    /// All steps completed or were skipped, pipeline finished successfully.
-    PipelineCompleted {
-        /// Run identifier.
-        run_id: String,
-        /// Pipeline identifier.
-        pipeline_id: String,
-        /// Total run duration in milliseconds.
-        duration_ms: u64,
-    },
-
-    /// The pipeline failed because of a step with `on_failure=fail`.
-    PipelineFailed {
-        /// Run identifier.
-        run_id: String,
-        /// Pipeline identifier.
-        pipeline_id: String,
-        /// Step that caused the failure.
-        step_id: String,
-        /// Reason for the failure.
-        reason: String,
-    },
-
     // ── Chat events ────────────────────────────────
     /// A chat session was created.
     ChatSessionCreated {
@@ -796,18 +662,6 @@ pub enum RuntimeEvent {
         request_id: String,
         /// Session identifier.
         session_id: String,
-    },
-
-    // ── HITL rejection ─────────────
-    /// The HITL request was rejected by the operator with a mandatory reason.
-    ///
-    /// Emitted by the runtime after `PendingApprovals::resolve` on the rejection
-    /// path; propagated to the agent via `approval_outcome` on the SDK side.
-    HitlRejected {
-        /// Identifier of the HITL request (task_id or request_id).
-        request_id: String,
-        /// Textual reason provided by the operator (non-empty, trimmed).
-        reason: String,
     },
 
     // ── Plan Cache events ────────────────────────
@@ -1348,15 +1202,6 @@ pub enum RuntimeEvent {
         alternatives: crate::plan_alternatives::PlanAlternatives,
     },
 
-    /// The operator chose one plan among the two alternatives.
-    ///
-    /// Emitted after the operator makes their choice. Followed by
-    /// `PlanChoiceStore::log_plan_choice()` for SQLite persistence.
-    PlanChosen {
-        /// The operator's choice with the `session_id` correlation.
-        choice: crate::plan_alternatives::PlanChoice,
-    },
-
     // ── Decision branches ─────────────────────
     /// A significant decision point was captured with its alternatives.
     ///
@@ -1642,7 +1487,6 @@ impl RuntimeEvent {
             self,
             RuntimeEvent::TaskStarted { .. }
                 | RuntimeEvent::StepCompleted { .. }
-                | RuntimeEvent::StepExecuted { .. }
                 | RuntimeEvent::LlmCallCompleted { .. }
                 | RuntimeEvent::PermissionRequired { .. }
                 | RuntimeEvent::HitlFilesystemRequired { .. }
