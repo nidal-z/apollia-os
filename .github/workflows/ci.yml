@@ -151,6 +151,47 @@ jobs:
       # Its one frontier is the python-tests job of nightly.yml, which installs
       # the editable SDK first.
 
+  # ── MSRV : the 1.89 floor the manifests publish is compiled, never assumed ─
+  msrv:
+    name: MSRV 1.89
+    needs: fmt
+    runs-on: ubuntu-latest
+    env:
+      # The load-bearing line: rust-toolchain.toml pins the build toolchain
+      # (1.95.0) and outranks `rustup default`, so without this variable
+      # rustup would install 1.95 on first call and compile the floor with
+      # the ceiling. The variable outranks the file, for every step of this
+      # job including the cache key probe. Verified at rustc 1.89.0 in a
+      # rust:1.89-bookworm container before this job landed.
+      RUSTUP_TOOLCHAIN: "1.89.0"
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      # Pinned to the head of the action's 1.89.0 branch, which hardcodes
+      # `toolchain: 1.89.0` in its parse step: the SHA the other jobs pin
+      # belongs to the 1.95.0 branch and has no `toolchain` input, so passing
+      # one there would be silently ignored and this job would measure 1.95
+      # while claiming 1.89. Before this job existed, RUST-PATTERNS.md said
+      # "Tested in CI" of a floor no toolchain had ever compiled.
+      - uses: dtolnay/rust-toolchain@1d1eb14921d9c2d8ea575663e5fe3a0b57868a05 # 1.89.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      # --workspace pulls in apollia-desktop too, so every package that
+      # publishes `rust-version = "1.89"` is compiled at exactly 1.89.
+      - run: cargo check --workspace
+
   # ── CLI end-to-end (Track 1, offline, seeded fixture) ────────────────────
   cli-e2e:
     name: CLI E2E (offline)
