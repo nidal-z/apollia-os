@@ -248,8 +248,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
+                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
                 }
             }
         }
@@ -268,8 +267,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
+                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
                 }
             }
         }
@@ -282,8 +280,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
+                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
                 }
             }
         }
@@ -301,8 +298,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
+                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
                 }
             }
         }
@@ -374,10 +370,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
 
         McpCommand::Server(args) => match super::mcp_server::run(args).await {
             Ok(()) => exit_codes::SUCCESS,
-            Err(e) => {
-                eprintln!("Error: {e}");
-                exit_codes::GENERAL_ERROR
-            }
+            Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
         },
 
         McpCommand::Oauth { command } => crate::commands::mcp_oauth::run(command, json).await,
@@ -407,13 +400,7 @@ fn run_secret(cmd: &McpSecretCommand, json: bool) -> i32 {
 }
 
 fn emit_secret_error(msg: String, json: bool) -> i32 {
-    if json {
-        let out = serde_json::json!({ "error": msg });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 fn run_secret_set(server: &str, env_var: &str, value: &str, json: bool) -> i32 {
@@ -492,31 +479,12 @@ fn make_runtime_client(socket: Option<PathBuf>) -> RuntimeClient {
 /// Uniform handling of MCP client errors (Unix socket).
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 
@@ -571,30 +539,21 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
     // not-found rather than prompting for a `--confirm` that can never succeed.
     if let Err(e) = client.get_mcp_server_detail(name).await {
         return match e {
-            ClientError::ServerError { status: 404, body } => {
-                if json {
-                    let out = serde_json::json!({"error": body});
-                    println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-                } else {
-                    eprintln!("Error: MCP server '{name}' not found");
-                }
-                exit_codes::GENERAL_ERROR
-            }
+            ClientError::ServerError { status: 404, .. } => crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("MCP server '{name}' not found"),
+            ),
             other => handle_client_error(other, json),
         };
     }
 
     if !confirm {
-        if json {
-            let output = serde_json::json!({"error": "use --confirm to remove without prompt"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("Use --confirm to remove server '{name}' without prompt.");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to remove server '{name}' without prompt"),
+        );
     }
 
     match client.remove_mcp_server(name).await {
@@ -609,15 +568,11 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: MCP server '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("MCP server '{name}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -668,15 +623,11 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: MCP server '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("MCP server '{name}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -720,15 +671,11 @@ async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: MCP server '{target}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("MCP server '{target}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -747,15 +694,11 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: MCP server '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("MCP server '{name}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -781,16 +724,11 @@ async fn run_update_server(client: &RuntimeClient, patch: ServerPatch<'_>, json:
         require_approval,
     } = patch;
     if command.is_none() && url.is_none() && require_approval.is_none() {
-        if json {
-            let out = serde_json::json!({
-                "error": "no patch field provided",
-                "hint": "supply at least one of --command, --url, --require-approval",
-            });
-            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-        } else {
-            eprintln!("Error: provide at least one of --command, --url, --require-approval");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            "provide at least one of --command, --url, --require-approval",
+        );
     }
 
     let mut body = serde_json::Map::new();
@@ -825,15 +763,11 @@ async fn run_update_server(client: &RuntimeClient, patch: ServerPatch<'_>, json:
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: MCP server '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("MCP server '{name}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -861,13 +795,11 @@ async fn run_get_raw_config(client: &RuntimeClient, name: &str, json: bool) -> i
     };
 
     if resp.status >= 400 {
-        if json {
-            let out = serde_json::json!({"error": resp.body});
-            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-        } else {
-            eprintln!("Error: {}", resp.body);
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("{}", resp.body),
+        );
     }
 
     print_raw_config_body(resp.body, json);

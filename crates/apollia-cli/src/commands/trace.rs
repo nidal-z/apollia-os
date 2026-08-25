@@ -22,27 +22,20 @@ pub async fn run(task_id: &str, format_json: bool, socket: Option<PathBuf>, json
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) if resp.status == 404 => {
-            if json {
-                let out = serde_json::json!({"error": format!("task '{task_id}' not found")});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: task '{task_id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
-        Ok(resp) => {
-            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) if resp.status == 404 => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("task '{task_id}' not found"),
+        ),
+        Ok(resp) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        ),
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started");
-            exit_codes::RUNTIME_ERROR
+            crate::output::emit_error(json, exit_codes::RUNTIME_ERROR, "runtime not started")
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 

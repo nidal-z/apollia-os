@@ -104,7 +104,7 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
         }
         AuditCommand::Stats => run_stats(&client, json).await,
         AuditCommand::Export { output, limit } => {
-            run_export(&client, output.as_deref(), *limit).await
+            run_export(&client, output.as_deref(), *limit, json).await
         }
         AuditCommand::Verify { run_id } => match run_id {
             Some(rid) => run_verify(&client, rid, json).await,
@@ -138,12 +138,11 @@ async fn run_show(client: &RuntimeClient, arg: &str, json: bool) -> i32 {
     };
 
     let Some(body) = resp else {
-        if json {
-            println!("{}", serde_json::json!({"error": "not_found", "run": arg}));
-        } else {
-            eprintln!("no journal entries for '{arg}' (tried as run_id and task_id)");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("no journal entries for '{arg}' (tried as run_id and task_id)"),
+        );
     };
 
     if json {
@@ -193,8 +192,11 @@ async fn run_journal(client: &RuntimeClient, limit: u32, offset: u32, json: bool
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -348,8 +350,11 @@ async fn verify_once(client: &RuntimeClient, run_id: &str, json: bool) -> Verify
     let report: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return VerifyOutcome::Done(exit_codes::GENERAL_ERROR);
+            return VerifyOutcome::Done(crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            ));
         }
     };
 
@@ -407,8 +412,11 @@ async fn run_verify_journal(client: &RuntimeClient, json: bool) -> i32 {
     let report: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -468,16 +476,11 @@ async fn run_anchor(client: &RuntimeClient, json: bool) -> i32 {
         Err(e) => return handle_error(e, json),
     };
     if resp.status == 404 {
-        if json {
-            let output = serde_json::json!({"error": "not_found"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("journal has no entries yet");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            "journal has no entries yet",
+        );
     }
     if resp.status >= 400 {
         return handle_server_error(resp.status, &resp.body, json);
@@ -486,8 +489,11 @@ async fn run_anchor(client: &RuntimeClient, json: bool) -> i32 {
     let anchor: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -555,8 +561,11 @@ async fn run_replay(client: &RuntimeClient, run: &str, json: bool) -> i32 {
     let report: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -689,7 +698,12 @@ const SERVER_LIMIT_CAP: u32 = 500;
 /// trail has no way of telling a complete export from a truncated one by looking
 /// at the file, and an archive silently missing its oldest entries is worse than
 /// one that is visibly partial.
-async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, limit: u32) -> i32 {
+async fn run_export(
+    client: &RuntimeClient,
+    output: Option<&std::path::Path>,
+    limit: u32,
+    json: bool,
+) -> i32 {
     let mut events: Vec<serde_json::Value> = Vec::new();
     let mut offset: u32 = 0;
 
@@ -709,24 +723,32 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
         let resp = match client.get(&uri).await {
             Ok(r) if r.status < 400 => r,
             Ok(r) => {
-                eprintln!("Error: HTTP {}: {}", r.status, r.body);
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("HTTP {}: {}", r.status, r.body),
+                );
             }
             Err(ClientError::ConnectionRefused) => {
-                eprintln!("Error: runtime not started");
-                return exit_codes::RUNTIME_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::RUNTIME_ERROR,
+                    "runtime not started",
+                );
             }
             Err(e) => {
-                eprintln!("Error: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
             }
         };
 
         let batch = match parse_events(&resp.body) {
             Some(b) => b,
             None => {
-                eprintln!("Error: unexpected response shape from /api/v1/audit");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    "unexpected response shape from /api/v1/audit",
+                );
             }
         };
         let got = batch.len() as u32;
@@ -746,8 +768,11 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
     ) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("Error serializing the export: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("serializing the export: {e}"),
+            );
         }
     };
 
@@ -768,10 +793,11 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
                 );
                 exit_codes::SUCCESS
             }
-            Err(e) => {
-                eprintln!("Error writing {}: {e}", path.display());
-                exit_codes::GENERAL_ERROR
-            }
+            Err(e) => crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("writing {}: {e}", path.display()),
+            ),
         },
         None => {
             println!("{body}");
@@ -805,8 +831,11 @@ async fn run_list(client: &RuntimeClient, limit: u32, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -859,8 +888,11 @@ async fn run_stats(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -972,31 +1004,12 @@ fn format_audit_stats(resp: &serde_json::Value) {
 /// Handle client errors uniformly.
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 
@@ -1007,16 +1020,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
         .unwrap_or_else(|| format!("server error ({status})"));
 
-    if json {
-        let output = serde_json::json!({"error": error_msg});
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {error_msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &error_msg.to_string())
 }
 
 #[cfg(test)]

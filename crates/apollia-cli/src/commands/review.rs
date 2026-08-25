@@ -50,14 +50,12 @@ pub async fn run(args: &ReviewArgs, socket: Option<PathBuf>, json_output: bool) 
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started. Run `apollia-os start` first.");
-            exit_codes::RUNTIME_ERROR
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ConnectionRefused) => crate::output::emit_error(
+            json_output,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started. Run `apollia-os start` first",
+        ),
+        Err(e) => crate::output::emit_error(json_output, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 

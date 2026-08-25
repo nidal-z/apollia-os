@@ -400,8 +400,11 @@ pub async fn run(args: &UpdateArgs, owner: &str, json: bool) -> i32 {
                 Ok(None) => (false, None, true),
                 Err(UpdateError::NoRelease) => (false, None, false),
                 Err(e) => {
-                    eprintln!("Error: {e}");
-                    return crate::exit_codes::GENERAL_ERROR;
+                    return crate::output::emit_error(
+                        json,
+                        crate::exit_codes::GENERAL_ERROR,
+                        &e.to_string(),
+                    );
                 }
             };
             println!(
@@ -430,8 +433,7 @@ pub async fn run(args: &UpdateArgs, owner: &str, json: bool) -> i32 {
                 crate::exit_codes::SUCCESS
             }
             Err(e) => {
-                eprintln!("Error: {e}");
-                crate::exit_codes::GENERAL_ERROR
+                crate::output::emit_error(json, crate::exit_codes::GENERAL_ERROR, &e.to_string())
             }
         }
     } else {
@@ -442,8 +444,7 @@ pub async fn run(args: &UpdateArgs, owner: &str, json: bool) -> i32 {
                 crate::exit_codes::SUCCESS
             }
             Err(e) => {
-                eprintln!("Error: {e}");
-                crate::exit_codes::GENERAL_ERROR
+                crate::output::emit_error(json, crate::exit_codes::GENERAL_ERROR, &e.to_string())
             }
         }
     }

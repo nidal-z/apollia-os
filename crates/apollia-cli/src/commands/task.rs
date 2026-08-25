@@ -142,8 +142,11 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -198,8 +201,11 @@ async fn run_list_pending(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -210,8 +216,11 @@ async fn run_list_pending(client: &RuntimeClient, json: bool) -> i32 {
         match serde_json::to_string_pretty(&output) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: JSON serialization failed: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("JSON serialization failed: {e}"),
+                );
             }
         }
     } else {
@@ -316,8 +325,11 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
     // Manual guard: clap groups make --approve/--reject mutually exclusive but
     // not required; validate the "neither" case here.
     if !approve && !reject {
-        eprintln!("Error: one of --approve or --reject must be specified");
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            "one of --approve or --reject must be specified",
+        );
     }
 
     let approved = approve;
@@ -329,16 +341,7 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
     // HTTP 409 means the task is not in input_required state.
     if resp.status == 409 {
         let msg = extract_error_message(&resp, "task is not awaiting approval");
-        if json {
-            let output = serde_json::json!({ "error": msg });
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("Error: task {task_id} is not awaiting approval");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
     }
 
     if resp.status >= 400 {
@@ -348,8 +351,11 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -392,8 +398,11 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
     let repo = match apollia_oria::plan_repository::PlanRepository::new(&db_path) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("Error: failed to open the plans database: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("failed to open the plans database: {e}"),
+            );
         }
     };
 
@@ -404,8 +413,11 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
                 match serde_json::to_string_pretty(&json_val) {
                     Ok(s) => println!("{s}"),
                     Err(e) => {
-                        eprintln!("Error: JSON serialization failed: {e}");
-                        return exit_codes::GENERAL_ERROR;
+                        return crate::output::emit_error(
+                            json,
+                            exit_codes::GENERAL_ERROR,
+                            &format!("JSON serialization failed: {e}"),
+                        );
                     }
                 }
             } else {
@@ -437,10 +449,7 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
@@ -467,8 +476,11 @@ async fn run_approvals(client: &RuntimeClient, pending: bool, json: bool) -> i32
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -852,31 +864,12 @@ fn truncate_output(output: &str) -> String {
 /// Handle client errors uniformly.
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 
@@ -887,16 +880,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
         .unwrap_or_else(|| format!("server error ({status})"));
 
-    if json {
-        let output = serde_json::json!({"error": error_msg});
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {error_msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &error_msg.to_string())
 }
 
 // ────────────────────────────────────────────────────────────────────────────

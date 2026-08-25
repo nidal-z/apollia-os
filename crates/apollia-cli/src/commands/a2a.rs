@@ -138,14 +138,17 @@ async fn run_skills(client: &RuntimeClient, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started (connection refused)");
-            eprintln!("Hint: run `apollia-os start` first.");
-            exit_codes::RUNTIME_ERROR
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
+            if !json {
+                eprintln!("Hint: run `apollia-os start` first.");
+            }
+            code
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
@@ -163,6 +166,7 @@ struct InvokeArgs<'a> {
 fn resolve_payload_text(
     args_inline: Option<&str>,
     args_file: Option<&std::path::Path>,
+    json: bool,
 ) -> Result<String, i32> {
     match (args_inline, args_file) {
         (Some(s), _) => Ok(s.to_string()),
@@ -170,14 +174,20 @@ fn resolve_payload_text(
             use std::io::Read;
             let mut buf = String::new();
             if let Err(e) = std::io::stdin().read_to_string(&mut buf) {
-                eprintln!("Error: failed to read --args-file from stdin: {e}");
-                return Err(exit_codes::GENERAL_ERROR);
+                return Err(crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("failed to read --args-file from stdin: {e}"),
+                ));
             }
             Ok(buf)
         }
         (None, Some(path)) => fs::read_to_string(path).map_err(|e| {
-            eprintln!("Error: failed to read {}: {e}", path.display());
-            exit_codes::GENERAL_ERROR
+            crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("failed to read {}: {e}", path.display()),
+            )
         }),
         (None, None) => Ok("{}".to_string()),
     }
@@ -240,7 +250,7 @@ async fn run_invoke(client: &RuntimeClient, args: InvokeArgs<'_>, json: bool) ->
     // Resolve the payload from --args, --args-file (or "-" for stdin),
     // defaulting to {} when neither is supplied. We parse it as JSON so a
     // malformed payload fails fast at the CLI boundary, not on the worker.
-    let payload_text = match resolve_payload_text(args_inline, args_file) {
+    let payload_text = match resolve_payload_text(args_inline, args_file, json) {
         Ok(t) => t,
         Err(code) => return code,
     };
@@ -248,12 +258,18 @@ async fn run_invoke(client: &RuntimeClient, args: InvokeArgs<'_>, json: bool) ->
     let input: Value = match serde_json::from_str(&payload_text) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: --args/--args-file is not valid JSON: {e}");
-            eprintln!("Hint: wrap inline JSON in single quotes, e.g.");
-            eprintln!(
-                "      apollia-os a2a invoke {skill_id} --args '{{\"path\":\"/tmp/foo.pdf\"}}'"
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("--args/--args-file is not valid JSON: {e}"),
             );
-            return exit_codes::GENERAL_ERROR;
+            if !json {
+                eprintln!("Hint: wrap inline JSON in single quotes, e.g.");
+                eprintln!(
+                    "      apollia-os a2a invoke {skill_id} --args '{{\"path\":\"/tmp/foo.pdf\"}}'"
+                );
+            }
+            return code;
         }
     };
 
@@ -272,23 +288,38 @@ async fn run_invoke(client: &RuntimeClient, args: InvokeArgs<'_>, json: bool) ->
             render_invoke_success(&resp, skill_id)
         }
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started (connection refused)");
-            eprintln!("Hint: run `apollia-os start` first.");
-            exit_codes::RUNTIME_ERROR
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
+            if !json {
+                eprintln!("Hint: run `apollia-os start` first.");
+            }
+            code
         }
         Err(ClientError::ServerError { status: 404, body }) => {
-            eprintln!("Error: skill not found ({body})");
-            eprintln!("Hint: run `apollia-os a2a skills` to list available skill IDs.");
-            exit_codes::GENERAL_ERROR
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("skill not found ({body})"),
+            );
+            if !json {
+                eprintln!("Hint: run `apollia-os a2a skills` to list available skill IDs.");
+            }
+            code
         }
         Err(ClientError::ServerError { status: 503, body }) => {
-            eprintln!("Error: A2A invoker unavailable ({body})");
-            eprintln!("Hint: ensure the runtime started cleanly and a worker is active.");
-            exit_codes::RUNTIME_ERROR
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                &format!("A2A invoker unavailable ({body})"),
+            );
+            if !json {
+                eprintln!("Hint: ensure the runtime started cleanly and a worker is active.");
+            }
+            code
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }

@@ -678,16 +678,7 @@ fn cancelled(json: bool) -> i32 {
 }
 
 fn emit_error(msg: String, json: bool) -> i32 {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
-        );
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 fn format_unix_date(ts: i64) -> String {

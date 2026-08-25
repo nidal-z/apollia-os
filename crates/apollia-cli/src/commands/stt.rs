@@ -498,15 +498,11 @@ async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool)
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: transcription '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("transcription '{id}' not found"),
+        ),
         Err(e) => handle_error(e, json),
     }
 }
@@ -589,47 +585,24 @@ fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
 
 /// Emit an error message (JSON or human form) and return [`GENERAL_ERROR`].
 fn emit_stt_error(msg: &str, json: bool) -> i32 {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"error": msg})).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 /// Handle a [`ClientError`] with consistent output formatting.
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match &err {
         ClientError::ConnectionRefused => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "error": "runtime not started (connection refused)"
-                    }))
-                    .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
+            if !json {
                 eprintln!("Start the runtime first: apollia-os start");
             }
-            exit_codes::RUNTIME_ERROR
+            code
         }
-        _ => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": err.to_string()}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {err}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        _ => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &err.to_string()),
     }
 }
 

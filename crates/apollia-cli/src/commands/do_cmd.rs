@@ -40,12 +40,14 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
     {
         Ok(r) => r,
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
     let mapped = resp["content"].as_str().unwrap_or("").trim().to_string();
@@ -102,16 +104,12 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
     match ProcCommand::new(exe).args(&args).status() {
         Ok(s) => s.code().unwrap_or(exit_codes::GENERAL_ERROR),
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 

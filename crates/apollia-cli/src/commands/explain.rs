@@ -28,13 +28,11 @@ pub async fn run(text: &str, socket: Option<PathBuf>, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            exit_codes::GENERAL_ERROR
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ConnectionRefused) => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }

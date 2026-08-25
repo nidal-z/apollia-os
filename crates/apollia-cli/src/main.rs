@@ -14,6 +14,7 @@ pub mod commands;
 pub mod community;
 pub mod config;
 pub mod exit_codes;
+pub mod output;
 
 use std::path::PathBuf;
 
@@ -481,24 +482,22 @@ fn init_tracing(cli: &Cli) {
     // Route diagnostics to stderr so they never corrupt stdout payloads
     // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit
     // runtime `tracing` events that would otherwise interleave with the JSON.
-    if cli.no_color {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .with_target(false)
-            .with_ansi(false)
-            .with_writer(std::io::stderr)
-            .init();
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .with_target(false)
-            .with_writer(std::io::stderr)
-            .init();
-    }
+    // ANSI styling follows the terminal, not just `--no-color`: a piped stderr
+    // receives plain text, so `--json` runs stay free of escape sequences.
+    let ansi = {
+        use std::io::IsTerminal;
+        !cli.no_color && std::io::stderr().is_terminal()
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .with_ansi(ansi)
+        .with_writer(std::io::stderr)
+        .init();
 }
 
 /// Run the daemon, mapping its result to an exit code.
-async fn run_start(socket: Option<PathBuf>, port: Option<u16>) -> i32 {
+async fn run_start(socket: Option<PathBuf>, port: Option<u16>, json: bool) -> i32 {
     match commands::start::run(socket, port).await {
         Ok(interrupted) => {
             if interrupted {
@@ -507,10 +506,7 @@ async fn run_start(socket: Option<PathBuf>, port: Option<u16>) -> i32 {
                 exit_codes::SUCCESS
             }
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
@@ -547,12 +543,14 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         autonomy,
     } = dispatch;
     if input.is_empty() && input_json.is_none() {
-        eprintln!("Error: missing task input.");
-        eprintln!("Usage:");
-        eprintln!("  apollia-os run <AGENT_ID> \"<free-text input>\"");
-        eprintln!("  apollia-os run <AGENT_ID> --input-json '<JSON>'");
-        eprintln!("  apollia-os a2a invoke <SKILL_ID> --args '<JSON>'   # for workers");
-        return exit_codes::GENERAL_ERROR;
+        let code = output::emit_error(json, exit_codes::GENERAL_ERROR, "missing task input");
+        if !json {
+            eprintln!("Usage:");
+            eprintln!("  apollia-os run <AGENT_ID> \"<free-text input>\"");
+            eprintln!("  apollia-os run <AGENT_ID> --input-json '<JSON>'");
+            eprintln!("  apollia-os a2a invoke <SKILL_ID> --args '<JSON>'   # for workers");
+        }
+        return code;
     }
     commands::run::run(commands::run::RunCommandArgs {
         agent_id: &agent_id,
@@ -578,10 +576,7 @@ fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
             println!("{output}");
             exit_codes::SUCCESS
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
@@ -614,8 +609,19 @@ fn main() {
     let cli = match Cli::try_parse() {
         Ok(c) => c,
         Err(e) => {
+            use clap::error::ErrorKind;
             maybe_suggest_command(&e);
-            e.exit();
+            // `--help` and `--version` surface as clap errors but are not:
+            // let clap print them on stdout and exit 0.
+            if matches!(e.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) {
+                e.exit();
+            }
+            // Usage errors exit 1, the published contract (AGENTS.md section 3
+            // of this crate, 08-decisions.md#cli): 1 = usage, 2 = runtime.
+            // `e.exit()` would leave clap's default of 2 and a script could
+            // not tell a typo from a stopped daemon.
+            let _ = e.print();
+            std::process::exit(exit_codes::GENERAL_ERROR);
         }
     };
 
@@ -628,7 +634,7 @@ fn main() {
     let no_color = cli.no_color;
     let exit_code = rt.block_on(async {
         match cli.command {
-            Commands::Start { port } => run_start(cli.socket, port).await,
+            Commands::Start { port } => run_start(cli.socket, port, json).await,
             Commands::Stop => commands::stop::run(cli.socket, json).await,
             Commands::Status => commands::status::run(cli.socket, json).await,
             Commands::Run {

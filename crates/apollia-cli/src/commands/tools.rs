@@ -158,41 +158,22 @@ async fn run_approvals(socket: Option<PathBuf>, cmd: &ToolsApprovalsCmd, json: b
 
 /// Emit a non-success HTTP response (status >= 400) and return its exit code.
 fn emit_approvals_http_error(resp: &crate::client::RawResponse, json: bool) -> i32 {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
-                .unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(
+        json,
+        exit_codes::GENERAL_ERROR,
+        &format!("HTTP {}: {}", resp.status, resp.body),
+    )
 }
 
 /// Emit a client transport error and return its exit code.
 fn emit_approvals_client_error(err: &ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                println!("{{\"error\":\"runtime not started\"}}");
-            } else {
-                eprintln!("Error: runtime not started");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        e => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {e}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        e => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
@@ -1047,16 +1028,7 @@ fn emit_unknown_tool(name: &str, json: bool) -> i32 {
 }
 
 fn emit_error(msg: String, json: bool) -> i32 {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
-        );
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 fn load_tools_config(json: bool) -> ToolsConfig {
@@ -1135,17 +1107,11 @@ fn handle_client_error(err: ClientError, json: bool) -> i32 {
             // Daemon-off is exit 2, distinct from generic failures (exit 1).
             // `emit_error` returns GENERAL_ERROR, so we emit the message
             // ourselves and override the return code here.
-            if json {
-                let out = serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&out)
-                        .unwrap_or_else(|_| "{\"error\":\"runtime not started\"}".to_string())
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
+            crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            )
         }
         other => emit_error(other.to_string(), json),
     }

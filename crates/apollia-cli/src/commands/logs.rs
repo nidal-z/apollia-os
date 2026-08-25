@@ -60,18 +60,22 @@ pub async fn run(args: &LogsArgs, json: bool) -> i32 {
     match print_tail(&path, args.last).await {
         Ok(()) => {}
         Err(e) => {
-            eprintln!("Error reading log file {}: {e}", path.display());
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("reading log file {}: {e}", path.display()),
+            );
         }
     }
 
     if args.follow {
         match follow(&path).await {
             Ok(()) => exit_codes::SUCCESS,
-            Err(e) => {
-                eprintln!("Error following log file {}: {e}", path.display());
-                exit_codes::GENERAL_ERROR
-            }
+            Err(e) => crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("following log file {}: {e}", path.display()),
+            ),
         }
     } else {
         exit_codes::SUCCESS

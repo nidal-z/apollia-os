@@ -4,7 +4,8 @@
 # Runs under a freshly seeded $HOME (see lib/seed.sh), so read commands assert
 # KNOWN seeded content (fixed ids, fixed 2026-07-01 data) instead of empty
 # states. Also asserts the exit-code contract (daemon-off → 2, validation → 1,
-# clap → 2). Every command here is runnable without the runtime daemon.
+# clap usage refusal → 1, the published contract). Every command here is
+# runnable without the runtime daemon.
 #
 # Sourced by cli-e2e.sh; uses $BIN, the seeded $HOME, $RUN_TMP and the assert
 # helpers. Reads run before mutations; mutations target throwaway rows/dirs so
@@ -140,7 +141,7 @@ check         "memory list --json"                  "$BIN" memory list --data-di
 check         "memory inspect __user__"             "$BIN" memory inspect __user__ --data-dir "$MEM"
 check_content "memory search __user__ onboarding hit" "ep-user-01|onboarding" "$BIN" memory search __user__ onboarding --data-dir "$MEM"
 check_json    "memory search --json"                "$BIN" memory search __user__ onboarding --data-dir "$MEM" --json
-check_exit    "memory search bad --source"  2       "$BIN" memory search __user__ x --source procedural --data-dir "$MEM"
+check_exit    "memory search bad --source"  1       "$BIN" memory search __user__ x --source procedural --data-dir "$MEM"
 check_exit    "memory forget unknown uuid → 1"  1   "$BIN" memory forget __user__ 00000000-0000-0000-0000-000000000000 --data-dir "$MEM"
 # Mutations on a throwaway namespace (bootstrap its db first, like a first run:
 # learn-procedure refuses a namespace whose <ns>.db does not exist yet).
@@ -278,15 +279,16 @@ check_exit   "stt status (off) → 2"    2  "$BIN" --socket "$OFFSOCK" stt statu
 check_exit   "resilience list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" resilience list
 check_exit   "a2a skills (off) → 2"    2  "$BIN" --socket "$OFFSOCK" a2a skills
 check_exit   "digest (off) → 2"        2  "$BIN" --socket "$OFFSOCK" digest --since 24h
-check_exit   "chat --list (off) → 1"   1  "$BIN" --socket "$OFFSOCK" chat --list
+check_exit   "chat --list (off) → 2"   2  "$BIN" --socket "$OFFSOCK" chat --list
 check_exit   "stop (off) → 2"          2  "$BIN" --socket "$OFFSOCK" stop
 check_exit   "onboard (off) → 2"       2  "$BIN" --socket "$OFFSOCK" onboard
-# `model search` reaches the runtime before HuggingFace, and its daemon-off
-# refusal exits 1 where the other runtime-bound leaves exit 2.
-check_exit   "model search (off) → 1"  1  "$BIN" --socket "$OFFSOCK" model search whisper
+check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model search whisper
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+# Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
+# tell a typo from a stopped daemon.
+check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus
 
 # ── A.14 un-exercised VARIANTS (every leaf itself has a real invocation) ─────
 # Coverage counts real invocations only (scripts/check_cli_e2e_coverage.py), so

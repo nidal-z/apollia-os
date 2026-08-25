@@ -158,8 +158,11 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -174,8 +177,11 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
         match serde_json::to_string_pretty(&output) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: JSON serialization failed: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("JSON serialization failed: {e}"),
+                );
             }
         }
     } else {
@@ -211,8 +217,11 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -224,8 +233,11 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
         match serde_json::to_string_pretty(&channels) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: JSON serialization failed: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("JSON serialization failed: {e}"),
+                );
             }
         }
     } else {
@@ -249,8 +261,11 @@ async fn run_logs(client: &RuntimeClient, last: usize, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -262,8 +277,11 @@ async fn run_logs(client: &RuntimeClient, last: usize, json: bool) -> i32 {
         match serde_json::to_string_pretty(&entries) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: JSON serialization failed: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("JSON serialization failed: {e}"),
+                );
             }
         }
     } else {
@@ -439,12 +457,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
     // letting the runtime return a generic 422.
     if kind == "webhook" && url.is_none() {
         let msg = "--url is required for webhook channels";
-        if json {
-            println!("{}", serde_json::json!({ "error": msg }));
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string());
     }
 
     // Auto-generate a sensible id when the caller didn't pass one. Format
@@ -530,15 +543,11 @@ async fn run_update_channel(
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: channel '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("channel '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -546,16 +555,11 @@ async fn run_update_channel(
 /// `apollia-os notify delete <id> [--confirm]`: delete a notification channel.
 async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
-        if json {
-            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("Use --confirm to delete channel '{id}' without prompt.");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to delete channel '{id}' without prompt"),
+        );
     }
 
     match client.delete_notification_channel(id).await {
@@ -570,15 +574,11 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: channel '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("channel '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -645,31 +645,12 @@ async fn run_events_set(client: &RuntimeClient, events: &[String], json: bool) -
 /// Handle client errors uniformly.
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 
@@ -680,16 +661,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
         .unwrap_or_else(|| format!("server error ({status})"));
 
-    if json {
-        let output = serde_json::json!({"error": error_msg});
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {error_msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &error_msg.to_string())
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

@@ -142,13 +142,7 @@ pub async fn run(cmd: &McpOauthCommand, json: bool) -> i32 {
 
 fn emit_error(msg: impl Into<String>, json: bool) -> i32 {
     let s = msg.into();
-    if json {
-        let out = serde_json::json!({"error": s});
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {s}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &s.to_string())
 }
 
 /// Outcome of the post-login runtime reconnect attempt. Recorded so the

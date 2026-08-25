@@ -81,12 +81,11 @@ pub(in crate::commands::agent) async fn run_start(
                     "agent '{arg}' not installed (and not a file path); install it first via \
                      `apollia-os agent install <path>` or pass a `.py` path"
                 );
-                if json {
-                    println!("{}", serde_json::json!({"error": msg}));
-                } else {
-                    eprintln!("Error: {msg}");
-                }
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &msg.to_string(),
+                );
             }
         }
     };
@@ -158,12 +157,7 @@ pub(in crate::commands::agent) async fn run_stop(
 ) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = file_path_hint(HintVerb::Stop, agent_id);
-        if json {
-            println!("{}", serde_json::json!({"error": msg}));
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string());
     }
     match client.stop_agent(agent_id).await {
         Ok(resp) => {
@@ -279,12 +273,7 @@ pub(in crate::commands::agent) async fn run_messages(
             status: 503, body, ..
         }) => {
             let msg = format!("agent mailbox unavailable: {body}");
-            if json {
-                println!("{}", serde_json::json!({ "error": msg }));
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            exit_codes::RUNTIME_ERROR
+            crate::output::emit_error(json, exit_codes::RUNTIME_ERROR, &msg.to_string())
         }
         Err(e) => handle_error(e, json),
     }
@@ -410,26 +399,10 @@ pub(in crate::commands::agent) async fn run_logs(
 /// path and the v0.1.1 roadmap entry.
 async fn run_logs_follow(_client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     let msg = format!(
-        "agent logs --follow is not yet implemented (v0.1.1+).\n  \
-         For the latest activity, run: apollia-os agent logs {agent_id} --last 20\n  \
-         A dedicated agent log channel will land alongside the audit-event \
-         SSE stream in a future release."
+        "agent logs --follow is not yet implemented; run `apollia-os agent logs \
+         {agent_id} --last 20` for the latest activity"
     );
-    if json {
-        let body = serde_json::json!({
-            "error": "agent logs --follow not implemented",
-            "agent_id": agent_id,
-            "hint": "use `agent logs <id> --last N` for the audit-trail fallback",
-            "tracking": "v0.1.1",
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&body).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

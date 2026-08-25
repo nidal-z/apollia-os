@@ -136,7 +136,7 @@ pub async fn run(
     let client = make_client(socket);
 
     if list {
-        return run_list(&client).await;
+        return run_list(&client, json).await;
     }
 
     if let Some(session_id) = resume {
@@ -147,16 +147,18 @@ pub async fn run(
 }
 
 /// List the 10 most recent sessions in an ASCII table and return exit code.
-async fn run_list(client: &RuntimeClient) -> i32 {
+async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let summaries = match client.list_recent_chat_sessions(10).await {
         Ok(v) => v,
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
 
@@ -202,20 +204,25 @@ async fn run_new_session(client: &RuntimeClient, json: bool, no_color: bool) -> 
     let session_info = match client.create_chat_session("libre").await {
         Ok(v) => v,
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
 
     let session_id = match session_info["id"].as_str() {
         Some(id) => id.to_string(),
         None => {
-            eprintln!("Error: server did not return a session ID");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                "server did not return a session ID",
+            );
         }
     };
 
@@ -230,16 +237,21 @@ async fn run_resume(client: &RuntimeClient, session_id: &str, json: bool, no_col
     let detail = match client.resume_chat_session(session_id).await {
         Ok(v) => v,
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
         }
         Err(ClientError::ServerError { status: 404, .. }) => {
-            eprintln!("session not found: {session_id}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("session not found: {session_id}"),
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
 
@@ -293,8 +305,11 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str, json: bool, no_colo
     let mut rl: Editor<(), FileHistory> = match Editor::with_config(make_editor_config()) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("Error initializing line editor: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("initializing line editor: {e}"),
+            );
         }
     };
 
@@ -321,8 +336,11 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str, json: bool, no_colo
                 break;
             }
             Err(e) => {
-                eprintln!("Error reading input: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("reading input: {e}"),
+                );
             }
         };
 
@@ -668,12 +686,7 @@ fn open_chat_repo(db: Option<&Path>, json: bool) -> Option<ChatSessionRepository
 }
 
 fn emit_chat_error(msg: String, json: bool) {
-    if json {
-        let out = serde_json::json!({ "error": msg });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
+    let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
 }
 
 /// Synchronous entry point for `chat <subcommand>`.

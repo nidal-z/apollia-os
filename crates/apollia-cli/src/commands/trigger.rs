@@ -199,15 +199,11 @@ async fn run_status(client: &RuntimeClient, id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -227,15 +223,11 @@ async fn run_fire(client: &RuntimeClient, id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -254,15 +246,11 @@ async fn run_enable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -281,15 +269,11 @@ async fn run_disable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -308,15 +292,11 @@ async fn run_logs(client: &RuntimeClient, id: &str, last: usize, json: bool) -> 
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -336,18 +316,11 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status, body }) => {
-            if json {
-                let output = serde_json::json!({ "error": body, "status": status });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: trigger reload failed ({status}): {body}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status, body }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger reload failed ({status}): {body}"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -545,16 +518,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
     let source = match build_trigger_source(kind, detail) {
         Ok(s) => s,
         Err(msg) => {
-            let payload = serde_json::json!({ "error": msg });
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&payload).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
         }
     };
 
@@ -674,13 +638,12 @@ fn detail_field_for(source_type: &str) -> Option<&'static str> {
 }
 
 /// Report a `404 Not Found` for a trigger in the operator's preferred format.
-fn report_trigger_not_found(id: &str, body: &str, json: bool) {
-    if json {
-        let out = serde_json::json!({ "error": body });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: trigger '{id}' not found");
-    }
+fn report_trigger_not_found(id: &str, _body: &str, json: bool) {
+    let _ = crate::output::emit_error(
+        json,
+        exit_codes::GENERAL_ERROR,
+        &format!("trigger '{id}' not found"),
+    );
 }
 
 /// Patch the kind-specific `--detail` field onto `source_config` in place.
@@ -698,12 +661,11 @@ fn apply_detail_patch(
     };
     let Some(field) = detail_field_for(source_type) else {
         let msg = format!("cannot patch --detail on unknown source type '{source_type}'");
-        if json {
-            println!("{}", serde_json::json!({ "error": msg }));
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return Err(exit_codes::GENERAL_ERROR);
+        return Err(crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &msg,
+        ));
     };
     if let Some(obj) = source_config.as_object_mut() {
         obj.insert(field.to_string(), serde_json::Value::String(d.to_string()));
@@ -811,16 +773,11 @@ async fn run_update(client: &RuntimeClient, args: UpdateArgs<'_>, json: bool) ->
 /// Deletes a trigger via `DELETE /api/v1/triggers/{id}`.
 async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
-        if json {
-            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("Use --confirm to delete trigger '{id}' without prompt.");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to delete trigger '{id}' without prompt"),
+        );
     }
 
     match client.delete_trigger(id).await {
@@ -835,15 +792,11 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("trigger '{id}' not found"),
+        ),
         Err(e) => handle_client_error(e, json),
     }
 }
@@ -853,31 +806,12 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
 /// Uniform handling of client errors.
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 

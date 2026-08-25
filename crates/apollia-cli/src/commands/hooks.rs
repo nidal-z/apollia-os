@@ -44,25 +44,33 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/hooks").await {
         Ok(r) => r,
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started (connection refused)");
-            return exit_codes::RUNTIME_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
 
     if resp.status >= 400 {
-        eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        );
     }
 
     let summaries: Vec<HookHandlerSummary> = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
     print_summaries(&summaries, json);
@@ -76,8 +84,7 @@ fn dry_run_list(json: bool) -> i32 {
     let summaries = match dry_run_summaries() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
     print_summaries(&summaries, json);

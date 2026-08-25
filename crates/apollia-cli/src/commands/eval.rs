@@ -344,13 +344,7 @@ fn truncate(text: &str, max: usize) -> String {
 
 /// Outputs an error and returns the given exit code.
 fn output_error(msg: &str, json: bool, code: i32) -> i32 {
-    if json {
-        let err = serde_json::json!({ "error": msg });
-        println!("{}", serde_json::to_string_pretty(&err).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    code
+    crate::output::emit_error(json, code, msg)
 }
 
 #[cfg(test)]

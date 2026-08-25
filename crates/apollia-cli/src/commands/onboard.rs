@@ -66,13 +66,7 @@ fn build_onboarding_input(topic: Option<&str>) -> serde_json::Value {
 pub async fn run(topic: Option<&str>, socket: Option<PathBuf>, json: bool) -> i32 {
     if let Some(t) = topic {
         if let Err(e) = validate_topic(t) {
-            if json {
-                let err = serde_json::json!({"error": e.to_string()});
-                println!("{}", serde_json::to_string_pretty(&err).unwrap_or_default());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     }
 
@@ -209,13 +203,7 @@ fn print_task_json(task_json: &serde_json::Value) {
 
 /// Output an error and return the given exit code.
 fn output_error(msg: &str, json: bool, code: i32) -> i32 {
-    if json {
-        let err = serde_json::json!({"error": msg});
-        println!("{}", serde_json::to_string_pretty(&err).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    code
+    crate::output::emit_error(json, code, msg)
 }
 
 #[cfg(test)]

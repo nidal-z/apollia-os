@@ -106,18 +106,23 @@ fn run_stats(db_path: &Path, json: bool) -> i32 {
 /// `apollia-os plan-cache clear [--force]`: remove all cached plans.
 fn run_clear(db_path: &Path, force: bool, json: bool) -> i32 {
     if !force {
-        print!("This will delete all cached plans. Continue? [y/N] ");
-        let _ = io::stdout().flush();
+        // Machine mode never asks: a question glued to the JSON document broke
+        // the one-document contract, and a pipe cannot answer anyway.
+        if json {
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                "use --force to clear without prompt",
+            );
+        }
+        eprint!("This will delete all cached plans. Continue? [y/N] ");
+        let _ = io::stderr().flush();
         let mut input = String::new();
         if io::stdin().read_line(&mut input).is_err() {
             return print_error_and_exit("failed to read confirmation input", json);
         }
         if !input.trim().eq_ignore_ascii_case("y") {
-            if json {
-                println!("{}", serde_json::json!({"status": "cancelled"}));
-            } else {
-                println!("Cancelled.");
-            }
+            println!("Cancelled.");
             return exit_codes::SUCCESS;
         }
     }
@@ -198,12 +203,7 @@ fn apollia_data_dir() -> PathBuf {
 }
 
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
-    if json {
-        println!("{}", serde_json::json!({"error": msg}));
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 /// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS`.

@@ -43,16 +43,21 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
     let tasks = match client.get("/api/v1/tasks").await {
         Ok(r) if r.status < 400 => serde_json::from_str(&r.body).unwrap_or(serde_json::Value::Null),
         Ok(r) => {
-            eprintln!("Error fetching tasks: HTTP {}: {}", r.status, r.body);
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("fetching tasks: HTTP {}: {}", r.status, r.body),
+            );
         }
         Err(ClientError::ConnectionRefused) => {
-            eprintln!("Error: runtime not started");
-            return exit_codes::RUNTIME_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started",
+            );
         }
         Err(e) => {
-            eprintln!("Error: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
 

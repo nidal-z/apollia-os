@@ -300,26 +300,12 @@ fn now_rfc3339() -> String {
 
 /// Print an error message (human or JSON) and return `GENERAL_ERROR`.
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
-    if json {
-        let output = serde_json::json!({"error": msg});
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 /// Emit an `{"error": msg}` payload as compact JSON (or a plain `Error:`
 /// line) and return `GENERAL_ERROR`. Distinct from `print_error_and_exit`,
 /// which pretty-prints the JSON form.
 fn print_compact_error_and_exit(msg: &str, json: bool) -> i32 {
-    if json {
-        println!("{}", serde_json::json!({ "error": msg }));
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }

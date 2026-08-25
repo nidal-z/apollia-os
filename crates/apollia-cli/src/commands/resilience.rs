@@ -146,27 +146,16 @@ async fn run_reset(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
 }
 
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
-    if json {
-        println!("{}", serde_json::json!({"error": msg}));
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"error": "runtime not started (connection refused)"})
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
         // A 404 here means the tool name was never seen by the shared layer
         // (no call attempted yet), distinguish it from the runtime being off.
         ClientError::ServerError { status: 404, body } => {
@@ -175,21 +164,9 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
             } else {
                 body
             };
-            if json {
-                println!("{}", serde_json::json!({"error": msg, "status": 404}));
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            exit_codes::GENERAL_ERROR
+            crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
         }
-        other => {
-            if json {
-                println!("{}", serde_json::json!({"error": other.to_string()}));
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 

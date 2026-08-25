@@ -250,7 +250,10 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 continue
             output = (result.stderr or "") + (result.stdout or "")
-            if result.returncode == 2 and PARSE_REFUSAL.search(output):
+            # Usage refusals exit 1 since the CLI aligned on the published
+            # contract (1 = usage, 2 = runtime); 2 is kept so a stale binary
+            # still reports its refusals instead of passing them.
+            if result.returncode in (1, 2) and PARSE_REFUSAL.search(output):
                 refused.append((rel, line, output.strip().splitlines()[0]))
 
         site_count, site_refused = site_refusals(env)

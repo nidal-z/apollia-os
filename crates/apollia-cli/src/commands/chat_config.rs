@@ -150,13 +150,7 @@ fn open_repo(db: Option<&Path>, json: bool) -> Option<ChatLibreConfigRepository>
 }
 
 fn emit_error(msg: impl Into<String>, json: bool) {
-    let s = msg.into();
-    if json {
-        let out = serde_json::json!({"error": s});
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {s}");
-    }
+    let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.into());
 }
 
 fn run_get(db: Option<&Path>, json: bool) -> i32 {

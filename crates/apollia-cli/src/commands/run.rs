@@ -1217,13 +1217,7 @@ fn persist_budget(budget: &TokenBudget, task_id: &str) {
 
 /// Output an error and return the given exit code.
 fn output_error(msg: &str, json: bool, code: i32) -> i32 {
-    if json {
-        let err = serde_json::json!({"error": msg});
-        println!("{}", serde_json::to_string_pretty(&err).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    code
+    crate::output::emit_error(json, code, msg)
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

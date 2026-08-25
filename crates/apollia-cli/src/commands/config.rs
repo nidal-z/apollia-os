@@ -125,13 +125,7 @@ fn resolve_path(override_path: Option<&Path>) -> PathBuf {
 }
 
 fn emit_error(msg: impl Into<String>, json: bool) {
-    let s = msg.into();
-    if json {
-        let out = serde_json::json!({"error": s});
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {s}");
-    }
+    let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.into());
 }
 
 // ─── get ─────────────────────────────────────────────────────────────────────

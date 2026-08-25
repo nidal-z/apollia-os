@@ -168,21 +168,22 @@ async fn run_search(socket: Option<PathBuf>, query: &str, limit: u32, json: bool
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            exit_codes::GENERAL_ERROR
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        ),
+        Err(e) => crate::output::emit_client_error(json, &e),
     }
 }
 
 async fn run_show(socket: Option<PathBuf>, repo: &str, json: bool) -> i32 {
     let Some((org, name)) = repo.split_once('/') else {
-        eprintln!("Error: expected org/repo, got '{repo}'");
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("expected org/repo, got '{repo}'"),
+        );
     };
     let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
     let client = crate::client::RuntimeClient::new(socket);
@@ -190,17 +191,14 @@ async fn run_show(socket: Option<PathBuf>, repo: &str, json: bool) -> i32 {
     match client.get(&uri).await {
         Ok(resp) if resp.status < 400 => {
             println!("{}", resp.body);
-            let _ = json;
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            exit_codes::GENERAL_ERROR
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        ),
+        Err(e) => crate::output::emit_client_error(json, &e),
     }
 }
 
@@ -216,21 +214,22 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        ),
         Err(crate::client::ClientError::ConnectionRefused) => {
             // Daemon-off is exit 2 (RUNTIME_ERROR), distinct from generic CLI
             // errors (exit 1). Aligns with tools describe / llm status /
             // audit list / etc.
-            eprintln!("Error: runtime not started (connection refused)");
-            exit_codes::RUNTIME_ERROR
+            crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            )
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_client_error(json, &e),
     }
 }
 
@@ -254,25 +253,20 @@ fn render_hardware_text(body: &str) {
 
 fn run_delete(name: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
-        if json {
-            let out = serde_json::json!({"error": "use --confirm to delete without prompt"});
-            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-        } else {
-            eprintln!("Use --confirm to delete '{name}' without prompt.");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to delete '{name}' without prompt"),
+        );
     }
     let dir = default_models_dir();
     let path = dir.join(name);
     if !path.exists() {
-        if json {
-            let out =
-                serde_json::json!({"error": format!("{name} not found in {}", dir.display())});
-            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-        } else {
-            eprintln!("Error: {} not found in {}", name, dir.display());
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("{} not found in {}", name, dir.display()),
+        );
     }
     match std::fs::remove_file(&path) {
         Ok(()) => {
@@ -286,10 +280,11 @@ fn run_delete(name: &str, confirm: bool, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(e) => {
-            eprintln!("Error: failed to remove {}: {e}", path.display());
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("failed to remove {}: {e}", path.display()),
+        ),
     }
 }
 
@@ -313,16 +308,11 @@ fn run_list(json: bool) -> i32 {
     let models = match list_gguf_files(&models_dir) {
         Ok(m) => m,
         Err(e) => {
-            if json {
-                let output = serde_json::json!({"error": e.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error reading models directory: {e}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("failed to read models directory: {e}"),
+            );
         }
     };
 

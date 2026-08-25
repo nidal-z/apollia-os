@@ -247,12 +247,7 @@ fn open_auth_manager(json: bool) -> Option<Arc<AuthManager>> {
 }
 
 fn emit_error(msg: String, json: bool) {
-    if json {
-        let out = serde_json::json!({ "error": msg });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
+    let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
 }
 
 // ─── list ─────────────────────────────────────────────────────────────────────
@@ -471,21 +466,11 @@ fn render_test_error(
     error: &dyn std::fmt::Display,
     json: bool,
 ) -> i32 {
-    if json {
-        let body = serde_json::json!({
-            "provider": provider,
-            "account": account,
-            "ok": false,
-            "error": error.to_string(),
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&body).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: connector check failed: {error}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(
+        json,
+        exit_codes::GENERAL_ERROR,
+        &format!("connector check failed for {provider} account '{account}': {error}"),
+    )
 }
 
 // ─── revoke ───────────────────────────────────────────────────────────────────

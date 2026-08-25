@@ -292,25 +292,27 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(ClientError::ConnectionRefused) => {
-            if json {
-                println!("{}", serde_json::json!({"error": "runtime not started"}));
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::RUNTIME_ERROR,
+                "runtime not started (connection refused)",
+            );
+            if !json {
                 eprintln!("Hint: run `apollia-os start` first.");
             }
-            exit_codes::RUNTIME_ERROR
+            code
         }
         Err(ClientError::ServerError { status, body }) => {
-            if json {
-                println!("{}", serde_json::json!({"error": body, "status": status}));
-            } else {
-                eprintln!("Error ({status}): {body}");
-                if status == 503 {
-                    eprintln!("Hint: configure at least one backend with");
-                    eprintln!("      `apollia-os llm backends create ... --default`");
-                }
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("{body} (status {status})"),
+            );
+            if !json && status == 503 {
+                eprintln!("Hint: configure at least one backend with");
+                eprintln!("      `apollia-os llm backends create ... --default`");
             }
-            exit_codes::GENERAL_ERROR
+            code
         }
         Err(e) => handle_error(e, json),
     }
@@ -330,8 +332,11 @@ async fn run_status(client: &RuntimeClient, json: bool) -> i32 {
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -359,8 +364,11 @@ async fn run_ping(client: &RuntimeClient, backend: Option<&str>, json: bool) -> 
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -399,8 +407,11 @@ async fn run_chat(client: &RuntimeClient, prompt: &str, backend: Option<&str>, j
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("invalid JSON response: {e}"),
+            );
         }
     };
 
@@ -494,31 +505,12 @@ fn format_ping_result(resp: &serde_json::Value) {
 /// Handle client-level errors uniformly.
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        ClientError::ConnectionRefused => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
 
@@ -529,16 +521,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
         .unwrap_or_else(|| format!("server error ({status})"));
 
-    if json {
-        let output = serde_json::json!({"error": error_msg});
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        eprintln!("Error: {error_msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &error_msg.to_string())
 }
 
 // ─────────────────────────────────────────────
@@ -586,13 +569,7 @@ fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
 }
 
 fn emit_llm_error(msg: String, json: bool) -> i32 {
-    if json {
-        let out = serde_json::json!({ "error": msg });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error: {msg}");
-    }
-    exit_codes::GENERAL_ERROR
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
 }
 
 fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -> i32 {
@@ -1333,15 +1310,16 @@ async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i3
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: backend '{name}' not found");
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("backend '{name}' not found"),
+            );
+            if !json {
                 eprintln!("Hint: run `apollia-os llm backends list` to see existing backends.");
             }
-            exit_codes::GENERAL_ERROR
+            code
         }
         Err(e) => handle_error(e, json),
     }
@@ -1422,16 +1400,15 @@ async fn run_backends_create(
 
 /// Render a server-side error from `POST /api/v1/llm/backends`.
 fn emit_backend_create_server_error(status: u16, body: &str, json: bool) -> i32 {
-    if json {
-        let out = serde_json::json!({"error": body, "status": status});
-        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-    } else {
-        eprintln!("Error ({status}): {body}");
-        if status == 422 {
-            eprintln!();
-            eprintln!("Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama");
-            eprintln!("      (the --kind alias is still accepted for backward compatibility)");
-        }
+    let _ = crate::output::emit_error(
+        json,
+        exit_codes::GENERAL_ERROR,
+        &format!("{body} (status {status})"),
+    );
+    if !json && status == 422 {
+        eprintln!();
+        eprintln!("Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama");
+        eprintln!("      (the --kind alias is still accepted for backward compatibility)");
     }
     exit_codes::GENERAL_ERROR
 }
@@ -1462,14 +1439,15 @@ async fn run_backends_update(
     let current = match client.get_llm_backend(name).await {
         Ok(v) => v,
         Err(ClientError::ServerError { status: 404, .. }) => {
-            if json {
-                let out = serde_json::json!({"error": format!("backend '{name}' not found")});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: backend '{name}' not found");
+            let code = crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("backend '{name}' not found"),
+            );
+            if !json {
                 eprintln!("Hint: run `apollia-os llm backends list` to see existing backends.");
             }
-            return exit_codes::GENERAL_ERROR;
+            return code;
         }
         Err(e) => return handle_error(e, json),
     };
@@ -1538,15 +1516,11 @@ async fn run_backends_update(
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body, "status": status});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error ({status}): {body}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status, body }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("{body} (status {status})"),
+        ),
         Err(e) => handle_error(e, json),
     }
 }
@@ -1608,16 +1582,11 @@ fn merge_backend_config(
 /// `apollia-os llm backends delete`: delete a backend.
 async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
-        if json {
-            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("Pass --confirm to delete backend '{name}' without an interactive prompt.");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to delete backend '{name}' without prompt"),
+        );
     }
 
     match client.delete_llm_backend(name).await {
@@ -1633,15 +1602,11 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: backend '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("backend '{name}' not found"),
+        ),
         Err(e) => handle_error(e, json),
     }
 }
@@ -1661,15 +1626,11 @@ async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: backend '{name}' not found");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Err(ClientError::ServerError { status: 404, .. }) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("backend '{name}' not found"),
+        ),
         Err(e) => handle_error(e, json),
     }
 }

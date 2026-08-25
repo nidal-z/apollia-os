@@ -76,8 +76,11 @@ async fn run_workspace_status(json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error: unable to read current directory: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("unable to read current directory: {e}"),
+            );
         }
     };
 
@@ -87,8 +90,11 @@ async fn run_workspace_status(json: bool) -> i32 {
         match serde_json::to_string_pretty(&status) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: JSON serialisation: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return crate::output::emit_error(
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                    &format!("JSON serialisation: {e}"),
+                );
             }
         }
     } else {
@@ -103,8 +109,11 @@ async fn run_workspace_init(force: bool, json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error: unable to read current directory: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("unable to read current directory: {e}"),
+            );
         }
     };
 
@@ -124,10 +133,7 @@ async fn run_workspace_init(force: bool, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+        Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
     }
 }
 
