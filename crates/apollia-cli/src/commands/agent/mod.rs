@@ -30,12 +30,21 @@ mod validate;
 #[cfg(test)]
 mod tests;
 
-pub(in crate::commands::agent) use display::*;
-pub(in crate::commands::agent) use install::*;
-pub(in crate::commands::agent) use lifecycle::*;
-pub(in crate::commands::agent) use package::*;
-pub(in crate::commands::agent) use scaffold::*;
-pub(in crate::commands::agent) use validate::*;
+pub(in crate::commands::agent) use display::{
+    build_list_json, format_a2a_agent_list, format_agent_detail, format_enriched_agent_list,
+    format_status_snapshot, handle_error, local_agent_detail, print_audit_event_row,
+    print_trust_banner, run_info_local_fallback,
+};
+pub(in crate::commands::agent) use install::run_install;
+pub(in crate::commands::agent) use lifecycle::{
+    run_info, run_list, run_logs, run_messages, run_start, run_status, run_stop,
+};
+pub(in crate::commands::agent) use package::{
+    run_disable, run_enable, run_package_info, run_package_list, run_package_uninstall, run_repair,
+    run_uninstall, run_update,
+};
+pub(in crate::commands::agent) use scaffold::run_new;
+pub(in crate::commands::agent) use validate::run_validate;
 
 /// Agent subcommands: `apollia-os agent <verb>`.
 #[derive(Debug, Subcommand)]

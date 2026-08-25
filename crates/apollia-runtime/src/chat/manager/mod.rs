@@ -229,9 +229,19 @@ mod plan_regression_tests;
 #[cfg(test)]
 mod tests;
 
-pub(in crate::chat::manager) use dispatcher::*;
-pub(in crate::chat::manager) use libre::*;
-pub(in crate::chat::manager) use types::*;
+pub(in crate::chat::manager) use dispatcher::{
+    now_rfc3339, resolve_workspace_for_session, session_to_info,
+};
+pub(in crate::chat::manager) use libre::{
+    accumulate_exchange_metrics, apply_libre_overrides, load_chat_libre_overrides,
+    log_resolution_metadata, merge_live_authorized_tools, persist_chat_allow_rule,
+    run_libre_exchange,
+};
+pub(in crate::chat::manager) use types::{
+    AlwaysAcceptScopeCtx, ChatLibreOverrides, ExchangeSummaryParams, FullDispatcherParams,
+    LibreExchangeParams, LibreSessionDefaults, PendingUserInputMeta, RegisterUserInputReplyParams,
+    ResolvedSessionInvoker, WorkspaceResolutionParams,
+};
 
 pub use command::ChatCommand;
 pub use handle::ChatSessionManagerHandle;

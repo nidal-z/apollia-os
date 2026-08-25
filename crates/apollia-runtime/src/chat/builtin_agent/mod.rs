@@ -64,9 +64,15 @@ mod response;
 mod stream;
 mod tools;
 
-pub(in crate::chat::builtin_agent) use helpers::*;
-pub use invoker::*;
-pub use response::*;
+pub(in crate::chat::builtin_agent) use helpers::{
+    build_llm_messages, build_tool_specs, executing_denies_proposal, extract_hostname,
+    is_plan_tool, next_failure_count, plan_gate_denies, run_verification_with_retry,
+    stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
+    unknown_tool_reason,
+};
+pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
+pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
+pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
 /// Cooperative pause/resume of the chat ReAct loop.
 #[cfg(test)]

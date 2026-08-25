@@ -1,3 +1,5 @@
+use super::display::{format_audit_event_row, trust_banner_text};
+use super::scaffold::{list_generated_files, VALID_AGENT_TYPES};
 use super::*;
 use apollia_core::AgentManifest;
 use std::path::Path;
