@@ -305,6 +305,14 @@ jobs:
       # declaring a local [lints] table, and clippy kept passing.
       - name: Every crate actually gets the workspace lints
         run: python3 scripts/check_crate_lints.py
+      # The mechanisable Rust rules of FORBIDDEN.md, each held at zero or on a
+      # named two-sided ratchet. Before this guard, eighteen tracing format
+      # strings and twelve wildcard re-exports sat green behind rules only a
+      # reader enforced. The selftest feeds every rule a red sample first.
+      - name: The mechanisable Rust rules hold
+        run: |
+          python3 scripts/check_rust_rules.py --selftest
+          python3 scripts/check_rust_rules.py
       # Placement, not just existence. The replay asks whether some file carries
       # an id; this asks whether the marker still sits on the paragraph it
       # guards, and reports which of its rules had no coverage.

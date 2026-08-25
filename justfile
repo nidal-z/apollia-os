@@ -517,6 +517,7 @@ guards:
       "scripts/check_optional_builders.py --strict"
       "scripts/check_panic_free.py"
       "scripts/check_prose.py"
+      "scripts/check_rust_rules.py"
       "scripts/check_selftest.py"
       "scripts/check_subprocess_window.py"
       "scripts/check_tauri_ipc_args.py"
