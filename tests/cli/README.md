@@ -11,7 +11,13 @@ deterministically-seeded** data profile, so read commands assert KNOWN content
 # Track 1 only (OFFLINE, no daemon, ~a few seconds):
 bash tests/cli/cli-e2e.sh
 
-# Tracks 1 + 2 (+ 3 if a model is wired), spawns the daemon (~90 s on a debug build):
+# Tracks 1 + 2, spawns the daemon, no model (Track 3 records a justified skip):
+just cli-e2e-runtime
+
+# All three tracks; Track 3 loads the given GGUF read-only:
+just cli-e2e-model ~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf
+
+# The raw form behind both recipes (~90 s on a debug build):
 APOLLIA_REQUIRE_RUNTIME=1 bash tests/cli/cli-e2e.sh
 ```
 
@@ -107,20 +113,32 @@ machines therefore produce comparable details.
 which is the only trace left when a run is interrupted before it finalizes its
 report, since the working directory holding the buffered rows goes with it.
 
-## Justified skips (never automated)
+## Command coverage: every leaf is invoked, the floor is a guard
 
-The only remaining skips are genuinely non-automatable: browser OAuth
-(`auth login`, `mcp oauth login`), large HuggingFace downloads (`model search`,
-`stt model download`), git clones (`agent install <git-url>`), and masked-stdin
-credential prompts. Each is recorded in the report with its reason. The
-interactive `chat` REPL is NOT skipped: it is driven under a pty in Track 3.
+Every leaf of the `apollia-os` command tree has at least one REAL invocation in
+some track; a leaf whose happy path is non-automatable (network, browser,
+interactive prompt) is exercised through a deterministic path instead, usually
+its documented refusal. `scripts/check_cli_e2e_coverage.py` enumerates the
+leaves from the built binary's `--help` tree, counts only actual `"$BIN"` /
+`"${Q[@]}"` command lines in `tracks/*.sh` (labels, comments and `skip` lines
+count for nothing), and exits 1 the day a leaf has no track. It runs in
+`just guards` and in the `cli-e2e` CI job; `lib/coverage.py` uses the same
+classifier to append the coverage section of `report.md`.
+
+The remaining `skip` lines record un-exercised VARIANTS of already-invoked
+leaves (a live GitHub check for `update`, a browser flow for `mcp oauth login`,
+a real HuggingFace download, a git-URL install), each with its reason. The
+interactive `chat` REPL is driven under a pty in Track 3.
 
 ## CI
 
 The offline track runs on every PR (`cli-e2e` job in `.github/workflows/ci.yml`),
-which builds `apollia-cli`, installs `sqlite3`, runs `bash tests/cli/cli-e2e.sh`,
-and uploads `report/` as an artifact. Tracks 2 and 3 stay opt-in (they need the
-daemon and a model) and are run before releases.
+which builds `apollia-cli`, installs `sqlite3`, verifies the command-coverage
+floor, runs `bash tests/cli/cli-e2e.sh`, and uploads `report/` as an artifact.
+Track 2 runs on the nightly schedule (`cli-e2e-runtime` job in
+`.github/workflows/nightly.yml`: daemon on a throwaway seeded HOME, no model)
+and locally through `just cli-e2e-runtime`. Track 3 needs a real GGUF and stays
+local: `just cli-e2e-model <model.gguf>`, run before releases.
 
 ## Extending the suite
 
@@ -129,4 +147,5 @@ stay consistent. Put daemon-free commands in `track1_offline.sh`, runtime
 commands in `track2_runtime.sh`, and model-backed / streaming commands in
 `track3_llm.sh` via `capture_run` / `capture_stream` / `capture_pty`. When a
 read command asserts seeded content, cite the seeded id/value it depends on.
-```
+A new subcommand enters the coverage floor the day it is merged: until a track
+invokes it, `scripts/check_cli_e2e_coverage.py` names it and exits 1.

@@ -447,6 +447,16 @@ desktop-build-host runners=desktop_runners:
 cli-build:
     cargo build -p apollia-cli
 
+# CLI E2E suite, Tracks 1 + 2: boots the daemon on a throwaway seeded HOME.
+# The GGUF path is pointed at a file that does not exist so Track 3 records a
+# justified skip instead of silently loading the model of the real HOME.
+cli-e2e-runtime:
+    APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF=/nonexistent-apollia-e2e.gguf bash tests/cli/cli-e2e.sh
+
+# CLI E2E suite, all three tracks: Track 3 loads the given GGUF read-only.
+cli-e2e-model gguf:
+    APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF="{{gguf}}" bash tests/cli/cli-e2e.sh
+
 cli-release target="":
     if [ -n "{{target}}" ]; then cargo build -p apollia-cli --release --target "{{target}}"; else cargo build -p apollia-cli --release; fi
 
@@ -505,6 +515,7 @@ guards:
       "scripts/check_ci_workflows.py"
       "scripts/check_claim_anchors.py"
       "scripts/check_claims.py"
+      "scripts/check_cli_e2e_coverage.py"
       "scripts/check_crate_lints.py"
       "scripts/check_ctx_contract.py"
       "scripts/check_docs_frontmatter.py"
