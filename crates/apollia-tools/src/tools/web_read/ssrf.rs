@@ -1,11 +1,11 @@
 //! `web_read`-flavoured SSRF guard.
 //!
-//! Thin wrapper over the workspace-level [`crate::ssrf::assert_public`] that
-//! adapts the generic [`SsrfError`] into the tool's [`WebReadError`] taxonomy.
+//! Thin wrapper over [`apollia_core::net::assert_public`] that adapts the
+//! generic [`SsrfError`] into the tool's [`WebReadError`] taxonomy.
 //!
-//! [`SsrfError`]: crate::ssrf::SsrfError
+//! [`SsrfError`]: apollia_core::net::SsrfError
 
-use crate::ssrf::{assert_public as shared_assert_public, SsrfError};
+use apollia_core::net::{assert_public as shared_assert_public, SsrfError};
 
 use super::error::WebReadError;
 
@@ -14,13 +14,14 @@ impl From<SsrfError> for WebReadError {
         match err {
             SsrfError::InvalidUrl(msg) => WebReadError::InvalidUrl(msg),
             SsrfError::PrivateAddress(host) => WebReadError::PrivateAddress(host),
+            other => WebReadError::InvalidUrl(other.to_string()),
         }
     }
 }
 
 /// Validate that *url* points to a public, routable host.
 ///
-/// See [`crate::ssrf::assert_public`] for the full policy.
+/// See [`apollia_core::net::assert_public`] for the full policy.
 pub(crate) fn assert_public(url: &url::Url) -> Result<(), WebReadError> {
     shared_assert_public(url).map_err(WebReadError::from)
 }

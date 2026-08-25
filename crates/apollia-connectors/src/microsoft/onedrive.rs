@@ -13,6 +13,11 @@ use crate::{
 
 const GRAPH: &str = "https://graph.microsoft.com/v1.0/me/drive";
 
+/// Cap on a downloaded or echoed-back file body. The workspace pattern is meant
+/// for agent documents, not for archives, and an unbounded `bytes()` on a
+/// remote answer is what this crate used to do on every one of these calls.
+const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
 // ─── Domain types ────────────────────────────────────────────────────────────
 
 /// OneDrive item (file or folder).
@@ -137,8 +142,7 @@ impl OneDriveClient {
                 refresh,
             )
             .await?;
-        let bytes = response
-            .bytes()
+        let bytes = apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
         Ok(bytes.to_vec())

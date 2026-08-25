@@ -106,7 +106,7 @@ pub struct DownloadManager {
 impl DownloadManager {
     /// Create a new manager.
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
+        let client = apollia_core::net::safe_client_builder()
             .user_agent("Apollia-OS/1.0")
             // connect_timeout only, no total-request timeout so large model downloads
             // (multi-GB) are not killed mid-stream after 60 s.
@@ -242,6 +242,10 @@ async fn run_download(
         .open(&dest_path)
         .await?;
 
+    // SAFETY: a model download is a multi-gigabyte body written to disk as it
+    // arrives, so it cannot go through `apollia_core::net::read_capped_*`,
+    // which buffer in memory. Nothing is buffered here either: each chunk is
+    // appended to the file and dropped.
     let mut stream = resp.bytes_stream();
     let mut downloaded = already_downloaded;
     let start = std::time::Instant::now();

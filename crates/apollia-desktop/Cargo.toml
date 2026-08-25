@@ -26,7 +26,7 @@ apollia-runtime  = { workspace = true }
 apollia-mcp      = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
 apollia-stt      = { workspace = true, default-features = false }
-apollia-core     = { workspace = true }
+apollia-core     = { workspace = true, features = ["net"] }
 apollia-memory   = { workspace = true }
 apollia-tools        = { workspace = true }
 apollia-workspace    = { workspace = true }

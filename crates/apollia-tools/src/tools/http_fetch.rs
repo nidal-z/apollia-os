@@ -9,7 +9,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::ssrf::assert_public;
+use apollia_core::net::assert_public;
 
 /// Maximum response body size accepted by this tool.
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
@@ -120,10 +120,7 @@ impl HttpFetch {
         // follows `Location` headers, which a remote endpoint controls. The
         // hop cap matches reqwest's own default. This guard is independent of
         // the test-only `ssrf_guard` toggle (which gates the initial check).
-        let client = reqwest::Client::builder()
-            .redirect(crate::ssrf::public_redirect_policy(
-                crate::ssrf::DEFAULT_MAX_REDIRECTS,
-            ))
+        let client = apollia_core::net::safe_client_builder()
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
@@ -250,32 +247,27 @@ impl HttpFetch {
     /// Stream the response body in chunks, aborting once `MAX_RESPONSE_BYTES`
     /// is exceeded.
     async fn read_body(
-        mut response: reqwest::Response,
+        response: reqwest::Response,
         timeout_secs: u64,
     ) -> Result<Vec<u8>, HttpFetchError> {
-        let mut body_bytes: Vec<u8> = Vec::new();
-        loop {
-            match response.chunk().await {
-                Ok(Some(chunk)) => {
-                    body_bytes.extend_from_slice(&chunk);
-                    if body_bytes.len() > MAX_RESPONSE_BYTES {
-                        return Err(HttpFetchError::ResponseTooLarge {
-                            size: body_bytes.len(),
-                            limit: MAX_RESPONSE_BYTES,
-                        });
+        apollia_core::net::read_capped_bytes(response, MAX_RESPONSE_BYTES as u64)
+            .await
+            .map_err(|e| match e {
+                apollia_core::net::ReadCappedError::TooLarge { read, .. } => {
+                    HttpFetchError::ResponseTooLarge {
+                        size: read as usize,
+                        limit: MAX_RESPONSE_BYTES,
                     }
                 }
-                Ok(None) => break,
-                Err(e) => {
-                    return Err(if e.is_timeout() {
+                apollia_core::net::ReadCappedError::Transport(source) => {
+                    if source.is_timeout() {
                         HttpFetchError::Timeout { timeout_secs }
                     } else {
-                        HttpFetchError::RequestFailed(e.to_string())
-                    });
+                        HttpFetchError::RequestFailed(source.to_string())
+                    }
                 }
-            }
-        }
-        Ok(body_bytes)
+                other => HttpFetchError::RequestFailed(other.to_string()),
+            })
     }
 
     /// Parse `url` and validate its hostname against the allowlist.

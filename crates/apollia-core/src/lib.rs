@@ -25,6 +25,8 @@ pub mod hitl_request;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
+#[cfg(feature = "net")]
+pub mod net;
 pub mod notebook;
 pub mod observability;
 pub mod paths;

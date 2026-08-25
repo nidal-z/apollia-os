@@ -16,7 +16,7 @@ default = ["cloud"]
 cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
-apollia-core   = { workspace = true }
+apollia-core   = { workspace = true, features = ["net"] }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }

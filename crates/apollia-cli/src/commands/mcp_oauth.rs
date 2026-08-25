@@ -202,7 +202,9 @@ impl serde::Serialize for ReconnectOutcome {
 /// Required for hosts whose Protected Resource Metadata lives behind the
 /// MCP endpoint (Notion, Linear) rather than at the well-known origin path.
 async fn probe_www_authenticate(server_url: &str) -> Result<Option<String>, reqwest::Error> {
-    let client = reqwest::Client::builder()
+    // The MCP server URL is operator-declared and often loopback, so the
+    // public-destination policy would refuse the normal configuration.
+    let client = apollia_core::net::configured_endpoint_client_builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
     // Use a minimal POST so the server's auth middleware engages even when GET

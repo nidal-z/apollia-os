@@ -69,7 +69,10 @@ impl StreamableHttpTransport {
         timeout: Duration,
         max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
-        let client = reqwest::Client::builder()
+        // An MCP server is an endpoint the operator declared, and a local one
+        // is the common case, so the public-destination policy would refuse the
+        // normal configuration. The hop cap still applies.
+        let client = apollia_core::net::configured_endpoint_client_builder()
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
 
@@ -213,29 +216,22 @@ impl McpTransport for StreamableHttpTransport {
 // ─── capped body read ───────────────────────────────────────────────────────
 
 /// Read a response body into a `String`, aborting once `limit` bytes are
-/// exceeded.
+/// exceeded, and map the outcome onto this transport's error taxonomy.
 ///
-/// Streams the body chunk by chunk (`reqwest::Response::chunk`) so an oversized
-/// or never-ending body is rejected with [`TransportError::ResponseTooLarge`]
-/// before it is fully buffered, instead of the whole body being read into
-/// memory as `Response::text` would. Bytes are decoded lossily, matching the
-/// UTF-8 assumption the JSON-RPC layer already relies on.
+/// The streaming read itself lives in [`apollia_core::net::read_capped_text`];
+/// this wrapper exists only to turn its failures into a [`TransportError`].
 async fn read_capped_text(
-    mut response: reqwest::Response,
+    response: reqwest::Response,
     limit: u64,
 ) -> Result<String, TransportError> {
-    let mut buf: Vec<u8> = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
+    apollia_core::net::read_capped_text(response, limit)
         .await
-        .map_err(|e| TransportError::Io(e.to_string()))?
-    {
-        if buf.len() as u64 + chunk.len() as u64 > limit {
-            return Err(TransportError::ResponseTooLarge { limit });
-        }
-        buf.extend_from_slice(&chunk);
-    }
-    Ok(String::from_utf8_lossy(&buf).into_owned())
+        .map_err(|e| match e {
+            apollia_core::net::ReadCappedError::TooLarge { limit, .. } => {
+                TransportError::ResponseTooLarge { limit }
+            }
+            other => TransportError::Io(other.to_string()),
+        })
 }
 
 // ─── SSE body parsing (streamable-http with text/event-stream response) ─────

@@ -92,7 +92,7 @@ impl BraveBackend {
         max_response_bytes: usize,
         backend_max_results: u32,
     ) -> Self {
-        let client = reqwest::Client::builder()
+        let client = apollia_core::net::safe_client_builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
             .expect("reqwest::Client initialization is infallible");
@@ -236,24 +236,17 @@ async fn read_body_capped(
     max_bytes: usize,
     timeout_secs: u64,
 ) -> Result<String, SearchBackendError> {
-    let mut bytes: Vec<u8> = Vec::new();
-    let mut response = response;
-    loop {
-        match response.chunk().await {
-            Ok(Some(chunk)) => {
-                bytes.extend_from_slice(&chunk);
-                if bytes.len() > max_bytes {
-                    return Err(SearchBackendError::BadStatus {
-                        backend: BACKEND_NAME.to_string(),
-                        status: 0,
-                    });
-                }
+    apollia_core::net::read_capped_text(response, max_bytes as u64)
+        .await
+        .map_err(|e| match e {
+            apollia_core::net::ReadCappedError::Transport(source) => {
+                classify_transport_error(source, timeout_secs)
             }
-            Ok(None) => break,
-            Err(e) => return Err(classify_transport_error(e, timeout_secs)),
-        }
-    }
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+            _ => SearchBackendError::BadStatus {
+                backend: BACKEND_NAME.to_string(),
+                status: 0,
+            },
+        })
 }
 
 #[derive(Debug, Deserialize)]

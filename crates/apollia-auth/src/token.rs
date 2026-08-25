@@ -100,8 +100,7 @@ impl TokenResponse {
 /// `reqwest`, hiding the actual error.
 async fn parse_token_response(response: reqwest::Response) -> Result<TokenResponse, AuthError> {
     let status = response.status();
-    let body = response
-        .text()
+    let body = apollia_core::net::read_capped_text(response, apollia_core::net::MAX_METADATA_BYTES)
         .await
         .map_err(|e| AuthError::HttpError(e.to_string()))?;
 
@@ -122,7 +121,8 @@ pub async fn exchange_code(
     flow: &OAuth2PkceFlow,
     code: &str,
 ) -> Result<StoredToken, AuthError> {
-    let client = reqwest::Client::new();
+    let client =
+        apollia_core::net::safe_client().map_err(|e| AuthError::HttpError(e.to_string()))?;
     let mut params: Vec<(&str, &str)> = vec![
         ("grant_type", "authorization_code"),
         ("code", code),
@@ -163,7 +163,8 @@ pub async fn refresh_token(
         .as_deref()
         .ok_or(AuthError::NoRefreshToken)?;
 
-    let client = reqwest::Client::new();
+    let client =
+        apollia_core::net::safe_client().map_err(|e| AuthError::HttpError(e.to_string()))?;
     let mut params: Vec<(&str, &str)> = vec![
         ("grant_type", "refresh_token"),
         ("refresh_token", refresh),

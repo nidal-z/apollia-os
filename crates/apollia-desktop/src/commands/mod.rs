@@ -32,7 +32,6 @@ pub mod onboarding;
 pub mod permissions_proposals;
 pub mod plan_mode;
 pub mod projects;
-pub(crate) mod ssrf;
 pub mod stt;
 pub mod tasks;
 pub mod tool_governance;

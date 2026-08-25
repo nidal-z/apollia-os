@@ -45,6 +45,11 @@ const UPLOAD_BASE: &str = "https://www.googleapis.com/upload/drive/v3";
 pub const DEFAULT_ROOT_FOLDER_NAME: &str = "Apollia";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 
+/// Cap on a downloaded or echoed-back file body. The workspace pattern is meant
+/// for agent documents, not for archives, and an unbounded `bytes()` on a
+/// remote answer is what this crate used to do on every one of these calls.
+const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
 // ─── Domain types ────────────────────────────────────────────────────────────
 
 /// Metadata for a file in the agent's workspace.
@@ -407,8 +412,7 @@ impl DriveWorkspaceClient {
                 refresh,
             )
             .await?;
-        let bytes = response
-            .bytes()
+        let bytes = apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
         Ok(bytes.to_vec())
@@ -476,8 +480,7 @@ impl DriveWorkspaceClient {
             )
             .await?;
         // Parse the response to refresh file metadata (size etc).
-        let bytes = response
-            .bytes()
+        let bytes = apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
         let updated: DriveFile =
@@ -595,8 +598,7 @@ impl DriveWorkspaceClient {
                 || refresh(),
             )
             .await?;
-        let bytes = response
-            .bytes()
+        let bytes = apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
         let updated: DriveFile =

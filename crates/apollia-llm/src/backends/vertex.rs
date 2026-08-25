@@ -56,6 +56,11 @@ const ANTHROPIC_VERSION_VERTEX: &str = "vertex-2023-10-16";
 /// Google OAuth2 refresh endpoint.
 const TOKEN_REFRESH_URL: &str = "https://oauth2.googleapis.com/token";
 
+/// Cap on a Vertex completion body. A long answer is a few hundred kilobytes;
+/// 32 MiB is a ceiling that no legitimate completion approaches, and it exists
+/// so a broken endpoint cannot be buffered whole into memory.
+const VERTEX_MAX_RESPONSE_BYTES: u64 = 32 * 1024 * 1024;
+
 /// Safety margin before expiry (seconds): renews the token 60 s before it lapses.
 const TOKEN_EXPIRY_MARGIN_SECS: i64 = 60;
 
@@ -145,7 +150,8 @@ impl VertexClient {
         }
         Ok(Self {
             config: config.clone(),
-            http_client: reqwest::Client::new(),
+            http_client: apollia_core::net::safe_client()
+                .map_err(|e| LlmError::InferenceError(e.to_string()))?,
             token_cache: Arc::new(Mutex::new(None)),
             retry_policy: RetryPolicy::default(),
             cancel,
@@ -219,13 +225,21 @@ impl VertexClient {
         }
         if !response.status().is_success() {
             let status = response.status().as_u16();
-            let body = response.text().await.unwrap_or_default();
+            let body = apollia_core::net::read_capped_text(
+                response,
+                apollia_core::net::MAX_METADATA_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             return Err(LlmError::HttpError { status, body });
         }
 
-        let refresh: TokenRefreshResponse = response.json().await.map_err(|e| {
-            LlmError::ParseError(format!("cannot parse OAuth2 token refresh response: {e}"))
-        })?;
+        let refresh: TokenRefreshResponse =
+            apollia_core::net::read_capped_json(response, apollia_core::net::MAX_METADATA_BYTES)
+                .await
+                .map_err(|e| {
+                    LlmError::ParseError(format!("cannot parse OAuth2 token refresh response: {e}"))
+                })?;
 
         Ok(GoogleToken {
             access_token: refresh.access_token,
@@ -336,7 +350,12 @@ impl VertexClient {
 
         let status = http_response.status();
         if !status.is_success() {
-            let body_text = http_response.text().await.unwrap_or_default();
+            let body_text = apollia_core::net::read_capped_text(
+                http_response,
+                apollia_core::net::MAX_METADATA_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             return Err(match status.as_u16() {
                 401 => LlmError::Unauthorized,
                 429 => LlmError::RateLimit,
@@ -348,9 +367,12 @@ impl VertexClient {
             });
         }
 
-        let json: serde_json::Value = http_response.json().await.map_err(|e| {
-            LlmError::ParseError(format!("failed to decode Vertex AI response: {e}"))
-        })?;
+        let json: serde_json::Value =
+            apollia_core::net::read_capped_json(http_response, VERTEX_MAX_RESPONSE_BYTES)
+                .await
+                .map_err(|e| {
+                    LlmError::ParseError(format!("failed to decode Vertex AI response: {e}"))
+                })?;
 
         let mut result = AnthropicClient::parse_response(&json)?;
         result.latency_ms = started.elapsed().as_millis() as u64;

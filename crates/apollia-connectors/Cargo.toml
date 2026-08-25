@@ -7,7 +7,7 @@ description = "Apollia OS - Native OAuth connectors (Google Workspace, Microsoft
 license.workspace = true
 
 [dependencies]
-apollia-core = { workspace = true }
+apollia-core = { workspace = true, features = ["net"] }
 apollia-auth = { workspace = true }
 thiserror    = { workspace = true }
 tracing      = { workspace = true }

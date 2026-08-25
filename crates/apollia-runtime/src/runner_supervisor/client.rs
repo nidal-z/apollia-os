@@ -26,6 +26,19 @@ fn http_err(e: reqwest::Error) -> RunnerError {
     RunnerError::Http(msg)
 }
 
+/// Cap on a buffered runner answer. The streaming path is not affected: it
+/// returns the response untouched and the caller reads the event stream. A
+/// non-streaming completion is a JSON document, and 64 MiB is far above the
+/// largest one the runner produces.
+const MAX_RESPONSE_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Read a bounded JSON answer from the runner.
+async fn read_capped<D: DeserializeOwned>(resp: reqwest::Response) -> Result<D, RunnerError> {
+    apollia_core::net::read_capped_json(resp, MAX_RESPONSE_BYTES)
+        .await
+        .map_err(|e| RunnerError::Http(e.to_string()))
+}
+
 /// Timeout for control-plane GETs (handshake, health): these must answer fast.
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -57,7 +70,9 @@ impl RunnerClient {
         // the infrequent, long inference calls the runner can close an idle
         // pooled socket, and reusing it surfaces as "error sending request".
         // A fresh connection per call is negligible on loopback.
-        let http = Client::builder()
+        // The runner is a child process on loopback, so the
+        // public-destination policy is deliberately not applied.
+        let http = apollia_core::net::configured_endpoint_client_builder()
             .connect_timeout(Duration::from_secs(5))
             .pool_max_idle_per_host(0)
             .build()
@@ -89,7 +104,7 @@ impl RunnerClient {
                 resp.status()
             )));
         }
-        resp.json::<D>().await.map_err(http_err)
+        read_capped(resp).await
     }
 
     /// POST JSON, parse JSON response.
@@ -110,7 +125,9 @@ impl RunnerClient {
         if !resp.status().is_success() {
             // Try to parse a normalized ErrorBody.
             let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
+            let text = apollia_core::net::read_capped_text(resp, MAX_RESPONSE_BYTES)
+                .await
+                .unwrap_or_default();
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
                 if let Some(err) = parsed.get("error") {
                     let code = err
@@ -131,7 +148,7 @@ impl RunnerClient {
                 path, status, text
             )));
         }
-        resp.json::<D>().await.map_err(http_err)
+        read_capped(resp).await
     }
 
     /// POST JSON and return the raw streaming response (SSE), without buffering
@@ -153,7 +170,9 @@ impl RunnerClient {
             .map_err(http_err)?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
+            let text = apollia_core::net::read_capped_text(resp, MAX_RESPONSE_BYTES)
+                .await
+                .unwrap_or_default();
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
                 if let Some(err) = parsed.get("error") {
                     let code = err

@@ -41,27 +41,23 @@ use crate::error::AuthError;
 /// any transport is built, so no `McpServerConfig` cap is in scope here.
 pub(crate) const MAX_OAUTH_RESPONSE_BYTES: u64 = 1024 * 1024;
 
-/// Read a response body into bytes, aborting once `limit` is exceeded.
+/// Read a response body into bytes, aborting once `limit` is exceeded, and map
+/// the outcome onto this crate's error taxonomy.
 ///
-/// Streams the body chunk by chunk (`reqwest::Response::chunk`) so an oversized
-/// or never-ending body is rejected with [`AuthError::ResponseTooLarge`] before
-/// it is fully buffered.
+/// The streaming read lives in [`apollia_core::net::read_capped_bytes`]; this
+/// wrapper only translates its failures into an [`AuthError`].
 pub(crate) async fn read_body_capped(
-    mut response: reqwest::Response,
+    response: reqwest::Response,
     limit: u64,
 ) -> Result<Vec<u8>, AuthError> {
-    let mut buf: Vec<u8> = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
+    apollia_core::net::read_capped_bytes(response, limit)
         .await
-        .map_err(|e| AuthError::HttpError(e.to_string()))?
-    {
-        if buf.len() as u64 + chunk.len() as u64 > limit {
-            return Err(AuthError::ResponseTooLarge(limit));
-        }
-        buf.extend_from_slice(&chunk);
-    }
-    Ok(buf)
+        .map_err(|e| match e {
+            apollia_core::net::ReadCappedError::TooLarge { limit, .. } => {
+                AuthError::ResponseTooLarge(limit)
+            }
+            other => AuthError::HttpError(other.to_string()),
+        })
 }
 
 /// Read and JSON-decode a response body, bounded by `limit`.
@@ -361,7 +357,9 @@ pub struct McpDiscoveryClient {
 impl McpDiscoveryClient {
     /// Build a discovery client with the default reqwest configuration.
     pub fn new() -> Result<Self, AuthError> {
-        let http = reqwest::Client::builder()
+        // The authorisation server of an MCP endpoint follows the endpoint,
+        // which the operator declares and which is often local.
+        let http = apollia_core::net::configured_endpoint_client_builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .map_err(|e| AuthError::HttpError(e.to_string()))?;

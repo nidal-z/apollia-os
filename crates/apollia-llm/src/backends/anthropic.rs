@@ -49,6 +49,11 @@ use super::openai::ApiBackendConfig;
 /// Anthropic API version sent in the `anthropic-version` header.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
+/// Cap on a non-streamed Anthropic completion body. A long answer is a few
+/// hundred kilobytes; 32 MiB is a ceiling no legitimate completion approaches,
+/// and it exists so a broken endpoint cannot be buffered whole into memory.
+const ANTHROPIC_MAX_RESPONSE_BYTES: u64 = 32 * 1024 * 1024;
+
 /// Name of the header carrying the Anthropic API key.
 const ANTHROPIC_API_KEY_HEADER: &str = "x-api-key";
 
@@ -414,7 +419,12 @@ impl AnthropicClient {
 
         let status = http_response.status();
         if !status.is_success() {
-            let body_text = http_response.text().await.unwrap_or_default();
+            let body_text = apollia_core::net::read_capped_text(
+                http_response,
+                apollia_core::net::MAX_METADATA_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             return Err(match status.as_u16() {
                 400 => LlmError::BadRequest(body_text),
                 401 => LlmError::Unauthorized,
@@ -428,9 +438,12 @@ impl AnthropicClient {
             });
         }
 
-        let json: serde_json::Value = http_response.json().await.map_err(|e| {
-            LlmError::ParseError(format!("failed to decode Anthropic response body: {e}"))
-        })?;
+        let json: serde_json::Value =
+            apollia_core::net::read_capped_json(http_response, ANTHROPIC_MAX_RESPONSE_BYTES)
+                .await
+                .map_err(|e| {
+                    LlmError::ParseError(format!("failed to decode Anthropic response body: {e}"))
+                })?;
 
         let mut result = Self::parse_response(&json)?;
         result.latency_ms = started.elapsed().as_millis() as u64;
@@ -584,7 +597,12 @@ impl CompletionModel for AnthropicClient {
 
         let status = http_response.status();
         if !status.is_success() {
-            let body_text = http_response.text().await.unwrap_or_default();
+            let body_text = apollia_core::net::read_capped_text(
+                http_response,
+                apollia_core::net::MAX_METADATA_BYTES,
+            )
+            .await
+            .unwrap_or_default();
             if status.as_u16() == 400 {
                 return Err(LlmError::BadRequest(body_text));
             }
@@ -595,6 +613,11 @@ impl CompletionModel for AnthropicClient {
         }
 
         // Convert the bytes_stream to Vec<u8> to avoid naming bytes::Bytes
+        //
+        // SAFETY: a streamed completion has no end the reader can wait for, so
+        // it cannot go through `apollia_core::net::read_capped_*`, which return
+        // once the body ends. Nothing is buffered here: each chunk is handed to
+        // the caller and dropped.
         let byte_stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>> =
             Box::pin(http_response.bytes_stream().map(|result| {
                 result.map(|b| b.to_vec()).map_err(|e| LlmError::HttpError {

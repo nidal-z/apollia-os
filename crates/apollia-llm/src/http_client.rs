@@ -49,7 +49,10 @@ pub const MIN_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 /// setting can never prevent the runtime from starting.
 pub fn build_llm_http_client(idle_timeout: Duration) -> reqwest::Client {
     let idle = idle_timeout.max(MIN_IDLE_TIMEOUT);
-    reqwest::Client::builder()
+    // The LLM endpoint is the one the operator configured, and a self-hosted
+    // llama-server or Ollama on loopback is the default case, so the
+    // public-destination policy is deliberately not applied here.
+    apollia_core::net::configured_endpoint_client_builder()
         .connect_timeout(CONNECT_TIMEOUT)
         .read_timeout(idle)
         .build()
@@ -58,6 +61,11 @@ pub fn build_llm_http_client(idle_timeout: Duration) -> reqwest::Client {
                 error = %e,
                 "llm.http_client.build_failed, falling back to an unbounded client"
             );
+            // SAFETY: policy-equivalent fallback. `Client::new()` carries
+            // reqwest's default `Policy::limited(10)`, which is exactly what
+            // `configured_endpoint_client_builder` sets, so the degraded client
+            // loses the timeouts and nothing else. Rebuilding through the
+            // helper here would fail for the same reason the first build did.
             reqwest::Client::new()
         })
 }

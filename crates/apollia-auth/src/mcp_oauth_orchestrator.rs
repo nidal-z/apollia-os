@@ -527,7 +527,9 @@ async fn exchange_code(
     _discovery: &McpDiscoveryClient,
     p: ExchangeCodeParts<'_>,
 ) -> Result<TokenResponse, AuthError> {
-    let http = reqwest::Client::new();
+    let http = apollia_core::net::configured_endpoint_client_builder()
+        .build()
+        .map_err(|e| AuthError::HttpError(e.to_string()))?;
     let mut form: HashMap<&str, &str> = HashMap::new();
     form.insert("grant_type", "authorization_code");
     form.insert("code", p.code);
@@ -564,7 +566,9 @@ async fn refresh_grant(
     let discovery = McpDiscoveryClient::new()?;
     let as_metadata = discovery.fetch_as_metadata(&current.as_url).await?;
 
-    let http = reqwest::Client::new();
+    let http = apollia_core::net::configured_endpoint_client_builder()
+        .build()
+        .map_err(|e| AuthError::HttpError(e.to_string()))?;
     let mut form: HashMap<&str, &str> = HashMap::new();
     form.insert("grant_type", "refresh_token");
     form.insert("refresh_token", refresh_token);

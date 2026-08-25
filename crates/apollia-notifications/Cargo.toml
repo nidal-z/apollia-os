@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-apollia-core  = { workspace = true }
+apollia-core  = { workspace = true, features = ["net"] }
 apollia-tools = { workspace = true }
 url           = { workspace = true }
 async-trait  = { workspace = true }

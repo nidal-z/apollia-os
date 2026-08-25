@@ -18,7 +18,7 @@ use std::time::{Duration, SystemTime};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 
-use super::ssrf::{assert_public, SsrfError};
+use apollia_core::net::assert_public;
 
 /// Cache TTL: 24 hours.
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
@@ -141,12 +141,6 @@ fn link_preview_enabled() -> bool {
     false
 }
 
-impl From<SsrfError> for String {
-    fn from(err: SsrfError) -> Self {
-        err.to_string()
-    }
-}
-
 /// Tauri command: fetch Open Graph metadata for a URL.
 ///
 /// Returns [`LinkPreview`] on success, or a human-readable error string.
@@ -166,12 +160,11 @@ pub async fn link_preview(url: String) -> Result<LinkPreview, String> {
         return Ok(cached);
     }
 
-    let client = reqwest::Client::builder()
+    // The shared builder re-validates every redirect hop, not just the initial
+    // URL: a public page can `302` the fetch onto a private host.
+    let client = apollia_core::net::safe_client_builder_with_redirects(MAX_REDIRECTS)
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        // Re-validate every redirect hop, not just the initial URL: a public
-        // page can `302` the fetch onto a private host.
-        .redirect(super::ssrf::public_redirect_policy(MAX_REDIRECTS))
         .build()
         .map_err(|e| format!("reqwest client init failed: {e}"))?;
 

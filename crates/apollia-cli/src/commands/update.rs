@@ -21,6 +21,25 @@ const GITHUB_API_BASE: &str = "https://api.github.com";
 /// crossing.
 const ARTIFACTS_CONTRACT: &str = include_str!("../../../../packaging/artifacts.json");
 
+/// Cap on the release metadata GitHub answers with (the `releases/latest`
+/// document, and the `.sha256` companion of an archive).
+const MAX_RELEASE_METADATA_BYTES: u64 = 8 * 1024 * 1024;
+
+/// Cap on a downloaded release archive. The published archives sit well under
+/// this; the point is that an unbounded `bytes()` on a remote answer is not a
+/// download budget, it is the absence of one.
+const MAX_RELEASE_ARCHIVE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// The updater's HTTP client: shared user agent, shared SSRF redirect policy.
+///
+/// GitHub redirects a release asset onto its CDN, so the hops are followed, but
+/// each one is re-checked against the public-destination policy.
+fn updater_client() -> Result<reqwest::Client, UpdateError> {
+    Ok(apollia_core::net::safe_client_builder()
+        .user_agent(concat!("apollia-os-updater/", env!("CARGO_PKG_VERSION")))
+        .build()?)
+}
+
 /// Where the concurrent-update lock lives: the platform temp directory, so the
 /// path exists on Windows too.
 fn lock_path() -> PathBuf {
@@ -35,6 +54,10 @@ pub enum UpdateError {
     /// Network request failed.
     #[error("network error: {0}")]
     Network(#[from] reqwest::Error),
+
+    /// A response body was refused before being buffered.
+    #[error("response body error: {0}")]
+    Body(#[from] apollia_core::net::ReadCappedError),
 
     /// File system I/O error.
     #[error("I/O error: {0}")]
@@ -168,16 +191,18 @@ fn current_arch() -> &'static str {
 async fn fetch_latest_release(owner: &str) -> Result<GithubRelease, UpdateError> {
     let url = format!("{GITHUB_API_BASE}/repos/{owner}/{REPO}/releases/latest");
 
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("apollia-os-updater/", env!("CARGO_PKG_VERSION")))
-        .build()?;
+    let client = updater_client()?;
 
     let response = client.get(&url).send().await?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(UpdateError::NoRelease);
     }
 
-    Ok(response.error_for_status()?.json().await?)
+    Ok(apollia_core::net::read_capped_json(
+        response.error_for_status()?,
+        MAX_RELEASE_METADATA_BYTES,
+    )
+    .await?)
 }
 
 /// Fetches the latest GitHub release and returns the remote version string when
@@ -229,9 +254,7 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
     // ── Fetch release metadata ─────────────────────────────────────────────
     let release = fetch_latest_release(owner).await?;
 
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("apollia-os-updater/", env!("CARGO_PKG_VERSION")))
-        .build()?;
+    let client = updater_client()?;
 
     let remote_str = release.tag_name.trim_start_matches('v');
     let remote = semver::Version::parse(remote_str)?;
@@ -270,21 +293,17 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
     tracing::info!(version = remote_str, url = %bin_url, "downloading update");
 
     // ── Download binary and SHA256 ─────────────────────────────────────────
-    let bin_bytes = client
-        .get(&bin_url)
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
+    let bin_bytes = apollia_core::net::read_capped_bytes(
+        client.get(&bin_url).send().await?.error_for_status()?,
+        MAX_RELEASE_ARCHIVE_BYTES,
+    )
+    .await?;
 
-    let sha_text = client
-        .get(&sha_url)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
+    let sha_text = apollia_core::net::read_capped_text(
+        client.get(&sha_url).send().await?.error_for_status()?,
+        MAX_RELEASE_METADATA_BYTES,
+    )
+    .await?;
 
     // ── Verify checksum: fail fast on mismatch ────────────────────────────
     let expected = sha_text

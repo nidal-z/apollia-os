@@ -672,7 +672,15 @@ pub async fn oauth_test_client(
         });
     }
 
-    let client = reqwest::Client::new();
+    let client = match apollia_core::net::safe_client() {
+        Ok(client) => client,
+        Err(e) => {
+            return Ok(OauthClientTestResult {
+                ok: false,
+                detail: format!("failed to build the HTTP client: {e}"),
+            })
+        }
+    };
     match client.get(provider_discovery_url(provider_id)).send().await {
         Ok(resp) if resp.status().is_success() => Ok(OauthClientTestResult {
             ok: true,
@@ -891,7 +899,8 @@ async fn resolve_account_id(
     provider: ConnectorProvider,
     bearer: &str,
 ) -> Result<AccountId, IntegrationsError> {
-    let client = reqwest::Client::new();
+    let client =
+        apollia_core::net::safe_client().map_err(|e| IntegrationsError::Internal(e.to_string()))?;
     let response = client
         .get(provider.userinfo_url())
         .bearer_auth(bearer)
@@ -904,10 +913,10 @@ async fn resolve_account_id(
             response.status()
         )));
     }
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    let json: serde_json::Value =
+        apollia_core::net::read_capped_json(response, apollia_core::net::MAX_METADATA_BYTES)
+            .await
+            .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
     let id = match provider {
         ConnectorProvider::Google => json
             .get("email")

@@ -7,7 +7,7 @@ description = "Apollia OS - MCP client: config, JSON-RPC, session, manager, exec
 license.workspace = true
 
 [dependencies]
-apollia-core  = { workspace = true }
+apollia-core  = { workspace = true, features = ["net"] }
 apollia-auth  = { workspace = true }
 apollia-tools = { workspace = true }
 async-trait   = { workspace = true }

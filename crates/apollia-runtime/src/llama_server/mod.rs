@@ -515,7 +515,8 @@ impl LlamaServerSupervisor {
         port: u16,
     ) -> Result<(), LlamaServerError> {
         let url = format!("http://127.0.0.1:{port}/health");
-        let client = reqwest::Client::builder()
+        // The embedded llama-server answers on loopback by construction.
+        let client = apollia_core::net::configured_endpoint_client_builder()
             .timeout(Duration::from_secs(2))
             .build()
             .map_err(|e| LlamaServerError::ExitedDuringStartup(format!("http client: {e}")))?;

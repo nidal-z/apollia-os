@@ -72,7 +72,9 @@ impl SseTransport {
         timeout: Duration,
         max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
-        let client = reqwest::Client::builder()
+        // Same reading as the streamable-http transport: the SSE endpoint is
+        // operator-declared and frequently local.
+        let client = apollia_core::net::configured_endpoint_client_builder()
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
 
@@ -244,6 +246,10 @@ async fn run_sse_loop(
         )));
     }
 
+    // SAFETY: the SSE body is an open-ended event stream, so it cannot be read
+    // through `apollia_core::net::read_capped_*`, which return once the body
+    // ends. The cap is enforced below on the accumulated buffer, against the
+    // same `max_response_bytes` the other transports pass to the helper.
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
     let mut current = SseEvent::default();

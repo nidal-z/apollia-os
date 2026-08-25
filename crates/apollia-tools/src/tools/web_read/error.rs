@@ -15,7 +15,7 @@ pub enum WebReadError {
     InvalidUrl(String),
 
     /// URL resolves to a private / loopback / link-local address. See
-    /// [`super::ssrf::assert_public`] for the full policy.
+    /// [`apollia_core::net::assert_public`] for the full policy.
     #[error("private address: {0}")]
     PrivateAddress(String),
 

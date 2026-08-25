@@ -20,6 +20,17 @@ regex      = { workspace = true }
 async-trait = { workspace = true }
 chrono      = { workspace = true }
 
+# The `net` feature only. `apollia-core` is the dependency foundation of the
+# workspace, so the crates that never open a socket keep their current closure:
+# both are optional and pulled in by the crates that do.
+reqwest = { workspace = true, optional = true }
+url     = { workspace = true, optional = true }
+
+[features]
+# The shared HTTP surface (`apollia_core::net`): SSRF policy plus capped body
+# reads. Enabled by every crate that builds a `reqwest::Client`.
+net = ["dep:reqwest", "dep:url"]
+
 [dev-dependencies]
 tempfile  = { workspace = true }
 toml      = { workspace = true }

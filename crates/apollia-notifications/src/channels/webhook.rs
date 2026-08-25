@@ -73,12 +73,9 @@ impl WebhookChannel {
         // Re-validate every redirect hop, not just the configured URL: an
         // operator endpoint could `302` the request onto 127.0.0.1 or a cloud
         // metadata address. The hop cap matches reqwest's own default.
-        let client = Client::builder()
+        let client = apollia_core::net::safe_client_builder()
             .timeout(Duration::from_secs(5))
             .user_agent(format!("apollia-os/{}", env!("CARGO_PKG_VERSION")))
-            .redirect(apollia_tools::ssrf::public_redirect_policy(
-                apollia_tools::ssrf::DEFAULT_MAX_REDIRECTS,
-            ))
             .build()
             .expect("reqwest::Client build ne peut pas échouer avec la config par défaut");
         Self::with_client(config, client)
@@ -326,7 +323,7 @@ impl NotificationChannel for WebhookChannel {
         if self.ssrf_guard {
             let parsed_url = url::Url::parse(&self.config.url)
                 .map_err(|e| NotifError::InvalidUrl(e.to_string()))?;
-            apollia_tools::ssrf::assert_public(&parsed_url)
+            apollia_core::net::assert_public(&parsed_url)
                 .map_err(|e| NotifError::Ssrf(e.to_string()))?;
         }
 
@@ -364,7 +361,12 @@ impl NotificationChannel for WebhookChannel {
             let status = resp.status();
             // Best-effort body extract for diagnostics: many providers (Discord,
             // Slack) return a JSON error body that explains the rejection.
-            let body_excerpt = match resp.text().await {
+            let body_excerpt = match apollia_core::net::read_capped_text(
+                resp,
+                apollia_core::net::MAX_METADATA_BYTES,
+            )
+            .await
+            {
                 Ok(text) if !text.is_empty() => {
                     let trimmed: String = text.chars().take(200).collect();
                     format!(" - {trimmed}")

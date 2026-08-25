@@ -874,7 +874,10 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
 
     let cfg = load_tools_config(json);
     let timeout = std::time::Duration::from_secs(cfg.web_search.brave.timeout_secs);
-    let client = match reqwest::Client::builder().timeout(timeout).build() {
+    let client = match apollia_core::net::safe_client_builder()
+        .timeout(timeout)
+        .build()
+    {
         Ok(c) => c,
         Err(e) => return emit_error(format!("HTTP client init failed: {e}"), json),
     };

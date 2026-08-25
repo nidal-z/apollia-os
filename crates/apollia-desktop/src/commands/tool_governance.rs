@@ -529,7 +529,7 @@ pub async fn governance_test_credential(
 }
 
 async fn test_brave_key(key: &str) -> CredentialTestResultDto {
-    let client = match reqwest::Client::builder()
+    let client = match apollia_core::net::safe_client_builder()
         .timeout(BRAVE_TEST_TIMEOUT)
         .build()
     {

@@ -66,7 +66,7 @@ pub struct HttpClient {
 impl HttpClient {
     /// Build a client bound to a provider id (for telemetry and error mapping).
     pub fn new(provider_id: &'static str) -> Result<Self, ConnectorError> {
-        let inner = reqwest::Client::builder()
+        let inner = apollia_core::net::safe_client_builder()
             .timeout(DEFAULT_TIMEOUT)
             .build()
             .map_err(|e| ConnectorError::Network(e.to_string()))?;

@@ -39,7 +39,7 @@ libc = { workspace = true }
 
 [features]
 default       = ["http", "web-search", "brave-search", "web-read"]
-http          = ["dep:reqwest"]
+http          = ["dep:reqwest", "apollia-core/net"]
 web-search    = ["http", "dep:scraper"]
 brave-search  = ["web-search"]
 web-read      = ["http", "dep:dom_smoothie", "dep:scraper"]

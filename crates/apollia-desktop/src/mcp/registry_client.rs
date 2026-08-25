@@ -257,13 +257,18 @@ fn extract_cursor_raw(body: &str) -> Option<String> {
     }
 }
 
+/// Cap on one registry page. The official registry answers a few hundred
+/// kilobytes per page; 16 MiB is a ceiling so a hostile or broken registry
+/// cannot be buffered whole.
+const REGISTRY_MAX_PAGE_BYTES: u64 = 16 * 1024 * 1024;
+
 impl McpRegistryClient {
     /// Create a new registry client.
     ///
     /// `cache_dir` is the directory where `mcp-registry.json` will be written.
     /// The HTTP client is configured with a 15-second connect + read timeout.
     pub fn new(cache_dir: &Path) -> Result<Self, RegistryClientError> {
-        let http = reqwest::Client::builder()
+        let http = apollia_core::net::safe_client_builder()
             .timeout(Duration::from_secs(15))
             .build()
             .map_err(|e| RegistryClientError::HttpError(e.to_string()))?;
@@ -417,7 +422,7 @@ impl McpRegistryClient {
             Ok(resp) => resp,
             Err(e) => return PageFetch::Fatal(e.to_string()),
         };
-        match resp.text().await {
+        match apollia_core::net::read_capped_text(resp, REGISTRY_MAX_PAGE_BYTES).await {
             Ok(body) => PageFetch::Body(body),
             Err(e) => PageFetch::Fatal(e.to_string()),
         }

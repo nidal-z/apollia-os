@@ -5,7 +5,7 @@
 //!
 //! # Security posture
 //!
-//! `web_read` applies its own SSRF guard (see [`ssrf::assert_public`]) rather
+//! `web_read` applies the shared SSRF guard (see [`ssrf::assert_public`]) rather
 //! than honouring the agent-wide `http_allowlist`. Enabling the tool grants
 //! broad web read access; the operator opts in via
 //! `apollia.toml -> [tools].web_read = true`.
@@ -110,15 +110,14 @@ impl WebRead {
         // With the guard on, re-validate every redirect hop (a public page can
         // `302` onto a private host); otherwise keep the plain hop cap so the
         // operator's opt-out is honoured end to end.
-        let redirect_policy = if ssrf_guard {
-            crate::ssrf::public_redirect_policy(MAX_REDIRECTS)
+        let builder = if ssrf_guard {
+            apollia_core::net::safe_client_builder_with_redirects(MAX_REDIRECTS)
         } else {
-            reqwest::redirect::Policy::limited(MAX_REDIRECTS)
+            apollia_core::net::configured_endpoint_client_builder_with_redirects(MAX_REDIRECTS)
         };
-        let client = reqwest::Client::builder()
+        let client = builder
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(timeout_secs))
-            .redirect(redirect_policy)
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
@@ -305,24 +304,20 @@ async fn read_body_capped(
     max_bytes: usize,
     timeout_secs: u64,
 ) -> Result<Vec<u8>, WebReadError> {
-    let mut bytes: Vec<u8> = Vec::new();
-    let mut response = response;
-    loop {
-        match response.chunk().await {
-            Ok(Some(chunk)) => {
-                bytes.extend_from_slice(&chunk);
-                if bytes.len() > max_bytes {
-                    return Err(WebReadError::ResponseTooLarge {
-                        size: bytes.len(),
-                        limit: max_bytes,
-                    });
+    apollia_core::net::read_capped_bytes(response, max_bytes as u64)
+        .await
+        .map_err(|e| match e {
+            apollia_core::net::ReadCappedError::TooLarge { read, .. } => {
+                WebReadError::ResponseTooLarge {
+                    size: read as usize,
+                    limit: max_bytes,
                 }
             }
-            Ok(None) => break,
-            Err(e) => return Err(classify_transport_error(e, timeout_secs)),
-        }
-    }
-    Ok(bytes)
+            apollia_core::net::ReadCappedError::Transport(source) => {
+                classify_transport_error(source, timeout_secs)
+            }
+            other => WebReadError::RequestFailed(other.to_string()),
+        })
 }
 
 /// Reject response `Content-Type`s we know we cannot extract.

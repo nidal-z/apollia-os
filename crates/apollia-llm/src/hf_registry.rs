@@ -27,6 +27,10 @@ pub enum HfError {
     #[error("json parse error: {0}")]
     Json(String),
 
+    /// The response body was refused before being buffered.
+    #[error("body error: {0}")]
+    Body(String),
+
     /// Model not found on HuggingFace.
     #[error("model not found: {0}")]
     NotFound(String),
@@ -238,7 +242,10 @@ async fn extract_model_type(resp: Result<reqwest::Response, reqwest::Error>) -> 
     if !r.status().is_success() {
         return None;
     }
-    let json = r.json::<serde_json::Value>().await.ok()?;
+    let json: serde_json::Value =
+        apollia_core::net::read_capped_json(r, apollia_core::net::MAX_METADATA_BYTES)
+            .await
+            .ok()?;
     json.get("model_type")
         .and_then(|v| v.as_str())
         .map(String::from)
@@ -313,6 +320,11 @@ struct TreeEntry {
 const HF_API_BASE: &str = "https://huggingface.co/api";
 const HF_CDN_BASE: &str = "https://huggingface.co";
 
+/// Cap for every HuggingFace JSON answer. A model listing page is a few tens of
+/// kilobytes and a repository tree a few hundred; 8 MiB is a ceiling, not a
+/// budget, and it exists so a hostile or broken answer cannot be buffered whole.
+const HF_MAX_JSON_BYTES: u64 = 8 * 1024 * 1024;
+
 /// HuggingFace Hub client: public API plus an optional token for gated models.
 pub struct HfRegistryClient {
     client: reqwest::Client,
@@ -322,7 +334,7 @@ pub struct HfRegistryClient {
 impl HfRegistryClient {
     /// Create a new client. `token` is optional (only for gated models).
     pub fn new(token: Option<String>) -> Self {
-        let client = reqwest::Client::builder()
+        let client = apollia_core::net::safe_client_builder()
             .user_agent("Apollia-OS/1.0")
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -371,7 +383,9 @@ impl HfRegistryClient {
         // Extract the pagination cursor from the `Link: <url>; rel="next"` header.
         let next_cursor = parse_next_link(resp.headers());
 
-        let json = resp.json::<serde_json::Value>().await?;
+        let json: serde_json::Value = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+            .await
+            .map_err(|e| HfError::Body(e.to_string()))?;
         let raw_models = json.as_array().cloned().unwrap_or_default();
 
         let mut cards = Vec::new();
@@ -443,12 +457,17 @@ impl HfRegistryClient {
         if meta_resp.status() == reqwest::StatusCode::FORBIDDEN {
             return Err(HfError::Gated(repo_id.to_string()));
         }
-        let meta_json = meta_resp.json::<serde_json::Value>().await?;
+        let meta_json: serde_json::Value =
+            apollia_core::net::read_capped_json(meta_resp, HF_MAX_JSON_BYTES)
+                .await
+                .map_err(|e| HfError::Body(e.to_string()))?;
 
         // Tree entries: path → size. Best-effort (empty on failure).
         let tree_entries: Vec<TreeEntry> = match tree_resp {
             Ok(r) if r.status().is_success() => {
-                r.json::<Vec<TreeEntry>>().await.unwrap_or_default()
+                apollia_core::net::read_capped_json(r, HF_MAX_JSON_BYTES)
+                    .await
+                    .unwrap_or_default()
             }
             _ => vec![],
         };
@@ -500,7 +519,9 @@ impl HfRegistryClient {
         if !resp.status().is_success() {
             return None;
         }
-        let json = resp.json::<serde_json::Value>().await.ok()?;
+        let json: serde_json::Value = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+            .await
+            .ok()?;
         extract_base_model_from_json(&json)
     }
 
@@ -521,7 +542,9 @@ impl HfRegistryClient {
             return None;
         }
 
-        let json = resp.json::<serde_json::Value>().await.ok()?;
+        let json: serde_json::Value = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+            .await
+            .ok()?;
         Some(GenerationConfig {
             temperature: json.get("temperature").and_then(|v| v.as_f64()),
             top_p: json.get("top_p").and_then(|v| v.as_f64()),
