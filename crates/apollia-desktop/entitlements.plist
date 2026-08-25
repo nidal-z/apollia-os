@@ -7,6 +7,10 @@
   and loads `libpython3.13.dylib` shipped from python-build-standalone (signed
   by Astral, not by our Team ID). These three exceptions are the minimum set
   required for the bundled Python to load under the hardened runtime.
+
+  The app captures the microphone in-process (apollia-stt via cpal), so the
+  hardened runtime also needs the audio-input resource entitlement; without it
+  a Developer ID build loses the microphone that the ad hoc build had.
 -->
 <plist version="1.0">
 <dict>
@@ -15,6 +19,8 @@
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>
 </plist>
