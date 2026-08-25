@@ -18,8 +18,12 @@ impl BuiltInChatAgent {
 
     /// Run the blocking `PreToolUse` hooks over every call in a turn.
     ///
-    /// Returns the working set to execute (with any `Rewrite` applied) plus a
-    /// per-call refusal reason. When no hook executor is attached, or no
+    /// Returns the working set to execute (with any `Rewrite` applied), a
+    /// per-call refusal reason, and a per-call flag saying whether a handler
+    /// replaced the arguments. A rewritten call is sent through the approval
+    /// flow by the loop: a handler answer is not an operator decision, and the
+    /// tool name the operator authorised earlier was authorised for the
+    /// arguments the model wrote, not for the ones a handler substituted. When no hook executor is attached, or no
     /// `PreToolUse` handler is registered, this borrows the original calls and
     /// reports no denials, so the loop incurs no extra work. Decisions are
     /// traced with structured fields: `allow` at debug, `rewrite` at info; the
@@ -33,6 +37,7 @@ impl BuiltInChatAgent {
         let no_op = || PreToolUseOutcome {
             calls: std::borrow::Cow::Borrowed(tool_calls),
             denied: vec![None; tool_calls.len()],
+            rewritten: vec![false; tool_calls.len()],
         };
         let Some(executor) = self.hook_executor.as_ref() else {
             return no_op();
@@ -47,6 +52,7 @@ impl BuiltInChatAgent {
 
         let mut calls = tool_calls.to_vec();
         let mut denied: Vec<Option<String>> = vec![None; tool_calls.len()];
+        let mut rewritten_calls: Vec<bool> = vec![false; tool_calls.len()];
         for (i, call) in tool_calls.iter().enumerate() {
             // Record the decision on the bus for the live PreToolUse log.
             // `rewritten` is set only on the rewrite branch.
@@ -76,6 +82,7 @@ impl BuiltInChatAgent {
                         "hook.pretooluse.decision"
                     );
                     calls[i].arguments = arguments;
+                    rewritten_calls[i] = true;
                     ("rewrite", Some(rewritten))
                 }
                 HookDecision::Deny { reason } => {
@@ -94,6 +101,7 @@ impl BuiltInChatAgent {
         PreToolUseOutcome {
             calls: std::borrow::Cow::Owned(calls),
             denied,
+            rewritten: rewritten_calls,
         }
     }
 }

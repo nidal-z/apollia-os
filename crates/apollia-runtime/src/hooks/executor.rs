@@ -14,6 +14,10 @@ use tokio::io::AsyncWriteExt;
 
 use crate::hooks::registry::{HookRegistry, ResolvedHandler};
 
+/// Cap on a hook handler's answer. A decision document is a few hundred bytes;
+/// 256 KiB leaves room for a verbose `reason` and refuses everything past it.
+const MAX_HOOK_RESPONSE_BYTES: u64 = 256 * 1024;
+
 /// Decision returned by a `PreToolUse` hook handler.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HookDecision {
@@ -104,7 +108,7 @@ impl HookExecutor {
     pub fn new(registry: Arc<HookRegistry>) -> Self {
         Self {
             registry,
-            http: reqwest::Client::builder().build().ok(),
+            http: apollia_core::net::safe_client().ok(),
         }
     }
 
@@ -381,11 +385,19 @@ impl HookExecutor {
     }
 
     /// POSTs `payload` as JSON to an HTTP handler and returns the response body.
+    ///
+    /// The payload carries agent data (the tool name and its arguments, or a
+    /// tool-output snippet), so the destination is checked before the socket is
+    /// opened: `SECURITY.md` states that no direct network path carries an
+    /// agent payload without the SSRF policy, and this one used to. The
+    /// destination is re-checked on every redirect hop by the client's policy,
+    /// and the answer is read under a cap rather than buffered whole.
     async fn run_http(&self, url: &str, payload: &str) -> Result<String, String> {
         let client = self
             .http
             .as_ref()
             .ok_or_else(|| "http client unavailable".to_string())?;
+        apollia_core::net::assert_public_str(url).map_err(|e| format!("hook url refused: {e}"))?;
         let resp = client
             .post(url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -397,7 +409,7 @@ impl HookExecutor {
         if !status.is_success() {
             return Err(format!("http status {status}"));
         }
-        resp.text()
+        apollia_core::net::read_capped_text(resp, MAX_HOOK_RESPONSE_BYTES)
             .await
             .map_err(|e| format!("http body read failed: {e}"))
     }
@@ -542,6 +554,56 @@ mod tests {
                 arguments: json!({"path": "/safe/x"})
             }
         );
+    }
+
+    fn http_handler(url: &str, timeout_ms: u64) -> HookHandlerConfig {
+        HookHandlerConfig {
+            format_version: 1,
+            events: vec![HookEventKind::PreToolUse],
+            kind: HookHandlerKind::Http {
+                url: url.to_string(),
+            },
+            timeout_ms,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_handler_on_a_private_address_is_refused_before_the_socket() {
+        // GIVEN an HTTP handler pointing at the cloud metadata address, the
+        //       canonical SSRF target, and one pointing at loopback
+        for url in [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:1/hook",
+            "http://localhost:1/hook",
+        ] {
+            let exec = executor_with(vec![http_handler(url, 5_000)]);
+
+            // WHEN the PreToolUse hooks run
+            let decision = exec
+                .run_pre_tool_use("bash", &json!({"cmd": "ls"}), "sess-ssrf")
+                .await;
+
+            // THEN the delivery is refused and the safe default applies. The
+            //      refusal comes from the policy, not from a connection
+            //      failure: port 1 would refuse fast either way, which is why
+            //      the metadata address, reachable on a cloud host, is in the
+            //      list.
+            assert_eq!(decision, HookDecision::Allow, "{url}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_handler_refuses_a_url_that_does_not_parse() {
+        // GIVEN a handler whose URL is not a URL
+        let exec = executor_with(vec![http_handler("not-a-url", 5_000)]);
+
+        // WHEN the PreToolUse hooks run
+        let decision = exec
+            .run_pre_tool_use("bash", &json!({"cmd": "ls"}), "sess-bad-url")
+            .await;
+
+        // THEN it falls back to the safe default rather than being dispatched
+        assert_eq!(decision, HookDecision::Allow);
     }
 
     #[tokio::test]

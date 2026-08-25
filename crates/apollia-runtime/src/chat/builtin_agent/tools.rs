@@ -65,6 +65,12 @@ impl BuiltInChatAgent {
             .apply_pre_tool_use(tool_calls, session_id, ids.run_id)
             .await;
         let effective_calls: &[ToolCall] = pre.calls.as_ref();
+        // A hook that replaced a call's arguments does not inherit the
+        // operator's earlier "always allow" on the tool name: what was
+        // authorised was the model's argument set, not a handler's
+        // substitution. Such a call leaves the parallel fast path and is sent
+        // through the approval flow below.
+        let rewritten_by_hook = &pre.rewritten;
 
         // Determine read-only status for each call via the tool registry. A call
         // runs concurrently only when its tool is read-only AND already
@@ -144,6 +150,7 @@ impl BuiltInChatAgent {
                 .filter(|&i| {
                     i < allowed_calls
                         && denied[i].is_none()
+                        && !rewritten_by_hook[i]
                         && read_only[i]
                         && acc.authorized.contains(&effective_calls[i].name)
                         && !self.prefix_rule_denies(&effective_calls[i])
@@ -281,6 +288,7 @@ impl BuiltInChatAgent {
                                     call,
                                     run_id: ids.run_id,
                                     pending_approvals: ids.pending_approvals,
+                                    rewritten_by_hook: rewritten_by_hook[i],
                                 },
                                 llm_messages,
                                 acc,
@@ -362,6 +370,7 @@ impl BuiltInChatAgent {
             call,
             run_id,
             pending_approvals,
+            rewritten_by_hook,
         } = ctx;
 
         // The persisted prefix rules are evaluated first, against this call's
@@ -404,7 +413,7 @@ impl BuiltInChatAgent {
                 apollia_permissions::prefix_rule_engine::RuleAction::Allow
             ))
         );
-        if acc.authorized.contains(&call.name) || rule_allows {
+        if !rewritten_by_hook && (acc.authorized.contains(&call.name) || rule_allows) {
             if rule_allows && !acc.authorized.contains(&call.name) {
                 if let Some((rule_id, _)) = rule_hit {
                     tracing::info!(

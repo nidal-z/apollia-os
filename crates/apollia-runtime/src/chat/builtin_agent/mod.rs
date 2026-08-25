@@ -315,6 +315,12 @@ struct ToolCallContext<'a> {
     call: &'a ToolCall,
     run_id: &'a RunId,
     pending_approvals: &'a PendingChatApprovals,
+    /// The arguments of this call were replaced by a `PreToolUse` hook, so the
+    /// session-level authorization of the tool name no longer covers what is
+    /// about to run: the operator approved one argument set and a handler
+    /// answered with another. Set, the call goes through the approval flow
+    /// whatever `acc.authorized` says.
+    rewritten_by_hook: bool,
 }
 
 /// Borrowed identifiers shared by every tool call in a single ReAct turn
@@ -373,8 +379,10 @@ struct ToolCallOutcome {
 ///
 /// `calls` is the working set to execute: borrowed (no hook, no change) or owned
 /// with any `Rewrite` applied. `denied[i]` carries the refusal reason when call
-/// `i` was blocked; it is index-aligned with `calls`.
+/// `i` was blocked, and `rewritten[i]` says whether a handler replaced call
+/// `i`'s arguments; all three are index-aligned.
 struct PreToolUseOutcome<'a> {
     calls: std::borrow::Cow<'a, [ToolCall]>,
     denied: Vec<Option<String>>,
+    rewritten: Vec<bool>,
 }
