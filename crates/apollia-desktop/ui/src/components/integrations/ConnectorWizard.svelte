@@ -395,7 +395,7 @@
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
       if (probeMode === "oauth" && oauthAccount) {
-        // OAuth flow completed (Phase 5). The token lives in the keyring under
+        // OAuth flow completed. The token lives in the keyring under
         // `mcp_oauth:{server_name}`; the transport injects it dynamically at
         // each request via `${APOLLIA_OAUTH}` (resolved + Bearer-prefixed by
         // `apollia-mcp::config::resolve_single_var`).

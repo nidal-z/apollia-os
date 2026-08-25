@@ -15,8 +15,7 @@
  *
  * The store does NOT wire any UI - `Chat.svelte` calls `installChatShortcuts`
  * once on mount. Other surfaces (App, modals) keep ownership of their
- * own listeners; this module focuses on the chat-route bindings called
- * out by the story.
+ * own listeners; this module focuses on the chat-route bindings only.
  */
 
 import type { Shortcut } from "$lib/stores/shortcuts";

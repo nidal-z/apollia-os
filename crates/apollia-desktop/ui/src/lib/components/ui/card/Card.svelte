@@ -52,7 +52,7 @@
 </div>
 
 <style>
-  /* Spring press (F.1 / F.3) - cubic-bezier tuned for an elastic
+  /* Spring press - cubic-bezier tuned for an elastic
      return. The hover lift is already owned by `.glass-card-hover`
      (see app.css), so we only refine the pressed state here. */
   .card-spring:active {

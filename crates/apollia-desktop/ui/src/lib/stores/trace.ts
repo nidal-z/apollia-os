@@ -5,8 +5,8 @@
  * 1. `loadTrace(taskId)` - fetch initial paginé via la commande Tauri
  *    `get_task_trace` (replay depuis SQLite).
  * 2. `subscribeTraceLive(taskId)` - abonnement au channel Tauri
- *    `"trace-event"` (live SSE - Lot 4 connectera la voie SSE end-to-end ;
- *    Lot 3 supporte déjà la fusion live/replay côté store).
+ *    `"trace-event"` (le store fusionne déjà live et replay ; la voie SSE
+ *    de bout en bout n'est pas encore branchée).
  *
  * Les événements sont indexés par `eventId` (UUIDv7 lex-ordonné), donc
  * insertion idempotente - si le live arrive avant le replay, le merge

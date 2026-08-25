@@ -6,8 +6,8 @@
  * archived, last read) that back the pin/archive/unread features.
  *
  * Persistence is local-first via localStorage - backend SQLite columns
- * (`pinned_at`, `archived_at`, `last_read_at`) are deferred to a follow-up
- * story. UI-side persistence survives reloads and keeps the same UX.
+ * (`pinned_at`, `archived_at`, `last_read_at`) do not exist yet. UI-side
+ * persistence survives reloads and keeps the same UX.
  */
 import { derived, writable, type Readable } from "svelte/store";
 import { chatSessions } from "./sse";

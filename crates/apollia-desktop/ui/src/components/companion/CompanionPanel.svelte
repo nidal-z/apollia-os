@@ -28,7 +28,7 @@
   import CompanionErrorState from "./CompanionErrorState.svelte";
 
   // Under `md`, the companion becomes full-screen so the chat remains usable
-  // and the close button stays visible even at 375 px (/ E.40).
+  // and the close button stays visible even at 375 px.
   const fullscreen = $derived($sidebarState === "drawer");
 
   const panelVisible = $derived(isCompanionPanelVisible($companionStore));

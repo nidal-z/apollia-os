@@ -1,5 +1,5 @@
 /**
- * Unified inbox item model (A.6.6).
+ * Unified inbox item model.
  *
  * Discriminated union covering every flavor of pending human action the
  * runtime can surface - HITL task approvals, chat tool approvals, always-
@@ -71,6 +71,6 @@ export type InboxItem =
 /** Urgency threshold default (30 min) in milliseconds. */
 export const DEFAULT_URGENCY_THRESHOLD_MS = 30 * 60 * 1000;
 
-/** Reject reason length bounds (E.33). */
+/** Reject reason length bounds. */
 export const MIN_REJECT_REASON = 5;
 export const MAX_REJECT_REASON = 500;

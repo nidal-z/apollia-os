@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcut registry (E.45).
+ * Keyboard shortcut registry.
  *
  * Every component that owns a global hotkey registers a `Shortcut`
  * entry here so the `?` overlay can list them. Registration is

@@ -112,7 +112,7 @@
         onsuccess(result);
       } else {
         // oauth_required at test time means the static-token path failed
-        // authentication. Phase 5 will surface a "Sign in" CTA inline; for
+        // authentication. An inline "Sign in" CTA is not built yet; for
         // now report it as an error directing the user back to the Auth step.
         testError = $t("integrations.wizard.test_err.oauth_required");
       }

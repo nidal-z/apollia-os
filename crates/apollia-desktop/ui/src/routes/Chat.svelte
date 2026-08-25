@@ -205,7 +205,7 @@
   });
 
   // The preset payload is currently informational - QuickPicker has no
-  // preset prop yet (see story follow-up). We accept and
+  // preset prop yet. We accept and
   // ignore it so the palette wiring stays forward-compatible.
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
     showNewChatPicker = true;

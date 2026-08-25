@@ -16,7 +16,7 @@
      * - `subtle`   - 1px line with --border at 50% for secondary groupings.
      * - `elevated` - 1px line + faint top highlight, sits on surface-1.
      * - `fade`     - gradient-fade on both ends for long scrollable regions
-     *   where a hard divider feels abrupt (F.42, F.71).
+     *   where a hard divider feels abrupt.
      * - `inline`   - flex-1 hairline used inside a row to fill remaining
      *   horizontal space (e.g. between two labels or section headers).
      */

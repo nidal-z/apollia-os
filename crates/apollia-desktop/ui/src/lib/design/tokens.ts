@@ -98,7 +98,7 @@ export const logoPaper = {
  * Chat shell layout bounds.
  *
  * Canonical widths for the 3-column chat shell - Sessions, Conversation,
- * ContextDrawer. Values are in CSS pixels; keep in sync with the story AC:
+ * ContextDrawer. Values are in CSS pixels; the agreed bounds:
  * Sessions 260–320 px, Conversation elastic, ContextDrawer 320–420 px.
  */
 export const chatLayout = {

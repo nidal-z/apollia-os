@@ -43,7 +43,7 @@ d'observabilité exige de la place.
    ```
 2. **Aucune valeur brute en `px` dans le code Svelte** (classes `w-[420px]`,
    `max-w-[600px]`, `@media (max-width: 560px)`, etc.) - sauf cas explicitement
-   justifié par un commentaire `// @responsive-exception: raison` relié à un ADR.
+   justifié par un commentaire `// @responsive-exception: raison`.
 3. **Conteneurs de page** : toutes les routes de `src/routes/**.svelte` doivent
    utiliser le pattern canonique :
    ```html

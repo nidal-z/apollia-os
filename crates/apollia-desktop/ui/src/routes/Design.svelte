@@ -6,7 +6,7 @@
   import { humanize } from "$lib/errors/humanize";
   import { ERROR_CATEGORIES } from "$lib/i18n/strings/errors";
 
-  // Reading type scale added in Phase 0 (dev-only preview).
+  // Reading type scale (dev-only preview).
   const typeScale = [
     { cls: "text-heading-lg", label: "heading-lg" },
     { cls: "text-heading-md", label: "heading-md" },
@@ -208,7 +208,7 @@
     </div>
   </section>
 
-  <!-- Reading type scale (Phase 0) -->
+  <!-- Reading type scale -->
   <section class="space-y-3" data-testid="design-type-scale">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Reading type scale
@@ -223,7 +223,7 @@
     </div>
   </section>
 
-  <!-- Error humanizer (Phase 0) -->
+  <!-- Error humanizer -->
   <section class="space-y-3" data-testid="design-error-humanizer">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Error humanizer - humanize()

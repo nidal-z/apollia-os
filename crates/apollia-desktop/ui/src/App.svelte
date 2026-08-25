@@ -35,7 +35,7 @@
 
   function handleAncillaryKeydown(event: KeyboardEvent) {
     const mod = isMac ? event.metaKey : event.ctrlKey;
-    // A.1.13 - Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
+    // Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
     if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "t") {
       const target = event.target as HTMLElement | null;
       const isEditing =
@@ -194,7 +194,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={200}>
-  <!-- Keyboard-first entry points (F.77 / E.45) - visible on
+  <!-- Keyboard-first entry points - visible on
        focus only. Wait until svelte-i18n has loaded before rendering,
        otherwise `$t(...)` throws "Cannot format a message without
        first setting the initial locale." -->

@@ -3,11 +3,11 @@
  *
  * Dérive `sidebarState` de la viewport via `window.matchMedia` :
  *   - ≥ `lg` (1024 px) → `expanded` ou `icon` selon la préférence utilisateur
- * - `md`–`lg` → `icon` forcé (auto-collapse E.17)
- *   - < `md`          → `drawer` overlay (E.37)
+ * - `md`–`lg` → `icon` forcé (auto-collapse)
+ *   - < `md`          → `drawer` overlay
  *
  * La préférence `expanded` / `collapsed` à `lg+` est persistée dans
- * `localStorage` sous la clé `apollia.ui.sidebar` (AC).
+ * `localStorage` sous la clé `apollia.ui.sidebar`.
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
 import { companionStore } from "./companion";

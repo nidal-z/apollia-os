@@ -7,7 +7,7 @@
  * reused from `$lib/tools/tool-display` (`TOOL_ICONS`) so a tool looks the same
  * in the chat activity strip and in Settings.
  *
- * FLAG (Phase 0.5): `TOOL_CATEGORIES` is a front-only map keyed by tool name.
+ * FLAG: `TOOL_CATEGORIES` is a front-only map keyed by tool name.
  * If the native-tool catalog grows or ships MCP tools in the same list, promote
  * a `category` field onto `ToolStatusDto` (backend) instead of maintaining this.
  */

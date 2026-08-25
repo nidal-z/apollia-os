@@ -128,7 +128,7 @@
     ),
   );
 
-  // OAuth mode helpers (Phase 5).
+  // OAuth mode helpers.
   const isProbing = $derived(probeMode === "probing");
   const isOAuthMode = $derived(probeMode === "oauth");
   // Resolved help text shown on the Auth step. Prefer the i18n key (so

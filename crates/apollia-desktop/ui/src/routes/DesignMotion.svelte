@@ -3,7 +3,7 @@
    * Motion showcase.
    *
    * Dev-only page (not linked from the sidebar). Reached via the URL hash
-   * `#motion`. Demonstrates every motion primitive shipped by the sprint:
+   * `#motion`. Demonstrates every motion primitive of the design system:
    * gradients, list-item spring, dividers, loading states, scrollbar.
    */
   import { Button } from "$lib/components/ui/button";
@@ -200,7 +200,7 @@
     </div>
   </section>
 
-  <!-- Disclosure (Phase 0) -->
+  <!-- Disclosure -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Disclosure - <code class="text-caption">&lt;Disclosure&gt;</code>
@@ -221,7 +221,7 @@
     </div>
   </section>
 
-  <!-- List motion (Phase 0) -->
+  <!-- List motion -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       List motion - <code class="text-caption">listFlip / rowIn / rowOut</code>
@@ -252,7 +252,7 @@
     </ul>
   </section>
 
-  <!-- Route transition (Phase 0) -->
+  <!-- Route transition -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Route transition - <code class="text-caption">&lt;RouteTransition&gt;</code>
@@ -269,7 +269,7 @@
     </div>
   </section>
 
-  <!-- Expressive depth (Phase 0) -->
+  <!-- Expressive depth -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Expressive depth
@@ -290,7 +290,7 @@
     </div>
   </section>
 
-  <!-- Context menu (Phase 0) -->
+  <!-- Context menu -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
       Context menu - <code class="text-caption">&lt;ContextMenu&gt;</code>

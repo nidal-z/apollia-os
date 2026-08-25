@@ -30,7 +30,7 @@ export const spring = {
  * Svelte's `spring()` uses normalised 0-1 stiffness/damping values (the numbers
  * above). We also expose the CSS-friendly "motion design" scale for
  * documentation and for libraries that expect raw spring physics - these are
- * the values the story references (`stiffness: 220, damping: 24`).
+ * the canonical values (`stiffness: 220, damping: 24`).
  */
 export const springPhysics = {
   default: { stiffness: 220, damping: 24, mass: 1 },

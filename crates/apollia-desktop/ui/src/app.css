@@ -634,7 +634,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Placeholder contrast (A.4.4) - force min
+     Placeholder contrast - force min
      opacity so placeholders remain legible ≥ AA against
      surface-1 in both themes.
      ═════════════════════════════════════════════════════════ */
@@ -646,7 +646,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Primary utilities (F.41, A.1.10) - 3 canonical expositions
+     Primary utilities - 3 canonical expositions
      ═════════════════════════════════════════════════════════ */
   .bg-primary-solid {
     background-color: hsl(var(--primary));
@@ -689,7 +689,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Backdrop (modal, sheet) - F.56
+     Backdrop (modal, sheet)
      ═════════════════════════════════════════════════════════ */
   .app-backdrop {
     background-color: var(--backdrop);
@@ -700,7 +700,7 @@
     @apply backdrop-blur-sm;
   }
 
-  /* Warm modal backdrop (F.56). Warm cast vs the neutral
+  /* Warm modal backdrop. Warm cast vs the neutral
      `app-backdrop` so overlays feel anchored in the parchment palette. */
   .backdrop-warm {
     background-color: rgba(60, 40, 20, 0.40);
@@ -717,7 +717,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Global focus rings (F.2, F.43, D.52)
+     Global focus rings
      Every natively focusable element gets a primary ring on
      :focus-visible. Components that render a custom shadow on
      focus (buttons / inputs with their own variants) can opt
@@ -761,7 +761,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Skip-to-content link (F.77) - visually hidden until it
+     Skip-to-content link - visually hidden until it
      receives focus, then pins to top-left on top of every-
      thing so keyboard users can reach <main> in one press.
      ═════════════════════════════════════════════════════════ */
@@ -786,7 +786,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Inline prose links (F.60) - dotted underline resolves to
+     Inline prose links - dotted underline resolves to
      solid on hover, with a comfortable offset.
      ═════════════════════════════════════════════════════════ */
   .link-inline {
@@ -802,7 +802,7 @@
 
   /* ═════════════════════════════════════════════════════════
      Text utility classes driven by a11y-verified contrast
-     tokens (F.59). Prefer these to raw Tailwind `text-muted-
+     tokens. Prefer these to raw Tailwind `text-muted-
      foreground` / `text-green-600` / … in prose contexts.
      ═════════════════════════════════════════════════════════ */
   .text-muted-a11y   { color: hsl(var(--text-muted)); }
@@ -811,7 +811,7 @@
   .text-danger-a11y  { color: hsl(var(--text-danger)); }
 
   /* ═════════════════════════════════════════════════════════
-     Gradient utilities (F.35)
+     Gradient utilities
      ═════════════════════════════════════════════════════════ */
   .bg-gradient-primary {
     background-image: var(--gradient-primary);
@@ -824,7 +824,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     List-item spring (F.46) - applied on row/row-like controls
+     List-item spring - applied on row/row-like controls
      that live inside nav / tables / long scrollable lists.
      Uses a cubic-bezier that *feels* springy without pulling a
      JS spring every frame.
@@ -845,7 +845,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Divider fade edges (F.42, F.71) - gradient-fade horizontal
+     Divider fade edges - gradient-fade horizontal
      rule. Used where a plain separator feels too hard (chat
      surfaces, long feeds).
      ═════════════════════════════════════════════════════════ */
@@ -1010,7 +1010,7 @@
 }
 
 /* Skeleton shimmer - gradient translation across the element background.
-   Replaces `animate-pulse` on Skeleton (F.12). Tokens adapt to dark mode
+   Replaces `animate-pulse` on Skeleton. Tokens adapt to dark mode
    via --muted / --muted-foreground. */
 @keyframes skeletonShimmer {
   0%   { background-position: 200% 0; }
@@ -1047,7 +1047,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Custom scrollbars (F.53) - 6px rail, translucent thumb with
+   Custom scrollbars - 6px rail, translucent thumb with
    hover state. Firefox fallback via `scrollbar-*` properties.
    ═══════════════════════════════════════════════════════════ */
 /* Firefox - `thin` keeps the native implementation but narrows it. */
