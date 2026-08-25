@@ -33,7 +33,7 @@
     /** Bottom hairline divider (ignored for the `nav` variant). */
     border?: boolean;
     /** When provided, the row becomes an interactive button. */
-    onclick?: (e: MouseEvent) => void;
+    onclick?: (e: MouseEvent | KeyboardEvent) => void;
     /** Override the default Enter-to-activate handler. */
     onkeydown?: (e: KeyboardEvent) => void;
     class?: string;
@@ -78,7 +78,7 @@
     }
     if (onclick && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      onclick(e as unknown as MouseEvent);
+      onclick(e);
     }
   }
 </script>

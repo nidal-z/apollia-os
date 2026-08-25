@@ -244,10 +244,10 @@ export function buildSource(model: AutomationFormModel): TriggerSourceInput | nu
   const base = buildBaseSource(model);
   if (!base) return null;
   if (model.originalSourceType !== model.sourceType) return base;
-  const merged: Record<string, unknown> = { ...model.originalSourceConfig, ...base };
   // The merge only adds keys the typed union does not describe; the required
-  // ones all come from `base`, hence the widening round-trip.
-  return merged as unknown as TriggerSourceInput;
+  // ones all come from `base`, and `Object.assign` keeps the intersection
+  // typed instead of a widening cast round-trip.
+  return Object.assign({ ...model.originalSourceConfig }, base);
 }
 
 /** Translation keys of the current validation failures, `null` when valid. */

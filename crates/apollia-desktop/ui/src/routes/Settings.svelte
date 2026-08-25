@@ -233,7 +233,7 @@
   }
 
   if (typeof window !== "undefined") {
-    (window as unknown as { __apolliaRegisterSettingsForm?: unknown }).__apolliaRegisterSettingsForm =
+    window.__apolliaRegisterSettingsForm =
       (route: SettingsSubRoute, handle: { save: SaveFn; reset: () => void }) => {
         registeredSavers.set(route, handle.save);
         registeredResetters.set(route, handle.reset);

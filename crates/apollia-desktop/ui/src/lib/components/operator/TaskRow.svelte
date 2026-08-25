@@ -35,7 +35,7 @@
     task: Task;
     /** Show builder/technical detail row underneath. */
     builder?: boolean;
-    onclick?: (e: MouseEvent) => void;
+    onclick?: (e: MouseEvent | KeyboardEvent) => void;
   }
 
   let { task, builder = false, onclick }: Props = $props();

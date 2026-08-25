@@ -24,7 +24,7 @@
     unreadCount?: number;
     /** True when an agent is currently typing/working in this conversation. */
     live?: boolean;
-    onclick?: (e: MouseEvent) => void;
+    onclick?: (e: MouseEvent | KeyboardEvent) => void;
     /**
      * Optional rename action - submits the new title from the inline editor.
      * Providing this callback enables both the kebab menu "Renommer" entry
@@ -124,7 +124,7 @@
   /** Guard: row-level navigation ignores clicks on the kebab trigger (the
       menu content itself is portaled, so it never bubbles here) and clicks
       while inline editing or confirming a delete. */
-  function onRowClick(ev: MouseEvent): void {
+  function onRowClick(ev: MouseEvent | KeyboardEvent): void {
     const target = ev.target as HTMLElement | null;
     if (target?.closest("[data-conversation-row-actions]")) return;
     if (editing || confirmingDelete) return;
@@ -135,7 +135,7 @@
     const target = ev.target as HTMLElement | null;
     if (target?.closest("[data-conversation-row-actions]")) return;
     if (editing || confirmingDelete) return;
-    onclick?.(ev as unknown as MouseEvent);
+    onclick?.(ev);
   }
 </script>
 

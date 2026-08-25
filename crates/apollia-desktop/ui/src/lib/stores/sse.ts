@@ -299,6 +299,32 @@ function variantPayload(
   return payload;
 }
 
+/** Narrow a raw bridge payload to a `PlanCacheHitEvent`, field by field. */
+function isPlanCacheHitEvent(raw: unknown): raw is PlanCacheHitEvent {
+  if (typeof raw !== "object" || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.task_id === "string" &&
+    typeof r.cache_key === "string" &&
+    typeof r.plan_id === "string" &&
+    typeof r.timestamp === "string"
+  );
+}
+
+/** Narrow a raw bridge payload to an `AgentMessage`, field by field. */
+function isAgentMessage(raw: unknown): raw is AgentMessage {
+  if (typeof raw !== "object" || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.from_agent === "string" &&
+    typeof r.to_agent === "string" &&
+    typeof r.sent_at === "string" &&
+    typeof r.payload === "object" &&
+    r.payload !== null
+  );
+}
+
 /** Handles `ChatApprovalRequired`: enqueues a pending approval + notification. */
 function handleChatApprovalRequired(event: TauriRuntimeEvent): void {
   const p = variantPayload(event.payload, "ChatApprovalRequired");
@@ -555,11 +581,15 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       dispatchPlanModeEvent(event);
       break;
     case "plan-cache-hit":
-      lastPlanCacheHit.set(event.payload as unknown as PlanCacheHitEvent);
+      if (isPlanCacheHitEvent(event.payload)) {
+        lastPlanCacheHit.set(event.payload);
+      }
       planCacheHitCount.update((n) => n + 1);
       break;
     case "agent-message-sent":
-      lastAgentMessage.set(event.payload as unknown as AgentMessage);
+      if (isAgentMessage(event.payload)) {
+        lastAgentMessage.set(event.payload);
+      }
       void refreshAgentsViaIpc();
       break;
     case "stt-changed":

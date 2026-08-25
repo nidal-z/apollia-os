@@ -68,6 +68,12 @@
     if (align === "center") return "text-center";
     return "text-left";
   }
+
+  /** Default cell rendering: what Svelte would print, without a blind cast. */
+  function cellText(row: T, key: keyof T & string): string {
+    const value: unknown = row[key];
+    return value === null || value === undefined ? "" : String(value);
+  }
 </script>
 
 <div class={cn("rounded-xl glass-card glass-border overflow-x-auto", className)} data-testid="data-table">
@@ -153,7 +159,7 @@
                 {#if col.cell}
                   {@render col.cell(row)}
                 {:else}
-                  <span class="text-foreground">{row[col.key] as unknown as string}</span>
+                  <span class="text-foreground">{cellText(row, col.key)}</span>
                 {/if}
               </td>
             {/each}

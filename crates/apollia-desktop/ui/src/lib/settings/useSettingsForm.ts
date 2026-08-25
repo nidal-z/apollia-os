@@ -192,18 +192,28 @@ export { tick } from "svelte";
  * Svelte context, because sub-routes are loaded via dynamic `import()` and do
  * not share a live parent context at script evaluation time.
  */
-type RegisterFn = (
+export type SettingsFormRegistrar = (
   route: SettingsSubRoute,
   handle: { save: () => Promise<boolean>; reset: () => void },
 ) => () => void;
+
+declare global {
+  /**
+   * Window-level settings-form registry hook, installed by
+   * `routes/Settings.svelte` while the settings shell is mounted. Declared
+   * globally so every consumer reads it typed instead of double-casting
+   * `globalThis`.
+   */
+  // A `var` is what `declare global` requires for a `globalThis` property.
+  var __apolliaRegisterSettingsForm: SettingsFormRegistrar | undefined;
+}
 
 export function registerSettingsForm<T>(
   route: SettingsSubRoute,
   form: SettingsForm<T>,
 ): () => void {
   if (globalThis.window === undefined) return () => {};
-  const register = (globalThis as unknown as { __apolliaRegisterSettingsForm?: RegisterFn })
-    .__apolliaRegisterSettingsForm;
+  const register = globalThis.__apolliaRegisterSettingsForm;
   if (!register) return () => {};
   return register(route, { save: form.save, reset: form.reset });
 }

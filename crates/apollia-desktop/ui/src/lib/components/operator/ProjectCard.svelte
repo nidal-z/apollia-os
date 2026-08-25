@@ -26,7 +26,7 @@
     metrics?: string[];
     /** Accent color (CSS string). Defaults to primary. */
     color?: string;
-    onclick?: (e: MouseEvent) => void;
+    onclick?: (e: MouseEvent | KeyboardEvent) => void;
   }
 
   let {
@@ -76,7 +76,7 @@
   onclick={onclick}
   onkeydown={onclick
     ? (e) => {
-        if (e.key === "Enter" || e.key === " ") onclick(e as unknown as MouseEvent);
+        if (e.key === "Enter" || e.key === " ") onclick(e);
       }
     : undefined}
   class="bg-card border border-border rounded-xl overflow-hidden cursor-pointer transition-all {hover

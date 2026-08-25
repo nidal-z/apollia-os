@@ -91,14 +91,7 @@
   // Register the save/reset handlers with the shell (Cmd+S + nav guard).
   onMount(() => {
     if (!onSave) return;
-    const register = (
-      globalThis as unknown as {
-        __apolliaRegisterSettingsForm?: (
-          r: SettingsSubRoute,
-          h: { save: SaveFn; reset: () => void },
-        ) => () => void;
-      }
-    ).__apolliaRegisterSettingsForm;
+    const register = globalThis.__apolliaRegisterSettingsForm;
     return register?.(route, { save: onSave, reset: onReset ?? (() => {}) });
   });
 
