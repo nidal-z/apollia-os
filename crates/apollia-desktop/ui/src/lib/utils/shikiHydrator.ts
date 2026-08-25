@@ -1,8 +1,11 @@
 /**
  * Shiki-based syntax-highlight hydrator.
  *
- * `renderMarkdown()` emits every code block as a hydration placeholder:
+ * `decorateCodeBlocks()` (lib/utils/markdown.ts) turns every sanitized code
+ * block into a hydration placeholder:
  *   <pre><code class="apollia-code-raw" data-shiki-lang="ts" data-shiki-code="…">escaped</code></pre>
+ * The attributes are set programmatically after DOMPurify has run, so they
+ * can only carry the block's own displayed text, never the model's raw HTML.
  *
  * `hydrateCodeBlocks(root)` walks the DOM subtree, lazily loads Shiki once,
  * and swaps each placeholder's inner HTML with a highlighted version.

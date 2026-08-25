@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
+  import { decorateCodeBlocks, handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
   import { hydrateCodeBlocks } from "$lib/utils/shikiHydrator";
   import "./markdown-prose.css";
 
@@ -14,12 +14,17 @@
 
   let container = $state<HTMLDivElement | undefined>();
 
-  // Shiki hydration - fires after every render pass.  Idempotent: blocks
-  // already highlighted (class `apollia-code-hi`) are skipped so streaming
-  // content does not double-highlight.
+  // Code-block decoration then Shiki hydration - fires after every render
+  // pass. The decoration grafts the wrapper, the language label and the copy
+  // button onto the sanitized DOM (`renderMarkdown` emits rendering tags
+  // only, so nothing interactive can come from the model), and hydration
+  // swaps in the highlighted markup. Both are idempotent: decorated blocks
+  // and already highlighted ones (class `apollia-code-hi`) are skipped so
+  // streaming content does not double-process.
   $effect(() => {
     void rendered; // depend on rendered output
     if (!container) return;
+    decorateCodeBlocks(container);
     void hydrateCodeBlocks(container);
   });
 

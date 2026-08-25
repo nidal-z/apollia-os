@@ -215,12 +215,16 @@ Rules :
 - **Unit tests** : Vitest, `npm test` from `crates/apollia-desktop/ui/`,
   co-located in `*.test.ts` next to the unit they cover. `vitest.config.ts`
   sets `environment: "node"` and `include: ["src/**/*.test.ts"]`, and
-  `package.json` carries neither a DOM environment nor a rendering library, so
-  a test that mounts a component cannot run here. Cover a component by
-  exporting the logic under test from its `<script module>` block and
-  asserting on that export, the way
+  `package.json` carries no rendering library, so a test that mounts a
+  component cannot run here. Cover a component by exporting the logic under
+  test from its `<script module>` block and asserting on that export, the way
   `src/components/observability/TaskTimeline.test.ts` does. Anything that
-  needs a rendered tree is a Playwright test.
+  needs a rendered tree is a Playwright test. One exemption: a file may
+  declare `// @vitest-environment jsdom` (the `jsdom` devDependency exists
+  for it) when the unit under test is inert without a DOM,
+  the way `src/lib/utils/markdown-sanitize.test.ts` drives DOMPurify, whose
+  sanitize is a no-op in the `node` environment. That buys a document, not a
+  renderer: mounting a component still needs Playwright.
 - **Browser tests** : Playwright, in `crates/apollia-desktop/ui/tests/`, run
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed. They cover machinery that needs a real browser: dirty state, nav

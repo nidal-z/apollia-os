@@ -48,6 +48,7 @@
     "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "svelte": "5.56.0",
     "svelte-check": "^4.0.0",

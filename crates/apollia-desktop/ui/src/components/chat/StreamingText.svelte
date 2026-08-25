@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
+  import { decorateCodeBlocks, handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
   import "$lib/components/ui/markdown/markdown-prose.css";
   import { t } from "svelte-i18n";
   import StreamingCursor from "./StreamingCursor.svelte";
@@ -16,6 +16,19 @@
   }
 
   let { text, status = "streaming" }: Props = $props();
+
+  let container = $state<HTMLElement | undefined>();
+
+  // Graft the code-block chrome (wrapper, language label, copy button) onto
+  // the sanitized markup after each streaming chunk re-renders it.
+  // `renderMarkdown` emits rendering tags only, so the button a click on
+  // `[data-copy-code]` finds below can only be one this decoration created,
+  // with `data-code` derived from the displayed text.
+  $effect(() => {
+    void text; // re-run on every chunk
+    if (!container) return;
+    decorateCodeBlocks(container);
+  });
 
   async function handleClick(event: MouseEvent): Promise<void> {
     // Outbound links first: the anchors are injected markup, so this
@@ -40,7 +53,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<span class="inline apollia-prose" data-testid="chat-streaming-text" onclick={handleClick}>
+<span bind:this={container} class="inline apollia-prose" data-testid="chat-streaming-text" onclick={handleClick}>
   {@html renderMarkdown(text)}
 
   {#if status === "streaming"}
