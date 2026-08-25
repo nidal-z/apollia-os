@@ -3,7 +3,7 @@
 //! Provides [`ProjectRepository`], which stores projects, attached documents,
 //! context providers, and templates in a local SQLite database (`projects.db`).
 //!
-//! The `008_projects.sql` migration is applied idempotently when
+//! The `010_projects.sql` migration is applied idempotently when
 //! [`ProjectRepository::open`] is called.
 //!
 //! All mutation methods are synchronous; the async wrappers use
@@ -16,7 +16,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 /// Embedded migration SQL, applied idempotently on each open.
-const MIGRATION_SQL: &str = include_str!("../migrations/008_projects.sql");
+const MIGRATION_SQL: &str = include_str!("../migrations/010_projects.sql");
 
 /// Migration 009: the project_agents join table.
 const MIGRATION_009_SQL: &str = include_str!("../migrations/009_project_agents.sql");
@@ -132,7 +132,7 @@ pub enum ProjectRepositoryError {
 
 /// SQLite repository for projects.
 ///
-/// Wraps a SQLite connection to `projects.db`. The `008_projects.sql`
+/// Wraps a SQLite connection to `projects.db`. The `010_projects.sql`
 /// migration is applied in [`open`](Self::open). WAL mode is enabled for
 /// concurrent reads and writes.
 ///
@@ -143,7 +143,8 @@ pub struct ProjectRepository {
 }
 
 impl ProjectRepository {
-    /// Opens (or creates) the SQLite database and applies migration 008.
+    /// Opens (or creates) the SQLite database and applies the projects
+    /// migrations (`010_projects.sql`, then `009_project_agents.sql`).
     ///
     /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`).
     /// Enables WAL mode for concurrency.
