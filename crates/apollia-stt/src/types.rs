@@ -92,6 +92,17 @@ pub enum SttError {
     #[error("no audio input device available")]
     NoInputDevice,
 
+    /// The transcription database carries a version this binary does not know.
+    #[error(
+        "stt database schema version {found} on disk is newer than the supported version {supported}; refusing to open"
+    )]
+    NewerThanBinary {
+        /// Version read from the `_schema_version` table.
+        found: u32,
+        /// Highest version this binary supports.
+        supported: u32,
+    },
+
     /// The requested STT backend is not available (feature not enabled, etc.).
     #[error("STT backend unavailable: {backend}")]
     BackendUnavailable {

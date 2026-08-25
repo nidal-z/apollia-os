@@ -82,6 +82,14 @@ impl SttRepository {
 
         let current_version = Self::read_schema_version(&conn)?;
 
+        if current_version > SCHEMA_VERSION {
+            // Opening anyway could misread or destroy rows written by the
+            // newer binary, so surface the refusal instead of migrating.
+            return Err(SttError::NewerThanBinary {
+                found: current_version,
+                supported: SCHEMA_VERSION,
+            });
+        }
         if current_version < SCHEMA_VERSION {
             Self::apply_migrations(&conn, current_version)?;
         }
@@ -358,6 +366,35 @@ mod tests {
         let path = dir.join(format!("test_{}.db", uuid::Uuid::new_v4()));
         let repo = SttRepository::open(&path).unwrap();
         (repo, path)
+    }
+
+    // GIVEN a database stamped by a newer binary
+    // WHEN opening it
+    // THEN the open is refused instead of silently accepted
+    #[test]
+    fn test_newer_database_is_refused() {
+        let dir = std::env::temp_dir().join(format!("apollia_stt_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("newer_{}.db", uuid::Uuid::new_v4()));
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(SCHEMA_V1).unwrap();
+            conn.execute(
+                "INSERT INTO _schema_version (version) VALUES (?1)",
+                rusqlite::params![SCHEMA_VERSION + 1],
+            )
+            .unwrap();
+        }
+
+        let err = SttRepository::open(&path).map(|_| ()).unwrap_err();
+
+        assert!(matches!(
+            err,
+            SttError::NewerThanBinary {
+                supported: SCHEMA_VERSION,
+                ..
+            }
+        ));
     }
 
     fn sample_result() -> TranscriptResult {
