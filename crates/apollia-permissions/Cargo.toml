@@ -1,9 +1,10 @@
 [package]
 name = "apollia-permissions"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS - tool permission rules: prefix rules, code-executor guard, audit log"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 rusqlite      = { workspace = true }
@@ -13,7 +14,7 @@ thiserror    = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 tokio    = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

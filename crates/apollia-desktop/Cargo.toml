@@ -1,7 +1,7 @@
 [package]
 name = "apollia-desktop"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
 description = "Apollia OS - Desktop application (Tauri v2 + embedded runtime)"
 # Inherited rather than restated: the Windows installer reads the publisher and
 # the support links from here when tauri.conf.json leaves them unset, and this
@@ -23,20 +23,20 @@ cloud = ["apollia-runtime/cloud"]
 [dependencies]
 reqwest          = { workspace = true }
 apollia-runtime  = { workspace = true }
-apollia-mcp      = { path = "../apollia-mcp" }
+apollia-mcp      = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
 apollia-stt      = { workspace = true, default-features = false }
 apollia-core     = { workspace = true }
 apollia-memory   = { workspace = true }
 apollia-tools        = { workspace = true }
 apollia-workspace    = { workspace = true }
-apollia-permissions  = { path = "../apollia-permissions" }
+apollia-permissions  = { workspace = true }
 apollia-aip      = { workspace = true }
 apollia-triggers = { workspace = true }
 apollia-oria     = { workspace = true }
 apollia-auth        = { workspace = true }
 apollia-connectors  = { workspace = true }
-dashmap             = "6"
+dashmap             = { workspace = true }
 async-trait      = { workspace = true }
 futures          = { workspace = true }
 pyo3             = { workspace = true }
@@ -56,13 +56,13 @@ open             = { workspace = true }
 thiserror        = { workspace = true }
 tracing          = { workspace = true }
 tracing-subscriber = { workspace = true }
-tauri          = { version = "2", features = ["devtools", "tray-icon", "macos-private-api"] }
-tauri-plugin-dialog = "2"
-dirs = "5"
-tauri-plugin-notification = "2"
-tauri-plugin-global-shortcut = "2"
-tauri-plugin-opener = "2"
-tauri-plugin-updater = "2"
+tauri          = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+dirs = { workspace = true }
+tauri-plugin-notification = { workspace = true }
+tauri-plugin-global-shortcut = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-updater = { workspace = true }
 sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
@@ -71,25 +71,25 @@ hound            = { workspace = true }
 # crate's own redeclaration used to drop, silently leaving Windows credentials in
 # keyring's in-memory mock instead of the Credential Manager.
 keyring          = { workspace = true }
-scraper          = "0.26"
-url              = "2"
+scraper          = { workspace = true }
+url              = { workspace = true }
 urlencoding      = { workspace = true }
 
 # macOS only: read the NSWindow.windowNumber so the dev automation screenshot
 # can target the app window by id (already in the tree via tauri).
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
+objc2 = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
-wiremock = "0.6"
+tempfile = { workspace = true }
+wiremock = { workspace = true }
 
 [[test]]
 name = "e2e"
 path = "tests/e2e/mod.rs"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { workspace = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }

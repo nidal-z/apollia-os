@@ -1,19 +1,20 @@
 [package]
 name    = "apollia-notifications"
 version = "0.1.0-preview"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
 apollia-core  = { workspace = true }
 apollia-tools = { workspace = true }
-url           = "2"
+url           = { workspace = true }
 async-trait  = { workspace = true }
 chrono       = { workspace = true }
-hex          = "0.4"
+hex          = { workspace = true }
 hmac         = { workspace = true }
-notify-rust  = "4"
-open         = "5"
+notify-rust  = { workspace = true }
+open         = { workspace = true }
 reqwest      = { workspace = true, features = ["json"] }
 rusqlite     = { workspace = true }
 serde        = { workspace = true, features = ["derive"] }
@@ -22,11 +23,11 @@ sha2         = { workspace = true }
 thiserror    = { workspace = true }
 tokio        = { workspace = true }
 tracing      = { workspace = true }
-ureq         = { version = "2", features = ["json"] }
+ureq         = { workspace = true }
 uuid         = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

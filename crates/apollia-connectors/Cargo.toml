@@ -1,9 +1,10 @@
 [package]
 name = "apollia-connectors"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS - Native OAuth connectors (Google Workspace, Microsoft 365) with typed HTTP clients"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 apollia-core = { workspace = true }
@@ -19,8 +20,8 @@ base64       = { workspace = true }
 uuid         = { workspace = true }
 
 [dev-dependencies]
-wiremock = "0.6"
-tempfile = "3"
+wiremock = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

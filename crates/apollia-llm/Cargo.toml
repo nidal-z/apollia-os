@@ -1,8 +1,9 @@
 [package]
 name = "apollia-llm"
 version = "0.1.0-preview"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [features]
 default = ["cloud"]
@@ -39,13 +40,13 @@ toml           = { workspace = true }
 sysinfo        = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 # Junction proof: every interval unit parse_automation can emit must be
 # accepted by apollia_triggers::parse_interval (tests/interval_junction.rs).
 apollia-triggers = { workspace = true }
 # Already a dev-dependency of apollia-connectors, so this adds no package to
 # Cargo.lock. Used to prove the OpenAI-compatible client hits the URL it claims.
-wiremock = "0.6"
+wiremock = { workspace = true }
 
 [lints]
 workspace = true

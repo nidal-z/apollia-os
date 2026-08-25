@@ -18,6 +18,11 @@ publish = false
 path = "src/lib.rs"
 
 # loom enters the graph only under `--cfg loom`; a plain build is an empty crate.
+# REASON: the version stays inline. This package is excluded from the
+# workspace (see above), and Cargo resolves `workspace = true` against the
+# package's own manifest, which has no [workspace] table, so inheritance
+# refuses the build. scripts/check_crate_lints.py exempts excluded packages
+# for the same reason, by name, on every run.
 [target.'cfg(loom)'.dependencies]
 loom = "0.7"
 

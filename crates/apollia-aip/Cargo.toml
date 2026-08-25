@@ -1,9 +1,10 @@
 [package]
 name = "apollia-aip"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS - Agent Interface Protocol bridge (PyO3, Rust <-> Python async via pyo3-async-runtimes)"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 apollia-core          = { workspace = true }
@@ -12,7 +13,7 @@ apollia-tools         = { workspace = true }
 apollia-memory        = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }
 apollia-runtime       = { workspace = true }
-apollia-workspace     = { path = "../apollia-workspace" }
+apollia-workspace     = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-stt           = { workspace = true, default-features = false }
 hound                 = { workspace = true }
@@ -33,7 +34,7 @@ serde_yaml          = { workspace = true }
 minijinja           = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 apollia-mcp = { workspace = true }
 
 [lints.rust]

@@ -1,9 +1,10 @@
 [package]
 name = "apollia-stt"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS Speech-to-Text traits, types and repository (the whisper engine lives in the apollia-runner sidecar)"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 # whisper.cpp no longer lives in this crate; it is hosted by the
 # `apollia-runner` sidecar. The daemon uses `RunnerSttBackend` (apollia-runtime)
@@ -14,8 +15,8 @@ rusqlite     = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
-cpal         = "0.15"
-rubato       = "0.15"
+cpal         = { workspace = true }
+rubato       = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]

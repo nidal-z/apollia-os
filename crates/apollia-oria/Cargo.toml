@@ -1,9 +1,10 @@
 [package]
 name = "apollia-oria"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS - ORIA Engine (Observer-Reasoner-Actor, StepBudget enforcement, ResilienceLayer)"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 apollia-core      = { workspace = true }
@@ -11,7 +12,7 @@ apollia-prompts   = { workspace = true }
 apollia-tools     = { workspace = true }
 apollia-memory    = { workspace = true }
 apollia-llm       = { workspace = true, features = ["cloud"] }
-apollia-workspace = { path = "../apollia-workspace" }
+apollia-workspace = { workspace = true }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
@@ -26,8 +27,8 @@ chrono         = { workspace = true }
 futures        = { workspace = true }
 
 [dev-dependencies]
-tempfile       = "3"
-proptest       = "1"
+tempfile       = { workspace = true }
+proptest       = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,9 +1,10 @@
 [package]
 name = "apollia-mcp"
 version = "0.1.0-preview"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 description = "Apollia OS - MCP client: config, JSON-RPC, session, manager, executor"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 apollia-core  = { workspace = true }
@@ -26,7 +27,7 @@ chrono        = { workspace = true }
 
 [dev-dependencies]
 axum     = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }
 tokio    = { workspace = true }
 
 [lints]
