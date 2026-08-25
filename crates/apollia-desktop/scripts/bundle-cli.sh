@@ -3,21 +3,21 @@
 #
 # Responsibilities:
 #   1. Build the Python bundle (python-build-standalone + bundled deps) for the
-#      target triple and stage it at crates/apollia-desktop/resources/python/.
+#      target triple and stage it at crates/apollia-desktop/python/.
 #   2. Build the apollia-cli release binary linked against the bundled libpython
-#      (via PYO3_PYTHON) and stage it at crates/apollia-desktop/resources/apollia-os.
+#      (via PYO3_PYTHON) and stage it at crates/apollia-desktop/apollia-os.
 #   3. Build the Svelte frontend (ui/ → ui/dist/).
 #
 # The Tauri build (cargo tauri build) runs AFTER this script, so the desktop
 # binary (apollia-desktop) is built separately by Tauri itself - we export
 # PYO3_PYTHON so both binaries link against the same libpython.
 #
-# Post-build Mach-O / ELF patching of apollia-desktop is done by Tauri's
-# `afterBundleCommand` hook (see tauri.conf.json); this script only handles
-# the pre-build staging.
+# Pre-bundle Mach-O / ELF patching of apollia-desktop is done by Tauri's
+# `beforeBundleCommand` hook (scripts/patch-prebundle-libpython.sh); this
+# script only handles the pre-build staging.
 set -euo pipefail
 
-TARGET="${TAURI_TARGET_TRIPLE:-$(rustc -vV | grep host | awk '{print $2}')}"
+TARGET="${TAURI_ENV_TARGET_TRIPLE:-$(rustc -vV | grep host | awk '{print $2}')}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${DESKTOP_DIR}/../.." && pwd)"

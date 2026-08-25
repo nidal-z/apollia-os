@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reproduce the GitHub Actions CI build pipeline for macOS (ARM64).
 #
-# This script mirrors `.github/workflows/build-desktop.yml` (build-macos job)
+# This script mirrors `.github/workflows/release.yml` (desktop-macos job)
 # to allow local validation before pushing to CI.
 #
 # NOTE: Intel (x86_64) support is planned for a future release.
@@ -159,32 +159,23 @@ echo "    ✓ Tauri build completed"
 
 cd "$PROJECT_ROOT"
 
-# ── Step 5: Post-bundle - patch install_names + ad-hoc sign ─────────────────
+# ── Step 5: Verify the signature Tauri applied ──────────────────────────────
+# The libpython relocation runs before bundling (beforeBundleCommand,
+# crates/apollia-desktop/scripts/patch-prebundle-libpython.sh) and Tauri signs
+# the .app itself (signingIdentity "-" + entitlements in tauri.conf.json), so
+# what the .dmg carries is already patched and signed. Re-signing here would
+# only touch the .app on disk, never the sealed .dmg.
 if $SKIP_CODESIGN; then
-    echo "==> Skipping codesigning step (--skip-codesign)"
+    echo "==> Skipping signature verification (--skip-codesign)"
 else
-    echo "==> Post-bundle - patch install_names + ad-hoc sign"
-    cd "${PROJECT_ROOT}/crates/apollia-desktop"
-
-    export TAURI_TARGET_TRIPLE="$TARGET_TRIPLE"
-    bash scripts/after-bundle.sh
-
+    echo "==> Verifying the .app signature"
     APP="${PROJECT_ROOT}/target/${TARGET_TRIPLE}/release/bundle/macos/Apollia OS.app"
     if [[ ! -d "$APP" ]]; then
         echo "error: .app bundle not found at $APP" >&2
         exit 1
     fi
-
-    codesign --force --deep --sign - \
-        --options runtime \
-        --entitlements entitlements.plist \
-        "$APP"
-
-    echo "    ==> Signature verification"
     codesign --verify --verbose=2 "$APP"
-    echo "    ✓ Codesigning completed"
-
-    cd "$PROJECT_ROOT"
+    echo "    ✓ Signature verified"
 fi
 
 # ── Step 6: Generate SHA256SUMS ──────────────────────────────────────────────

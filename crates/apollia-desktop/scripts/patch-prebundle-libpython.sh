@@ -4,7 +4,7 @@
 #
 # It rewrites the binary's libpython reference to the bundled, relocatable path
 # so that BOTH the .app and the .dmg embed a correct binary. Doing this
-# post-bundle (after-bundle.sh) was too late: `cargo tauri build` seals the .dmg
+# post-bundle (a since-removed hook) was too late: `cargo tauri build` seals the .dmg
 # from the freshly-assembled .app, so a post-bundle patch fixed the .app on disk
 # but left the .dmg (the thing users install) pointing at the developer's
 # absolute Python path, and every embedded Python agent failed to import.

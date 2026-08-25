@@ -49,11 +49,10 @@ rustup target add aarch64-apple-darwin
 cd crates/apollia-desktop
 cargo tauri build --target aarch64-apple-darwin
 
-# 4. Post-bundle : patcher install_names + signer ad-hoc
-bash crates/apollia-desktop/scripts/after-bundle.sh
-codesign --force --deep --sign - \
-  --options runtime \
-  --entitlements entitlements.plist \
+# 4. Vérifier la signature posée par Tauri (le patch libpython et la
+#    signature ad hoc sont appliqués pendant le build, avant le scellement
+#    du .dmg, par scripts/patch-prebundle-libpython.sh et tauri.conf.json)
+codesign --verify --verbose=2 \
   "../../target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
 
 # 5. DMG produit dans target/aarch64-apple-darwin/release/bundle/dmg/
@@ -74,7 +73,6 @@ les 5 étapes ci-dessus avec validation des prérequis.
 cd crates/apollia-desktop
 cargo tauri build
 
-bash crates/apollia-desktop/scripts/after-bundle.sh
 # AppImage: target/release/bundle/appimage/*.AppImage
 # .deb:     target/release/bundle/deb/*.deb
 ```
@@ -112,5 +110,6 @@ patchelf --print-rpath target/release/apollia-desktop
 # Doit ressortir : $ORIGIN/../lib/apollia-os/python/lib
 ```
 
-Si c'est `/opt/homebrew/...` ou `/Users/...`, c'est que le post-build patch n'a
-pas tourné ou a échoué. Relancer `crates/apollia-desktop/scripts/after-bundle.sh`.
+Si c'est `/opt/homebrew/...` ou `/Users/...`, c'est que le patch d'avant
+scellement n'a pas tourné ou a échoué. Relancer le build, ou
+`crates/apollia-desktop/scripts/patch-prebundle-libpython.sh` à la main.

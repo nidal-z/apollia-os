@@ -108,7 +108,8 @@ case "$TARGET" in
     *-unknown-linux-gnu)
         # python-build-standalone uses $ORIGIN/../lib for the interpreter's RPATH
         # which is already relative. The PyO3-built binaries will have their RPATH
-        # set to point into the bundle - handled by after-bundle.sh at pack time.
+        # set to point into the bundle - handled by patch-prebundle-libpython.sh
+        # (Tauri beforeBundleCommand) at bundle time.
         echo "    Linux: using python-build-standalone's default \$ORIGIN RPATH"
         ;;
     *-pc-windows-msvc)

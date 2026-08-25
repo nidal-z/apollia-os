@@ -87,10 +87,6 @@ demo/
 # Python bundle cache (packaging)
 /target/python-bundle/
 
-# Staged Python bundle (rebuilt at release build time)
-/crates/apollia-desktop/resources/python/*
-!/crates/apollia-desktop/resources/python/.placeholder
-
 # SonarQube local scan artifacts.
 /.sonar/
 /.scannerwork/
