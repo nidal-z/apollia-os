@@ -161,6 +161,24 @@ repos:
         files: '^(docs/site/.+|scripts/check_docs_routes\.py)$'
         pass_filenames: false
 
+      # The two roots the validator declares: the gesture scripts and the UI
+      # source their anchors resolve against. An anchor renamed in a Svelte
+      # component is the defect this guard exists to catch, so the UI side of
+      # the filter is not optional.
+      - id: automation-validate
+        name: gesture corpus resolves against the UI source
+        entry: python3 scripts/automation/tools/validate.py
+        language: system
+        files: '^(scripts/automation/.+|crates/apollia-desktop/ui/src/.+)$'
+        pass_filenames: false
+
+      - id: check-automation-derived
+        name: derived automation scripts match their generators
+        entry: python3 scripts/check_automation_derived.py
+        language: system
+        files: '^(scripts/automation/.+|scripts/check_automation_derived\.py)$'
+        pass_filenames: false
+
       # Blocks a commit that breaks the documentation build. The second branch
       # of the filter is measured, not guessed: docusaurus.config.js reads
       # ../../clients/openapi.json, so a spec change can break the site without

@@ -453,6 +453,8 @@ guards:
     # scripts/check_selftest.py looks for each guard's basename inside the
     # files that declare a boundary, and a glob would name none of them.
     guards=(
+      "scripts/automation/tools/validate.py"
+      "scripts/check_automation_derived.py"
       "scripts/check_claim_anchors.py"
       "scripts/check_claims.py"
       "scripts/check_crate_lints.py"
@@ -470,6 +472,7 @@ guards:
       "scripts/check_subprocess_window.py"
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
+      "scripts/check_testid_anchors.py"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
     )
