@@ -218,6 +218,8 @@ FULL_MEASURES: dict[str, dict[str, int | None]] = {
     "svelte-check": {"exit": 1, "files": 4943, "errors": 1},
     "vitest": {"exit": 0, "tests": 790},
     "docs-build": {"exit": 0},
+    "desktop-automation": {"exit": 0, "steps": 2424, "failed": 0},
+    "linux-test": {"exit": 0, "binaries": 78, "tests": 4370},
 }
 
 HEAD = "0f8b2c1d4a6e9f30b5c7d8e1a2f3b4c5d6e7f809"
