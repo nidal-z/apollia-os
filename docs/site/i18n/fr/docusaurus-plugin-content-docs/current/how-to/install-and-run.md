@@ -354,7 +354,7 @@ correspondant à votre matériel :
 | Matériel | Valeur `runners` typique | Remarques |
 |---|---|---|
 | Apple Silicon | `cpu metal` | Préréglage par défaut pour macOS |
-| NVIDIA (CUDA 12+) | `cpu cuda` | LLM et STT peuvent tous deux utiliser le GPU |
+| NVIDIA (CUDA 12+) | `cpu cuda` | Sur Windows, LLM et STT utilisent tous deux CUDA. Sur Linux, la STT utilise CUDA tandis que le moteur LLM embarqué reste sur CPU : la release amont épinglée ne publie pas de `llama-server` CUDA Linux (compilez-en un et passez `LLAMA_SERVER_DIR` pour l'embarquer) |
 | AMD Radeon / Intel Arc | `cpu vulkan` | LLM sur GPU ; STT reste sur CPU (`whisper-rs` n'a pas de backend Vulkan) |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM et STT sur ROCm là où c'est pris en charge |
 
@@ -392,9 +392,15 @@ utilisez la recette générique :
 
 ```sh
 just release-desktop x86_64-pc-windows-msvc "cpu vulkan"
-just release-desktop x86_64-unknown-linux-gnu "cpu cuda"
+just release-desktop x86_64-unknown-linux-gnu "cpu rocm"
 just release-desktop aarch64-apple-darwin "cpu metal"
 ```
+
+Le moteur `llama-server` embarqué est récupéré depuis la release llama.cpp
+amont épinglée, qui publie des builds pour macOS (arm64 et x86-64), Linux
+x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) et Windows x86-64 (CPU, CUDA,
+Vulkan). Pour tout autre couple, compilez llama.cpp vous-même et passez
+`LLAMA_SERVER_DIR=<bin dir>` ; la recette embarque alors votre build.
 
 Sur Windows, exportez `LIBCLANG_PATH` et `CMAKE_MSVC_RUNTIME_LIBRARY` dans le
 même shell avant de lancer l'une de ces recettes (voir les prérequis Windows

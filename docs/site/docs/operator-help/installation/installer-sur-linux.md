@@ -8,20 +8,21 @@ sidebar_position: 3
 Apollia ships for Linux x86_64 in three formats:
 
 - **`.AppImage`** (recommended): portable desktop application, no installation required.
-- **`.deb`**: Debian/Ubuntu package (`sudo apt install ./apollia-os_<version>_amd64.deb`).
+- **`.deb`**: Debian/Ubuntu package (`sudo apt install "./Apollia OS_<version>_amd64.deb"`, the file name carries a space).
 - **`apollia-os-linux-x86-*.tar.gz`**: CLI bundles per accelerator (CPU, CUDA, ROCm, Vulkan).
 
 ## Requirements
 
-- glibc 2.31+ distribution (Ubuntu 22.04, Debian 12, Fedora 38, and so on).
+- glibc 2.39+ distribution (Ubuntu 24.04, Debian 13, Fedora 40, and so on): the
+  released binaries are built on Ubuntu 24.04 without static linking.
 - 4 GB of free RAM minimum.
 - For GPU: up-to-date driver (NVIDIA 550+, ROCm 6.0+, or Mesa Vulkan 1.3+).
 
 ## Installation (AppImage)
 
 ```sh
-chmod +x Apollia-OS_<version>_amd64.AppImage
-./Apollia-OS_<version>_amd64.AppImage
+chmod +x "Apollia OS_<version>_amd64.AppImage"
+"./Apollia OS_<version>_amd64.AppImage"
 ```
 
 The app starts the daemon in the background. The daemon serves local LLM inference through the embedded `llama-server` engine and launches the speech-to-text (STT) runner suited to your GPU.
@@ -29,9 +30,14 @@ The app starts the daemon in the background. The daemon serves local LLM inferen
 ## Installation (.deb)
 
 ```sh
-sudo apt install ./apollia-os_<version>_amd64.deb
-apollia-os start
+sudo apt install "./Apollia OS_<version>_amd64.deb"
 ```
+
+Then launch **Apollia OS** from your desktop application menu: the app starts
+the daemon itself. The `apollia-os` command line ships inside the package
+(`/usr/lib/apollia-os/`) but is not on your `PATH` until you enable it from
+**Settings > System** in the app, which creates the `/usr/local/bin` link. The
+verification commands below assume that link exists.
 
 ## Verification
 
@@ -60,7 +66,9 @@ running behind the menu-bar icon.
 Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the AppImage / `.deb` package embeds its CPU variant. To accelerate dictation on GPU:
 
 1. Download the dedicated CLI bundle: `apollia-os-linux-x86-cuda.tar.gz` (or rocm/vulkan).
-2. Extract it and copy `apollia-runner-<backend>` next to the `apollia-os` binary.
+2. Extract it and copy `apollia-runner-<backend>` into the installation's
+   `runners/` directory (for the `.deb`, `/usr/lib/apollia-os/runners/`, owned
+   by root, so use `sudo cp`).
 3. Restart: `apollia-os stop && apollia-os start`.
 
 The daemon detects the added runner automatically.

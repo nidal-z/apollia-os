@@ -28,10 +28,14 @@ apollia-os update           # télécharge, vérifie, remplace
 
 La mise à jour se déroule en trois temps, et chacun peut échouer sans conséquence :
 
-- le binaire de votre plateforme est téléchargé dans un fichier temporaire ;
+- l'archive de release de votre plateforme (nommée par le contrat de bundle,
+  `apollia-os-<preset>.tar.gz` ou `.zip`) est téléchargée dans un répertoire
+  temporaire ;
 - sa somme de contrôle SHA256 est vérifiée. **En cas d'écart, l'opération
   s'arrête sans toucher au binaire en place** ;
-- le remplacement est atomique. Vous n'obtenez jamais un binaire à moitié écrit.
+- le binaire `apollia-os` est extrait de l'archive et le remplacement est
+  atomique. Vous n'obtenez jamais un binaire à moitié écrit. Le Python et les
+  runners embarqués de votre installation restent tels quels.
 
 Un verrou empêche deux mises à jour simultanées.
 

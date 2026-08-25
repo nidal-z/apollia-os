@@ -23,6 +23,9 @@ HEADER="<!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. --
 echo "==> SDK / ctx reference (ast introspection of sdk/apollia)"
 python3 "$HERE/scripts/gen_sdk_ref.py"
 
+echo "==> Release artifact names (from packaging/artifacts.json)"
+python3 "$REPO_ROOT/scripts/check_release_artifacts.py" --write-docs-block
+
 echo "==> Configuration reference (field tables from the Rust config types)"
 python3 "$HERE/scripts/gen_config_ref.py"
 

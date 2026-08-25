@@ -19,7 +19,7 @@ Apollia ships for macOS in two formats:
 
 ## Installation (DMG)
 
-1. Download `Apollia-OS_<version>.dmg` from the Releases page.
+1. Download `Apollia OS_<version>_aarch64.dmg` from the Releases page (the file name carries a space).
 2. Double-click the file, drag `Apollia OS.app` into your **personal** `Applications` folder, the one under your home directory. The verification commands below use that path; installing into the system-wide `/Applications` works too, in which case adjust them.
 3. First launch: `Cmd+click` the icon then `Open` (Gatekeeper blocks unsigned apps).
 4. The app starts the `apollia-os` daemon automatically. The daemon serves local LLM inference through the embedded `llama-server` engine and launches the speech-to-text (STT) runner.

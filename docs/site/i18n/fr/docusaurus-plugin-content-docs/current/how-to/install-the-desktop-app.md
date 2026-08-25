@@ -43,6 +43,17 @@ mise en route développeur sur les trois systèmes d'exploitation.
    - Windows : le `.msi` (ou l'installeur `.exe`)
    - Linux : le `.AppImage` ou le `.deb`
 
+Les noms de fichiers portent le nom du produit avec une espace, exactement
+tels que le bundler les écrit :
+
+<!-- release-artifacts:begin - genere depuis packaging/artifacts.json par docs/site/regen.sh ; ne pas editer a la main -->
+| Plateforme | Fichiers sur la page de release |
+|---|---|
+| macOS (Apple Silicon) | `Apollia OS_0.1.0-1_aarch64.dmg` |
+| Linux (x86-64) | `Apollia OS_0.1.0-1_amd64.AppImage`, `Apollia OS_0.1.0-1_amd64.deb` |
+| Windows (x86-64) | `Apollia OS_0.1.0-1_x64_en-US.msi`, `Apollia OS_0.1.0-1_x64-setup.exe` |
+<!-- release-artifacts:end -->
+
 Chaque release fournit également un fichier `SHA256SUMS`. Pour vérifier que
 votre téléchargement est intact, comparez son empreinte à ce fichier.
 
@@ -55,6 +66,21 @@ shasum -a 256 <downloaded-file>
 # Windows (PowerShell)
 Get-FileHash .\<downloaded-file> -Algorithm SHA256
 ```
+
+Chaque fichier publié porte aussi une signature Sigstore détachée (`.sig`) et
+son certificat de signature (`.pem`), produits par le pipeline de release avec
+`cosign` sans clé. Pour vérifier l'origine d'un téléchargement, et pas
+seulement son intégrité :
+
+```sh
+cosign verify-blob <file> \
+  --certificate <file>.pem --signature <file>.sig \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/Apollia-OS/'
+```
+
+`cosign` est un outil séparé du projet Sigstore ; le runtime ne l'embarque
+pas, et `apollia-os update` ne vérifie que l'empreinte SHA256.
 
 ## Installer et lancer
 
@@ -108,17 +134,18 @@ fenêtre laisse l'application résidente derrière l'icône de la barre de menus
 
 ### Linux
 
-Le `.AppImage` est portable et ne nécessite aucune installation :
+Le `.AppImage` est portable et ne nécessite aucune installation. Son nom de
+fichier contient une espace, protégez-la par des guillemets :
 
 ```sh
-chmod +x Apollia_OS_*.AppImage
-./Apollia_OS_*.AppImage
+chmod +x "Apollia OS_"*.AppImage
+"./Apollia OS_"*.AppImage
 ```
 
 Le `.deb` s'installe pour l'ensemble du système sur Debian et Ubuntu :
 
 ```sh
-sudo apt install ./apollia-os_*.deb
+sudo apt install "./Apollia OS_"*.deb
 ```
 
 Après avoir installé le `.deb`, lancez **Apollia OS** depuis le menu des

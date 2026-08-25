@@ -8,20 +8,21 @@ sidebar_position: 3
 Apollia est distribué pour Linux x86_64 sous trois formats :
 
 - **`.AppImage`** (recommandé) : application desktop portable, aucune installation requise.
-- **`.deb`** : paquet Debian/Ubuntu (`sudo apt install ./apollia-os_<version>_amd64.deb`).
+- **`.deb`** : paquet Debian/Ubuntu (`sudo apt install "./Apollia OS_<version>_amd64.deb"`, le nom de fichier contient une espace).
 - **`apollia-os-linux-x86-*.tar.gz`** : bundles CLI par accélérateur (CPU, CUDA, ROCm, Vulkan).
 
 ## Pré-requis
 
-- Distribution glibc 2.31+ (Ubuntu 22.04, Debian 12, Fedora 38, etc.).
+- Distribution glibc 2.39+ (Ubuntu 24.04, Debian 13, Fedora 40, etc.) : les
+  binaires publiés sont construits sur Ubuntu 24.04 sans lien statique.
 - 4 Go de RAM libres minimum.
 - Pour GPU : driver à jour (NVIDIA 550+, ROCm 6.0+, ou Mesa Vulkan 1.3+).
 
 ## Installation (AppImage)
 
 ```sh
-chmod +x Apollia-OS_<version>_amd64.AppImage
-./Apollia-OS_<version>_amd64.AppImage
+chmod +x "Apollia OS_<version>_amd64.AppImage"
+"./Apollia OS_<version>_amd64.AppImage"
 ```
 
 L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT) adapté à votre GPU.
@@ -29,9 +30,14 @@ L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM local
 ## Installation (.deb)
 
 ```sh
-sudo apt install ./apollia-os_<version>_amd64.deb
-apollia-os start
+sudo apt install "./Apollia OS_<version>_amd64.deb"
 ```
+
+Lancez ensuite **Apollia OS** depuis le menu des applications de votre bureau :
+l'app démarre le daemon elle-même. La ligne de commande `apollia-os` est livrée
+dans le paquet (`/usr/lib/apollia-os/`) mais n'est pas sur votre `PATH` tant que
+vous ne l'activez pas depuis **Réglages > Système** dans l'app, qui crée le lien
+`/usr/local/bin`. Les commandes de vérification ci-dessous supposent ce lien.
 
 ## Vérification
 
@@ -60,7 +66,9 @@ d'une fenêtre y laisse l'app active derrière l'icône de la barre de menus.
 L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'AppImage / paquet `.deb` embarque la variante CPU. Pour accélérer la dictée sur GPU :
 
 1. Téléchargez le bundle CLI dédié : `apollia-os-linux-x86-cuda.tar.gz` (ou rocm/vulkan).
-2. Décompressez et copiez `apollia-runner-<backend>` à côté du binaire `apollia-os`.
+2. Décompressez et copiez `apollia-runner-<backend>` dans le répertoire
+   `runners/` de l'installation (pour le `.deb`, `/usr/lib/apollia-os/runners/`,
+   propriété de root, donc `sudo cp`).
 3. Redémarrez : `apollia-os stop && apollia-os start`.
 
 Le daemon détecte automatiquement le runner ajouté.

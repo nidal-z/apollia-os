@@ -28,10 +28,14 @@ apollia-os update           # downloads, verifies, replaces
 
 The update runs in three stages, and each one can fail without consequence:
 
-- the binary for your platform is downloaded into a temporary file;
+- the release archive for your platform (named by the bundle contract,
+  `apollia-os-<preset>.tar.gz` or `.zip`) is downloaded into a temporary
+  directory;
 - its SHA256 checksum is verified. **On a mismatch, the operation stops
   without touching the binary in place**;
-- the replacement is atomic. You never end up with a half-written binary.
+- the `apollia-os` binary is extracted from the archive and the replacement
+  is atomic. You never end up with a half-written binary. The bundled Python
+  and runners of your install are left as they are.
 
 A lock prevents two simultaneous updates.
 

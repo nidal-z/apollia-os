@@ -15,8 +15,10 @@ Initial public preview. Local-first Rust runtime for autonomous AI agents,
 single-maintainer. The date and the tag land when the release is published.
 
 The whole tree carries this version: the twenty-one Rust crates, the Python
-SDK, the built-in agents, and the desktop bundle. The Windows installer reads
-`0.1.0-1` instead, because the MSI product version has to be numeric.
+SDK, the built-in agents, and the desktop bundle. The desktop bundle files are
+stamped `0.1.0-1` instead, on all three platforms (`tauri.conf.json` names the
+`.dmg`, the `.deb`, the `.AppImage` and the Windows installers alike), because
+the MSI product version has to be numeric.
 
 The `Changed` and `Fixed` entries below describe work done inside the preview
 cycle, before anything was published.

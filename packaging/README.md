@@ -12,7 +12,8 @@ bundle Tauri signé.
 | `fetch-python-standalone.sh` | Télécharge et extrait `python-build-standalone` d'Astral pour une target donnée. Cache sous `target/python-bundle/<triple>/.cache/`. |
 | `build-universal-python.sh` | Compose un bundle macOS universal2 en `lipo -create` des Mach-O Python ARM + Intel. |
 | `build-python-bundle.sh` | Orchestrateur : fetch + `pip install -r requirements-bundled.txt` + pruning + patch `install_name` (macOS). |
-| `fetch-llama-server.sh` | Télécharge le binaire `llama-server` amont pour une plateforme et vérifie sa somme de contrôle. |
+| `artifacts.json` | Contrat de nommage des artefacts de release : lu par `release.yml` (producteur), embarqué par `apollia-os update` (`include_str!`), cité par la page d'installation ; gardé par `scripts/check_release_artifacts.py`. |
+| `fetch-llama-server.sh` | Télécharge le binaire `llama-server` amont pour une plateforme (`uname -s` et `uname -m`) et vérifie sa somme de contrôle. |
 | `llama-server-checksums.txt` | Sommes de contrôle attendues, une par plateforme, lues par le script ci-dessus. |
 | `launchers/` | Lanceurs par plateforme empaquetés avec l'application. |
 
@@ -27,14 +28,17 @@ Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) - pas d'auto-
 
 | Target triple | Plate-forme | Statut |
 |---|---|---|
-| `aarch64-apple-darwin` | macOS Apple Silicon | ✅ Actif |
-| `x86_64-unknown-linux-gnu` | Linux x86_64 | ✅ Actif |
+| `aarch64-apple-darwin` | macOS Apple Silicon | ✅ Actif (desktop + CLI) |
+| `x86_64-unknown-linux-gnu` | Linux x86_64 | ✅ Actif (desktop + CLI) |
+| `x86_64-pc-windows-msvc` | Windows x86_64 | ✅ Actif (desktop + CLI) |
+| `aarch64-unknown-linux-gnu` | Linux ARM64 | ✅ Actif (CLI seulement, non bloquant en release) |
+| `aarch64-pc-windows-msvc` | Windows ARM64 | ✅ Actif (CLI seulement, non bloquant en release) |
 | `x86_64-apple-darwin` | macOS Intel | 🔜 Prévu v0.2.0 |
 | `universal-apple-darwin` | macOS universal2 (lipo ARM + Intel) | 🔜 Prévu v0.2.0 |
-| `aarch64-unknown-linux-gnu` | Linux ARM64 | 🔜 Prévu future |
 
-**Note :** Phase release publique v0.1.0 se concentre sur ARM macOS et x86_64 Linux.
-Support Intel macOS prévu pour v0.2.0.
+**Note :** la release v0.1.0 livre les installeurs desktop macOS ARM, Linux
+x86_64 et Windows x86_64, plus les 13 bundles CLI de `release.yml`. Les noms
+publiés sont ceux de `artifacts.json`.
 
 ## Build de release local (macOS)
 
@@ -83,11 +87,12 @@ cargo tauri build
 |---|---|
 | Python 3.13.13 stripped (macOS ARM64, install_only) | ~17 MB |
 | + site-packages (pandas + openpyxl + pypdf + httpx + bs4 + markdownify) | ~48 MB |
+| Bundle Python complet une fois stagé (mesuré en staging local) | ~122 MB |
+| Moteur `llama-server` + bibliothèques (répertoire `runners/`) | ~30 MB |
 | Rust binary (apollia-desktop + apollia-os, release, ARM64) | ~35 MB |
-| **DMG ARM64 total** | **~75 MB** |
-| **AppImage Linux x86_64 total** | **~100 MB** |
 
-*Note : Tailles indicatives, peuvent varier selon la version Python et les dépendances.*
+*Note : tailles indicatives, à re-mesurer sur un artefact réel ; les anciens
+totaux (« DMG ~75 MB ») ignoraient le moteur et le bundle Python stagé.*
 
 ## Ajout d'une nouvelle dépendance Python
 
