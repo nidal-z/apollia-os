@@ -64,6 +64,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -278,7 +279,8 @@ def check_zero_coverage_is_reported() -> None:
 
     out = subprocess.run(
         [sys.executable, str(REPO_ROOT / "scripts" / "check_claim_anchors.py")],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     report = out.stdout
 
@@ -302,7 +304,8 @@ def check_zero_coverage_is_reported() -> None:
     )
 
     zero_zones = [
-        line for line in report.splitlines()
+        line
+        for line in report.splitlines()
         if re.match(r"^\s+\S.*\s\d+\s+0(\s|$)", line)
     ]
     case(
@@ -338,8 +341,14 @@ def check_font_cdn_detector_fires() -> None:
             "a Google Fonts stylesheet link",
             '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter" />',
         ),
-        ("a gstatic woff2", "@font-face { src: url(https://fonts.gstatic.com/s/inter/v13/x.woff2); }"),
-        ("a bare remote font file", "src: url('https://example.com/assets/Inter.woff2?v=3');"),
+        (
+            "a gstatic woff2",
+            "@font-face { src: url(https://fonts.gstatic.com/s/inter/v13/x.woff2); }",
+        ),
+        (
+            "a bare remote font file",
+            "src: url('https://example.com/assets/Inter.woff2?v=3');",
+        ),
         ("a Typekit embed", 'href="https://use.typekit.net/abc1234.css"'),
     ]
     for name, sample in dirty:
@@ -427,7 +436,9 @@ def _in_scope(rel: str) -> bool:
     path = Path(rel)
     if path in fontcdn.SCAN_FILES:
         return True
-    under_root = any(root == path or root in path.parents for root in fontcdn.SCAN_ROOTS)
+    under_root = any(
+        root == path or root in path.parents for root in fontcdn.SCAN_ROOTS
+    )
     return under_root and path.suffix.lower() in fontcdn.SCAN_SUFFIXES
 
 
@@ -463,7 +474,10 @@ def check_font_cdn_scan_is_tree_invariant() -> None:
     # a source file is the defect above with its sign flipped.
     kept = [
         ("the hand-written reference index", "docs/site/docs/reference/index.md"),
-        ("a tracked file beside the generated map", "crates/apollia-desktop/ui/figma/README.md"),
+        (
+            "a tracked file beside the generated map",
+            "crates/apollia-desktop/ui/figma/README.md",
+        ),
     ]
     for name, rel in kept:
         case(
@@ -537,9 +551,13 @@ def check_font_cdn_scan_is_tree_invariant() -> None:
     # the next commit, so it is reported rather than failed.
     pending = [rel for rel in extra if rel not in set(ignored)]
     if pending:
-        print(f"  note  {len(pending)} untracked source(s) read in this tree only: {pending[:3]}")
+        print(
+            f"  note  {len(pending)} untracked source(s) read in this tree only: {pending[:3]}"
+        )
 
-    hidden = sorted(rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel)))
+    hidden = sorted(
+        rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel))
+    )
     case(
         "no tracked source is hidden by an exclusion",
         not hidden,
@@ -551,7 +569,9 @@ def check_font_cdn_scan_is_tree_invariant() -> None:
     widened = fontcdn.EXCLUDED_PATHS
     try:
         fontcdn.EXCLUDED_PATHS = widened | {Path("docs/site/docs/reference")}
-        regrown = [rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel))]
+        regrown = [
+            rel for rel in tracked if _in_scope(rel) and fontcdn.is_excluded(Path(rel))
+        ]
         case(
             "positive control: an exclusion that swallows tracked sources is seen",
             bool(regrown),
@@ -600,7 +620,8 @@ def check_prose_tracker_rule() -> None:
                 "docs/dirty.md": TRACKED_SAMPLE.encode("utf-8"),
                 "docs/clean.md": CLEAN_SAMPLE.encode("utf-8"),
                 TWIN_MANIFEST: TRACKED_SAMPLE.encode("utf-8"),
-                "docs/shot.png": b"\x89PNG\r\n\x1a\n\xff\xfe" + TRACKED_SAMPLE.encode("utf-8"),
+                "docs/shot.png": b"\x89PNG\r\n\x1a\n\xff\xfe"
+                + TRACKED_SAMPLE.encode("utf-8"),
                 DIRTY_NAME: CLEAN_SAMPLE.encode("utf-8"),
                 CLEAN_NAME: CLEAN_SAMPLE.encode("utf-8"),
             },
@@ -631,7 +652,13 @@ def check_prose_tracker_rule() -> None:
         )
         case(
             "flags the vocabulary carried by a file name",
-            any(f == f"{DIRTY_NAME}: " + check_prose.RULES[-1].label + ", in the file name" for f in found),
+            any(
+                f
+                == f"{DIRTY_NAME}: "
+                + check_prose.RULES[-1].label
+                + ", in the file name"
+                for f in found
+            ),
             f"the name pass reported nothing, so a file could satisfy the rule "
             f"in its body and carry it in its name. findings: {found!r}",
         )
@@ -687,6 +714,7 @@ MATCHING_MEASURES = {
     "svelte-check": {"exit": 1, "files": 4943, "errors": 1},
     "vitest": {"exit": 0, "tests": 790},
     "docs-build": {"exit": 0},
+    "desktop-automation": {"exit": 0, "steps": 2424, "failed": 0},
 }
 
 
@@ -809,7 +837,12 @@ def check_worktree_comparator() -> None:
             {
                 "cargo-test": {
                     "prepared": True,
-                    "measures": {"exit": 0, "binaries": 77, "tests": 4370, "home_changes": 0},
+                    "measures": {
+                        "exit": 0,
+                        "binaries": 77,
+                        "tests": 4370,
+                        "home_changes": 0,
+                    },
                     "seconds": 1.0,
                 }
             },
@@ -829,7 +862,12 @@ def check_worktree_comparator() -> None:
             {
                 "cargo-test": {
                     "prepared": True,
-                    "measures": {"exit": 101, "binaries": 0, "tests": 0, "home_changes": 0},
+                    "measures": {
+                        "exit": 101,
+                        "binaries": 0,
+                        "tests": 0,
+                        "home_changes": 0,
+                    },
                     "seconds": 1.0,
                 }
             },
@@ -872,6 +910,182 @@ def check_worktree_comparator() -> None:
             f"summaries. A write into the operator's profile hidden behind a "
             f"green suite is the defect this measure exists to expose. "
             f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        # `desktop-automation` is the one exempt-when-unprepared guard, and the
+        # exemption is driven from both sides, like every named exemption in
+        # this file: an unprepared line must not decide the comparison, and it
+        # must never swallow a real difference once both trees carry a report.
+        unrun = _record(
+            "/worktree",
+            {
+                "desktop-automation": {
+                    "prepared": False,
+                    "reason": "no automation report",
+                    "probe": [".apollia-automation/report.json"],
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), unrun)
+        case(
+            "desktop-automation: unprepared is exempt, named, and not a gap",
+            run.returncode == 0 and "exempt" in run.stdout + run.stderr,
+            f"exit {run.returncode} while the worktree simply has no automation "
+            f"report. Preparing that guard is a manual run of the real app, so "
+            f"an absent report must be named and skipped, not turned into a "
+            f"red. Output:\n{run.stdout}{run.stderr}",
+        )
+
+        red_run = _record(
+            "/worktree",
+            {
+                "desktop-automation": {
+                    "prepared": True,
+                    "measures": {"exit": 1, "steps": 2424, "failed": 10},
+                    "seconds": 1.0,
+                }
+            },
+        )
+        run = _compare(root, _record("/main"), red_run)
+        case(
+            "desktop-automation: two fresh reports that disagree are a gap",
+            run.returncode == 1
+            and "check_automation_report" in run.stdout + run.stderr,
+            f"exit {run.returncode} while one tree's corpus ran green and the "
+            f"other's failed 10 steps. The exemption covers absence only; once "
+            f"both trees measured, a difference is a difference. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+
+# ── The desktop automation report reader ─────────────────────────────────────
+# Same family as the comparator: `.apollia-automation/report.json` carried
+# ok=False for weeks while every chain stayed green, because no chain read it.
+# The reader that now exists must be held to the family's properties: it fires
+# on a red report, a report that predates HEAD is "nothing measured" and never
+# a pass (a green verdict about an older tree is the freshest form of the
+# success bias), and the green direction is a positive control so a reader
+# that always answers red cannot satisfy the negative half.
+
+
+def _automation_report(ok: bool, steps: list[dict], finished: str) -> dict:
+    return {
+        "script": "fixture",
+        "startedAt": finished,
+        "finishedAt": finished,
+        "ok": ok,
+        "steps": steps,
+        "captures": {},
+        "screenshots": [],
+    }
+
+
+def check_automation_report_reader() -> None:
+    print("automation report: the runtime verdict is read, and stale is not a pass")
+
+    reader = REPO_ROOT / "scripts" / "check_automation_report.py"
+    fresh = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    def run_reader(report: Path, script: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(reader), str(report), str(script)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        script = root / "script.json"
+        script.write_text(
+            json.dumps(
+                {
+                    "name": "fixture",
+                    "steps": [
+                        {"kind": "screenshot", "label": "section-01-fixture"},
+                        {"kind": "waitFor", "testid": "anchor"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        red = root / "red.json"
+        red.write_text(
+            json.dumps(
+                _automation_report(
+                    False,
+                    [
+                        {"index": 0, "kind": "screenshot", "ok": True},
+                        {
+                            "index": 1,
+                            "kind": "waitFor",
+                            "ok": False,
+                            "detail": "timeout",
+                        },
+                    ],
+                    fresh,
+                )
+            ),
+            encoding="utf-8",
+        )
+        run = run_reader(red, script)
+        case(
+            "a fresh red report exits 1 and names its red section",
+            run.returncode == 1 and "section-01-fixture" in run.stdout,
+            f"exit {run.returncode} on a fresh report with one failed step. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        green = root / "green.json"
+        green.write_text(
+            json.dumps(
+                _automation_report(
+                    True,
+                    [
+                        {"index": 0, "kind": "screenshot", "ok": True},
+                        {"index": 1, "kind": "waitFor", "ok": True},
+                    ],
+                    fresh,
+                )
+            ),
+            encoding="utf-8",
+        )
+        run = run_reader(green, script)
+        case(
+            "positive control: a fresh green report exits 0",
+            run.returncode == 0,
+            f"exit {run.returncode} on a fresh all-green report. A reader that "
+            f"always answers red satisfies the case above and states nothing. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        run = run_reader(root / "absent.json", script)
+        case(
+            "an absent report is nothing measured (exit 2), not a pass",
+            run.returncode == 2,
+            f"exit {run.returncode} on a missing report file. "
+            f"Output:\n{run.stdout}{run.stderr}",
+        )
+
+        stale = root / "stale.json"
+        stale.write_text(
+            json.dumps(
+                _automation_report(
+                    True,
+                    [{"index": 0, "kind": "screenshot", "ok": True}],
+                    "2000-01-01T00:00:00.000Z",
+                )
+            ),
+            encoding="utf-8",
+        )
+        run = run_reader(stale, script)
+        case(
+            "a green report older than HEAD is nothing measured (exit 2)",
+            run.returncode == 2,
+            f"exit {run.returncode} on a green report that predates the HEAD "
+            f"commit. It measured an older tree, and reading it as a pass is "
+            f"the success bias with a timestamp. Output:\n{run.stdout}{run.stderr}",
         )
 
 
@@ -1149,9 +1363,7 @@ def _boundary_text() -> tuple[str, list[str]]:
     for path in workflows:
         if not path.is_file():
             continue
-        lines += _yaml_launch_lines(
-            path.read_text(encoding="utf-8", errors="replace")
-        )
+        lines += _yaml_launch_lines(path.read_text(encoding="utf-8", errors="replace"))
         read.append(str(path.relative_to(REPO_ROOT)))
     # The heavy guards run through `just worktree-verdicts`, whose commands
     # live in the GUARDS table rather than in a recipe body.
@@ -1247,8 +1459,7 @@ def check_guards_are_launched() -> None:
     # side at once.
     case(
         "a guard named only by a comment is an orphan",
-        orphan_guards(["check_x.py"], "# check_x.py is not launched")
-        == ["check_x.py"],
+        orphan_guards(["check_x.py"], "# check_x.py is not launched") == ["check_x.py"],
         "a comment satisfied the crossing, which is the exact bias this file "
         "exists to catch: a mention is not a launch",
     )
@@ -1294,7 +1505,9 @@ def check_guards_are_launched() -> None:
     )
 
     # Positive control for the external table, same shape as the one above.
-    invented_external = {"external nothing launches": r"\bcheck-nothing-launches-this\b"}
+    invented_external = {
+        "external nothing launches": r"\bcheck-nothing-launches-this\b"
+    }
     case(
         "positive control: an external no boundary launches is reported",
         launched_externals(invented_external, text)
@@ -1383,7 +1596,9 @@ fn run() -> usize {
 
 
 def _accused(text: str) -> list[int]:
-    return [s.line for s in panicfree.sites(text) if s.form == "unwrap" and not s.exempt]
+    return [
+        s.line for s in panicfree.sites(text) if s.form == "unwrap" and not s.exempt
+    ]
 
 
 def check_panic_sweep_fires() -> None:
@@ -1452,7 +1667,9 @@ def check_panic_sweep_scope() -> None:
         if path not in cache:
             target = panicfree.REPO_ROOT / path
             cache[path] = (
-                target.read_text(encoding="utf-8", errors="replace") if target.is_file() else None
+                target.read_text(encoding="utf-8", errors="replace")
+                if target.is_file()
+                else None
             )
         return cache[path]
 
@@ -1511,6 +1728,8 @@ def main() -> int:
     print()
     check_worktree_comparator()
     print()
+    check_automation_report_reader()
+    print()
     check_e2e_failure_detail()
     print()
     check_guards_are_launched()
@@ -1524,15 +1743,17 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nten properties hold: neither a comment nor a re-export is a use, "
+        "\neleven properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
         "nothing to it, every tracked guard is named by a file that launches "
-        "it, and the panic-free sweep names the sites a lint gracies while "
-        "keeping the production an attribute read by proximity would drop"
+        "it, the panic-free sweep names the sites a lint gracies while "
+        "keeping the production an attribute read by proximity would drop, "
+        "and the desktop automation verdict is read with staleness treated "
+        "as nothing measured"
     )
     return 0
 

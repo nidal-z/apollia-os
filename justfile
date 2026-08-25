@@ -113,9 +113,17 @@ worktree-prep *GROUPS:
 # `worktree-compare` reads two such records, and refuses them unless they were
 # made on the same commit.
 
-# Record the verdict of the eight expensive guards in this tree.
+# Record the verdict of the expensive guards in this tree.
 worktree-verdicts OUT:
     python3 scripts/worktree_verdicts.py --record {{OUT}}
+
+# Read the machine verdict of the last seeded desktop automation run
+# (.apollia-automation/report.json). The report only exists after:
+#   just desktop-dev-automation-seeded scripts/automation/master-det.json
+# Exit 0 fresh and green, 1 fresh and red (red sections listed), 2 when the
+# report is absent or predates HEAD (nothing measured, which is not a pass).
+desktop-automation-verdict:
+    python3 scripts/check_automation_report.py
 
 worktree-compare MAIN WORKTREE:
     python3 scripts/worktree_verdicts.py --compare {{MAIN}} {{WORKTREE}}

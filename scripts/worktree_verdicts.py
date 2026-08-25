@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the verdict of the eight expensive guards, and compare two trees.
+"""Record the verdict of the expensive guards, and compare two trees.
 
 A guard declared "local" is only local if it answers the same thing wherever a
 lot is realised. Eight of them did not. Measured on 6a3f59de, in a worktree
@@ -45,17 +45,24 @@ reads `not measured` in the table, where the reader looks for its value. Two
 trees that measured nothing are not two trees that agree, and the comparison
 tests that state before it tests equality.
 
+One guard, `desktop-automation`, is exempt when it is not prepared: preparing
+it means running the real desktop app through the gestural corpus, a manual
+act (no hosted runner drives WKWebView), so demanding it of every comparison
+would make the comparison unusable. The exemption is printed by name, never
+silent, and the moment both records carry a fresh report its measures are
+compared like any other guard's.
+
 Usage:
     python3 scripts/worktree_verdicts.py --record <output.json>
     python3 scripts/worktree_verdicts.py --compare <main.json> <worktree.json>
 
 Exit codes:
-    --record    0 once the eight lines are recorded, whatever they say. It is a
+    --record    0 once the lines are recorded, whatever they say. It is a
                 measurement, not a verdict.
-    --compare   0 when every guard matches, 1 on a difference, on a guard
-                recorded as not prepared, or on a measure that was never
-                extracted, 2 when it refuses to compare at all (the two records
-                are not on the same commit).
+    --compare   0 when every compared guard matches, 1 on a difference, on a
+                non-exempt guard recorded as not prepared, or on a measure
+                that was never extracted, 2 when it refuses to compare at all
+                (the two records are not on the same commit).
 """
 
 import argparse
@@ -115,7 +122,12 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
     sentinel = HOME_SENTINEL.search(output)
     home_changes = None if sentinel is None else int(sentinel.group(1) or 0)
     if not summaries:
-        return {"exit": code, "binaries": None, "tests": None, "home_changes": home_changes}
+        return {
+            "exit": code,
+            "binaries": None,
+            "tests": None,
+            "home_changes": home_changes,
+        }
     executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
     return {
         "exit": code,
@@ -149,6 +161,28 @@ def measure_vitest(output: str, code: int) -> dict[str, int | None]:
     return {"exit": code, "tests": int(total.group(1)) if total else None}
 
 
+# check_automation_report.py: "ok: <script>: N steps, M failed, ..." on green,
+# "RED: <script>: ok=False, M failed step(s) out of N, ..." on red.
+AUTOMATION_GREEN = re.compile(r"^ok: .*: (\d+) steps, (\d+) failed", re.M)
+AUTOMATION_RED = re.compile(
+    r"^RED: .*: ok=\w+, (\d+) failed step\(s\) out of (\d+)", re.M
+)
+
+
+def measure_automation(output: str, code: int) -> dict[str, int | None]:
+    green = AUTOMATION_GREEN.search(output)
+    if green:
+        return {
+            "exit": code,
+            "steps": int(green.group(1)),
+            "failed": int(green.group(2)),
+        }
+    red = AUTOMATION_RED.search(output)
+    if red:
+        return {"exit": code, "steps": int(red.group(2)), "failed": int(red.group(1))}
+    return {"exit": code, "steps": None, "failed": None}
+
+
 class Probe:
     """A precondition of one guard, checked on the spot rather than believed.
 
@@ -176,6 +210,8 @@ class Guard:
         measure,
         compared: tuple[str, ...],
         render,
+        *,
+        exempt_when_unprepared: str | None = None,
     ) -> None:
         self.key = key
         self.label = label
@@ -185,6 +221,12 @@ class Guard:
         self.measure = measure
         self.compared = compared
         self.render = render
+        # A guard whose preparation is a manual act (a run of the real desktop
+        # app) cannot be demanded of every comparison: exempting its
+        # "not prepared" state keeps the comparison usable while still
+        # comparing the measures whenever both trees carry one. The reason is
+        # printed so the exemption never reads as agreement.
+        self.exempt_when_unprepared = exempt_when_unprepared
 
     def missing(self, tree: Path) -> Probe | None:
         for probe in self.probes:
@@ -215,9 +257,15 @@ def render_vitest(m: dict[str, int | None]) -> str:
     return f"exit {m['exit']}, {m['tests']} tests"
 
 
-# The eight guards of the acceptance criterion, in the order the criterion lists
-# them. `probe` is the path whose absence makes the line unmeasurable in this
-# tree; `compared` names the measure keys that enter the comparison, which is
+def render_automation(m: dict[str, int | None]) -> str:
+    return f"exit {m['exit']}, {m['steps']} steps, {m['failed']} failed"
+
+
+# The eight guards of the acceptance criterion, in the order the criterion
+# lists them, plus the desktop-automation reader (exempt when unprepared, see
+# the module docstring). `probe` is the path whose absence makes the line
+# unmeasurable in this tree; `compared` names the measure keys that enter the
+# comparison, which is
 # how `cargo test` keeps its exit code visible without letting a flaky test
 # decide the verdict.
 GUARDS = [
@@ -341,13 +389,38 @@ GUARDS = [
         (
             Probe(
                 (f"{SITE}/node_modules/.bin/docusaurus",),
-                "docusaurus is not installed. Run: bash "
-                "scripts/worktree-prep.sh docs",
+                "docusaurus is not installed. Run: bash scripts/worktree-prep.sh docs",
             ),
         ),
         measure_exit,
         ("exit",),
         render_exit,
+    ),
+    # The ninth guard is exempt when unprepared: its preparation is a run of
+    # the real desktop app through the 2400-step gestural corpus, a manual act
+    # no hosted runner can perform (there is no WebDriver for WKWebView), so a
+    # comparison must stay usable without it. When both trees carry a fresh
+    # report the measures are compared like any other guard's.
+    Guard(
+        "desktop-automation",
+        "python3 scripts/check_automation_report.py",
+        ["python3", "scripts/check_automation_report.py"],
+        ".",
+        (
+            Probe(
+                (".apollia-automation/report.json",),
+                "no automation report. The gestural corpus renders a runtime "
+                "verdict only after a run of the real app: just "
+                "desktop-dev-automation-seeded scripts/automation/master-det.json",
+            ),
+        ),
+        measure_automation,
+        ("exit", "steps", "failed"),
+        render_automation,
+        exempt_when_unprepared=(
+            "preparing it is a manual run of the real desktop app; its "
+            "absence states nothing and does not decide this comparison"
+        ),
     ),
 ]
 
@@ -457,10 +530,14 @@ def compare(left_path: Path, right_path: Path) -> int:
         return 2
 
     print(f"Main tree : {left['tree']}")
-    print(f"            HEAD {left['head'][:8]}   porcelain {left['porcelain_lines']} line(s)")
+    print(
+        f"            HEAD {left['head'][:8]}   porcelain {left['porcelain_lines']} line(s)"
+    )
     print(f"            Python bundle {left['python_bundle']}")
     print(f"Worktree  : {right['tree']}")
-    print(f"            HEAD {right['head'][:8]}   porcelain {right['porcelain_lines']} line(s)")
+    print(
+        f"            HEAD {right['head'][:8]}   porcelain {right['porcelain_lines']} line(s)"
+    )
     print(f"            Python bundle {right['python_bundle']}")
     print()
 
@@ -472,6 +549,7 @@ def compare(left_path: Path, right_path: Path) -> int:
     gaps: list[str] = []
     unprepared: list[str] = []
     unextracted: list[str] = []
+    exempted: list[tuple[str, str]] = []
 
     for guard in GUARDS:
         left_entry = left["guards"].get(guard.key, {})
@@ -479,7 +557,17 @@ def compare(left_path: Path, right_path: Path) -> int:
         left_cell = cell(left_entry, guard)
         right_cell = cell(right_entry, guard)
 
-        if not left_entry.get("prepared", False) or not right_entry.get("prepared", False):
+        if not left_entry.get("prepared", False) or not right_entry.get(
+            "prepared", False
+        ):
+            if guard.exempt_when_unprepared is not None:
+                mark = "-"
+                exempted.append((guard.label, guard.exempt_when_unprepared))
+                print(
+                    f"| {guard.label.ljust(width)} | {left_cell.ljust(26)} "
+                    f"| {right_cell.ljust(26)} | {mark} |"
+                )
+                continue
             mark = "?"
             unprepared.append(guard.label)
         elif unmeasured(left_entry) or unmeasured(right_entry):
@@ -509,6 +597,9 @@ def compare(left_path: Path, right_path: Path) -> int:
         )
 
     print()
+    if exempted:
+        for label, reason in exempted:
+            print(f"exempt, not compared: {label} ({reason})")
     if unprepared:
         print(f"{len(unprepared)} guard(s) recorded as not prepared:", file=sys.stderr)
         for label in unprepared:
@@ -535,14 +626,17 @@ def compare(left_path: Path, right_path: Path) -> int:
             print(f"  {gap}", file=sys.stderr)
     if unprepared or unextracted or gaps:
         return 1
-    print("the eight guards answer the same verdict in both trees")
+    compared = len(GUARDS) - len(exempted)
+    print(f"the {compared} compared guards answer the same verdict in both trees")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--record", metavar="OUT", help="measure this tree into a JSON file")
+    group.add_argument(
+        "--record", metavar="OUT", help="measure this tree into a JSON file"
+    )
     group.add_argument(
         "--compare",
         nargs=2,
