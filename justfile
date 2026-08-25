@@ -463,6 +463,27 @@ release-windows target=windows_target runners=windows_runners:
 # Combined tasks
 # -----------------------------------------------------------------------------
 
+# Audit the dependency surfaces the release ships: the bundled Python
+# site-packages, the desktop UI runtime deps, and the Rust crates. The three
+# advisory databases live upstream, so the network is required: offline, the
+# recipe answers 2 (nothing measured), never a green.
+audit-deps:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    if ! curl -fsI --max-time 10 https://pypi.org >/dev/null 2>&1; then
+      echo "audit-deps: network unreachable, nothing was audited" >&2
+      exit 2
+    fi
+    reds=0
+    pip-audit -r packaging/requirements-bundled.txt --no-deps --progress-spinner off || reds=1
+    ( cd crates/apollia-desktop/ui && npm audit --omit=dev ) || reds=1
+    cargo audit || reds=1
+    if [ "$reds" -ne 0 ]; then
+      echo "audit-deps: at least one surface carries an open advisory" >&2
+      exit 1
+    fi
+    echo "audit-deps: three surfaces audited, zero advisory"
+
 # Run every tracked guard script and the external gates, and report every red one.
 guards:
     #!/usr/bin/env bash
@@ -480,6 +501,7 @@ guards:
       "scripts/check_ctx_contract.py"
       "scripts/check_docs_frontmatter.py"
       "scripts/check_docs_routes.py"
+      "scripts/check_download_sums.py"
       "scripts/check_guard_verdicts.py"
       "scripts/check_i18n_catalogue.py"
       "scripts/check_instrument_verdicts.py"

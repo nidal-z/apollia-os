@@ -208,6 +208,18 @@ repos:
         files: '^(\.github/workflows/.+|scripts/check_ci_workflows\.py)$'
         pass_filenames: false
 
+      # The four roots the guard declares: the packaging scripts and their
+      # sums files, the desktop bundling scripts, and the workflow run blocks.
+      # A download without a pinned sum is born in a commit touching one of
+      # them. The upstream-digest comparison (--github) stays in CI: it needs
+      # the network and a token a commit cannot assume.
+      - id: check-download-sums
+        name: every download is verified against a pinned sha256 sum
+        entry: python3 scripts/check_download_sums.py
+        language: system
+        files: '^(packaging/.+|crates/apollia-desktop/scripts/.+|\.github/workflows/.+|scripts/check_download_sums\.py)$'
+        pass_filenames: false
+
       # Blocks a commit that breaks the documentation build. The second branch
       # of the filter is measured, not guessed: docusaurus.config.js reads
       # ../../clients/openapi.json, so a spec change can break the site without
