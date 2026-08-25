@@ -153,6 +153,21 @@ runners-dev-macos:
 desktop-ui-install:
     cd crates/apollia-desktop/ui && npm ci
 
+# The suite needs a Chromium that Playwright can drive. Without one every spec
+# died red in 0 ms, which read as a product regression while nothing had been
+# measured. The install is the declared precondition; when it cannot provide a
+# browser the recipe answers 2, nothing measured, distinct from a red run.
+# Run the Playwright perf suite of the desktop UI against the built bundle.
+desktop-ui-perf:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd crates/apollia-desktop/ui
+    if ! npx playwright install chromium; then
+      echo "NOTHING MEASURED: 'npx playwright install chromium' provided no browser" >&2
+      exit 2
+    fi
+    npx playwright test tests/perf
+
 # Without this a dev build links whatever libpython the host resolves, pyenv
 # here, while main.rs points PYTHONHOME at the bundle in target/python-bundle.
 # Two different CPython builds, so the interpreter cannot find its own standard
