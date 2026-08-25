@@ -50,6 +50,10 @@ crates/apollia-desktop/apollia-os
 # Dev-only automation harness output (screenshots + report.json)
 /.apollia-automation/
 
+# Playwright run output (browser suites of the desktop UI)
+crates/apollia-desktop/ui/test-results/
+crates/apollia-desktop/ui/playwright-report/
+
 # OS
 .DS_Store
 Thumbs.db
