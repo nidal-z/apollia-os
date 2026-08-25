@@ -25,9 +25,36 @@ pub enum PlanCacheError {
     /// JSON serialization or deserialization error.
     #[error("JSON serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 // Constants
+
+/// Current schema version of `plan_cache.db`.
+const PLAN_CACHE_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `plan_cache.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`PLAN_CACHE_SCHEMA_VERSION`].
+const PLAN_CACHE_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS plan_cache (
+            cache_key     TEXT PRIMARY KEY,
+            plan_json     TEXT NOT NULL,
+            hit_count     INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            last_used_at  TEXT NOT NULL,
+            agent_name    TEXT NOT NULL,
+            agent_version TEXT NOT NULL
+        );",
+    )
+}
 
 /// Maximum length of the normalized task text included in the cache key.
 const MAX_TEXT_LENGTH: usize = 500;
@@ -58,16 +85,11 @@ impl PlanCacheRepository {
     pub fn open(path: &Path) -> Result<Self, PlanCacheError> {
         let conn = rusqlite::Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS plan_cache (
-                cache_key     TEXT PRIMARY KEY,
-                plan_json     TEXT NOT NULL,
-                hit_count     INTEGER NOT NULL DEFAULT 0,
-                created_at    TEXT NOT NULL,
-                last_used_at  TEXT NOT NULL,
-                agent_name    TEXT NOT NULL,
-                agent_version TEXT NOT NULL
-            );",
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::PlanCache.file_name(),
+            PLAN_CACHE_SCHEMA_VERSION,
+            PLAN_CACHE_MIGRATIONS,
         )?;
         Ok(Self { conn })
     }

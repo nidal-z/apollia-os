@@ -21,9 +21,8 @@ const MIGRATION_SQL: &str = include_str!("../../apollia-tools/migrations/004_exe
 
 /// Observability columns to add to `plan_steps`.
 ///
-/// Each tuple: (column name, SQL type). Applied idempotently via
-/// [`apply_observability_migration`]; columns that already exist are
-/// silently ignored.
+/// Each tuple: (column name, SQL type). Applied idempotently by the v1
+/// migration step; columns that already exist are silently ignored.
 const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("input_rendered", "TEXT"),
     ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
@@ -37,61 +36,44 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
 /// Provenance columns to add to `plan_steps`.
 ///
 /// `rationale` holds the free-form step justification, `provenance` holds the
-/// JSON-encoded [`StepProvenance`]. Both are nullable so legacy rows survive the
-/// additive migration. Applied idempotently via [`apply_provenance_migration`].
+/// JSON-encoded [`StepProvenance`]. Both are nullable so legacy rows survive
+/// the additive migration, applied idempotently by the v1 migration step.
 const PROVENANCE_COLUMNS: &[(&str, &str)] = &[("rationale", "TEXT"), ("provenance", "TEXT")];
 
 /// Argument column to add to `plan_steps`.
 ///
 /// `args` holds the JSON-encoded structured tool arguments (the step's
 /// `Option<serde_json::Value>`). Nullable so legacy rows survive the additive
-/// migration and read back as `None`. Applied idempotently via
-/// [`apply_args_migration`].
+/// migration (applied idempotently by the v1 migration step) and read back
+/// as `None`.
 const ARGS_COLUMNS: &[(&str, &str)] = &[("args", "TEXT")];
 
-/// Apply an additive `ALTER TABLE ADD COLUMN` migration idempotently.
+/// Current schema version of `plans.db`.
+const PLANS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `plans.db`.
 ///
-/// Each column is added individually; the "duplicate column name" error
-/// (SQLite extended code 1) is tolerated, so re-running the migration on an
-/// existing database is a no-op rather than a failure.
-fn apply_additive_columns(
-    conn: &Connection,
-    columns: &[(&str, &str)],
-) -> Result<(), PlanRepositoryError> {
-    for (col, col_type) in columns {
-        let sql = format!("ALTER TABLE plan_steps ADD COLUMN {col} {col_type}");
-        match conn.execute_batch(&sql) {
-            Ok(()) => {}
-            Err(rusqlite::Error::SqliteFailure(err, _)) if err.extended_code == 1 => {
-                // "duplicate column name": column already present, ignored.
-            }
-            Err(e) => return Err(PlanRepositoryError::Sqlite(e)),
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`PLANS_SCHEMA_VERSION`].
+const PLANS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning lineage of the file, replayed idempotently.
+///
+/// Every `plans.db` written before the versioned layer is at
+/// `user_version = 0` whatever columns it carries, so this step must accept
+/// a fresh file, the initial `004_execution_plans` shape, and every additive
+/// intermediate one, and bring each of them to the same state.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(MIGRATION_SQL)?;
+    for columns in [OBSERVABILITY_COLUMNS, PROVENANCE_COLUMNS, ARGS_COLUMNS] {
+        for (col, col_type) in columns {
+            apollia_core::schema::add_column_if_missing(
+                conn,
+                &format!("ALTER TABLE plan_steps ADD COLUMN {col} {col_type}"),
+            )?;
         }
     }
     Ok(())
-}
-
-/// Apply the observability migration idempotently.
-fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
-    apply_additive_columns(conn, OBSERVABILITY_COLUMNS)
-}
-
-/// Apply the provenance migration idempotently.
-///
-/// Adds the nullable `rationale` and `provenance` columns to `plan_steps`.
-/// Purely additive: existing rows keep their values and read back `NULL` for
-/// the new columns until they are written.
-fn apply_provenance_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
-    apply_additive_columns(conn, PROVENANCE_COLUMNS)
-}
-
-/// Apply the args migration idempotently.
-///
-/// Adds the nullable `args` column to `plan_steps`. Purely additive: existing
-/// rows keep their values and read back `NULL` (loaded as `None`) until they
-/// are written.
-fn apply_args_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
-    apply_additive_columns(conn, ARGS_COLUMNS)
 }
 
 // Errors
@@ -102,6 +84,9 @@ pub enum PlanRepositoryError {
     /// Underlying SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
     /// No plan found for the given `task_id`.
     #[error("plan not found for task_id: {0}")]
     NotFound(String),
@@ -198,10 +183,12 @@ impl PlanRepository {
     /// Returns [`PlanRepositoryError::Sqlite`] if opening or the migration fails.
     pub fn new(db_path: &str) -> Result<Self, PlanRepositoryError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(MIGRATION_SQL)?;
-        apply_observability_migration(&conn)?;
-        apply_provenance_migration(&conn)?;
-        apply_args_migration(&conn)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Plans.file_name(),
+            PLANS_SCHEMA_VERSION,
+            PLANS_MIGRATIONS,
+        )?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -911,8 +898,8 @@ mod tests {
     // provenance and rationale
 
     // GIVEN a base plan_steps schema in a fresh in-memory database
-    // WHEN  applying the provenance migration twice
-    // THEN  both columns exist and neither run raised an error
+    // WHEN  applying the v1 migration step twice
+    // THEN  both provenance columns exist and neither run raised an error
     #[test]
     fn test_provenance_migration_is_idempotent() {
         // GIVEN
@@ -920,8 +907,8 @@ mod tests {
         conn.execute_batch(MIGRATION_SQL).expect("base");
 
         // WHEN
-        apply_provenance_migration(&conn).expect("first");
-        apply_provenance_migration(&conn).expect("second");
+        migrate_v1(&conn).expect("first");
+        migrate_v1(&conn).expect("second");
 
         // THEN
         let cols: Vec<String> = {

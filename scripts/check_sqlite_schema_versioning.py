@@ -48,8 +48,6 @@ EXEMPT_UNVERSIONED = {
     "crates/apollia-desktop/src/commands/artifacts.rs",
     "crates/apollia-llm/src/repository.rs",
     "crates/apollia-memory/src/file_timestamp_cache.rs",
-    "crates/apollia-oria/src/plan_cache.rs",
-    "crates/apollia-oria/src/plan_repository.rs",
     "crates/apollia-triggers/src/definition_repository.rs",
 }
 
