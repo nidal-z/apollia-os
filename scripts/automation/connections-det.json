@@ -19,10 +19,11 @@
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
-    "oauth-add-account-google",
+    "native-needs-config-google",
     "oauth-add-account-microsoft",
     "oauth-card-google",
     "oauth-card-microsoft",
+    "oauth-configure-google",
     "settings-nav-integrations",
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator",
@@ -136,12 +137,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-google",
+      "testid": "native-needs-config-google",
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "oauth-configure-google",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "03-native-google-accounts"
+      "label": "03-native-google-needs-config (no embedded Google client on a fresh install)"
     },
     {
       "kind": "click",
@@ -201,32 +207,36 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-add-account-google",
+      "testid": "oauth-configure-google",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-dialog",
+      "testid": "settings-integrations-oauth",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-cancel-btn",
+      "testid": "oauth-card-google",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "07-oauth-dialog-ext-boundary"
+      "label": "07-oauth-configure-lands-on-credential-settings"
     },
     {
-      "kind": "click",
-      "testid": "oauth-cancel-btn",
-      "timeoutMs": 3000
+      "kind": "goto",
+      "route": "integrations"
     },
     {
-      "kind": "waitGone",
-      "testid": "oauth-dialog",
-      "timeoutMs": 6000
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",

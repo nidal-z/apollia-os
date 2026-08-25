@@ -102,6 +102,7 @@
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
+    "native-needs-config-google",
     "nav-agents",
     "nav-automations",
     "nav-chat",
@@ -116,10 +117,10 @@
     "nav-settings",
     "nav-tasks",
     "nav-transcriptions",
-    "oauth-add-account-google",
     "oauth-add-account-microsoft",
     "oauth-card-google",
     "oauth-card-microsoft",
+    "oauth-configure-google",
     "observability-tab-audit-trail",
     "observability-tab-delegation",
     "observability-tab-hooks",
@@ -5405,12 +5406,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-google",
+      "testid": "native-needs-config-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-configure-google",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "03-native-google-accounts"
+      "label": "03-native-google-needs-config (no embedded Google client on a fresh install)"
     },
     {
       "kind": "click",
@@ -5470,31 +5476,35 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-add-account-google",
+      "testid": "oauth-configure-google",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-dialog",
+      "testid": "settings-integrations-oauth",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-cancel-btn",
+      "testid": "oauth-card-google",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "07-oauth-dialog-ext-boundary"
+      "label": "07-oauth-configure-lands-on-credential-settings"
     },
     {
-      "kind": "click",
-      "testid": "oauth-cancel-btn",
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
       "timeoutMs": 3000
     },
     {
-      "kind": "waitGone",
-      "testid": "oauth-dialog",
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
       "timeoutMs": 3000
     },
     {
@@ -6390,12 +6400,56 @@
     },
     {
       "kind": "waitFor",
+      "testid": "audit-trail-table",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "audit-row-",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-operator-audit-trail-seeded"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "audit-filter-tool",
+      "value": "file_write",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "audit-filter-agent",
+      "value": "seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "audit-trail-empty",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "08-operator-audit-empty"
+      "label": "08a-operator-audit-filter-empty (tool+agent combination the seed leaves empty)"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "audit-filter-tool",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "audit-filter-agent",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "audit-trail-table",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -6612,12 +6666,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "audit-trail-empty",
+      "testid": "audit-trail-table",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "14-builder-audit-empty"
+      "label": "14-builder-audit-trail-seeded"
     },
     {
       "kind": "click",

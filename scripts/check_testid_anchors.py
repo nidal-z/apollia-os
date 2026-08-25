@@ -11,12 +11,14 @@ answer rests on, both measured from the same corpus builder:
      with every guard staying green: 57 anchors sat in that state while the
      resolution rule accepted any dynamic prefix as a fallback.
 
-  2. A declared ratchet on unreached anchors. 679 of the 1247 literal
+  2. A declared ratchet on unreached anchors. 681 of the 1249 literal
      `data-testid` anchors of the UI are referenced by no script; they can
      disappear without any guard noticing, which is a measure of blindness,
      not a defect. The count may only go down: a new surface shipped without
      a script raises it and turns this guard red. When scripts extend the
-     corpus, lower NEVER_REACHED_MAX to the new measure.
+     corpus, lower NEVER_REACHED_MAX to the new measure. The one accepted
+     raise is recorded at the constant: an anchor whose deterministic path
+     the product itself removed is blindness to declare, not to script over.
 
 Usage:
     python3 scripts/check_testid_anchors.py [--list-masked] [--list-never]
@@ -37,7 +39,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Ratchet: literal anchors referenced by no script, measured 2026-08-25.
 # Descending only. Lower it when scripts reach more of the interface.
-NEVER_REACHED_MAX = 679
+# 679 -> 681: `oauth-dialog` and `oauth-cancel-btn` left the deterministic
+# reach when 8c1f8758 gated the connect CTA behind usable OAuth credentials
+# (no build embeds any, so a fresh install renders the configure CTA instead,
+# and the only remaining opener also opens the system browser, an external
+# boundary the deterministic suite never crosses).
+NEVER_REACHED_MAX = 681
 
 LITERAL = re.compile(r'data-testid="([A-Za-z0-9_\-./:]+)"')
 

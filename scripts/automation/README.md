@@ -89,7 +89,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
   mutating controls driven to the boundary). `master-det.json` runs all 21 in one
-  boot and is the release gate (2421 steps). `tour-det` covers the Getting
+  boot and is the release gate (2431 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
   started band and the guided tour (entry points, step navigation, the
   anchorless fallback, the exit confirmation, finishing).
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`.
@@ -250,3 +250,17 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
 - **Sizing `awaitTurn`.** `maxApprovals` defaults to 25. The plan-review steps use 6
   on purpose, but the turn that FOLLOWS an approval executes the whole plan and needs
   the full budget, otherwise it aborts as a runaway turn.
+- **Never run the app through a symlinked `target/`.** Tauri caches
+  `current_exe` at load and refuses a path that traverses a symlink, so
+  `resource_dir()` errors for the whole life of the process. The only visible
+  symptom is the settings CLI card quietly not rendering (`bundled` is derived
+  from `resource_dir`), which reads as a product regression. In a worktree
+  whose `target` is a symlink to the main tree's, export
+  `CARGO_TARGET_DIR=<real target path>` so cargo launches the binary through
+  the real path.
+- **One recipe invocation can run the script twice.** When the app exits after
+  writing the report, the `tauri dev` watcher may relaunch it (a vite temp
+  file counts as a change), and the second pass replays the script on the
+  already-mutated seed HOME, then overwrites `report.json` with its verdict.
+  Read or copy the report as soon as it lands, and kill the recipe's process
+  tree before starting the next run.
