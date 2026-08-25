@@ -757,7 +757,14 @@ pub async fn notification_logs<B: ExecutionBackend + Clone>(
     }
 
     // Fallback: hitl.db (backward compat)
-    let db_path = resolve_notif_db_path(&state);
+    let Some(db_path) = resolve_notif_db_path() else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "cannot resolve the home directory (USERPROFILE on Windows, HOME on Unix)"
+            })),
+        );
+    };
     let entries_result =
         tokio::task::spawn_blocking(move || query_notification_logs(&db_path, last)).await;
 
@@ -886,17 +893,14 @@ fn channel_kind_by_id(id: &str, config: &NotificationConfig) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Resolve the path of the notification log database.
+/// Resolve the path of the notification log database: `hitl.db` under the
+/// data directory.
 ///
-/// Uses `~/.apollia/hitl.db` by default.
-fn resolve_notif_db_path<B: ExecutionBackend + Clone>(state: &AppState<B>) -> std::path::PathBuf {
-    state
-        .task_repository
-        .as_ref()
-        .and_then(|_| apollia_core::paths::home_string())
-        .map(|home| std::path::PathBuf::from(format!("{home}/.apollia/hitl.db")))
-        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".apollia").join("hitl.db")))
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/apollia-notif.db"))
+/// `None` when the home directory cannot be resolved. That case used to fall
+/// back to a database in the world-writable `/tmp`, outside the profile; user
+/// state never belongs there, so the caller reports the error instead.
+fn resolve_notif_db_path() -> Option<std::path::PathBuf> {
+    apollia_core::paths::data_dir().map(|d| apollia_core::paths::DataFile::Hitl.path(&d))
 }
 
 /// Open `db_path`, create `notification_logs` if needed, and return the last `N` entries.
