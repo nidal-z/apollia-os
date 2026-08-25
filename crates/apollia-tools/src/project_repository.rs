@@ -21,6 +21,30 @@ const MIGRATION_SQL: &str = include_str!("../migrations/010_projects.sql");
 /// Migration 009: the project_agents join table.
 const MIGRATION_009_SQL: &str = include_str!("../migrations/009_project_agents.sql");
 
+/// Current schema version of `projects.db`.
+const PROJECTS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `projects.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`PROJECTS_SCHEMA_VERSION`].
+const PROJECTS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning lineage of the file, replayed idempotently.
+///
+/// Every `projects.db` written before the versioned layer is at
+/// `user_version = 0` whatever columns it carries, so this step must accept
+/// a fresh file, the 010 + 009 shape, and the shape with `workspace_path`,
+/// and bring each of them to the same state.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(MIGRATION_SQL)?;
+    conn.execute_batch(MIGRATION_009_SQL)?;
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE projects ADD COLUMN workspace_path TEXT",
+    )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,6 +133,10 @@ pub enum ProjectRepositoryError {
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+
     /// Project not found.
     #[error("project '{0}' not found")]
     NotFound(String),
@@ -151,15 +179,11 @@ impl ProjectRepository {
     pub fn open(path: &Path) -> Result<Self, ProjectRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
-        conn.execute_batch(MIGRATION_SQL)?;
-        conn.execute_batch(MIGRATION_009_SQL)?;
-
-        // v10 migration: add workspace_path column for provider directory resolution.
-        // Only the duplicate-column failure is tolerated: any other failure
-        // (locked file, I/O) used to be swallowed here and read as success.
-        apollia_core::schema::add_column_if_missing(
+        apollia_core::schema::open_versioned(
             &conn,
-            "ALTER TABLE projects ADD COLUMN workspace_path TEXT",
+            apollia_core::paths::DataFile::Projects.file_name(),
+            PROJECTS_SCHEMA_VERSION,
+            PROJECTS_MIGRATIONS,
         )?;
 
         Ok(Self {
@@ -838,6 +862,63 @@ mod tests {
 
     fn open_memory() -> ProjectRepository {
         ProjectRepository::open(std::path::Path::new(":memory:")).expect("open :memory:")
+    }
+
+    /// Pre-versioning `projects.db` schema, frozen as the oldest shape a
+    /// published binary wrote (`user_version = 0`, no `workspace_path`).
+    const PROJECTS_V0_SQL: &str = include_str!("../tests/fixtures/schemas/projects_v0.sql");
+
+    // GIVEN a database written by a pre-versioning binary, with a project row
+    // WHEN opening it through the versioned layer
+    // THEN the row survives, workspace_path appears and the version is stamped
+    #[test]
+    fn test_projects_db_old_format_migrates_and_keeps_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("projects.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(PROJECTS_V0_SQL).unwrap();
+            conn.execute(
+                "INSERT INTO projects (id, name, created_at, updated_at)
+                 VALUES ('p-1', 'Legacy', '2026-01-01', '2026-01-01')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let repo = ProjectRepository::open(&path).unwrap();
+
+        let list = repo.list_projects().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "Legacy");
+        let conn = Connection::open(&path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, i64::from(PROJECTS_SCHEMA_VERSION));
+    }
+
+    // GIVEN a database stamped by a newer binary
+    // WHEN opening it
+    // THEN the open is refused
+    #[test]
+    fn test_projects_db_newer_version_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("projects.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.pragma_update(None, "user_version", PROJECTS_SCHEMA_VERSION + 1)
+                .unwrap();
+        }
+
+        let err = ProjectRepository::open(&path).map(|_| ()).unwrap_err();
+
+        assert!(matches!(
+            err,
+            ProjectRepositoryError::Schema(
+                apollia_core::schema::SchemaError::NewerThanBinary { .. }
+            )
+        ));
     }
 
     #[test]

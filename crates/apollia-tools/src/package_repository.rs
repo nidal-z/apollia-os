@@ -17,7 +17,9 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 /// Embedded migration SQL, applied idempotently on every open.
-const MIGRATION_SQL: &str = include_str!("../migrations/008_package_tables.sql");
+// The package-table DDL lives in `crate::agents_db`: `agents.db` is shared
+// with the installed-agent registry, and `PRAGMA user_version` belongs to
+// the file, so the two repositories migrate through one numbered list.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -50,6 +52,10 @@ pub enum PackageRepositoryError {
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+
     #[error("package '{0}' introuvable")]
     NotFound(String),
 
@@ -74,14 +80,14 @@ pub struct PackageRepository {
 }
 
 impl PackageRepository {
-    /// Opens (or creates) the SQLite store and applies migration 008.
+    /// Opens (or creates) the SQLite store and migrates `agents.db`.
     ///
-    /// Compatible with an existing `agents.db` (migration 007 already applied):
-    /// migration 008 only adds new tables (`IF NOT EXISTS`).
+    /// The file is brought to the current `agents.db` schema version; a
+    /// database written by a newer binary is refused instead of misread.
     pub fn open(path: &Path) -> Result<Self, PackageRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(MIGRATION_SQL)?;
+        crate::agents_db::open_agents_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

@@ -16,55 +16,6 @@ use std::time::Duration;
 use apollia_core::{truncate_with_marker, AIPTask, InputResponseData, ObservabilityConfig};
 use rusqlite::params;
 
-/// Embedded migration SQL, applied idempotently on every open.
-const MIGRATION_SQL: &str = include_str!("../migrations/005_hitl_tables.sql");
-
-/// Columns added by the observability migration.
-const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
-    ("input_text", "TEXT"),
-    ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
-    ("output_text", "TEXT"),
-    ("output_truncated", "INTEGER NOT NULL DEFAULT 0"),
-    ("duration_ms", "INTEGER"),
-    ("transitions_json", "TEXT"),
-    // Stable run identifier this task belongs to, so a task_id can be resolved
-    // to the run_id the audit journal is keyed by (`audit verify <task_id>`).
-    ("run_id", "TEXT"),
-];
-
-/// HITL timing columns added to `task_approvals`.
-const HITL_TIMING_COLUMNS: &[(&str, &str)] =
-    &[("suspended_at", "TEXT"), ("wait_duration_ms", "INTEGER")];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Adds columns to a table if they do not yet exist.
-///
-/// Uses `PRAGMA table_info` to list existing columns, then runs
-/// `ALTER TABLE ADD COLUMN` only for the missing ones. Compatible with all
-/// SQLite versions (no `IF NOT EXISTS` clause required).
-fn add_columns_if_missing(
-    conn: &rusqlite::Connection,
-    table: &str,
-    columns: &[(&str, &str)],
-) -> Result<(), rusqlite::Error> {
-    let mut stmt = conn.prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))?;
-    let existing: Vec<String> = stmt
-        .query_map([], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-
-    for (col_name, col_type) in columns {
-        if !existing.iter().any(|c| c == col_name) {
-            conn.execute_batch(&format!(
-                "ALTER TABLE {table} ADD COLUMN {col_name} {col_type};"
-            ))?;
-        }
-    }
-    Ok(())
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Errors
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,6 +30,10 @@ pub enum TaskRepoError {
     /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
+
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 
     /// JSON deserialization error.
     #[error("erreur de désérialisation JSON : {0}")]
@@ -116,14 +71,14 @@ pub struct TaskDetail {
 /// If the main file does not exist, any leftover WAL/SHM files are removed
 /// before opening, to avoid an orphan WAL recovery that would leave the
 /// database without tables.
-fn open_conn(path: &std::path::Path) -> Result<rusqlite::Connection, rusqlite::Error> {
+fn open_conn(path: &std::path::Path) -> Result<rusqlite::Connection, TaskRepoError> {
     if !path.exists() {
         let _ = std::fs::remove_file(path.with_extension("db-wal"));
         let _ = std::fs::remove_file(path.with_extension("db-shm"));
     }
     let conn = rusqlite::Connection::open(path)?;
     conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-    conn.execute_batch(MIGRATION_SQL)?;
+    crate::hitl_schema::open_hitl_schema(&conn)?;
     Ok(conn)
 }
 
@@ -158,13 +113,7 @@ impl TaskRepository {
         let path = db_path.to_path_buf();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = open_conn(&path)?;
-            add_columns_if_missing(&conn, "tasks", OBSERVABILITY_COLUMNS)?;
-            add_columns_if_missing(&conn, "task_approvals", HITL_TIMING_COLUMNS)?;
-            conn.execute_batch(
-                "CREATE INDEX IF NOT EXISTS idx_task_approvals_pending \
-                 ON task_approvals(task_id) WHERE approved IS NULL;",
-            )?;
+            open_conn(&path)?;
             Ok(())
         })
         .await
@@ -1482,7 +1431,7 @@ mod tests {
         // AND the task_approvals table is created
         let tables: Vec<String> = tokio::task::spawn_blocking(|| {
             let conn = rusqlite::Connection::open_in_memory().unwrap();
-            conn.execute_batch(MIGRATION_SQL).unwrap();
+            crate::hitl_schema::open_hitl_schema(&conn).unwrap();
             let mut stmt = conn
                 .prepare(
                     "SELECT name FROM sqlite_master \

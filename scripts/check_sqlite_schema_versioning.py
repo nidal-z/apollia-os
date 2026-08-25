@@ -54,11 +54,6 @@ EXEMPT_UNVERSIONED = {
     "crates/apollia-notifications/src/repository.rs",
     "crates/apollia-oria/src/plan_cache.rs",
     "crates/apollia-oria/src/plan_repository.rs",
-    "crates/apollia-tools/src/agent_repository.rs",
-    "crates/apollia-tools/src/audit.rs",
-    "crates/apollia-tools/src/package_repository.rs",
-    "crates/apollia-tools/src/project_repository.rs",
-    "crates/apollia-tools/src/task_repository.rs",
     "crates/apollia-triggers/src/definition_repository.rs",
 }
 

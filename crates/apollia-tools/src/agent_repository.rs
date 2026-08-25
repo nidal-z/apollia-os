@@ -18,7 +18,9 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 /// Embedded migration SQL, applied idempotently on every open.
-const MIGRATION_SQL: &str = include_str!("../migrations/007_agent_tables.sql");
+// The `installed_agents` DDL lives in `crate::agents_db`: `agents.db` is
+// shared with the package tables, and `PRAGMA user_version` belongs to the
+// file, so the two repositories migrate through one numbered list.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -59,6 +61,10 @@ pub enum AgentRepositoryError {
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
+
     /// Agent not found for the given name.
     #[error("agent '{0}' introuvable")]
     NotFound(String),
@@ -94,19 +100,20 @@ pub struct AgentRepository {
 }
 
 impl AgentRepository {
-    /// Opens (or creates) the SQLite store and applies migration 007.
+    /// Opens (or creates) the SQLite store and migrates `agents.db`.
     ///
-    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is safe
-    /// to replay on an existing store. Enables WAL mode for concurrency.
+    /// The file is brought to the current `agents.db` schema version; a
+    /// database written by a newer binary is refused instead of misread.
+    /// Enables WAL mode for concurrency.
     ///
     /// # Errors
     ///
-    /// Returns an error if the SQLite file cannot be opened or the migration
-    /// fails.
+    /// Returns an error if the SQLite file cannot be opened, the migration
+    /// fails, or the database is newer than this binary.
     pub fn open(path: &Path) -> Result<Self, AgentRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(MIGRATION_SQL)?;
+        crate::agents_db::open_agents_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

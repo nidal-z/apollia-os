@@ -68,6 +68,9 @@ pub enum AuditTrailError {
     /// Failed to create the schema (table or index).
     #[error("failed to initialize audit schema: {0}")]
     SchemaInitFailed(String),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 /// Computes the SHA256 of a serialized JSON object.
@@ -83,6 +86,29 @@ pub fn compute_input_hash(params: &serde_json::Value) -> String {
 // ---------------------------------------------------------------------------
 // SQL schema
 // ---------------------------------------------------------------------------
+
+/// Current schema version of `audit.db`.
+const AUDIT_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `audit.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`AUDIT_SCHEMA_VERSION`].
+const AUDIT_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning lineage of the file, replayed idempotently.
+///
+/// Every `audit.db` written before the versioned layer is at
+/// `user_version = 0` whatever columns it carries, so this step must accept
+/// a fresh file, the initial schema, and the shape with the observability
+/// columns, and bring each of them to the same state.
+fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(SCHEMA)?;
+    for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
+        apollia_core::schema::add_column_if_missing(conn, ddl)?;
+    }
+    Ok(())
+}
 
 /// SQL schema of the `tool_invocations` table and its indexes.
 const SCHEMA: &str = "
@@ -329,21 +355,16 @@ impl AuditTrailHandle {
                 return;
             }
 
-            // Schema creation (idempotent).
-            if let Err(e) = conn.execute_batch(SCHEMA) {
-                let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(e.to_string())));
+            // Versioned migration: stamps `PRAGMA user_version` and refuses
+            // a database written by a newer binary.
+            if let Err(e) = apollia_core::schema::open_versioned(
+                &conn,
+                apollia_core::paths::DataFile::Audit.file_name(),
+                AUDIT_SCHEMA_VERSION,
+                AUDIT_MIGRATIONS,
+            ) {
+                let _ = init_tx.send(Err(AuditTrailError::Schema(e)));
                 return;
-            }
-
-            for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
-                if let Err(e) = conn.execute_batch(ddl) {
-                    let msg = e.to_string();
-                    // "duplicate column name" means the column already exists, idempotent.
-                    if !msg.contains("duplicate column name") {
-                        let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(msg)));
-                        return;
-                    }
-                }
             }
 
             // Signal successful initialization before entering the loop.
@@ -452,6 +473,69 @@ mod tests {
         AuditTrailHandle::open(&db_path)
             .await
             .expect("failed to open audit trail")
+    }
+
+    /// Pre-versioning `audit.db` schema, frozen as the oldest shape a
+    /// published binary wrote (`user_version = 0`, no observability columns).
+    const AUDIT_V0_SQL: &str = include_str!("../tests/fixtures/schemas/audit_v0.sql");
+
+    // GIVEN a database written by a pre-versioning binary, with a row
+    // WHEN opening it through the versioned layer
+    // THEN the row survives, the missing columns appear and the version is stamped
+    #[tokio::test]
+    async fn test_audit_db_old_format_migrates_and_keeps_rows() {
+        let db_path =
+            std::env::temp_dir().join(format!("apollia_audit_test_{}.db", uuid::Uuid::new_v4()));
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.execute_batch(AUDIT_V0_SQL).unwrap();
+            conn.execute(
+                "INSERT INTO tool_invocations
+                     (id, agent_id, task_id, tool_name, input_hash, sandbox_profile,
+                      started_at, success)
+                 VALUES ('i-1', 'a', 't', 'bash_executor', 'h', 'fs',
+                         '2026-01-01T00:00:00Z', 1)",
+                [],
+            )
+            .unwrap();
+        }
+
+        let handle = AuditTrailHandle::open(&db_path).await.unwrap();
+
+        let rows = handle.query_last(1).await;
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].tool_name, "bash_executor");
+        assert!(rows[0].run_id.is_none());
+        handle.shutdown().await;
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, i64::from(AUDIT_SCHEMA_VERSION));
+    }
+
+    // GIVEN a database stamped by a newer binary
+    // WHEN opening it
+    // THEN the open is refused
+    #[tokio::test]
+    async fn test_audit_db_newer_version_is_refused() {
+        let db_path =
+            std::env::temp_dir().join(format!("apollia_audit_test_{}.db", uuid::Uuid::new_v4()));
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.pragma_update(None, "user_version", AUDIT_SCHEMA_VERSION + 1)
+                .unwrap();
+        }
+
+        let err = AuditTrailHandle::open(&db_path)
+            .await
+            .map(|_| ())
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            AuditTrailError::Schema(apollia_core::schema::SchemaError::NewerThanBinary { .. })
+        ));
     }
 
     fn make_record(success: bool, error_code: Option<&str>) -> ToolInvocationRecord {
