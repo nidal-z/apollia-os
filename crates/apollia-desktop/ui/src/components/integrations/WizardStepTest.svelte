@@ -1,14 +1,13 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { CheckCircle2, XCircle, RefreshCw, ArrowLeft } from "lucide-svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
   import type {
-    McpConnectionTestResponse,
     McpConnectionTestResultView,
     McpServerConfigInput,
   } from "$lib/types";
+  import { testMcpConnection } from "$lib/ipc/connections";
 
   interface Props {
     config: McpServerConfigInput;
@@ -99,10 +98,7 @@
     testError = null;
     attemptCount += 1;
     try {
-      const response = await invoke<McpConnectionTestResponse>(
-        "test_mcp_connection",
-        { config },
-      );
+      const response = await testMcpConnection(config);
       if (response.kind === "success") {
         // Strip the discriminant - `onsuccess` consumers expect the legacy
         // success shape verbatim.

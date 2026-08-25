@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t, locale } from "svelte-i18n";
   import { Plus, Search } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
@@ -13,6 +12,8 @@
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary, ProjectSummary } from "$lib/types";
+  import { deleteChatSession, renameChatSession } from "$lib/ipc/chat";
+  import { listProjects } from "$lib/ipc/projects";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -184,7 +185,7 @@
   );
   async function reloadProjectList(): Promise<void> {
     try {
-      projectList = await invoke<ProjectSummary[]>("list_projects");
+      projectList = await listProjects();
     } catch {
       // Non-blocking - the chip just won't render.
     }
@@ -253,7 +254,7 @@
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
     try {
-      await invoke("delete_chat_session", { sessionId });
+      await deleteChatSession(sessionId);
     } catch (err: unknown) {
       console.error("delete_chat_session failed:", err);
       return;
@@ -266,7 +267,7 @@
     const trimmed = newTitle.trim();
     if (!trimmed) return;
     try {
-      await invoke("rename_chat_session", { sessionId, title: trimmed });
+      await renameChatSession(sessionId, trimmed);
       // Optimistic update so the row reflects the new title before the next SSE refresh.
       chatSessions.update((sessions) =>
         sessions.map((s) => (s.id === sessionId ? { ...s, title: trimmed } : s)),

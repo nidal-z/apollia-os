@@ -118,3 +118,17 @@ export async function respondUserInputRejected(
 ): Promise<void> {
   return invoke<void>("respond_user_input_rejected", { requestId, reason });
 }
+
+/** Operator verdict on a suspended filesystem operation (HITL). */
+export type HitlFilesystemDecision =
+  | { decision: "approve" }
+  | { decision: "deny"; reason: string | null }
+  | { decision: "always_allow"; op: string; level: string; scope: string };
+
+/** Resolves a suspended filesystem HITL request. */
+export async function respondHitlFilesystem(
+  requestId: string,
+  decision: HitlFilesystemDecision,
+): Promise<void> {
+  return invoke<void>("respond_hitl_filesystem", { requestId, decision });
+}

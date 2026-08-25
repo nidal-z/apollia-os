@@ -391,29 +391,6 @@ pub async fn list_project_agents(
         .map_err(|e| e.to_string())
 }
 
-/// Lists the projects an agent belongs to (returns the summaries).
-#[tauri::command]
-pub async fn list_projects_for_agent(
-    state: State<'_, RuntimeHandle>,
-    agent_name: String,
-) -> Result<Vec<ProjectSummary>, String> {
-    let repo = get_repo(&state)?;
-    let repo2 = repo.clone();
-    tokio::task::spawn_blocking(move || {
-        let project_ids = repo.list_projects_for_agent(&agent_name)?;
-        let all_projects = repo2.list_projects()?;
-        Ok::<Vec<ProjectSummary>, apollia_tools::ProjectRepositoryError>(
-            all_projects
-                .into_iter()
-                .filter(|p| project_ids.contains(&p.id))
-                .collect(),
-        )
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
-    .map_err(|e| e.to_string())
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider management commands
 // ─────────────────────────────────────────────────────────────────────────────

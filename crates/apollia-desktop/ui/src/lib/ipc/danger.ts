@@ -29,7 +29,7 @@ export async function clearLogs(): Promise<void> {
 
 /**
  * Delete the entire Apollia configuration directory. A restart is mandatory to
- * re-initialise the runtime afterwards (see {@link restartApp}).
+ * re-initialise the runtime afterwards (see {@link appRestart}).
  */
 export async function factoryReset(): Promise<void> {
   return invoke<void>("factory_reset");
@@ -39,6 +39,6 @@ export async function factoryReset(): Promise<void> {
  * Restart the packaged app. May reject in dev mode (no packaged bundle), in
  * which case the caller falls back to a manual-restart prompt.
  */
-export async function restartApp(): Promise<void> {
+export async function appRestart(): Promise<void> {
   return invoke<void>("app_restart");
 }

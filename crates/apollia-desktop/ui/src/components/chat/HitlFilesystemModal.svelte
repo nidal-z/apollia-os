@@ -15,7 +15,6 @@
    */
 
   import { onMount, onDestroy, tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { AlertTriangle, FileText, ShieldAlert, Trash2 } from "lucide-svelte";
@@ -23,6 +22,10 @@
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
   import { FormField } from "$lib/components/ui/form-field";
+  import {
+    respondHitlFilesystem,
+    type HitlFilesystemDecision,
+  } from "$lib/ipc/inbox";
   import { addToast } from "$lib/components/ui/toast/store";
   import ApprovalRiskBadge, { type ApprovalRiskLevel } from "$lib/components/operator/approval/ApprovalRiskBadge.svelte";
   import ApprovalTimer from "$lib/components/operator/approval/ApprovalTimer.svelte";
@@ -181,7 +184,7 @@
     const op = pending.op;
     const level = pending.level;
 
-    let decision: unknown;
+    let decision: HitlFilesystemDecision;
     if (kind === "approve") {
       decision = { decision: "approve" };
     } else if (kind === "deny") {
@@ -191,7 +194,7 @@
     }
 
     try {
-      await invoke("respond_hitl_filesystem", { requestId, decision });
+      await respondHitlFilesystem(requestId, decision);
       closeModal();
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);

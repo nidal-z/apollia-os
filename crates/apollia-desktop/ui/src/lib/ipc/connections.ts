@@ -11,6 +11,9 @@ import type {
   AgentListItem,
   ConnectorEnrichmentView,
   McpConnectionTestResponse,
+  McpOAuthAccount,
+  McpOAuthDiscoveryResult,
+  McpServerConfigInput,
   McpServerDetailView,
   McpServerStatusView,
   RegistryServerView,
@@ -87,7 +90,7 @@ export function addMcpServer(config: Record<string, unknown>): Promise<void> {
 }
 
 export function testMcpConnection(
-  config: Record<string, unknown>,
+  config: McpServerConfigInput | Record<string, unknown>,
 ): Promise<McpConnectionTestResponse> {
   return invoke<McpConnectionTestResponse>("test_mcp_connection", { config });
 }
@@ -173,4 +176,154 @@ export function oauthDisconnect(
   accountId: string,
 ): Promise<void> {
   return invoke<void>("oauth_disconnect", { provider, accountId });
+}
+
+// ── MCP server config editing ───────────────────────────────────────────────
+
+/** Persisted MCP server config (matches the backend `McpServerConfig`). */
+export interface McpServerRawConfig {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  transport: string;
+  url?: string | null;
+  requires_approval: boolean;
+  init_timeout_secs: number;
+  call_timeout_secs: number;
+  tags: string[];
+}
+
+/** Stored config of one MCP server, secrets redacted. */
+export function getMcpServerRawConfig(name: string): Promise<McpServerRawConfig> {
+  return invoke<McpServerRawConfig>("get_mcp_server_raw_config", { name });
+}
+
+/** Replace the stored config of one MCP server. */
+export function updateMcpServerConfig(
+  name: string,
+  config: McpServerRawConfig,
+): Promise<void> {
+  return invoke<void>("update_mcp_server_config", { name, config });
+}
+
+/** Store a secret env value for a server without echoing it back. */
+export function storeMcpSecret(
+  serverName: string,
+  envVar: string,
+  value: string,
+): Promise<void> {
+  return invoke<void>("store_mcp_secret", { serverName, envVar, value });
+}
+
+// ── MCP OAuth sign-in ───────────────────────────────────────────────────────
+
+/** Probe a remote server's authorization server metadata. */
+export function mcpOauthDiscover(
+  url: string,
+  wwwAuthenticate: string | null,
+): Promise<McpOAuthDiscoveryResult> {
+  return invoke<McpOAuthDiscoveryResult>("mcp_oauth_discover", {
+    url,
+    wwwAuthenticate,
+  });
+}
+
+/** Resolve a pre-registered client id from the host environment. */
+export function mcpOauthResolveClientId(envVar: string): Promise<string | null> {
+  return invoke<string | null>("mcp_oauth_resolve_client_id", { envVar });
+}
+
+/** Persist a client id under its env var for later logins. */
+export function mcpOauthStoreClientId(envVar: string, value: string): Promise<void> {
+  return invoke<void>("mcp_oauth_store_client_id", { envVar, value });
+}
+
+/** Parameters accepted by {@link mcpOauthLogin}. */
+export interface McpOauthLoginArgs {
+  serverName: string;
+  serverUrl: string;
+  wwwAuthenticate: string | null;
+  scopes: string[];
+  clientId?: string | null;
+}
+
+/** Run the interactive OAuth flow for a remote MCP server. */
+export function mcpOauthLogin(args: McpOauthLoginArgs): Promise<McpOAuthAccount> {
+  return invoke<McpOAuthAccount>("mcp_oauth_login", { ...args });
+}
+
+// ── Capability coaching (connector wizard) ──────────────────────────────────
+
+/** One usage example the coaching step displays for a fresh connector. */
+export interface CoachingExample {
+  title: string;
+  description: string;
+  prompt: string;
+}
+
+/**
+ * Asks the runtime for the post-install usage examples of an MCP server.
+ *
+ * `meta_generate_capabilities_coaching` takes a single structured argument
+ * named `request`, so the payload has to be nested under that key: Tauri
+ * looks up argument names one by one and rejects the whole call when one is
+ * absent. `CoachingRequest` carries `#[serde(rename_all = "camelCase")]`,
+ * hence the camelCase fields inside the nesting. The argument shape is frozen
+ * by `WizardStepCoaching.test.ts`.
+ */
+export async function metaGenerateCapabilitiesCoaching(
+  serverName: string,
+  serverTitle: string | null,
+): Promise<CoachingExample[]> {
+  return await invoke<CoachingExample[]>("meta_generate_capabilities_coaching", {
+    request: {
+      serverName,
+      serverTitle: serverTitle ?? serverName,
+    },
+  });
+}
+
+// ── Connector installation (wizard finalize step) ───────────────────────────
+
+/** A secret typed in the wizard, waiting to be filed in the OS keyring. */
+export interface PendingSecret {
+  envVar: string;
+  value: string;
+}
+
+/** The subset of `@tauri-apps/api/core::invoke` the install sequence needs. */
+export type WizardInvoke = <T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+) => Promise<T>;
+
+/**
+ * File the connector's secrets, then install its configuration.
+ *
+ * Both calls carry `config.name`, and that is the whole point of this
+ * function existing. The keyring key is written as `{server_name}:{env_var}`
+ * by `SecretStore::key_for` and rebuilt, at resolution time, from the name
+ * carried by the *installed configuration*
+ * (`apollia-mcp::config::resolve_env` passes `&self.name` to
+ * `resolve_single_var`). Filing a secret under any other identifier, the
+ * registry one included, hides it from the only lookup that will ever go
+ * looking for it, and the connector answers `UnresolvedEnvVar` on first use.
+ *
+ * `invokeFn` is injectable so the wire calls can be frozen by a test; the
+ * default is the real Tauri bridge.
+ */
+export async function installConnector(
+  config: McpServerConfigInput,
+  secrets: readonly PendingSecret[],
+  invokeFn: WizardInvoke = invoke,
+): Promise<void> {
+  for (const secret of secrets) {
+    await invokeFn("store_mcp_secret", {
+      serverName: config.name,
+      envVar: secret.envVar,
+      value: secret.value,
+    });
+  }
+  await invokeFn("add_mcp_server", { config });
 }

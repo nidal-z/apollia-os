@@ -25,7 +25,7 @@
   import PermissionErrorBanner from "./PermissionErrorBanner.svelte";
   import RuleFilters from "./RuleFilters.svelte";
   import RevokeAllDialog from "./RevokeAllDialog.svelte";
-  import { listGovernanceTools } from "$lib/ipc/permissions";
+  import { governanceListTools } from "$lib/ipc/permissions";
   import {
     permissionRules,
     loadingRules,
@@ -62,7 +62,7 @@
 
   async function loadAvailableTools(): Promise<void> {
     try {
-      const tools = await listGovernanceTools();
+      const tools = await governanceListTools();
       availableTools = tools.map((tool) => tool.name).sort();
     } catch {
       availableTools = [];

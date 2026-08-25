@@ -25,8 +25,8 @@
   import { reportError } from "$lib/errors/reportError";
   import { listMemoryEntries } from "$lib/ipc/projects";
   import {
-    exportMemoryNamespace,
-    importMemoryNamespace,
+    memoryExportNamespace,
+    memoryImportNamespace,
     purgeMemory,
     type MemoryImportMode,
     type MemoryPurgeScope,
@@ -66,7 +66,7 @@
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (destination === null) return;
-      const summary = await exportMemoryNamespace(namespace, destination);
+      const summary = await memoryExportNamespace(namespace, destination);
       addToast(summary, "success", { "data-testid": "memory-export-done" });
     } catch (e) {
       reportError(e, { surface: "toast", testid: "memory-export-error" });
@@ -128,7 +128,7 @@
     if (importPath === "" || importing) return;
     importing = true;
     try {
-      const summary = await importMemoryNamespace(
+      const summary = await memoryImportNamespace(
         namespace,
         importPath,
         importMode,

@@ -1,40 +1,3 @@
-<script lang="ts" module>
-  import { invoke } from "@tauri-apps/api/core";
-
-  export interface CoachingExample {
-    title: string;
-    description: string;
-    prompt: string;
-  }
-
-  /**
-   * Asks the runtime for the post-install usage examples of an MCP server.
-   *
-   * `meta_generate_capabilities_coaching` takes a single structured argument
-   * named `request`, so the payload has to be nested under that key: Tauri
-   * looks up argument names one by one and rejects the whole call when one is
-   * absent. `CoachingRequest` carries `#[serde(rename_all = "camelCase")]`,
-   * hence the camelCase fields inside the nesting.
-   *
-   * Exported so the argument shape can be frozen by a test; the component
-   * below is its only production caller.
-   */
-  export async function fetchCoachingExamples(
-    serverName: string,
-    serverTitle: string | null,
-  ): Promise<CoachingExample[]> {
-    return await invoke<CoachingExample[]>(
-      "meta_generate_capabilities_coaching",
-      {
-        request: {
-          serverName,
-          serverTitle: serverTitle ?? serverName,
-        },
-      },
-    );
-  }
-</script>
-
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { onMount } from "svelte";
@@ -42,6 +5,10 @@
   import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
   import CapabilityExampleCard from "./CapabilityExampleCard.svelte";
   import { Spinner } from "$lib/components/ui/progress";
+  import {
+    metaGenerateCapabilitiesCoaching,
+    type CoachingExample,
+  } from "$lib/ipc/connections";
 
   type ApprovalLevel = "auto" | "ask" | "readonly";
 
@@ -79,7 +46,7 @@
     loading = true;
     loadError = null;
     try {
-      examples = await fetchCoachingExamples(serverName, serverTitle);
+      examples = await metaGenerateCapabilitiesCoaching(serverName, serverTitle);
     } catch (err: unknown) {
       loadError = err instanceof Error ? err.message : String(err);
       examples = [];

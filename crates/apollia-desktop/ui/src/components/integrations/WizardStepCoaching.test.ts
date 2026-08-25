@@ -5,7 +5,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { fetchCoachingExamples } from "./WizardStepCoaching.svelte";
+import { metaGenerateCapabilitiesCoaching } from "$lib/ipc/connections";
 
 const mockedInvoke = vi.mocked(invoke);
 
@@ -16,14 +16,14 @@ beforeEach(() => {
 
 // ── meta_generate_capabilities_coaching, argument shape ───────────────────────
 
-describe("fetchCoachingExamples - the shape Tauri reads", () => {
+describe("metaGenerateCapabilitiesCoaching - the shape Tauri reads", () => {
   test("the argument object nests the payload under the key Tauri reads", async () => {
     // GIVEN a server whose title differs from its name
     const serverName = "filesystem";
     const serverTitle = "Local files";
 
     // WHEN the coaching step asks for its usage examples
-    await fetchCoachingExamples(serverName, serverTitle);
+    await metaGenerateCapabilitiesCoaching(serverName, serverTitle);
 
     // THEN the single argument is `request`, because the Rust signature takes
     // one structured argument of that name; a flat object omits it and Tauri
@@ -43,7 +43,7 @@ describe("fetchCoachingExamples - the shape Tauri reads", () => {
   test("the nested fields are camelCase, as CoachingRequest renames them", async () => {
     // GIVEN a server with no distinct title
     // WHEN its examples are requested
-    await fetchCoachingExamples("notion", null);
+    await metaGenerateCapabilitiesCoaching("notion", null);
 
     // THEN the nested keys match `#[serde(rename_all = "camelCase")]` on
     // `CoachingRequest`, and the missing title falls back to the name.
@@ -63,7 +63,7 @@ describe("fetchCoachingExamples - the shape Tauri reads", () => {
     mockedInvoke.mockResolvedValue([card]);
 
     // WHEN the coaching step asks for its usage examples
-    const examples = await fetchCoachingExamples("filesystem", null);
+    const examples = await metaGenerateCapabilitiesCoaching("filesystem", null);
 
     // THEN it receives the cards rather than an error message: this is the
     // surface the wizard renders in place of its raw error line.

@@ -20,7 +20,7 @@
   import { ErrorBanner } from "$lib/components/operator";
   import { reportError } from "$lib/errors/reportError";
   import { formatRelativeTime } from "$lib/utils";
-  import { listCredentials, type CredentialEntry } from "$lib/ipc/governance";
+  import { governanceListCredentials, type CredentialEntry } from "$lib/ipc/governance";
 
   interface Props {
     /** Resolves a tool identifier to its humanized display name. */
@@ -38,7 +38,7 @@
     loading = true;
     failure = null;
     try {
-      const rows = await listCredentials();
+      const rows = await governanceListCredentials();
       entries = [...rows].sort(
         (a, b) =>
           a.tool_name.localeCompare(b.tool_name) ||

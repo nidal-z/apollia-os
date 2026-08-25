@@ -28,7 +28,7 @@
   import { reportError } from "$lib/errors/reportError";
   import { cn, formatRelativeTime } from "$lib/utils";
   import { describeTool, toolKindTag, type ToolDescriptor } from "$lib/ipc/tools";
-  import { listCredentials, type CredentialEntry } from "$lib/ipc/governance";
+  import { governanceListCredentials, type CredentialEntry } from "$lib/ipc/governance";
   import {
     flattenSchema,
     hasSchema,
@@ -68,7 +68,7 @@
     missing = false;
     descriptor = null;
     credentials = [];
-    void Promise.all([describeTool(requested), listCredentials(requested)])
+    void Promise.all([describeTool(requested), governanceListCredentials(requested)])
       .then(([desc, creds]) => {
         if (loadedFor !== requested) return;
         descriptor = desc;

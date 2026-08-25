@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { ToolCallView } from "$lib/types";
   import { resolveToolDisplay } from "$lib/tools/tool-display";
+  import { authorizeChatTool } from "$lib/ipc/inbox";
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { Shield, ChevronDown } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
@@ -56,7 +56,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId: resolvedToolCallId,
@@ -73,7 +73,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId: resolvedToolCallId,
@@ -92,7 +92,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId: resolvedToolCallId,

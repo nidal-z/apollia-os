@@ -11,6 +11,7 @@
  * `get_config`) are loaded through the settings store's `settingsLoaders`.
  */
 import { invoke } from "@tauri-apps/api/core";
+import type { AutomationBoot } from "$lib/automation/types";
 
 /** Install the `apollia` CLI symlink so the runtime is drivable from a shell. */
 export async function installCli(): Promise<void> {
@@ -20,4 +21,21 @@ export async function installCli(): Promise<void> {
 /** Remove the `apollia` CLI symlink. */
 export async function uninstallCli(): Promise<void> {
   return invoke<void>("uninstall_cli");
+}
+
+/** Reveal a session-scoped path in the platform file manager. */
+export async function revealSessionPath(
+  sessionId: string,
+  path: string,
+): Promise<void> {
+  return invoke<void>("reveal_session_path", { sessionId, path });
+}
+
+/**
+ * Dev-only: the automation script the runner injected for this session, or
+ * `null` outside an automation run. Tree-shaken out of release builds with
+ * the rest of the automation harness.
+ */
+export async function automationScript(): Promise<AutomationBoot | null> {
+  return invoke<AutomationBoot | null>("automation_script");
 }

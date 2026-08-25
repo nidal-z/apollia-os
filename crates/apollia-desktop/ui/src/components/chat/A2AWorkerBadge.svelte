@@ -15,12 +15,13 @@
    * on mount and when the popover opens.
    */
   import { onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { Users, ChevronDown, Dot } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
   import type { AgentListItem, A2ASkillListing } from "$lib/types";
+  import { listAgents } from "$lib/ipc/connections";
+  import { listA2aSkills } from "$lib/ipc/agents";
   import A2AWorkerSkillChip from "./A2AWorkerSkillChip.svelte";
 
   let open = $state(false);
@@ -50,8 +51,8 @@
     loading = true;
     try {
       const [a, s] = await Promise.all([
-        invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
-        invoke<A2ASkillListing[]>("list_a2a_skills").catch(() => [] as A2ASkillListing[]),
+        listAgents().catch(() => [] as AgentListItem[]),
+        listA2aSkills().catch(() => [] as A2ASkillListing[]),
       ]);
       agents = a;
       skills = s;

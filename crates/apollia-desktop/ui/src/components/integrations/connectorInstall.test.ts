@@ -1,10 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import {
-  deriveServerName,
-  installConnector,
-  sanitizeServerName,
-} from "./ConnectorWizard.svelte";
+import { deriveServerName, sanitizeServerName } from "./ConnectorWizard.svelte";
+import { installConnector } from "$lib/ipc/connections";
 import type { McpServerConfigInput } from "$lib/types";
 
 // ─── The catalogue, read from the file the desktop binary embeds ───────────
@@ -56,7 +53,7 @@ function recordingInvoke(calls: RecordedCall[]) {
   return (async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args: args ?? {} });
     return undefined;
-  }) as Parameters<typeof installConnector>[0];
+  }) as Parameters<typeof installConnector>[2];
 }
 
 /** The keyring key `apollia-mcp::config::resolve_single_var` rebuilds at
@@ -82,9 +79,11 @@ describe("connector install - one identifier for the secret and the config", () 
       } as unknown as McpServerConfigInput;
 
       const calls: RecordedCall[] = [];
-      await installConnector(recordingInvoke(calls), config, [
-        { envVar: "Authorization", value: "token-value" },
-      ]);
+      await installConnector(
+        config,
+        [{ envVar: "Authorization", value: "token-value" }],
+        recordingInvoke(calls),
+      );
 
       const stored = calls.filter((c) => c.cmd === "store_mcp_secret");
       const added = calls.filter((c) => c.cmd === "add_mcp_server");
@@ -117,9 +116,11 @@ describe("connector install - one identifier for the secret and the config", () 
       } as unknown as McpServerConfigInput;
 
       const calls: RecordedCall[] = [];
-      await installConnector(recordingInvoke(calls), config, [
-        { envVar: "API_KEY", value: "token-value" },
-      ]);
+      await installConnector(
+        config,
+        [{ envVar: "API_KEY", value: "token-value" }],
+        recordingInvoke(calls),
+      );
 
       const stored = calls.find((c) => c.cmd === "store_mcp_secret");
       const written = keyringKey(
@@ -143,9 +144,11 @@ describe("connector install - one identifier for the secret and the config", () 
       } as unknown as McpServerConfigInput;
 
       const calls: RecordedCall[] = [];
-      await installConnector(recordingInvoke(calls), config, [
-        { envVar: "API_KEY", value: "token-value" },
-      ]);
+      await installConnector(
+        config,
+        [{ envVar: "API_KEY", value: "token-value" }],
+        recordingInvoke(calls),
+      );
 
       const stored = calls.find((c) => c.cmd === "store_mcp_secret");
       expect(stored?.args.serverName).not.toBe(entry.registryName);
@@ -163,7 +166,7 @@ describe("connector install - one identifier for the secret and the config", () 
     } as unknown as McpServerConfigInput;
 
     const calls: RecordedCall[] = [];
-    await installConnector(recordingInvoke(calls), config, []);
+    await installConnector(config, [], recordingInvoke(calls));
 
     expect(calls.map((c) => c.cmd)).toEqual(["add_mcp_server"]);
   });

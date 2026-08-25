@@ -21,7 +21,7 @@ export interface GovernanceToolStatus {
  * AddRuleForm is client-side only, the backend accepts any row and the
  * runtime filters executor rules at consumption time.
  */
-export const CODE_EXECUTOR_TOOLS = ["bash_executor", "python_executor"] as const;
+const CODE_EXECUTOR_TOOLS = ["bash_executor", "python_executor"] as const;
 
 /** Whether a tool name is a code executor subject to the no-blanket-allow rule. */
 export function isCodeExecutor(toolName: string): boolean {
@@ -29,7 +29,7 @@ export function isCodeExecutor(toolName: string): boolean {
 }
 
 /** Fetch the list of governance-managed tools available for a new rule. */
-export async function listGovernanceTools(): Promise<GovernanceToolStatus[]> {
+export async function governanceListTools(): Promise<GovernanceToolStatus[]> {
   return invoke<GovernanceToolStatus[]>("governance_list_tools");
 }
 

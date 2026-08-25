@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import {
     GitBranch,
@@ -17,6 +16,7 @@
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectProviderRow } from "$lib/types";
+  import { setProjectProvider } from "$lib/ipc/projects";
 
   type ProviderType = "git" | "tree" | "rules" | "script" | "style";
 
@@ -148,7 +148,7 @@
     try {
       const p = parseInt(priority, 10);
       const prio = Number.isFinite(p) ? Math.min(100, Math.max(1, p)) : 50;
-      await invoke<string>("set_project_provider", {
+      await setProjectProvider({
         providerId: editing?.id ?? null,
         projectId,
         providerType,

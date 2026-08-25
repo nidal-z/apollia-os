@@ -6,7 +6,7 @@
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import {
-    listDelegationTasks,
+    listTasks,
     getDelegationTree,
     type DelegationNode,
     type DelegationTaskOption,
@@ -37,7 +37,7 @@
   async function loadTasks() {
     loadingTasks = true;
     try {
-      const summaries = await listDelegationTasks();
+      const summaries = await listTasks();
       tasks = summaries;
       if (!selectedTaskId && summaries.length > 0) {
         selectedTaskId = summaries[0].id;

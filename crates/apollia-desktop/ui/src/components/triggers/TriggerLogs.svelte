@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
   import type { TriggerLogEntry } from "$lib/types";
+  import { getTriggerLogs } from "$lib/ipc/triggers";
   import { formatRelativeTime } from "$lib/utils";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
@@ -95,10 +95,7 @@
     loading = true;
     error = null;
     try {
-      const result: TriggerLogEntry[] = await invoke("get_trigger_logs", {
-        id: triggerId,
-        limit: FETCH_LIMIT,
-      });
+      const result: TriggerLogEntry[] = await getTriggerLogs(triggerId, FETCH_LIMIT);
       entries = result;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);

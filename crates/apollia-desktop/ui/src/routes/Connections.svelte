@@ -36,7 +36,7 @@
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { sortServers, needsOauthSetup } from "$lib/connections/status";
-  import { listOauthClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
+  import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateToSettings } from "$lib/router";
   import type {
     AgentListItem,
@@ -188,7 +188,7 @@
       // provider has no accounts and would otherwise look merely idle.
       const [accounts, clients] = await Promise.all([
         oauthGetStatus(),
-        listOauthClientIds().catch(() => [] as OauthClientIdStatus[]),
+        oauthListClientIds().catch(() => [] as OauthClientIdStatus[]),
       ]);
       nativeAccounts = accounts;
       oauthClients = clients;

@@ -56,7 +56,7 @@ export interface OauthClientTestResult {
 }
 
 /** List the OAuth client_id status of every connector provider. */
-export function listOauthClientIds(): Promise<OauthClientIdStatus[]> {
+export function oauthListClientIds(): Promise<OauthClientIdStatus[]> {
   return invoke<OauthClientIdStatus[]>("oauth_list_client_ids");
 }
 
@@ -72,7 +72,7 @@ export function oauthTestClient(
 }
 
 /** Persist (or clear, when empty) the client_id override for a provider. */
-export function setOauthClientId(
+export function oauthSetClientId(
   provider: string,
   clientId: string,
 ): Promise<void> {
@@ -80,7 +80,7 @@ export function setOauthClientId(
 }
 
 /** Persist (or clear, when empty) the client_secret for a provider. */
-export function setOauthClientSecret(
+export function oauthSetClientSecret(
   provider: string,
   clientSecret: string,
 ): Promise<void> {
@@ -95,12 +95,12 @@ export function setOauthClientSecret(
  * `client_secret` out of it by hand. Writes both into
  * `~/.apollia/oauth-clients.toml`.
  */
-export function importOauthClientJson(provider: string, path: string): Promise<void> {
+export function oauthImportClientJson(provider: string, path: string): Promise<void> {
   return invoke("oauth_import_client_json", { provider, path });
 }
 
 /** Persist (or clear, when empty) the Picker API key for a provider. */
-export function setOauthApiKey(
+export function oauthSetApiKey(
   provider: string,
   apiKey: string,
 ): Promise<void> {
@@ -108,12 +108,12 @@ export function setOauthApiKey(
 }
 
 /** List the per-account Drive folder configuration (Google only today). */
-export function listDriveFolders(): Promise<DriveFolderStatus[]> {
+export function oauthListDriveFolders(): Promise<DriveFolderStatus[]> {
   return invoke<DriveFolderStatus[]>("oauth_list_drive_folders");
 }
 
 /** Persist the Drive root folder for an account (empty = Drive root). */
-export function setDriveFolder(
+export function oauthSetDriveFolder(
   accountId: string,
   folderPath: string,
 ): Promise<void> {
@@ -121,6 +121,6 @@ export function setDriveFolder(
 }
 
 /** Reset the Drive root folder for an account back to the default. */
-export function resetDriveFolder(accountId: string): Promise<void> {
+export function oauthResetDriveFolder(accountId: string): Promise<void> {
   return invoke("oauth_reset_drive_folder", { accountId });
 }

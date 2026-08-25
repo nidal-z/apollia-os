@@ -1,8 +1,5 @@
 <script module lang="ts">
-  import type {
-    McpServerConfigInput as McpServerConfigInputModule,
-    RegistryServerView as RegistryServerViewModule,
-  } from "$lib/types";
+  import type { RegistryServerView as RegistryServerViewModule } from "$lib/types";
 
   /**
    * Backend validate_name() in apollia-mcp enforces `[a-z0-9_-]+` strictly,
@@ -39,49 +36,10 @@
     return sanitizeServerName(source);
   }
 
-  /** A secret typed in the wizard, waiting to be filed in the OS keyring. */
-  export interface PendingSecret {
-    envVar: string;
-    value: string;
-  }
-
-  /** The subset of `@tauri-apps/api/core::invoke` the install sequence needs. */
-  export type WizardInvoke = <T>(
-    cmd: string,
-    args?: Record<string, unknown>,
-  ) => Promise<T>;
-
-  /**
-   * File the connector's secrets, then install its configuration.
-   *
-   * Both calls carry `config.name`, and that is the whole point of this
-   * function existing. The keyring key is written as `{server_name}:{env_var}`
-   * by `SecretStore::key_for` and rebuilt, at resolution time, from the name
-   * carried by the *installed configuration*
-   * (`apollia-mcp::config::resolve_env` passes `&self.name` to
-   * `resolve_single_var`). Filing a secret under any other identifier, the
-   * registry one included, hides it from the only lookup that will ever go
-   * looking for it, and the connector answers `UnresolvedEnvVar` on first use.
-   */
-  export async function installConnector(
-    invokeFn: WizardInvoke,
-    config: McpServerConfigInputModule,
-    secrets: readonly PendingSecret[],
-  ): Promise<void> {
-    for (const secret of secrets) {
-      await invokeFn("store_mcp_secret", {
-        serverName: config.name,
-        envVar: secret.envVar,
-        value: secret.value,
-      });
-    }
-    await invokeFn("add_mcp_server", { config });
-  }
 </script>
 
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import {
     BookOpen,
     KeyRound,
@@ -91,6 +49,15 @@
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Stepper } from "$lib/components/ui/stepper";
+  import {
+    installConnector,
+    mcpOauthDiscover,
+    mcpOauthLogin,
+    mcpOauthResolveClientId,
+    mcpOauthStoreClientId,
+    testMcpConnection,
+    type PendingSecret,
+  } from "$lib/ipc/connections";
   import WizardStepDisclaimer, {
     DISCLAIMER_ITEMS,
     isDisclaimerVersionAccepted,
@@ -100,7 +67,6 @@
   import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
   import type {
-    McpConnectionTestResponse,
     McpOAuthAccount,
     McpOAuthDiscoveryResult,
     McpServerConfigInput,
@@ -525,10 +491,7 @@
     probeMode = "probing";
     probeError = null;
     try {
-      const response = await invoke<McpConnectionTestResponse>(
-        "test_mcp_connection",
-        { config: probeConfig },
-      );
+      const response = await testMcpConnection(probeConfig);
       if (response.kind === "success") {
         probeMode = "none";
       } else if (response.kind === "oauth_required") {
@@ -548,10 +511,7 @@
   async function runOAuthDiscovery(): Promise<void> {
     if (!remote) return;
     try {
-      const result = await invoke<McpOAuthDiscoveryResult>("mcp_oauth_discover", {
-        url: remote.url,
-        wwwAuthenticate: oauthWwwAuthenticate,
-      });
+      const result = await mcpOauthDiscover(remote.url, oauthWwwAuthenticate);
       oauthDiscovery = result;
 
       // When the enrichment declares a pre-registered
@@ -560,10 +520,7 @@
       // browser round-trip for AS that don't support CIMD/DCR - Figma).
       const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
       if (envVar) {
-        const resolved = await invoke<string | null>(
-          "mcp_oauth_resolve_client_id",
-          { envVar },
-        );
+        const resolved = await mcpOauthResolveClientId(envVar);
         oauthClientIdOverride = resolved ?? "";
       } else {
         oauthClientIdOverride = null;
@@ -610,10 +567,7 @@
     oauthSavingClientId = true;
     oauthSaveClientIdError = null;
     try {
-      await invoke("mcp_oauth_store_client_id", {
-        envVar,
-        value: trimmed,
-      });
+      await mcpOauthStoreClientId(envVar, trimmed);
       oauthClientIdOverride = trimmed;
       // Mirror runOAuthDiscovery's pre-registered branch: once the user
       // supplies a pre-registered client_id, scopes are baked at the
@@ -654,7 +608,7 @@
     oauthSigningIn = true;
     oauthSigninError = null;
     try {
-      const account = await invoke<McpOAuthAccount>("mcp_oauth_login", {
+      const account = await mcpOauthLogin({
         serverName: deriveServerName(server),
         serverUrl: remote.url,
         wwwAuthenticate: oauthWwwAuthenticate,
@@ -729,7 +683,7 @@
     finalizing = true;
     finalizeError = null;
     try {
-      await installConnector(invoke, builtConfig, pendingSecrets());
+      await installConnector(builtConfig, pendingSecrets());
       oncomplete();
       // The first-connection walkthrough moved out of the wizard: it used to run
       // while this dialog was closed, pointing at a sheet that was never open.

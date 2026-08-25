@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import {
     GitBranch,
     FolderTree,
@@ -15,6 +14,7 @@
   import { Toggle } from "$lib/components/ui/toggle";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectProviderRow } from "$lib/types";
+  import { toggleProjectProvider } from "$lib/ipc/projects";
   import { Button } from "$lib/components/ui/button";
   import { EntityCard } from "$lib/components/operator";
 
@@ -63,10 +63,7 @@
   async function handleToggle(next: boolean): Promise<void> {
     toggleBusy = true;
     try {
-      await invoke("toggle_project_provider", {
-        providerId: provider.id,
-        enabled: next,
-      });
+      await toggleProjectProvider(provider.id, next);
       onchanged?.();
     } catch (err) {
       // Rollback local state on failure.

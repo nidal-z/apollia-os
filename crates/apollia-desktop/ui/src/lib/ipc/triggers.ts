@@ -7,7 +7,10 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  CreateTriggerRequest,
   TriggerDefinitionView,
+  TriggerFireResult,
+  TriggerLogEntry,
   TriggerStatus,
   UpdateTriggerRequest,
 } from "$lib/types";
@@ -58,4 +61,26 @@ export function updateTrigger(
 /** Delete a trigger by id. */
 export function deleteTrigger(id: string): Promise<void> {
   return invoke<void>("delete_trigger", { id });
+}
+
+/** Create a trigger and return the stored definition. */
+export function createTrigger(
+  definition: CreateTriggerRequest,
+): Promise<TriggerDefinitionView> {
+  return invoke<TriggerDefinitionView>("create_trigger", { definition });
+}
+
+/** Fire a trigger immediately, outside its schedule. */
+export function fireTrigger(id: string): Promise<TriggerFireResult> {
+  return invoke<TriggerFireResult>("fire_trigger", { id });
+}
+
+/** Pause or resume a trigger. */
+export function setTriggerEnabled(id: string, enabled: boolean): Promise<void> {
+  return invoke<void>("set_trigger_enabled", { id, enabled });
+}
+
+/** Recent firing log of one trigger, newest first. */
+export function getTriggerLogs(id: string, limit: number): Promise<TriggerLogEntry[]> {
+  return invoke<TriggerLogEntry[]>("get_trigger_logs", { id, limit });
 }

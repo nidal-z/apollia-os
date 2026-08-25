@@ -14,8 +14,8 @@
    */
 
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { revealPath, isRevealablePath } from "$lib/utils/fileRef";
+  import { revealSessionPath } from "$lib/ipc/system";
 
   interface Props {
     /** Raw path used for the reveal call and the `title` tooltip. */
@@ -64,7 +64,7 @@
     if (sessionId === undefined) return;
     try {
       if (isTauri()) {
-        await invoke("reveal_session_path", { sessionId, path });
+        await revealSessionPath(sessionId, path);
       } else {
         console.info("[fileRef] reveal relative (dev no-op)", path);
       }

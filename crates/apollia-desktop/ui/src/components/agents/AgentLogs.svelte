@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
+  import { listTasks } from "$lib/ipc/tasks";
   import { formatDuration } from "$lib/utils";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
@@ -116,7 +116,7 @@
     loading = true;
     error = null;
     try {
-      const result: TaskSummary[] = await invoke("list_tasks", { filter: { agent_id: agentId } });
+      const result: TaskSummary[] = await listTasks({ agent_id: agentId });
       if (!ticket.current) return;
       taskList = result.slice(0, FETCH_LIMIT);
     } catch (err: unknown) {

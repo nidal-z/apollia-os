@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
+  import { listTasks } from "$lib/ipc/tasks";
   import { formatDuration } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
@@ -52,9 +52,7 @@
     loading = true;
     error = null;
     try {
-      const result: TaskSummary[] = await invoke("list_tasks", {
-        filter: { agent_id: agentId },
-      });
+      const result: TaskSummary[] = await listTasks({ agent_id: agentId });
       if (!ticket.current) return;
       taskList = result
         .sort((a, b) => b.created_at.localeCompare(a.created_at))

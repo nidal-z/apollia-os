@@ -128,9 +128,6 @@ export interface RuntimeEventEnvelope {
   payload: unknown;
 }
 
-/** Category of the chat-native plan stream on the `runtime-event` channel. */
-export const PLAN_MODE_CATEGORY = "plan-mode";
-
 /**
  * Returns the ordered plan mutation history for `sessionId`.
  *
@@ -140,7 +137,7 @@ export const PLAN_MODE_CATEGORY = "plan-mode";
  * array; the IPC rejects when the chat subsystem is unavailable or the session
  * does not exist.
  */
-export async function getPlanMutations(
+export async function listPlanMutations(
   sessionId: string,
 ): Promise<PlanMutation[]> {
   return invoke<PlanMutation[]>("list_plan_mutations", { sessionId });

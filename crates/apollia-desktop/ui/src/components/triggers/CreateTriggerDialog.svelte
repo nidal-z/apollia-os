@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
+  import { createTrigger } from "$lib/ipc/triggers";
+  import { listAgents } from "$lib/ipc/connections";
   import { uiMode } from "$lib/stores/mode";
   import type {
     AgentListItem,
     CreateTriggerRequest,
     TriggerSourceInput,
-    TriggerDefinitionView,
   } from "$lib/types";
   import {
     Calendar,
@@ -174,7 +174,7 @@
         definition.input_template = inputTemplate.trim();
       }
 
-      await invoke<TriggerDefinitionView>("create_trigger", { definition });
+      await createTrigger(definition);
       oncreated(triggerId.trim());
       onclose();
     } catch (err: unknown) {
@@ -217,7 +217,7 @@
 
   async function loadOptions(): Promise<void> {
     try {
-      agents = await invoke("list_agents");
+      agents = await listAgents();
     } catch {
       agents = [];
     }

@@ -19,9 +19,9 @@
   import { reportError } from "$lib/errors/reportError";
   import SettingsSection from "../settings/SettingsSection.svelte";
   import {
-    listDriveFolders,
-    setDriveFolder,
-    resetDriveFolder,
+    oauthListDriveFolders,
+    oauthSetDriveFolder,
+    oauthResetDriveFolder,
     type DriveFolderStatus,
   } from "$lib/ipc/oauthClients";
 
@@ -31,7 +31,7 @@
 
   async function refresh(): Promise<void> {
     try {
-      const list = await listDriveFolders();
+      const list = await oauthListDriveFolders();
       folders = list;
       drafts = Object.fromEntries(
         list.map((f) => [f.account_id, f.folder_path ?? f.effective_folder_path]),
@@ -45,7 +45,7 @@
   async function save(accountId: string): Promise<void> {
     savingAccount = accountId;
     try {
-      await setDriveFolder(accountId, (drafts[accountId] ?? "").trim());
+      await oauthSetDriveFolder(accountId, (drafts[accountId] ?? "").trim());
       addToast($t("settings.integrations.drive.saved"), "success");
       await refresh();
     } catch (err) {
@@ -58,7 +58,7 @@
   async function reset(accountId: string): Promise<void> {
     savingAccount = accountId;
     try {
-      await resetDriveFolder(accountId);
+      await oauthResetDriveFolder(accountId);
       addToast($t("settings.integrations.drive.reset_done"), "success");
       await refresh();
     } catch (err) {

@@ -53,7 +53,7 @@ export type MemoryPurgeScope = "all" | "episodic" | "semantic" | "procedural";
  * Resolves with a human-readable summary of what was written (per-family
  * counts and the destination path), produced by the runtime.
  */
-export function exportMemoryNamespace(
+export function memoryExportNamespace(
   namespace: string,
   outputPath: string,
 ): Promise<string> {
@@ -66,7 +66,7 @@ export function exportMemoryNamespace(
  * Resolves with a human-readable summary stating how many entries were
  * imported and under which mode.
  */
-export function importMemoryNamespace(
+export function memoryImportNamespace(
   namespace: string,
   inputPath: string,
   mode: MemoryImportMode,

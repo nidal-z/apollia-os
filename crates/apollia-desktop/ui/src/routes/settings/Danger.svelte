@@ -21,7 +21,7 @@
     clearAllMemories,
     clearLogs,
     factoryReset,
-    restartApp,
+    appRestart,
   } from "$lib/ipc/danger";
   import { resetTourState } from "$lib/tour/persistence";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
@@ -117,7 +117,7 @@
       // re-init the runtime. In dev mode app_restart may fail (no packaged
       // bundle), so fall back to a persistent manual-restart prompt.
       try {
-        await restartApp();
+        await appRestart();
       } catch {
         addToast($t("settings.danger.factory_reset.restart_manual"), "warning", {
           duration: 0,

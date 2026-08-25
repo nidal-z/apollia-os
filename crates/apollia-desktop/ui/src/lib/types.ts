@@ -1713,8 +1713,8 @@ export interface AskUserQuestion {
 /** Réponse de l'opérateur à une question `ask_user`. */
 export interface AskUserAnswer {
   id: string;
-  /** Valeur unique pour les questions `open` ou `single_choice`. */
-  value?: string;
+  /** Valeur unique pour les questions `open` ou `single_choice` (null = sans réponse). */
+  value?: string | null;
   /** Valeurs multiples pour les questions `multi_choice`. */
   values?: string[];
   /** `true` si l'opérateur n'a pas répondu (validation soft). */

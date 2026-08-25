@@ -7,9 +7,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { TaskSummary } from "$lib/types";
 
-/** Fetches the full task list (no server-side filter; the UI filters locally). */
-export async function listTasks(): Promise<TaskSummary[]> {
-  return invoke<TaskSummary[]>("list_tasks", { filter: null });
+/** Fetches the task list; `filter` narrows it server-side (null = everything). */
+export async function listTasks(filter: unknown = null): Promise<TaskSummary[]> {
+  return invoke<TaskSummary[]>("list_tasks", { filter });
 }
 
 /**
@@ -24,7 +24,7 @@ export async function cancelTask(taskId: string): Promise<boolean> {
  * Re-submits a task's input to its agent, yielding a fresh task id. Used by the
  * "retry" affordance on a failed or cancelled task.
  */
-export async function retryTask(agentId: string, input: string): Promise<string> {
+export async function submitTask(agentId: string, input: string): Promise<string> {
   return invoke<string>("submit_task", { agentId, input });
 }
 

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { isLoading, t } from "svelte-i18n";
   import { Main, Sidebar } from "$lib/components/app";
   import { SkipToContent } from "$lib/components/layout";
@@ -26,7 +25,9 @@
   import { openNewTaskRequested } from "$lib/stores/tasks";
   import { llmBackends } from "$lib/stores/sse";
   import { get } from "svelte/store";
-  import type { AutomationBoot } from "$lib/automation/types";
+  import { getSttConfig } from "$lib/ipc/models";
+  import { getOnboardingState, markOnboarded } from "$lib/ipc/onboarding";
+  import { automationScript } from "$lib/ipc/system";
 
   let ready = $state(false);
   let prevLlmCount = 0;
@@ -81,7 +82,7 @@
     // global hotkey (which starts a native cpal capture the WebView cannot
     // precede) reads real audio instead of silence. The grant is app-wide and
     // persists once accepted; ensureMicPermission never prompts twice.
-    void invoke<{ enabled?: boolean }>("get_stt_config")
+    void getSttConfig()
       .then(async (cfg) => {
         if (cfg?.enabled) {
           const { ensureMicPermission } = await import("$lib/stt/micPermission");
@@ -108,7 +109,7 @@
     // The import.meta.env.DEV guard tree-shakes the whole block (and the runner
     // chunk) out of release builds. Scripts own their own readiness waits.
     if (import.meta.env.DEV) {
-      void invoke<AutomationBoot | null>("automation_script")
+      void automationScript()
         .then(async (boot) => {
           if (!boot) return;
           const { runAutomation } = await import("$lib/automation/runner");
@@ -121,7 +122,7 @@
 
     // Initial check - handles the case where OnboardingRequired was emitted
     // before this listener attached (e.g. during the splash/loading window).
-    void invoke<OnboardingState>("get_onboarding_state")
+    void getOnboardingState()
       .then((state) => {
         if (shouldOpenOnboarding(state)) {
           onboardingModalOpen.set(true);
@@ -163,7 +164,7 @@
       const justBecameAvailable = prevLlmCount === 0 && count > 0;
       prevLlmCount = count;
       if (!justBecameAvailable) return;
-      void invoke<OnboardingState>("get_onboarding_state")
+      void getOnboardingState()
         .then((state) => {
           if (shouldOpenOnboarding(state)) {
             onboardingModalOpen.set(true);
@@ -189,7 +190,7 @@
     // The guided tour used to own this call, which meant a user who never
     // finished the tour was never marked onboarded. The tour is now optional
     // and launched from the dashboard, so completing the modal is what counts.
-    void invoke("mark_onboarded").catch(() => {});
+    void markOnboarded().catch(() => {});
   }
 </script>
 

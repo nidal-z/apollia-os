@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
+  import { disableAgent, enableAgent, startAgent, stopAgent } from "$lib/ipc/agents";
   import { uiMode } from "$lib/stores/mode";
   import { navigateTo } from "$lib/stores/navigation";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
@@ -68,7 +68,7 @@
     confirmVisible = false;
     stopping = true;
     stopError = null;
-    try { await invoke("stop_agent", { agentId: agent.id }); }
+    try { await stopAgent(agent.id); }
     catch (err: unknown) { stopError = err instanceof Error ? err.message : String(err); }
     finally { stopping = false; }
   }
@@ -77,7 +77,7 @@
     if (!agent.install_path) return;
     startLoading = true;
     actionError = null;
-    try { await invoke("start_agent", { path: agent.install_path }); }
+    try { await startAgent(agent.install_path); }
     catch (err: unknown) { actionError = err instanceof Error ? err.message : String(err); }
     finally { startLoading = false; }
   }
@@ -86,8 +86,8 @@
     toggleLoading = true;
     actionError = null;
     try {
-      if (agent.enabled) { await invoke("disable_agent", { name: agent.name }); }
-      else { await invoke("enable_agent", { name: agent.name }); }
+      if (agent.enabled) { await disableAgent(agent.name); }
+      else { await enableAgent(agent.name); }
     }
     catch (err: unknown) { actionError = err instanceof Error ? err.message : String(err); }
     finally { toggleLoading = false; }

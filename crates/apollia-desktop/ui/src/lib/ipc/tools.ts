@@ -7,6 +7,7 @@
  * place.
  */
 import { invoke } from "@tauri-apps/api/core";
+import type { ToolSummary } from "$lib/types";
 
 /**
  * Full contract of a tool, as returned by `describe_tool`.
@@ -58,4 +59,9 @@ export async function describeTool(
 ): Promise<ToolDescriptor | null> {
   if (!name) return null;
   return invoke<ToolDescriptor | null>("describe_tool", { name });
+}
+
+/** Every registered tool, as list rows. */
+export async function listTools(): Promise<ToolSummary[]> {
+  return invoke<ToolSummary[]>("list_tools");
 }

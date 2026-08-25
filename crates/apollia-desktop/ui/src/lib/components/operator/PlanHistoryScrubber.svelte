@@ -8,14 +8,14 @@
   // show the past state rather than the live plan; the scrubber itself never
   // mutates the plan, it only reads the inviolable mutation trace.
   //
-  // Data comes through the typed IPC wrapper (`getPlanMutations`); no `invoke`
+  // Data comes through the typed IPC wrapper (`listPlanMutations`); no `invoke`
   // here. A single revision (or none) shows an explicit empty state, never an
   // actionable scrubber. A corrupt mutation is skipped and surfaced as a visible
   // marker, never a crash. The replay timer is cleared on teardown so no orphan
   // interval survives the component.
   import { t } from "svelte-i18n";
   import { History, Play, Pause, ChevronLeft, ChevronRight } from "lucide-svelte";
-  import { getPlanMutations, type PlanMutation } from "$lib/ipc/plan";
+  import { listPlanMutations, type PlanMutation } from "$lib/ipc/plan";
   import {
     reconstructPlanAt,
     revisionCount,
@@ -78,7 +78,7 @@
     let cancelled = false;
     loading = true;
     errored = false;
-    void getPlanMutations(session)
+    void listPlanMutations(session)
       .then((list) => {
         if (cancelled) return;
         mutations = list;

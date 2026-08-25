@@ -11,8 +11,8 @@
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { Sparkles, RotateCw } from "lucide-svelte";
+  import { invokeNextStepCommand } from "$lib/ipc/nextSteps";
   import NextStepCard from "./NextStepCard.svelte";
   import { navigateTo, type Route } from "$lib/stores/navigation";
   import {
@@ -67,12 +67,6 @@
     "/settings": { route: "settings" },
   };
 
-  // Only commands the Rust side actually registers. `memory_insert` and
-  // `export_session` were listed here and exist nowhere in the IPC handler, so
-  // clicking their suggestion failed silently. An entry added here must have a
-  // matching `generate_handler!` registration.
-  const COMMAND_ALLOWLIST = new Set(["create_trigger", "install_agent"]);
-
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
   onMount(() => {
@@ -110,13 +104,16 @@
     }
     if (btn.action === "invoke") {
       const command = btn.payload?.command as string | undefined;
-      if (!command || !COMMAND_ALLOWLIST.has(command)) {
-        console.warn("next-steps: dropped non-allowlisted command", command);
+      if (!command) {
+        console.warn("next-steps: dropped empty command");
         return;
       }
       const args = (btn.payload?.args as Record<string, unknown> | undefined) ?? {};
       try {
-        await invoke(command, args);
+        const ran = await invokeNextStepCommand(command, args);
+        if (!ran) {
+          console.warn("next-steps: dropped non-allowlisted command", command);
+        }
       } catch (err) {
         console.warn("next-steps: invoke failed", command, err);
       }

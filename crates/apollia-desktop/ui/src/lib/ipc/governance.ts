@@ -46,7 +46,7 @@ function narrowCredential(raw: CredentialEntry): CredentialEntry {
  *
  * Values are never part of the response.
  */
-export async function listCredentials(
+export async function governanceListCredentials(
   toolName?: string,
 ): Promise<CredentialEntry[]> {
   const rows = await invoke<CredentialEntry[]>("governance_list_credentials", {

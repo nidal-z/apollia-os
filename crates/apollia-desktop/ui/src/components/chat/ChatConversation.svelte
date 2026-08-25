@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { X, MessageSquare, Link, Zap, Check } from "lucide-svelte";
@@ -22,7 +21,6 @@
     ChatMessageView,
     ConversationStatsView,
     ProjectSummary,
-    UserProfileView,
   } from "$lib/types";
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
@@ -33,6 +31,20 @@
   import ChatInput from "./ChatInput.svelte";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
+  import {
+    editAndResendChatMessage,
+    exportConversation as ipcExportConversation,
+    getChatSession,
+    getConversationStats,
+    linkChatToProject,
+    listChatSessions,
+    pauseChatSession,
+    regenerateChatResponse,
+    renameChatSession,
+    sendChatMessage,
+  } from "$lib/ipc/chat";
+  import { getProfile } from "$lib/ipc/profile";
+  import { listProjects } from "$lib/ipc/projects";
   import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
   import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
@@ -547,7 +559,7 @@
     const ticket = sessionGuard.begin();
     loading = true; loadError = null;
     try {
-      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
       applySessionDetail(detail);
     } catch (err: unknown) {
@@ -562,7 +574,7 @@
   async function refreshSession(): Promise<void> {
     const ticket = sessionGuard.begin();
     try {
-      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
       applySessionDetail(detail); scrollToBottom();
     } catch { /* Session may have been deleted */ }
@@ -575,7 +587,7 @@
     isStreaming = false; isProcessing = false; tokenBuffer = ""; liveToolChain = [];
     clearGlobalBuffer(sessionId);
     try {
-      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
       applySessionDetail(detail); scrollToBottom();
     } catch { /* Session may have been deleted */ }
@@ -595,7 +607,7 @@
     stopRequested = true;
     try {
       try {
-        await invoke("pause_chat_session", { sessionId });
+        await pauseChatSession(sessionId);
       } catch (err) {
         console.error("pause_chat_session failed", err);
       }
@@ -604,7 +616,7 @@
         await new Promise((r) => setTimeout(r, 150));
         let status: string;
         try {
-          const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+          const detail = await getChatSession(sessionId);
           status = detail.status;
         } catch {
           break;
@@ -675,14 +687,14 @@
 
   async function loadConversationStats(): Promise<void> {
     try {
-      const stats = await invoke<ConversationStatsView>("get_conversation_stats", { sessionId });
+      const stats = await getConversationStats(sessionId);
       conversationStats = stats;
       chatConversationStats.set(stats);
     } catch {
       conversationStats = null;
     }
     try {
-      const profile = await invoke<UserProfileView>("get_profile");
+      const profile = await getProfile();
       memoryEntryCount.set(profile.entries.length);
     } catch {
       memoryEntryCount.set(0);
@@ -765,7 +777,7 @@
     await tick(); scrollToBottom(true);
 
     try {
-      await invoke<string>("send_chat_message", { sessionId, content: payload });
+      await sendChatMessage(sessionId, payload);
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -797,7 +809,7 @@
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
     await tick(); scrollToBottom(true);
     try {
-      await invoke("regenerate_chat_response", { sessionId, messageId });
+      await regenerateChatResponse(sessionId, messageId);
     } catch (err: unknown) {
       isProcessing = false;
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -824,7 +836,7 @@
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
     await tick(); scrollToBottom(true);
     try {
-      await invoke<string>("edit_and_resend_chat_message", { sessionId, messageId, content: newContent });
+      await editAndResendChatMessage(sessionId, messageId, newContent);
     } catch (err: unknown) {
       isProcessing = false;
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -860,7 +872,7 @@
 
   async function exportCurrentSession(format: ExportFormat): Promise<void> {
     try {
-      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      const detail = await getChatSession(sessionId);
       const { content, filename, mime } = exportConversation(detail, format);
       const dest = await saveDialog({
         defaultPath: filename,
@@ -870,7 +882,7 @@
         }],
       });
       if (!dest) return;
-      await invoke("export_conversation", { destPath: dest, content, mime });
+      await ipcExportConversation(dest, content, mime);
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     }
@@ -883,7 +895,7 @@
 
   async function handleRename(title: string): Promise<void> {
     try {
-      await invoke("rename_chat_session", { sessionId, title });
+      await renameChatSession(sessionId, title);
       void refreshSession();
     } catch (err) {
       console.warn("rename_chat_session failed", err);
@@ -904,7 +916,7 @@
 
   async function loadAvailableProjects(): Promise<void> {
     try {
-      availableProjects = await invoke<ProjectSummary[]>("list_projects");
+      availableProjects = await listProjects();
     } catch (err) {
       console.warn("list_projects failed", err);
     }
@@ -912,17 +924,12 @@
 
   async function handleLinkProject(projectId: string | null): Promise<void> {
     try {
-      await invoke("link_chat_to_project", {
-        sessionId,
-        projectId,
-      });
+      await linkChatToProject(sessionId, projectId);
       await refreshSession();
       // Refresh the global chat-sessions store so the sidebar chip updates
       // immediately (link_chat_to_project does not emit a runtime event).
       try {
-        const updated = await invoke<import("$lib/types").ChatSessionSummary[]>(
-          "list_chat_sessions",
-        );
+        const updated = await listChatSessions();
         const { chatSessions } = await import("$lib/stores/sse");
         chatSessions.set(updated);
       } catch { /* non-blocking */ }
@@ -957,7 +964,7 @@
     // set `loadError` fails again here, the envelope carries the error alone.
     let raw: unknown = null;
     try {
-      raw = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      raw = await getChatSession(sessionId);
     } catch {
       raw = null;
     }

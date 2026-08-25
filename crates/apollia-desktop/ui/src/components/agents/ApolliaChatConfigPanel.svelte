@@ -38,7 +38,6 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Search, Sparkles, Wrench, Cpu } from "lucide-svelte";
@@ -48,27 +47,14 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { Badge } from "$lib/components/ui/badge";
   import { addToast } from "$lib/components/ui/toast/store";
-
-  interface ChatLibreConfigDto {
-    system_prompt: string;
-    allowed_tools: string[];
-    llm_backend: string | null;
-  }
-
-  interface ToolSummary {
-    name: string;
-    version: string;
-    description: string;
-    kind: string;
-  }
-
-  interface LlmBackendView {
-    name: string;
-    provider: string;
-    model: string;
-    enabled: boolean;
-    is_default: boolean;
-  }
+  import {
+    getChatLibreConfig,
+    updateChatLibreConfig,
+    type ChatLibreConfig,
+  } from "$lib/ipc/chat";
+  import { listLlmBackends } from "$lib/ipc/llm";
+  import { listTools } from "$lib/ipc/tools";
+  import type { LlmBackendConfig, ToolSummary } from "$lib/types";
 
   // ── State ────────────────────────────────────────────────────────────
   let systemPrompt = $state("");
@@ -77,7 +63,7 @@
   let llmBackend = $state("");
 
   let availableTools = $state<ToolSummary[]>([]);
-  let availableBackends = $state<LlmBackendView[]>([]);
+  let availableBackends = $state<LlmBackendConfig[]>([]);
 
   let toolFilter = $state("");
   let loading = $state(true);
@@ -91,11 +77,9 @@
     error = null;
     try {
       const [cfg, tools, backends] = await Promise.all([
-        invoke<ChatLibreConfigDto>("get_chat_libre_config"),
-        invoke<ToolSummary[]>("list_tools").catch(() => [] as ToolSummary[]),
-        invoke<LlmBackendView[]>("list_llm_backends").catch(
-          () => [] as LlmBackendView[],
-        ),
+        getChatLibreConfig(),
+        listTools().catch(() => [] as ToolSummary[]),
+        listLlmBackends().catch(() => [] as LlmBackendConfig[]),
       ]);
       systemPrompt = cfg.system_prompt;
       allowedTools = new Set(cfg.allowed_tools);
@@ -116,12 +100,12 @@
   async function save(): Promise<void> {
     saving = true;
     try {
-      const config: ChatLibreConfigDto = {
+      const config: ChatLibreConfig = {
         system_prompt: systemPrompt,
         allowed_tools: Array.from(allowedTools).sort(),
         llm_backend: llmBackend.length === 0 ? null : llmBackend,
       };
-      await invoke("update_chat_libre_config", { config });
+      await updateChatLibreConfig(config);
       addToast($t("agents.chat_config.saved_toast"), "success");
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");

@@ -6,7 +6,7 @@
   import { tasks, openNewTaskRequested } from "$lib/stores/tasks";
   import { uiMode } from "$lib/stores/mode";
   import { formatRelativeTime } from "$lib/utils";
-  import { listTasks, cancelTask, retryTask, deleteTask } from "$lib/ipc/tasks";
+  import { listTasks, cancelTask, submitTask, deleteTask } from "$lib/ipc/tasks";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
@@ -175,7 +175,7 @@
 
   async function retry(task: TaskSummary) {
     try {
-      await retryTask(task.agent_id, task.input_preview);
+      await submitTask(task.agent_id, task.input_preview);
       await refresh();
     } catch (error) {
       reportError(error, { surface: "toast", testid: "task-retry-error" });

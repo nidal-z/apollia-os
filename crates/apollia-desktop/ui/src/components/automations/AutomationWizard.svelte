@@ -13,7 +13,6 @@
    * expression to the operator ; the builder path (`CreateTriggerDialog`) stays
    * available behind the "Mode avancé" toggle.
    */
-  import { invoke } from "@tauri-apps/api/core";
   import { t, locale } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import { contentIn } from "$lib/design/routeTransition";
@@ -24,7 +23,9 @@
   import { Input } from "$lib/components/ui/input";
   import { Stepper } from "$lib/components/ui/stepper";
   import { FormField } from "$lib/components/ui/form-field";
-  import type { AgentListItem, CreateTriggerRequest, TriggerDefinitionView } from "$lib/types";
+  import type { AgentListItem, CreateTriggerRequest } from "$lib/types";
+  import { listAgents } from "$lib/ipc/connections";
+  import { createTrigger } from "$lib/ipc/triggers";
   import {
     parseAutomationDescription,
     type ParsedAutomation,
@@ -111,7 +112,7 @@
 
   async function loadAgents(): Promise<void> {
     try {
-      agents = await invoke<AgentListItem[]>("list_agents");
+      agents = await listAgents();
     } catch {
       agents = [];
     }
@@ -201,9 +202,7 @@
       if (parsed?.payload) {
         request.input_template = parsed.payload;
       }
-      const created = await invoke<TriggerDefinitionView>("create_trigger", {
-        definition: request,
-      });
+      const created = await createTrigger(request);
       oncreated(created.id);
       onclose();
     } catch (err) {

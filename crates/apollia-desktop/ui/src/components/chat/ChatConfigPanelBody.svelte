@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Save, Cpu, Settings2, TriangleAlert, Brain, ChevronDown } from "lucide-svelte";
   import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
+  import { updateChatSession } from "$lib/ipc/chat";
   import { TOOL_GROUPS, TOOL_CATALOG, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
@@ -120,7 +120,7 @@
         tools: selectedTools,
         llm_backend: selectedBackend,
       };
-      await invoke("update_chat_session", { sessionId: session.id, update });
+      await updateChatSession(session.id, update);
       try {
         const key = stepBudgetStorageKey(session.id);
         if (stepBudget !== null) {

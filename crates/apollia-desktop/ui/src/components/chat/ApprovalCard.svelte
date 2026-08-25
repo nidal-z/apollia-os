@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
   import { ShieldAlert, Zap, ChevronDown } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { currentSession } from "$lib/stores/chat";
+  import { authorizeChatTool } from "$lib/ipc/inbox";
   import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
 
   interface Props {
@@ -55,7 +55,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId,
@@ -74,7 +74,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId,
@@ -93,7 +93,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("authorize_chat_tool", {
+      await authorizeChatTool({
         sessionId,
         messageId,
         toolCallId,

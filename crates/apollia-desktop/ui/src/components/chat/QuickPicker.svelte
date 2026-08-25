@@ -8,7 +8,6 @@
    * `localStorage` so power users keep their preferred layout.
    */
   import { onMount, tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import {
     X,
@@ -30,12 +29,13 @@
   import { Select } from "$lib/components/ui/select";
   import { LoadingSpinner } from "$lib/components/feedback";
   import type {
-    AgentListItem,
     ChatSessionSummary,
     CreateSessionRequest,
-    ProjectSummary,
   } from "$lib/types";
   import { agents } from "$lib/stores/sse";
+  import { listAgents } from "$lib/ipc/connections";
+  import { listProjects, createChatSession } from "$lib/ipc/projects";
+  import { sendChatMessage } from "$lib/ipc/chat";
   import {
     agentStatuses,
     startAgentStatusPolling,
@@ -125,12 +125,12 @@
   // Focus management (initial autofocus + restore on close) is owned by
   // `use:focusTrap` on the root - this hook only seeds backend state.
   onMount(() => {
-    void invoke<AgentListItem[]>("list_agents")
+    void listAgents()
       .then((list) => agents.set(list))
       .catch(() => { /* SSE will eventually populate */ });
     // Seed the projects store so the linker is populated even when the
     // user has not visited the Projects route yet in this session.
-    void invoke<ProjectSummary[]>("list_projects")
+    void listProjects()
       .then((list) => projects.set(list))
       .catch(() => { /* link selector will just stay empty */ });
     void getPlanModeDefault()
@@ -252,9 +252,7 @@
         project_id: selectedProjectId || undefined,
         tools,
       };
-      const session = await invoke<ChatSessionSummary>("create_chat_session", {
-        request,
-      });
+      const session = await createChatSession(request);
       // Enable plan mode before the first message is sent, so that opening turn
       // already runs under the plan gate. Awaited so it lands before the send.
       if (startInPlanMode) {
@@ -266,10 +264,7 @@
         // Kick off auto-naming before send_chat_message so the title LLM call
         // runs concurrently with the agent run - title typically lands first.
         triggerAutoName(session.id, initialPrompt);
-        await invoke("send_chat_message", {
-          sessionId: session.id,
-          content: initialPrompt.trim(),
-        }).catch(() => { /* message can be retried manually */ });
+        await sendChatMessage(session.id, initialPrompt.trim()).catch(() => { /* message can be retried manually */ });
       }
       oncreated(session);
     } catch (err) {
@@ -292,15 +287,10 @@
         agent_name: agentName,
         project_id: selectedProjectId || undefined,
       };
-      const session = await invoke<ChatSessionSummary>("create_chat_session", {
-        request,
-      });
+      const session = await createChatSession(request);
       if (prompt.trim().length > 0) {
         triggerAutoName(session.id, prompt);
-        await invoke("send_chat_message", {
-          sessionId: session.id,
-          content: prompt.trim(),
-        }).catch(() => { /* user can retry */ });
+        await sendChatMessage(session.id, prompt.trim()).catch(() => { /* user can retry */ });
       }
       oncreated(session);
     } catch (err) {

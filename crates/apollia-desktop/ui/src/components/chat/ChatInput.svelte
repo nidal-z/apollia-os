@@ -14,7 +14,6 @@
   import { onMount, untrack, tick } from "svelte";
   import { t } from "svelte-i18n";
   import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks, Wand2, Loader2, Undo2 } from "lucide-svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import {
     InputRewriter,
     fetchWorkContext,
@@ -22,6 +21,7 @@
   } from "$lib/chat/rewriteInput";
   import { addToast } from "$lib/components/ui/toast";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { startTourRecording, stopTourRecording } from "$lib/ipc/stt";
   import { chatInputAppend } from "$lib/stores/artifacts";
   import {
     DICTATION_FAILED_EVENT,
@@ -317,13 +317,13 @@
     sttError = null;
     try {
       if (recording) {
-        await invoke("stop_tour_recording");
+        await stopTourRecording();
         // The transcription event flips recording=false once it arrives, and
         // `stt-dictation-failed` does the same when there is no text to
         // deliver. sttBusy stays true until one of them lands, so the user
         // cannot double-click during the inference.
       } else {
-        await invoke("start_tour_recording");
+        await startTourRecording();
         recording = true;
         sttBusy = false;
       }
@@ -723,8 +723,8 @@
       // the only form an image can travel under. Intake still prefers the
       // inline payload for everything else, so a dropped small text file
       // keeps travelling as text and needs no approval.
-      const anyFile = file as unknown as { path?: string };
-      if (anyFile.path) candidate.absolutePath = anyFile.path;
+      const dropPath: unknown = (file as File & { path?: unknown }).path;
+      if (typeof dropPath === "string" && dropPath) candidate.absolutePath = dropPath;
 
       if (kind !== "image" && file.size <= INLINE_MAX_BYTES) {
         try {

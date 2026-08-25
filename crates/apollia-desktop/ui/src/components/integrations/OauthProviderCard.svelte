@@ -22,7 +22,7 @@
   import { Button } from "$lib/components/ui/button";
   import {
     oauthTestClient,
-    importOauthClientJson,
+    oauthImportClientJson,
     type OauthClientIdStatus,
   } from "$lib/ipc/oauthClients";
   import { oauthReadiness } from "$lib/connections/status";
@@ -110,7 +110,7 @@
     importing = true;
     importError = "";
     try {
-      await importOauthClientJson(status.provider, picked);
+      await oauthImportClientJson(status.provider, picked);
       onimported?.();
     } catch (err) {
       importError = reportError(err, { surface: "inline" }).friendly_message;

@@ -10,10 +10,10 @@
   import OauthCredentialRow from "../../components/integrations/OauthCredentialRow.svelte";
   import OauthDriveFolders from "../../components/integrations/OauthDriveFolders.svelte";
   import {
-    listOauthClientIds,
-    setOauthClientId,
-    setOauthClientSecret,
-    setOauthApiKey,
+    oauthListClientIds,
+    oauthSetClientId,
+    oauthSetClientSecret,
+    oauthSetApiKey,
     type OauthClientIdStatus,
   } from "$lib/ipc/oauthClients";
 
@@ -30,7 +30,7 @@
     loading = true;
     rawError = null;
     try {
-      statuses = await listOauthClientIds();
+      statuses = await oauthListClientIds();
       loaded = true;
     } catch (err) {
       rawError = err instanceof Error ? err.message : String(err);
@@ -131,7 +131,7 @@
           placeholder={clientIdPlaceholder(provider)}
           help={isGoogle ? undefined : $t("settings.integrations.help.ms_builtin")}
           onsave={async (v) => {
-            await setOauthClientId(provider, v);
+            await oauthSetClientId(provider, v);
             await refresh();
           }}
           inputTestid={`oauth-input-${provider}`}
@@ -151,11 +151,11 @@
             placeholder={$t("settings.integrations.placeholder.client_secret")}
             help={$t("settings.integrations.help.client_secret")}
             onsave={async (v) => {
-              await setOauthClientSecret(provider, v);
+              await oauthSetClientSecret(provider, v);
               await refresh();
             }}
             ondelete={async () => {
-              await setOauthClientSecret(provider, "");
+              await oauthSetClientSecret(provider, "");
               await refresh();
             }}
             inputTestid={`oauth-secret-input-${provider}`}
@@ -176,11 +176,11 @@
             placeholder={$t("settings.integrations.placeholder.api_key")}
             help={$t("settings.integrations.help.api_key")}
             onsave={async (v) => {
-              await setOauthApiKey(provider, v);
+              await oauthSetApiKey(provider, v);
               await refresh();
             }}
             ondelete={async () => {
-              await setOauthApiKey(provider, "");
+              await oauthSetApiKey(provider, "");
               await refresh();
             }}
             inputTestid={`oauth-api-key-input-${provider}`}

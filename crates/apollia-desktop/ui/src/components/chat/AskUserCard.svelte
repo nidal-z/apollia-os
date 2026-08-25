@@ -12,11 +12,12 @@
    */
 
   import { onMount, tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
   import { HelpCircle } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
+  import { respondUserInput, respondUserInputRejected } from "$lib/ipc/inbox";
+  import type { AskUserAnswer } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
   import AskUserQuestion from "./AskUserQuestion.svelte";
@@ -33,13 +34,6 @@
     hint?: string;
     /** Optional default answer surfaced by the "Skip with default" action. */
     default?: string | string[];
-  }
-
-  interface UserAnswer {
-    id: string;
-    value?: string | null;
-    values?: string[];
-    skipped: boolean;
   }
 
   /**
@@ -98,7 +92,7 @@
   let selectedValues = $state<Record<string, string[]>>({});
   let isProcessing = $state(false);
   let isSubmitted = $state(false);
-  let submittedAnswers = $state<UserAnswer[]>([]);
+  let submittedAnswers = $state<AskUserAnswer[]>([]);
   let error = $state<string | null>(null);
   let promptExpanded = $state(false);
   let rootEl: HTMLDivElement | undefined = $state();
@@ -125,7 +119,7 @@
   );
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function buildAnswers(skipped: boolean, useDefaults = false): UserAnswer[] {
+  function buildAnswers(skipped: boolean, useDefaults = false): AskUserAnswer[] {
     return questions.map((q) => {
       if (skipped && !useDefaults) {
         return { id: q.id, value: null, values: [], skipped: true };
@@ -150,11 +144,11 @@
     });
   }
 
-  async function sendAnswers(answers: UserAnswer[]): Promise<void> {
+  async function sendAnswers(answers: AskUserAnswer[]): Promise<void> {
     isProcessing = true;
     error = null;
     try {
-      await invoke("respond_user_input", { requestId, answers });
+      await respondUserInput(requestId, answers);
       submittedAnswers = answers;
       isSubmitted = true;
     } catch (err: unknown) {
@@ -187,10 +181,7 @@
     isProcessing = true;
     error = null;
     try {
-      await invoke("respond_user_input_rejected", {
-        requestId,
-        reason: rejectReason.trim(),
-      });
+      await respondUserInputRejected(requestId, rejectReason.trim());
       submittedAnswers = buildAnswers(true);
       isSubmitted = true;
     } catch (err: unknown) {

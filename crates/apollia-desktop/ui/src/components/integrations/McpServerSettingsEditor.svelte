@@ -1,8 +1,14 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
-  import { ShieldCheck } from "lucide-svelte";
+  import { Check, ShieldCheck } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
+  import {
+    getMcpServerRawConfig,
+    mcpOauthLogin,
+    storeMcpSecret,
+    updateMcpServerConfig,
+    type McpServerRawConfig,
+  } from "$lib/ipc/connections";
   import { Card } from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -27,21 +33,8 @@
 
   let { serverName, onSaved }: Props = $props();
 
-  // ── Persisted config shape (matches backend `McpServerConfig`) ───────────────
-  type RawConfig = {
-    name: string;
-    command: string;
-    args: string[];
-    env: Record<string, string>;
-    transport: string;
-    url?: string | null;
-    requires_approval: boolean;
-    init_timeout_secs: number;
-    call_timeout_secs: number;
-    tags: string[];
-  };
 
-  let raw = $state<RawConfig | null>(null);
+  let raw = $state<McpServerRawConfig | null>(null);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
 
@@ -114,9 +107,7 @@
     loading = true;
     loadError = null;
     try {
-      raw = await invoke<RawConfig>("get_mcp_server_raw_config", {
-        name: serverName,
-      });
+      raw = await getMcpServerRawConfig(serverName);
       const split = splitLauncherHead(raw.args ?? []);
       argsTailDraft = split.tail.join("\n");
       urlDraft = raw.url ?? "";
@@ -180,7 +171,7 @@
     oauthReconnectError = null;
     oauthReconnectSuccess = false;
     try {
-      await invoke("mcp_oauth_login", {
+      await mcpOauthLogin({
         serverName: raw.name,
         serverUrl: raw.url ?? "",
         wwwAuthenticate: null,
@@ -197,7 +188,7 @@
 
   // ── Save ─────────────────────────────────────────────────────────────────────
 
-  function buildNextConfig(): RawConfig | null {
+  function buildNextConfig(): McpServerRawConfig | null {
     if (!raw) return null;
     const tail = argsTailDraft
       .split(/\r?\n|\s+/)
@@ -238,20 +229,13 @@
       //    successful save observes the new value on first connect.
       for (const [key, value] of Object.entries(secretRotateValues)) {
         if (value.trim().length === 0) continue;
-        await invoke("store_mcp_secret", {
-          serverName,
-          envVar: key,
-          value,
-        });
+        await storeMcpSecret(serverName, key, value);
       }
       // 2. PUT the updated config - the runtime does remove → add → persist
       //    and restarts the server with the new parameters.
       const next = buildNextConfig();
       if (!next) return;
-      await invoke("update_mcp_server_config", {
-        name: serverName,
-        config: next,
-      });
+      await updateMcpServerConfig(serverName, next);
       saveOk = true;
       onSaved?.();
       // Re-fetch so any backend-side normalisation is reflected in the form.
@@ -433,8 +417,8 @@
         </div>
         <div class="flex items-center justify-end gap-2">
           {#if oauthReconnectSuccess}
-            <span class="text-[11.5px] text-success" data-testid="mcp-settings-oauth-success">
-              ✓
+            <span class="text-success" data-testid="mcp-settings-oauth-success">
+              <Check class="h-3.5 w-3.5" aria-hidden="true" />
             </span>
           {/if}
           <Button

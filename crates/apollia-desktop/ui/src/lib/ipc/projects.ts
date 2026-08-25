@@ -19,6 +19,7 @@ import type {
   ProjectSummary,
   TaskSummary,
   UpdateProjectRequest,
+  WorkspaceSnapshotView,
 } from "$lib/types";
 
 /** List every project (sidebar master list). */
@@ -115,13 +116,6 @@ export function listProjectAgents(projectId: string): Promise<string[]> {
   return invoke<string[]>("list_project_agents", { projectId });
 }
 
-/** Projects an agent is attached to (reverse lookup of `listProjectAgents`). */
-export function listProjectsForAgent(
-  agentName: string,
-): Promise<ProjectSummary[]> {
-  return invoke<ProjectSummary[]>("list_projects_for_agent", { agentName });
-}
-
 /** Chats scoped to a project (Conversations tab). */
 export function listChatsByProject(
   projectId: string,
@@ -151,4 +145,22 @@ export function createChatSession(
   request: CreateSessionRequest,
 ): Promise<ChatSessionSummary> {
   return invoke<ChatSessionSummary>("create_chat_session", { request });
+}
+
+/** Filesystem snapshot of a project workspace (context providers tab). */
+export function getProjectSnapshot(projectId: string): Promise<WorkspaceSnapshotView> {
+  return invoke<WorkspaceSnapshotView>("get_project_snapshot", { projectId });
+}
+
+/** Remove a context provider from its project. */
+export function removeProjectProvider(providerId: string): Promise<void> {
+  return invoke<void>("remove_project_provider", { providerId });
+}
+
+/** Enable or disable a context provider without removing it. */
+export function toggleProjectProvider(
+  providerId: string,
+  enabled: boolean,
+): Promise<void> {
+  return invoke<void>("toggle_project_provider", { providerId, enabled });
 }

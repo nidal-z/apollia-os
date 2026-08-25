@@ -122,7 +122,7 @@ export interface InstalledModel {
 }
 
 /** Progress events are emitted on this channel for every active download. */
-export const DOWNLOAD_PROGRESS_EVENT = "model-download-progress";
+const DOWNLOAD_PROGRESS_EVENT = "model-download-progress";
 
 // ── Command wrappers ──────────────────────────────────────────────────────
 

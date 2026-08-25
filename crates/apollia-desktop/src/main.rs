@@ -1050,7 +1050,6 @@ fn main() {
             commands::projects::add_project_agent,
             commands::projects::remove_project_agent,
             commands::projects::list_project_agents,
-            commands::projects::list_projects_for_agent,
             commands::projects::set_project_provider,
             commands::projects::remove_project_provider,
             commands::projects::toggle_project_provider,

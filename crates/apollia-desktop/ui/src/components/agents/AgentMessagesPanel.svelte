@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import type { AgentMessage } from "$lib/types";
+  import { listAgentMessages } from "$lib/ipc/agents";
   import { lastAgentMessage } from "$lib/stores/sse";
   import { ArrowRight, ArrowLeft, MessageSquare } from "lucide-svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -49,10 +49,7 @@
   async function fetchMessages(): Promise<void> {
     loading = true;
     try {
-      const result: AgentMessage[] = await invoke("list_agent_messages", {
-        agentName,
-        limit: 50,
-      });
+      const result: AgentMessage[] = await listAgentMessages(agentName, 50);
       messages = result;
     } catch {
       messages = [];

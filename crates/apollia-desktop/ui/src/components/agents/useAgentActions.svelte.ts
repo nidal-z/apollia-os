@@ -20,7 +20,7 @@ import { addToast } from "$lib/components/ui/toast/store";
 import { reportError } from "$lib/errors/reportError";
 import type { HumanizedError } from "$lib/errors/humanize";
 import {
-  clearAgentMemory,
+  clearMemory,
   startAgent,
   stopAgent,
   uninstallAgent,
@@ -206,7 +206,7 @@ export function createAgentActions(): AgentActions {
     try {
       if (deleteMemory) {
         try {
-          await clearAgentMemory(a.memory_namespace ?? a.name);
+          await clearMemory(a.memory_namespace ?? a.name);
         } catch (err) {
           reportError(err, { surface: "toast" });
         }

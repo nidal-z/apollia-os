@@ -1,6 +1,6 @@
 // Typed IPC wrappers for the delegation tree surface.
 //
-// `listDelegationTasks` enumerates recent A2A tasks; `getDelegationTree` reads
+// `listTasks` enumerates recent A2A tasks; `getDelegationTree` reads
 // the parent/child delegation graph for one task. Keeping the calls here removes
 // direct `invoke` usage from the `.svelte` file.
 
@@ -23,7 +23,7 @@ export interface DelegationTaskOption {
 }
 
 /** Lists recent A2A tasks eligible for delegation inspection. */
-export async function listDelegationTasks(): Promise<DelegationTaskOption[]> {
+export async function listTasks(): Promise<DelegationTaskOption[]> {
   return invoke<DelegationTaskOption[]>("list_tasks", { filter: null });
 }
 

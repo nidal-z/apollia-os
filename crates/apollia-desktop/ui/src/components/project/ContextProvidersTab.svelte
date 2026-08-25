@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { Plus, Eye, RefreshCw, Layers } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import EmptyState from "$lib/components/operator/EmptyState.svelte";
@@ -8,6 +7,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectDetail, ProjectProviderRow, WorkspaceSnapshotView } from "$lib/types";
+  import { getProjectSnapshot, removeProjectProvider } from "$lib/ipc/projects";
   import ProviderCard from "./ProviderCard.svelte";
   import ProviderEditDialog from "./ProviderEditDialog.svelte";
   import SnapshotPreview from "./SnapshotPreview.svelte";
@@ -55,7 +55,7 @@
     if (!deleteTarget) return;
     deleting = true;
     try {
-      await invoke("remove_project_provider", { providerId: deleteTarget.id });
+      await removeProjectProvider(deleteTarget.id);
       addToast($t("projects.provider_deleted_toast"), "success");
       deleteTarget = null;
       await onUpdated();
@@ -69,9 +69,7 @@
   async function loadSnapshot(): Promise<void> {
     snapshotLoading = true;
     try {
-      snapshot = await invoke<WorkspaceSnapshotView>("get_project_snapshot", {
-        projectId: project.id,
-      });
+      snapshot = await getProjectSnapshot(project.id);
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
       snapshot = null;

@@ -105,3 +105,8 @@ export async function dismissProposedPermissionRule(
 ): Promise<void> {
   return invoke<void>("dismiss_proposed_permission_rule", { index });
 }
+
+/** Record that onboarding is done, so the app boots straight to the shell. */
+export async function markOnboarded(): Promise<void> {
+  return invoke<void>("mark_onboarded");
+}

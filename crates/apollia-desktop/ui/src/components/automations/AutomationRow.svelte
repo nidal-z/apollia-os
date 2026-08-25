@@ -5,10 +5,10 @@
    * schedule sub-line and "next run" cell speak operator language and switch
    * to the raw trigger config / ISO timestamp in builder mode. Token-only.
    */
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Play, Pause, History, Pencil, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
+  import { fireTrigger, setTriggerEnabled } from "$lib/ipc/triggers";
   import { StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Avatar } from "$lib/components/ui/avatar";
@@ -112,7 +112,7 @@
     if (firing || !trigger.enabled) return;
     firing = true;
     try {
-      const result: TriggerFireResult = await invoke("fire_trigger", { id: trigger.id });
+      const result: TriggerFireResult = await fireTrigger(trigger.id);
       onfire(result.task_id);
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -133,7 +133,7 @@
     toggling = true;
     const next = !trigger.enabled;
     try {
-      await invoke("set_trigger_enabled", { id: trigger.id, enabled: next });
+      await setTriggerEnabled(trigger.id, next);
       addToast(
         next ? $t("automations.resume_toast") : $t("automations.pause_toast"),
         "success",
