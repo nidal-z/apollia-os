@@ -382,11 +382,10 @@ ERROR_ENUM_COUNTS: dict[str, int] = {
     "crates/apollia-triggers/src/types.rs": 1,
 }
 
-# The one message still carrying a numbered planning phrase. The prose rule
-# extension that rewords it empties this table.
-INTERNAL_REFS_WAIVED: dict[str, int] = {
-    "crates/apollia-runtime/src/observability/persistor.rs": 1,
-}
+# Empty since the prose rule extension reworded the last waived message
+# (the persistor lag warning). A new entry here is a defect this guard
+# exists to refuse; the table stays so the rule keeps its two-way shape.
+INTERNAL_REFS_WAIVED: dict[str, int] = {}
 
 # ── source loading, on the guard's classification ────────────────────────────
 
