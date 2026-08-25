@@ -208,6 +208,31 @@ repos:
         files: '^(scripts/automation/.+|scripts/check_automation_derived\.py)$'
         pass_filenames: false
 
+      # The three data-layout guards born with the DataFile catalogue. Measured
+      # at 0.24 s, 0.17 s and 0.03 s on the full tree, well under the 3 s
+      # budget, and their defect (a hand-composed path, a new unversioned
+      # store, a fragile persisted struct) is born in a commit touching Rust.
+      - id: check-data-layout
+        name: data directory layout goes through the DataFile catalogue
+        entry: python3 scripts/check_data_layout.py
+        language: system
+        files: '^(crates/.+\.rs|tests/cli/seed/schemas/.+|scripts/check_data_layout\.py)$'
+        pass_filenames: false
+
+      - id: check-sqlite-schema-versioning
+        name: every new SQLite store opens through the versioned schema layer
+        entry: python3 scripts/check_sqlite_schema_versioning.py
+        language: system
+        files: '^(crates/.+\.(rs|sql)|scripts/check_sqlite_schema_versioning\.py)$'
+        pass_filenames: false
+
+      - id: check-serde-persisted-defaults
+        name: persisted serde structs survive the addition of a field
+        entry: python3 scripts/check_serde_persisted_defaults.py
+        language: system
+        files: '^(crates/.+\.rs|scripts/check_serde_persisted_defaults\.py)$'
+        pass_filenames: false
+
       # Measured at 2.45 s on the full tree against the 3 s budget above, so
       # it runs on the commit rather than in `just guards` alone. No `files:`
       # filter narrows the cost: the sweep reads its whole corpus either way.

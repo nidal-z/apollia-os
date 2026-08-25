@@ -343,6 +343,20 @@ jobs:
       # up while the rule sat in a document. It is a check now.
       - name: Spawned children ask for no console window
         run: python3 scripts/check_subprocess_window.py
+      # The layout of ~/.apollia had three diverging inventories (code, seed,
+      # reset script) and 105 production lines composing the directory by hand
+      # before the DataFile catalogue existed. These three guards hold the
+      # catalogue as the one source: no hand-composed path or database name,
+      # every new SQLite store versioned, every persisted struct able to
+      # survive the addition of a field. Selftest first, red sample first.
+      - name: Data directory layout, schema versioning, persisted formats
+        run: |
+          python3 scripts/check_data_layout.py --selftest
+          python3 scripts/check_data_layout.py
+          python3 scripts/check_sqlite_schema_versioning.py --selftest
+          python3 scripts/check_sqlite_schema_versioning.py
+          python3 scripts/check_serde_persisted_defaults.py --selftest
+          python3 scripts/check_serde_persisted_defaults.py
       # A pasted Google Fonts snippet makes a cold start phone a third party
       # before the user clicks anything, which is the one promise the product
       # is sold on. The desktop webview has a CSP that blocks it; the docs site
