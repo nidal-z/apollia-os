@@ -79,6 +79,7 @@ Usage:
     python3 scripts/check_i18n_catalogue.py --selftest
 """
 
+import argparse
 import contextlib
 import io
 import json
@@ -745,7 +746,11 @@ def selftest() -> int:
 
 
 def main() -> None:
-    if "--selftest" in sys.argv[1:]:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest", action="store_true", help="replay the fixture controls instead of measuring the tree"
+    )
+    if parser.parse_args().selftest:
         sys.exit(selftest())
     sys.exit(report())
 

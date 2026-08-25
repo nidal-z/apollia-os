@@ -30,6 +30,7 @@ no commit could ever produce.
 Exit code 0 when clean, 1 when a rule fires.
 """
 
+import argparse
 import re
 import subprocess
 import sys
@@ -201,4 +202,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

@@ -49,6 +49,7 @@ Usage:
     python3 scripts/check_rust_rules.py --selftest
 """
 
+import argparse
 import re
 import sys
 from bisect import bisect_right
@@ -1031,13 +1032,24 @@ def _selftest() -> int:
 
 
 def main(argv: list[str]) -> int:
-    if "--selftest" in argv:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "names", nargs="*", metavar="rule", help="rule name(s) to run (default: every rule)"
+    )
+    parser.add_argument(
+        "--list", action="store_true", help="print every hit instead of the first eight"
+    )
+    parser.add_argument(
+        "--selftest", action="store_true", help="replay the fixture controls instead of measuring the tree"
+    )
+    args = parser.parse_args(argv[1:])
+    if args.selftest:
         return _selftest()
-    names = [a for a in argv[1:] if not a.startswith("--")]
+    names = args.names
     if names and any(n not in RULES for n in names):
         print(__doc__)
         return 2
-    listing = "--list" in argv
+    listing = args.list
     sources = load()
     if not sources:
         print("nothing measured: no tracked production file", file=sys.stderr)

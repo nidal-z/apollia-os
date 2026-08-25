@@ -23,6 +23,7 @@ So this looks from both ends, and at placement rather than existence:
    a file, or immediately before another marker, guards nothing.
 """
 
+import argparse
 import re
 import sys
 import tomllib
@@ -159,4 +160,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

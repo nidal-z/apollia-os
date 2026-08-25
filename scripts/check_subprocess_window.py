@@ -24,6 +24,7 @@ Run: python3 scripts/check_subprocess_window.py
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -171,4 +172,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

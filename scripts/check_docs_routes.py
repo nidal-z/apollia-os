@@ -47,6 +47,7 @@ Usage:
     python3 scripts/check_docs_routes.py
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -263,4 +264,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

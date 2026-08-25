@@ -30,6 +30,7 @@ Usage:
     python3 scripts/check_playwright_specs.py
 """
 
+import argparse
 import contextlib
 import io
 import os
@@ -159,4 +160,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

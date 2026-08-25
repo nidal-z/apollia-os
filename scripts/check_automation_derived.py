@@ -20,6 +20,7 @@ drifted (or is missing), 2 a generator is missing or crashed (nothing
 measured, which is not a pass).
 """
 
+import argparse
 import json
 import shutil
 import subprocess
@@ -101,4 +102,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

@@ -4,12 +4,22 @@ Attributes each failure to its domain section (nearest preceding
 `screenshot` step whose label starts with 'section-') and prints the step
 content + detail, grouped by section, so real bugs vs by-design fast-fails
 are quick to triage."""
+import argparse
 import json
-import sys
 from collections import Counter, defaultdict
 
-REPORT = sys.argv[1] if len(sys.argv) > 1 else ".apollia-automation/report.json"
-SCRIPT = sys.argv[2] if len(sys.argv) > 2 else "scripts/automation/master-det.json"
+_parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+_parser.add_argument(
+    "report", nargs="?", default=".apollia-automation/report.json",
+    help="report.json written by the automation run",
+)
+_parser.add_argument(
+    "script", nargs="?", default="scripts/automation/master-det.json",
+    help="automation script the run executed",
+)
+_args = _parser.parse_args()
+REPORT = _args.report
+SCRIPT = _args.script
 
 rep = json.load(open(REPORT))
 scr = json.load(open(SCRIPT))

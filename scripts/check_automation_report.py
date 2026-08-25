@@ -28,6 +28,7 @@ Usage:
     python3 scripts/check_automation_report.py [report.json] [script.json]
 """
 
+import argparse
 import json
 import subprocess
 import sys
@@ -76,8 +77,18 @@ def sections_of(script_path: Path) -> dict[int, str]:
 
 
 def main() -> int:
-    report_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_REPORT
-    script_path = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_SCRIPT
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "report", nargs="?", type=Path, default=DEFAULT_REPORT,
+        help="report.json written by the seeded automation run",
+    )
+    parser.add_argument(
+        "script", nargs="?", type=Path, default=DEFAULT_SCRIPT,
+        help="automation script the run replayed",
+    )
+    args = parser.parse_args()
+    report_path = args.report
+    script_path = args.script
 
     if not report_path.is_file():
         print(

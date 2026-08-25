@@ -52,6 +52,7 @@ Usage:
     python3 scripts/check_guard_verdicts.py
 """
 
+import argparse
 import json
 import re
 import shutil
@@ -525,4 +526,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

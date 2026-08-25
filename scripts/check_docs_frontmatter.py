@@ -54,6 +54,7 @@ Usage:
     python3 scripts/check_docs_frontmatter.py --selftest
 """
 
+import argparse
 import contextlib
 import io
 import re
@@ -513,7 +514,11 @@ def selftest() -> int:
 
 
 def main() -> None:
-    if "--selftest" in sys.argv[1:]:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest", action="store_true", help="replay the fixture controls instead of measuring the tree"
+    )
+    if parser.parse_args().selftest:
         sys.exit(selftest())
     sys.exit(report())
 

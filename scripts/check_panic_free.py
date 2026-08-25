@@ -69,6 +69,7 @@ Usage:
     python3 scripts/check_panic_free.py
 """
 
+import argparse
 import re
 import subprocess
 import sys
@@ -561,4 +562,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

@@ -55,6 +55,7 @@ Usage:
     python3 scripts/check_instrument_verdicts.py
 """
 
+import argparse
 import json
 import os
 import re
@@ -844,4 +845,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

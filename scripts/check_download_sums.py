@@ -29,6 +29,7 @@ Exit 0 when every surface is coherent, 1 when a defect was found, 2 when a
 subject is unreadable (nothing measured, which is not a pass).
 """
 
+import argparse
 import re
 import subprocess
 import sys
@@ -554,7 +555,17 @@ def selftest() -> int:
 
 
 def main() -> int:
-    if "--selftest" in sys.argv:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest", action="store_true", help="replay the fixture controls instead of measuring the tree"
+    )
+    parser.add_argument(
+        "--github",
+        action="store_true",
+        help="also compare the pinned sums against the upstream digests (network, GH_TOKEN)",
+    )
+    args = parser.parse_args()
+    if args.selftest:
         return selftest()
     problems = 0
     problems += check_llama(REPO_ROOT / LLAMA_FETCH, REPO_ROOT / LLAMA_SUMS)
@@ -566,7 +577,7 @@ def main() -> int:
     )
     problems += check_workflows(REPO_ROOT / WORKFLOW_DIR, EXEMPT_WORKFLOW_STEPS)
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)
-    if "--github" in sys.argv:
+    if args.github:
         problems += check_github()
     print(f"\necarts={problems}")
     return 1 if problems else 0

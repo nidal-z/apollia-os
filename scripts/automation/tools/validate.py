@@ -34,6 +34,7 @@ feeding them to the corpus masked the removal of every anchor they name.
 Exit codes: 0 all scripts clean, 1 at least one problem, 2 nothing measured
 (no corpus or no script: the verdict of an empty measurement is not a pass).
 """
+import argparse
 import glob
 import json
 import os
@@ -380,4 +381,5 @@ def main():
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     main()

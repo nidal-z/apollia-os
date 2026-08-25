@@ -49,6 +49,7 @@ Verdict by exit code, since the caller reads it rather than the text:
      document holds an invocation. Build it with `cargo build -p apollia-cli`.
 """
 
+import argparse
 import os
 import re
 import shlex
@@ -278,4 +279,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     sys.exit(main())

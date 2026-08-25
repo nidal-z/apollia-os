@@ -50,6 +50,7 @@ Usage:
     python3 scripts/check_crate_lints.py [--selftest]
 """
 
+import argparse
 import sys
 import tempfile
 import tomllib
@@ -402,11 +403,16 @@ def _selftest() -> int:
     return EXIT_GREEN
 
 
-def main(argv: list[str]) -> int:
-    if "--selftest" in argv:
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest", action="store_true", help="drive the rules on altered fixtures, red first"
+    )
+    args = parser.parse_args()
+    if args.selftest:
         return _selftest()
     return run(REPO_ROOT)
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())

@@ -27,6 +27,7 @@ Exit codes: 0 both properties hold, 1 an unresolved or masked anchor exists or
 the ratchet is exceeded, 2 nothing measured (empty corpus or no script).
 """
 
+import argparse
 import glob
 import importlib.util
 import json
@@ -58,6 +59,14 @@ def load_validator():
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--list-masked", action="store_true", help="print every masked exact testid"
+    )
+    parser.add_argument(
+        "--list-never", action="store_true", help="print every literal testid no script reaches"
+    )
+    args = parser.parse_args()
     os.chdir(REPO_ROOT)
     val = load_validator()
     static_ids, prefixes, composed_ids, _ = val.build_corpus()
@@ -110,12 +119,12 @@ def main() -> int:
           f"composed={len(composed)} declared-dynamic={len(dynamic)} "
           f"unresolved={len(unresolved)}; testidPrefix steps: {len(used_prefix)} distinct")
     print(f"masked exact testids: {len(masked)}")
-    if "--list-masked" in sys.argv:
+    if args.list_masked:
         for t in masked:
             print("   ", t)
     print(f"literal data-testid in src/**/*.svelte: {len(literal_src)}; "
           f"referenced by no script: {len(never)} (ratchet {NEVER_REACHED_MAX})")
-    if "--list-never" in sys.argv:
+    if args.list_never:
         for t in never:
             print("   ", t, literal_src[t])
 

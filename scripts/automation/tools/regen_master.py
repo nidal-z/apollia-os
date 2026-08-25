@@ -9,8 +9,15 @@ union of the pages' declarations, since its steps are the union of theirs.
 
 Validates against the current committed master-det unless --write is passed.
 """
+import argparse
 import json
 import sys
+
+_parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+_parser.add_argument(
+    "--write", action="store_true", help="rewrite master-det.json instead of comparing"
+)
+ARGS = _parser.parse_args()
 
 SCRIPTS = "scripts/automation"
 # section order (from the section-NN markers), name maps to <name>-det.json
@@ -56,7 +63,7 @@ for key, value in master.items():
         continue
     regen[key] = value
 
-if "--write" in sys.argv:
+if ARGS.write:
     json.dump(regen, open(f"{SCRIPTS}/master-det.json", "w"), indent=2)
     open(f"{SCRIPTS}/master-det.json", "a").write("\n")
     print(f"WROTE master-det.json: {len(out)} steps")
