@@ -5,10 +5,7 @@ use std::sync::Arc;
 
 use apollia_auth::SecretStore;
 
-use crate::audit_journal::actor::{
-    JournalActor, JournalMessage, MIGRATION_GLOBAL_COLUMNS, MIGRATION_GLOBAL_INDEX,
-    MIGRATION_SIGNATURE_COLUMNS, SCHEMA,
-};
+use crate::audit_journal::actor::{JournalActor, JournalMessage, MIGRATIONS, SCHEMA_VERSION};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::signer::{
@@ -102,27 +99,14 @@ impl AuditJournalHandle {
                 let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
                 return;
             }
-            if let Err(e) = conn.execute_batch(SCHEMA) {
+            if let Err(e) = apollia_core::schema::open_versioned(
+                &conn,
+                apollia_core::paths::DataFile::AuditJournal.file_name(),
+                SCHEMA_VERSION,
+                &MIGRATIONS,
+            ) {
                 let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
                 return;
-            }
-            let additive_columns = MIGRATION_SIGNATURE_COLUMNS
-                .iter()
-                .chain(MIGRATION_GLOBAL_COLUMNS.iter());
-            for ddl in additive_columns {
-                if let Err(e) = conn.execute_batch(ddl) {
-                    let msg = e.to_string();
-                    if !msg.contains("duplicate column name") {
-                        let _ = init_tx.send(Err(AuditJournalError::SchemaInit(msg)));
-                        return;
-                    }
-                }
-            }
-            for ddl in MIGRATION_GLOBAL_INDEX {
-                if let Err(e) = conn.execute_batch(ddl) {
-                    let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
-                    return;
-                }
             }
             let _ = init_tx.send(Ok(()));
             JournalActor::new(conn, receiver, signer, warn_unsigned).run();

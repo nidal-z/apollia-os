@@ -78,6 +78,37 @@ pub(crate) const MIGRATION_GLOBAL_INDEX: &[&str] =
     &["CREATE UNIQUE INDEX IF NOT EXISTS idx_aje_global_seq \
      ON audit_journal_entries(global_seq) WHERE global_seq IS NOT NULL"];
 
+/// Current schema version of the audit journal: v1 the chained table, index,
+/// append-only triggers and head-anchor row; v2 the signature columns; v3 the
+/// global-chain columns and their unique index.
+pub(crate) const SCHEMA_VERSION: u32 = 3;
+
+/// The ordered migration list applied through
+/// [`apollia_core::schema::open_versioned`] by the handle at open time.
+pub(crate) const MIGRATIONS: [apollia_core::schema::Migration; SCHEMA_VERSION as usize] =
+    [migrate_v1, migrate_v2, migrate_v3];
+
+fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(SCHEMA)
+}
+
+fn migrate_v2(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    for ddl in MIGRATION_SIGNATURE_COLUMNS {
+        apollia_core::schema::add_column_if_missing(conn, ddl)?;
+    }
+    Ok(())
+}
+
+fn migrate_v3(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    for ddl in MIGRATION_GLOBAL_COLUMNS {
+        apollia_core::schema::add_column_if_missing(conn, ddl)?;
+    }
+    for ddl in MIGRATION_GLOBAL_INDEX {
+        conn.execute_batch(ddl)?;
+    }
+    Ok(())
+}
+
 /// Messages processed by the [`JournalActor`].
 pub(crate) enum JournalMessage {
     /// Append a drafted entry (fire-and-forget).

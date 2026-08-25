@@ -57,6 +57,17 @@ BEGIN
 END;
 "#;
 
+/// Current schema version of the runtime-events store (a single step).
+const SCHEMA_VERSION: u32 = 1;
+
+/// The ordered migration list applied through
+/// [`apollia_core::schema::open_versioned`].
+const MIGRATIONS: [apollia_core::schema::Migration; SCHEMA_VERSION as usize] = [migrate_v1];
+
+fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(SCHEMA)
+}
+
 /// Errors raised while opening or initializing the persistor.
 #[derive(Debug, Error)]
 pub enum EventPersistorError {
@@ -195,7 +206,12 @@ impl EventPersistorHandle {
                 return;
             }
 
-            if let Err(e) = conn.execute_batch(SCHEMA) {
+            if let Err(e) = apollia_core::schema::open_versioned(
+                &conn,
+                apollia_core::paths::DataFile::RuntimeEvents.file_name(),
+                SCHEMA_VERSION,
+                &MIGRATIONS,
+            ) {
                 let _ = init_tx.send(Err(EventPersistorError::SchemaInitFailed(e.to_string())));
                 return;
             }
@@ -1241,5 +1257,58 @@ mod tests {
         let persisted = poll_until(Duration::from_secs(5), || count_task_a() == 2).await;
         assert!(persisted, "expected 2 persisted rows");
         assert_eq!(count_task_a(), 2);
+    }
+
+    /// runtime_events.db as the first shipped binary wrote it, with one row.
+    const RUNTIME_EVENTS_V1_FIXTURE: &str =
+        include_str!("../../tests/fixtures/schemas/runtime_events_v1.sql");
+
+    #[tokio::test]
+    async fn test_open_legacy_v1_database_keeps_rows_and_stamps_version() {
+        // GIVEN a runtime_events.db written before the versioned layer
+        // (schema v1, user_version 0, one persisted event)
+        let dir = tempdir().expect("tempdir");
+        let db = dir.path().join("runtime_events.db");
+        let seed = rusqlite::Connection::open(&db).expect("open raw");
+        seed.execute_batch(RUNTIME_EVENTS_V1_FIXTURE)
+            .expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it through the persistor (versioned migration)
+        let handle = EventPersistorHandle::open(&db)
+            .await
+            .expect("open migrated");
+        handle.shutdown().await;
+
+        // THEN the legacy row survives and the file is stamped
+        let conn = rusqlite::Connection::open(&db).expect("reopen");
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM runtime_events", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(rows, 1);
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, i64::from(SCHEMA_VERSION));
+    }
+
+    #[tokio::test]
+    async fn test_open_newer_database_is_refused() {
+        // GIVEN a runtime_events.db stamped one version above this binary
+        let dir = tempdir().expect("tempdir");
+        let db = dir.path().join("runtime_events.db");
+        let seed = rusqlite::Connection::open(&db).expect("open raw");
+        seed.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .expect("stamp");
+        drop(seed);
+
+        // WHEN opening it through the persistor
+        let result = EventPersistorHandle::open(&db).await;
+
+        // THEN the open is refused instead of misreading the newer schema
+        assert!(
+            matches!(result, Err(EventPersistorError::SchemaInitFailed(ref m)) if m.contains("newer")),
+            "expected a schema refusal"
+        );
     }
 }

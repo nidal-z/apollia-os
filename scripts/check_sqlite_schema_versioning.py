@@ -41,8 +41,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The stores that predate the versioned layer, measured on 2026-08-25. Each
 # entry leaves this list in the commit that migrates its module onto
-# `open_versioned`, and the list ratchets to zero. Adding an entry here is
-# the one thing this guard exists to refuse: a new store starts versioned.
+# `open_versioned`, and the list ratchets to zero: the `apollia-runtime`
+# part is out, the other crates remain. Adding an entry here is the one
+# thing this guard exists to refuse: a new store starts versioned.
 EXEMPT_UNVERSIONED = {
     "crates/apollia-core/src/llm_backend.rs",
     "crates/apollia-core/src/stt_config.rs",
@@ -57,11 +58,6 @@ EXEMPT_UNVERSIONED = {
     "crates/apollia-oria/src/plan_repository.rs",
     "crates/apollia-permissions/src/audit_log.rs",
     "crates/apollia-permissions/src/prefix_rule_engine.rs",
-    "crates/apollia-runtime/src/a2a/sidechain.rs",
-    "crates/apollia-runtime/src/api/routes_notifications.rs",
-    "crates/apollia-runtime/src/audit_journal/actor.rs",
-    "crates/apollia-runtime/src/mailbox.rs",
-    "crates/apollia-runtime/src/observability/persistor.rs",
     "crates/apollia-tools/src/agent_repository.rs",
     "crates/apollia-tools/src/audit.rs",
     "crates/apollia-tools/src/governance_db.rs",

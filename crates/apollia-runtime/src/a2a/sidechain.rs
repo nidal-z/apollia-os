@@ -16,6 +16,17 @@ use apollia_core::TaskId;
 /// SQL migration applied when the database is opened.
 const MIGRATION_SQL: &str = include_str!("../../migrations/002_task_sidechains.sql");
 
+/// Current schema version of the sidechain store (a single step).
+const SCHEMA_VERSION: u32 = 1;
+
+/// The ordered migration list applied through
+/// [`apollia_core::schema::open_versioned`].
+const MIGRATIONS: [apollia_core::schema::Migration; SCHEMA_VERSION as usize] = [migrate_v1];
+
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(MIGRATION_SQL)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Error
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +37,9 @@ pub enum SidechainError {
     /// Underlying SQLite error.
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    /// The store could not be opened at a supported schema version.
+    #[error("sidechain schema error: {0}")]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,14 +81,24 @@ impl SidechainRepository {
     /// Opens or creates the SQLite database at the given path and applies the migration.
     pub fn open(path: &Path) -> Result<Self, SidechainError> {
         let conn = Connection::open(path)?;
-        conn.execute_batch(MIGRATION_SQL)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Sidechains.file_name(),
+            SCHEMA_VERSION,
+            &MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 
     /// Creates an in-memory database for tests.
     pub fn new_in_memory() -> Result<Self, SidechainError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(MIGRATION_SQL)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::Sidechains.file_name(),
+            SCHEMA_VERSION,
+            &MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 
@@ -375,5 +399,50 @@ mod tests {
         if let Some(summary) = &rows[0].input_summary {
             assert!(summary.chars().count() <= 500);
         }
+    }
+
+    /// sidechains.db as the first shipped binary wrote it, with one row.
+    const SIDECHAINS_V1_FIXTURE: &str =
+        include_str!("../../tests/fixtures/schemas/sidechains_v1.sql");
+
+    #[test]
+    fn test_open_legacy_v1_database_keeps_rows_and_stamps_version() {
+        // GIVEN a sidechains.db written before the versioned layer (schema v1,
+        // user_version 0, one completed delegation)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("sidechains.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.execute_batch(SIDECHAINS_V1_FIXTURE).expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it through the repository (versioned migration)
+        let repo = SidechainRepository::open(&path).expect("open migrated");
+
+        // THEN the legacy row survives and the file is stamped
+        let rows = repo.list_by_parent("parent-1").expect("list");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].agent_name, "agent-b");
+        let version: i64 = repo
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, i64::from(SCHEMA_VERSION));
+    }
+
+    #[test]
+    fn test_open_newer_database_is_refused() {
+        // GIVEN a sidechains.db stamped one version above this binary
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("sidechains.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .expect("stamp");
+        drop(seed);
+
+        // WHEN opening it through the repository
+        let result = SidechainRepository::open(&path);
+
+        // THEN the open is refused instead of misreading the newer schema
+        assert!(matches!(result, Err(SidechainError::Schema(_))));
     }
 }

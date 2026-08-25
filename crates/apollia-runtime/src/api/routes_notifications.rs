@@ -903,14 +903,19 @@ fn resolve_notif_db_path() -> Option<std::path::PathBuf> {
     apollia_core::paths::data_dir().map(|d| apollia_core::paths::DataFile::Hitl.path(&d))
 }
 
-/// Open `db_path`, create `notification_logs` if needed, and return the last `N` entries.
-fn query_notification_logs(
-    db_path: &std::path::Path,
-    last: usize,
-) -> Result<Vec<serde_json::Value>, String> {
-    let conn = rusqlite::Connection::open(db_path)
-        .map_err(|e| format!("impossible d'ouvrir la base : {e}"))?;
+/// Current schema version of the HITL notification-log store (a single step).
+///
+/// The same table is written by the notification engine
+/// (`apollia-notifications`); the two DDLs and this version number must stay
+/// aligned, `hitl.db` carries one `user_version` for both.
+const HITL_SCHEMA_VERSION: u32 = 1;
 
+/// The ordered migration list applied through
+/// [`apollia_core::schema::open_versioned`].
+const HITL_MIGRATIONS: [apollia_core::schema::Migration; HITL_SCHEMA_VERSION as usize] =
+    [hitl_migrate_v1];
+
+fn hitl_migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS notification_logs (
             id          TEXT    PRIMARY KEY,
@@ -922,6 +927,22 @@ fn query_notification_logs(
             error       TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_notif_logs_sent_at ON notification_logs(sent_at);",
+    )
+}
+
+/// Open `db_path`, create `notification_logs` if needed, and return the last `N` entries.
+fn query_notification_logs(
+    db_path: &std::path::Path,
+    last: usize,
+) -> Result<Vec<serde_json::Value>, String> {
+    let conn = rusqlite::Connection::open(db_path)
+        .map_err(|e| format!("impossible d'ouvrir la base : {e}"))?;
+
+    apollia_core::schema::open_versioned(
+        &conn,
+        apollia_core::paths::DataFile::Hitl.file_name(),
+        HITL_SCHEMA_VERSION,
+        &HITL_MIGRATIONS,
     )
     .map_err(|e| format!("migration notification_logs échouée : {e}"))?;
 
@@ -1482,5 +1503,51 @@ mod tests {
         let result = query_notification_logs(&db_path, 20);
         let entries = result.expect("query_notification_logs");
         assert!(entries.is_empty());
+    }
+
+    /// hitl.db notification_logs as the first shipped binary wrote it.
+    const HITL_V1_FIXTURE: &str = include_str!("../../tests/fixtures/schemas/hitl_v1.sql");
+
+    #[test]
+    fn test_query_notification_logs_legacy_v1_database_keeps_rows() {
+        // GIVEN a hitl.db written before the versioned layer (schema v1,
+        // user_version 0, one logged notification)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("hitl.db");
+        let seed = rusqlite::Connection::open(&path).expect("open raw");
+        seed.execute_batch(HITL_V1_FIXTURE).expect("seed v1");
+        drop(seed);
+
+        // WHEN reading it through the versioned opener
+        let entries = query_notification_logs(&path, 10).expect("query migrated");
+
+        // THEN the legacy row survives and the file is stamped
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["id"], "legacy-notif-1");
+        let conn = rusqlite::Connection::open(&path).expect("reopen");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, i64::from(HITL_SCHEMA_VERSION));
+    }
+
+    #[test]
+    fn test_query_notification_logs_refuses_newer_database() {
+        // GIVEN a hitl.db stamped one version above this binary
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("hitl.db");
+        let seed = rusqlite::Connection::open(&path).expect("open raw");
+        seed.pragma_update(None, "user_version", HITL_SCHEMA_VERSION + 1)
+            .expect("stamp");
+        drop(seed);
+
+        // WHEN reading it through the versioned opener
+        let result = query_notification_logs(&path, 10);
+
+        // THEN the read is refused instead of misreading the newer schema
+        assert!(
+            matches!(result, Err(ref m) if m.contains("newer")),
+            "expected a schema refusal"
+        );
     }
 }

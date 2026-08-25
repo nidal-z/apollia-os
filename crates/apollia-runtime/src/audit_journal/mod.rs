@@ -952,4 +952,58 @@ mod tests {
         handle.shutdown().await;
         tokio::fs::remove_file(&path).await.ok();
     }
+
+    /// audit_journal.db as the first shipped binary wrote it, with rows.
+    const AUDIT_JOURNAL_V1_FIXTURE: &str =
+        include_str!("../../tests/fixtures/schemas/audit_journal_v1.sql");
+
+    #[tokio::test]
+    async fn test_open_v1_database_migrates_columns_and_keeps_entries() {
+        // GIVEN an audit_journal.db written before the signature and global
+        // chain migrations (schema v1, user_version 0, two chained entries)
+        let path = temp_db();
+        let seed = rusqlite::Connection::open(&path).expect("open raw");
+        seed.execute_batch(AUDIT_JOURNAL_V1_FIXTURE)
+            .expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it through the handle (versioned migration)
+        let handle = AuditJournalHandle::open(&path)
+            .await
+            .expect("open migrated");
+
+        // THEN the two legacy entries survive with NULL migrated columns
+        let entries = handle.query_run("legacy-run").await;
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].kind, JournalEntryKind::ToolCallStarted);
+        assert!(entries[0].signature.is_none());
+        handle.shutdown().await;
+
+        // and the file is stamped at the current version
+        let conn = rusqlite::Connection::open(&path).expect("reopen raw");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, 3);
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_open_newer_database_is_refused() {
+        // GIVEN an audit_journal.db stamped one version above this binary
+        let path = temp_db();
+        let seed = rusqlite::Connection::open(&path).expect("open raw");
+        seed.pragma_update(None, "user_version", 4).expect("stamp");
+        drop(seed);
+
+        // WHEN opening it through the handle
+        let result = AuditJournalHandle::open(&path).await;
+
+        // THEN the open is refused instead of misreading the newer schema
+        assert!(
+            matches!(result, Err(AuditJournalError::SchemaInit(ref m)) if m.contains("newer")),
+            "expected a schema refusal"
+        );
+        tokio::fs::remove_file(&path).await.ok();
+    }
 }

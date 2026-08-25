@@ -27,6 +27,29 @@ use tracing::warn;
 use crate::eventbus::EventBusSender;
 use apollia_core::{RunId, RuntimeEvent};
 
+/// Current schema version of the mailbox store: v1 base table and index,
+/// v2 the `lease_owner` fence column (a no-op on a fresh database, where the
+/// base schema already carries it).
+const SCHEMA_VERSION: u32 = 2;
+
+/// The ordered migration list applied through
+/// [`apollia_core::schema::open_versioned`].
+const MIGRATIONS: [apollia_core::schema::Migration; SCHEMA_VERSION as usize] =
+    [migrate_v1, migrate_v2];
+
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(SCHEMA)
+}
+
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Stores created before the lease-owner fence lack the column; a fresh
+    // database already has it through the base schema.
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE mailbox_messages ADD COLUMN lease_owner TEXT",
+    )
+}
+
 /// SQL schema for the durable mailbox store.
 const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS mailbox_messages (
@@ -378,9 +401,11 @@ impl AgentMailboxHandle {
     }
 }
 
-/// Opens the store connection, applies WAL and the schema. Falls back to
-/// in-memory if a durable path cannot be opened. Returns `None` only if even an
-/// in-memory database cannot be created.
+/// Opens the store connection, applies WAL and the versioned schema. Falls
+/// back to in-memory if a durable path cannot be opened. Returns `None` when
+/// no database can be created, and also when the store on disk was written by
+/// a newer binary: refusing to start preserves the queued mail instead of
+/// misreading it.
 fn open_and_init(db_path: Option<&std::path::Path>) -> Option<Connection> {
     let conn = match db_path {
         Some(p) => match Connection::open(p) {
@@ -394,22 +419,14 @@ fn open_and_init(db_path: Option<&std::path::Path>) -> Option<Connection> {
     };
     // WAL is a no-op / harmless for in-memory; ignore its failure.
     let _ = conn.execute_batch("PRAGMA journal_mode=WAL;");
-    if let Err(e) = conn.execute_batch(SCHEMA) {
+    if let Err(e) = apollia_core::schema::open_versioned(
+        &conn,
+        apollia_core::paths::DataFile::Mailbox.file_name(),
+        SCHEMA_VERSION,
+        &MIGRATIONS,
+    ) {
         warn!(error = %e, "mailbox: schema init failed");
         return None;
-    }
-    // Migrate stores created before the lease-owner fence. SQLite has no
-    // `ADD COLUMN IF NOT EXISTS`, so the duplicate-column error on an already
-    // migrated store is expected and swallowed; any other error is surfaced.
-    if let Err(e) = conn.execute(
-        "ALTER TABLE mailbox_messages ADD COLUMN lease_owner TEXT",
-        [],
-    ) {
-        let already_present = e.to_string().contains("duplicate column name");
-        if !already_present {
-            warn!(error = %e, "mailbox: lease_owner migration failed");
-            return None;
-        }
     }
     Some(conn)
 }
@@ -1346,5 +1363,55 @@ mod tests {
         assert_eq!(handle.pending_count("b").await, 1);
 
         handle.shutdown().await;
+    }
+
+    /// mailbox.db as written before the lease-owner fence, with one row.
+    const MAILBOX_V1_FIXTURE: &str = include_str!("../tests/fixtures/schemas/mailbox_v1.sql");
+
+    #[test]
+    fn test_open_and_init_v1_database_migrates_lease_owner_and_keeps_rows() {
+        // GIVEN a mailbox.db written before the lease-owner fence (schema v1,
+        // user_version 0, one pending message)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("mailbox.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.execute_batch(MAILBOX_V1_FIXTURE).expect("seed v1");
+        drop(seed);
+
+        // WHEN opening it through the versioned initializer
+        let conn = open_and_init(Some(&path)).expect("open migrated");
+
+        // THEN the lease_owner column exists (NULL on the legacy row), the row
+        // survived, and the file is stamped at the current version
+        let (owner, state): (Option<String>, String) = conn
+            .query_row(
+                "SELECT lease_owner, state FROM mailbox_messages WHERE message_id = 'legacy-mail-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("legacy row");
+        assert_eq!(owner, None);
+        assert_eq!(state, "pending");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, i64::from(SCHEMA_VERSION));
+    }
+
+    #[test]
+    fn test_open_and_init_refuses_newer_database() {
+        // GIVEN a mailbox.db stamped one version above this binary
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("mailbox.db");
+        let seed = Connection::open(&path).expect("open raw");
+        seed.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .expect("stamp");
+        drop(seed);
+
+        // WHEN opening it through the versioned initializer
+        let result = open_and_init(Some(&path));
+
+        // THEN the store is refused (no connection) instead of misread
+        assert!(result.is_none());
     }
 }
