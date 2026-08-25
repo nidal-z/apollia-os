@@ -125,32 +125,39 @@
     <div class="px-8 pt-3"><SkeletonList count={4} /></div>
   {:else if error}
     <div class="px-8 py-6"><InboxErrorBox {error} {onRetry} testid="inbox-pending-error" /></div>
-  {:else if filteredItems.length === 0}
-    <div class="animate-fade-in px-8 py-12">
-      <EmptyState title={$t("inbox.empty_title")} desc={$t("inbox.empty_subtitle")} tone="success">
-        {#snippet icon()}<InboxIcon size={22} />{/snippet}
-      </EmptyState>
-    </div>
   {:else}
-    {#if partialError}
-      <div class="px-8 pt-3">
-        <InboxErrorBox error={partialError} {onRetry} testid="inbox-pending-partial-error" />
+    {#if filteredItems.length === 0}
+      <div class="animate-fade-in px-8 py-12">
+        <EmptyState title={$t("inbox.empty_title")} desc={$t("inbox.empty_subtitle")} tone="success">
+          {#snippet icon()}<InboxIcon size={22} />{/snippet}
+        </EmptyState>
       </div>
+    {:else}
+      {#if partialError}
+        <div class="px-8 pt-3">
+          <InboxErrorBox error={partialError} {onRetry} testid="inbox-pending-partial-error" />
+        </div>
+      {/if}
+      <InboxPendingList
+        {grouped}
+        {expandedId}
+        {submitting}
+        {relTime}
+        {onToggleExpand}
+        {onApprove}
+        {onReject}
+        {onAlwaysAccept}
+        {onRespondAskUser}
+        {onRejectAskUser}
+        {onOpenChat}
+        {onCopyId}
+      />
     {/if}
-    <InboxPendingList
-      {grouped}
-      {expandedId}
-      {submitting}
-      {relTime}
-      {onToggleExpand}
-      {onApprove}
-      {onReject}
-      {onAlwaysAccept}
-      {onRespondAskUser}
-      {onRejectAskUser}
-      {onOpenChat}
-      {onCopyId}
-    />
+    <!-- Outside the pending branch: a decision already taken does not stop
+         existing because nothing is waiting. Nested under the non-empty branch,
+         the history only ever rendered while a pending item was on screen, so
+         the surface it documents was invisible exactly when it had finished
+         its job. -->
     {#if history.length > 0 || historyError || historyPartialError}
       <InboxHistoryList
         {history}

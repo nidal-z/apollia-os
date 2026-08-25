@@ -93,10 +93,11 @@ VALUES
 
 -- chat_approval_log: the Inbox "Recent history (last 14 days)" block.
 --
--- The table was created empty, and InboxPendingTab only renders the history at
--- all when a pending item exists, so this half of the screen had never been
--- seen. Timestamps are relative for the same reason as audit.sql: the 14-day
--- window would drop anything pinned to a fixed date.
+-- The table was created empty, so this half of the screen had never been seen
+-- (InboxPendingTab used to render the history only while a pending item was on
+-- screen; it now renders it whenever a decision exists). Timestamps are
+-- relative for the same reason as audit.sql: the 14-day window would drop
+-- anything pinned to a fixed date.
 --
 -- One of each decision, because the row renders a different icon and label per
 -- decision (Approved / Always approved / Rejected), and a rejection carries the
