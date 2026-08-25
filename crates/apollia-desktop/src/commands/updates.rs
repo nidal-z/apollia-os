@@ -107,12 +107,14 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult
     // its own value; showing it here would put two versions in front of the
     // operator, one on this panel and another on the About screen.
     //
-    // The endpoint must therefore serve the `latest.json` that `tauri build`
-    // emits (`createUpdaterArtifacts`), which stamps the `tauri.conf.json`
-    // version. A hand-written manifest carrying the git tag would read as
-    // permanently newer than the installed build: SemVer ranks a numeric
-    // pre-release identifier below an alphanumeric one, so `0.1.0-1` sorts
-    // below `0.1.0-preview`.
+    // `tauri build` does not emit `latest.json`: with `createUpdaterArtifacts`
+    // it emits one minisign signature per updater artifact, and the release
+    // workflow composes the manifest from them (the "Compose the updater
+    // manifest" step of release.yml, driven by packaging/artifacts.json).
+    // That step must stamp the `tauri.conf.json` version, never the git tag:
+    // a manifest carrying the tag would read as permanently newer than the
+    // installed build, because SemVer ranks a numeric pre-release identifier
+    // below an alphanumeric one, so `0.1.0-1` sorts below `0.1.0-preview`.
     let current_version = env!("CARGO_PKG_VERSION").to_string();
 
     // Self-update needs a signing key: the plugin verifies the downloaded
