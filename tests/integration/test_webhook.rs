@@ -191,7 +191,8 @@ async fn build_webhook_state(
 ///
 /// Retourne `(handle, port, socket_path)`.
 async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u16, PathBuf) {
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
 
     let id = &uuid::Uuid::new_v4().to_string()[..8];
     let socket_path = PathBuf::from(format!("/tmp/ap-webhook-{id}.sock"));
@@ -205,6 +206,8 @@ async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u1
         tls_key_path: None,
     };
     let server = APIServer::new(config, state);
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handle = server.start().await.expect("APIServer start failed");
 
     // Laisser le listener TCP être prêt

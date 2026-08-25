@@ -175,11 +175,14 @@ async fn test_bundled_agents_auto_installed() {
     let bundled_dir = write_bundled_manifest(&tmp);
 
     let repo = AgentRepository::open(&db_path).expect("open repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = supervisor_config(&tmp, port, Some(repo), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 
     // WHEN le Supervisor démarre avec bundled_agents_path configuré
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(InstantBackend, Arc::new(StubAgentLoader), None, None)
         .await
@@ -232,11 +235,14 @@ async fn test_bundled_agents_skip_existing() {
     }
 
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = supervisor_config(&tmp, port, Some(repo2), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 
     // WHEN le Supervisor démarre (excel-worker déjà en DB, 3 autres absents)
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(InstantBackend, Arc::new(StubAgentLoader), None, None)
         .await

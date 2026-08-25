@@ -1189,7 +1189,8 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_listener_binds_successfully() {
         // GIVEN a free port
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let socket_path = temp_socket_path();
         let state = test_app_state();
         let config = APIServerConfig {
@@ -1203,6 +1204,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // THEN the server responds over TCP
@@ -1218,7 +1221,8 @@ mod tests {
     async fn test_tcp_port_none_serves_unix_only() {
         // GIVEN a config with no TCP port (embedded local-trust default)
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1231,6 +1235,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // THEN the Unix socket serves requests
@@ -1257,7 +1263,8 @@ mod tests {
     async fn test_tcp_token_required_when_configured() {
         // GIVEN a server bound on TCP with a bearer token
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let token = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         let state = test_app_state();
         let config = APIServerConfig {
@@ -1269,6 +1276,8 @@ mod tests {
             tls_key_path: None,
         };
         let server = APIServer::new(config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // WHEN a request omits the token THEN it is rejected with 401
@@ -1355,7 +1364,8 @@ mod tests {
         std::fs::write(&key_path, TEST_TLS_KEY_PEM).unwrap();
 
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1366,6 +1376,8 @@ mod tests {
             tls_key_path: Some(key_path),
         };
         let server = APIServer::new(config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // WHEN a TLS client completes the handshake and GETs /api/v1/health
@@ -1414,7 +1426,8 @@ mod tests {
     async fn test_non_loopback_bind_without_token_is_refused() {
         // GIVEN a non-loopback bind with no token
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1427,6 +1440,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called THEN it fails fast with InsecureBindWithoutToken
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let result = server.start().await;
         assert!(
             matches!(
@@ -1444,7 +1459,8 @@ mod tests {
     async fn test_loopback_bind_without_token_is_allowed() {
         // GIVEN a loopback bind with no token
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1457,6 +1473,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called THEN it starts (loopback is trusted)
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.expect("loopback bind should start");
 
         // Cleanup
@@ -1468,7 +1486,8 @@ mod tests {
     async fn test_non_loopback_bind_with_token_is_allowed() {
         // GIVEN a non-loopback bind with a token
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1481,6 +1500,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called THEN it starts (token authenticates the surface)
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.expect("token bind should start");
 
         // Cleanup
@@ -1492,7 +1513,8 @@ mod tests {
     async fn test_unix_socket_listener_binds_successfully() {
         // GIVEN a temporary socket path
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1505,6 +1527,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // THEN the server responds over the Unix socket
@@ -1523,7 +1547,8 @@ mod tests {
         std::fs::write(&socket_path, b"stale").unwrap();
         assert!(socket_path.exists());
 
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1536,6 +1561,8 @@ mod tests {
         let server = APIServer::new(config, state);
 
         // WHEN start() is called
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // THEN the stale file is removed and the bind succeeds
@@ -1551,7 +1578,8 @@ mod tests {
     async fn test_shutdown_stops_server() {
         // GIVEN a started APIServer
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1562,6 +1590,8 @@ mod tests {
             tls_key_path: None,
         };
         let server = APIServer::new(config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let handle = server.start().await.unwrap();
 
         // Verify it's serving

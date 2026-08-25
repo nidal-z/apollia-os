@@ -77,7 +77,8 @@ async fn test_runtime_starts_without_llm_router() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
 
     let state = AppState {
         router_handle: router,
@@ -130,6 +131,8 @@ async fn test_runtime_starts_without_llm_router() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let result = api.start().await;
 
     // THEN il démarre sans erreur (pas de panic, pas d'Err)
@@ -229,7 +232,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
 
     let state = AppState {
         router_handle: router,
@@ -281,6 +285,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let result = api.start().await;
 
     assert!(

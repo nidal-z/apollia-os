@@ -114,7 +114,8 @@ fn build_app_state() -> AppState<MockBackend> {
 
 /// Start an APIServer on a free port. Returns (handle, tcp_port, socket_path).
 async fn start_test_server() -> (APIServerHandle, u16, PathBuf) {
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let state = build_app_state();
     let config = APIServerConfig {
@@ -126,6 +127,8 @@ async fn start_test_server() -> (APIServerHandle, u16, PathBuf) {
         tls_key_path: None,
     };
     let server = APIServer::new(config, state);
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handle = server.start().await.expect("APIServer start failed");
     // Allow listeners to be ready before sending requests.
     tokio::time::sleep(Duration::from_millis(30)).await;

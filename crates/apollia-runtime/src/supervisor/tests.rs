@@ -167,9 +167,12 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
 #[tokio::test]
 async fn test_startup_sequence_all_ready() {
     // GIVEN a configured Supervisor
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -197,9 +200,12 @@ async fn test_startup_sequence_all_ready() {
 #[tokio::test]
 async fn test_all_ready_event_emitted() {
     // GIVEN a configured Supervisor
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -238,9 +244,12 @@ async fn test_all_ready_event_emitted() {
 #[tokio::test]
 async fn test_handles_accessible_after_start() {
     // GIVEN a Supervisor started successfully
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
     let handles = supervisor
         .start(
@@ -304,9 +313,9 @@ async fn test_handles_accessible_after_start() {
 async fn test_startup_timeout_rollback() {
     // GIVEN a port already in use (bind will fail, not timeout, but tests the
     // error path). Bind an OS-assigned port and KEEP the listener, so the
-    // supervisor's bind of the same port fails deterministically. Using
-    // reserve_port() here would release the port before the re-bind, letting a
-    // concurrent test win it under load.
+    // supervisor's bind of the same port fails deterministically. An unreleased
+    // reserve_port() guard would work too; this test predates the guard and an
+    // OS-assigned number held for the whole test serves the same purpose.
     let _listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = _listener.local_addr().unwrap().port();
     let socket_path = temp_socket_path();
@@ -396,7 +405,8 @@ async fn test_watch_exits_on_shutdown_requested() {
 #[tokio::test]
 async fn test_start_without_llm_config_succeeds() {
     // GIVEN a Supervisor with no [llm] section
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -430,6 +440,8 @@ async fn test_start_without_llm_config_succeeds() {
         chat_default_workspace: None,
         chat_tool_turn_temperature: None,
     };
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -523,7 +535,8 @@ async fn test_app_state_clone_with_llm_router_none() {
 #[tokio::test]
 async fn test_supervisor_starts_with_zero_triggers() {
     // GIVEN a config with no triggers
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -557,6 +570,8 @@ async fn test_supervisor_starts_with_zero_triggers() {
         chat_default_workspace: None,
         chat_tool_turn_temperature: None,
     };
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -592,7 +607,8 @@ async fn test_supervisor_starts_with_zero_triggers() {
 #[tokio::test]
 async fn test_no_notifications_section_starts_ok() {
     // GIVEN a config with no [notifications] section
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -626,6 +642,8 @@ async fn test_no_notifications_section_starts_ok() {
         chat_default_workspace: None,
         chat_tool_turn_temperature: None,
     };
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -660,7 +678,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
     use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
 
     // GIVEN a triggers_def.db pre-filled with 1 trigger
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let tmp_dir = tempfile::tempdir().expect("tempdir");
     let db_path = tmp_dir.path().join("triggers_def.db");
@@ -706,6 +725,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
         chat_default_workspace: None,
         chat_tool_turn_temperature: None,
     };
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -742,9 +763,12 @@ async fn test_trigger_engine_loads_from_sqlite() {
 #[tokio::test]
 async fn test_story187_boot_empty_dbs() {
     // GIVEN an empty directory (no pre-existing DB)
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
@@ -929,7 +953,8 @@ fn test_seed_no_op_when_user_memory_missing() {
 #[tokio::test]
 async fn test_story187_appstate_contains_repos() {
     // GIVEN a Supervisor with an empty directory
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let tmp_dir = tempfile::tempdir().expect("tempdir");
     let config = SupervisorConfig {
@@ -959,6 +984,8 @@ async fn test_story187_appstate_contains_repos() {
         chat_default_workspace: None,
         chat_tool_turn_temperature: None,
     };
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() succeeds
@@ -1092,11 +1119,14 @@ async fn test_autoload_enabled_agents() {
     repo.save(&test_installed_agent("agent-c", false))
         .expect("save c (disabled)");
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1131,11 +1161,14 @@ async fn test_autoload_skips_disabled() {
     repo.save(&test_installed_agent("disabled-agent", false))
         .expect("save disabled");
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1173,11 +1206,14 @@ async fn test_autoload_corrupted_agent_continues() {
     corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
     repo.save(&corrupted).expect("save corrupted");
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // We cannot subscribe before start() to capture AgentLoadFailed because
@@ -1207,11 +1243,14 @@ async fn test_autoload_no_agents_no_error() {
     // GIVEN an empty database
     let repo = open_test_repo();
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1240,11 +1279,14 @@ async fn test_autoload_no_agents_no_error() {
 #[tokio::test]
 async fn test_autoload_none_repository_skips() {
     // GIVEN a config without agent_repository
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
     // agent_repository is already None in test_config
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1280,11 +1322,14 @@ async fn test_autoload_empty_packages_agent_is_active() {
     repo.save(&test_installed_agent("no-pkg-agent", true))
         .expect("save agent");
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1333,7 +1378,8 @@ async fn test_autoload_bad_package_agent_is_degraded() {
     good_agent.install_path = PathBuf::from("/tmp/agents/good-agent/good-agent.py");
     repo.save(&good_agent).expect("save good agent");
 
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
     config.agent_repository = Some(repo);
@@ -1354,6 +1400,8 @@ async fn test_autoload_bad_package_agent_is_degraded() {
         }
     }
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN the Supervisor starts
@@ -1398,9 +1446,12 @@ async fn test_autoload_bad_package_agent_is_degraded() {
 #[tokio::test]
 async fn test_first_launch_emits_onboarding_required() {
     // GIVEN a fresh Supervisor with empty UserMemory (no entries)
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() completes, user_memory.db is created empty
@@ -1431,7 +1482,8 @@ async fn test_first_launch_emits_onboarding_required() {
 #[tokio::test]
 async fn test_subsequent_launch_no_onboarding_event() {
     // GIVEN a Supervisor whose UserMemory already contains entries
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (config, _tmp_dir) = test_config(port, socket_path.clone());
 
@@ -1448,6 +1500,8 @@ async fn test_subsequent_launch_no_onboarding_event() {
         .expect("set entry");
     }
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let supervisor = Supervisor::new(config);
 
     // WHEN start() completes

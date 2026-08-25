@@ -567,7 +567,8 @@ mod tests {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
 
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
 
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -616,6 +617,8 @@ mod tests {
             tls_key_path: None,
         };
         let api_server = APIServer::new(config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let api_handle = api_server.start().await.unwrap();
 
         let shutdown_config = ShutdownConfig {
@@ -742,7 +745,8 @@ mod tests {
 
         // Build a minimal controller (no API server needed for drain test)
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -790,6 +794,8 @@ mod tests {
             tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {
@@ -866,7 +872,8 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -914,6 +921,8 @@ mod tests {
             tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {
@@ -985,7 +994,8 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1035,6 +1045,8 @@ mod tests {
             },
             state,
         );
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         // WHEN drain(1s) is called (short timeout for the test)
@@ -1195,7 +1207,8 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let port = reserve_port();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1245,6 +1258,8 @@ mod tests {
             },
             state,
         );
+        // Release the probe listener only now, right before the bind it protects.
+        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {

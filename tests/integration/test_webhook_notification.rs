@@ -161,11 +161,13 @@ async fn test_ac6_webhook_payload_verified() {
 #[tokio::test]
 async fn test_ac7_webhook_timeout_returns_error() {
     // GIVEN - a port nobody listens on, so a TCP connect to it is refused. This
-    // is the inverse requirement of the servers in this suite, the number must
-    // stay free rather than be taken, and it holds for the same reason:
+    // is the inverse requirement of the servers in this suite: the number must
+    // stay free rather than be taken, so the probe listener is released on the
+    // spot (a held reservation would accept the very connection this test
+    // needs refused). It stays safe for the same reason as everywhere else:
     // reserve_port() draws outside the ephemeral pool, so no third party is
     // handed this port and starts accepting on it while the test runs.
-    let port = reserve_port();
+    let port = reserve_port().release();
 
     let channel = make_channel(&format!("http://127.0.0.1:{port}"));
     let notif = make_input_required_notification();

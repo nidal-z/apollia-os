@@ -172,7 +172,8 @@ async fn test_shutdown_drains_active_tasks() {
 
     // Set up minimal API server for ShutdownController
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -222,6 +223,8 @@ async fn test_shutdown_drains_active_tasks() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
@@ -279,7 +282,8 @@ async fn test_shutdown_stops_all_agents() {
         .unwrap();
 
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -329,6 +333,8 @@ async fn test_shutdown_stops_all_agents() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
@@ -376,7 +382,8 @@ async fn test_shutdown_broadcasts_requested_event() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -426,6 +433,8 @@ async fn test_shutdown_broadcasts_requested_event() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
@@ -495,7 +504,8 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         .unwrap();
 
     let socket_path = temp_socket_path();
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let state = AppState {
         router_handle: router.clone(),
         registry_handle: registry.clone(),
@@ -545,6 +555,8 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         },
         state,
     );
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 

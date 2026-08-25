@@ -240,10 +240,13 @@ async fn test_install_persist_reload_cycle() {
 
     // WHEN the Supervisor starts with the same agents.db
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(
             InstantBackend,
@@ -284,10 +287,13 @@ async fn test_disabled_agent_not_loaded_at_boot() {
 
     // WHEN the Supervisor starts
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(
             InstantBackend,
@@ -350,10 +356,13 @@ async fn test_uninstall_removes_files_and_db() {
 
     // AND Supervisor at boot does not attempt to load this agent
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(
             InstantBackend,
@@ -396,10 +405,13 @@ async fn test_corrupted_agent_graceful_degradation() {
 
     // Subscribe to events before starting Supervisor
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(
             InstantBackend,
@@ -499,10 +511,13 @@ async fn test_update_replaces_file_and_manifest() {
 
     // AND when Supervisor boots, it loads the updated agent
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let config = test_supervisor_config(&tmp, port, Some(repo2));
     let supervisor = Supervisor::new(config);
 
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handles = supervisor
         .start::<InstantBackend>(
             InstantBackend,

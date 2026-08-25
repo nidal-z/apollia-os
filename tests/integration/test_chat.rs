@@ -291,7 +291,8 @@ async fn start_chat_server(
     PathBuf,
     tokio::sync::broadcast::Receiver<RuntimeEvent>,
 ) {
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (state, event_rx) = build_chat_app_state(mock_model, budget_config);
     let config = APIServerConfig {
@@ -303,6 +304,8 @@ async fn start_chat_server(
         tls_key_path: None,
     };
     let server = APIServer::new(config, state);
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handle = server.start().await.expect("APIServer start failed");
     tokio::time::sleep(Duration::from_millis(50)).await;
     (handle, port, socket_path, event_rx)

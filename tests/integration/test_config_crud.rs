@@ -168,7 +168,8 @@ async fn start_test_server_with_repos(
     triggers_db: &Path,
     notifications_db: &Path,
 ) -> (APIServerHandle, u16, PathBuf) {
-    let port = reserve_port();
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let state = build_app_state_with_repos(triggers_db, notifications_db).await;
     let config = APIServerConfig {
@@ -180,6 +181,8 @@ async fn start_test_server_with_repos(
         tls_key_path: None,
     };
     let server = APIServer::new(config, state);
+    // Release the probe listener only now, right before the bind it protects.
+    reserved_port.release();
     let handle = server.start().await.expect("APIServer start failed");
     tokio::time::sleep(Duration::from_millis(50)).await;
     (handle, port, socket_path)
