@@ -33,9 +33,11 @@ check_exit "inspect (non-agent file) → 1"  1  "$BIN" inspect "$SCRATCH/not-an-
 /bin/mkdir -p "$DATA/logs"
 printf '2026-07-01T00:00:00Z INFO seeded log line\n' > "$DATA/logs/runtime.log"
 check      "logs --last (seeded log file)"    "$BIN" logs --last 5
-# `update` acquires /tmp/apollia-update.lock before any network call, so a held
-# lock is the one deterministic, offline path through the command.
-check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch /tmp/apollia-update.lock; '$BIN' update --yes; rc=\$?; /bin/rm -f /tmp/apollia-update.lock; exit \$rc"
+# `update` acquires apollia-update.lock in the platform temp directory
+# (std::env::temp_dir: $TMPDIR on Unix, /tmp as the fallback) before any
+# network call, so a held lock is the one deterministic, offline path
+# through the command.
+check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch \"\${TMPDIR:-/tmp}/apollia-update.lock\"; '$BIN' update --yes; rc=\$?; /bin/rm -f \"\${TMPDIR:-/tmp}/apollia-update.lock\"; exit \$rc"
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
