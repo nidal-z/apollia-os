@@ -16,6 +16,7 @@ mod bundled_agents;
 mod commands;
 mod connectors_bridge;
 mod events;
+pub mod i18n;
 pub mod mcp;
 mod project_context;
 pub mod stt;
@@ -732,6 +733,12 @@ fn main() {
             }
         })
         .setup(move |app| {
+            // Store the interface locale the frontend transmits, so the
+            // native surfaces (tray, app menu, STT notifications) render in
+            // the language of the interface. Attached before the tray so the
+            // tray's own refresh listener never runs ahead of the store.
+            i18n::attach_listener(app);
+
             tray::setup_tray(app)?;
 
             // Replace the default macOS menu so Cmd+Q / the app-menu "Quit"

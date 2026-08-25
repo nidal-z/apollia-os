@@ -374,12 +374,13 @@ impl SttFlow {
         // reload that resolved to disabled). Notify and bail rather than fail.
         let Some(engine) = self.stt_engine.read().await.clone() else {
             tracing::warn!("STT hotkey pressed but no engine is loaded - skipping transcription");
+            let locale = crate::i18n::locale();
             let result = self
                 .app
                 .notification()
                 .builder()
-                .title("No speech model loaded")
-                .body("Turn dictation on and load a model in Settings.")
+                .title(crate::i18n::stt_no_model_title(locale))
+                .body(crate::i18n::stt_no_model_body(locale))
                 .show();
             if let Err(e) = result {
                 tracing::warn!(error = %e, "failed to send STT unavailable notification");
@@ -529,7 +530,7 @@ impl SttFlow {
             .app
             .notification()
             .builder()
-            .title("Transcription pr\u{00ea}te")
+            .title(crate::i18n::stt_ready_title(crate::i18n::locale()))
             .body(&preview)
             .show();
         if let Err(e) = result {
@@ -544,11 +545,12 @@ impl SttFlow {
 /// [`SttError::NoInputDevice`] so a user whose dictation does nothing
 /// understands why instead of the overlay silently never appearing.
 fn notify_no_microphone(app: &tauri::AppHandle) {
+    let locale = crate::i18n::locale();
     let result = app
         .notification()
         .builder()
-        .title("No microphone detected")
-        .body("Plug in a microphone to use voice dictation.")
+        .title(crate::i18n::stt_no_mic_title(locale))
+        .body(crate::i18n::stt_no_mic_body(locale))
         .show();
     if let Err(e) = result {
         tracing::warn!(error = %e, "failed to send no-microphone notification");

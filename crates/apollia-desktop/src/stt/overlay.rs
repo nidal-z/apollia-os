@@ -94,7 +94,7 @@ impl RecordingOverlay {
             WINDOW_LABEL,
             WebviewUrl::App("overlay.html".into()),
         )
-        .title("Recording")
+        .title(crate::i18n::overlay_recording(crate::i18n::locale()))
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)

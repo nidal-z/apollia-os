@@ -5,9 +5,14 @@
 //! gracefully. The tray tooltip and menu are updated dynamically via Tauri
 //! events emitted by the frontend when SSE state changes.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Listener, Manager};
+
+use crate::i18n;
 
 /// Tray menu item identifier for "Open Apollia OS".
 const MENU_OPEN: &str = "open";
@@ -50,18 +55,6 @@ pub fn format_tooltip(active_agents: usize, pending_approvals: usize) -> String 
         "Apollia OS".to_string()
     } else {
         format!("Apollia OS - {}", parts.join(", "))
-    }
-}
-
-/// Formats the menu item label for pending approvals.
-///
-/// Returns a human-readable string like "2 approvals pending" or
-/// "No pending approvals" when count is 0.
-pub fn format_approvals_label(count: usize) -> String {
-    if count == 0 {
-        "No pending approvals".to_string()
-    } else {
-        format!("{count} approval{} pending", plural_s(count))
     }
 }
 
@@ -148,7 +141,8 @@ pub(crate) fn initiate_quit(app: &AppHandle) {
 ///
 /// Called from `main.rs` inside the Tauri `setup()` hook. Creates:
 /// - A tray icon using the app's default window icon
-/// - A context menu with "Ouvrir Apollia OS", approvals counter, and "Quitter"
+/// - A context menu with an open item, approvals counter, and a quit item,
+///   labelled in the interface locale (see [`crate::i18n`])
 /// - Event handlers for menu clicks and tray icon left-click
 /// - A listener for `tray-update` events from the frontend to update tooltip/menu
 ///
@@ -156,16 +150,18 @@ pub(crate) fn initiate_quit(app: &AppHandle) {
 ///
 /// Returns an error if menu or tray icon construction fails (missing icon, etc.).
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let open_item = MenuItemBuilder::new("Ouvrir Apollia OS")
+    let open_item = MenuItemBuilder::new(i18n::tray_open(i18n::locale()))
         .id(MENU_OPEN)
         .build(app)?;
 
-    let approvals_item = MenuItemBuilder::new(format_approvals_label(0))
+    let approvals_item = MenuItemBuilder::new(i18n::approvals_label(i18n::locale(), 0))
         .id(MENU_APPROVALS)
         .enabled(false)
         .build(app)?;
 
-    let quit_item = MenuItemBuilder::new("Quitter").id(MENU_QUIT).build(app)?;
+    let quit_item = MenuItemBuilder::new(i18n::tray_quit(i18n::locale()))
+        .id(MENU_QUIT)
+        .build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&open_item)
@@ -202,15 +198,21 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
+    // Last pending-approvals count, shared between the two listeners below so
+    // a locale switch can re-render the counter it last displayed.
+    let pending_count = Arc::new(AtomicUsize::new(0));
+
     // Listen for tray-update events from the frontend to refresh tooltip and menu
     let approvals_item_clone = approvals_item.clone();
+    let pending_count_updates = Arc::clone(&pending_count);
     app.listen(EVENT_TRAY_UPDATE, move |event| {
         if let Ok(payload) = serde_json::from_str::<TrayUpdatePayload>(event.payload()) {
             let tooltip = format_tooltip(payload.active_agents, payload.pending_approvals);
             // Tray icon tooltip update: Tauri v2 does not expose set_tooltip on TrayIcon
             // after construction in all platforms, so we update the menu item as primary
             // feedback channel.
-            let label = format_approvals_label(payload.pending_approvals);
+            pending_count_updates.store(payload.pending_approvals, Ordering::Relaxed);
+            let label = i18n::approvals_label(i18n::locale(), payload.pending_approvals);
             let _ = approvals_item_clone.set_text(&label);
             let _ = approvals_item_clone.set_enabled(payload.pending_approvals > 0);
 
@@ -219,6 +221,20 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             // dynamic feedback visible to the user.
             let _ = tooltip;
         }
+    });
+
+    // Re-render the menu labels when the interface locale changes. The
+    // locale itself is stored by `i18n::attach_listener`, registered before
+    // this one in `main.rs`, so `i18n::locale()` reads the new value here.
+    let open_item_locale = open_item.clone();
+    let quit_item_locale = quit_item.clone();
+    let approvals_item_locale = approvals_item.clone();
+    app.listen(i18n::EVENT_UI_LOCALE, move |_event| {
+        let l = i18n::locale();
+        let _ = open_item_locale.set_text(i18n::tray_open(l));
+        let _ = quit_item_locale.set_text(i18n::tray_quit(l));
+        let count = pending_count.load(Ordering::Relaxed);
+        let _ = approvals_item_locale.set_text(i18n::approvals_label(l, count));
     });
 
     Ok(())
@@ -245,7 +261,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::SubmenuBuilder;
 
-    let quit_item = MenuItemBuilder::new("Quitter Apollia OS")
+    let quit_item = MenuItemBuilder::new(i18n::app_quit(i18n::locale()))
         .id(MENU_QUIT_APP)
         .accelerator("CmdOrCtrl+Q")
         .build(app)?;
@@ -262,7 +278,7 @@ pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
         .item(&quit_item)
         .build()?;
 
-    let edit_menu = SubmenuBuilder::new(app, "Édition")
+    let edit_menu = SubmenuBuilder::new(app, i18n::menu_edit(i18n::locale()))
         .undo()
         .redo()
         .separator()
@@ -272,7 +288,7 @@ pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
         .select_all()
         .build()?;
 
-    let window_menu = SubmenuBuilder::new(app, "Fenêtre")
+    let window_menu = SubmenuBuilder::new(app, i18n::menu_window(i18n::locale()))
         .minimize()
         .maximize()
         .separator()
@@ -288,6 +304,19 @@ pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
         .build()?;
 
     app.set_menu(menu)?;
+
+    // Re-render the labels this menu owns when the interface locale changes.
+    // The predefined items (undo, copy, minimize, ...) keep the titles the OS
+    // localises itself.
+    let quit_item_locale = quit_item;
+    let edit_menu_locale = edit_menu;
+    let window_menu_locale = window_menu;
+    app.listen(crate::i18n::EVENT_UI_LOCALE, move |_event| {
+        let l = i18n::locale();
+        let _ = quit_item_locale.set_text(i18n::app_quit(l));
+        let _ = edit_menu_locale.set_text(i18n::menu_edit(l));
+        let _ = window_menu_locale.set_text(i18n::menu_window(l));
+    });
     Ok(())
 }
 
@@ -351,30 +380,6 @@ mod tests {
         let tooltip = format_tooltip(0, 3);
         // THEN only approvals are shown
         assert_eq!(tooltip, "Apollia OS - 3 approvals pending");
-    }
-
-    #[test]
-    fn test_approvals_label_zero() {
-        // GIVEN 0 pending approvals
-        let label = format_approvals_label(0);
-        // THEN it shows the empty-state wording
-        assert_eq!(label, "No pending approvals");
-    }
-
-    #[test]
-    fn test_approvals_label_one() {
-        // GIVEN 1 pending approval
-        let label = format_approvals_label(1);
-        // THEN singular form
-        assert_eq!(label, "1 approval pending");
-    }
-
-    #[test]
-    fn test_approvals_label_multiple() {
-        // GIVEN 5 pending approvals
-        let label = format_approvals_label(5);
-        // THEN plural form
-        assert_eq!(label, "5 approvals pending");
     }
 
     #[test]
