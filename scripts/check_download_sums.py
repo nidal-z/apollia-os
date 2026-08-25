@@ -51,15 +51,12 @@ SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
 # Workflow steps that download without a pinned sum, named one by one so the
 # list can only shrink: removing an entry is the fix, adding one is a defect
-# this guard exists to refuse. The three toolchain installers execute what
-# they download; the four key fetches feed apt's keyring. All seven predate
-# this guard.
+# this guard exists to refuse. The four remaining fetches feed apt's keyring
+# and predate this guard; the three toolchain installers that used to sit
+# here are now verified against pinned sums inside release.yml itself.
 EXEMPT_WORKFLOW_STEPS = {
-    ("release.yml", "Install CUDA aarch64 (Jetson SBSA)"),
     ("release.yml", "Install ROCm (Linux)"),
-    ("release.yml", "Install HIP SDK (Windows)"),
     ("release.yml", "Install Vulkan SDK (Linux)"),
-    ("release.yml", "Install Vulkan SDK (Windows)"),
     ("nightly.yml", "Install ROCm"),
     ("nightly.yml", "Install Vulkan SDK"),
 }
