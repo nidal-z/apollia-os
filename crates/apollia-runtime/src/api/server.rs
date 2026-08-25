@@ -675,10 +675,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/notifications/events",
             get(get_events::<B>).put(set_events::<B>),
         )
-        .route(
-            "/api/v1/notifications/channels/:id/test",
-            post(test_channels::<B>),
-        )
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())

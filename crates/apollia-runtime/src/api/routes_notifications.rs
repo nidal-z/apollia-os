@@ -7,7 +7,6 @@
 //! - `DELETE /api/v1/notifications/channels/:id`    , delete a channel
 //! - `GET    /api/v1/notifications/events`          , global events
 //! - `PUT    /api/v1/notifications/events`          , replace global events
-//! - `POST   /api/v1/notifications/channels/:id/test`, test a channel
 //! - `POST   /api/v1/notifications/test`            , test all channels
 //! - `GET    /api/v1/notifications/logs`            , history from notifications.db
 
