@@ -5,9 +5,11 @@
  * i18n descriptor (`{ key, values }`) so the calling component resolves it with
  * the live `svelte-i18n` formatter, keeping this module unit-testable.
  */
-import type { ConnectionStatus } from "$lib/components/operator";
 import type { OauthClientIdStatus } from "$lib/ipc/oauthClients";
 import type { McpHealth, McpServerStatusView } from "$lib/types";
+
+/** Coarse operational state of a connection, driving dots and badges. */
+export type ConnectionStatus = "active" | "attention" | "error" | "syncing" | "idle";
 
 /** Badge variant matching a connection status (mirrors the `Badge` variants). */
 export type StatusBadgeVariant = "success" | "warning" | "danger" | "neutral";

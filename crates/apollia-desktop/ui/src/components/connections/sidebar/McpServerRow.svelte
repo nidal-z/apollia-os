@@ -7,7 +7,8 @@
    */
   import { t } from "svelte-i18n";
   import { Link as LinkIcon, RefreshCw, Settings, Trash2 } from "lucide-svelte";
-  import { ListRow, StatusDot, type ConnectionStatus } from "$lib/components/operator";
+  import { ListRow, StatusDot } from "$lib/components/operator";
+  import type { ConnectionStatus } from "$lib/connections/status";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import { accentTokenFor } from "$lib/connections/accent";

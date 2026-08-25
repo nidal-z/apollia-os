@@ -7,7 +7,8 @@
    */
   import { t } from "svelte-i18n";
   import { RefreshCw, Link as LinkIcon } from "lucide-svelte";
-  import { DetailHeader, type ConnectionStatus } from "$lib/components/operator";
+  import { DetailHeader } from "$lib/components/operator";
+  import type { ConnectionStatus } from "$lib/connections/status";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
   import ConnectorTile from "../shared/ConnectorTile.svelte";

@@ -8,7 +8,8 @@
    */
   import { t } from "svelte-i18n";
   import { Badge } from "$lib/components/ui/badge";
-  import { StatusDot, type ConnectionStatus } from "$lib/components/operator";
+  import { StatusDot } from "$lib/components/operator";
+  import type { ConnectionStatus } from "$lib/connections/status";
   import {
     statusAccent,
     statusBadgeVariant,

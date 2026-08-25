@@ -18,7 +18,6 @@ export { default as ListRow } from "./ListRow.svelte";
 
 // Domain components
 export { default as ProjectCard } from "./ProjectCard.svelte";
-export { default as ConnectionCard } from "./ConnectionCard.svelte";
 export { default as HITLCard } from "./HITLCard.svelte";
 export { default as Journal } from "./Journal.svelte";
 export { default as PlanDagPanel } from "./PlanDagPanel.svelte";
@@ -26,11 +25,9 @@ export { default as TaskRow } from "./TaskRow.svelte";
 export { default as InboxRow } from "./InboxRow.svelte";
 export { default as ConversationRow } from "./ConversationRow.svelte";
 export { default as NewProjectDialog } from "./NewProjectDialog.svelte";
-export { default as EmptyStates } from "./EmptyStates.svelte";
 
 // Re-exported types
 export type { ProjectStatus } from "./ProjectCard.svelte";
-export type { ConnectionVariant, ConnectionStatus } from "./ConnectionCard.svelte";
 export type { RiskLevel } from "./HITLCard.svelte";
 export type { JournalEvent, JournalEventType, JournalMode } from "./Journal.svelte";
 export type { Task, TaskStatus } from "./TaskRow.svelte";
