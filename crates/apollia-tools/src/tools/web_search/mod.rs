@@ -806,6 +806,7 @@ mod tests {
         assert!(!names_unset.iter().any(|n| n == "brave"));
 
         // GIVEN a non-empty key, THEN DDG is first, Brave second.
+        // SAFETY: same file-wide mutex still held, env mutation stays serial.
         unsafe {
             std::env::set_var(brave::ENV_API_KEY, "test-key-not-validated-here");
         }
@@ -818,7 +819,10 @@ mod tests {
         assert_eq!(names_set.get(1).map(String::as_str), Some("brave"));
 
         match prev {
+            // SAFETY: still under the file-wide mutex, restoring the value
+            // read above; the second arm removes what the test set.
             Some(v) => unsafe { std::env::set_var(brave::ENV_API_KEY, v) },
+            // SAFETY: same invariant as the arm above.
             None => unsafe { std::env::remove_var(brave::ENV_API_KEY) },
         }
     }
@@ -868,6 +872,7 @@ mod tests {
         let result = WebSearch::try_with_default_backends(true);
 
         if let Some(v) = prev {
+            // SAFETY: still under the mutex, restoring the value read above.
             unsafe {
                 std::env::set_var(brave::ENV_API_KEY, v);
             }

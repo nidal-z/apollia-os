@@ -49,7 +49,8 @@ tempfile = "3.14"
 tokio    = { workspace = true }
 
 [lints.rust]
-# FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
+# Two documented sites: the libc rlimit calls in `tools/rlimits.rs`, plus
+# test-only `std::env::set_var` blocks. See the note in `src/lib.rs`.
 unsafe_code = "allow"
 # `fuzzing` is set by cargo-fuzz to gate the `#[cfg(fuzzing)]` harness shims.
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }

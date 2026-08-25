@@ -1,6 +1,11 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS tool registry and native tools.
 //!
+//! `unsafe_code` is allowed by this crate's manifest for two production
+//! sites, the `libc::setrlimit` calls in `tools/rlimits.rs`, and for
+//! test-only `std::env::set_var` blocks; every site carries its
+//! `// SAFETY:` comment.
+//!
 //! Provides the tooling infrastructure for agents:
 //! - `ToolRegistry`: in-memory catalogue of available tools
 //! - `ToolResolver`: validates tool availability at INITIALIZING

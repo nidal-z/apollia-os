@@ -47,7 +47,8 @@ reqwest  = { workspace = true, features = ["json", "stream", "blocking"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
-# FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
+# Two documented sites: the `Send`/`Sync` impls for the whisper-rs FFI
+# wrapper in `backends/whisper.rs`. See the note in `src/lib.rs`.
 unsafe_code = "allow"
 
 # Cargo does not merge this table with the workspace one: declaring [lints] at

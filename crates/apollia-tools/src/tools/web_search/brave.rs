@@ -438,6 +438,7 @@ pub(crate) mod tests {
         }
 
         if let Some(v) = prev {
+            // SAFETY: still under ENV_LOCK, restoring the value read above.
             unsafe {
                 std::env::set_var(ENV_API_KEY, v);
             }

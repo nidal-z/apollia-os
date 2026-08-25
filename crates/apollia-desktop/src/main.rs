@@ -3,6 +3,11 @@
 //! Single-process architecture: the Apollia runtime runs embedded inside the
 //! Tauri process via [`apollia_runtime::init_embedded()`]. The Unix socket
 //! remains active so the CLI can be used alongside the desktop app.
+//!
+//! `unsafe_code` is allowed by this crate's manifest for one production site,
+//! the window-handle cast to `isize` in `commands/automation.rs`, and for
+//! test-only `std::env::set_var` blocks; every site carries its `// SAFETY:`
+//! comment.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]

@@ -48,6 +48,8 @@ struct LoadedWhisper {
 // SAFETY: `WhisperContext` is `Send + Sync` per the whisper-rs API; each
 // request creates a separate `state` via `create_state()`.
 unsafe impl Send for LoadedWhisper {}
+// SAFETY: same invariant as `Send` above; shared references never touch a
+// `state`, each request creates its own via `create_state()`.
 unsafe impl Sync for LoadedWhisper {}
 
 /// Backend STT in-process via whisper.cpp.

@@ -93,7 +93,8 @@ tauri-build = { version = "2", features = [] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
-# FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
+# One documented site: the isize handle cast in `commands/automation.rs`,
+# plus test-only `std::env::set_var` blocks. See the note in `src/main.rs`.
 unsafe_code = "allow"
 
 # Cargo does not merge this table with the workspace one: declaring [lints] at
