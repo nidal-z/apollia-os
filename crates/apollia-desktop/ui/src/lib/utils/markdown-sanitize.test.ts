@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
+import { waitLocale } from "svelte-i18n";
+import "$lib/i18n";
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(async () => {}),
 }));
 
 import { decorateCodeBlocks, renderMarkdown } from "$lib/utils/markdown";
+
+// The copy button reads its tooltip from the catalogue at decoration time,
+// so the locale must be loaded before the first block is decorated.
+beforeAll(async () => {
+  await waitLocale();
+});
 
 /**
  * The chat renders model output (and text quoted from pages `web_read`

@@ -27,6 +27,8 @@
  */
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
+import { get } from "svelte/store";
+import { t } from "svelte-i18n";
 import { openExternalUrl, resolveExternalHref } from "$lib/utils/externalLink";
 
 function escapeHtml(text: string): string {
@@ -175,7 +177,7 @@ export function decorateCodeBlocks(root: HTMLElement): void {
 
     const copy = document.createElement("button");
     copy.className = "apollia-code-copy";
-    copy.title = "Copy";
+    copy.title = get(t)("common.copy");
     copy.setAttribute("data-copy-code", "");
     copy.setAttribute("data-code", encoded);
     copy.innerHTML = COPY_ICON;
