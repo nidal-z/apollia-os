@@ -569,6 +569,7 @@ guards:
       "cargo deny check advisories"
       "cd sdk && mypy apollia"
       "cd crates/apollia-desktop/ui && npm run audit:i18n"
+      "ruff check scripts"
     )
     # Reds accumulate instead of stopping the run: an operator wants the whole
     # list, and stopping on the first one hides the twelve behind it.

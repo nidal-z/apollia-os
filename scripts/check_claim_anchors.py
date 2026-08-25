@@ -113,8 +113,8 @@ def main() -> int:
     for cid, sites in everywhere.items():
         for path, n in sites:
             lines = path.read_text(encoding="utf-8").splitlines()
-            after = [l.strip() for l in lines[n : n + 4]]
-            if not any(l and not MARKER.search(l) and not l.startswith("<!--") for l in after):
+            after = [text.strip() for text in lines[n : n + 4]]
+            if not any(text and not MARKER.search(text) and not text.startswith("<!--") for text in after):
                 problems.append(
                     f"{cid}: marker at {path.relative_to(REPO)}:{n} is followed by "
                     f"nothing it could guard."

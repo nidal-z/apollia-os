@@ -4,7 +4,9 @@ Attributes each failure to its domain section (nearest preceding
 `screenshot` step whose label starts with 'section-') and prints the step
 content + detail, grouped by section, so real bugs vs by-design fast-fails
 are quick to triage."""
-import json, sys, os, re
+import json
+import sys
+from collections import Counter, defaultdict
 
 REPORT = sys.argv[1] if len(sys.argv) > 1 else ".apollia-automation/report.json"
 SCRIPT = sys.argv[2] if len(sys.argv) > 2 else "scripts/automation/master-det.json"
@@ -30,17 +32,20 @@ print(f"ok={rep['ok']}  steps={len(results)}  FAILED={len(failed)}")
 print("=" * 70)
 
 # group failures by section
-from collections import defaultdict, Counter
 by_section = defaultdict(list)
 for r in failed:
     idx = r["index"]
     by_section[section_of.get(idx, "?")].append(r)
 
 def tgt(s):
-    if "testid" in s: return f"testid={s['testid']!r}" + (f" nth={s['nth']}" if 'nth' in s else "")
-    if "testidPrefix" in s: return f"prefix={s['testidPrefix']!r}" + (f" nth={s['nth']}" if 'nth' in s else "")
-    if "route" in s: return f"route={s['route']!r}"
-    if "text" in s: return f"text={s['text'][:30]!r}"
+    if "testid" in s:
+        return f"testid={s['testid']!r}" + (f" nth={s['nth']}" if 'nth' in s else "")
+    if "testidPrefix" in s:
+        return f"prefix={s['testidPrefix']!r}" + (f" nth={s['nth']}" if 'nth' in s else "")
+    if "route" in s:
+        return f"route={s['route']!r}"
+    if "text" in s:
+        return f"text={s['text'][:30]!r}"
     return ""
 
 # heuristic bucket for a failure detail

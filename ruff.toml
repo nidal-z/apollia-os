@@ -1,0 +1,18 @@
+# Root ruff configuration. It reaches the Python files no closer config
+# claims, which today means scripts/ (sdk/ carries its own [tool.ruff]
+# table and agents/ its own ruff.toml). Without this file ruff read
+# scripts/ with no configuration at all, and nothing enforced even the
+# rules it would have applied: the ruff hook and the python-quality CI
+# job both stopped at ^(sdk|agents)/, and 23 errors sat in scripts/
+# unseen by every boundary.
+#
+# The rule set is ruff's default (E4, E7, E9, F), written out rather than
+# implied so a ruff upgrade cannot move it silently. The SDK's full
+# selection is deliberately not extended here: measured on this tree, it
+# renders 410 findings over scripts/ (docstrings, annotations, bandit),
+# a debt of its own that a lint switch-on must not smuggle in.
+target-version = "py310"
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

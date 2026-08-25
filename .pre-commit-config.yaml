@@ -37,9 +37,12 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.15
     hooks:
+      # scripts/ is checked but not formatted: the root ruff.toml pins the
+      # default rule set there, and a format pass would rewrite 33 files in
+      # one move, which a lint switch-on must not smuggle in.
       - id: ruff-check
         args: ["--fix"]
-        files: ^(sdk|agents)/
+        files: ^(sdk|agents|scripts)/
       - id: ruff-format
         files: ^(sdk|agents)/
 

@@ -1403,6 +1403,7 @@ EXTERNAL_GUARDS = {
     "cli-e2e.sh": r"\btests/cli/cli-e2e\.sh\b",
     "linux-check.sh": r"\bscripts/linux-check\.sh\b",
     "worktree_verdicts.py": r"\bscripts/worktree_verdicts\.py\b",
+    "ruff check scripts": r"\bruff check\b.*\bscripts\b",
 }
 
 # Externals the corpus carries without a boundary yet, waived one by one so the

@@ -758,15 +758,17 @@ jobs:
       # .pre-commit-config.yaml. Unpinned, a new ruff release changes the rule
       # set under the job and turns a green tree red without a commit.
       - run: pip install ruff==0.15.15 pip-audit
-      # Both Python subtrees, judged by the same rule set: agents/ruff.toml
-      # extends sdk/pyproject.toml, and the pre-commit ruff hooks cover the
-      # same ^(sdk|agents)/ perimeter. Paths without a trailing slash on
+      # The two SDK-ruled subtrees plus scripts/: agents/ruff.toml extends
+      # sdk/pyproject.toml, scripts/ falls under the root ruff.toml (default
+      # rule set, check only, no format: a format pass would rewrite 33
+      # files in one move). The pre-commit ruff-check hook covers the same
+      # ^(sdk|agents|scripts)/ perimeter. Paths without a trailing slash on
       # purpose: `sdk/ agents/` makes ruff walk past the .gitignore of
       # sdk/build and judge generated files.
       - name: ruff format --check
         run: ruff format --check sdk agents
       - name: ruff check
-        run: ruff check sdk agents
+        run: ruff check sdk agents scripts
       # Installs the SDK so its resolved deps are the audit surface. The SDK is
       # stdlib-only by design, so this surface is intentionally tiny.
       - name: pip-audit (SDK supply chain)

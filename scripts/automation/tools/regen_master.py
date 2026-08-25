@@ -9,7 +9,8 @@ union of the pages' declarations, since its steps are the union of theirs.
 
 Validates against the current committed master-det unless --write is passed.
 """
-import json, sys
+import json
+import sys
 
 SCRIPTS = "scripts/automation"
 # section order (from the section-NN markers), name maps to <name>-det.json

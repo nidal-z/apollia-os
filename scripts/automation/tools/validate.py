@@ -220,10 +220,10 @@ def build_corpus(ui_root=UI):
                     else:
                         # `${action.id}-btn`: the loop feeding the slot lives in
                         # this file, so its literal pool fills it.
-                        static_ids.update(l + tail for l in pool)
-                        contrib.update(l + tail for l in pool)
+                        static_ids.update(lit + tail for lit in pool)
+                        contrib.update(lit + tail for lit in pool)
                 elif len(exprs) >= 2 and len(frags) > 1 and frags[1]:
-                    prefixes.update(l + frags[1] for l in pool)     # `{testid}-{opt.value}`
+                    prefixes.update(lit + frags[1] for lit in pool)  # `{testid}-{opt.value}`
         # TabBar/FilterChipBar: a `testidPrefix="X"` prop yields child ids
         # `X-tabbar`, `X-tab-<key>` (TabBar) and `X-<key>` (FilterChipBar).
         # SplitLayout: sidebarTestid="X" / detailTestid="X" render as data-testid.
