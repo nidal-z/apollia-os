@@ -60,12 +60,12 @@ test:
 
 # Tests with Python features
 test-python:
-    PYO3_PYTHON=/opt/homebrew/bin/python3.13 cargo test --workspace --features python-tests
+    PYO3_PYTHON="$(command -v python3)" cargo test --workspace --features python-tests
 
 # Full lint
 lint:
     cargo fmt --all --check
-    cargo clippy --workspace -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
 
 # Format code
 fmt:
