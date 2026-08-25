@@ -1,17 +1,31 @@
 //! `apollia-os update`: checks and installs Apollia OS updates from GitHub Releases.
 //!
-//! Downloads the platform binary, verifies SHA256 integrity, and performs an
-//! atomic replacement via `fs::rename`. A lock file prevents concurrent updates.
+//! Downloads the release archive named by the artifact contract, verifies its
+//! SHA256 integrity, extracts the `apollia-os` binary and performs an atomic
+//! replacement via `fs::rename`. A lock file prevents concurrent updates.
 
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 const REPO: &str = "apollia-os";
 const GITHUB_API_BASE: &str = "https://api.github.com";
-const LOCK_FILE: &str = "/tmp/apollia-update.lock";
+
+/// The artifact naming contract, shared with the release workflow.
+///
+/// `release.yml` derives every published file name from this file, and this
+/// command reads its expectations from the same place, so producer and consumer
+/// cannot drift apart silently. `scripts/check_release_artifacts.py` guards the
+/// crossing.
+const ARTIFACTS_CONTRACT: &str = include_str!("../../../../packaging/artifacts.json");
+
+/// Where the concurrent-update lock lives: the platform temp directory, so the
+/// path exists on Windows too.
+fn lock_path() -> PathBuf {
+    std::env::temp_dir().join("apollia-update.lock")
+}
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
@@ -88,23 +102,60 @@ pub struct UpdateArgs {
 
 // ─── Platform detection ───────────────────────────────────────────────────────
 
-/// Returns the release asset name for the current platform.
+/// A CLI release archive as declared by the artifact contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CliArtifact {
+    /// The preset name, which is also the directory inside the archive.
+    preset: String,
+    /// The published archive file name, `apollia-os-<preset>.tar.gz|zip`.
+    archive: String,
+}
+
+/// Reads the `self_update` CLI entry of the contract for one (os, arch) couple.
 ///
-/// The name follows the convention used in Apollia OS GitHub releases:
-/// `apollia-os-<target-triple>[.exe]`.
-fn platform_binary_name() -> &'static str {
-    if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
-        "apollia-os-x86_64-unknown-linux-musl"
-    } else if cfg!(target_os = "linux") && cfg!(target_arch = "aarch64") {
-        "apollia-os-aarch64-unknown-linux-musl"
-    } else if cfg!(target_os = "macos") && cfg!(target_arch = "x86_64") {
-        "apollia-os-x86_64-apple-darwin"
-    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
-        "apollia-os-aarch64-apple-darwin"
-    } else if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
-        "apollia-os-x86_64-pc-windows-msvc.exe"
+/// Returns `None` when no published archive covers the couple (macOS Intel
+/// today), which the callers report as a state rather than invent a name the
+/// release does not carry. The contract marks the CPU preset of each platform:
+/// the `apollia-os` binary is identical across the presets of one target
+/// triple, so the CPU archive updates a GPU install correctly.
+fn platform_cli_artifact(os: &str, arch: &str) -> Option<CliArtifact> {
+    let contract: serde_json::Value = serde_json::from_str(ARTIFACTS_CONTRACT).ok()?;
+    contract.get("cli")?.as_array()?.iter().find_map(|entry| {
+        let matches = entry.get("self_update")?.as_bool()?
+            && entry.get("os")?.as_str()? == os
+            && entry.get("arch")?.as_str()? == arch;
+        if matches {
+            Some(CliArtifact {
+                preset: entry.get("preset")?.as_str()?.to_owned(),
+                archive: entry.get("archive")?.as_str()?.to_owned(),
+            })
+        } else {
+            None
+        }
+    })
+}
+
+/// The contract's `os` value for the running binary.
+fn current_os() -> &'static str {
+    if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
     } else {
-        "apollia-os-unknown-platform"
+        "unsupported"
+    }
+}
+
+/// The contract's `arch` value for the running binary.
+fn current_arch() -> &'static str {
+    if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "unsupported"
     }
 }
 
@@ -149,23 +200,30 @@ pub async fn check_update(owner: &str) -> Result<Option<String>, UpdateError> {
 /// Downloads, verifies, and atomically installs the latest Apollia OS binary.
 ///
 /// Steps:
-/// 1. Acquires `/tmp/apollia-update.lock` (fails immediately if another update is running).
+/// 1. Acquires the lock file in the temp directory (fails immediately if
+///    another update is running).
 /// 2. Fetches release metadata from GitHub API.
 /// 3. Optionally prompts the user unless `yes` is `true`.
-/// 4. Downloads the platform binary and its `.sha256` companion.
+/// 4. Downloads the platform release archive (named by the artifact contract)
+///    and its `.sha256` companion.
 /// 5. Verifies SHA256, aborting without touching the live binary on mismatch.
-/// 6. Writes `/tmp/apollia-new`, sets `chmod 755` on Unix.
+/// 6. Extracts the archive in a staging directory with the system `tar`
+///    (bsdtar reads the Windows `.zip` archives too) and takes its
+///    `apollia-os` binary. The bundled Python and runners are left as they
+///    are: the archive's binary is the one built against them.
 /// 7. Replaces the running binary atomically via `fs::rename`; falls back to
 ///    `fs::copy` + delete when source and destination span different filesystems.
-/// 8. Lock file is removed unconditionally on exit via `scopeguard::defer!`.
+/// 8. Lock file and staging directory are removed unconditionally on exit via
+///    `scopeguard::defer!`.
 pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
     // ── Lock file: prevent concurrent updates ─────────────────────────────
-    if std::path::Path::new(LOCK_FILE).exists() {
+    let lock_file = lock_path();
+    if lock_file.exists() {
         return Err(UpdateError::AlreadyRunning);
     }
-    std::fs::write(LOCK_FILE, std::process::id().to_string())?;
+    std::fs::write(&lock_file, std::process::id().to_string())?;
     scopeguard::defer! {
-        let _ = std::fs::remove_file(LOCK_FILE);
+        let _ = std::fs::remove_file(lock_path());
     }
 
     // ── Fetch release metadata ─────────────────────────────────────────────
@@ -185,10 +243,16 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
     }
 
     // ── Resolve platform asset URLs ────────────────────────────────────────
-    let bin_name = platform_binary_name();
-    let sha_name = format!("{bin_name}.sha256");
+    let artifact = platform_cli_artifact(current_os(), current_arch()).ok_or_else(|| {
+        UpdateError::Other(format!(
+            "no release archive is published for {}/{} (see packaging/artifacts.json)",
+            current_os(),
+            current_arch()
+        ))
+    })?;
+    let sha_name = format!("{}.sha256", artifact.archive);
 
-    let bin_url = resolve_asset(&release.assets, bin_name)?;
+    let bin_url = resolve_asset(&release.assets, &artifact.archive)?;
     let sha_url = resolve_asset(&release.assets, &sha_name)?;
 
     // ── Interactive confirmation ────────────────────────────────────────────
@@ -234,9 +298,32 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
         return Err(UpdateError::ChecksumMismatch { expected, actual });
     }
 
-    // ── Write staging file ─────────────────────────────────────────────────
-    let tmp_path = PathBuf::from("/tmp/apollia-new");
-    std::fs::write(&tmp_path, &bin_bytes)?;
+    // ── Stage and extract the archive ─────────────────────────────────────
+    let stage_dir = std::env::temp_dir().join(format!("apollia-update-{}", std::process::id()));
+    std::fs::create_dir_all(&stage_dir)?;
+    scopeguard::defer! {
+        let _ = std::fs::remove_dir_all(
+            std::env::temp_dir().join(format!("apollia-update-{}", std::process::id())),
+        );
+    }
+    let archive_path = stage_dir.join(&artifact.archive);
+    std::fs::write(&archive_path, &bin_bytes)?;
+    extract_archive(&archive_path, &stage_dir)?;
+
+    let bin_file = if cfg!(windows) {
+        "apollia-os.exe"
+    } else {
+        "apollia-os"
+    };
+    let tmp_path = stage_dir
+        .join(format!("apollia-os-{}", artifact.preset))
+        .join(bin_file);
+    if !tmp_path.is_file() {
+        return Err(UpdateError::Other(format!(
+            "the release archive does not carry {bin_file} at apollia-os-{}/{bin_file}",
+            artifact.preset
+        )));
+    }
 
     #[cfg(unix)]
     {
@@ -258,6 +345,30 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
 
     tracing::info!(version = remote_str, "update installed successfully");
     println!("Updated to {remote_str} successfully.");
+    Ok(())
+}
+
+/// Extracts a release archive with the system `tar`.
+///
+/// `tar` reads `.tar.gz` everywhere; the `.zip` archives only exist for the
+/// Windows presets, where the system `tar` is bsdtar and reads zip natively.
+/// Shelling out keeps the updater free of archive-format dependencies, which
+/// each would be a new sovereignty surface.
+fn extract_archive(archive: &Path, dest: &Path) -> Result<(), UpdateError> {
+    let mut cmd = std::process::Command::new("tar");
+    if archive.extension().is_some_and(|e| e == "zip") {
+        cmd.arg("-xf");
+    } else {
+        cmd.arg("-xzf");
+    }
+    let output = cmd.arg(archive).arg("-C").arg(dest).output()?;
+    if !output.status.success() {
+        return Err(UpdateError::Other(format!(
+            "failed to extract {}: {}",
+            archive.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
     Ok(())
 }
 
@@ -345,25 +456,78 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_platform_binary_name_not_empty() {
-        // GIVEN the current compilation target
-        // WHEN platform_binary_name() is called
-        // THEN the result is non-empty
-        let name = platform_binary_name();
-        assert!(!name.is_empty());
+    fn test_artifacts_contract_parses() {
+        // GIVEN the embedded artifact contract
+        // WHEN it is parsed as JSON
+        // THEN it carries a non-empty `cli` array
+        let contract: serde_json::Value =
+            serde_json::from_str(ARTIFACTS_CONTRACT).expect("valid contract JSON");
+        let cli = contract["cli"].as_array().expect("cli array");
+        assert!(!cli.is_empty());
     }
 
     #[test]
-    fn test_platform_binary_name_contains_target_triple() {
-        // GIVEN the current compilation target
-        // WHEN platform_binary_name() is called
-        // THEN the name begins with "apollia-os-" and is not the fallback
-        let name = platform_binary_name();
+    fn test_one_self_update_archive_per_platform() {
+        // GIVEN the embedded artifact contract
+        // WHEN the self_update entries are grouped by (os, arch)
+        // THEN each couple carries exactly one archive, so the lookup is
+        //      unambiguous on every supported platform
+        let contract: serde_json::Value =
+            serde_json::from_str(ARTIFACTS_CONTRACT).expect("valid contract JSON");
+        let mut couples: Vec<(String, String)> = contract["cli"]
+            .as_array()
+            .expect("cli array")
+            .iter()
+            .filter(|e| e["self_update"].as_bool() == Some(true))
+            .map(|e| {
+                (
+                    e["os"].as_str().expect("os").to_owned(),
+                    e["arch"].as_str().expect("arch").to_owned(),
+                )
+            })
+            .collect();
+        let total = couples.len();
+        couples.sort();
+        couples.dedup();
+        assert_eq!(total, couples.len(), "duplicated (os, arch) couple");
+        assert!(total >= 5, "expected at least 5 platforms, got {total}");
+    }
+
+    #[test]
+    fn test_platform_lookup_returns_contract_names() {
+        // GIVEN a couple the contract covers
+        // WHEN the artifact is resolved
+        // THEN the archive is the contract's name for that platform
+        let artifact = platform_cli_artifact("linux", "x86_64").expect("covered couple");
+        assert_eq!(artifact.preset, "linux-x86-cpu");
+        assert_eq!(artifact.archive, "apollia-os-linux-x86-cpu.tar.gz");
+    }
+
+    #[test]
+    fn test_platform_lookup_reports_uncovered_couple() {
+        // GIVEN a couple no published archive covers (macOS Intel)
+        // WHEN the artifact is resolved
+        // THEN the lookup answers None instead of inventing a name
+        assert!(platform_cli_artifact("macos", "x86_64").is_none());
+    }
+
+    #[test]
+    fn test_current_platform_resolves_an_archive() {
+        // GIVEN the platform this test compiles for (one of the release couples)
+        // WHEN the artifact is resolved
+        // THEN an archive of the expected shape is found
+        let artifact =
+            platform_cli_artifact(current_os(), current_arch()).expect("supported platform");
         assert!(
-            name.starts_with("apollia-os-"),
-            "unexpected binary name: {name}"
+            artifact.archive.starts_with("apollia-os-"),
+            "unexpected archive name: {}",
+            artifact.archive
         );
-        assert_ne!(name, "apollia-os-unknown-platform");
+        assert!(
+            artifact.archive.ends_with(".tar.gz") || artifact.archive.ends_with(".zip"),
+            "unexpected archive extension: {}",
+            artifact.archive
+        );
     }
 
     #[test]
