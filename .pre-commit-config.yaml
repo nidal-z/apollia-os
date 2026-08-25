@@ -134,6 +134,18 @@ repos:
         files: '^(crates/.+\.rs|scripts/check_subprocess_window\.py)$'
         pass_filenames: false
 
+      # The SSRF policy and the body cap each lived in three copies, and each
+      # was missing wherever the copy had not been made: a hook handler POSTed
+      # an agent's tool arguments to an operator URL with neither, and nineteen
+      # call sites buffered a whole remote answer. Both are one helper now, and
+      # this entry is what keeps the next call site from opening a fourth copy.
+      - id: check-http-clients
+        name: HTTP clients and response bodies go through apollia_core::net
+        entry: python3 scripts/check_http_clients.py
+        language: system
+        files: '^(crates/.+\.rs|scripts/check_http_clients\.py)$'
+        pass_filenames: false
+
       # Ten percent on top of a commit that already pays a workspace check, and
       # its defect, a documented capability nothing installs, is born nowhere
       # else.

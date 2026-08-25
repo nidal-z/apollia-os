@@ -258,8 +258,8 @@ Rules :
 
 ## 7. Network access
 
-Outbound HTTP from the `http_fetch` and `web_read` tools goes through the
-`apollia-tools` SSRF guard (`apollia_tools::ssrf`). The guard applies :
+Every outbound HTTP client in the workspace is built by `apollia_core::net`,
+which is also where the SSRF guard lives. The guard applies :
 - A name-level check (`assert_public`) that rejects loopback, RFC 1918 private,
   link-local (cloud metadata), multicast, unique-local, and internal-domain
   destinations, on the initial URL.
@@ -278,14 +278,22 @@ socket directly, bypassing the guard; it protects tool-mediated fetches, not
 the agent process. Tool child processes on Linux share the host network
 namespace (no `--net` isolation yet).
 
-Rules :
-- Never `reqwest::Client::new()` without the SSRF redirect policy from a tool
-  path. Build the client with `apollia_tools::ssrf::public_redirect_policy`.
+Rules, held by `scripts/check_http_clients.py` :
+- Never `reqwest::Client::new()` or `reqwest::Client::builder()`. Build the
+  client with `apollia_core::net::safe_client_builder`, or with
+  `configured_endpoint_client_builder` when the destination is an endpoint the
+  operator declared and which may legitimately be internal (a local MCP server,
+  the runner, a self-hosted LLM).
 - Never validate only the initial URL. Redirect targets are attacker-controlled
-  and must be re-checked per hop.
-- Webhook outbound is the only direct-network path in the runtime, and
-  it carries no agent payload. It applies the same initial + per-redirect SSRF
-  check.
+  and must be re-checked per hop, which `safe_client_builder` does.
+- Never read a response body with `.text()`, `.bytes()` or `.json()`. Read it
+  with `apollia_core::net::read_capped_{bytes,text,json}`, which refuse an
+  oversized body mid-stream instead of buffering it and measuring afterwards.
+- Two paths in the runtime carry an agent payload straight to the network: the
+  webhook notification channel and the `PreToolUse` / `PostToolUse` HTTP hook
+  handler. Both apply the initial check and the per-hop one. A hook answer that
+  rewrites a tool's arguments does not inherit the session's authorization of
+  the tool name: the rewritten call goes through the approval flow.
 
 ---
 

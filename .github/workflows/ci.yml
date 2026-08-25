@@ -394,6 +394,15 @@ jobs:
       # up while the rule sat in a document. It is a check now.
       - name: Spawned children ask for no console window
         run: python3 scripts/check_subprocess_window.py
+      # Two rules that lived in three copies each and were absent wherever the
+      # copy had not been made: the SSRF redirect policy and the response-body
+      # cap. The hook handler carried neither while SECURITY.md said no direct
+      # network path carries an agent payload without them. Selftest first, so
+      # a green line proves the rules can still see a defect.
+      - name: HTTP clients and response bodies go through apollia_core::net
+        run: |
+          python3 scripts/check_http_clients.py --selftest
+          python3 scripts/check_http_clients.py
       # The layout of ~/.apollia had three diverging inventories (code, seed,
       # reset script) and 105 production lines composing the directory by hand
       # before the DataFile catalogue existed. These three guards hold the

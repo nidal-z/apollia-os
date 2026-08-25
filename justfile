@@ -538,6 +538,7 @@ guards:
       "scripts/check_docs_routes.py"
       "scripts/check_download_sums.py"
       "scripts/check_guard_verdicts.py"
+      "scripts/check_http_clients.py"
       "scripts/check_i18n_catalogue.py"
       "scripts/check_instrument_verdicts.py"
       "scripts/check_no_font_cdn.py"
