@@ -12,6 +12,8 @@ import json
 import re
 from typing import Any
 
+from apollia.errors import AgentError
+
 # ---------------------------------------------------------------------------
 # Action type constants matching the LLM output format.
 # ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ _CODE_BLOCK_RE = re.compile(r"^```(\w*)\n(.*?)^```", re.MULTILINE | re.DOTALL)
 # ---------------------------------------------------------------------------
 
 
-class ActionParseError(Exception):
+class ActionParseError(AgentError):
     """Raised when the LLM response cannot be parsed as a ReAct action."""
 
 
