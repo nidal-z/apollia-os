@@ -627,6 +627,25 @@ jobs:
             --ignore-filename-regex '(/tests/|/benches/)' \
             --lcov --output-path lcov.info \
             --fail-under-lines ${{ env.COVERAGE_FLOOR }}
+      # Per-crate floors on the five core crates TESTING.md names. A global
+      # floor cannot see one crate sink while the others float it: the
+      # workspace gate sat at 70 while apollia-runtime was at 72.90. Each
+      # floor is the measured baseline rounded down to the half point, and it
+      # ratchets up with the measure, never down.
+      - name: cargo llvm-cov (per-crate floor gates)
+        run: |
+          set -euo pipefail
+          for pair in apollia-core:85.0 apollia-oria:92.5 \
+                      apollia-permissions:91.0 apollia-memory:91.0 \
+                      apollia-runtime:72.5; do
+            crate="${pair%%:*}"
+            floor="${pair##*:}"
+            echo "::group::coverage floor ${crate} >= ${floor}"
+            cargo llvm-cov -p "${crate}" --summary-only \
+              --ignore-filename-regex '(/tests/|/benches/)' \
+              --fail-under-lines "${floor}"
+            echo "::endgroup::"
+          done
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coverage-lcov
