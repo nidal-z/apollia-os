@@ -31,10 +31,10 @@ use crate::plan::{ExecutionPlan, PlanStep};
 #[derive(Debug, thiserror::Error)]
 pub enum PlanValidationError {
     /// The LLM response is not valid JSON.
-    #[error("Invalid JSON: {0}")]
+    #[error("invalid JSON: {0}")]
     InvalidJson(String),
     /// The JSON structure does not match the expected `{{ "steps": [...] }}` schema.
-    #[error("Invalid structure: {0}")]
+    #[error("invalid structure: {0}")]
     InvalidStructure(String),
     /// The plan steps do not form a valid DAG (unique ids, resolvable
     /// dependencies, acyclic), as checked by [`validate_plan`].
@@ -74,7 +74,7 @@ pub enum ReasonerError {
     #[error("LLM call failed: {0}")]
     LlmFailed(String),
     /// JSON parse/validation failed after N consecutive attempts.
-    #[error("Plan parse/validation failed after {attempts} attempts: {reason}")]
+    #[error("plan parse/validation failed after {attempts} attempts: {reason}")]
     PlanParseError {
         /// Number of attempts made before giving up.
         attempts: u32,

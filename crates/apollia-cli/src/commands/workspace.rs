@@ -46,7 +46,7 @@ pub enum WorkspaceCommand {
 #[derive(Debug, Error)]
 pub enum WorkspaceCliError {
     /// APOLLIA.md already exists and `--force` was not supplied.
-    #[error("APOLLIA.md already exists. Use --force to overwrite.")]
+    #[error("APOLLIA.md already exists, use --force to overwrite")]
     FileExists,
     /// Filesystem read/write error.
     #[error("I/O error: {0}")]

@@ -229,11 +229,11 @@ pub enum OnboardingError {
     ChatNotAvailable,
 
     /// The apollia-guide companion agent is not registered in the runtime.
-    #[error("apollia-guide agent not found - it powers the companion panel and should be provisioned automatically at startup. Bundle it and restart the application.")]
+    #[error("apollia-guide agent not found - it powers the companion panel and is provisioned at startup, bundle it and restart the application")]
     GuideAgentNotInstalled,
 
     /// The requested phase transition is not legal.
-    #[error("Cannot advance from {from:?} to {to:?}")]
+    #[error("cannot advance from {from:?} to {to:?}")]
     InvalidTransition {
         /// Source phase.
         from: OnboardingPhase,
@@ -242,11 +242,11 @@ pub enum OnboardingError {
     },
 
     /// The supplied profile name is not one of the accepted values.
-    #[error("Invalid profile: {0}. Expected 'operator' or 'builder'")]
+    #[error("invalid profile: {0}, expected 'operator' or 'builder'")]
     InvalidProfile(String),
 
     /// A UserMemory read or write operation failed.
-    #[error("Persistence error: {0}")]
+    #[error("persistence error: {0}")]
     PersistenceError(String),
 }
 

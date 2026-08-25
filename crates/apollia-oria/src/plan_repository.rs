@@ -103,7 +103,7 @@ pub enum PlanRepositoryError {
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     /// No plan found for the given `task_id`.
-    #[error("Plan not found for task_id: {0}")]
+    #[error("plan not found for task_id: {0}")]
     NotFound(String),
 }
 

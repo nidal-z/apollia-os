@@ -65,7 +65,7 @@ fn release_dependents(
 /// Indicates that at least two steps form a circular dependency, making ordered
 /// execution impossible.
 #[derive(Debug, thiserror::Error)]
-#[error("Circular dependency detected in execution plan")]
+#[error("circular dependency detected in the execution plan")]
 pub struct CycleError;
 
 /// Groups steps into execution levels.

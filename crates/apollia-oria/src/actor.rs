@@ -89,16 +89,16 @@ pub trait ToolProxyTrait: Send + Sync {
 #[derive(Debug, thiserror::Error)]
 pub enum StepError {
     /// The tool call failed.
-    #[error("Tool call failed: {0}")]
+    #[error("tool call failed: {0}")]
     ToolCallFailed(String),
     /// The LLM call failed.
     #[error("LLM call failed: {0}")]
     LlmCallFailed(String),
     /// No LLM backend is configured in the `LlmRouter`.
-    #[error("No LLM backend configured")]
+    #[error("no LLM backend configured")]
     NoLlmBackend,
     /// The requested tool is not registered in the registry.
-    #[error("Tool not found: {0}")]
+    #[error("tool not found: {0}")]
     ToolNotFound(String),
     /// The step was rejected by the user before execution (HITL Orchestrated mode).
     ///

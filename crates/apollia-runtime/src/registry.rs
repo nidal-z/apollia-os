@@ -25,10 +25,10 @@ pub struct AgentEntry {
 #[derive(Debug, thiserror::Error)]
 pub enum AgentRegistryError {
     /// The requested agent does not exist in the registry.
-    #[error("Agent '{0}' introuvable dans le registry")]
+    #[error("agent '{0}' not found in the registry")]
     NotFound(AgentId),
     /// The requested state transition violates the `ProcessState` state machine.
-    #[error("Transition d'état invalide : {from:?} → {to:?}")]
+    #[error("invalid state transition from {from:?} to {to:?}")]
     InvalidTransition {
         from: ProcessState,
         to: ProcessState,
