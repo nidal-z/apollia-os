@@ -42,6 +42,20 @@ CREATE INDEX IF NOT EXISTS idx_llm_calls_task    ON llm_calls(task_id);
 CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at);
 "#;
 
+/// Current schema version of `llm_calls.db`.
+const LLM_CALLS_SCHEMA_VERSION: u32 = 1;
+
+/// Numbered migration steps of `llm_calls.db`.
+///
+/// Step `k` migrates the file from version `k` to `k + 1`; the list length
+/// always equals [`LLM_CALLS_SCHEMA_VERSION`].
+const LLM_CALLS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+
+/// v1: the pre-versioning schema of the file, replayed idempotently.
+fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(SCHEMA)
+}
+
 /// A persisted LLM call record in SQLite.
 #[derive(Debug, Clone)]
 pub struct LlmCallRecord {
@@ -103,6 +117,9 @@ pub enum LlmRepositoryError {
     /// Underlying SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the supported version.
+    #[error(transparent)]
+    Schema(#[from] apollia_core::schema::SchemaError),
 }
 
 /// SQLite repository to persist LLM calls.
@@ -125,7 +142,12 @@ impl LlmCallRepository {
     pub fn open(path: &Path) -> Result<Self, LlmRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch(SCHEMA)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::LlmCalls.file_name(),
+            LLM_CALLS_SCHEMA_VERSION,
+            LLM_CALLS_MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 
@@ -133,7 +155,12 @@ impl LlmCallRepository {
     #[cfg(test)]
     fn open_in_memory() -> Result<Self, LlmRepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(SCHEMA)?;
+        apollia_core::schema::open_versioned(
+            &conn,
+            apollia_core::paths::DataFile::LlmCalls.file_name(),
+            LLM_CALLS_SCHEMA_VERSION,
+            LLM_CALLS_MIGRATIONS,
+        )?;
         Ok(Self { conn })
     }
 
