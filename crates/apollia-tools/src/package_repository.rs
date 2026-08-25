@@ -16,7 +16,6 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// Embedded migration SQL, applied idempotently on every open.
 // The package-table DDL lives in `crate::agents_db`: `agents.db` is shared
 // with the installed-agent registry, and `PRAGMA user_version` belongs to
 // the file, so the two repositories migrate through one numbered list.

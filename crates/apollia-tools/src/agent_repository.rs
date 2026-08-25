@@ -17,7 +17,6 @@ use apollia_core::AgentManifest;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// Embedded migration SQL, applied idempotently on every open.
 // The `installed_agents` DDL lives in `crate::agents_db`: `agents.db` is
 // shared with the package tables, and `PRAGMA user_version` belongs to the
 // file, so the two repositories migrate through one numbered list.

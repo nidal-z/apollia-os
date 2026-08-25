@@ -203,7 +203,7 @@ fn apollia_data_dir() -> PathBuf {
 }
 
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
-    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, msg)
 }
 
 /// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS`.

@@ -146,7 +146,7 @@ async fn run_reset(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
 }
 
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
-    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, msg)
 }
 
 fn handle_error(err: ClientError, json: bool) -> i32 {
@@ -164,7 +164,7 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
             } else {
                 body
             };
-            crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
+            crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg)
         }
         other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }

@@ -585,7 +585,7 @@ fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
 
 /// Emit an error message (JSON or human form) and return [`GENERAL_ERROR`].
 fn emit_stt_error(msg: &str, json: bool) -> i32 {
-    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
+    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, msg)
 }
 
 /// Handle a [`ClientError`] with consistent output formatting.

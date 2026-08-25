@@ -457,7 +457,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
     // letting the runtime return a generic 422.
     if kind == "webhook" && url.is_none() {
         let msg = "--url is required for webhook channels";
-        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string());
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, msg);
     }
 
     // Auto-generate a sensible id when the caller didn't pass one. Format

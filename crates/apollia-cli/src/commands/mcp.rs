@@ -795,11 +795,7 @@ async fn run_get_raw_config(client: &RuntimeClient, name: &str, json: bool) -> i
     };
 
     if resp.status >= 400 {
-        return crate::output::emit_error(
-            json,
-            exit_codes::GENERAL_ERROR,
-            &format!("{}", resp.body),
-        );
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &resp.body);
     }
 
     print_raw_config_body(resp.body, json);
