@@ -94,10 +94,13 @@ linux-check arch="x86":
 #                                 unmeasured. The default differs from
 #                                 linux-check on purpose: this question is the
 #                                 slow one, and only arm was measured
+#   just linux-test arm apollia-tools python_executor
+#                                 one crate, one test filter: a scoped Linux
+#                                 question at one crate's build cost
 
 # Run the workspace suites on Linux, from a machine that is not Linux.
-linux-test arch="arm":
-    bash scripts/linux-check.sh {{arch}} test
+linux-test arch="arm" *scope:
+    bash scripts/linux-check.sh {{arch}} test {{scope}}
 
 # Groups are cumulative and there is no default: `just worktree-prep` lists them
 # and exits 1. See scripts/worktree-prep.sh for what each group lays down.

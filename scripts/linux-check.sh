@@ -47,11 +47,13 @@
 #     bash scripts/linux-check.sh              # x86_64, compiles
 #     bash scripts/linux-check.sh arm          # aarch64, compiles
 #     bash scripts/linux-check.sh arm test     # aarch64, runs the suites
+#     bash scripts/linux-check.sh arm test apollia-tools python_executor
+#                                              # aarch64, one crate, one filter
 set -euo pipefail
 
 usage() {
     cat >&2 <<'EOF'
-usage: bash scripts/linux-check.sh [x86|arm] [compile|test]
+usage: bash scripts/linux-check.sh [x86|arm] [compile|test [package [filter]]]
 
   x86   x86_64-unknown-linux-gnu   (default) the only Linux target whose
         failure stops a release, release.yml:92
@@ -61,6 +63,12 @@ usage: bash scripts/linux-check.sh [x86|arm] [compile|test]
   compile  (default) the blocking Clippy gate of ci.yml:85
   test     the first step of the Rust Tests job, ci.yml:143-144. Slower, and
            it bounds cargo's parallelism itself; see the perimeter block
+
+  package  test only: one workspace member, passed to cargo as `-p <package>`,
+           so a single Linux question costs one crate's build instead of the
+           workspace's. A scoped green answers nothing about the other crates,
+           and the run says so in its perimeter block
+  filter   test only, requires package: a cargo test name filter
 
 Requires a running Docker daemon. Without one the script exits 2 and measures
 nothing, rather than reporting a green tree it never compiled.
@@ -118,6 +126,41 @@ case "${2:-compile}" in
         exit 2
         ;;
 esac
+
+# The optional third and fourth arguments narrow the test question to one
+# workspace member and one cargo test filter, so measuring a single crate's
+# Linux gap does not cost the whole workspace's build. They are validated
+# against the character set of crate and test names before they reach the
+# `sh -c` inside the container: an argument this validation refuses would
+# otherwise become shell inside the image, and exit 2 keeps "refused" distinct
+# from "measured red".
+SCOPE=""
+if [ "$#" -gt 2 ]; then
+    if [ "$QUESTION" != "test" ]; then
+        echo "ERROR: a package scope only applies to the test question." >&2
+        usage
+        exit 2
+    fi
+    if ! printf '%s' "${3}" | grep -Eq '^[A-Za-z0-9_-]+$'; then
+        echo "ERROR: package '${3}' is not a plain crate name, nothing was measured." >&2
+        exit 2
+    fi
+    CARGO_ARGS="cargo test -p ${3} --no-fail-fast --locked"
+    SCOPE="-p ${3}"
+    if [ "$#" -gt 3 ]; then
+        if ! printf '%s' "${4}" | grep -Eq '^[A-Za-z0-9_:]+$'; then
+            echo "ERROR: filter '${4}' is not a plain test filter, nothing was measured." >&2
+            exit 2
+        fi
+        CARGO_ARGS="${CARGO_ARGS} ${4}"
+        SCOPE="${SCOPE} ${4}"
+    fi
+    if [ "$#" -gt 4 ]; then
+        echo "ERROR: unexpected argument '${5}'" >&2
+        usage
+        exit 2
+    fi
+fi
 
 IMAGE="apollia-linux-check:${ARCH}"
 DOCKERFILE="scripts/linux-check.Dockerfile"
@@ -229,14 +272,28 @@ fi
 GEN_REL="crates/apollia-desktop/gen"
 GEN_COPY="$(mktemp -d -t apollia-linux-check)"
 trap 'rm -rf "$GEN_COPY"' EXIT
+# The schemas left the index (they are build output), so a fresh worktree has
+# no gen directory at all: the copy then starts empty and tauri-build
+# regenerates the schemas into the writable mount. Two failures were measured
+# on such a tree before the two guards below existed: the `cp` killed the whole
+# run under `set -e`, and once past that, `docker run` failed with 125 because
+# the mountpoint for the writable copy cannot be created inside a read-only
+# rootfs. The `mkdir -p` writes an empty, gitignored build-output directory
+# into the host tree so the mountpoint exists; it never dirties the tree.
+mkdir -p "${TREE}/${GEN_REL}"
 cp -a "${TREE}/${GEN_REL}/." "${GEN_COPY}/"
 
 # The member count is measured on the mounted tree, not written by hand, so it
-# follows the workspace when a crate is added or removed.
+# follows the workspace when a crate is added or removed. A scoped run covers
+# one member and says so instead: a green scoped answer must not read as the
+# workspace's.
 MEMBERS="unknown, cargo metadata failed on the host"
 if members="$(cargo metadata --no-deps --format-version 1 2>/dev/null |
     python3 -c 'import json,sys; print(len(json.load(sys.stdin)["packages"]))')"; then
     MEMBERS="${members} workspace members, every target of each"
+fi
+if [ -n "$SCOPE" ]; then
+    MEMBERS="${SCOPE} only; the other workspace members are not measured"
 fi
 
 cat <<EOF
