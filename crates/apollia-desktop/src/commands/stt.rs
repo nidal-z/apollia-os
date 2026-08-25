@@ -89,7 +89,8 @@ impl Default for SttConfigView {
 /// If the row does not exist yet, defaults are inserted and returned.
 #[tauri::command]
 pub async fn get_stt_config() -> Result<SttConfigView, String> {
-    let db_path = resolve_home("~/.apollia/system.db");
+    let db_path = apollia_core::paths::DataFile::System
+        .path(&apollia_core::paths::data_dir().unwrap_or_default());
     let row = tokio::task::spawn_blocking(move || {
         let repo = apollia_core::SttConfigRepository::open(&db_path)
             .map_err(|e| format!("failed to open system.db: {e}"))?;
@@ -142,7 +143,8 @@ pub async fn update_stt_config(
 ) -> Result<(), String> {
     validate_language(config.language.as_deref())?;
 
-    let db_path = resolve_home("~/.apollia/system.db");
+    let db_path = apollia_core::paths::DataFile::System
+        .path(&apollia_core::paths::data_dir().unwrap_or_default());
 
     // Ensure the data directory exists.
     if let Some(parent) = db_path.parent() {
@@ -261,8 +263,8 @@ pub(crate) async fn reload_stt_inner(
     app: &tauri::AppHandle,
     stt_flow_state: &SttFlowState,
 ) -> Result<(), String> {
-    let data_dir = resolve_home("~/.apollia");
-    let db_path = data_dir.join("system.db");
+    let data_dir = apollia_core::paths::data_dir().unwrap_or_default();
+    let db_path = apollia_core::paths::DataFile::System.path(&data_dir);
 
     let cfg = tokio::task::spawn_blocking(move || {
         let repo = apollia_core::SttConfigRepository::open(&db_path)
@@ -507,7 +509,9 @@ fn is_stt_model_file(path: &std::path::Path) -> bool {
 pub async fn list_stt_models(
     _runtime: State<'_, RuntimeHandle>,
 ) -> Result<Vec<SttModelInfo>, String> {
-    let models_dir = resolve_home("~/.apollia/models");
+    let models_dir = apollia_core::paths::data_dir()
+        .unwrap_or_default()
+        .join("models");
 
     if !models_dir.is_dir() {
         return Ok(Vec::new());
@@ -641,16 +645,6 @@ async fn stt_repo(runtime: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<SttRep
         .await
         .clone()
         .ok_or_else(|| "STT repository not available".to_owned())
-}
-
-/// Resolves `~` prefix to `$HOME`.
-fn resolve_home(path: &str) -> std::path::PathBuf {
-    if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = apollia_core::paths::home_string() {
-            return std::path::PathBuf::from(home).join(rest);
-        }
-    }
-    std::path::PathBuf::from(path)
 }
 
 /// Decodes a WAV byte buffer into f32 samples.

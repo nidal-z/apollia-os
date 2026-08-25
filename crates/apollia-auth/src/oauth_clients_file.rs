@@ -80,7 +80,7 @@ pub fn oauth_clients_path() -> Option<PathBuf> {
 
 /// Build the overrides path rooted at `home`. Used by tests to bypass `$HOME`.
 pub fn oauth_clients_path_in<P: Into<PathBuf>>(home: P) -> PathBuf {
-    home.into().join(".apollia").join(OAUTH_CLIENTS_FILENAME)
+    apollia_core::paths::data_dir_under(home).join(OAUTH_CLIENTS_FILENAME)
 }
 
 /// Read and parse the overrides file from the default path.

@@ -135,7 +135,7 @@ impl AgeFileSecretStore {
     pub fn from_env() -> Result<Self, AuthError> {
         let home = dirs::home_dir()
             .ok_or_else(|| AuthError::Keyring("home directory not found".into()))?;
-        let base = home.join(".apollia").join("secrets");
+        let base = apollia_core::paths::data_dir_under(home).join("secrets");
         let passphrase = std::env::var("APOLLIA_TOKEN_PASSPHRASE").map_err(|_| {
             AuthError::Keyring(
                 "APOLLIA_TOKEN_PASSPHRASE not set (required when APOLLIA_TOKEN_STORAGE=file)"

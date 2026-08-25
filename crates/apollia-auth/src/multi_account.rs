@@ -87,7 +87,7 @@ impl MultiAccountStorage {
     pub fn new() -> Result<Self, AuthError> {
         let home = dirs::home_dir()
             .ok_or_else(|| AuthError::Keyring("home directory not found".into()))?;
-        let dir = home.join(".apollia");
+        let dir = apollia_core::paths::data_dir_under(home);
         std::fs::create_dir_all(&dir)
             .map_err(|e| AuthError::Keyring(format!("cannot create ~/.apollia: {e}")))?;
         Ok(Self {

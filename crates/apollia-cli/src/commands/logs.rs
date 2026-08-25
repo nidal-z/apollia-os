@@ -81,7 +81,9 @@ pub async fn run(args: &LogsArgs, json: bool) -> i32 {
 /// Resolve the default log file path (`~/.apollia/logs/runtime.log`).
 fn default_log_path() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join("logs").join("runtime.log")
+    apollia_core::paths::data_dir_under(home)
+        .join("logs")
+        .join("runtime.log")
 }
 
 /// Print the last `n` lines of `path` to stdout.

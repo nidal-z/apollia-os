@@ -96,7 +96,8 @@ fn resolve_db(override_path: Option<&Path>) -> PathBuf {
         return p.to_path_buf();
     }
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join("user_memory.db")
+    apollia_core::paths::data_dir_under(home)
+        .join(apollia_core::paths::DataFile::UserMemory.file_name())
 }
 
 fn open_repo(db_path: Option<&Path>, json: bool) -> Option<UserMemoryRepository> {

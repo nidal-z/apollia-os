@@ -120,7 +120,7 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
         return p.to_path_buf();
     }
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join(GOVERNANCE_DB_FILENAME)
+    apollia_core::paths::data_dir_under(home).join(GOVERNANCE_DB_FILENAME)
 }
 
 fn open_repo(db: Option<&Path>, json: bool) -> Option<ChatLibreConfigRepository> {

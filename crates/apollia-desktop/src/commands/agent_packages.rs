@@ -755,7 +755,7 @@ fn apollia_data_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia")
+    apollia_core::paths::data_dir_under(home)
 }
 
 /// Locate the `site-packages` directory(ies) of a per-agent virtualenv.
@@ -831,7 +831,7 @@ fn inject_package_triggers(
 
     // The TriggerEngine reads definitions from `triggers_def.db` (not `triggers.db`,
     // which stores fire history). Writing to the wrong file is silently ignored by reload.
-    let triggers_db = data_dir.join("triggers_def.db");
+    let triggers_db = data_dir.join(apollia_core::paths::DataFile::TriggersDef.file_name());
     let repo = match TriggerDefinitionRepository::open(&triggers_db) {
         Ok(r) => r,
         Err(e) => return (0, vec![format!("cannot open triggers_def.db: {e}")]),

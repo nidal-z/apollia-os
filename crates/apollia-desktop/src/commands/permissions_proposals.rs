@@ -136,12 +136,12 @@ fn memory_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia").join("memory")
+    apollia_core::paths::data_dir_under(home).join("memory")
 }
 
 fn governance_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()?;
-    Ok(PathBuf::from(home).join(".apollia"))
+    Ok(apollia_core::paths::data_dir_under(home))
 }
 
 /// Returns the JSON string stored at `onboarding.proposed_rules`, scanning

@@ -37,10 +37,10 @@ pub enum GovernanceError {
 }
 
 /// Filename of the consolidated store.
-pub const GOVERNANCE_DB_FILENAME: &str = "governance.db";
+pub const GOVERNANCE_DB_FILENAME: &str = apollia_core::paths::DataFile::Governance.file_name();
 
 /// Filename of the legacy permissions store.
-pub const LEGACY_PERMISSIONS_FILENAME: &str = "permissions.db";
+pub const LEGACY_PERMISSIONS_FILENAME: &str = apollia_core::paths::LEGACY_PERMISSIONS_DB_NAME;
 
 /// Filename of the backup created after migrating from `permissions.db`.
 pub const LEGACY_BACKUP_FILENAME: &str = "permissions.db.bak";

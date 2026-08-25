@@ -293,7 +293,7 @@ impl Default for EmbeddedConfig {
             tcp_port: None,
             api_token: None,
             socket_path: PathBuf::from("/tmp/apollia.sock"),
-            data_dir: home.join(".apollia"),
+            data_dir: apollia_core::paths::data_dir_under(home),
             startup_timeout_secs: DEFAULT_STARTUP_TIMEOUT_SECS,
             obs_config: ObservabilityConfig::default(),
             agent_loader: Arc::new(StubAgentLoader),

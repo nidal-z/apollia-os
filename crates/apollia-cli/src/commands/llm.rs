@@ -580,8 +580,8 @@ fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
         .join("apollia.toml")
 }
 
@@ -729,8 +729,8 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
     });
 
     let apollia_home = dirs::home_dir()
-        .map(|h| h.join(".apollia"))
-        .unwrap_or_else(|| PathBuf::from(".apollia"));
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME));
     let models_dir = models_dir_override
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| apollia_home.join("models"));
@@ -767,7 +767,7 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
 
     let system_db_path = system_db_override
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| apollia_home.join("system.db"));
+        .unwrap_or_else(|| apollia_core::paths::DataFile::System.path(&apollia_home));
     if let Some(parent) = system_db_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

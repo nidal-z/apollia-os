@@ -159,7 +159,7 @@ fn apollia_data_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia")
+    apollia_core::paths::data_dir_under(home)
 }
 
 /// Current timestamp in RFC 3339.

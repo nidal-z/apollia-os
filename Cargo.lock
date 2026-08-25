@@ -253,6 +253,7 @@ name = "apollia-auth"
 version = "0.1.0-preview"
 dependencies = [
  "age",
+ "apollia-core",
  "axum",
  "base64 0.22.1",
  "chrono",

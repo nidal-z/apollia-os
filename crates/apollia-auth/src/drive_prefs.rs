@@ -108,7 +108,7 @@ pub fn drive_prefs_path() -> Option<PathBuf> {
 
 /// Build the prefs path rooted at `home`. Used by tests.
 pub fn drive_prefs_path_in<P: Into<PathBuf>>(home: P) -> PathBuf {
-    home.into().join(".apollia").join(DRIVE_PREFS_FILENAME)
+    apollia_core::paths::data_dir_under(home).join(DRIVE_PREFS_FILENAME)
 }
 
 /// Read + parse the prefs file from `path`. `Ok(None)` when the file does

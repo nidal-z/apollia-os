@@ -6,6 +6,7 @@ description = "Apollia OS - OAuth2 PKCE authentication with OS-native keyring st
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+apollia-core = { workspace = true }
 thiserror    = { workspace = true }
 tracing      = { workspace = true }
 serde        = { workspace = true }

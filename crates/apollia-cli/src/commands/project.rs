@@ -224,9 +224,9 @@ fn resolve_chat_db(override_path: Option<&Path>) -> PathBuf {
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
-        .join("chat.db")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
+        .join(apollia_core::paths::DataFile::Chat.file_name())
 }
 
 fn open_chat_repo(
@@ -368,7 +368,8 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
         return p.to_path_buf();
     }
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join("projects.db")
+    apollia_core::paths::data_dir_under(home)
+        .join(apollia_core::paths::DataFile::Projects.file_name())
 }
 
 /// Locate the chat database that goes with the projects database in use.
@@ -378,8 +379,8 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
 fn chat_db_beside_projects_db(db: Option<&Path>) -> PathBuf {
     match db {
         Some(path) => match path.parent() {
-            Some(dir) => dir.join("chat.db"),
-            None => PathBuf::from("chat.db"),
+            Some(dir) => dir.join(apollia_core::paths::DataFile::Chat.file_name()),
+            None => PathBuf::from(apollia_core::paths::DataFile::Chat.file_name()),
         },
         None => resolve_chat_db(None),
     }

@@ -236,10 +236,7 @@ fn looks_like_file_path(arg: &str) -> bool {
 
 /// Resolve `~/.apollia/` data directory.
 fn apollia_data_dir() -> PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    PathBuf::from(home).join(".apollia")
+    apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp())
 }
 
 /// Open the package repository at `<data_dir>/agents.db`, creating it if needed.
@@ -250,7 +247,7 @@ fn open_package_repository_or_create(data_dir: &Path) -> Result<PackageRepositor
             data_dir.display()
         ));
     }
-    let db_path = data_dir.join("agents.db");
+    let db_path = apollia_core::paths::DataFile::Agents.path(data_dir);
     PackageRepository::open(&db_path).map_err(|e| format!("cannot open agents.db: {e}"))
 }
 
@@ -262,14 +259,14 @@ fn open_repository_or_create(data_dir: &Path) -> Result<AgentRepository, String>
             data_dir.display()
         ));
     }
-    let db_path = data_dir.join("agents.db");
+    let db_path = apollia_core::paths::DataFile::Agents.path(data_dir);
     AgentRepository::open(&db_path).map_err(|e| format!("cannot open agents.db: {e}"))
 }
 
 /// Try to open the agent repository (returns `None` if file or DB unavailable).
 fn open_repository() -> Option<AgentRepository> {
     let data_dir = apollia_data_dir();
-    let db_path = data_dir.join("agents.db");
+    let db_path = apollia_core::paths::DataFile::Agents.path(&data_dir);
     if !db_path.exists() {
         return None;
     }

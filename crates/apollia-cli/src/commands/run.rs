@@ -1184,7 +1184,7 @@ fn extract_budget(task_json: &serde_json::Value) -> Option<TokenBudget> {
 /// Errors are silently ignored to avoid disrupting CLI output.
 fn persist_budget(budget: &TokenBudget, task_id: &str) {
     let dir = match apollia_core::paths::home_string() {
-        Some(h) => PathBuf::from(h).join(".apollia"),
+        Some(h) => apollia_core::paths::data_dir_under(h),
         None => return,
     };
 

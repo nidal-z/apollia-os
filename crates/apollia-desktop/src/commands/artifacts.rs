@@ -62,7 +62,8 @@ static ARTIFACT_DB: Mutex<Option<Connection>> = Mutex::new(None);
 fn db_path() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
-    Ok(PathBuf::from(home).join(".apollia").join("artifacts.db"))
+    Ok(apollia_core::paths::data_dir_under(home)
+        .join(apollia_core::paths::DataFile::Artifacts.file_name()))
 }
 
 fn with_conn<R>(f: impl FnOnce(&Connection) -> Result<R, String>) -> Result<R, String> {

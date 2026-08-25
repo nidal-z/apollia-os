@@ -444,8 +444,7 @@ impl NativeChatToolInvoker {
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
-        let base_dir = apollia_core::paths::home_dir_or_temp()
-            .join(".apollia")
+        let base_dir = apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp())
             .join("memory");
         let tool = MemorySearchTool::new("user".to_string(), vec![], base_dir);
         let input: MemorySearchInput = serde_json::from_value(arguments.clone())

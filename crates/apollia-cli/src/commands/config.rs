@@ -535,7 +535,7 @@ fn resolve_apollia_home(override_path: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = override_path {
         return Some(p.to_path_buf());
     }
-    dirs::home_dir().map(|h| h.join(".apollia"))
+    dirs::home_dir().map(apollia_core::paths::data_dir_under)
 }
 
 /// Wipe the Apollia home directory (factory reset).

@@ -82,7 +82,7 @@ impl CheckResult {
 /// reachability check.
 pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
     let home = apollia_core::paths::home_dir_or_temp();
-    let data_dir = home.join(".apollia");
+    let data_dir = apollia_core::paths::data_dir_under(home);
 
     let mut checks: Vec<CheckResult> = Vec::new();
     checks.push(check_apollia_home(&data_dir));
@@ -221,7 +221,7 @@ fn check_governance_db(data_dir: &Path) -> CheckResult {
 
 /// Verify that `agents.db` opens cleanly if it exists.
 fn check_agents_db(data_dir: &Path) -> CheckResult {
-    let db_path = data_dir.join("agents.db");
+    let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
     if !db_path.exists() {
         return CheckResult::ok(
             "agents_db",

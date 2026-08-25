@@ -380,7 +380,8 @@ pub async fn reload_llm_from_db(
     runtime: State<'_, RuntimeHandle>,
 ) -> Result<(), String> {
     let home = apollia_core::paths::home_dir_or_temp();
-    let db_path = home.join(".apollia").join("system.db");
+    let db_path = apollia_core::paths::data_dir_under(home)
+        .join(apollia_core::paths::DataFile::System.file_name());
 
     // LlmBackendRepository is !Send (uses RefCell<Connection>), so all DB work
     // must stay inside spawn_blocking. We extract the raw configs and return them.

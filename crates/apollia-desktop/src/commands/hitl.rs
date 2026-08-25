@@ -328,7 +328,7 @@ pub async fn add_permission_prefix_rule(
             let canonical = canonical_project_path(&raw)?;
 
             let home = apollia_core::paths::home_string_or_err()?;
-            let base_dir = std::path::PathBuf::from(home).join(".apollia");
+            let base_dir = apollia_core::paths::data_dir_under(home);
 
             persist_scoped_rule(
                 &base_dir,
@@ -349,7 +349,7 @@ pub async fn add_permission_prefix_rule(
         }
         apollia_permissions::PermissionScope::Global => {
             let home = apollia_core::paths::home_string_or_err()?;
-            let base_dir = std::path::PathBuf::from(home).join(".apollia");
+            let base_dir = apollia_core::paths::data_dir_under(home);
             persist_scoped_rule(
                 &base_dir,
                 tool_name.clone(),

@@ -1014,7 +1014,8 @@ fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerConfig> {
         Some(h) => h,
         None => return Vec::new(),
     };
-    let db = home.join(".apollia").join("mcp.db");
+    let db = apollia_core::paths::data_dir_under(home)
+        .join(apollia_core::paths::DataFile::Mcp.file_name());
     if !db.exists() {
         return Vec::new();
     }
@@ -1321,8 +1322,8 @@ fn resolve_config_path(override_path: Option<&std::path::Path>) -> PathBuf {
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
         .join("mcp.toml")
 }
 
@@ -1335,9 +1336,9 @@ fn resolve_approvals_db_path(override_path: Option<&std::path::Path>) -> PathBuf
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
-        .join("mcp_approvals.db")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
+        .join(apollia_core::paths::DataFile::McpApprovals.file_name())
 }
 
 #[cfg(test)]

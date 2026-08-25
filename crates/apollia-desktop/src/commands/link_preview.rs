@@ -116,7 +116,7 @@ fn link_preview_enabled() -> bool {
     let home = apollia_core::paths::home_dir();
     let candidates: Vec<PathBuf> = [
         home.as_ref()
-            .map(|h| h.join(".apollia").join("apollia.toml")),
+            .map(|h| apollia_core::paths::data_dir_under(h).join("apollia.toml")),
         std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
         home.as_ref()
             .map(|h| h.join(".config").join("apollia").join("apollia.toml")),

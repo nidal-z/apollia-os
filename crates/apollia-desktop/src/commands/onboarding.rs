@@ -305,12 +305,7 @@ pub async fn check_onboarding_finalized() -> Result<bool, String> {
 
 /// Directory holding the per-agent memory databases (`~/.apollia/memory`).
 fn onboarding_memory_dir() -> std::path::PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("memory")
+    apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp()).join("memory")
 }
 
 /// Whether `onboarding.completed_at` exists in the onboarding agent's semantic
@@ -832,11 +827,7 @@ fn get_repo(
 /// treated as a non-fatal degradation - the agent falls back to generic
 /// questioning without the profile section.
 fn write_profile_to_agent_memory(profile: &str) {
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    let db_path = std::path::PathBuf::from(home)
-        .join(".apollia")
+    let db_path = apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp())
         .join("memory")
         .join("onboarding-agent.db");
 
@@ -882,12 +873,8 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
     // to clean the new file caused stale `onboarding.completed_at` to leak
     // into fresh sessions and trigger the wrap-up panel before the user
     // could answer a single question.
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    let memory_dir = std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("memory");
+    let memory_dir =
+        apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp()).join("memory");
 
     let candidates: [(&str, &str); 2] = [
         ("onboarding.db", "onboarding"),

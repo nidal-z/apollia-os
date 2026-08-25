@@ -102,7 +102,7 @@ fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
 /// is kept in memory only for the current session.
 fn history_path() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
-    let dir = home.join(".apollia");
+    let dir = apollia_core::paths::data_dir_under(home);
     std::fs::create_dir_all(&dir).ok()?;
     Some(dir.join("repl_history"))
 }
@@ -614,7 +614,8 @@ fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
     if customs.is_empty() {
         println!("\nNo custom commands found.");
         println!(
-            "Add .md files to .apollia/commands/ or ~/.apollia/commands/ to define custom commands."
+            "Add .md files to {dir}/commands/ or ~/{dir}/commands/ to define custom commands.",
+            dir = apollia_core::paths::DATA_DIR_NAME
         );
     } else {
         println!("\nCustom commands:");
@@ -640,9 +641,9 @@ fn resolve_chat_db(db: Option<&Path>) -> PathBuf {
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
-        .join("chat.db")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
+        .join(apollia_core::paths::DataFile::Chat.file_name())
 }
 
 fn open_chat_repo(db: Option<&Path>, json: bool) -> Option<ChatSessionRepository> {

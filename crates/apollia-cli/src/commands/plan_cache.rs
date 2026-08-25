@@ -53,7 +53,7 @@ pub enum PlanCacheCommand {
 /// Execute a `plan-cache` subcommand. Returns the process exit code.
 pub fn run(cmd: &PlanCacheCommand, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
-    let db_path = data_dir.join("plan_cache.db");
+    let db_path = data_dir.join(apollia_core::paths::DataFile::PlanCache.file_name());
 
     match cmd {
         PlanCacheCommand::Stats => run_stats(&db_path, json),
@@ -194,7 +194,7 @@ fn apollia_data_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia")
+    apollia_core::paths::data_dir_under(home)
 }
 
 fn print_error_and_exit(msg: &str, json: bool) -> i32 {
@@ -304,7 +304,9 @@ mod tests {
     fn test_clear_force_on_fresh_db_returns_zero() {
         // GIVEN a fresh (empty) plan_cache.db
         let dir = tempfile::tempdir().expect("create tmpdir");
-        let db_path = dir.path().join("plan_cache.db");
+        let db_path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::PlanCache.file_name());
         // WHEN clear --force is called
         let code = run_clear(&db_path, true, false);
         // THEN exit code is SUCCESS and 0 entries deleted (printed but not checked here)
@@ -315,7 +317,9 @@ mod tests {
     fn test_clear_force_with_entries_returns_success() {
         // GIVEN a plan_cache.db with 2 stored entries
         let dir = tempfile::tempdir().expect("create tmpdir");
-        let db_path = dir.path().join("plan_cache.db");
+        let db_path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::PlanCache.file_name());
         let repo = PlanCacheRepository::open(&db_path).expect("open");
         let plan = apollia_oria::plan::ExecutionPlan {
             plan_id: "p1".to_string(),
@@ -339,7 +343,9 @@ mod tests {
     fn test_stats_on_fresh_db_returns_zeros() {
         // GIVEN a fresh plan_cache.db
         let dir = tempfile::tempdir().expect("create tmpdir");
-        let db_path = dir.path().join("plan_cache.db");
+        let db_path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::PlanCache.file_name());
         // WHEN stats is called in JSON mode
         let code = run_stats(&db_path, true);
         // THEN exit code is SUCCESS
@@ -350,7 +356,9 @@ mod tests {
     fn test_evict_on_fresh_db_returns_success() {
         // GIVEN a fresh plan_cache.db
         let dir = tempfile::tempdir().expect("create tmpdir");
-        let db_path = dir.path().join("plan_cache.db");
+        let db_path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::PlanCache.file_name());
         // WHEN evict with default age is called
         let code = run_evict(&db_path, 7, false);
         // THEN exit code is SUCCESS

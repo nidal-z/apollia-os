@@ -18,9 +18,6 @@ use clap::Subcommand;
 use crate::client::{ClientError, RawResponse, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
 
-/// Default path of the plans SQLite database.
-const DEFAULT_PLANS_DB: &str = "/.apollia/plans.db";
-
 /// Maximum output length before truncation in human-readable display.
 const MAX_OUTPUT_LEN: usize = 120;
 
@@ -385,8 +382,11 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
 /// an informative message (direct-mode tasks have no persisted plan, this is normal).
 fn run_inspect(task_id: &str, json: bool) -> i32 {
     let db_path = {
-        let home = apollia_core::paths::home_string().unwrap_or_default();
-        format!("{home}{DEFAULT_PLANS_DB}")
+        let home = apollia_core::paths::home_dir().unwrap_or_default();
+        apollia_core::paths::DataFile::Plans
+            .path(&apollia_core::paths::data_dir_under(home))
+            .display()
+            .to_string()
     };
 
     let repo = match apollia_oria::plan_repository::PlanRepository::new(&db_path) {

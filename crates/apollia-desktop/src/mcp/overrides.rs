@@ -34,7 +34,7 @@ pub struct McpOverrides {
 
 /// Default location: `~/.apollia/mcp-overrides.json`.
 pub fn default_overrides_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".apollia").join("mcp-overrides.json"))
+    dirs::home_dir().map(|h| apollia_core::paths::data_dir_under(h).join("mcp-overrides.json"))
 }
 
 /// Apply `overrides` to `base`, returning the merged catalog.

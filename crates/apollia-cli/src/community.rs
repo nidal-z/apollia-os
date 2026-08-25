@@ -24,7 +24,7 @@ fn community_venv_site_packages_for_path(agent_py_path: &Path) -> Vec<PathBuf> {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    let base = PathBuf::from(home).join(".apollia").join("venvs");
+    let base = apollia_core::paths::data_dir_under(home).join("venvs");
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 

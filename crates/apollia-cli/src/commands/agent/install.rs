@@ -579,7 +579,7 @@ fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, Str
         return Ok(0);
     }
 
-    let triggers_db = data_dir.join("triggers_def.db");
+    let triggers_db = data_dir.join(apollia_core::paths::DataFile::TriggersDef.file_name());
     let repo = TriggerDefinitionRepository::open(&triggers_db)
         .map_err(|e| format!("cannot open triggers_def.db: {e}"))?;
 

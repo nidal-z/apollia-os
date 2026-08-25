@@ -636,7 +636,7 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
 /// Return the default models directory: `~/.apollia/models/`.
 fn default_models_dir() -> PathBuf {
     apollia_core::paths::home_dir()
-        .map(|h| h.join(".apollia").join("models"))
+        .map(|h| apollia_core::paths::data_dir_under(h).join("models"))
         .unwrap_or_else(|| PathBuf::from("/tmp/apollia/models"))
 }
 

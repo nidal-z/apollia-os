@@ -176,10 +176,10 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
 ) -> Result<Json<TimelineResponse>, (StatusCode, Json<TimelineErrorResponse>)> {
     let data_dir = resolve_data_dir(&state);
 
-    let hitl_db = data_dir.join("hitl.db");
-    let plans_db = data_dir.join("plans.db");
-    let llm_db = data_dir.join("llm_calls.db");
-    let audit_db = data_dir.join("audit.db");
+    let hitl_db = data_dir.join(apollia_core::paths::DataFile::Hitl.file_name());
+    let plans_db = data_dir.join(apollia_core::paths::DataFile::Plans.file_name());
+    let llm_db = data_dir.join(apollia_core::paths::DataFile::LlmCalls.file_name());
+    let audit_db = data_dir.join(apollia_core::paths::DataFile::Audit.file_name());
 
     let tid = task_id.clone();
 
@@ -316,9 +316,7 @@ fn gather_timeline_events(dbs: &TimelineDbPaths, tid: &str) -> GatheredEvents {
 
 /// Resolve the runtime data directory from AppState.
 fn resolve_data_dir<B: ExecutionBackend + Clone>(_state: &AppState<B>) -> std::path::PathBuf {
-    apollia_core::paths::home_dir()
-        .map(|h| h.join(".apollia"))
-        .unwrap_or_else(|| std::env::temp_dir().join("apollia"))
+    apollia_core::paths::data_dir().unwrap_or_else(|| std::env::temp_dir().join("apollia"))
 }
 
 /// Data extracted from the `tasks` table for timeline construction.
@@ -677,7 +675,9 @@ mod tests {
     /// Create a temporary data directory with all required DBs initialized.
     fn setup_test_dbs(dir: &std::path::Path) {
         // hitl.db, tasks + task_approvals tables
-        let conn = rusqlite::Connection::open(dir.join("hitl.db")).expect("open hitl.db");
+        let conn =
+            rusqlite::Connection::open(dir.join(apollia_core::paths::DataFile::Hitl.file_name()))
+                .expect("open hitl.db");
         conn.execute_batch(include_str!(
             "../../../apollia-tools/migrations/005_hitl_tables.sql"
         ))
@@ -698,7 +698,9 @@ mod tests {
         }
 
         // plans.db, execution_plans + plan_steps tables
-        let conn = rusqlite::Connection::open(dir.join("plans.db")).expect("open plans.db");
+        let conn =
+            rusqlite::Connection::open(dir.join(apollia_core::paths::DataFile::Plans.file_name()))
+                .expect("open plans.db");
         conn.execute_batch(include_str!(
             "../../../apollia-tools/migrations/004_execution_plans.sql"
         ))
@@ -716,7 +718,10 @@ mod tests {
         }
 
         // llm_calls.db
-        let conn = rusqlite::Connection::open(dir.join("llm_calls.db")).expect("open llm.db");
+        let conn = rusqlite::Connection::open(
+            dir.join(apollia_core::paths::DataFile::LlmCalls.file_name()),
+        )
+        .expect("open llm.db");
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS llm_calls (
                 id TEXT PRIMARY KEY,
@@ -736,7 +741,9 @@ mod tests {
         .expect("llm migration");
 
         // audit.db
-        let conn = rusqlite::Connection::open(dir.join("audit.db")).expect("open audit.db");
+        let conn =
+            rusqlite::Connection::open(dir.join(apollia_core::paths::DataFile::Audit.file_name()))
+                .expect("open audit.db");
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS tool_invocations (
                 id TEXT PRIMARY KEY,
@@ -768,7 +775,11 @@ mod tests {
         setup_test_dbs(dir.path());
 
         let task_id = "t-direct-1";
-        let hitl = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
+        let hitl = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        )
+        .expect("open");
         hitl.execute(
             "INSERT INTO tasks (task_id, status, transitions_json, output_text, duration_ms) \
              VALUES (?1, 'completed', ?2, 'result', 1500)",
@@ -779,7 +790,11 @@ mod tests {
         )
         .expect("insert task");
 
-        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        let audit = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Audit.file_name()),
+        )
+        .expect("open");
         for (i, ts) in ["2026-03-13T10:00:02Z", "2026-03-13T10:00:03Z"]
             .iter()
             .enumerate()
@@ -798,7 +813,11 @@ mod tests {
         // WHEN we read the timeline (same logic as handler: defer TaskCompleted)
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut completion_data: Option<(Option<String>, Option<i64>)> = None;
-        let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
+        let conn = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        )
+        .expect("open");
         if let Some((transitions, output_text, duration_ms, status)) =
             read_task_data(&conn, task_id)
         {
@@ -807,7 +826,11 @@ mod tests {
                 completion_data = Some((output_text, duration_ms));
             }
         }
-        let audit_conn = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        let audit_conn = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Audit.file_name()),
+        )
+        .expect("open");
         read_tool_calls(&audit_conn, task_id, &mut events);
 
         events.sort_by(|a, b| a.0.cmp(&b.0));
@@ -854,7 +877,11 @@ mod tests {
         let task_id = "t-orch-1";
 
         // Insert plan
-        let plans = rusqlite::Connection::open(dir.path().join("plans.db")).expect("open");
+        let plans = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Plans.file_name()),
+        )
+        .expect("open");
         plans
             .execute(
                 "INSERT INTO execution_plans (plan_id, task_id, agent_name, status, replan_count) \
@@ -882,7 +909,11 @@ mod tests {
             .expect("insert step 2");
 
         // Insert LLM call
-        let llm = rusqlite::Connection::open(dir.path().join("llm_calls.db")).expect("open");
+        let llm = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::LlmCalls.file_name()),
+        )
+        .expect("open");
         llm.execute(
             "INSERT INTO llm_calls (id, task_id, backend, model, prompt_tokens, \
              completion_tokens, cost_usd, latency_ms, created_at) \
@@ -927,7 +958,11 @@ mod tests {
 
         let task_id = "t-hitl-1";
 
-        let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
+        let conn = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        )
+        .expect("open");
         conn.execute(
             "INSERT INTO tasks (task_id, status) VALUES (?1, 'working')",
             params![task_id],
@@ -985,7 +1020,11 @@ mod tests {
         // WHEN we look up a nonexistent task
         let events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut task_found = false;
-        let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
+        let conn = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        )
+        .expect("open");
         if read_task_data(&conn, "nonexistent").is_some() {
             task_found = true;
         }
@@ -1004,7 +1043,11 @@ mod tests {
         setup_test_dbs(dir.path());
 
         let task_id = "t-running-1";
-        let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
+        let conn = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        )
+        .expect("open");
         conn.execute(
             "INSERT INTO tasks (task_id, status, transitions_json) \
              VALUES (?1, 'input_required', ?2)",
@@ -1100,7 +1143,11 @@ mod tests {
         setup_test_dbs(dir.path());
 
         let task_id = "t-enrich-1";
-        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        let audit = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Audit.file_name()),
+        )
+        .expect("open");
         audit
             .execute(
                 "INSERT INTO tool_invocations \
@@ -1142,7 +1189,11 @@ mod tests {
 
         let task_id = "t-enrich-2";
         let long_args = "a".repeat(400);
-        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        let audit = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Audit.file_name()),
+        )
+        .expect("open");
         audit
             .execute(
                 "INSERT INTO tool_invocations \
@@ -1179,7 +1230,11 @@ mod tests {
         setup_test_dbs(dir.path());
 
         let task_id = "t-enrich-3";
-        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        let audit = rusqlite::Connection::open(
+            dir.path()
+                .join(apollia_core::paths::DataFile::Audit.file_name()),
+        )
+        .expect("open");
         audit
             .execute(
                 "INSERT INTO tool_invocations \

@@ -133,8 +133,7 @@ pub async fn get_task_trace<B: ExecutionBackend + Clone>(
 fn resolve_runtime_events_db<B: ExecutionBackend + Clone>(
     _state: &AppState<B>,
 ) -> std::path::PathBuf {
-    let base = apollia_core::paths::home_dir()
-        .map(|h| h.join(".apollia"))
-        .unwrap_or_else(|| std::env::temp_dir().join("apollia"));
-    base.join("runtime_events.db")
+    let base =
+        apollia_core::paths::data_dir().unwrap_or_else(|| std::env::temp_dir().join("apollia"));
+    apollia_core::paths::DataFile::RuntimeEvents.path(&base)
 }

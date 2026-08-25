@@ -237,9 +237,9 @@ fn resolve_mcp_db(override_path: Option<&std::path::Path>) -> PathBuf {
         return p.to_path_buf();
     }
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".apollia")
-        .join("mcp.db")
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
+        .join(apollia_core::paths::DataFile::Mcp.file_name())
 }
 
 /// Look up the URL stored for `server` in `mcp.db`. The orchestrator needs it

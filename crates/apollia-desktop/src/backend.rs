@@ -61,7 +61,7 @@ fn venv_site_packages_for_agent_name(agent_name: &str) -> Vec<PathBuf> {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    let base = PathBuf::from(home).join(".apollia").join("venvs");
+    let base = apollia_core::paths::data_dir_under(home).join("venvs");
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 
@@ -455,7 +455,8 @@ impl AgentRunner for BridgeRunner {
             // `get_profile` command and the CLI read, so writes land where
             // Settings > Profile looks.
             let profile_interface = {
-                let user_memory_db = default_data_dir().join("user_memory.db");
+                let user_memory_db =
+                    apollia_core::paths::DataFile::UserMemory.path(&default_data_dir());
                 let is_onboarding = agent_id == "onboarding-agent";
                 Some(apollia_aip::profile::ProfileInterface::new(
                     user_memory_db,
@@ -851,7 +852,7 @@ fn default_memory_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia").join("memory")
+    apollia_core::paths::data_dir_under(home).join("memory")
 }
 
 /// Apollia data directory (`~/.apollia/`), used to open the shared
@@ -860,7 +861,7 @@ fn default_data_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia")
+    apollia_core::paths::data_dir_under(home)
 }
 
 /// Opens the shared [`ToolCredentialStore`] backing `ctx.secrets`.

@@ -14,9 +14,6 @@ use apollia_memory::semantic::SemanticMemory;
 use apollia_memory::store::MemoryStore;
 use serde::Serialize;
 
-/// Default directory for memory files.
-const MEMORY_DIR: &str = ".apollia/memory";
-
 /// Unified memory entry for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct MemoryEntry {
@@ -57,7 +54,7 @@ pub struct MemorySearchResult {
 fn memory_base_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
-    Ok(PathBuf::from(home).join(MEMORY_DIR))
+    Ok(apollia_core::paths::data_dir_under(home).join("memory"))
 }
 
 /// Lists the available memory namespaces (one `.db` file = one namespace).

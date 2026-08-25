@@ -109,8 +109,10 @@ impl CommandRegistry {
     /// present (or vice-versa) also triggers a reload.
     pub async fn needs_reload(&self, cwd: &Path) -> bool {
         let home = dirs::home_dir();
-        let cwd_dir = cwd.join(".apollia").join("commands");
-        let home_dir = home.as_deref().map(|h| h.join(".apollia").join("commands"));
+        let cwd_dir = apollia_core::paths::data_dir_under(cwd).join("commands");
+        let home_dir = home
+            .as_deref()
+            .map(|h| apollia_core::paths::data_dir_under(h).join("commands"));
 
         let current_cwd = dir_mtime(&cwd_dir).await;
         let current_home = match home_dir.as_deref() {
@@ -124,8 +126,9 @@ impl CommandRegistry {
     /// Internal constructor used by [`load`] and by tests to inject a custom
     /// home directory path.
     pub(crate) async fn load_with_home(cwd: &Path, home: Option<&Path>) -> Self {
-        let cwd_dir = cwd.join(".apollia").join("commands");
-        let home_dir: Option<PathBuf> = home.map(|h| h.join(".apollia").join("commands"));
+        let cwd_dir = apollia_core::paths::data_dir_under(cwd).join("commands");
+        let home_dir: Option<PathBuf> =
+            home.map(|h| apollia_core::paths::data_dir_under(h).join("commands"));
 
         let mut commands: HashMap<String, CustomCommand> = HashMap::new();
 

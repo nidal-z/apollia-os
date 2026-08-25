@@ -44,6 +44,6 @@ pub(crate) fn default_exclude_patterns() -> Vec<String> {
         ".git".into(),
         "node_modules".into(),
         "__pycache__".into(),
-        ".apollia".into(),
+        apollia_core::paths::DATA_DIR_NAME.into(),
     ]
 }

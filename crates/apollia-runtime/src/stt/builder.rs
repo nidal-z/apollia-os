@@ -46,7 +46,7 @@ pub async fn build_stt_engine(
     // model: past transcriptions stay viewable even when the model file is
     // absent and live dictation cannot start. Open it before the model check so
     // the history read path works in that degraded state.
-    let repo_path = data_dir.join("stt_transcriptions.db");
+    let repo_path = data_dir.join(apollia_core::paths::DataFile::SttTranscriptions.file_name());
     let api_repo = apollia_stt::SttRepository::open(&repo_path)
         .map(|r| Arc::new(Mutex::new(r)))
         .ok();

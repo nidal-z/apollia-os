@@ -119,9 +119,7 @@ async fn resolve_workspace_path(
             if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
                 return Ok(Some(p.to_path_buf()));
             }
-            Ok(apollia_core::paths::home_dir()
-                .map(|h| h.join(".apollia"))
-                .filter(|p| p.is_dir()))
+            Ok(apollia_core::paths::data_dir().filter(|p| p.is_dir()))
         }
         Some(pid) => {
             let repo = project_repo

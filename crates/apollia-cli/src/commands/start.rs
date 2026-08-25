@@ -313,7 +313,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             });
 
         let profile_interface = {
-            let user_memory_db = self.data_dir.join("user_memory.db");
+            let user_memory_db = self
+                .data_dir
+                .join(apollia_core::paths::DataFile::UserMemory.file_name());
             apollia_aip::profile::ProfileInterface::new(
                 user_memory_db,
                 agent_name.to_string(),
@@ -966,9 +968,10 @@ impl AgentRunner for BridgeRunner {
                     let home = apollia_core::paths::home_dir_or_temp()
                         .display()
                         .to_string();
-                    PathBuf::from(home).join(".apollia")
+                    apollia_core::paths::data_dir_under(home)
                 });
-                let user_memory_db = data_dir.join("user_memory.db");
+                let user_memory_db =
+                    data_dir.join(apollia_core::paths::DataFile::UserMemory.file_name());
                 apollia_aip::profile::ProfileInterface::new(
                     user_memory_db,
                     agent_id.clone(),
@@ -1339,7 +1342,7 @@ fn default_memory_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia").join("memory")
+    apollia_core::paths::data_dir_under(home).join("memory")
 }
 
 /// Resolves `~` to `$HOME` in a path string.
@@ -1504,10 +1507,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         .unwrap_or_else(|| "disabled".to_string());
 
     // Open AgentRepository for auto-load at boot.
-    let data_dir = home.join(".apollia");
+    let data_dir = apollia_core::paths::data_dir_under(home);
     let data_dir_for_chat = data_dir.clone();
     let agent_repository: Option<apollia_tools::AgentRepository> = {
-        let db_path = data_dir.join("agents.db");
+        let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
             Ok(repo) => {
                 tracing::info!("AgentRepository opened for auto-load");
@@ -1526,7 +1529,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Open PackageRepository for Phase 10.6 integrity check.
     let package_repository: Option<apollia_tools::PackageRepository> = {
-        let db_path = data_dir.join("agents.db");
+        let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::PackageRepository::open(&db_path) {
             Ok(repo) => Some(repo),
             Err(e) => {

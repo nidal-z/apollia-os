@@ -244,7 +244,7 @@ fn default_data_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp()
         .display()
         .to_string();
-    PathBuf::from(home).join(".apollia").join("memory")
+    apollia_core::paths::data_dir_under(home).join("memory")
 }
 
 /// Format a byte size into a human-readable unit (B, KB, MB, GB).

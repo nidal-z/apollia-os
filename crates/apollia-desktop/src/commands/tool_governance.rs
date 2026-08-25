@@ -135,7 +135,7 @@ pub struct AuditEntryDto {
 
 fn home_base_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()?;
-    Ok(PathBuf::from(home).join(".apollia"))
+    Ok(apollia_core::paths::data_dir_under(home))
 }
 
 /// Opens `governance.db` in `~/.apollia/`, performing the initial migration if

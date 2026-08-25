@@ -984,7 +984,7 @@ async fn run_describe(socket: Option<PathBuf>, tool_name: &str, json: bool) -> i
 
 fn resolve_data_dir() -> Result<PathBuf, i32> {
     match apollia_core::paths::home_string() {
-        Some(h) => Ok(PathBuf::from(h).join(".apollia")),
+        Some(h) => Ok(apollia_core::paths::data_dir_under(h)),
         None => Err(emit_error(
             "variable d'environnement HOME absente".to_string(),
             false,

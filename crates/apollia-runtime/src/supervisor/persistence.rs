@@ -4,7 +4,9 @@ use super::*;
 pub(in crate::supervisor) fn open_trigger_persistence(
     data_dir: &std::path::Path,
 ) -> Option<TriggerPersistence> {
-    match TriggerPersistence::open(&data_dir.join("triggers.db")) {
+    match TriggerPersistence::open(
+        &data_dir.join(apollia_core::paths::DataFile::Triggers.file_name()),
+    ) {
         Ok(p) => {
             info!("Supervisor: TriggerPersistence ready");
             Some(p)
@@ -20,7 +22,9 @@ pub(in crate::supervisor) fn open_trigger_persistence(
 pub(in crate::supervisor) async fn open_audit_trail(
     data_dir: &std::path::Path,
 ) -> Option<AuditTrailHandle> {
-    match AuditTrailHandle::open(&data_dir.join("audit.db")).await {
+    match AuditTrailHandle::open(&data_dir.join(apollia_core::paths::DataFile::Audit.file_name()))
+        .await
+    {
         Ok(handle) => {
             info!("Supervisor: AuditTrail ready");
             Some(handle)
@@ -42,7 +46,7 @@ pub(in crate::supervisor) async fn open_audit_trail(
 pub(in crate::supervisor) async fn open_audit_journal(
     data_dir: &std::path::Path,
 ) -> Option<AuditJournalHandle> {
-    let db_path = data_dir.join("audit_journal.db");
+    let db_path = data_dir.join(apollia_core::paths::DataFile::AuditJournal.file_name());
     match load_or_create_journal_key(data_dir) {
         Some(key) => match AuditJournalHandle::open_with_key_bytes(&db_path, key).await {
             Ok(handle) => {
@@ -138,7 +142,9 @@ fn write_key_file(key_path: &std::path::Path, contents: &[u8]) -> std::io::Resul
 pub(in crate::supervisor) async fn open_task_repository(
     data_dir: &std::path::Path,
 ) -> Option<Arc<TaskRepository>> {
-    match TaskRepository::open(&data_dir.join("hitl.db")).await {
+    match TaskRepository::open(&data_dir.join(apollia_core::paths::DataFile::Hitl.file_name()))
+        .await
+    {
         Ok(repo) => {
             info!("Supervisor: TaskRepository ready (HITL enabled)");
             Some(Arc::new(repo))
@@ -154,7 +160,9 @@ pub(in crate::supervisor) async fn open_task_repository(
 pub(in crate::supervisor) fn open_user_memory(
     data_dir: &std::path::Path,
 ) -> Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>> {
-    match apollia_memory::user_memory::UserMemoryRepository::new(&data_dir.join("user_memory.db")) {
+    match apollia_memory::user_memory::UserMemoryRepository::new(
+        &data_dir.join(apollia_core::paths::DataFile::UserMemory.file_name()),
+    ) {
         Ok(repo) => {
             migrate_legacy_user_profile(data_dir, &repo);
             info!("Supervisor: UserMemoryRepository ready");
@@ -228,7 +236,9 @@ fn migrate_legacy_user_profile(
 pub(in crate::supervisor) fn open_plan_cache(
     data_dir: &std::path::Path,
 ) -> Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>> {
-    match apollia_oria::plan_cache::PlanCacheRepository::open(&data_dir.join("plan_cache.db")) {
+    match apollia_oria::plan_cache::PlanCacheRepository::open(
+        &data_dir.join(apollia_core::paths::DataFile::PlanCache.file_name()),
+    ) {
         Ok(repo) => {
             info!("Supervisor: PlanCacheRepository ready");
             Some(Arc::new(std::sync::Mutex::new(repo)))
@@ -245,7 +255,9 @@ pub(in crate::supervisor) fn open_plan_cache(
 pub(in crate::supervisor) fn open_sidechain_logger(
     data_dir: &std::path::Path,
 ) -> Option<crate::a2a::SidechainLogger> {
-    match crate::a2a::SidechainRepository::open(&data_dir.join("sidechains.db")) {
+    match crate::a2a::SidechainRepository::open(
+        &data_dir.join(apollia_core::paths::DataFile::Sidechains.file_name()),
+    ) {
         Ok(repo) => {
             info!("Supervisor: SidechainRepository ready");
             Some(crate::a2a::SidechainLogger::new(std::sync::Arc::new(
@@ -264,7 +276,7 @@ pub(in crate::supervisor) fn open_sidechain_logger(
 pub(in crate::supervisor) fn open_project_repository(
     data_dir: &std::path::Path,
 ) -> Option<std::sync::Arc<apollia_tools::ProjectRepository>> {
-    let db_path = data_dir.join("projects.db");
+    let db_path = data_dir.join(apollia_core::paths::DataFile::Projects.file_name());
     match apollia_tools::ProjectRepository::open(&db_path) {
         Ok(repo) => {
             if let Err(e) = repo.seed_builtin_templates() {

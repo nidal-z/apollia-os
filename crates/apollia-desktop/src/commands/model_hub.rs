@@ -182,7 +182,7 @@ pub async fn start_model_download(
         })
         .unwrap_or_else(|| {
             let home = apollia_core::paths::home_dir_or_temp();
-            home.join(".apollia").join("models")
+            apollia_core::paths::data_dir_under(home).join("models")
         });
 
     // Ensure destination directory exists.
@@ -263,7 +263,7 @@ fn home_dir() -> PathBuf {
 }
 
 fn models_dir() -> PathBuf {
-    home_dir().join(".apollia").join("models")
+    apollia_core::paths::data_dir_under(home_dir()).join("models")
 }
 
 fn expand_tilde(raw: &str) -> PathBuf {
@@ -281,7 +281,8 @@ fn expand_tilde(raw: &str) -> PathBuf {
 /// harmless here.
 fn collect_in_use_refs() -> Vec<ModelRef> {
     let mut refs = Vec::new();
-    let db_path = home_dir().join(".apollia").join("system.db");
+    let db_path = apollia_core::paths::DataFile::System
+        .path(&apollia_core::paths::data_dir_under(home_dir()));
 
     let mut push = |raw: &str, label: String| {
         if let Some(name) = expand_tilde(raw).file_name().map(|n| n.to_owned()) {

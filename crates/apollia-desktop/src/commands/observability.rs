@@ -66,7 +66,7 @@ pub async fn get_global_timeline(
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
-        std::path::PathBuf::from(home).join(".apollia")
+        apollia_core::paths::data_dir_under(home)
     };
 
     // Build agent_id/name → human-readable label map once. Used to humanise the
@@ -129,7 +129,7 @@ fn scan_audit_db(
     labels: &std::collections::HashMap<String, String>,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("audit.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Audit.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -168,7 +168,7 @@ fn scan_audit_db(
             timestamp: ts,
             summary,
             detail: serde_json::json!({
-                "source": "audit.db",
+                "source": apollia_core::paths::DataFile::Audit.file_name(),
                 "id": id,
                 "task_id": task_id,
                 "agent_id": agent_id,
@@ -188,7 +188,7 @@ fn scan_llm_calls_db(
     labels: &std::collections::HashMap<String, String>,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("llm_calls.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::LlmCalls.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -246,7 +246,7 @@ fn scan_llm_calls_db(
             timestamp: ts,
             summary,
             detail: serde_json::json!({
-                "source": "llm_calls.db",
+                "source": apollia_core::paths::DataFile::LlmCalls.file_name(),
                 "id": id,
                 "task_id": task_id,
                 "backend": backend,
@@ -265,7 +265,7 @@ fn scan_hitl_tasks(
     cutoff_str: &str,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("hitl.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Hitl.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -352,7 +352,7 @@ fn scan_hitl_approvals(
     cutoff_str: &str,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("hitl.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Hitl.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -417,7 +417,7 @@ fn scan_chat_sessions(
     cutoff_str: &str,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("chat.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Chat.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -488,7 +488,7 @@ fn scan_chat_approvals(
     cutoff_str: &str,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("chat.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Chat.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -535,7 +535,7 @@ fn scan_trigger_history(
     cutoff_str: &str,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("triggers.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Triggers.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -621,7 +621,7 @@ fn scan_runtime_events(
     labels: &std::collections::HashMap<String, String>,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join("runtime_events.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::RuntimeEvents.file_name());
     let Ok(conn) = rusqlite::Connection::open(&path) else {
         return;
     };
@@ -659,7 +659,7 @@ fn scan_runtime_events(
             timestamp: ts,
             summary,
             detail: serde_json::json!({
-                "source": "runtime_events.db",
+                "source": apollia_core::paths::DataFile::RuntimeEvents.file_name(),
                 "event_id": event_id,
                 "task_id": task_id,
                 "agent_id": agent_id,
@@ -1168,7 +1168,7 @@ pub async fn list_mailbox_messages(limit: Option<u32>) -> Result<Vec<MailboxMess
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
-        std::path::PathBuf::from(home).join(".apollia")
+        apollia_core::paths::data_dir_under(home)
     };
     read_mailbox_messages(data_dir, limit.unwrap_or(100))
         .await
@@ -1192,7 +1192,7 @@ fn query_mailbox_db(
     data_dir: &std::path::Path,
     limit: u32,
 ) -> Result<Vec<MailboxMessageRow>, MailboxQueryError> {
-    let path = data_dir.join("mailbox.db");
+    let path = data_dir.join(apollia_core::paths::DataFile::Mailbox.file_name());
     if !path.exists() {
         return Ok(Vec::new());
     }
@@ -1569,7 +1569,9 @@ mod tests {
     fn test_query_mailbox_db_orders_by_seq_desc() {
         // GIVEN a mailbox.db seeded with two messages of increasing seq
         let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("mailbox.db");
+        let path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::Mailbox.file_name());
         let conn = rusqlite::Connection::open(&path).expect("open");
         conn.execute_batch(
             "CREATE TABLE mailbox_messages (

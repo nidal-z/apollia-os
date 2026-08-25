@@ -99,16 +99,6 @@ fn stt_unavailable() -> (StatusCode, Json<SttErrorResponse>) {
     )
 }
 
-/// Resolve `~` in paths to the user's home directory.
-fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
-    if let Ok(stripped) = path.strip_prefix("~") {
-        if let Some(home) = apollia_core::paths::home_string() {
-            return std::path::PathBuf::from(home).join(stripped);
-        }
-    }
-    path.to_owned()
-}
-
 // ── Handlers ────────────────────────────────────────────────────────
 
 /// `GET /api/v1/stt/status`, return current STT engine status.
@@ -456,11 +446,13 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
 pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(_state): State<AppState<B>>,
 ) -> RouteResult<ModelsListResponse> {
-    let models_dir = resolve_home(std::path::Path::new("~/.apollia/models"));
+    // No home directory resolves to no models directory, hence the empty
+    // list below, which is what the unresolved `~` used to produce.
+    let models_dir = apollia_core::paths::data_dir().map(|d| d.join("models"));
 
     let mut models = Vec::new();
 
-    if models_dir.is_dir() {
+    if let Some(models_dir) = models_dir.filter(|d| d.is_dir()) {
         let entries = std::fs::read_dir(&models_dir).map_err(|e| {
             tracing::error!(error = %e, path = %models_dir.display(), "failed to read models directory");
             (

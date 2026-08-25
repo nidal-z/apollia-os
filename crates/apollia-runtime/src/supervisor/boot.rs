@@ -88,7 +88,10 @@ impl Supervisor {
         }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
-        let system_db_path = self.config.data_dir.join("system.db");
+        let system_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::System.file_name());
         let (llm_router, llm_backend_repo) = self
             .start_llm_router(&system_db_path, &llama_server_supervisor)
             .await;
@@ -131,7 +134,10 @@ impl Supervisor {
         // Phase 6 (pos 7): TriggerEngine, started after TaskRouter (needs the submitter).
         info!("Supervisor: starting TriggerEngine");
         // Open the trigger definition repository from SQLite.
-        let trigger_def_db_path = self.config.data_dir.join("triggers_def.db");
+        let trigger_def_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::TriggersDef.file_name());
         let trigger_def_repo =
             TriggerDefinitionRepository::open(&trigger_def_db_path).map_err(|e| {
                 SupervisorError::ActorStartFailed {
@@ -191,7 +197,10 @@ impl Supervisor {
         let user_memory = open_user_memory(&self.config.data_dir);
 
         // open NotificationConfigRepository from SQLite.
-        let notif_db_path = self.config.data_dir.join("notifications.db");
+        let notif_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::Notifications.file_name());
         let notification_repo =
             NotificationConfigRepository::open(&notif_db_path).map_err(|e| {
                 SupervisorError::ActorStartFailed {
@@ -254,7 +263,11 @@ impl Supervisor {
             audit_full_payload: rc.mailbox_audit_full_payload,
         };
         let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(
-            Some(self.config.data_dir.join("mailbox.db")),
+            Some(
+                self.config
+                    .data_dir
+                    .join(apollia_core::paths::DataFile::Mailbox.file_name()),
+            ),
             event_sender.clone(),
             mailbox_config,
         )
@@ -270,7 +283,10 @@ impl Supervisor {
 
         // Phase 14: ChatSessionManager, spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
-        let chat_db_path = self.config.data_dir.join("chat.db");
+        let chat_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::Chat.file_name());
 
         // SidechainRepository, opened before A2AInvoker so the logger can be injected.
         let sidechain_logger = open_sidechain_logger(&self.config.data_dir);

@@ -161,7 +161,7 @@ impl UserOverrides {
     /// `~/.apollia/models/sampling-defaults.json`.
     pub fn default_path() -> PathBuf {
         let home = apollia_core::paths::home_dir_or_temp();
-        home.join(".apollia")
+        apollia_core::paths::data_dir_under(home)
             .join("models")
             .join("sampling-defaults.json")
     }

@@ -49,7 +49,7 @@ pub struct ApollaConfigView {
 /// Resolves the standard path `~/.apollia/apollia.toml`.
 fn default_config_path() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join("apollia.toml")
+    apollia_core::paths::data_dir_under(home).join("apollia.toml")
 }
 
 /// Extracts a string value from a TOML table, or returns a default.
@@ -410,7 +410,7 @@ fn apply_debug_log_prompt_to_doc(doc: &mut toml_edit::DocumentMut, enabled: bool
 /// Resolves the onboarding flag path `~/.apollia/.onboarded`.
 fn onboarded_flag_path() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia").join(".onboarded")
+    apollia_core::paths::data_dir_under(home).join(".onboarded")
 }
 
 /// Marks onboarding as complete by creating the flag file.
@@ -515,13 +515,10 @@ pub async fn reset_onboarding(
     // 3. Purge the memory database owned by the onboarding-agent (`onboarding.db`).
     //    It holds the dialogue episodes and `onboarding.completed_at` keys that
     //    otherwise prevent the journey from restarting cleanly.
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    let onboarding_db = std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("memory")
-        .join("onboarding.db");
+    let onboarding_db =
+        apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp())
+            .join("memory")
+            .join("onboarding.db");
     if onboarding_db.exists() {
         if let Err(e) = tokio::fs::remove_file(&onboarding_db).await {
             tracing::warn!(
@@ -594,7 +591,7 @@ pub async fn clear_all_memories() -> Result<usize, String> {
 /// Resolves `~/.apollia/`.
 fn apollia_home() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
-    home.join(".apollia")
+    apollia_core::paths::data_dir_under(home)
 }
 
 /// Removes the logs directory (`~/.apollia/logs/`).
@@ -789,7 +786,7 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
     let db_path = default_config_path()
         .parent()
         .unwrap_or(std::path::Path::new("."))
-        .join("system.db");
+        .join(apollia_core::paths::DataFile::System.file_name());
     let device = if cfg!(target_os = "macos") {
         "metal"
     } else {

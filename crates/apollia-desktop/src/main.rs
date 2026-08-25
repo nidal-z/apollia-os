@@ -44,22 +44,6 @@ use tauri::Manager;
 /// `ProductionChatAgentRunner` and `ProductionBackendFactory`.
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
-/// Resolves a leading `~` against the platform home directory.
-///
-/// Goes through `apollia_core::paths` rather than reading `HOME`: that variable
-/// is unset on Windows, and the previous `unwrap_or_default()` turned
-/// `~/.apollia/apollia.toml` into a root-relative `/.apollia/apollia.toml`
-/// there, so the canonical config was never found.
-fn expand_tilde(s: &str) -> std::path::PathBuf {
-    match s.strip_prefix("~/") {
-        Some(rest) => match apollia_core::paths::home_dir() {
-            Some(home) => home.join(rest),
-            None => std::path::PathBuf::from(rest),
-        },
-        None => std::path::PathBuf::from(s),
-    }
-}
-
 /// Searches for `apollia.toml` in priority order and applies all parsable sections
 /// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
 ///
@@ -80,7 +64,7 @@ fn expand_tilde(s: &str) -> std::path::PathBuf {
 /// Returns the config unchanged if no file is found.
 fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
     let candidates = [
-        Some(expand_tilde("~/.apollia/apollia.toml")),
+        apollia_core::paths::data_dir().map(|d| d.join("apollia.toml")),
         std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
     ];
 
@@ -235,7 +219,7 @@ fn setup_bundled_python() {
 /// Returns `None` (and logs a warning) when the DB cannot be opened or read,
 /// disabling the hotkey gracefully.
 fn load_stt_config(apollia_data_dir: &std::path::Path) -> Option<apollia_core::SttConfigRow> {
-    let system_db = apollia_data_dir.join("system.db");
+    let system_db = apollia_data_dir.join(apollia_core::paths::DataFile::System.file_name());
     let repo = match SttConfigRepository::open(&system_db) {
         Ok(repo) => repo,
         Err(e) => {
@@ -572,11 +556,11 @@ fn main() {
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
-        std::path::PathBuf::from(home).join(".apollia")
+        apollia_core::paths::data_dir_under(home)
     };
     let _ = std::fs::create_dir_all(&apollia_data_dir);
     let boot_agent_repo = {
-        let db_path = apollia_data_dir.join("agents.db");
+        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match AgentRepository::open(&db_path) {
             Ok(repo) => {
                 tracing::info!("AgentRepository opened for auto-load at boot");
@@ -598,7 +582,7 @@ fn main() {
     // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
     // Uses its own AgentRepository instance (SQLite WAL supports concurrent readers).
     let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> = {
-        let db_path = apollia_data_dir.join("agents.db");
+        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
             Ok(repo) => Some(Arc::new(backend::ProductionChatAgentRunner {
                 agent_repo: Arc::new(std::sync::Mutex::new(repo)),
@@ -688,7 +672,7 @@ fn main() {
     // Open a second AgentRepository instance for Tauri IPC commands.
     // SQLite WAL mode supports concurrent readers.
     let agent_repo: Arc<std::sync::Mutex<AgentRepository>> = {
-        let db_path = apollia_data_dir.join("agents.db");
+        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         Arc::new(std::sync::Mutex::new(
             AgentRepository::open(&db_path).expect("failed to open agents.db for desktop app"),
         ))
@@ -696,7 +680,7 @@ fn main() {
 
     // Open PackageRepository for Tauri IPC commands (same agents.db, WAL allows concurrent readers).
     let pkg_repo: Arc<std::sync::Mutex<apollia_tools::PackageRepository>> = {
-        let db_path = apollia_data_dir.join("agents.db");
+        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         Arc::new(std::sync::Mutex::new(
             apollia_tools::PackageRepository::open(&db_path)
                 .expect("failed to open agents.db for PackageRepository"),

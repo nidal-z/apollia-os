@@ -934,14 +934,18 @@ impl LlmRouter {
         F: Fn(&apollia_core::LlmBackendConfig) -> Option<Arc<dyn CompletionModel>>,
     {
         let all = repo.list().map_err(|e| LlmError::BackendUnavailable {
-            backend: "system.db".to_string(),
+            backend: apollia_core::paths::DataFile::System
+                .file_name()
+                .to_string(),
             reason: e.to_string(),
         })?;
 
         let default_name = repo
             .find_default()
             .map_err(|e| LlmError::BackendUnavailable {
-                backend: "system.db".to_string(),
+                backend: apollia_core::paths::DataFile::System
+                    .file_name()
+                    .to_string(),
                 reason: e.to_string(),
             })?
             .ok_or_else(|| LlmError::BackendUnavailable {
@@ -1889,7 +1893,11 @@ mod tests {
         use tempfile::TempDir;
 
         let dir = TempDir::new().unwrap();
-        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+        let repo = LlmBackendRepository::open(
+            &dir.path()
+                .join(apollia_core::paths::DataFile::System.file_name()),
+        )
+        .unwrap();
 
         let make_ollama = |name: &str, enabled: bool, is_default: bool| LlmBackendConfig {
             name: name.to_string(),
@@ -1991,7 +1999,9 @@ mod tests {
         use tempfile::TempDir;
 
         let dir = TempDir::new().unwrap();
-        let db_path = dir.path().join("system.db");
+        let db_path = dir
+            .path()
+            .join(apollia_core::paths::DataFile::System.file_name());
         let repo = LlmBackendRepository::open(&db_path).unwrap();
 
         // GIVEN an empty repository
@@ -2027,7 +2037,11 @@ mod tests {
         use tempfile::TempDir;
 
         let dir = TempDir::new().unwrap();
-        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+        let repo = LlmBackendRepository::open(
+            &dir.path()
+                .join(apollia_core::paths::DataFile::System.file_name()),
+        )
+        .unwrap();
 
         repo.save(&LlmBackendConfig {
             name: "orphan".to_string(),

@@ -18,7 +18,10 @@ impl Supervisor {
         Option<McpClientManagerHandle>,
         Option<Arc<std::sync::Mutex<McpServerRepository>>>,
     ) {
-        let mcp_db_path = self.config.data_dir.join("mcp.db");
+        let mcp_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::Mcp.file_name());
         let mcp_config_path = self.config.data_dir.join("mcp.toml");
 
         let repo = match McpServerRepository::open(&mcp_db_path) {
@@ -70,7 +73,11 @@ impl Supervisor {
         let channels = build_channels(&notif_config.channels)
             .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
         let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-        let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
+        let notif_log_db_path = Some(
+            self.config
+                .data_dir
+                .join(apollia_core::paths::DataFile::Hitl.file_name()),
+        );
         // Use 127.0.0.1 as connect address even when bind_addr is 0.0.0.0
         // (wildcard bind address is not a valid remote address for connect).
         let connect_addr = if self.config.api_config.bind_addr == "0.0.0.0" {
@@ -101,7 +108,10 @@ impl Supervisor {
     /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
     /// subscriber. Best-effort: failures are logged, never fatal.
     pub(in crate::supervisor) async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
-        let db_path = self.config.data_dir.join("runtime_events.db");
+        let db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::RuntimeEvents.file_name());
         match crate::observability::EventPersistorHandle::open(&db_path).await {
             Ok(handle) => {
                 // Retention is applied once at boot. The event log is the only
@@ -140,7 +150,10 @@ impl Supervisor {
         &self,
         event_sender: &EventBusSender,
     ) -> Option<Arc<std::sync::Mutex<LlmCallRepository>>> {
-        let db_path = self.config.data_dir.join("llm_calls.db");
+        let db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::LlmCalls.file_name());
         match LlmCallRepository::open(&db_path) {
             Ok(repo) => {
                 let repo = Arc::new(std::sync::Mutex::new(repo));
