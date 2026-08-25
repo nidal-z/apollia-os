@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use crate::pricing::PricingTier;
 use crate::routing_level::{EscalationSignal, LlmRoutingLevel};
 
+use apollia_core::error_analysis::{ErrorAnalysis, ErrorCategory};
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
 
@@ -472,6 +473,27 @@ fn insert_vertex_backend_with_bus(
 /// `[llm.routing]` is optional. When present, the `precise`/`fast` names must
 /// be in the map; otherwise `route_precise/fast` fall back to
 /// `config.default` at runtime.
+/// Classify a failed backend call for [`RuntimeEvent::LlmCallFailed`].
+///
+/// The static classifier of `apollia-runtime` reads a message string; here the
+/// typed error is still in hand, so the category comes from the variant rather
+/// than from a substring match on its rendering.
+fn analyse_call_failure(error: &LlmError) -> ErrorAnalysis {
+    let category = match error {
+        LlmError::ApiKeyMissing { .. } => ErrorCategory::PermissionDenied,
+        LlmError::HttpError { status, .. } if *status == 401 || *status == 403 => {
+            ErrorCategory::PermissionDenied
+        }
+        LlmError::HttpError { status, .. } if *status == 408 => ErrorCategory::Timeout,
+        LlmError::ParseError(_) => ErrorCategory::MalformedOutput,
+        LlmError::BackendUnavailable { .. } | LlmError::ModelNotFound { .. } => {
+            ErrorCategory::NetworkError
+        }
+        _ => ErrorCategory::LlmError,
+    };
+    ErrorAnalysis::new(category, category.i18n_key().to_owned(), error.to_string())
+}
+
 fn validate_routing(
     backends: &HashMap<String, Arc<dyn CompletionModel>>,
     routing: Option<&LlmRoutingConfig>,
@@ -658,7 +680,23 @@ impl LlmRouter {
         }
 
         let started = Instant::now();
-        let response = backend.complete(req).await?;
+        let response = match backend.complete(req).await {
+            Ok(response) => response,
+            Err(error) => {
+                // Fire-and-forget emission: send() errors are silently ignored.
+                if let Some(b) = bus {
+                    let _ = b.send(RuntimeEvent::LlmCallFailed {
+                        backend: backend_key.to_owned(),
+                        model: backend.model_id().to_owned(),
+                        task_id: None,
+                        step_id: None,
+                        error: error.to_string(),
+                        analysis: analyse_call_failure(&error),
+                    });
+                }
+                return Err(error);
+            }
+        };
         let latency_ms = started.elapsed().as_millis() as u64;
 
         // Accumulate into the session budget and emit TokenBudgetUpdated.
@@ -1733,6 +1771,40 @@ mod tests {
         }
     }
 
+    /// A backend whose every call fails, for the failure-path emission test.
+    struct FailingCompletionModel;
+
+    #[async_trait::async_trait]
+    impl CompletionModel for FailingCompletionModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::ApiKeyMissing {
+                var: "APOLLIA_TEST_KEY".to_owned(),
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::ApiKeyMissing {
+                var: "APOLLIA_TEST_KEY".to_owned(),
+            })
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "mock"
+        }
+
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+    }
+
     fn make_mock_backend(name: &str) -> Arc<dyn CompletionModel> {
         Arc::new(MockCompletionModel {
             name: name.to_owned(),
@@ -2279,6 +2351,51 @@ mod tests {
             ),
             "l'événement reçu doit être LlmCallCompleted avec backend == \"mock\", obtenu: {event:?}"
         );
+    }
+
+    // GIVEN a router whose backend returns an error and an EventBusSender
+    // WHEN complete_with_observability() is called
+    // THEN LlmCallFailed reaches the bus, as the variant's own contract states
+    #[tokio::test]
+    async fn test_llm_call_failed_emitted() {
+        use apollia_core::error_analysis::ErrorCategory;
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let mut backends = HashMap::new();
+        backends.insert(
+            "mock".into(),
+            Arc::new(FailingCompletionModel) as Arc<dyn CompletionModel>,
+        );
+        let router = make_test_router(backends, "mock");
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("test")],
+            ..Default::default()
+        };
+        let obs = ObservabilityConfig::default();
+
+        // WHEN
+        let result = router
+            .complete_with_observability(None, req, Some(&tx), &obs)
+            .await;
+
+        // THEN
+        assert!(
+            result.is_err(),
+            "the failing backend must propagate its error"
+        );
+        let event = rx.try_recv().expect("the failure must reach the bus");
+        match event {
+            RuntimeEvent::LlmCallFailed {
+                backend, analysis, ..
+            } => {
+                assert_eq!(backend, "mock");
+                assert_eq!(analysis.category, ErrorCategory::PermissionDenied);
+            }
+            other => panic!("expected LlmCallFailed, got: {other:?}"),
+        }
     }
 
     // GIVEN a router with debug_log_prompt = false

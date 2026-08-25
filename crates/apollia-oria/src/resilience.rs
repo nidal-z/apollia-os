@@ -508,7 +508,7 @@ impl ResilienceLayer {
 
             match operation().await {
                 Ok(value) => {
-                    let _ = self.record_success(tool_name);
+                    emit_circuit_restored(bus, tool_name, self.record_success(tool_name));
                     attempts.push(RetryAttempt::new(
                         attempt,
                         started_at,
@@ -542,7 +542,11 @@ impl ResilienceLayer {
                         );
                         tokio::time::sleep(delay).await;
                     } else {
-                        let _ = self.record_failure(tool_name, &ErrorClass::Transient);
+                        emit_circuit_broken(
+                            bus,
+                            tool_name,
+                            self.record_failure(tool_name, &ErrorClass::Transient),
+                        );
                         return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
                     }
                 }
@@ -551,6 +555,40 @@ impl ResilienceLayer {
 
         unreachable!("loop always returns")
     }
+}
+
+/// Emits [`RuntimeEvent::ToolCircuitRestored`] when the breaker just closed.
+///
+/// [`CircuitBreakerRegistry::record_success`] answers whether the circuit came
+/// back from HalfOpen; the answer was discarded at every call site, so the two
+/// circuit events of the catalogue had no producer at all.
+fn emit_circuit_restored(
+    bus: Option<&EventBusSender>,
+    tool_name: &str,
+    outcome: Result<bool, ResilienceError>,
+) {
+    if !matches!(outcome, Ok(true)) {
+        return;
+    }
+    let Some(b) = bus else { return };
+    let _ = b.send(RuntimeEvent::ToolCircuitRestored {
+        tool_name: tool_name.to_string(),
+    });
+}
+
+/// Emits [`RuntimeEvent::ToolCircuitBroken`] when the breaker just opened.
+fn emit_circuit_broken(
+    bus: Option<&EventBusSender>,
+    tool_name: &str,
+    outcome: Result<bool, ResilienceError>,
+) {
+    if !matches!(outcome, Ok(true)) {
+        return;
+    }
+    let Some(b) = bus else { return };
+    let _ = b.send(RuntimeEvent::ToolCircuitBroken {
+        tool_name: tool_name.to_string(),
+    });
 }
 
 /// Emits [`RuntimeEvent::ToolCallRetrying`] before a non-first attempt.
@@ -1173,6 +1211,56 @@ mod tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
         // AND circuit breaker not affected
         assert_eq!(layer.breaker("t").unwrap().failure_count(), 0);
+    }
+
+    // The breaker's two transitions each reach the bus
+    #[tokio::test]
+    async fn test_circuit_transitions_emit_their_events() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN a layer that opens on the first transient failure and cools
+        // down immediately, so the half-open probe needs no wall-clock wait
+        let layer = ResilienceLayer::new(1, Duration::ZERO);
+        layer.register_tool("t");
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let policy = fast_retry_policy(1);
+        let ctx = || RetryContext {
+            tool_name: "t",
+            tool_call_id: "call-1",
+            retry_policy: &policy,
+            bus: Some(&tx),
+        };
+
+        // WHEN a transient failure exhausts the attempts, then a call succeeds
+        let (failed, _) = layer
+            .execute_with_observability::<_, _, u32>(ctx(), transient_classifier, || async {
+                Err("transient boom".to_string())
+            })
+            .await;
+        let (restored, _) = layer
+            .execute_with_observability(ctx(), transient_classifier, || async { Ok(7u32) })
+            .await;
+
+        // THEN the two circuit events reached the bus, in order
+        assert!(failed.is_err());
+        assert_eq!(restored.unwrap(), 7);
+        let mut circuit: Vec<String> = Vec::new();
+        while let Ok(evt) = rx.try_recv() {
+            match evt {
+                RuntimeEvent::ToolCircuitBroken { tool_name } => {
+                    circuit.push(format!("broken:{tool_name}"))
+                }
+                RuntimeEvent::ToolCircuitRestored { tool_name } => {
+                    circuit.push(format!("restored:{tool_name}"))
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            circuit,
+            vec!["broken:t".to_string(), "restored:t".to_string()]
+        );
     }
 
     // fail twice then succeed, attempts captured with outcomes + event emitted
