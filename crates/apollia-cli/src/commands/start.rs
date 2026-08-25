@@ -41,7 +41,7 @@ use apollia_tools::{
 use futures::stream;
 use pyo3::prelude::*;
 
-use crate::client::{DEFAULT_SOCKET_PATH, DEFAULT_TCP_PORT};
+use crate::client::{default_socket_path, DEFAULT_TCP_PORT};
 
 /// Errors that can occur during runtime startup.
 #[derive(Debug, thiserror::Error)]
@@ -1455,7 +1455,7 @@ fn cleanup_stale_socket(path: &std::path::Path) {
 /// success (0) or error (1–4).
 pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, StartError> {
     let start = Instant::now();
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
 
     // Detect an already-running runtime before attempting to bind, so the user

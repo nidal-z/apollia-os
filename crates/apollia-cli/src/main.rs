@@ -46,7 +46,7 @@ use commands::workspace::WorkspaceCommand;
 #[derive(Debug, Parser)]
 #[command(name = "apollia-os", version, about)]
 struct Cli {
-    /// Unix socket path (default: /tmp/apollia.sock).
+    /// Unix socket path (default: the runtime socket under the data directory).
     #[arg(long, global = true, value_name = "PATH")]
     socket: Option<PathBuf>,
 

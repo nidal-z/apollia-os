@@ -17,7 +17,7 @@ use clap::Subcommand;
 
 use crate::community::{validate_community_agent, AgentValidationError};
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 mod display;
@@ -187,7 +187,7 @@ pub enum PackageCommand {
 ///
 /// Returns the process exit code.
 pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match cmd {

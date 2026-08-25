@@ -78,7 +78,7 @@ TCP listener, authentication, TLS, Unix socket.
 | `bind` | `String` | `"127.0.0.1".to_owned()` | IP address to bind the TCP listener to. |
 | `port` | `u16` | `7771` | TCP port of the REST server. |
 | `require_token` | `bool` | `true` | Require a Bearer token on every inbound TCP connection. |
-| `unix_socket` | `PathBuf` | `PathBuf::from("/tmp/apollia.sock")` | Local Unix socket path. |
+| `unix_socket` | `PathBuf` | `~/.apollia/runtime.sock` | Local Unix socket path. The server sets it to `0600` after binding. |
 | `tls_cert` | `Option<PathBuf>` | `None` | PEM certificate chain for native TLS on the TCP listener. |
 | `tls_key` | `Option<PathBuf>` | `None` | PEM private key matching [`tls_cert`](Self::tls_cert). |
 

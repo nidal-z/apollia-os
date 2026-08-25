@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Status of a single diagnostic check.
@@ -325,7 +325,7 @@ fn check_sandbox_posture() -> CheckResult {
 
 /// Probe the runtime Unix socket without holding the connection open.
 async fn check_runtime_socket(socket: Option<PathBuf>) -> CheckResult {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     if !socket_path.exists() {
         return CheckResult::warn(
             "runtime_socket",

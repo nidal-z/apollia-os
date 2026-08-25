@@ -21,7 +21,7 @@ use apollia_core::plan_alternatives::{ChosenPlan, PlanAlternatives};
 use apollia_core::token_budget::TokenBudget;
 use apollia_core::{AutonomyLevel, ORIAConfig};
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 // ─── SSE types ───────────────────────────────────────────────────────────────
@@ -648,7 +648,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         },
     };
 
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
     let start = Instant::now();
 

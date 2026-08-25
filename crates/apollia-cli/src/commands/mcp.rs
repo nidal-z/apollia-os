@@ -12,7 +12,7 @@ use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpConfig;
 use apollia_mcp::discovery;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// MCP server subcommands.
@@ -472,7 +472,7 @@ fn run_secret_delete(server: &str, env_var: &str, json: bool) -> i32 {
 
 /// Create a RuntimeClient from an optional socket path.
 fn make_runtime_client(socket: Option<PathBuf>) -> RuntimeClient {
-    let path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let path = socket.unwrap_or_else(default_socket_path);
     RuntimeClient::new(path)
 }
 

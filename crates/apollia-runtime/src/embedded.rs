@@ -223,7 +223,7 @@ pub struct EmbeddedConfig {
     /// When a TCP port is bound with `None` here, the port is unauthenticated
     /// and the server logs a warning. The Unix socket is never token-gated.
     pub api_token: Option<String>,
-    /// Unix socket path (default: `/tmp/apollia.sock`).
+    /// Unix socket path (default: `~/.apollia/runtime.sock`).
     pub socket_path: PathBuf,
     /// Runtime data directory (default: `~/.apollia/`).
     pub data_dir: PathBuf,
@@ -292,7 +292,7 @@ impl Default for EmbeddedConfig {
         Self {
             tcp_port: None,
             api_token: None,
-            socket_path: PathBuf::from("/tmp/apollia.sock"),
+            socket_path: apollia_core::paths::socket_path_under(&home),
             data_dir: apollia_core::paths::data_dir_under(home),
             startup_timeout_secs: DEFAULT_STARTUP_TIMEOUT_SECS,
             obs_config: ObservabilityConfig::default(),
@@ -586,7 +586,10 @@ mod tests {
         // THEN reasonable defaults are set: Unix socket only, no TCP exposure
         assert_eq!(config.tcp_port, None);
         assert_eq!(config.api_token, None);
-        assert_eq!(config.socket_path, PathBuf::from("/tmp/apollia.sock"));
+        assert_eq!(
+            config.socket_path,
+            apollia_core::paths::socket_path_under(apollia_core::paths::home_dir_or_temp())
+        );
         assert_eq!(config.startup_timeout_secs, DEFAULT_STARTUP_TIMEOUT_SECS);
     }
 

@@ -20,7 +20,7 @@ use apollia_tools::{
 use clap::Subcommand;
 use toml_edit::{DocumentMut, Item, Value};
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::config::parse_apollia_toml;
 use crate::exit_codes;
 
@@ -146,7 +146,7 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
 
 /// Dispatch `tools approvals <verb>` to the runtime client.
 async fn run_approvals(socket: Option<PathBuf>, cmd: &ToolsApprovalsCmd, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
     match cmd {
         ToolsApprovalsCmd::Pending => run_approvals_pending(&client, json).await,
@@ -926,7 +926,7 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
 // ─── Describe (legacy) ────────────────────────────────────────────────
 
 async fn run_describe(socket: Option<PathBuf>, tool_name: &str, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
     let resp = match client.get(&format!("/api/v1/tools/{tool_name}")).await {
         Ok(r) => r,

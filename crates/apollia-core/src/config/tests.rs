@@ -231,7 +231,7 @@ fn test_default_config_preserves_all_defaults() {
     assert_eq!(a2a.chain_timeout_secs, 300);
     assert_eq!(hitl.timeout_hours, None);
     assert_eq!(hitl.scan_interval_secs, 60);
-    assert_eq!(api.unix_socket, PathBuf::from("/tmp/apollia.sock"));
+    assert_eq!(api.unix_socket, crate::paths::socket_path_or_temp());
 
     // AND all defaults pass validation
     runtime

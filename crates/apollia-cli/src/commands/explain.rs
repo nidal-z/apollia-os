@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 const SYSTEM: &str = "You are Apollia's terminal assistant. Explain the given \
@@ -17,7 +17,7 @@ pub async fn run(text: &str, socket: Option<PathBuf>, json: bool) -> i32 {
         eprintln!("nothing to explain: provide a command or error message");
         return exit_codes::GENERAL_ERROR;
     }
-    let client = RuntimeClient::new(socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH)));
+    let client = RuntimeClient::new(socket.unwrap_or_else(default_socket_path));
     match client.llm_complete(Some(SYSTEM), text, None).await {
         Ok(resp) => {
             if json {

@@ -15,7 +15,7 @@ use apollia_oria::plan_repository::{PlanRepositoryError, PlanWithSteps, StepReco
 use chrono::{DateTime, Utc};
 use clap::Subcommand;
 
-use crate::client::{ClientError, RawResponse, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RawResponse, RuntimeClient};
 use crate::exit_codes;
 
 /// Maximum output length before truncation in human-readable display.
@@ -83,7 +83,7 @@ pub enum TaskCommand {
 ///
 /// Returns the process exit code.
 pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match cmd {

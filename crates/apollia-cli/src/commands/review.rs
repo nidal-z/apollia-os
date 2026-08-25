@@ -12,7 +12,7 @@
 
 use std::path::PathBuf;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Arguments for `apollia-os review`.
@@ -35,7 +35,7 @@ pub struct ReviewArgs {
 ///
 /// Returns a POSIX exit code.
 pub async fn run(args: &ReviewArgs, socket: Option<PathBuf>, json_output: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match dispatch(&client, args).await {

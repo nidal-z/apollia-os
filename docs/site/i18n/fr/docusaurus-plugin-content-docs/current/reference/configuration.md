@@ -80,7 +80,7 @@ Capacités de l'EventBus et des mailbox.
 | `bind` | `String` | `"127.0.0.1".to_owned()` | Adresse IP sur laquelle lier l'écouteur TCP. |
 | `port` | `u16` | `7771` | Port TCP du serveur REST. |
 | `require_token` | `bool` | `true` | Exige un jeton Bearer sur chaque connexion TCP entrante. |
-| `unix_socket` | `PathBuf` | `PathBuf::from("/tmp/apollia.sock")` | Chemin du socket Unix local. |
+| `unix_socket` | `PathBuf` | `~/.apollia/runtime.sock` | Chemin du socket Unix local. Le serveur le passe en `0600` après le bind. |
 | `tls_cert` | `Option<PathBuf>` | `None` | Chaîne de certificats PEM pour le TLS natif sur l'écouteur TCP. |
 | `tls_key` | `Option<PathBuf>` | `None` | Clé privée PEM correspondant à [`tls_cert`](Self::tls_cert). |
 

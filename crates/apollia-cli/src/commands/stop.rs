@@ -4,14 +4,14 @@
 
 use std::path::PathBuf;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Execute the `stop` command.
 ///
 /// Returns the process exit code.
 pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match client.shutdown().await {

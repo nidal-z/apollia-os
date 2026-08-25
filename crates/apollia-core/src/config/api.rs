@@ -40,7 +40,7 @@ pub struct ApiConfig {
     ///
     /// Used by the CLI and the desktop app to talk to the runtime without
     /// authentication (local access only).
-    /// Default: `/tmp/apollia.sock`. The parent directory must exist.
+    /// Default: `~/.apollia/runtime.sock`. The parent directory must exist.
     #[serde(default = "default_unix_socket")]
     pub unix_socket: PathBuf,
 
@@ -112,5 +112,5 @@ fn default_require_token() -> bool {
 }
 
 fn default_unix_socket() -> PathBuf {
-    PathBuf::from("/tmp/apollia.sock")
+    crate::paths::socket_path_or_temp()
 }

@@ -229,7 +229,8 @@ apollia-os start --port 7771
 
 <!-- claim:daemon-binds-tcp-by-default -->
 On its first run the runtime creates its data directory at `~/.apollia`. It
-listens on a Unix socket (`/tmp/apollia.sock` by default) and on
+listens on a Unix socket (`~/.apollia/runtime.sock` by default, set to `0600`
+after binding) and on
 `127.0.0.1:7771`. `apollia-os start` always binds TCP; `--port` chooses the
 number, and omitting it takes the default 7771 rather than leaving the port
 closed. On first boot it writes an API token to `~/.apollia/api-token`;

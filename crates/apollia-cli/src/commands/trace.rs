@@ -5,12 +5,12 @@
 
 use std::path::PathBuf;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Execute `apollia-os trace <task_id> [--format human|json]`.
 pub async fn run(task_id: &str, format_json: bool, socket: Option<PathBuf>, json: bool) -> i32 {
-    let path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(path);
     let uri = format!("/api/v1/tasks/{task_id}/trace");
     match client.get(&uri).await {

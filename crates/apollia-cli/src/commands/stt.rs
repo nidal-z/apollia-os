@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────
@@ -579,7 +579,7 @@ async fn run_config_update(
 
 /// Create a [`RuntimeClient`] from the optional socket path.
 fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     RuntimeClient::new(socket_path)
 }
 

@@ -1,7 +1,8 @@
 //! HTTP client for communicating with the Apollia runtime.
 //!
 //! On **Unix** (macOS, Linux): connects via `tokio::net::UnixStream` to the
-//! `--socket` path (default `/tmp/apollia.sock`). Filesystem-based security.
+//! `--socket` path (default `~/.apollia/runtime.sock`). Filesystem-based
+//! security: the runtime chmods the socket to `0o600` after binding.
 //!
 //! On **Windows**: `tokio::net::TcpStream` on `127.0.0.1:DEFAULT_TCP_PORT`.
 //! The runtime always listens on TCP in parallel, and Windows has no native
@@ -41,8 +42,14 @@ async fn connect_runtime(_socket_path: &Path) -> std::io::Result<RuntimeStream> 
     TcpStream::connect(format!("127.0.0.1:{}", DEFAULT_TCP_PORT)).await
 }
 
-/// Default Unix socket path for the Apollia runtime.
-pub const DEFAULT_SOCKET_PATH: &str = "/tmp/apollia.sock";
+/// Default Unix socket path for the Apollia runtime: `~/.apollia/runtime.sock`.
+///
+/// A function rather than a constant because the path depends on the user's
+/// home directory. It used to be the literal `/tmp/apollia.sock`, a name any
+/// account on the machine could take first.
+pub fn default_socket_path() -> PathBuf {
+    apollia_core::paths::socket_path_or_temp()
+}
 
 /// Default TCP port for the Apollia runtime.
 pub const DEFAULT_TCP_PORT: u16 = 7771;
@@ -190,9 +197,9 @@ impl RuntimeClient {
         }
     }
 
-    /// Create a client with the default socket path (`/tmp/apollia.sock`).
+    /// Create a client with the default socket path (`~/.apollia/runtime.sock`).
     pub fn default_client() -> Self {
-        Self::new(PathBuf::from(DEFAULT_SOCKET_PATH))
+        Self::new(default_socket_path())
     }
 
     /// Override the bearer token used for TCP authentication.
@@ -1865,7 +1872,7 @@ mod tests {
     #[test]
     fn test_default_socket_path() {
         let client = RuntimeClient::default_client();
-        assert_eq!(client.socket_path(), Path::new("/tmp/apollia.sock"));
+        assert_eq!(client.socket_path(), default_socket_path().as_path());
     }
 
     #[test]

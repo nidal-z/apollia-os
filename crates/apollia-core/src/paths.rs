@@ -176,6 +176,39 @@ pub fn data_dir_under(home: impl Into<PathBuf>) -> PathBuf {
     home.into().join(DATA_DIR_NAME)
 }
 
+/// Name of the API's Unix socket inside the data directory.
+pub const SOCKET_FILE_NAME: &str = "runtime.sock";
+
+/// The API's Unix socket: `<home>/.apollia/runtime.sock`.
+///
+/// It used to be `/tmp/apollia.sock`. On a shared machine that is a directory
+/// every account can write: another user can occupy the name before the runtime
+/// starts (the sticky bit then blocks the cleanup and the bind fails), or serve
+/// a socket of their own to a CLI that expects the runtime's. Under the data
+/// directory the path belongs to the user, and the server additionally sets the
+/// file to `0o600` after binding.
+///
+/// Returns `None` when the home directory cannot be resolved; callers that
+/// cannot fail use [`socket_path_or_temp`].
+pub fn socket_path() -> Option<PathBuf> {
+    data_dir().map(|d| d.join(SOCKET_FILE_NAME))
+}
+
+/// The API's Unix socket under an explicit home.
+pub fn socket_path_under(home: impl Into<PathBuf>) -> PathBuf {
+    data_dir_under(home).join(SOCKET_FILE_NAME)
+}
+
+/// The API's Unix socket, falling back to the platform temporary directory.
+///
+/// For the call sites that compute a default without a `Result` to return it
+/// through (a serde default, a clap default). The fallback keeps the runtime
+/// startable on a stripped environment; it is not where the socket is meant to
+/// live, which is why [`socket_path`] exists next to it.
+pub fn socket_path_or_temp() -> PathBuf {
+    socket_path().unwrap_or_else(|| std::env::temp_dir().join("apollia.sock"))
+}
+
 /// The home directory, falling back to the platform temporary directory.
 ///
 /// For the call sites that cannot return an error. Prefer [`data_dir_or_err`]
@@ -218,6 +251,21 @@ pub fn data_dir_or_err() -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // GIVEN an explicit home
+    // WHEN the API socket path is resolved under it
+    // THEN it sits inside the data directory, not in a shared temporary one
+    #[test]
+    fn test_socket_path_is_under_the_data_dir() {
+        let sock = socket_path_under("/home/tester");
+        assert_eq!(
+            sock,
+            Path::new("/home/tester")
+                .join(DATA_DIR_NAME)
+                .join("runtime.sock")
+        );
+        assert!(!sock.starts_with(std::env::temp_dir()));
+    }
 
     // GIVEN a normal environment
     // WHEN the data directory is resolved

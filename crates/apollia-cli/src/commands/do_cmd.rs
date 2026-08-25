@@ -12,7 +12,7 @@ use std::process::Command as ProcCommand;
 
 use clap::{CommandFactory, Parser};
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Map `request` to a command and (after confirmation) run it.
@@ -33,7 +33,7 @@ CLI command. Output ONLY the command without the `apollia-os` prefix, or exactly
 of these forms (followed by any needed arguments), copied verbatim:\n{}",
         catalog.join("\n")
     );
-    let client = RuntimeClient::new(socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH)));
+    let client = RuntimeClient::new(socket.unwrap_or_else(default_socket_path));
     let resp = match client
         .llm_complete(Some(&system), request, Some(&grammar))
         .await

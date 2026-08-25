@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use clap::ValueEnum;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Time windows recognised by the digest command.
@@ -37,7 +37,7 @@ impl DigestWindow {
 
 /// Execute `apollia-os digest [--since 24h|7d|30d]`.
 pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i32 {
-    let path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(path);
 
     let tasks = match client.get("/api/v1/tasks").await {

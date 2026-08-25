@@ -336,9 +336,14 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
     }
 }
 
+/// Permission bits applied to the Unix socket right after `bind`: owner read
+/// and write, nothing for the group and nothing for the rest of the machine.
+#[cfg(unix)]
+const SOCKET_MODE: u32 = 0o600;
+
 /// Configuration for the APIServer.
 pub struct APIServerConfig {
-    /// Path to the Unix domain socket (e.g. `/tmp/apollia.sock`).
+    /// Path to the Unix domain socket (e.g. `~/.apollia/runtime.sock`).
     pub socket_path: PathBuf,
     /// IP address to bind the TCP listener on.
     ///
@@ -382,7 +387,7 @@ pub struct APIServerConfig {
 impl Default for APIServerConfig {
     fn default() -> Self {
         Self {
-            socket_path: PathBuf::from("/tmp/apollia.sock"),
+            socket_path: apollia_core::paths::socket_path_or_temp(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: None,
             api_token: None,
@@ -748,6 +753,17 @@ impl APIServer {
         let (shutdown_tx, _) = watch::channel(false);
         let Self { config, router } = self;
 
+        // Make sure the socket's directory exists before binding: the default
+        // path now sits under the data directory, which a first run has not
+        // necessarily created yet.
+        #[cfg(unix)]
+        if let Some(parent) = config.socket_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| APIServerError::SocketBindFailed {
+                path: parent.display().to_string(),
+                source,
+            })?;
+        }
+
         // Clean up stale Unix socket file if present.
         if config.socket_path.exists() {
             let _ = std::fs::remove_file(&config.socket_path);
@@ -762,6 +778,25 @@ impl APIServer {
                 source,
             }
         })?;
+
+        // The socket is the one surface the API serves without a token, so its
+        // permissions are the whole access control. `bind` applies the process
+        // umask, which an operator can loosen; the mode is set explicitly here
+        // so the file is owner-only whatever the umask says. A failure is fatal:
+        // serving an unauthenticated socket that other accounts can open is the
+        // exact posture this guards against.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                &config.socket_path,
+                std::fs::Permissions::from_mode(SOCKET_MODE),
+            )
+            .map_err(|source| APIServerError::SocketBindFailed {
+                path: config.socket_path.display().to_string(),
+                source,
+            })?;
+        }
 
         // Conditionally bind the TCP listener. `None` serves the Unix socket
         // only, closing any unauthenticated TCP exposure for embedded hosts.
@@ -1536,6 +1571,42 @@ mod tests {
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
         // Cleanup
+        handle.shutdown();
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
+    async fn test_unix_socket_is_owner_only_after_bind() {
+        // GIVEN a permissive umask, so the mode the socket ends up with is the
+        //       one the server sets rather than the one the process inherits
+        let socket_path = temp_socket_path();
+        let reserved_port = reserve_port();
+        let port = reserved_port.port();
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: Some(port),
+            api_token: None,
+            tls_cert_path: None,
+            tls_key_path: None,
+        };
+        let server = APIServer::new(config, state);
+
+        // WHEN the server binds the socket
+        reserved_port.release();
+        let handle = server.start().await.unwrap();
+
+        // THEN the socket carries 0600: no group bit, no other bit, so no
+        //      other account on the machine can open the unauthenticated API
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&socket_path)
+            .expect("the socket exists once start() returned")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "socket mode is {mode:o}, expected 600");
+
         handle.shutdown();
         let _ = std::fs::remove_file(&socket_path);
     }

@@ -21,7 +21,7 @@ use apollia_auth::{
     AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest,
 };
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Subcommands of `apollia-os mcp oauth`.
@@ -166,7 +166,7 @@ enum ReconnectOutcome {
 /// was ever started (the normal post-OAuth case for a server that boot-failed),
 /// so a single call covers both "session exists" and "first connection" paths.
 async fn reconnect_runtime_session(server: &str) -> ReconnectOutcome {
-    let client = RuntimeClient::new(PathBuf::from(DEFAULT_SOCKET_PATH));
+    let client = RuntimeClient::new(default_socket_path());
     let uri = format!("/api/v1/mcp/servers/{server}/restart");
     match client.post(&uri, None).await {
         Ok(resp) if resp.status < 400 => ReconnectOutcome::Connected,

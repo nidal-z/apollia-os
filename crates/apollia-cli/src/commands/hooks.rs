@@ -10,7 +10,7 @@ use clap::Subcommand;
 
 use apollia_runtime::{HookHandlerSummary, HookRegistry};
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Hooks subcommands: `apollia-os hooks <verb>`.
@@ -32,7 +32,7 @@ pub async fn run(cmd: &HooksCommand, socket: Option<PathBuf>, json: bool) -> i32
     match cmd {
         HooksCommand::List { dry_run } if *dry_run => dry_run_list(json),
         HooksCommand::List { .. } => {
-            let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+            let socket_path = socket.unwrap_or_else(default_socket_path);
             let client = RuntimeClient::new(socket_path);
             run_list(&client, json).await
         }

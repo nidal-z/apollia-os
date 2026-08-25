@@ -152,7 +152,7 @@ pub async fn run(cmd: &ModelCommand, socket: Option<PathBuf>, json: bool) -> i32
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 async fn run_search(socket: Option<PathBuf>, query: &str, limit: u32, json: bool) -> i32 {
-    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let socket = socket.unwrap_or_else(crate::client::default_socket_path);
     let client = crate::client::RuntimeClient::new(socket);
     let q = urlencode(query);
     let uri = format!("/api/v1/llm/registry/search?q={q}&limit={limit}");
@@ -185,7 +185,7 @@ async fn run_show(socket: Option<PathBuf>, repo: &str, json: bool) -> i32 {
             &format!("expected org/repo, got '{repo}'"),
         );
     };
-    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let socket = socket.unwrap_or_else(crate::client::default_socket_path);
     let client = crate::client::RuntimeClient::new(socket);
     let uri = format!("/api/v1/llm/registry/model/{org}/{name}");
     match client.get(&uri).await {
@@ -203,7 +203,7 @@ async fn run_show(socket: Option<PathBuf>, repo: &str, json: bool) -> i32 {
 }
 
 async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
-    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let socket = socket.unwrap_or_else(crate::client::default_socket_path);
     let client = crate::client::RuntimeClient::new(socket);
     match client.get("/api/v1/llm/hardware").await {
         Ok(resp) if resp.status < 400 => {

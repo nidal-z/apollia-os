@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use clap::Subcommand;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ pub enum TriggerCommand {
 ///
 /// Returns the process exit code (0 = success, 1 = error, 2 = runtime offline).
 pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match cmd {

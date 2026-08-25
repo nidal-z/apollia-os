@@ -22,7 +22,7 @@ use rustyline::{Config as RlConfig, Editor};
 use apollia_runtime::chat::{ChatSessionRepository, MessageRow, SessionRow};
 use apollia_runtime::commands::CommandRegistry;
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Subcommands of `apollia-os chat` for persisted session hygiene.
@@ -91,7 +91,7 @@ const SCROLLBACK_COUNT: usize = 5;
 fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
     match socket {
         Some(p) => RuntimeClient::new(p),
-        None => RuntimeClient::new(std::path::PathBuf::from(DEFAULT_SOCKET_PATH)),
+        None => RuntimeClient::new(default_socket_path()),
     }
 }
 

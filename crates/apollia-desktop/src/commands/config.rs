@@ -80,9 +80,14 @@ fn build_config_view(
             entries: vec![
                 ConfigEntry {
                     key: "socket_path".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "runtime", "socket_path", "/tmp/apollia.sock"))
-                        .unwrap_or_else(|| "/tmp/apollia.sock".to_string()),
+                    value: {
+                        let fallback = apollia_core::paths::socket_path_or_temp()
+                            .display()
+                            .to_string();
+                        toml_value
+                            .map(|t| toml_string(t, "runtime", "socket_path", &fallback))
+                            .unwrap_or(fallback)
+                    },
                 },
                 ConfigEntry {
                     key: "api_port".to_string(),

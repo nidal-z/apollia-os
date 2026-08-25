@@ -17,7 +17,7 @@ use apollia_eval::{
     RuntimeClient as EvalRuntimeClient, SuiteReport,
 };
 
-use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Bound on the daemon health probe, so a missing daemon fails fast.
@@ -184,7 +184,7 @@ async fn run_suite(
         Err(err) => return output_error(&err.to_string(), json, exit_codes::GENERAL_ERROR),
     };
 
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     // Fail fast (and clearly) when the daemon is not reachable.

@@ -68,7 +68,7 @@ fn truncate(s: &str, max: usize) -> String {
 
 /// Dispatch the `a2a` sub-command.
 pub async fn run(cmd: &A2aCommand, socket: Option<PathBuf>, json: bool) -> i32 {
-    let socket_path = socket.unwrap_or_else(|| PathBuf::from("/tmp/apollia.sock"));
+    let socket_path = socket.unwrap_or_else(crate::client::default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
