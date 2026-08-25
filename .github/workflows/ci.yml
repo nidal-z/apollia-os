@@ -145,8 +145,11 @@ jobs:
       # ~/.apollia is exactly the defect this line exists to stop.
       - name: cargo test (workspace, sentinel HOME)
         run: python3 scripts/check_test_home_isolation.py --wrap cargo test --workspace --no-fail-fast
-      - name: cargo test (python-tests)
-        run: cargo test -p apollia-e2e-tests --features python-tests
+      # The PyO3-gated `python-tests` suite of apollia-e2e-tests does not run
+      # here: it needs the Apollia SDK importable through PYO3_PYTHON, and this
+      # job installs no SDK, so the step failed before reaching a single test.
+      # Its one frontier is the python-tests job of nightly.yml, which installs
+      # the editable SDK first.
 
   # ── CLI end-to-end (Track 1, offline, seeded fixture) ────────────────────
   cli-e2e:
