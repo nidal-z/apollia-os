@@ -56,7 +56,7 @@ async fn ms_resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String
         );
     }
     accounts.into_iter().next().ok_or_else(|| {
-        "no Microsoft account connected - open Réglages → Intégrations to sign in".to_string()
+        "no Microsoft account connected - open Settings > Integrations to sign in".to_string()
     })
 }
 

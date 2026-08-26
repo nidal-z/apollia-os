@@ -112,7 +112,7 @@ async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
         );
     }
     accounts.into_iter().next().ok_or_else(|| {
-        "no Google account connected - open Réglages → Intégrations to sign in".to_string()
+        "no Google account connected - open Settings > Integrations to sign in".to_string()
     })
 }
 

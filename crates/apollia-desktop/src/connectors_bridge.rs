@@ -114,7 +114,7 @@ impl GoogleToolExecutor {
             .next()
             .ok_or_else(|| ToolExecutionError::ExecutionFailed {
                 code: "no_account".into(),
-                message: "no Google account connected - open Réglages → Intégrations to sign in"
+                message: "no Google account connected - open Settings > Integrations to sign in"
                     .into(),
             })
     }

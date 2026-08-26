@@ -387,13 +387,13 @@ describe("humanizeToolError - what an operator is shown when a call fails", () =
   test("GIVEN a runtime-prefixed connector error WHEN humanized THEN only the sentence remains", () => {
     // GIVEN the exact shape the runtime persists
     const raw =
-      "tool error: google: no Google account connected - open Reglages to sign in";
+      "tool error: google: no Google account connected - open Settings to sign in";
 
     // WHEN
     const text = humanizeToolError(raw);
 
     // THEN
-    expect(text).toBe("no Google account connected - open Reglages to sign in");
+    expect(text).toBe("no Google account connected - open Settings to sign in");
   });
 
   test("GIVEN an executor error code WHEN humanized THEN the code is dropped", () => {
