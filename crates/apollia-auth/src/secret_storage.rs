@@ -280,39 +280,51 @@ mod tests {
 
     #[test]
     fn test_age_file_store_set_get_round_trip() {
+        // GIVEN an age-file store on a throwaway directory
         let (store, _dir) = temp_store();
         store
             .set("apollia-connector-google", "user@example.com", "tok123")
             .expect("set");
+        // WHEN a token is written then read back under the same service and account
         let got = store
             .get("apollia-connector-google", "user@example.com")
             .expect("get");
+        // THEN the value survives the encryption round trip
         assert_eq!(got.as_deref(), Some("tok123"));
     }
 
     #[test]
     fn test_age_file_store_get_missing_returns_none() {
+        // GIVEN an age-file store holding nothing
         let (store, _dir) = temp_store();
+        // WHEN an account that was never written is read
         let got = store.get("svc", "missing@example.com").expect("get");
+        // THEN the read succeeds and yields nothing
         assert!(got.is_none());
     }
 
     #[test]
     fn test_age_file_store_delete_idempotent() {
+        // GIVEN an age-file store on a throwaway directory
         let (store, _dir) = temp_store();
+        // WHEN an absent entry is deleted, then a written one is deleted in turn
         store
             .delete("svc", "absent@example.com")
             .expect("delete absent");
         store.set("svc", "u@e.com", "v").expect("set");
         store.delete("svc", "u@e.com").expect("delete existing");
+        // THEN neither delete fails, and the written entry is gone
         assert!(store.get("svc", "u@e.com").expect("get").is_none());
     }
 
     #[test]
     fn test_age_file_store_rejects_empty_passphrase() {
+        // GIVEN an empty passphrase
         let dir = tempfile::tempdir().expect("tempdir");
+        // WHEN an age-file store is built with it
         match AgeFileSecretStore::new(dir.path().to_path_buf(), "".into()) {
             Ok(_) => panic!("empty passphrase should be rejected"),
+            // THEN the build is refused, and the error names the passphrase variable
             Err(AuthError::Keyring(msg)) => {
                 assert!(msg.contains("APOLLIA_TOKEN_PASSPHRASE"));
             }
@@ -322,19 +334,25 @@ mod tests {
 
     #[test]
     fn test_age_file_store_decrypt_with_wrong_passphrase_fails() {
+        // GIVEN a secret written under one passphrase
         let dir = tempfile::tempdir().expect("tempdir");
         let writer =
             AgeFileSecretStore::new(dir.path().to_path_buf(), "correct".into()).expect("writer");
         writer.set("svc", "u@e.com", "secret").expect("set");
 
+        // WHEN it is read back through a store built on another passphrase
         let reader =
             AgeFileSecretStore::new(dir.path().to_path_buf(), "wrong".into()).expect("reader");
         let res = reader.get("svc", "u@e.com");
+        // THEN the read fails rather than returning anything
         assert!(res.is_err(), "decrypt with wrong passphrase must fail");
     }
 
     #[test]
     fn test_sanitise_preserves_safe_chars() {
+        // GIVEN a plain service name, an address and a path with slashes
+        // WHEN each is sanitised for use as a filename segment
+        // THEN the safe characters survive and the others are percent encoded
         assert_eq!(
             sanitise("apollia-connector-google"),
             "apollia-connector-google"
@@ -345,9 +363,12 @@ mod tests {
 
     #[test]
     fn test_path_for_uses_sanitised_segments() {
+        // GIVEN a service name and an account carrying an at sign
         let (store, _dir) = temp_store();
+        // WHEN the on-disk path is derived from them
         let path = store.path_for("svc", "u@e.com");
         let filename = path.file_name().unwrap().to_string_lossy();
+        // THEN the filename joins both sanitised segments and carries the age extension
         assert!(filename.starts_with("svc__"));
         assert!(filename.contains("%40")); // @ encoded
         assert!(filename.ends_with(".age"));
@@ -359,14 +380,18 @@ mod tests {
         // so relax to "keyring" or unset depending on the runner). We probe
         // the explicit "keyring" branch.
         with_env_var("APOLLIA_TOKEN_STORAGE", "keyring", || {
+            // WHEN the default store is selected
             let store = select_default().expect("select");
+            // THEN the keyring backend is the one returned
             assert_eq!(store.backend_id(), "keyring");
         });
     }
 
     #[test]
     fn test_select_default_unknown_value_fails() {
+        // GIVEN APOLLIA_TOKEN_STORAGE set to a backend that does not exist
         with_env_var("APOLLIA_TOKEN_STORAGE", "unknown", || {
+            // WHEN the default store is selected
             let result = select_default();
             // Use match instead of unwrap_err since Box<dyn SecretStore> does
             // not implement Debug (sealed at the trait level for v0.1.0).
@@ -374,6 +399,7 @@ mod tests {
                 Ok(_) => {
                     panic!("expected an error for unknown APOLLIA_TOKEN_STORAGE value");
                 }
+                // THEN the selection fails, and the error names the unknown value
                 Err(AuthError::Keyring(msg)) => {
                     assert!(msg.contains("unknown"));
                 }

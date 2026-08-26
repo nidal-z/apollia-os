@@ -539,6 +539,7 @@ mod tests {
         let client = HttpClient::new("test").expect("client");
         let url = format!("{}/missing", server.uri());
 
+        // WHEN a JSON GET is issued against it
         let err = client
             .get_json::<serde_json::Value, _, _>(&url, "tok", || async {
                 Ok::<_, ConnectorError>("never".into())
@@ -546,6 +547,7 @@ mod tests {
             .await
             .unwrap_err();
 
+        // THEN the failure surfaces as an upstream error naming the provider and the status
         match err {
             ConnectorError::Upstream {
                 provider, status, ..
@@ -559,6 +561,9 @@ mod tests {
 
     #[test]
     fn test_exponential_backoff_doubles_per_attempt() {
+        // GIVEN the first four retry attempts
+        // WHEN the backoff is computed for each
+        // THEN it doubles from one second, attempt by attempt
         assert_eq!(exponential_backoff(0), Duration::from_secs(1));
         assert_eq!(exponential_backoff(1), Duration::from_secs(2));
         assert_eq!(exponential_backoff(2), Duration::from_secs(4));
@@ -567,12 +572,18 @@ mod tests {
 
     #[test]
     fn test_exponential_backoff_capped_at_max() {
+        // GIVEN an attempt number far past the cap
+        // WHEN the backoff is computed
+        // THEN it stops at the maximum rather than growing without bound
         assert!(exponential_backoff(10) <= MAX_BACKOFF);
     }
 
     #[test]
     fn test_extract_error_message_from_google_envelope() {
+        // GIVEN a Google error envelope
         let raw = r#"{"error":{"code":400,"message":"Unable to parse range: Apollia Test!A1:C1","errors":[]}}"#;
+        // WHEN the message is extracted
+        // THEN the nested message comes out, not the whole envelope
         assert_eq!(
             extract_error_message(raw),
             "Unable to parse range: Apollia Test!A1:C1"
@@ -581,8 +592,11 @@ mod tests {
 
     #[test]
     fn test_extract_error_message_from_oauth_envelope() {
+        // GIVEN an OAuth error envelope, whose message sits in error_description
         let raw =
             r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#;
+        // WHEN the message is extracted
+        // THEN the description comes out rather than the error code
         assert_eq!(
             extract_error_message(raw),
             "Token has been expired or revoked."
@@ -591,7 +605,10 @@ mod tests {
 
     #[test]
     fn test_extract_error_message_falls_back_to_raw() {
+        // GIVEN a body that is not JSON at all
         let raw = "<html>503 Service Unavailable</html>";
+        // WHEN the message is extracted
+        // THEN the raw body comes back unchanged
         assert_eq!(extract_error_message(raw), raw);
     }
 
@@ -610,6 +627,8 @@ mod tests {
         let client = HttpClient::new("test").expect("client");
         let url = format!("{}/upload", server.uri());
 
+        // WHEN a raw request is sent with an explicit content type
+        // THEN the mock matches on that header, so the override reached the wire
         let _ = client
             .send(
                 RawRequest {
@@ -627,13 +646,19 @@ mod tests {
 
     #[test]
     fn test_truncate_preserves_short_strings() {
+        // GIVEN a string shorter than the limit
+        // WHEN it is truncated
+        // THEN it comes back whole, with no ellipsis
         assert_eq!(truncate("short", 100), "short");
     }
 
     #[test]
     fn test_truncate_clips_long_strings_with_ellipsis() {
+        // GIVEN a string far longer than the limit
         let s = "0".repeat(1000);
+        // WHEN it is truncated to fifty bytes
         let t = truncate(&s, 50);
+        // THEN fifty bytes survive and an ellipsis marks the cut
         // 50 ASCII bytes + the ellipsis char (3 bytes UTF-8) = 53 bytes total
         assert_eq!(t.len(), 53);
         assert!(t.ends_with('…'));

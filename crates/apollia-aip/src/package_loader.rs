@@ -435,9 +435,10 @@ packages = ["httpx>=0.27"]
 
     #[test]
     fn test_parse_minimal_toml() {
-        // GIVEN a minimal TOML
+        // GIVEN the minimal package manifest fixture
+        // WHEN it is parsed as a PackageManifest
         let manifest: PackageManifest = toml::from_str(MINIMAL_TOML).expect("parse");
-        // THEN the fields are correct
+        // THEN the package name, the agent count and the single role are the fixture's
         assert_eq!(manifest.package.name, "test-pkg");
         assert_eq!(manifest.agents.len(), 1);
         assert_eq!(manifest.agents[0].role, "director");
@@ -445,9 +446,10 @@ packages = ["httpx>=0.27"]
 
     #[test]
     fn test_parse_full_toml() {
-        // GIVEN a full TOML
+        // GIVEN the full package manifest fixture
+        // WHEN it is parsed as a PackageManifest
         let manifest: PackageManifest = toml::from_str(FULL_TOML).expect("parse");
-        // THEN
+        // THEN the name, both agents, the tools table and the pip list all survive
         assert_eq!(manifest.package.name, "veille-ia");
         assert_eq!(manifest.agents.len(), 2);
         assert!(manifest.tools.is_some());
@@ -508,9 +510,10 @@ role  = "worker"
 
     #[test]
     fn test_agent_role_parse_unknown() {
-        // GIVEN an unknown role
+        // GIVEN a role name the enum does not define
+        // WHEN it is parsed
         let result = AgentRole::parse("chef");
-        // THEN error
+        // THEN the parse fails rather than falling back to a default
         assert!(result.is_err());
     }
 

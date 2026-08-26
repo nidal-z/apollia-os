@@ -321,19 +321,28 @@ mod tests {
 
     #[test]
     fn test_urlencode_keeps_safe_chars() {
+        // GIVEN a calendar id and an address, made only of characters a URL allows
+        // WHEN each is url-encoded
+        // THEN both come out unchanged
         assert_eq!(urlencode("primary"), "primary");
         assert_eq!(urlencode("foo@example.com"), "foo@example.com");
     }
 
     #[test]
     fn test_urlencode_escapes_unsafe_chars() {
+        // GIVEN strings carrying a space and query delimiters
+        // WHEN each is url-encoded
+        // THEN every one of them is percent encoded
         assert_eq!(urlencode("a b"), "a%20b");
         assert_eq!(urlencode("?key=val&x=y"), "%3Fkey%3Dval%26x%3Dy");
     }
 
     #[test]
     fn test_build_list_url_default_includes_single_events_and_order_by() {
+        // GIVEN the default event filter
+        // WHEN the list URL is built for the primary calendar
         let url = build_list_url("primary", &ListEventsFilter::default());
+        // THEN recurring events are expanded and ordered, and no time bound appears
         assert!(url.contains("singleEvents=true"));
         assert!(url.contains("orderBy=startTime"));
         assert!(!url.contains("timeMin"));
@@ -342,8 +351,10 @@ mod tests {
 
     #[test]
     fn test_build_list_url_includes_time_bounds_when_set() {
+        // GIVEN a filter carrying both time bounds, a cap and a query
         let tmin = Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap();
         let tmax = Utc.with_ymd_and_hms(2026, 5, 31, 23, 59, 59).unwrap();
+        // WHEN the list URL is built
         let url = build_list_url(
             "primary",
             &ListEventsFilter {
@@ -353,6 +364,7 @@ mod tests {
                 query: Some("standup".into()),
             },
         );
+        // THEN each of the four lands in the query string
         assert!(url.contains("timeMin="));
         assert!(url.contains("timeMax="));
         assert!(url.contains("maxResults=50"));
@@ -361,27 +373,33 @@ mod tests {
 
     #[test]
     fn test_event_time_serializes_with_camel_case() {
+        // GIVEN an event time carrying a timestamp and a zone, but no all-day date
         let t = EventTime {
             date_time: Some(Utc.with_ymd_and_hms(2026, 5, 12, 9, 0, 0).unwrap()),
             date: None,
             time_zone: Some("Europe/Paris".into()),
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&t).expect("serialize");
+        // THEN the wire names are camel case, and the unset field is skipped
         assert!(json.get("dateTime").is_some());
         assert!(json.get("timeZone").is_some());
-        // Field with None is skipped
         assert!(json.get("date").is_none());
     }
 
     #[test]
     fn test_event_time_skips_none_fields() {
+        // GIVEN an event time with every field unset
         let t = EventTime::default();
+        // WHEN it is serialised
         let json = serde_json::to_string(&t).expect("serialize");
+        // THEN the object is empty rather than full of nulls
         assert_eq!(json, "{}");
     }
 
     #[test]
     fn test_event_draft_serializes_with_camel_case() {
+        // GIVEN an event draft with a description, both times and one attendee
         let draft = EventDraft {
             summary: "Standup".into(),
             description: Some("daily".into()),
@@ -402,7 +420,9 @@ mod tests {
                 response_status: None,
             }],
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&draft).expect("serialize");
+        // THEN the wire names are camel case, down into the nested objects
         assert_eq!(json["summary"], "Standup");
         assert!(json["start"]["dateTime"].is_string());
         assert_eq!(json["attendees"][0]["displayName"], "Alice");

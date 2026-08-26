@@ -355,6 +355,7 @@ mod tests {
 
     #[test]
     fn test_compose_message_serializes_with_graph_field_names() {
+        // GIVEN a message with one recipient and no copies
         let msg = ComposeMessage {
             subject: "Hello".into(),
             body: MessageBody {
@@ -370,7 +371,9 @@ mod tests {
             cc_recipients: vec![],
             bcc_recipients: vec![],
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&msg).expect("serialize");
+        // THEN the Graph field names are used, and the empty copy lists are skipped
         assert_eq!(json["subject"], "Hello");
         assert_eq!(json["body"]["contentType"], "text");
         assert_eq!(
@@ -384,16 +387,22 @@ mod tests {
 
     #[test]
     fn test_body_content_type_lowercase() {
+        // GIVEN a message body declared as HTML
         let body = MessageBody {
             content_type: BodyContentType::Html,
             content: "<p>hi</p>".into(),
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&body).expect("serialize");
+        // THEN the content type goes out in lower case, as Graph expects
         assert_eq!(json["contentType"], "html");
     }
 
     #[test]
     fn test_urlencode_escapes_quotes_and_spaces() {
+        // GIVEN search queries carrying a space and a double quote
+        // WHEN each is url-encoded
+        // THEN both characters are percent encoded
         assert!(urlencode("from:alice subject:hello").contains("%20"));
         assert!(urlencode("\"quoted\"").contains("%22"));
     }

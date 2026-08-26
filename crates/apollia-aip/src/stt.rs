@@ -226,23 +226,27 @@ mod tests {
     // PySttInterface::new with no backend: backend is None
     #[test]
     fn test_status_disabled_when_no_backend() {
-        // GIVEN no backend
+        // GIVEN an STT interface built without a backend
         let iface = PySttInterface::new(None, None, "auto".to_string());
+        // WHEN its backend is read
+        // THEN there is none, so dictation stays disabled
         assert!(iface.backend.is_none());
     }
 
     // PySttInterface::new with backend: fields are set correctly
     #[test]
     fn test_new_with_mock_backend() {
-        // GIVEN a mock backend
+        // GIVEN a mock backend, a model name and a language
         let backend: Arc<dyn SttBackend> = Arc::new(MockSttBackend {
             response: "hello".to_string(),
         });
+        // WHEN an STT interface is built from the three
         let iface = PySttInterface::new(
             Some(backend),
             Some("mock-model".to_string()),
             "fr".to_string(),
         );
+        // THEN the interface carries all three
         assert!(iface.backend.is_some());
         assert_eq!(iface.model_name.as_deref(), Some("mock-model"));
         assert_eq!(iface.language, "fr");

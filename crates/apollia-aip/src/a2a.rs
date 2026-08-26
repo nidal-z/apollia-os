@@ -434,10 +434,13 @@ mod tests {
     #[test]
     fn test_invoke_without_invoker_raises() {
         pyo3::prepare_freethreaded_python();
+        // GIVEN an A2A interface with no invoker attached
         let a2a = A2AInterface::new(None, "tester".to_string(), 0, None);
         Python::with_gil(|py| {
             let input = py.None();
+            // WHEN a skill is invoked through it
             let res = a2a.invoke(py, "x".to_string(), input, None);
+            // THEN the call is refused instead of returning a result
             assert!(res.is_err(), "expected RuntimeError without invoker");
         });
     }
@@ -445,9 +448,12 @@ mod tests {
     #[test]
     fn test_skill_as_tool_without_invoker_raises() {
         pyo3::prepare_freethreaded_python();
+        // GIVEN an A2A interface with no invoker attached
         let a2a = A2AInterface::new(None, "tester".to_string(), 0, None);
         Python::with_gil(|py| {
+            // WHEN a skill is asked for as a tool
             let res = a2a.skill_as_tool(py, "summarize".to_string());
+            // THEN the call is refused instead of returning a descriptor
             assert!(
                 res.is_err(),
                 "expected RuntimeError when invoker is missing"
@@ -502,7 +508,7 @@ mod tests {
     /// `a2a__{id}` name.
     #[tokio::test]
     async fn test_skill_as_tool_no_dots_in_skill_id() {
-        // Register a worker with a single-word skill id.
+        // GIVEN an active worker whose only skill id carries no dot and declares no schema
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let mut manifest = make_pdf_manifest();
@@ -520,9 +526,11 @@ mod tests {
             A2AConfig::default(),
         ));
 
+        // WHEN that skill is turned into a tool descriptor
         let descriptor = build_skill_tool_descriptor(&invoker, "summarize")
             .await
             .expect("descriptor");
+        // THEN the tool is named after the bare skill id and gets the permissive default schema
         assert_eq!(descriptor["name"], "a2a__summarize");
         // Default schema when none declared.
         assert_eq!(descriptor["input_schema"]["type"], "object");

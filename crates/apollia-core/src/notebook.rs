@@ -101,6 +101,9 @@ mod tests {
 
     #[test]
     fn cell_type_serialization_roundtrip() {
+        // GIVEN the three notebook cell types
+        // WHEN each is serialised, and one of them read back
+        // THEN each carries its lower-case tag, and the round trip is lossless
         assert_eq!(serde_json::to_string(&CellType::Code).unwrap(), "\"code\"");
         assert_eq!(
             serde_json::to_string(&CellType::Markdown).unwrap(),
@@ -114,8 +117,11 @@ mod tests {
 
     #[test]
     fn notebook_edit_op_tagged_serialization() {
+        // GIVEN a cell deletion operation
         let op = NotebookEditOp::DeleteCell { index: 2 };
+        // WHEN it is serialised
         let json = serde_json::to_string(&op).unwrap();
+        // THEN the tag field names the operation, alongside its payload
         assert!(json.contains("\"op\":\"delete_cell\""));
         assert!(json.contains("\"index\":2"));
     }

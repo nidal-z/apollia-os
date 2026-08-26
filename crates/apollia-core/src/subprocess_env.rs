@@ -85,6 +85,7 @@ mod tests {
     fn an_unscrubbed_command_does_pass_them_on() {
         // GIVEN the same command without the scrub, so the test above cannot
         // pass for the wrong reason (an empty echo, a shell that ignores them)
+        // WHEN the child is spawned without the scrub and echoes the variable
         let out = std::process::Command::new("/bin/sh")
             .args(["-c", "echo home=[$PYTHONHOME]"])
             .env("PYTHONHOME", "/nonexistent/bundle")

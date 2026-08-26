@@ -600,6 +600,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires valid GCP credentials and network access"]
     async fn test_vertex_integration() {
+        // GIVEN a Vertex config taken from the environment, and application default credentials
         let config = VertexConfig {
             format_version: 1,
             enabled: true,
@@ -615,10 +616,12 @@ mod tests {
             max_tokens: Some(10),
             ..Default::default()
         };
+        // WHEN a short completion is requested
         let response = client
             .complete(req)
             .await
             .expect("Vertex call must succeed");
+        // THEN the call comes back carrying content
         assert!(!response.content.is_empty());
     }
 }

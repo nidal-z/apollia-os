@@ -225,6 +225,7 @@ fn test_default_config_preserves_all_defaults() {
     let hitl = HitlConfig::default();
     let api = ApiConfig::default();
 
+    // WHEN each field is read and each config validated
     // THEN all defaults are the expected values
     assert_eq!(runtime.eventbus_capacity, 1024);
     assert_eq!(runtime.mailbox_capacity, 100);
@@ -245,44 +246,48 @@ fn test_default_config_preserves_all_defaults() {
 
 #[test]
 fn test_custom_eventbus_capacity_used() {
-    // GIVEN
+    // GIVEN a runtime section setting the event bus capacity
     let toml = r#"eventbus_capacity = 2048"#;
+    // WHEN it is parsed
     let cfg: RuntimeConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom capacity is read, and it passes the bounds check
     assert_eq!(cfg.eventbus_capacity, 2048);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_mailbox_capacity_used() {
-    // GIVEN
+    // GIVEN a runtime section setting the mailbox capacity
     let toml = r#"mailbox_capacity = 200"#;
+    // WHEN it is parsed
     let cfg: RuntimeConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom capacity is read, and it passes the bounds check
     assert_eq!(cfg.mailbox_capacity, 200);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_chain_timeout_used() {
-    // GIVEN
+    // GIVEN an A2A section setting the chain timeout
     let toml = r#"chain_timeout_secs = 600"#;
+    // WHEN it is parsed
     let cfg: A2AConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom timeout is read, and it passes the bounds check
     assert_eq!(cfg.chain_timeout_secs, 600);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_hitl_timeout_used() {
-    // GIVEN
+    // GIVEN a HITL section setting the pause timeout
     let toml = r#"timeout_hours = 48"#;
+    // WHEN it is parsed
     let cfg: HitlConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the timeout is read as set, and it passes the bounds check
     assert_eq!(cfg.timeout_hours, Some(48));
     cfg.validate().expect("valid bounds");
 }
@@ -292,6 +297,7 @@ fn test_hitl_no_timeout_by_default() {
     // GIVEN default config (no TOML)
     let cfg = HitlConfig::default();
 
+    // WHEN the timeout is read and the config validated
     // THEN timeout is None - tasks pause indefinitely
     assert_eq!(cfg.timeout_hours, None);
     cfg.validate().expect("default must be valid");
@@ -299,11 +305,12 @@ fn test_hitl_no_timeout_by_default() {
 
 #[test]
 fn test_hitl_explicit_none_timeout_valid() {
-    // GIVEN TOML without timeout_hours field
+    // GIVEN a HITL section that sets the scan interval and omits the timeout
     let toml = r#"scan_interval_secs = 120"#;
+    // WHEN it is parsed
     let cfg: HitlConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN timeout is None, scan interval is set
+    // THEN the timeout stays absent, the scan interval is the one set, and it validates
     assert_eq!(cfg.timeout_hours, None);
     assert_eq!(cfg.scan_interval_secs, 120);
     cfg.validate().expect("valid bounds");
@@ -311,22 +318,24 @@ fn test_hitl_explicit_none_timeout_valid() {
 
 #[test]
 fn test_custom_scan_interval_used() {
-    // GIVEN
+    // GIVEN a HITL section setting the scan interval
     let toml = r#"scan_interval_secs = 120"#;
+    // WHEN it is parsed
     let cfg: HitlConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom interval is read, and it passes the bounds check
     assert_eq!(cfg.scan_interval_secs, 120);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_unix_socket_used() {
-    // GIVEN - /tmp always exists
+    // GIVEN an API section pointing the socket at /tmp, a directory that always exists
     let toml = r#"unix_socket = "/tmp/custom-apollia.sock""#;
+    // WHEN it is parsed
     let cfg: ApiConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom path is read, and the parent-directory check passes
     assert_eq!(cfg.unix_socket, PathBuf::from("/tmp/custom-apollia.sock"));
     cfg.validate().expect("/tmp parent must exist");
 }
@@ -480,6 +489,7 @@ fn test_boundary_values_accepted() {
         scan_interval_secs: 3600,
     };
 
+    // WHEN each of them is validated
     // THEN all boundary values are accepted
     runtime_min.validate().expect("min RuntimeConfig valid");
     runtime_max.validate().expect("max RuntimeConfig valid");
@@ -500,6 +510,7 @@ fn test_default_oria_config_preserves_defaults() {
     // GIVEN no TOML for [oria]
     let cfg = ORIAConfig::default();
 
+    // WHEN its fields are read
     // THEN all defaults are the expected values
     assert_eq!(cfg.max_replans, 2);
     assert!((cfg.orchestrated_threshold - 0.40).abs() < f64::EPSILON);
@@ -516,33 +527,36 @@ fn test_default_oria_config_preserves_defaults() {
 
 #[test]
 fn test_custom_orchestrated_threshold_used() {
-    // GIVEN
+    // GIVEN an ORIA section setting the orchestrated threshold
     let toml = r#"orchestrated_threshold = 0.65"#;
+    // WHEN it is parsed
     let cfg: ORIAConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom threshold is read, and it passes the bounds check
     assert!((cfg.orchestrated_threshold - 0.65).abs() < f64::EPSILON);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_step_memory_max_chars_used() {
-    // GIVEN
+    // GIVEN an ORIA section setting the step-memory cap
     let toml = r#"step_memory_max_chars = 500"#;
+    // WHEN it is parsed
     let cfg: ORIAConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom cap is read, and it passes the bounds check
     assert_eq!(cfg.step_memory_max_chars, 500);
     cfg.validate().expect("valid bounds");
 }
 
 #[test]
 fn test_custom_budget_poll_ms_used() {
-    // GIVEN
+    // GIVEN an ORIA section setting the budget poll interval
     let toml = r#"budget_poll_ms = 200"#;
+    // WHEN it is parsed
     let cfg: ORIAConfig = toml::from_str(toml).expect("valid toml");
 
-    // THEN
+    // THEN the custom interval is read, and it passes the bounds check
     assert_eq!(cfg.budget_poll_ms, 200);
     cfg.validate().expect("valid bounds");
 }
@@ -657,6 +671,7 @@ fn test_oria_boundary_values_accepted() {
         ..ORIAConfig::default()
     };
 
+    // WHEN each of them is validated
     // THEN all boundary values are accepted
     oria_min.validate().expect("min ORIAConfig valid");
     oria_max.validate().expect("max ORIAConfig valid");
@@ -741,7 +756,8 @@ fn test_recent_verbatim_count_above_max_fails() {
 fn test_tools_config_default_values() {
     // GIVEN the default config
     let cfg = ToolsConfig::default();
-    // THEN
+    // WHEN the output cap is read and the config validated
+    // THEN the cap is the documented one, and the default passes validation
     assert_eq!(cfg.max_output_chars, 30_000);
     cfg.validate().expect("default ToolsConfig must be valid");
 }
@@ -799,8 +815,10 @@ fn test_tools_config_above_max_fails() {
 fn test_default_config_deserialization() {
     // GIVEN apollia.toml without [tools.web_search] / [tools.web_read]
     let toml = "";
+    // WHEN it is parsed as a tools config
     let cfg: ToolsConfig = toml::from_str(toml).expect("empty toml parses");
 
+    // THEN every web-search and web-read default is the documented one, and it validates
     assert_eq!(cfg.web_search.backend, WebSearchBackend::Auto);
     assert!(!cfg.web_search.require_configured);
     assert_eq!(cfg.web_search.brave.timeout_secs, 15);
@@ -821,7 +839,9 @@ fn test_disabled_tools_from_toml() {
     let toml = r#"
             disabled = ["bash_executor", "python_executor"]
         "#;
+    // WHEN it is parsed as a tools config
     let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");
+    // THEN both names land in the disabled list
     assert_eq!(cfg.disabled, vec!["bash_executor", "python_executor"]);
 }
 
@@ -837,7 +857,9 @@ fn test_backend_brave_only_config() {
             timeout_secs = 30
             max_results = 5
         "#;
+    // WHEN it is parsed as a tools config
     let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");
+    // THEN the backend, the gate and the two Brave settings are the ones declared, and it validates
     assert_eq!(cfg.web_search.backend, WebSearchBackend::Brave);
     assert!(cfg.web_search.require_configured);
     assert_eq!(cfg.web_search.brave.timeout_secs, 30);
@@ -847,12 +869,15 @@ fn test_backend_brave_only_config() {
 
 #[test]
 fn test_brave_max_results_out_of_bounds_fails() {
+    // GIVEN a Brave section asking for more results than the bound allows
     let toml = r#"
             [web_search.brave]
             max_results = 50
         "#;
+    // WHEN the parsed config is validated
     let cfg: ToolsConfig = toml::from_str(toml).expect("toml parses");
     let err = cfg.validate().expect_err("max_results=50 must fail");
+    // THEN validation fails, and the error names the offending key
     assert!(
         matches!(err, ConfigError::OutOfBounds { ref key, .. }
                 if key == "tools.web_search.brave.max_results"),

@@ -308,26 +308,35 @@ mod tests {
 
     #[test]
     fn test_event_datetime_from_utc_uses_utc_timezone() {
+        // GIVEN an instant in UTC
         let instant = Utc.with_ymd_and_hms(2026, 5, 12, 9, 0, 0).unwrap();
+        // WHEN a Graph event date-time is built from it
         let dt = EventDateTime::from_utc(instant);
+        // THEN the zone is UTC and the timestamp is carried over unshifted
         assert_eq!(dt.time_zone, "UTC");
         assert!(dt.date_time.starts_with("2026-05-12T09:00:00"));
     }
 
     #[test]
     fn test_build_list_url_without_filter_uses_events_endpoint() {
+        // GIVEN a filter carrying no time bound
+        // WHEN the list URL is built
         let url = build_list_url(&ListEventsFilter::default());
+        // THEN the plain events endpoint is used, not the calendar view
         assert!(url.ends_with("/me/events"));
         assert!(!url.contains("calendarView"));
     }
 
     #[test]
     fn test_build_list_url_with_bounds_uses_calendarview() {
+        // GIVEN a filter carrying both time bounds and a cap
+        // WHEN the list URL is built
         let url = build_list_url(&ListEventsFilter {
             start_after: Some(Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap()),
             end_before: Some(Utc.with_ymd_and_hms(2026, 5, 31, 23, 59, 59).unwrap()),
             top: Some(50),
         });
+        // THEN the calendar view endpoint is used, and the three parameters are on it
         assert!(url.contains("calendarView"));
         assert!(url.contains("startDateTime="));
         assert!(url.contains("endDateTime="));
@@ -336,6 +345,7 @@ mod tests {
 
     #[test]
     fn test_event_draft_serializes_with_graph_field_names() {
+        // GIVEN an event draft with a body, a location and an all-day flag
         let draft = EventDraft {
             subject: "Standup".into(),
             body: Some(EventBody {
@@ -356,7 +366,9 @@ mod tests {
             attendees: vec![],
             is_all_day: Some(false),
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&draft).expect("serialize");
+        // THEN every field goes out under the name Graph expects
         assert_eq!(json["subject"], "Standup");
         assert_eq!(json["start"]["timeZone"], "Europe/Paris");
         assert_eq!(json["location"]["displayName"], "Meet");

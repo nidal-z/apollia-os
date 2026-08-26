@@ -179,7 +179,8 @@ mod tests {
     fn test_observability_config_default_values() {
         // GIVEN the default config
         let config = ObservabilityConfig::default();
-        // THEN expected values
+        // WHEN its byte caps are read
+        // THEN the input, output and tool-output caps are the documented ones
         assert_eq!(config.max_input_bytes, 32_768);
         assert_eq!(config.max_output_bytes, 32_768);
         assert_eq!(config.max_tool_output_bytes, 10_240);

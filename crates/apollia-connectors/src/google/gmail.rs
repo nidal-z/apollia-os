@@ -275,6 +275,7 @@ mod tests {
 
     #[test]
     fn test_encode_rfc5322_includes_to_subject_body() {
+        // GIVEN a mail with no copy recipients
         let mail = ComposeMail {
             to: "alice@example.com".into(),
             cc: None,
@@ -282,10 +283,11 @@ mod tests {
             subject: "Hello".into(),
             body: "Body line.".into(),
         };
+        // WHEN it is encoded as RFC 5322, then decoded back
         let raw = encode_rfc5322(&mail);
-        // Decode and inspect
         let bytes = URL_SAFE_NO_PAD.decode(&raw).expect("decode");
         let text = String::from_utf8(bytes).expect("utf8");
+        // THEN the recipient, the subject and the body are there, and no Cc or Bcc header is
         assert!(text.contains("To: alice@example.com"));
         assert!(text.contains("Subject: Hello"));
         assert!(text.contains("Body line."));
@@ -295,6 +297,7 @@ mod tests {
 
     #[test]
     fn test_encode_rfc5322_includes_cc_and_bcc_when_set() {
+        // GIVEN a mail carrying a Cc and a Bcc
         let mail = ComposeMail {
             to: "to@example.com".into(),
             cc: Some("cc@example.com".into()),
@@ -302,9 +305,11 @@ mod tests {
             subject: "S".into(),
             body: "B".into(),
         };
+        // WHEN it is encoded as RFC 5322, then decoded back
         let raw = encode_rfc5322(&mail);
         let bytes = URL_SAFE_NO_PAD.decode(&raw).expect("decode");
         let text = String::from_utf8(bytes).expect("utf8");
+        // THEN both headers are present
         assert!(text.contains("Cc: cc@example.com"));
         assert!(text.contains("Bcc: bcc@example.com"));
     }
@@ -316,8 +321,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_gmail_client_constructs_from_http_client() {
-        // Sanity check that the client type wires up without panicking.
+        // GIVEN an HTTP client configured for the Google provider
         let http = HttpClient::new("google").expect("http");
+        // WHEN a Gmail client is built on it
+        // THEN the construction goes through rather than panicking
         let _client = GmailClient::new(http);
     }
 
@@ -326,6 +333,7 @@ mod tests {
     // GmailClient hard-codes the upstream URL.
     #[tokio::test]
     async fn test_send_request_uses_post_to_send_endpoint() {
+        // GIVEN a mock server answering a POST on the send endpoint, bearer token included
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/messages/send"))
@@ -337,7 +345,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        // Manually verify the wire shape using the helper directly.
+        // WHEN an encoded mail is posted through the JSON helper
         let http = HttpClient::new("google").expect("http");
         let url = format!("{}/messages/send", server.uri());
         let raw = encode_rfc5322(&ComposeMail {
@@ -360,6 +368,7 @@ mod tests {
             )
             .await
             .expect("send");
+        // THEN the mock matched the shape, and the parsed response carries the message id
         assert_eq!(response.id, "msg-1");
     }
 }

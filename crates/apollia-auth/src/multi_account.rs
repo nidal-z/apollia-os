@@ -371,6 +371,7 @@ mod tests {
             .insert("google".into(), vec!["only@example.com".into()]);
         storage.write_index(&index).expect("write index");
 
+        // WHEN that account is dropped from the index
         // Simulate the index-only side of delete (we cannot exercise the
         // keyring portion in unit tests reliably across platforms).
         let _guard = storage.index_lock.lock().await;
@@ -394,6 +395,9 @@ mod tests {
 
     #[test]
     fn test_keyring_service_naming_is_stable() {
+        // GIVEN the two connector providers
+        // WHEN each is mapped to its keyring service name
+        // THEN the names are the published ones: a rename strands the stored tokens
         assert_eq!(
             keyring_service(ConnectorProvider::Google),
             "apollia-connector-google"
@@ -406,14 +410,19 @@ mod tests {
 
     #[test]
     fn test_account_id_display_returns_raw_value() {
+        // GIVEN an account id built from an address
         let id = AccountId::new("nidal@example.com");
+        // WHEN it is displayed
+        // THEN the raw value comes out, neither masked nor wrapped
         assert_eq!(format!("{id}"), "nidal@example.com");
     }
 
     #[test]
     fn test_fixture_token_is_not_expired() {
-        // Sanity check the test fixture itself.
+        // GIVEN the token fixture the other tests of this module build on
         let token = fixture_token();
+        // WHEN its expiry and its refresh token are read
+        // THEN it is live and refreshable, so a red elsewhere is not the fixture
         assert!(!token.is_expired());
         assert!(token.refresh_token.is_some());
     }

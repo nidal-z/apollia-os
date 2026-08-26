@@ -573,11 +573,14 @@ mod tests {
 
     #[test]
     fn parses_daily_morning_french() {
+        // GIVEN a French phrase asking for a daily morning run, naming an agent and a task
+        // WHEN it is parsed into an automation
         let r = parse_automation(
             "Tous les matins à 8 h, demande à spec-assistant de résumer mes specs",
             now(),
             &agents(),
         );
+        // THEN the cron fires daily at eight, the agent is matched, and confidence is high
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 8 * * *"),
             _ => panic!("expected cron"),
@@ -588,11 +591,14 @@ mod tests {
 
     #[test]
     fn parses_daily_morning_english() {
+        // GIVEN the same request written in English
+        // WHEN it is parsed into an automation
         let r = parse_automation(
             "Every morning at 8am, ask dev-assistant to review PRs",
             now(),
             &agents(),
         );
+        // THEN the cron fires daily at eight, and the named agent is matched
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 8 * * *"),
             _ => panic!("expected cron"),
@@ -602,11 +608,14 @@ mod tests {
 
     #[test]
     fn parses_every_monday() {
+        // GIVEN a French phrase asking for a weekly Monday run
+        // WHEN it is parsed into an automation
         let r = parse_automation(
             "Chaque lundi à 9 h, review-assistant fait un point d'équipe",
             now(),
             &agents(),
         );
+        // THEN the cron fires on Mondays at nine
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 9 * * 1"),
             _ => panic!("expected cron"),
@@ -615,7 +624,10 @@ mod tests {
 
     #[test]
     fn parses_interval_five_minutes_fr() {
+        // GIVEN a French phrase asking for a five-minute interval
+        // WHEN it is parsed into an automation
         let r = parse_automation("toutes les 5 minutes", now(), &agents());
+        // THEN the interval is read as five minutes, in both the label and the seconds
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Interval {
                 every,
@@ -631,7 +643,10 @@ mod tests {
 
     #[test]
     fn parses_interval_two_hours_en() {
+        // GIVEN an English phrase asking for a two-hour interval, naming an agent
+        // WHEN it is parsed into an automation
         let r = parse_automation("every 2 hours, run document-assistant", now(), &agents());
+        // THEN the interval is read in seconds, and the agent is matched
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Interval { every_seconds, .. } => assert_eq!(*every_seconds, 7200),
             _ => panic!("expected interval"),
@@ -641,7 +656,10 @@ mod tests {
 
     #[test]
     fn parses_noon_fr() {
+        // GIVEN a French phrase naming noon rather than an hour
+        // WHEN it is parsed into an automation
         let r = parse_automation("Tous les jours à midi", now(), &[]);
+        // THEN the cron fires daily at twelve
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 12 * * *"),
             _ => panic!("expected cron"),
@@ -650,7 +668,10 @@ mod tests {
 
     #[test]
     fn parses_evening_en() {
+        // GIVEN an English phrase naming an evening hour
+        // WHEN it is parsed into an automation
         let r = parse_automation("every evening at 8pm", now(), &[]);
+        // THEN the cron fires daily at twenty
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 20 * * *"),
             _ => panic!("expected cron"),
@@ -659,7 +680,10 @@ mod tests {
 
     #[test]
     fn parses_midnight_fr() {
+        // GIVEN a French phrase naming midnight
+        // WHEN it is parsed into an automation
         let r = parse_automation("tous les jours à minuit", now(), &[]);
+        // THEN the cron fires daily at zero
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 0 * * *"),
             _ => panic!("expected cron"),
@@ -668,7 +692,10 @@ mod tests {
 
     #[test]
     fn parses_hh_mm_fr() {
+        // GIVEN a French phrase carrying a weekday and an hour with minutes
+        // WHEN it is parsed into an automation
         let r = parse_automation("chaque vendredi à 18h30", now(), &[]);
+        // THEN the cron fires on Fridays at half past six
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "30 18 * * 5"),
             _ => panic!("expected cron"),
@@ -677,7 +704,10 @@ mod tests {
 
     #[test]
     fn parses_every_sunday() {
+        // GIVEN an English phrase carrying a weekday and a colon-separated hour
+        // WHEN it is parsed into an automation
         let r = parse_automation("every sunday at 7:00", now(), &[]);
+        // THEN the cron fires on Sundays at seven
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { expr, .. } => assert_eq!(expr, "0 7 * * 0"),
             _ => panic!("expected cron"),
@@ -686,7 +716,10 @@ mod tests {
 
     #[test]
     fn missing_schedule_triggers_low_confidence() {
+        // GIVEN a phrase carrying no schedule at all
+        // WHEN it is parsed into an automation
         let r = parse_automation("do something useful", now(), &agents());
+        // THEN no schedule is parsed, confidence drops to low, and an ambiguity is raised
         assert!(r.schedule.is_none());
         assert_eq!(r.confidence, Confidence::Low);
         assert!(!r.ambiguities.is_empty());
@@ -694,7 +727,10 @@ mod tests {
 
     #[test]
     fn unknown_agent_flags_ambiguity() {
+        // GIVEN a phrase carrying a schedule but naming no known agent
+        // WHEN it is parsed into an automation
         let r = parse_automation("tous les jours à 8 h, ping the fridge", now(), &agents());
+        // THEN the schedule is parsed, the agent is not, and the ambiguity is raised
         assert!(r.schedule.is_some());
         assert!(r.agent.is_none());
         assert_eq!(r.confidence, Confidence::Medium);
@@ -703,23 +739,32 @@ mod tests {
 
     #[test]
     fn payload_extracted_after_de() {
+        // GIVEN a French phrase whose task follows the preposition
+        // WHEN it is parsed into an automation
         let r = parse_automation(
             "Tous les matins à 8 h, demande à spec-assistant de résumer mes specs",
             now(),
             &agents(),
         );
+        // THEN the task text is carried into the payload
         assert!(r.payload.as_deref().unwrap().contains("résumer"));
     }
 
     #[test]
     fn agent_matched_case_insensitive() {
+        // GIVEN a phrase naming a known agent in upper case
+        // WHEN it is parsed into an automation
         let r = parse_automation("every day at 9, SPEC-ASSISTANT runs", now(), &agents());
+        // THEN the agent is matched all the same
         assert_eq!(r.agent.as_ref().unwrap().agent_id, "spec-assistant");
     }
 
     #[test]
     fn interval_one_minute_fr() {
+        // GIVEN a French phrase asking for a one-minute interval, with no number spelled out
+        // WHEN it is parsed into an automation
         let r = parse_automation("toutes les minutes", now(), &[]);
+        // THEN the interval is read as sixty seconds
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Interval { every_seconds, .. } => assert_eq!(*every_seconds, 60),
             _ => panic!("expected interval"),
@@ -728,7 +773,10 @@ mod tests {
 
     #[test]
     fn next_run_in_future() {
+        // GIVEN a daily phrase parsed at a known instant
+        // WHEN it is parsed into an automation
         let r = parse_automation("tous les jours à 8 h", now(), &[]);
+        // THEN the next run is computed after that instant, never before it
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { next_run_at, .. } => assert!(*next_run_at > now()),
             _ => panic!("expected cron"),
@@ -737,7 +785,10 @@ mod tests {
 
     #[test]
     fn human_label_fr_contains_hour() {
+        // GIVEN a French daily phrase
+        // WHEN it is parsed into an automation
         let r = parse_automation("tous les jours à 8 h", now(), &[]);
+        // THEN the French label states the hour in a readable form
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { human_label_fr, .. } => {
                 assert!(human_label_fr.contains("08:00"))
@@ -748,7 +799,10 @@ mod tests {
 
     #[test]
     fn human_label_en_daily() {
+        // GIVEN an English daily phrase
+        // WHEN it is parsed into an automation
         let r = parse_automation("every day at 9", now(), &[]);
+        // THEN the English label opens on the daily wording
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Cron { human_label_en, .. } => {
                 assert!(human_label_en.starts_with("Every day"))
@@ -759,7 +813,10 @@ mod tests {
 
     #[test]
     fn interval_hours_plural_en() {
+        // GIVEN an English phrase asking for a three-hour interval
+        // WHEN it is parsed into an automation
         let r = parse_automation("every 3 hours", now(), &[]);
+        // THEN the English label carries the plural form
         match r.schedule.as_ref().unwrap() {
             ParsedSchedule::Interval { human_label_en, .. } => {
                 assert!(human_label_en.contains("3 hours"))
@@ -770,7 +827,10 @@ mod tests {
 
     #[test]
     fn high_confidence_requires_schedule_and_agent() {
+        // GIVEN a phrase carrying both a schedule and a known agent
+        // WHEN it is parsed into an automation
         let r = parse_automation("chaque lundi à 9h, spec-assistant résume", now(), &agents());
+        // THEN confidence is high, both halves having been resolved
         assert_eq!(r.confidence, Confidence::High);
     }
 }

@@ -579,6 +579,7 @@ mod tests {
 
     #[test]
     fn parse_three_valid_steps() {
+        // GIVEN a model answer holding three well-formed steps, invoke and navigate mixed
         let raw = r#"{"steps":[
             {"title":"Enregistrer conclusions","description":"Capture en mémoire.",
              "action_button":{"label":"Mémoire","action":"invoke","payload":{"command":"memory_insert"}}},
@@ -587,7 +588,9 @@ mod tests {
             {"title":"Installer Review","description":"Assistant spécialisé.",
              "action_button":{"label":"Templates","action":"navigate","payload":{"route":"/templates?filter=agents"}}}
         ]}"#;
+        // WHEN it is parsed
         let steps = parse_steps(raw).expect("parse");
+        // THEN the three come back, the first slugified and typed as an invocation
         assert_eq!(steps.len(), 3);
         assert_eq!(steps[0].id, "enregistrer-conclusions");
         assert!(matches!(
@@ -598,60 +601,78 @@ mod tests {
 
     #[test]
     fn parse_rejects_unknown_route() {
+        // GIVEN a step pointing at a route the allow-list does not carry
         let raw = r#"{"steps":[
             {"title":"Bad","description":"nope",
              "action_button":{"label":"X","action":"navigate","payload":{"route":"/evil"}}}
         ]}"#;
+        // WHEN it is parsed
         let err = parse_steps(raw).unwrap_err();
+        // THEN nothing survives the filter, and the parse reports an empty response
         assert!(matches!(err, NextStepsError::EmptyResponse));
     }
 
     #[test]
     fn parse_rejects_unknown_command() {
+        // GIVEN a step invoking a command the allow-list does not carry
         let raw = r#"{"steps":[
             {"title":"Bad","description":"nope",
              "action_button":{"label":"X","action":"invoke","payload":{"command":"rm_rf"}}}
         ]}"#;
+        // WHEN it is parsed
+        // THEN the parse fails rather than letting the command through
         assert!(parse_steps(raw).is_err());
     }
 
     #[test]
     fn parse_caps_at_three() {
+        // GIVEN a model answer holding four valid steps
         let raw = r#"{"steps":[
             {"title":"a","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/inbox"}}},
             {"title":"b","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/agents"}}},
             {"title":"c","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/chat"}}},
             {"title":"d","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/tasks"}}}
         ]}"#;
+        // WHEN it is parsed
         let steps = parse_steps(raw).expect("parse");
+        // THEN only three survive the cap
         assert_eq!(steps.len(), 3);
     }
 
     #[test]
     fn parse_extracts_json_from_fence_decorated_output() {
+        // GIVEN a model answer wrapped in a fenced code block
         let raw = "```json\n{\"steps\":[\
             {\"title\":\"Ouvrir mémoire\",\"description\":\"…\",\
             \"action_button\":{\"label\":\"Go\",\"action\":\"navigate\",\"payload\":{\"route\":\"/memory\"}}}\
         ]}\n```";
+        // WHEN it is parsed
         let steps = parse_steps(raw).expect("parse");
+        // THEN the fence is stripped and the step inside is read
         assert_eq!(steps.len(), 1);
     }
 
     #[test]
     fn fallback_always_yields_capped_non_empty_steps() {
+        // GIVEN a default next-steps request
         let req = NextStepsRequest::default();
+        // WHEN the heuristic fallback runs
         let steps = heuristic_fallback(&req);
+        // THEN it yields at least one step, and never more than the cap
         assert!(!steps.is_empty());
         assert!(steps.len() <= MAX_NEXT_STEPS);
     }
 
     #[test]
     fn fallback_builder_mode_includes_observability_hint() {
+        // GIVEN a request in builder mode
         let req = NextStepsRequest {
             mode: NextStepsMode::Builder,
             ..Default::default()
         };
+        // WHEN the heuristic fallback runs
         let steps = heuristic_fallback(&req);
+        // THEN one of the steps points the builder at an observability surface
         assert!(steps
             .iter()
             .any(|s| s.id == "view-logs" || s.id == "ask-apollia"));
@@ -659,6 +680,9 @@ mod tests {
 
     #[test]
     fn slugify_is_ascii_and_hyphenated() {
+        // GIVEN an accented title carrying punctuation, and an empty one
+        // WHEN each is slugified
+        // THEN the first turns ascii and hyphenated, the second falls back on a fixed name
         assert_eq!(
             slugify("Enregistrer les conclusions !"),
             "enregistrer-les-conclusions"
@@ -668,6 +692,7 @@ mod tests {
 
     #[test]
     fn prompt_includes_allowed_routes_and_facts() {
+        // GIVEN an operator request carrying session facts
         let req = NextStepsRequest {
             mode: NextStepsMode::Operator,
             context: NextStepsContext::GlobalContext,
@@ -677,7 +702,9 @@ mod tests {
                 ..Default::default()
             },
         };
+        // WHEN the system prompt is built
         let prompt = build_system_prompt(&req);
+        // THEN it carries the allowed routes and the facts the model has to work from
         assert!(prompt.contains("/automations?wizard=open"));
         assert!(prompt.contains("memories_created: 2"));
         assert!(prompt.contains("web_search"));

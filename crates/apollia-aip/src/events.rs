@@ -265,14 +265,17 @@ mod tests {
     #[test]
     fn test_emit_action_parse_error_maps_fields() {
         pyo3::prepare_freethreaded_python();
+        // GIVEN an events interface bound to a bus and a task
         let (tx, mut rx) = make_bus(16);
         let task_id = TaskId::from("task-7".to_string());
         let iface = EventsInterface::new(Some(tx), Some(task_id), AgentId::new_v4(), None, None);
 
+        // WHEN a parse error is emitted for step 5
         iface
             .emit_action_parse_error(5, "{ broken".to_string(), true)
             .expect("emit_action_parse_error");
 
+        // THEN the bus carries the step number, the raw content and the repair flag
         let evt = rx.try_recv().expect("event on bus");
         match evt {
             RuntimeEvent::ActionParseError {
@@ -293,8 +296,10 @@ mod tests {
     #[test]
     fn test_emit_thought_noop_without_bus() {
         pyo3::prepare_freethreaded_python();
+        // GIVEN an events interface with no bus attached
         let iface = EventsInterface::new(None, None, AgentId::new_v4(), None, None);
-        // Just verify it doesn't error; tracing fallback covers stderr.
+        // WHEN a thought is emitted
+        // THEN the call succeeds as a silent no-op, the tracing fallback carrying it
         iface
             .emit_thought("anything".to_string(), 1)
             .expect("noop should succeed");

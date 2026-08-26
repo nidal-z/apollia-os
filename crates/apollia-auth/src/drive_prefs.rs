@@ -463,6 +463,9 @@ mod tests {
 
     #[test]
     fn sanitise_strips_leading_trailing_slashes_and_whitespace() {
+        // GIVEN folder paths carrying stray slashes and whitespace
+        // WHEN each is sanitised
+        // THEN the slashes and the whitespace are gone, and a bare name is left alone
         assert_eq!(
             sanitize_folder_path("  /Documents/  Apollia/ "),
             "Documents/Apollia"
@@ -474,6 +477,9 @@ mod tests {
 
     #[test]
     fn segments_split_correctly() {
+        // GIVEN a two-segment path, an empty one and a single name
+        // WHEN each is split into segments
+        // THEN the two-segment path splits in two, and the empty one yields nothing
         assert_eq!(segments("Documents/Apollia"), vec!["Documents", "Apollia"]);
         assert_eq!(segments(""), Vec::<String>::new());
         assert_eq!(segments("Apollia"), vec!["Apollia"]);
@@ -481,7 +487,10 @@ mod tests {
 
     #[test]
     fn missing_file_falls_back_to_default() {
+        // GIVEN a preferences file that does not exist
         let (_dir, path) = tmp();
+        // WHEN the folder path is looked up for an account
+        // THEN nothing is stored, and the caller falls back on the default root
         assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
         // effective_* uses the default lookup but in this test the home is
         // not overridden; call only the explicit-path lookup.
@@ -492,9 +501,12 @@ mod tests {
 
     #[test]
     fn round_trips_per_account() {
+        // GIVEN two accounts of the same provider
         let (_dir, path) = tmp();
+        // WHEN a distinct folder path is stored for each
         set_folder_path_at(&path, "google", "nidal@x", "Documents/Apollia").unwrap();
         set_folder_path_at(&path, "google", "other@x", "Travail/AI").unwrap();
+        // THEN each account reads back its own
         assert_eq!(
             lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
             Some("Documents/Apollia")
@@ -544,32 +556,42 @@ mod tests {
 
     #[test]
     fn reset_drops_section_when_no_picked_folders_remain() {
+        // GIVEN an account with a stored folder path and no picked folder
         let (_dir, path) = tmp();
         set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();
+        // WHEN the folder path is reset
         reset_folder_path_at(&path, "google", "nidal@x").unwrap();
+        // THEN the whole section goes: the lookup and the picked list are both empty
         assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
         assert!(list_picked_folders_at(&path, "google", "nidal@x").is_empty());
     }
 
     #[test]
     fn malformed_file_surfaces_error() {
+        // GIVEN a preferences file holding invalid TOML
         let (_dir, path) = tmp();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "not = valid = toml = here\n").unwrap();
+        // WHEN it is loaded
         let err = load_from(&path).expect_err("malformed TOML must surface");
+        // THEN the load fails with InvalidData rather than falling back on defaults
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]
     fn unknown_provider_rejected() {
+        // GIVEN a provider name the file format does not define
         let (_dir, path) = tmp();
+        // WHEN a folder path is stored under it
         let err = set_folder_path_at(&path, "linear", "x", "y").unwrap_err();
+        // THEN the write is refused with InvalidInput
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 
     #[test]
     fn picked_folders_round_trip_per_account() {
         let (_dir, path) = tmp();
+        // GIVEN two picked folders with distinct ids
         let f1 = PickedFolder {
             format_version: 1,
             id: "id-1".into(),
@@ -582,9 +604,11 @@ mod tests {
             name: "Travail".into(),
             mime_type: default_folder_mime(),
         };
+        // WHEN both are added to the same account
         add_picked_folder_at(&path, "google", "nidal@x", f1.clone()).unwrap();
         add_picked_folder_at(&path, "google", "nidal@x", f2.clone()).unwrap();
 
+        // THEN both come back from the list
         let listed = list_picked_folders_at(&path, "google", "nidal@x");
         assert_eq!(listed.len(), 2);
         assert!(listed.contains(&f1));
@@ -594,6 +618,7 @@ mod tests {
     #[test]
     fn picked_folders_dedupe_by_id() {
         let (_dir, path) = tmp();
+        // GIVEN a picked folder already stored for the account
         let f = PickedFolder {
             format_version: 1,
             id: "id-1".into(),
@@ -601,6 +626,7 @@ mod tests {
             mime_type: default_folder_mime(),
         };
         add_picked_folder_at(&path, "google", "nidal@x", f).unwrap();
+        // WHEN the same id is added again under another name
         let renamed = PickedFolder {
             format_version: 1,
             id: "id-1".into(),
@@ -609,6 +635,7 @@ mod tests {
         };
         add_picked_folder_at(&path, "google", "nidal@x", renamed).unwrap();
 
+        // THEN the entry is replaced rather than duplicated
         let listed = list_picked_folders_at(&path, "google", "nidal@x");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].name, "New");
@@ -616,13 +643,17 @@ mod tests {
 
     #[test]
     fn picked_folder_remove_is_noop_when_absent() {
+        // GIVEN an account with no picked folder at all
         let (_dir, path) = tmp();
+        // WHEN an unknown id is removed
+        // THEN the call succeeds instead of failing on the absence
         assert!(remove_picked_folder_at(&path, "google", "nidal@x", "unknown").is_ok());
     }
 
     #[test]
     fn picked_folder_remove_keeps_others() {
         let (_dir, path) = tmp();
+        // GIVEN two picked folders stored for one account
         let f1 = PickedFolder {
             format_version: 1,
             id: "a".into(),
@@ -637,16 +668,20 @@ mod tests {
         };
         add_picked_folder_at(&path, "google", "nidal@x", f1).unwrap();
         add_picked_folder_at(&path, "google", "nidal@x", f2.clone()).unwrap();
+        // WHEN one of them is removed by id
         remove_picked_folder_at(&path, "google", "nidal@x", "a").unwrap();
 
+        // THEN only the other one remains
         let listed = list_picked_folders_at(&path, "google", "nidal@x");
         assert_eq!(listed, vec![f2]);
     }
 
     #[test]
     fn picked_folders_coexist_with_folder_path() {
+        // GIVEN an account with a stored folder path
         let (_dir, path) = tmp();
         set_folder_path_at(&path, "google", "nidal@x", "Documents/Apollia").unwrap();
+        // WHEN a picked folder is added on top of it
         let f = PickedFolder {
             format_version: 1,
             id: "id-1".into(),
@@ -655,6 +690,7 @@ mod tests {
         };
         add_picked_folder_at(&path, "google", "nidal@x", f.clone()).unwrap();
 
+        // THEN the two live side by side, neither overwriting the other
         assert_eq!(
             lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
             Some("Documents/Apollia")
@@ -664,8 +700,11 @@ mod tests {
 
     #[test]
     fn input_paths_are_sanitised_on_write() {
+        // GIVEN a folder path carrying whitespace and a doubled slash
         let (_dir, path) = tmp();
+        // WHEN it is stored for an account
         set_folder_path_at(&path, "google", "nidal@x", "  /Documents//Apollia/ ").unwrap();
+        // THEN what comes back is the sanitised form
         assert_eq!(
             lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
             Some("Documents/Apollia")

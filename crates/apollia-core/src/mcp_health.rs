@@ -149,8 +149,9 @@ mod tests {
 
     #[test]
     fn is_ok_only_for_healthy() {
-        // GIVEN healthy regardless of verified
-        // THEN is_ok holds, and not for the others
+        // GIVEN the healthy state, verified or not, and the reauth state
+        // WHEN each is asked whether it is ok
+        // THEN only the healthy ones answer yes, verification aside
         assert!(McpHealth::Healthy { verified: false }.is_ok());
         assert!(McpHealth::Healthy { verified: true }.is_ok());
         assert!(!McpHealth::NeedsReauth { reason: "x".into() }.is_ok());

@@ -868,6 +868,7 @@ mod tests {
     fn test_py_dict_to_chat_message_unknown_block_type() {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
+            // GIVEN a message dict whose only content block declares an unknown type
             let dict = pyo3::types::PyDict::new(py);
             dict.set_item("role", "user").unwrap();
             let bogus = pyo3::types::PyDict::new(py);
@@ -875,7 +876,9 @@ mod tests {
             let parts = pyo3::types::PyList::new(py, &[bogus]).unwrap();
             dict.set_item("content", parts).unwrap();
 
+            // WHEN it is converted to a chat message
             let result = py_dict_to_chat_message(py, &dict.into());
+            // THEN the conversion fails and the error names the unknown block type
             assert!(result.is_err());
             let err = result.unwrap_err();
             assert!(err.to_string().contains("unknown content block type"));

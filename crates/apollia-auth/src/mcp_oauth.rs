@@ -466,8 +466,11 @@ mod tests {
 
     #[test]
     fn test_parse_www_authenticate_extracts_resource_metadata() {
+        // GIVEN a Bearer challenge naming a resource metadata URL and a scope
         let header = r#"Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource", scope="read write""#;
+        // WHEN the header is parsed
         let parsed = parse_www_authenticate(header).expect("parsed");
+        // THEN both fields come back unquoted
         assert_eq!(
             parsed.resource_metadata.as_deref(),
             Some("https://example.com/.well-known/oauth-protected-resource")
@@ -477,13 +480,19 @@ mod tests {
 
     #[test]
     fn test_parse_www_authenticate_returns_none_for_non_bearer() {
+        // GIVEN a challenge announcing a scheme other than Bearer
+        // WHEN the header is parsed
+        // THEN nothing is parsed out of it
         assert!(parse_www_authenticate("Basic realm=foo").is_none());
     }
 
     #[test]
     fn test_parse_www_authenticate_handles_unquoted_values() {
+        // GIVEN a Bearer challenge whose value carries no quotes
         let header = "Bearer resource_metadata=https://example.com/foo";
+        // WHEN the header is parsed
         let parsed = parse_www_authenticate(header).expect("parsed");
+        // THEN the value is read all the same
         assert_eq!(
             parsed.resource_metadata.as_deref(),
             Some("https://example.com/foo")
@@ -492,12 +501,16 @@ mod tests {
 
     #[test]
     fn test_parse_www_authenticate_case_insensitive_scheme() {
+        // GIVEN a challenge whose scheme is spelled in lower case
         let header = "bearer resource_metadata=https://x";
+        // WHEN the header is parsed
+        // THEN it is recognised, the scheme being case insensitive
         assert!(parse_www_authenticate(header).is_some());
     }
 
     #[test]
     fn test_as_metadata_supports_pkce_s256_required() {
+        // GIVEN server metadata announcing both plain and S256 challenges
         let meta = AuthorizationServerMetadata {
             authorization_endpoint: "x".into(),
             token_endpoint: "x".into(),
@@ -507,11 +520,14 @@ mod tests {
             issuer: None,
             client_id_metadata_document_supported: None,
         };
+        // WHEN PKCE support is evaluated
+        // THEN S256 is supported
         assert!(meta.supports_pkce_s256());
     }
 
     #[test]
     fn test_as_metadata_rejects_when_only_plain_supported() {
+        // GIVEN server metadata announcing plain challenges only
         let meta = AuthorizationServerMetadata {
             authorization_endpoint: "x".into(),
             token_endpoint: "x".into(),
@@ -521,12 +537,17 @@ mod tests {
             issuer: None,
             client_id_metadata_document_supported: None,
         };
+        // WHEN PKCE support is evaluated
+        // THEN S256 is not supported, so the flow must not start
         assert!(!meta.supports_pkce_s256());
     }
 
     #[test]
     fn test_as_metadata_candidates_includes_path_variants_when_path_present() {
+        // GIVEN an issuer URL carrying a path
+        // WHEN the metadata candidates are built
         let urls = as_metadata_candidates("https://example.com/foo/bar");
+        // THEN the path-aware forms come first, the path-stripped ones after
         // Path-aware candidates first
         assert_eq!(
             urls[0],
@@ -548,7 +569,10 @@ mod tests {
 
     #[test]
     fn test_as_metadata_candidates_root_issuer_yields_two_urls() {
+        // GIVEN an issuer URL with no path at all
+        // WHEN the metadata candidates are built
         let urls = as_metadata_candidates("https://example.com");
+        // THEN only the two well-known roots are tried
         assert_eq!(urls.len(), 2);
         assert!(urls
             .iter()
@@ -558,6 +582,9 @@ mod tests {
 
     #[test]
     fn test_canonical_resource_uri_strips_trailing_slash() {
+        // GIVEN resource URIs with a trailing slash, without one, and padded with spaces
+        // WHEN each is canonicalised
+        // THEN the trailing slash and the padding are gone, the rest untouched
         assert_eq!(
             canonical_resource_uri("https://x.com/api/"),
             "https://x.com/api"
@@ -571,6 +598,9 @@ mod tests {
 
     #[test]
     fn test_apollia_cimd_constants_are_stable() {
+        // GIVEN the client identity document the runtime publishes
+        // WHEN its fields are read
+        // THEN the name, the auth method, the grant types and the response type are the declared ones
         assert_eq!(APOLLIA_CIMD.client_name, "Apollia OS");
         assert_eq!(APOLLIA_CIMD.token_endpoint_auth_method, "none");
         assert!(APOLLIA_CIMD.grant_types.contains(&"authorization_code"));
@@ -580,7 +610,10 @@ mod tests {
 
     #[test]
     fn test_dcr_request_for_callback_carries_runtime_redirect_uri() {
+        // GIVEN the loopback callback URL the runtime listens on
+        // WHEN a dynamic registration request is built for it
         let req = DcrRequest::for_callback("http://127.0.0.1:54321/oauth/callback");
+        // THEN the request declares no client secret and carries that single redirect URI
         assert_eq!(req.token_endpoint_auth_method, "none");
         assert_eq!(req.redirect_uris.len(), 1);
         assert!(req.redirect_uris[0].contains("54321"));

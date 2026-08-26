@@ -312,10 +312,13 @@ mod tests {
 
     #[test]
     fn round_trip_persists_per_provider() {
+        // GIVEN an empty client file
         let (_dir, path) = tmp_path();
+        // WHEN a client id is stored for each of the two providers
         set_client_id_at(&path, "google", "google-id-123").unwrap();
         set_client_id_at(&path, "microsoft", "ms-id-456").unwrap();
 
+        // THEN each provider reads back its own
         assert_eq!(
             lookup_client_id_at(&path, "google").as_deref(),
             Some("google-id-123")
@@ -328,11 +331,14 @@ mod tests {
 
     #[test]
     fn updating_one_provider_preserves_the_other() {
+        // GIVEN a client file holding an id for each of the two providers
         let (_dir, path) = tmp_path();
         set_client_id_at(&path, "google", "google-original").unwrap();
         set_client_id_at(&path, "microsoft", "ms-original").unwrap();
+        // WHEN one of them is overwritten
         set_client_id_at(&path, "google", "google-updated").unwrap();
 
+        // THEN that one changes and the other is left untouched
         assert_eq!(
             lookup_client_id_at(&path, "google").as_deref(),
             Some("google-updated")
@@ -345,25 +351,33 @@ mod tests {
 
     #[test]
     fn empty_client_id_is_treated_as_no_override() {
+        // GIVEN an empty client file
         let (_dir, path) = tmp_path();
+        // WHEN an empty client id is stored
         set_client_id_at(&path, "google", "").unwrap();
+        // THEN the lookup reports no override rather than an empty one
         assert_eq!(lookup_client_id_at(&path, "google"), None);
     }
 
     #[test]
     fn unknown_provider_rejected_on_write() {
+        // GIVEN a provider name the file format does not define
         let (_dir, path) = tmp_path();
+        // WHEN a client id is stored under it
         let err = set_client_id_at(&path, "github", "x").unwrap_err();
+        // THEN the write is refused with InvalidInput
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 
     #[test]
     fn client_secret_round_trips_per_provider() {
+        // GIVEN a provider carrying both a client id and a client secret
         let (_dir, path) = tmp_path();
         set_client_id_at(&path, "google", "google-id-123").unwrap();
         set_client_secret_at(&path, "google", "GOCSPX-secret").unwrap();
 
-        // Both fields readable, independent
+        // WHEN both are read, then the id alone is overwritten
+        // THEN the two fields are independent, and the secret survives the id change
         assert_eq!(
             lookup_client_id_at(&path, "google").as_deref(),
             Some("google-id-123")
@@ -373,7 +387,6 @@ mod tests {
             Some("GOCSPX-secret")
         );
 
-        // Updating client_id alone preserves the secret
         set_client_id_at(&path, "google", "google-id-456").unwrap();
         assert_eq!(
             lookup_client_secret_at(&path, "google").as_deref(),
@@ -383,17 +396,23 @@ mod tests {
 
     #[test]
     fn empty_client_secret_is_treated_as_no_override() {
+        // GIVEN an empty client file
         let (_dir, path) = tmp_path();
+        // WHEN an empty client secret is stored
         set_client_secret_at(&path, "google", "").unwrap();
+        // THEN the lookup reports no override rather than an empty one
         assert_eq!(lookup_client_secret_at(&path, "google"), None);
     }
 
     #[test]
     fn malformed_file_surfaces_error() {
+        // GIVEN a client file holding invalid TOML
         let (_dir, path) = tmp_path();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "this is not = valid = toml = at all\n").unwrap();
+        // WHEN it is loaded
         let err = load_from(&path).expect_err("malformed TOML must surface an error");
+        // THEN the load fails with InvalidData rather than falling back on defaults
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 }

@@ -137,29 +137,40 @@ mod tests {
 
     #[test]
     fn test_get_without_store_returns_none() {
+        // GIVEN a secrets interface declaring a key but backed by no store
         let s = SecretsInterface::new(None, vec!["API_KEY".to_string()]);
+        // WHEN the declared key is read
         let v = s.get("API_KEY").expect("get should not raise");
+        // THEN the read succeeds and yields nothing
         assert!(v.is_none(), "no store -> None");
     }
 
     #[test]
     fn test_undeclared_key_returns_none() {
+        // GIVEN a secrets interface declaring API_KEY and nothing else
         let s = SecretsInterface::new(None, vec!["API_KEY".to_string()]);
-        // A secret that exists in the database but is undeclared: always None.
+        // WHEN a key the agent never declared is read
         let v = s.get("OTHER_KEY").expect("get");
+        // THEN it yields nothing, whatever the database holds
         assert!(v.is_none(), "undeclared keys are invisible");
     }
 
     #[test]
     fn test_has_mirrors_get() {
+        // GIVEN a secrets interface declaring API_KEY and backed by no store
         let s = SecretsInterface::new(None, vec!["API_KEY".to_string()]);
+        // WHEN presence is asked for the declared key and for an undeclared one
+        // THEN both answer false, exactly as get() does
         assert!(!s.has("API_KEY").expect("has"));
         assert!(!s.has("UNKNOWN").expect("has"));
     }
 
     #[test]
     fn test_list_names_returns_declared() {
+        // GIVEN a secrets interface declaring two keys
         let s = SecretsInterface::new(None, vec!["A".to_string(), "B".to_string()]);
+        // WHEN the declared names are listed
+        // THEN both come back, in declaration order
         assert_eq!(s.list_names(), vec!["A", "B"]);
     }
 
@@ -217,8 +228,8 @@ mod tests {
     /// `has()` returns false for a declared key that is absent from the store.
     #[test]
     fn test_has_false_when_declared_but_missing_in_store() {
+        // GIVEN an empty credential store and an interface declaring api_key
         let tmp = tempfile::tempdir().expect("tempdir");
-        // store opened (empty).
         let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
         let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
         let kf = tmp.path().join(".keyfile");
@@ -227,6 +238,8 @@ mod tests {
             Some(Arc::new(Mutex::new(store))),
             vec!["api_key".to_string()],
         );
+        // WHEN presence is asked for the declared key
+        // THEN it answers false: declaring a key does not create it
         assert!(!iface.has("api_key").expect("has"));
     }
 
@@ -236,6 +249,7 @@ mod tests {
     /// `"agent"` namespace.
     #[test]
     fn test_with_namespace_isolates_secrets() {
+        // GIVEN a store holding brave_api_key under the `agent::veille-ia` namespace
         let tmp = tempfile::tempdir().expect("tempdir");
         let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
         let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
@@ -246,11 +260,13 @@ mod tests {
             .expect("set scoped");
         let shared = Arc::new(Mutex::new(store));
 
+        // WHEN the key is read from the default namespace, then from the scoped one
         // Default "agent" namespace: sees nothing.
         let default_iface =
             SecretsInterface::new(Some(shared.clone()), vec!["brave_api_key".to_string()]);
         assert_eq!(default_iface.get("brave_api_key").expect("get"), None);
 
+        // THEN only the scoped interface sees the value
         // Scoped namespace: sees the value.
         let scoped_iface = SecretsInterface::new(Some(shared), vec!["brave_api_key".to_string()])
             .with_namespace("agent::veille-ia");

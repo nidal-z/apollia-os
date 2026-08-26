@@ -196,6 +196,7 @@ mod tests {
         // WHEN we ask for it
         Python::with_gil(|py| {
             let res = ds.get(py, "competitors");
+            // THEN the read fails, and the message names the disk rather than the declaration
             assert!(res.is_err(), "expected FileNotFoundError");
             let msg = format!("{}", res.expect_err("err"));
             assert!(
@@ -209,6 +210,7 @@ mod tests {
     fn test_list_names_returns_declared_in_order() {
         // GIVEN three declared datasources
         let ds = DatasourcesInterface::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        // WHEN the declared names are listed
         // THEN list_names returns them in order
         assert_eq!(ds.list_names(), vec!["a", "b", "c"]);
     }
@@ -308,6 +310,7 @@ mod tests {
     /// A malformed YAML is skipped (warn!), not a boot crash.
     #[test]
     fn test_load_from_dir_invalid_yaml_is_non_fatal() {
+        // GIVEN a datasources directory holding one file of invalid YAML
         let tmp = tempfile::tempdir().expect("temp dir");
         let ds_dir = tmp.path().join("datasources");
         std::fs::create_dir_all(&ds_dir).expect("mkdir");
@@ -315,8 +318,10 @@ mod tests {
         std::fs::write(ds_dir.join("broken.yaml"), "\t- not\n  valid").expect("write");
 
         let mut iface = DatasourcesInterface::new(vec!["broken".to_string()]);
+        // WHEN the directory is loaded
         let loaded = iface.load_from_dir(tmp.path());
 
+        // THEN nothing is loaded and the parse error stays non-fatal
         // load_from_dir doesn't propagate the parse error, just logs it.
         assert_eq!(loaded, 0);
         assert!(!iface.has("broken"));

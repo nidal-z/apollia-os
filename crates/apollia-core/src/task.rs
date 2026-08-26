@@ -172,7 +172,8 @@ mod tests {
 
     #[test]
     fn test_run_options_default_is_empty() {
-        // GIVEN an empty object (no control fields)
+        // GIVEN a run-options payload carrying no control field
+        // WHEN it is deserialised
         let opts: RunOptions = serde_json::from_value(json!({})).expect("must deserialize");
         // THEN both overrides are absent
         assert_eq!(opts.plan_gate, None);

@@ -1314,6 +1314,9 @@ mod tests {
     // Truth table for EscalationSignal::is_escalation.
     #[test]
     fn test_escalation_signal_is_escalation() {
+        // GIVEN the three escalation signals the router can raise
+        // WHEN each is asked whether it escalates
+        // THEN the none signal does not, and the two real ones do
         assert!(!EscalationSignal::None.is_escalation());
         assert!(EscalationSignal::RepeatedStepFailure {
             consecutive_failures: 1

@@ -600,18 +600,27 @@ mod tests {
 
     #[test]
     fn test_manifest_id_matches_provider_id() {
+        // GIVEN the Google connector manifest
+        // WHEN its id is read
+        // THEN it is the provider id the rest of the crate keys on
         assert_eq!(MANIFEST.id, GOOGLE_PROVIDER_ID);
     }
 
     #[test]
     fn test_manifest_lists_three_services() {
+        // GIVEN the Google connector manifest
+        // WHEN its service list is read
+        // THEN the three shipped services are named, in order
         assert_eq!(MANIFEST.services, &["gmail", "gcal", "gdrive"]);
     }
 
     #[test]
     fn test_operations_cover_expected_services() {
+        // GIVEN the declared Google operations
+        // WHEN the services they belong to are collected
         let services: std::collections::HashSet<&'static str> =
             OPERATIONS.iter().map(|op| op.service).collect();
+        // THEN each of the three services carries at least one operation
         assert!(services.contains("gmail"));
         assert!(services.contains("gcal"));
         assert!(services.contains("gdrive"));
@@ -619,28 +628,37 @@ mod tests {
 
     #[test]
     fn test_write_operations_require_approval() {
+        // GIVEN the three operations that write to a Google service
         let writes = ["gmail.send", "gcal.create_event", "gdrive.workspace_write"];
+        // WHEN each is looked up in the operation table
         for id in writes {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
+            // THEN every one of them is gated behind an approval
             assert!(op.requires_approval(), "expected {id} to require approval");
         }
     }
 
     #[test]
     fn test_read_operations_auto_approve() {
+        // GIVEN two operations that only read
         let reads = ["gcal.list_events", "gdrive.workspace_read"];
+        // WHEN each is looked up in the operation table
         for id in reads {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
+            // THEN both are read-only, so no approval is asked for
             assert!(op.is_read_only(), "expected {id} to auto-approve");
         }
     }
 
     #[test]
     fn test_delete_event_uses_confirm_phrase() {
+        // GIVEN the calendar event deletion operation
         let op = OPERATIONS
             .iter()
             .find(|o| o.id == "gcal.delete_event")
             .expect("op");
+        // WHEN its approval policy is read
+        // THEN deletion asks for a typed confirmation, not a plain yes
         assert_eq!(op.approval, ApprovalPolicy::ConfirmPhrase);
     }
 

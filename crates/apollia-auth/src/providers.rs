@@ -98,7 +98,10 @@ mod tests {
 
     #[test]
     fn test_known_providers_return_some() {
+        // GIVEN the list of supported provider names
+        // WHEN each name is looked up
         for name in SUPPORTED_PROVIDERS {
+            // THEN every one resolves to a provider
             assert!(get_provider(name).is_some(), "expected Some for '{name}'");
         }
     }

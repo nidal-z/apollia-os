@@ -394,6 +394,7 @@ fn test_hooks_timeout_out_of_bounds_rejected() {
 fn test_chat_config_default_plan_mode_off() {
     // GIVEN the default chat config
     let cfg = ChatConfig::default();
+    // WHEN the plan-mode default is read
     // THEN plan mode is off by default
     assert!(!cfg.plan_mode_default);
 }

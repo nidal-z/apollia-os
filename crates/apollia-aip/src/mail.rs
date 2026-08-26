@@ -342,7 +342,8 @@ mod tests {
         // GIVEN a non-gated mail interface
         let mail = MailInterface::new(None, "a".to_string(), None, true, None, false, None, None);
 
-        // THEN the send gate is not active
+        // WHEN the approval gate is read
+        // THEN it reports that sending needs no approval
         assert!(!mail.send_requires_approval);
     }
 }

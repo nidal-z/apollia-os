@@ -280,6 +280,9 @@ mod tests {
 
     #[test]
     fn arch_pattern_matches_exact() {
+        // GIVEN an exact architecture pattern
+        // WHEN architectures are matched against it
+        // THEN the match is case insensitive, and another architecture does not match
         assert!(arch_matches("qwen3", "qwen3"));
         assert!(arch_matches("Qwen3", "qwen3")); // case-insensitive
         assert!(!arch_matches("qwen3", "qwen2"));
@@ -287,6 +290,9 @@ mod tests {
 
     #[test]
     fn arch_pattern_matches_wildcard() {
+        // GIVEN a trailing-wildcard architecture pattern
+        // WHEN architectures are matched against it
+        // THEN the prefix matches with or without a suffix, and nothing else does
         assert!(arch_matches("llama*", "llama"));
         assert!(arch_matches("llama*", "llamafoo"));
         assert!(!arch_matches("llama*", "qwen3"));
@@ -294,7 +300,8 @@ mod tests {
 
     #[test]
     fn embedded_lookup_qwen3_thinking_beats_generic() {
-        // GIVEN: a Qwen3 thinking model
+        // GIVEN a Qwen3 thinking model, which the table carries twice
+        // WHEN the embedded defaults are looked up
         let d = embedded_lookup("qwen3", &["Qwen3-30B-A3B-Thinking-2507"]);
         // THEN: the thinking-specific entry wins (temperature 0.6)
         assert_eq!(d.temperature, Some(0.6));
@@ -302,14 +309,20 @@ mod tests {
 
     #[test]
     fn embedded_lookup_qwen3_generic_when_no_specific_match() {
+        // GIVEN a Qwen3 model matching no thinking-specific entry
+        // WHEN the embedded defaults are looked up
         let d = embedded_lookup("qwen3", &["Qwen3-30B-A3B"]);
+        // THEN the generic Qwen3 entry is the one used
         // Generic Qwen3 entry: temperature 0.7
         assert_eq!(d.temperature, Some(0.7));
     }
 
     #[test]
     fn embedded_lookup_returns_empty_when_no_match() {
+        // GIVEN an architecture the table does not carry
+        // WHEN the embedded defaults are looked up
         let d = embedded_lookup("unknown-arch", &["whatever"]);
+        // THEN nothing comes back, rather than a guessed default
         assert!(d.is_empty());
     }
 
@@ -336,10 +349,13 @@ mod tests {
 
     #[test]
     fn user_override_corrupt_file_errors_loudly() {
+        // GIVEN an override file holding invalid JSON
         let dir = tempdir().expect("tempdir");
         let path = dir.path().join("sampling-defaults.json");
         std::fs::write(&path, "{not valid json").expect("write");
+        // WHEN it is loaded
         let err = UserOverrides::load(&path).expect_err("should fail");
+        // THEN the load fails with InvalidData rather than falling back on the embedded table
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
@@ -360,6 +376,7 @@ mod tests {
             name: Some("Qwen3-30B-A3B"),
             ..Default::default()
         };
+        // WHEN the defaults are resolved for that model
         let d = resolve(&hints, &overrides);
 
         // THEN: temperature comes from user; top_p/top_k from embedded.
@@ -370,13 +387,16 @@ mod tests {
 
     #[test]
     fn resolve_returns_empty_when_no_match_anywhere() {
+        // GIVEN no user override, and an architecture the table does not carry
         let overrides = UserOverrides::default();
         let hints = ModelHints {
             arch: Some("brand-new-arch"),
             name: Some("Unknown"),
             ..Default::default()
         };
+        // WHEN the defaults are resolved
         let d = resolve(&hints, &overrides);
+        // THEN nothing comes back, so the caller keeps the engine defaults
         assert!(d.is_empty());
     }
 }

@@ -388,11 +388,14 @@ mod tests {
         let mut token = sample_token();
         token.expires_at = Some(1_000);
 
-        // WHEN now is past expiry → expired
+        // WHEN expiry is evaluated one second after the deadline
+        // THEN the token is expired
         assert!(token.is_expired(1_001));
-        // WHEN now is at expiry exactly → expired (>= is the contract)
+        // WHEN it is evaluated exactly at the deadline
+        // THEN it is expired too: the contract is `>=`, not `>`
         assert!(token.is_expired(1_000));
-        // WHEN now is before expiry → not expired
+        // WHEN it is evaluated one second before
+        // THEN it is not expired
         assert!(!token.is_expired(999));
     }
 
@@ -402,11 +405,14 @@ mod tests {
         let mut token = sample_token();
         token.expires_at = Some(1_000);
 
-        // WHEN now is far before expiry → no refresh
+        // WHEN refresh is evaluated well before the leeway window
+        // THEN no refresh is due
         assert!(!token.needs_refresh(900, 60));
-        // WHEN now is at the leeway boundary → refresh needed
+        // WHEN it is evaluated on the leeway boundary
+        // THEN a refresh is due
         assert!(token.needs_refresh(940, 60));
-        // WHEN now is past expiry → refresh needed
+        // WHEN it is evaluated past expiry
+        // THEN a refresh is still due
         assert!(token.needs_refresh(1_100, 60));
     }
 
@@ -430,7 +436,8 @@ mod tests {
 
     #[test]
     fn test_extract_identity_claims_returns_empty_for_opaque_tokens() {
-        // GIVEN an opaque (non-JWT) bearer token
+        // GIVEN an opaque bearer token, carrying no JWT segment at all
+        // WHEN identity claims are extracted from it
         let claims = extract_identity_claims("opaque-random-string-with-no-dots");
 
         // THEN we get empty claims rather than a panic
@@ -439,7 +446,8 @@ mod tests {
 
     #[test]
     fn test_extract_identity_claims_handles_malformed_payload() {
-        // GIVEN a 3-segment shape with garbage in the middle
+        // GIVEN a three-segment token whose payload is not valid base64
+        // WHEN identity claims are extracted from it
         let claims = extract_identity_claims("header.not_valid_base64!.sig");
 
         // THEN we get empty claims rather than a panic
@@ -448,8 +456,9 @@ mod tests {
 
     #[test]
     fn test_service_namespace_is_stable() {
-        // Pin the constant so any rename forces an explicit migration plan
-        // (existing tokens would be stranded under the old service name).
+        // GIVEN the keyring service name MCP OAuth tokens are stored under
+        // WHEN the constant is read
+        // THEN it is the published one: a rename strands every token already stored
         assert_eq!(MCP_OAUTH_SERVICE, "apollia-mcp-oauth");
     }
 }

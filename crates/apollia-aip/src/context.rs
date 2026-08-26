@@ -873,13 +873,16 @@ mod runtime_context_tests {
     /// `FileNotFoundError("not found on disk")`.
     #[test]
     fn test_with_datasources_no_dir_keeps_empty_cache() {
+        // GIVEN a context declaring a datasource with no directory behind it
         let ctx = RuntimeContext::for_test().with_datasources(vec!["foo".to_string()], None);
         pyo3::Python::with_gil(|py| {
             let ds_obj = ctx.datasources(py);
             let bound = ds_obj.bind(py);
+            // WHEN the declared datasource is read from Python
             let err = bound
                 .call_method1("get", ("foo",))
                 .expect_err("should raise FileNotFoundError when no dir provided");
+            // THEN the read raises FileNotFoundError instead of serving an empty value
             assert!(err.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(py));
         });
     }
@@ -1599,6 +1602,7 @@ mod a2a_tests {
         let mut ctx = RuntimeContext::for_test();
         ctx.user_context = Some(uc);
 
+        // WHEN the context is read back
         // THEN user_context is Some with expected categories
         assert!(ctx.user_context.is_some());
         let uc = ctx.user_context.as_ref().expect("should be Some");
@@ -1612,6 +1616,7 @@ mod a2a_tests {
         // GIVEN a RuntimeContext with user_context = None (task mode)
         let ctx = RuntimeContext::for_test();
 
+        // WHEN user_context is read
         // THEN user_context is None
         assert!(ctx.user_context.is_none());
     }
@@ -1863,11 +1868,12 @@ mod tool_proxy_a2a_tests {
     /// skill_id.
     #[tokio::test]
     async fn test_a2a_double_underscore_prefix_is_routed() {
+        // GIVEN a proxy carrying an invoker and one tool named with the `a2a__` prefix
         let invoker = make_invoker_with_excel().await;
-        // Register a worker with a dotted skill id to test `__` -> `.` decoding.
         let (proxy, audit) = make_base_proxy(vec!["a2a__read-excel"]).await;
         let proxy = proxy.with_a2a(invoker, 0, None);
 
+        // WHEN that tool is called under its prefixed name
         let result = proxy
             .call_inner(
                 "a2a__read-excel",
@@ -1875,6 +1881,7 @@ mod tool_proxy_a2a_tests {
             )
             .await;
 
+        // THEN the call routes to the invoker and the answer carries the worker header
         let val = result.expect("a2a__ prefix should route to invoker");
         let text = val["text"].as_str().expect("text field");
         assert!(
@@ -1892,6 +1899,9 @@ mod extract_a2a_skill_id_tests {
 
     #[test]
     fn test_extract_a2a_legacy_colon_prefix() {
+        // GIVEN a tool name carrying the legacy `a2a:` prefix
+        // WHEN the skill id is extracted
+        // THEN the prefix is stripped and the bare skill id comes back
         assert_eq!(
             extract_a2a_skill_id("a2a:read-excel"),
             Some("read-excel".to_string())
@@ -1900,6 +1910,9 @@ mod extract_a2a_skill_id_tests {
 
     #[test]
     fn test_extract_a2a_double_underscore_prefix_simple() {
+        // GIVEN a tool name carrying the `a2a__` prefix over a single-word skill id
+        // WHEN the skill id is extracted
+        // THEN the prefix is stripped and the bare skill id comes back
         assert_eq!(
             extract_a2a_skill_id("a2a__summarize"),
             Some("summarize".to_string())
@@ -1908,8 +1921,9 @@ mod extract_a2a_skill_id_tests {
 
     #[test]
     fn test_extract_a2a_double_underscore_prefix_dotted() {
-        // `__` is decoded back to `.` so the canonical skill_id is restored
-        // before the invoker sees it.
+        // GIVEN a tool name whose `__` separators encode a dotted skill id
+        // WHEN the skill id is extracted
+        // THEN the dots are restored, so the invoker sees the canonical skill id
         assert_eq!(
             extract_a2a_skill_id("a2a__pdf__read_text"),
             Some("pdf.read_text".to_string())
@@ -1918,6 +1932,9 @@ mod extract_a2a_skill_id_tests {
 
     #[test]
     fn test_extract_a2a_no_prefix_returns_none() {
+        // GIVEN two tool names that carry no `a2a` prefix, one of them a near miss
+        // WHEN the skill id is extracted from each
+        // THEN neither yields a skill id
         assert_eq!(extract_a2a_skill_id("bash"), None);
         assert_eq!(extract_a2a_skill_id("a2a_typo"), None);
     }
@@ -1936,6 +1953,7 @@ mod workspace_context_tests {
         let mut ws = WorkspaceContextPy::empty();
         ws.set_section("Règles du projet", "Reply in French".to_string());
         ws.set_section("Git", "branch: main".to_string());
+        // WHEN its getters are called
         // THEN rules() and apollia_md() both return the rules content
         assert_eq!(ws.rules(), Some("Reply in French"));
         assert_eq!(ws.apollia_md(), Some("Reply in French"));
@@ -1948,6 +1966,7 @@ mod workspace_context_tests {
     fn test_workspace_context_py_empty() {
         // GIVEN an empty WorkspaceContextPy
         let ws = WorkspaceContextPy::empty();
+        // WHEN its getters are called
         // THEN all getters return None
         assert!(ws.rules().is_none());
         assert!(ws.apollia_md().is_none());
@@ -1970,6 +1989,7 @@ mod workspace_context_tests {
     fn test_runtime_context_with_empty_workspace() {
         // GIVEN a RuntimeContext enriched with an empty workspace
         let ctx = RuntimeContext::for_test().with_empty_workspace();
+        // WHEN the workspace is read back
         // THEN workspace is Some but has no sections
         assert!(ctx.workspace.is_some());
         pyo3::Python::with_gil(|py| {
@@ -1983,6 +2003,7 @@ mod workspace_context_tests {
     fn test_runtime_context_workspace_none_by_default() {
         // GIVEN a RuntimeContext built without workspace
         let ctx = RuntimeContext::for_test();
+        // WHEN the workspace field is read
         // THEN workspace is None
         assert!(ctx.workspace.is_none());
     }

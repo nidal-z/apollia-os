@@ -722,18 +722,27 @@ mod tests {
 
     #[test]
     fn test_escape_query_escapes_single_quotes() {
+        // GIVEN a query fragment carrying a single quote
+        // WHEN it is escaped for the Drive query language
+        // THEN the quote is backslash escaped, so it cannot close the literal
         assert_eq!(escape_query("foo's"), "foo\\'s");
     }
 
     #[test]
     fn test_escape_query_escapes_backslashes() {
+        // GIVEN a query fragment carrying a backslash
+        // WHEN it is escaped for the Drive query language
+        // THEN the backslash is doubled rather than swallowed
         assert_eq!(escape_query("a\\b"), "a\\\\b");
     }
 
     #[test]
     fn test_urlencode_escapes_spaces_and_equals() {
+        // GIVEN a Drive query holding spaces and equals signs
         let q = "name = 'Apollia' and trashed = false";
+        // WHEN it is url-encoded
         let encoded = urlencode(q);
+        // THEN both are percent encoded, and no raw space is left
         assert!(encoded.contains("%20"));
         assert!(encoded.contains("%3D"));
         assert!(!encoded.contains(' '));
@@ -741,18 +750,24 @@ mod tests {
 
     #[test]
     fn test_drive_workspace_client_constructs_from_http_client() {
+        // GIVEN an HTTP client configured for the Google provider
         let http = HttpClient::new("google").expect("http");
+        // WHEN a Drive workspace client is built on it
+        // THEN the construction goes through: the provider is known and the client wires up
         let _client = DriveWorkspaceClient::new(http);
     }
 
     #[test]
     fn test_file_create_payload_serializes_with_camel_case() {
+        // GIVEN a file creation payload with a parent folder and a mime type
         let payload = FileCreatePayload {
             name: "doc.txt",
             parents: vec!["abc123".into()],
             mime_type: Some("text/plain"),
         };
+        // WHEN it is serialised
         let json = serde_json::to_value(&payload).expect("serialize");
+        // THEN the mime field goes out as camel case, the rest unchanged
         assert_eq!(json["name"], "doc.txt");
         assert!(json["mimeType"].is_string()); // camelCase
         assert_eq!(json["parents"][0], "abc123");

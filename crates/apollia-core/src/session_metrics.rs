@@ -204,6 +204,7 @@ mod tests {
     fn tool_timing_delta_computation() {
         // GIVEN a tool slower than expected
         let t = ToolTiming::new("file_read", Some(100), 150);
+        // WHEN its timing record is built
         // THEN delta = +50%
         assert_eq!(t.expected_ms, Some(100));
         assert_eq!(t.actual_ms, 150);
@@ -214,6 +215,7 @@ mod tests {
     fn tool_timing_delta_absent_when_no_expected() {
         // GIVEN no hint
         let t = ToolTiming::new("custom_tool", None, 42);
+        // WHEN its timing record is built
         // THEN delta_pct is None
         assert!(t.delta_pct.is_none());
     }
@@ -222,13 +224,17 @@ mod tests {
     fn tool_timing_delta_ignores_zero_expected() {
         // GIVEN a hint of 0 ms (invalid but possible)
         let t = ToolTiming::new("tool", Some(0), 50);
+        // WHEN its timing record is built
         // THEN delta_pct is None to avoid dividing by zero
         assert!(t.delta_pct.is_none());
     }
 
     #[test]
     fn thresholds_default_is_80_100() {
+        // GIVEN the default session thresholds
         let th = SessionThresholds::default();
+        // WHEN the warning and block percentages are read
+        // THEN they are the documented eighty and hundred
         assert_eq!(th.token_warn_pct, 80);
         assert_eq!(th.token_block_pct, 100);
     }
@@ -237,22 +243,25 @@ mod tests {
     fn thresholds_evaluate_returns_ok_without_budget() {
         // GIVEN no budget configured
         let th = SessionThresholds::default();
+        // WHEN a large usage is evaluated against a budget of zero
         // THEN evaluation returns Ok even with high usage
         assert_eq!(th.evaluate(10_000, 0), BudgetAlertLevel::Ok);
     }
 
     #[test]
     fn thresholds_evaluate_crosses_warning_and_block() {
+        // GIVEN the default thresholds and a budget of a thousand tokens
         let th = SessionThresholds::default();
-        // Below warning: Ok
+        // WHEN usage is evaluated below, at and beyond each threshold
+        // THEN it is Ok below eighty percent
         assert_eq!(th.evaluate(500, 1000), BudgetAlertLevel::Ok);
-        // At 80%: Warning
+        // THEN it turns to Warning from eighty percent on
         assert_eq!(th.evaluate(800, 1000), BudgetAlertLevel::Warning);
-        // At 95%: Warning
+        // THEN it stays Warning up to the budget
         assert_eq!(th.evaluate(950, 1000), BudgetAlertLevel::Warning);
-        // At 100%: Block
+        // THEN it turns to Block at the budget
         assert_eq!(th.evaluate(1000, 1000), BudgetAlertLevel::Block);
-        // Beyond: Block
+        // THEN it stays Block beyond it
         assert_eq!(th.evaluate(1200, 1000), BudgetAlertLevel::Block);
     }
 
@@ -262,6 +271,7 @@ mod tests {
         let mut m = SessionMetrics::default();
         m.record_llm_call(100, 50, 30, false);
         m.record_llm_call(200, 80, 60, false);
+        // WHEN both are recorded
         // THEN main counters are accumulated
         assert_eq!(m.tokens_in, 300);
         assert_eq!(m.tokens_out, 130);
@@ -276,6 +286,7 @@ mod tests {
         // GIVEN a meta LLM call (narration)
         let mut m = SessionMetrics::default();
         m.record_llm_call(50, 30, 0, true);
+        // WHEN it is recorded
         // THEN only the meta counters are incremented
         assert_eq!(m.tokens_in, 0);
         assert_eq!(m.tokens_out, 0);
@@ -289,6 +300,7 @@ mod tests {
         for i in 0..(TOOL_TIMINGS_MAX + 5) {
             m.push_tool_timing(ToolTiming::new(format!("tool_{i}"), Some(10), 12));
         }
+        // WHEN they are pushed one after the other
         // THEN the list is bounded and FIFO
         assert_eq!(m.tool_timings.len(), TOOL_TIMINGS_MAX);
         assert_eq!(m.tool_timings[0].tool_name, "tool_5");
@@ -306,6 +318,7 @@ mod tests {
             context_window_max: 10_000,
             ..Default::default()
         };
+        // WHEN the used percentage is computed
         // THEN pct is approximately 70.0
         assert!((m.context_window_pct() - 70.0).abs() < 0.01);
     }
@@ -314,6 +327,7 @@ mod tests {
     fn session_metrics_context_window_pct_safe_when_max_zero() {
         // GIVEN a context with no max configured
         let m = SessionMetrics::default();
+        // WHEN the used percentage is computed
         // THEN pct = 0 (no panic on division by zero)
         assert_eq!(m.context_window_pct(), 0.0);
     }
@@ -328,6 +342,7 @@ mod tests {
             tokens_meta: 30,
             ..Default::default()
         };
+        // WHEN the budgeted total is computed
         // THEN the budget counts in + out + meta, never cached
         assert_eq!(m.tokens_used_for_budget(), 180);
     }
@@ -363,6 +378,9 @@ mod tests {
 
     #[test]
     fn alert_level_default_is_ok() {
+        // GIVEN a budget alert level left at its default
+        // WHEN it is compared to the ok level
+        // THEN a session starts unalarmed
         assert_eq!(BudgetAlertLevel::default(), BudgetAlertLevel::Ok);
     }
 }

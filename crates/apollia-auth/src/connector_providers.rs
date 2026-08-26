@@ -499,7 +499,8 @@ mod tests {
 
     #[test]
     fn test_build_google_provider_includes_profile_scopes_implicitly() {
-        // GIVEN a request for only MailSend
+        // GIVEN a request for the MailSend scope alone
+        // WHEN the Google provider config is built
         let cfg = build_google_provider(&[GoogleScope::MailSend]);
         // THEN the resulting scope set includes openid + email + profile
         assert!(cfg.scopes.contains(&"openid"));
@@ -512,7 +513,8 @@ mod tests {
 
     #[test]
     fn test_build_microsoft_provider_includes_baseline_scopes_implicitly() {
-        // GIVEN a request for only MailRead
+        // GIVEN a request for the MailRead scope alone
+        // WHEN the Microsoft provider config is built
         let cfg = build_microsoft_provider(&[MicrosoftScope::MailRead]);
         // THEN the resulting scope set includes User.Read + offline_access
         assert!(cfg.scopes.contains(&"User.Read"));
@@ -522,22 +524,29 @@ mod tests {
 
     #[test]
     fn test_build_microsoft_provider_default_is_common_tenant() {
+        // GIVEN a request that names no tenant
+        // WHEN the Microsoft provider config is built
         let cfg = build_microsoft_provider(&[MicrosoftScope::MailRead]);
+        // THEN both endpoints target the `common` tenant
         assert!(cfg.auth_url.contains("/common/"));
         assert!(cfg.token_url.contains("/common/"));
     }
 
     #[test]
     fn test_build_microsoft_provider_for_specific_tenant() {
+        // GIVEN a tenant identifier
         let tenant = "00000000-0000-0000-0000-000000000000";
+        // WHEN the provider config is built for that tenant
         let cfg = build_microsoft_provider_for_tenant(&[MicrosoftScope::MailRead], tenant);
+        // THEN both endpoints carry it instead of `common`
         assert!(cfg.auth_url.contains(tenant));
         assert!(cfg.token_url.contains(tenant));
     }
 
     #[test]
     fn test_no_duplicate_scopes_when_profile_explicitly_requested() {
-        // GIVEN a request that explicitly includes Email
+        // GIVEN a request naming Email explicitly, on top of MailSend
+        // WHEN the Google provider config is built
         let cfg = build_google_provider(&[GoogleScope::MailSend, GoogleScope::Email]);
         // THEN "email" appears once, not twice
         let email_count = cfg.scopes.iter().filter(|s| **s == "email").count();
@@ -546,6 +555,9 @@ mod tests {
 
     #[test]
     fn test_connector_provider_ids_are_stable() {
+        // GIVEN the two connector providers the runtime knows
+        // WHEN each is asked for its identifier
+        // THEN the strings are the ones the token store persists
         assert_eq!(ConnectorProvider::Google.id(), "google");
         assert_eq!(ConnectorProvider::Microsoft.id(), "microsoft");
     }

@@ -417,12 +417,13 @@ mod tests {
 
     #[test]
     fn base_model_from_card_data_string() {
-        // GIVEN: a Bartowski-style payload with cardData.base_model
+        // GIVEN a payload carrying cardData.base_model as a string
         let payload = json!({
             "cardData": { "base_model": "Qwen/Qwen2.5-Coder-7B-Instruct" },
             "tags": ["gguf"]
         });
-        // THEN: extracted directly
+        // WHEN the base model is extracted
+        // THEN the card data value is used directly
         assert_eq!(
             extract_base_model_from_json(&payload).as_deref(),
             Some("Qwen/Qwen2.5-Coder-7B-Instruct")
@@ -431,9 +432,12 @@ mod tests {
 
     #[test]
     fn base_model_from_card_data_array_takes_first() {
+        // GIVEN a payload whose cardData.base_model is an array
         let payload = json!({
             "cardData": { "base_model": ["Qwen/A", "Meta/B"] },
         });
+        // WHEN the base model is extracted
+        // THEN the first entry is taken
         assert_eq!(
             extract_base_model_from_json(&payload).as_deref(),
             Some("Qwen/A")
@@ -446,6 +450,8 @@ mod tests {
         let payload = json!({
             "tags": ["gguf", "base_model:Qwen/Qwen2.5-Coder-7B-Instruct"]
         });
+        // WHEN the base model is extracted
+        // THEN the tag is read instead of the missing card data
         assert_eq!(
             extract_base_model_from_json(&payload).as_deref(),
             Some("Qwen/Qwen2.5-Coder-7B-Instruct")
@@ -461,6 +467,8 @@ mod tests {
                 "base_model:quantized:Qwen/Qwen2.5-Coder-7B-Instruct"
             ]
         });
+        // WHEN the base model is extracted
+        // THEN the qualified tag is read, and its qualifier dropped
         assert_eq!(
             extract_base_model_from_json(&payload).as_deref(),
             Some("Qwen/Qwen2.5-Coder-7B-Instruct")
@@ -469,12 +477,15 @@ mod tests {
 
     #[test]
     fn base_model_simple_tag_wins_over_qualified() {
+        // GIVEN a payload carrying both a qualified tag and a plain one
         let payload = json!({
             "tags": [
                 "base_model:quantized:Other/Wrong",
                 "base_model:Qwen/Right"
             ]
         });
+        // WHEN the base model is extracted
+        // THEN the plain tag wins over the qualified one
         assert_eq!(
             extract_base_model_from_json(&payload).as_deref(),
             Some("Qwen/Right")
@@ -483,7 +494,10 @@ mod tests {
 
     #[test]
     fn base_model_returns_none_when_neither_present() {
+        // GIVEN a payload with neither card data nor a base model tag
         let payload = json!({ "tags": ["gguf", "license:apache-2.0"] });
+        // WHEN the base model is extracted
+        // THEN nothing comes back
         assert!(extract_base_model_from_json(&payload).is_none());
     }
 
@@ -491,6 +505,8 @@ mod tests {
     fn base_model_ignores_malformed_tag_without_slash() {
         // GIVEN: a tag that's `base_model:something` but without org/name
         let payload = json!({ "tags": ["base_model:notavalidrepo"] });
+        // WHEN the base model is extracted
+        // THEN the malformed tag is ignored rather than taken for a repo id
         assert!(extract_base_model_from_json(&payload).is_none());
     }
 }

@@ -435,6 +435,7 @@ mod tests {
             prompt_text: None,
             completion_text: None,
         };
+        // WHEN it is saved, then queried back by task id
         repo.save(&record).expect("save should succeed");
 
         // THEN SELECT prompt_tokens, completion_tokens, cost_usd returns (1000, 500, 0.0125)
@@ -585,6 +586,7 @@ mod tests {
             prompt_text: None,
             completion_text: None,
         };
+        // WHEN it is saved
         repo.save(&record).expect("save should succeed");
 
         // THEN the record exists (direct SQL query)

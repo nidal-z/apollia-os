@@ -256,9 +256,11 @@ mod tests {
     fn test_token_response_success_path_still_works() {
         // GIVEN a valid Google success payload
         let body = r#"{"access_token":"ya29.xyz","expires_in":3599,"refresh_token":"1//rt","scope":"https://www.googleapis.com/auth/gmail.send","token_type":"Bearer"}"#;
+        // WHEN it is parsed and turned into a stored token
         let parsed: TokenResponse = serde_json::from_str(body).expect("parse success");
 
         let stored = parsed.into_stored(None).expect("into_stored");
+        // THEN the access token, the refresh token, the scopes and the expiry all survive
         assert_eq!(stored.access_token, "ya29.xyz");
         assert_eq!(stored.refresh_token.as_deref(), Some("1//rt"));
         assert_eq!(
@@ -277,6 +279,7 @@ mod tests {
             expires_at: None,
             scopes: vec![],
         };
+        // WHEN expiry is evaluated
         // THEN treated as valid
         assert!(!token.is_expired());
     }

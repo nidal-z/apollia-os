@@ -92,20 +92,29 @@ mod tests {
 
     #[test]
     fn test_auto_approve_is_read_only() {
+        // GIVEN an operation under the auto-approve policy
+        // WHEN its read-only and approval flags are read
+        // THEN it counts as read-only, and asks for no approval
         assert!(fixture(ApprovalPolicy::AutoApprove).is_read_only());
         assert!(!fixture(ApprovalPolicy::AutoApprove).requires_approval());
     }
 
     #[test]
     fn test_always_require_approval_is_not_read_only() {
+        // GIVEN an operation that always requires an approval
         let op = fixture(ApprovalPolicy::AlwaysRequireApproval);
+        // WHEN its read-only and approval flags are read
+        // THEN it is not read-only, and an approval is asked for
         assert!(!op.is_read_only());
         assert!(op.requires_approval());
     }
 
     #[test]
     fn test_confirm_phrase_requires_approval() {
+        // GIVEN an operation gated behind a typed confirmation
         let op = fixture(ApprovalPolicy::ConfirmPhrase);
+        // WHEN its read-only and approval flags are read
+        // THEN it is not read-only, and an approval is asked for
         assert!(!op.is_read_only());
         assert!(op.requires_approval());
     }

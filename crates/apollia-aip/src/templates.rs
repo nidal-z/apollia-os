@@ -168,9 +168,12 @@ mod tests {
 
     #[test]
     fn test_render_undeclared_returns_file_not_found() {
+        // GIVEN a templates interface that declares nothing
         let t = TemplatesInterface::new(vec![]);
         Python::with_gil(|py| {
+            // WHEN an undeclared template is rendered
             let res = t.render(py, "system_prompt", None);
+            // THEN the render raises, and the error says the template was not declared
             assert!(res.is_err(), "expected FileNotFoundError");
             assert!(
                 format!("{}", res.expect_err("err")).contains("not declared"),
@@ -181,9 +184,12 @@ mod tests {
 
     #[test]
     fn test_render_declared_but_not_loaded() {
+        // GIVEN a declared template that was never loaded from disk
         let t = TemplatesInterface::new(vec!["system_prompt".to_string()]);
         Python::with_gil(|py| {
+            // WHEN it is rendered
             let res = t.render(py, "system_prompt", None);
+            // THEN the render raises rather than returning an empty string
             assert!(res.is_err(), "expected FileNotFoundError (not loaded)");
         });
     }
@@ -201,6 +207,7 @@ mod tests {
             let out = t
                 .render(py, "greeting", Some(&ctx))
                 .expect("render should succeed");
+            // THEN the variable is substituted in the output
             assert_eq!(out, "Hello, World!");
         });
     }
@@ -211,7 +218,9 @@ mod tests {
         let mut t = TemplatesInterface::new(vec![]);
         t.inject("static", "constant output");
         Python::with_gil(|py| {
+            // WHEN it is rendered with no context at all
             let out = t.render(py, "static", None).expect("render");
+            // THEN the constant body comes back unchanged
             assert_eq!(out, "constant output");
         });
     }
@@ -254,6 +263,7 @@ mod tests {
     /// Checks the `.jinja2` and `.jinja` extension fallbacks.
     #[test]
     fn test_load_from_dir_extension_fallbacks() {
+        // GIVEN a templates directory holding one `.jinja2` file and one `.jinja` file
         let tmp = tempfile::tempdir().expect("temp dir");
         let tpl_dir = tmp.path().join("templates");
         std::fs::create_dir_all(&tpl_dir).expect("mkdir");
@@ -261,8 +271,10 @@ mod tests {
         std::fs::write(tpl_dir.join("b.jinja"), "B={{ v }}").expect("b");
 
         let mut iface = TemplatesInterface::new(vec!["a".to_string(), "b".to_string()]);
+        // WHEN the directory is loaded
         let loaded = iface.load_from_dir(tmp.path());
 
+        // THEN both extensions are picked up
         assert_eq!(loaded, 2);
         assert!(iface.has("a"));
         assert!(iface.has("b"));
@@ -271,19 +283,21 @@ mod tests {
     /// A missing template does not prevent the others from compiling.
     #[test]
     fn test_load_from_dir_missing_template_is_non_fatal() {
+        // GIVEN two declared templates, only one of which exists on disk
         let tmp = tempfile::tempdir().expect("temp dir");
         let tpl_dir = tmp.path().join("templates");
         std::fs::create_dir_all(&tpl_dir).expect("mkdir");
         std::fs::write(tpl_dir.join("present.j2"), "ok").expect("write");
 
         let mut iface = TemplatesInterface::new(vec!["present".to_string(), "missing".to_string()]);
+        // WHEN the directory is loaded
         let loaded = iface.load_from_dir(tmp.path());
 
+        // THEN the present one loads, and the absent one raises on render instead of aborting the load
         assert_eq!(loaded, 1);
         assert!(iface.has("present"));
         assert!(!iface.has("missing"));
 
-        // missing template raises FileNotFoundError on render
         Python::with_gil(|py| {
             let err = iface
                 .render(py, "missing", None)
@@ -295,6 +309,7 @@ mod tests {
     /// A syntactically invalid template is skipped (warn!), not a crash.
     #[test]
     fn test_load_from_dir_invalid_template_is_non_fatal() {
+        // GIVEN a declared template whose body does not compile
         let tmp = tempfile::tempdir().expect("temp dir");
         let tpl_dir = tmp.path().join("templates");
         std::fs::create_dir_all(&tpl_dir).expect("mkdir");
@@ -302,17 +317,22 @@ mod tests {
         std::fs::write(tpl_dir.join("broken.j2"), "{% if x").expect("write");
 
         let mut iface = TemplatesInterface::new(vec!["broken".to_string()]);
+        // WHEN the directory is loaded
         let loaded = iface.load_from_dir(tmp.path());
 
+        // THEN nothing loads and the compile error stays non-fatal
         assert_eq!(loaded, 0);
         assert!(!iface.has("broken"));
     }
 
     #[test]
     fn test_has() {
+        // GIVEN a declared template whose body has not been injected yet
         let mut t = TemplatesInterface::new(vec!["foo".to_string()]);
-        assert!(!t.has("foo")); // declared but not loaded
+        assert!(!t.has("foo"));
+        // WHEN the body is injected
         t.inject("foo", "hi");
+        // THEN has() flips to true for it, and stays false for anything undeclared
         assert!(t.has("foo"));
         assert!(!t.has("bar"));
     }

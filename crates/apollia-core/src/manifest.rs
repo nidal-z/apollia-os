@@ -593,9 +593,10 @@ mod tests {
 
     #[test]
     fn test_memory_config_default() {
-        // GIVEN
+        // GIVEN the default memory config
         let config = MemoryConfig::default();
         // THEN auto_purge is false and all retention fields are None
+        // WHEN its purge flag and its three retention fields are read
         assert!(!config.auto_purge);
         assert!(config.episodic_retention_days.is_none());
         assert!(config.semantic_retention_days.is_none());
@@ -633,6 +634,7 @@ mod tests {
             .memory_config
             .as_ref()
             .expect("memory_config present");
+        // THEN the declared retention and the purge flag are read back, and survive the round trip
         assert_eq!(cfg.episodic_retention_days, Some(7));
         assert!(cfg.semantic_retention_days.is_none());
         assert!(cfg.procedural_retention_days.is_none());

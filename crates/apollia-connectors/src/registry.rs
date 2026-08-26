@@ -122,16 +122,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_registry_returns_none() {
+        // GIVEN a registry with nothing registered
         let r = ConnectorRegistry::new();
+        // WHEN a connector is looked up, then the whole list asked for
+        // THEN the lookup yields nothing and the list is empty
         assert!(r.get("anything").await.is_none());
         assert!(r.list().await.is_empty());
     }
 
     #[tokio::test]
     async fn test_register_and_get() {
+        // GIVEN a registry with one connector registered
         let r = ConnectorRegistry::new();
         r.register(Stub { id: "google" }).await;
+        // WHEN it is looked up by its id
         let got = r.get("google").await;
+        // THEN it comes back, carrying that same id
         assert!(got.is_some());
         assert_eq!(got.unwrap().id(), "google");
     }
@@ -142,25 +148,32 @@ mod tests {
         let r = ConnectorRegistry::new();
         r.register(Stub { id: "google" }).await;
         r.register(Stub { id: "google" }).await;
+        // WHEN the registered connectors are listed
         // THEN there is exactly one entry
         assert_eq!(r.list().await.len(), 1);
     }
 
     #[tokio::test]
     async fn test_list_returns_all_registered() {
+        // GIVEN a registry with two connectors under distinct ids
         let r = ConnectorRegistry::new();
         r.register(Stub { id: "google" }).await;
         r.register(Stub { id: "microsoft" }).await;
+        // WHEN the registered ids are listed
         let mut ids = r.list().await;
         ids.sort();
+        // THEN both come back
         assert_eq!(ids, vec!["google", "microsoft"]);
     }
 
     #[tokio::test]
     async fn test_manifests_returns_summary_for_each() {
+        // GIVEN a registry with one connector registered
         let r = ConnectorRegistry::new();
         r.register(Stub { id: "google" }).await;
+        // WHEN the manifest summaries are asked for
         let summaries = r.manifests().await;
+        // THEN there is one, and it carries the connector's own manifest id
         assert_eq!(summaries.len(), 1);
         assert_eq!(summaries[0].manifest.id, "stub");
     }

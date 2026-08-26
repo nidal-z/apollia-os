@@ -225,13 +225,17 @@ mod tests {
             expires_at: None,
             scopes: vec![],
         };
+        // WHEN near-expiry is evaluated
         // THEN never near expiry
         assert!(!is_near_expiry(&token));
     }
 
     #[test]
     fn test_is_near_expiry_when_in_far_future_returns_false() {
+        // GIVEN a token that expires in an hour
         let token = token_expiring_in(3600);
+        // WHEN near-expiry is evaluated
+        // THEN it is not near expiry, so no refresh is due
         assert!(!is_near_expiry(&token));
     }
 
@@ -239,13 +243,17 @@ mod tests {
     fn test_is_near_expiry_when_within_leeway_returns_true() {
         // GIVEN a token expiring in 30 seconds (within 60s leeway)
         let token = token_expiring_in(30);
+        // WHEN near-expiry is evaluated
         // THEN considered near expiry
         assert!(is_near_expiry(&token));
     }
 
     #[test]
     fn test_is_near_expiry_when_already_expired_returns_true() {
+        // GIVEN a token that expired ten seconds ago
         let token = token_expiring_in(-10);
+        // WHEN near-expiry is evaluated
+        // THEN it counts as near expiry, so a refresh is due
         assert!(is_near_expiry(&token));
     }
 
@@ -316,6 +324,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_accounts_returns_registered_ones() {
+        // GIVEN two Google accounts, each with a stored token
         let (manager, _dir) = temp_manager();
         let a = unique_account("list-a");
         let b = unique_account("list-b");
@@ -328,10 +337,12 @@ mod tests {
             .await
             .expect("put b");
 
+        // WHEN the accounts of that provider are listed
         let accounts = manager
             .list_accounts(ConnectorProvider::Google)
             .await
             .expect("list");
+        // THEN both come back
         assert_eq!(accounts.len(), 2);
         assert!(accounts.contains(&a));
         assert!(accounts.contains(&b));

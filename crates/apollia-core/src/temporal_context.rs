@@ -107,15 +107,21 @@ mod tests {
 
     #[test]
     fn block_contains_iso_date() {
+        // GIVEN the temporal context block built for the current instant
         let block = temporal_context_block();
         // YYYY-MM-DD: matches any year 20XX, any month, any day.
+        // WHEN it is matched against an ISO date pattern
         let re = regex::Regex::new(r"\b20\d{2}-\d{2}-\d{2}\b").unwrap();
+        // THEN the block carries a date in that form
         assert!(re.is_match(&block), "block missing ISO date: {block}");
     }
 
     #[test]
     fn block_contains_override_instruction() {
+        // GIVEN the temporal context block
         let block = temporal_context_block();
+        // WHEN its wording is inspected
+        // THEN it tells the model this date outranks its training cutoff
         assert!(
             block.contains("authoritative") && block.contains("training-data cutoff"),
             "block missing the explicit override instruction"
@@ -124,6 +130,7 @@ mod tests {
 
     #[test]
     fn block_contains_weekday_word() {
+        // GIVEN the temporal context block
         let block = temporal_context_block();
         let weekdays = [
             "Monday",
@@ -134,16 +141,20 @@ mod tests {
             "Saturday",
             "Sunday",
         ];
+        // WHEN it is searched for an English weekday
         let found = weekdays.iter().any(|w| block.contains(w));
+        // THEN one is there, so the block states the day of week and not only the date
         assert!(found, "block missing English weekday: {block}");
     }
 
     #[test]
     fn prepend_keeps_existing_prompt() {
+        // GIVEN a system prompt
+        // WHEN the temporal context is prepended to it
         let prepended = prepend_temporal_context("You are an assistant.");
+        // THEN both are present, and the block comes first
         assert!(prepended.contains("You are an assistant."));
         assert!(prepended.contains("CURRENT ENVIRONMENT"));
-        // Block comes first.
         let block_pos = prepended.find("CURRENT ENVIRONMENT").unwrap();
         let prompt_pos = prepended.find("You are an assistant.").unwrap();
         assert!(block_pos < prompt_pos);
@@ -151,13 +162,19 @@ mod tests {
 
     #[test]
     fn prepend_handles_empty_input() {
+        // GIVEN an empty prompt
+        // WHEN the temporal context is prepended to it
         let prepended = prepend_temporal_context("");
+        // THEN the block stands on its own
         assert!(prepended.contains("CURRENT ENVIRONMENT"));
     }
 
     #[test]
     fn prepend_handles_whitespace_only_input() {
+        // GIVEN a prompt made only of whitespace
+        // WHEN the temporal context is prepended to it
         let prepended = prepend_temporal_context("   \n  ");
+        // THEN the block is there, and the blank prompt is dropped rather than appended
         assert!(prepended.contains("CURRENT ENVIRONMENT"));
         assert!(!prepended.contains("   \n  "));
     }

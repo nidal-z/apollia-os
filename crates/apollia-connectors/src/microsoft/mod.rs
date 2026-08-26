@@ -318,13 +318,19 @@ mod tests {
 
     #[test]
     fn test_manifest_lists_three_services() {
+        // GIVEN the Microsoft connector manifest
+        // WHEN its service list is read
+        // THEN the three shipped services are named, in order
         assert_eq!(MANIFEST.services, &["outlook", "outlook_cal", "onedrive"]);
     }
 
     #[test]
     fn test_operations_cover_three_services() {
+        // GIVEN the declared Microsoft operations
+        // WHEN the services they belong to are collected
         let services: std::collections::HashSet<&'static str> =
             OPERATIONS.iter().map(|op| op.service).collect();
+        // THEN each of the three services carries at least one operation
         assert!(services.contains("outlook"));
         assert!(services.contains("outlook_cal"));
         assert!(services.contains("onedrive"));
@@ -332,15 +338,19 @@ mod tests {
 
     #[test]
     fn test_write_operations_require_approval() {
+        // GIVEN the three operations that write to a Microsoft service
         let writes = ["outlook.send", "outlook.reply", "outlook_cal.create_event"];
+        // WHEN each is looked up in the operation table
         for id in writes {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
+            // THEN every one of them is gated behind an approval
             assert!(op.requires_approval(), "expected {id} to require approval");
         }
     }
 
     #[test]
     fn test_read_operations_auto_approve() {
+        // GIVEN the five operations that only read
         let reads = [
             "outlook.search",
             "outlook.get",
@@ -348,18 +358,23 @@ mod tests {
             "onedrive.search",
             "onedrive.download",
         ];
+        // WHEN each is looked up in the operation table
         for id in reads {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
+            // THEN all of them are read-only, so no approval is asked for
             assert!(op.is_read_only(), "expected {id} to auto-approve");
         }
     }
 
     #[test]
     fn test_delete_event_uses_confirm_phrase() {
+        // GIVEN the calendar event deletion operation
         let op = OPERATIONS
             .iter()
             .find(|o| o.id == "outlook_cal.delete_event")
             .expect("op");
+        // WHEN its approval policy is read
+        // THEN deletion asks for a typed confirmation, not a plain yes
         assert_eq!(op.approval, ApprovalPolicy::ConfirmPhrase);
     }
 }

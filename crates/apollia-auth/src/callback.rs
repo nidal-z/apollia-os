@@ -174,7 +174,9 @@ mod tests {
             state: Some("abc123".into()),
             error: None,
         };
+        // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");
+        // THEN it fails with MissingCode
         assert!(matches!(result, Err(AuthError::MissingCode)));
     }
 
@@ -186,7 +188,9 @@ mod tests {
             state: Some("abc123".into()),
             error: Some("access_denied".into()),
         };
+        // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");
+        // THEN the provider error is surfaced as such, not as a missing code
         assert!(matches!(result, Err(AuthError::ProviderError(_))));
     }
 
@@ -198,7 +202,9 @@ mod tests {
             state: Some("abc123".into()),
             error: None,
         };
+        // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");
+        // THEN the authorisation code comes back
         assert_eq!(result.unwrap(), "auth_code_value");
     }
 

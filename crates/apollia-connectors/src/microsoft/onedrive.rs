@@ -197,23 +197,32 @@ mod tests {
 
     #[test]
     fn test_urlencode_singlequoted_doubles_quotes() {
+        // GIVEN a value carrying a single quote, bound for a quoted OData literal
+        // WHEN it is encoded for that position
+        // THEN the quote is doubled and then percent encoded, so it cannot close the literal
         assert_eq!(urlencode_singlequoted("a'b"), "a%27%27b");
     }
 
     #[test]
     fn test_urlencode_preserves_alphanumeric() {
+        // GIVEN a value made only of letters and digits
+        // WHEN it is url-encoded
+        // THEN it comes back unchanged
         assert_eq!(urlencode("abc123"), "abc123");
     }
 
     #[test]
     fn test_drive_item_deserializes_minimal_payload() {
+        // GIVEN a Graph payload describing a file
         let payload = serde_json::json!({
             "id": "abc",
             "name": "doc.txt",
             "size": 42,
             "file": { "mimeType": "text/plain" }
         });
+        // WHEN it is decoded into a drive item
         let item: DriveItem = serde_json::from_value(payload).expect("decode");
+        // THEN the name, the size and the mime type are read, and no folder facet appears
         assert_eq!(item.name, "doc.txt");
         assert_eq!(item.size, Some(42));
         assert_eq!(item.file.unwrap().mime_type, "text/plain");
@@ -222,12 +231,15 @@ mod tests {
 
     #[test]
     fn test_drive_item_deserializes_folder() {
+        // GIVEN a Graph payload describing a folder
         let payload = serde_json::json!({
             "id": "fold",
             "name": "Documents",
             "folder": { "childCount": 3 }
         });
+        // WHEN it is decoded into a drive item
         let item: DriveItem = serde_json::from_value(payload).expect("decode");
+        // THEN the folder facet carries the child count, and no file facet appears
         assert!(item.file.is_none());
         assert_eq!(item.folder.unwrap().child_count, 3);
     }

@@ -740,6 +740,7 @@ mod tests {
             code_challenge: "c",
             resource: "https://m",
         };
+        // WHEN the authorize URL is built
         let url = build_authorize_url(parts);
 
         // THEN no `scope=` parameter is included (rather than `scope=`)
@@ -805,14 +806,20 @@ mod tests {
 
     #[test]
     fn test_parse_scope_string_splits_on_whitespace() {
+        // GIVEN a scope string holding three whitespace-separated scopes
+        // WHEN it is parsed, with no requested set to fall back on
         let scopes = parse_scope_string(&Some("read write admin".into()), &[]);
+        // THEN the three scopes come back separately
         assert_eq!(scopes, vec!["read", "write", "admin"]);
     }
 
     #[test]
     fn test_parse_scope_string_falls_back_to_requested() {
+        // GIVEN a server that returned no scope string, and two requested scopes
         let requested = vec!["a".to_string(), "b".to_string()];
+        // WHEN the scopes are parsed
         let scopes = parse_scope_string(&None, &requested);
+        // THEN the requested set is kept as the granted one
         assert_eq!(scopes, requested);
     }
 

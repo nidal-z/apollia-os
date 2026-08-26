@@ -72,6 +72,7 @@ mod tests {
 
     #[test]
     fn test_manifest_supports_service_returns_false_for_unknown() {
+        // GIVEN a manifest declaring gmail alone
         let m = ConnectorManifest {
             id: "google",
             name: "Google",
@@ -79,6 +80,8 @@ mod tests {
             publisher: "Google",
             services: &["gmail"],
         };
+        // WHEN it is asked about a service it does not declare
+        // THEN it answers false
         assert!(!m.supports_service("gcal"));
     }
 }
