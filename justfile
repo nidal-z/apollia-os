@@ -64,6 +64,19 @@ test:
 test-python:
     PYO3_PYTHON="$(command -v python3)" cargo test --workspace --features python-tests
 
+# Builds the configurations the default features hide.
+#
+# `--no-default-features` was written into three release presets and compiled
+# nowhere: `cargo check -p apollia-cli --no-default-features` did not even
+# build, because a `match` arm behind the crate's own `cloud` feature vanished
+# while the enum variant it matched stayed. The six `cfg(not(feature = ...))`
+# branches of `apollia-llm` and `apollia-tools` were in the same state, written
+# and never compiled. This recipe is the command that compiles them.
+check-features:
+    cargo check -p apollia-cli --no-default-features --all-targets
+    cargo check -p apollia-llm --no-default-features --all-targets
+    cargo check -p apollia-tools --no-default-features --all-targets
+
 # Full lint
 lint:
     cargo fmt --all --check

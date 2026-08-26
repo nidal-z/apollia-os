@@ -115,6 +115,17 @@ jobs:
             cmake clang pkg-config
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # The configurations the default features hide. Three release presets
+      # passed `--no-default-features` and no command ever compiled the result:
+      # `cargo check -p apollia-cli --no-default-features` did not build, and
+      # the six `cfg(not(feature = ...))` branches of apollia-llm and
+      # apollia-tools had never been through rustc. `just check-features` is
+      # the same list.
+      - name: Configurations without the default features build
+        run: |
+          cargo check -p apollia-cli --no-default-features --all-targets
+          cargo check -p apollia-llm --no-default-features --all-targets
+          cargo check -p apollia-tools --no-default-features --all-targets
 
   test:
     name: Rust Tests

@@ -92,19 +92,19 @@ jobs:
           read -r -d '' FULL <<'JSON' || true
           {
             "include": [
-              {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal"},
-              {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp"},
-              {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "needs_rocm":true,   "allow_fail":true},
-              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "needs_vulkan":true, "allow_fail":true},
-              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "allow_fail":true},
-              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
-              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true},
-              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "needs_rocm":true,   "allow_fail":true},
-              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "needs_vulkan":true, "allow_fail":true},
-              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "allow_fail":true},
-              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "needs_cuda":true,   "allow_fail":true}
+              {"preset":"macos-silicon",      "runner":"macos-latest",     "triple":"aarch64-apple-darwin",      "features":"local-metal"},
+              {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cpu"},
+              {"preset":"windows-x86-cpu",    "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cpu"},
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-rocm",   "needs_rocm":true, "allow_fail":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true},
+              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cpu",    "allow_fail":true},
+              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
+              {"preset":"windows-x86-cuda",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
+              {"preset":"windows-x86-rocm",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-rocm",   "needs_rocm":true, "allow_fail":true},
+              {"preset":"windows-x86-vulkan", "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true},
+              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",   "triple":"aarch64-pc-windows-msvc",   "features":"local-cpu",    "allow_fail":true},
+              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",   "triple":"aarch64-pc-windows-msvc",   "features":"local-cuda",   "needs_cuda":true, "allow_fail":true}
             ]
           }
           JSON
@@ -284,11 +284,11 @@ jobs:
           fi
 
       # ── Build ─────────────────────────────────────────────────────────────
-      # Depuis le refactor multi-runner, apollia-cli n'expose plus
-      # que la feature `cloud`. Les features `local-*` / `stt-*` historiques
-      # de `matrix.features` ne s'appliquent plus qu'au runner (filtrées par
-      # l'étape "Extract runner feature" ci-dessous). On force ici `cloud`
-      # quand il est demandé, rien sinon.
+      # Depuis le refactor multi-runner, apollia-cli n'expose plus de feature
+      # de backend : les clients cloud sont inconditionnels. `matrix.features`
+      # ne porte plus que le backend du runner, lu par l'étape "Extract runner
+      # feature" ci-dessous. Chaque nom y est déclaré dans un Cargo.toml : un
+      # nom inventé ne construit rien.
       # Windows : +crt-static via .cargo/config.toml + CMAKE_MSVC_RUNTIME_LIBRARY
       # pour aligner /MT côté apollia-runner (llama-cpp-sys-2 / whisper-rs-sys).
       - name: Build CLI
@@ -296,14 +296,9 @@ jobs:
         env:
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
         run: |
-          CLI_FEATS=""
-          if echo "${{ matrix.features }}" | grep -q '\bcloud\b'; then
-            CLI_FEATS="cloud"
-          fi
           cargo build --release -p apollia-cli \
             --target ${{ matrix.triple }} \
-            --no-default-features \
-            --features "$CLI_FEATS"
+            --no-default-features
 
       # Build apollia-runner avec la feature backend correspondante.
       # Extrait local-{cpu,cuda,rocm,vulkan,metal} de matrix.features.

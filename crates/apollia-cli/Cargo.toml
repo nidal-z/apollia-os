@@ -14,11 +14,11 @@ name = "apollia-os"
 path = "src/main.rs"
 
 [features]
-default = ["cloud"]
-## Enables the cloud backends (Anthropic, OpenAI-compatible, Vertex).
-## Local LLM and STT backends live in the `apollia-runner` sidecar crate;
-## the CLI talks to the daemon, which spawns and supervises the runner.
-cloud = ["apollia-llm/cloud"]
+## No `cloud` switch here: `apollia-aip`, `apollia-eval`, `apollia-oria` and
+## `apollia-runtime` each pull `apollia-llm` with its own defaults, so
+## `apollia-llm/cloud` is on for every build of this binary whatever this
+## manifest asks for. A switch that cannot turn the backends off is a switch
+## that lies; the cloud HTTP clients are unconditional and the CLI says so.
 ## Documentation generation (CLI reference). Pulls clap-markdown and is excluded
 ## from the default build, so the shipped binary carries no doc-tooling surface.
 gen-docs = ["dep:clap-markdown"]

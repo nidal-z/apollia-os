@@ -50,10 +50,7 @@ fn built_profile() -> &'static str {
 }
 
 fn active_features() -> Vec<&'static str> {
-    vec![
-        #[cfg(feature = "cloud")]
-        "cloud",
-    ]
+    vec!["cloud"]
 }
 
 #[cfg(test)]

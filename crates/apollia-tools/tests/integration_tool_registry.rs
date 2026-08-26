@@ -19,12 +19,15 @@
 
 use std::path::PathBuf;
 
-use apollia_core::{WebReadConfig, WebSearchBackend, WebSearchConfig};
+#[cfg(feature = "web-search")]
+use apollia_core::WebSearchBackend;
+use apollia_core::{WebReadConfig, WebSearchConfig};
 use apollia_tools::{
     build_native_dispatcher, GovernanceDb, NativeDispatcherConfig, NativeToolRegistry,
     ToolCredentialStore, ToolExecutionError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
 };
+#[cfg(feature = "web-search")]
 use apollia_tools::{WebSearch, WebSearchError};
 use rusqlite::{params, Connection};
 use serde_json::json;
@@ -106,6 +109,7 @@ async fn test_credential_roundtrip_survives_db_reload() {
     assert_eq!(value.as_deref(), Some("BSA-roundtrip-secret"));
 }
 
+#[cfg(feature = "web-search")]
 #[tokio::test]
 async fn test_web_search_uses_ddg_when_no_brave_key() {
     let mut cfg = WebSearchConfig {
@@ -134,6 +138,7 @@ async fn test_web_search_uses_ddg_when_no_brave_key() {
     );
 }
 
+#[cfg(feature = "web-search")]
 #[tokio::test]
 async fn test_web_search_brave_401_falls_back_to_ddg() {
     let mut cfg = WebSearchConfig {

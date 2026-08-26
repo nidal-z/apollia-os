@@ -304,7 +304,6 @@ fn check_inert_sections(content: &str) {
 pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
     for backend in &config.backends {
         match &backend.kind {
-            #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => {
                 if std::env::var(&cfg.api_key_env).is_err() {
                     tracing::warn!(
@@ -338,7 +337,6 @@ mod tests {
     // GIVEN a TOML with [[llm.backends]] type = "api"
     // WHEN deserializing
     // THEN config.llm.backends[0] is Api
-    #[cfg(feature = "cloud")]
     #[test]
     fn test_parse_api_backend() {
         // GIVEN
@@ -388,7 +386,6 @@ model = "claude-haiku-4-5-20251001"
     // GIVEN a minimal LlmConfig (cloud backend without an API key)
     // WHEN validate_llm_config is called
     // THEN Ok(()) is returned, never a fatal error
-    #[cfg(feature = "cloud")]
     #[test]
     fn test_validate_llm_config_always_returns_ok() {
         // GIVEN
@@ -420,7 +417,6 @@ model = "gpt-4o-mini"
     // GIVEN a TOML with [llm] but without [llm.observability]
     // WHEN deserializing
     // THEN the default values are applied
-    #[cfg(feature = "cloud")]
     #[test]
     fn test_observability_defaults() {
         // GIVEN
