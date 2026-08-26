@@ -214,7 +214,12 @@ struct SseListenerCtx {
 /// [`SseTransport::recv`] callers with [`TransportError::Closed`].
 async fn sse_listener(ctx: SseListenerCtx, mut shutdown_rx: watch::Receiver<bool>) {
     if let Err(e) = run_sse_loop(&ctx, &mut shutdown_rx).await {
-        tracing::warn!(error = %e, url = %ctx.sse_url, "SSE connection closed with error");
+        tracing::warn!(
+            error = %e,
+            url = %ctx.sse_url,
+            reason = "transport error",
+            "mcp.sse.connection.closed"
+        );
     }
     // `msg_tx` drops here, signalling pending recv() callers that the transport is closed.
 }
@@ -326,9 +331,12 @@ async fn dispatch_event(
 ) {
     if event.event_type == "endpoint" {
         let _ = endpoint_tx.send(Some(event.data.clone()));
-        tracing::debug!(endpoint = %event.data, "SSE post endpoint received");
+        tracing::debug!(endpoint = %event.data, "mcp.sse.endpoint.received");
     } else if msg_tx.send(event.data).await.is_err() {
-        tracing::debug!("SSE listener: message receiver dropped, stopping");
+        tracing::debug!(
+            reason = "the message receiver was dropped",
+            "mcp.sse.listener.stopped"
+        );
     }
 }
 

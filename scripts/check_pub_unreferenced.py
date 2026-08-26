@@ -110,6 +110,10 @@ DEAD_RATCHET: dict[str, str] = {
     "default_input@apollia-stt": (
         "convenience wrapper over `AudioCapture::open(None)`; every caller names a device or resolves one first."
     ),
+    "approve_tool@apollia-mcp": (
+        "the only way into the HITL approval path, and nothing calls it; the guard read it as "
+        "live while a tracing sentence of `handle_approve_tool_access` named it."
+    ),
     "delete_draft@apollia-connectors": "same chain as `list_drafts`.",
     "duck_type_agent@apollia-aip": (
         "strict duck-typing against a venv `site-packages`; the CLI install path defers it per agent and never calls it."
@@ -125,6 +129,9 @@ DEAD_RATCHET: dict[str, str] = {
     ),
     "load_package@apollia-aip": (
         "the package-wide duck-typing entry, deferred for the same reason as `duck_type_agent`."
+    ),
+    "revoke_tool@apollia-mcp": (
+        "same dead path as `approve_tool`, on the other half of the pair."
     ),
     "run_task_with_alternatives@apollia-oria": (
         "the CLI consumes `PlanAlternativesProposed` and nothing emits it; the missing half is the emission, not this method."

@@ -165,7 +165,8 @@ impl McpToolExecutor {
             tool = %self.full_name,
             approval_key = %approval_key,
             %reason,
-            "MCP tool execution suspended pending human approval"
+            reason = "a human approval is pending",
+            "mcp.tool.call.suspended"
         );
 
         let rx = pending.register(&approval_key);
@@ -178,7 +179,7 @@ impl McpToolExecutor {
             tracing::info!(
                 tool = %self.full_name,
                 approval_key = %approval_key,
-                "MCP tool execution approved by user"
+                "mcp.tool.call.approved"
             );
             Ok(())
         } else {

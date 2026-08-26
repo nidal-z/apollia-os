@@ -76,7 +76,7 @@ pub async fn discover_mcp_servers() -> Result<Vec<DiscoveredServer>, DiscoveryEr
                     tracing::debug!(
                         name = %server.name,
                         port = server.port,
-                        "MCP server resolved via mDNS"
+                        "mcp.server.discovered"
                     );
                     discovered.push(server);
                 }

@@ -361,7 +361,7 @@ impl McpClientManagerHandle {
                         server = %server_name,
                         tools = session.tools().len(),
                         indexed = session.tool_index().len(),
-                        "MCP server connected"
+                        "mcp.server.connected"
                     );
 
                     // Eager only: deferred sessions keep their schemas out of the
@@ -864,7 +864,7 @@ impl McpClientManager {
             server = %name,
             tools = session.tools().len(),
             indexed = session.tool_index().len(),
-            "MCP server added"
+            "mcp.server.added"
         );
         self.register_session_tools(&name, &session).await;
         let status = build_status(
@@ -883,7 +883,7 @@ impl McpClientManager {
         match self.sessions.remove(name) {
             Some(session) => {
                 session.shutdown().await;
-                tracing::info!(server = %name, "MCP server removed");
+                tracing::info!(server = %name, "mcp.server.removed");
                 Ok(())
             }
             None => Err(McpSessionError::ServerExited {
@@ -932,7 +932,8 @@ impl McpClientManager {
                 tracing::error!(
                     server = %name,
                     error = %e,
-                    "MCP server hot reload failed - server removed from managed set"
+                    detail = "the server left the managed set",
+                    "mcp.server.reload.failed"
                 );
                 return Err(e);
             }
@@ -944,7 +945,7 @@ impl McpClientManager {
             server = %name,
             old_tools = ?old_tools,
             new_tools = ?new_tools,
-            "MCP server hot reload completed"
+            "mcp.server.reload.completed"
         );
 
         self.register_session_tools(name, &new_session).await;
@@ -1093,7 +1094,8 @@ impl McpClientManager {
                         server = %server_name,
                         tool = %tool_name,
                         error = %e,
-                        "Deferred MCP schema fetch failed before tool call; continuing"
+                        detail = "the tool call continues on the deferred index",
+                        "mcp.schema.fetch.failed"
                     );
                 }
             }
@@ -1196,7 +1198,7 @@ impl McpClientManager {
                     server = %server_name,
                     tool   = %tool_name,
                     error  = %e,
-                    "failed to register pending approval"
+                    "mcp.approval.register.failed"
                 );
                 None
             }
@@ -1417,7 +1419,7 @@ impl McpClientManager {
                 tracing::info!(
                     server = %server_name,
                     requires_approval = %requires_approval,
-                    "MCP server approval updated"
+                    "mcp.server.approval.updated"
                 );
                 Ok(())
             }
@@ -1439,7 +1441,8 @@ impl McpClientManager {
                 tracing::warn!(
                     server = %server_name,
                     tool   = %tool_name,
-                    "approve_tool called but no approval store configured"
+                    reason = "no approval store is configured",
+                    "mcp.tool.approve.ignored"
                 );
                 Ok(())
             }
@@ -1458,7 +1461,8 @@ impl McpClientManager {
                 tracing::warn!(
                     server = %server_name,
                     tool   = %tool_name,
-                    "revoke_tool called but no approval store configured"
+                    reason = "no approval store is configured",
+                    "mcp.tool.revoke.ignored"
                 );
                 Ok(())
             }
@@ -1567,9 +1571,9 @@ impl McpClientManager {
 
     /// Shut down every live session and clear the session map.
     async fn shutdown_all(&mut self) {
-        tracing::info!("McpClientManager shutting down");
+        tracing::info!("mcp.manager.shutdown");
         for (name, session) in self.sessions.drain() {
-            tracing::info!(server = %name, "Shutting down MCP session");
+            tracing::info!(server = %name, "mcp.session.shutdown.started");
             session.shutdown().await;
         }
     }
@@ -1627,7 +1631,7 @@ async fn register_session_tools_in_registry(
                 tracing::info!(
                     server = %server_name,
                     tool = %tool_def.name,
-                    "MCP tool registered"
+                    "mcp.tool.registered"
                 );
             }
             Err(e) => {
@@ -1635,7 +1639,7 @@ async fn register_session_tools_in_registry(
                     server = %server_name,
                     tool = %tool_def.name,
                     error = %e,
-                    "failed to register MCP tool"
+                    "mcp.tool.register.failed"
                 );
             }
         }
@@ -1652,13 +1656,15 @@ fn log_session_start_error(server_name: &str, e: &McpSessionError) {
         tracing::warn!(
             server = %server_name,
             error = %e,
-            "MCP server skipped - OAuth not yet configured"
+            reason = "OAuth is not configured yet",
+            "mcp.server.skipped"
         );
     } else {
         tracing::error!(
             server = %server_name,
             error = %e,
-            "MCP server failed to start, skipping"
+            reason = "the server failed to start",
+            "mcp.server.skipped"
         );
     }
 }

@@ -89,7 +89,8 @@ where
                     max = retry_cfg.max_retries,
                     delay_ms = delay_secs * 1000,
                     server = %server_name,
-                    "retrying MCP call after transport error"
+                    reason = "transport error",
+                    "mcp.call.retrying"
                 );
                 tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
             }
@@ -479,7 +480,7 @@ impl McpSession {
         debug!(
             server = %self.config.name,
             protocol_version = %init_result.protocol_version,
-            "MCP initialize handshake completed"
+            "mcp.handshake.completed"
         );
 
         self.capabilities = init_result.capabilities;
@@ -512,11 +513,11 @@ impl McpSession {
         tracing::info!(
             server = %self.config.name,
             tools_count = result.tools.len(),
-            "MCP tools discovered"
+            "mcp.tools.discovered"
         );
 
         if result.tools.is_empty() {
-            tracing::warn!(server = %self.config.name, "MCP server exposes no tools");
+            tracing::warn!(server = %self.config.name, "mcp.tools.empty");
         }
 
         self.tools = crate::sanitize::sanitize_tool_definitions(
@@ -571,11 +572,11 @@ impl McpSession {
         tracing::info!(
             server = %self.config.name,
             tools_count = self.tool_index.len(),
-            "MCP deferred tool index discovered"
+            "mcp.tools.index.discovered"
         );
 
         if self.tool_index.is_empty() {
-            tracing::warn!(server = %self.config.name, "MCP server exposes no tools");
+            tracing::warn!(server = %self.config.name, "mcp.tools.empty");
         }
 
         Ok(())
@@ -939,7 +940,7 @@ impl McpSession {
             .send_notification("notifications/cancelled", None)
             .await;
         let _ = self.transport.shutdown().await;
-        tracing::info!(server = %self.config.name, "MCP session shutdown complete");
+        tracing::info!(server = %self.config.name, "mcp.session.shutdown.completed");
     }
 }
 
@@ -971,7 +972,7 @@ fn spawn_dispatch_task(
                     // Notifications (no id) are intentionally ignored in V1.
                 }
                 Err(e) => {
-                    warn!(error = %e, "failed to parse JSON-RPC line from MCP server");
+                    warn!(error = %e, "mcp.jsonrpc.line.parse.failed");
                 }
             }
         }

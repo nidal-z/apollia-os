@@ -185,7 +185,8 @@ impl McpApprovalStore {
             server = %server_name,
             tool   = %tool_name,
             id     = %id,
-            "MCP tool call suspended: pending HITL approval"
+            reason = "a human approval is pending",
+            "mcp.tool.call.suspended"
         );
 
         Ok(id)
@@ -227,7 +228,7 @@ impl McpApprovalStore {
             tool        = %tool_name,
             ttl_hours   = self.approval_ttl_hours,
             expires_at  = ?expires_at,
-            "MCP tool access approved"
+            "mcp.tool.access.approved"
         );
 
         Ok(())
@@ -249,7 +250,7 @@ impl McpApprovalStore {
         tracing::info!(
             server = %server_name,
             tool   = %tool_name,
-            "MCP tool access revoked"
+            "mcp.tool.access.revoked"
         );
 
         Ok(())

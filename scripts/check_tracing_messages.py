@@ -75,7 +75,6 @@ KINDS = ("label", "sentence", "format_string", "no_message")
 ALLOWED: dict[str, int] = {
     "apollia-auth": 3,
     "apollia-core": 1,
-    "apollia-mcp": 33,
     "apollia-memory": 28,
     "apollia-notifications": 18,
     "apollia-permissions": 4,
