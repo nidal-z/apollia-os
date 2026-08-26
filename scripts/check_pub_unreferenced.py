@@ -5,8 +5,9 @@ A Rust library gets no compiler warning for a `pub` item nobody calls:
 `dead_code` stops at the crate boundary, and everything a crate exports is
 reachable in principle. So an item can be written, documented, and never
 referenced anywhere, and the build stays green forever. Eleven module-level
-items and forty-three methods were in exactly that state when this guard was
-written, including an error enum nobody ever constructs, a whole mDNS
+items and forty-three methods were in exactly that state on the tree this
+guard was written against, forty-four once the first removals orphaned
+another, including an error enum nobody ever constructs, a whole mDNS
 announcement path for a role Apollia does not play, and eight repository
 methods duplicating their synchronous twin.
 
