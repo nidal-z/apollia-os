@@ -319,6 +319,16 @@ repos:
         files: '^(crates/.+\.rs|scripts/check_panic_free\.py)$'
         pass_filenames: false
 
+      # 1.2 s on the whole tree. It reads test bodies, which no other guard
+      # of this corpus does: 21 tests carried no assertion of any kind and one
+      # was a body of comments, all green since the day they were written.
+      - id: check-rust-tests
+        name: no Rust test that cannot fail, and GIVEN/WHEN/THEN on a ratchet
+        entry: python3 scripts/check_rust_tests.py
+        language: system
+        files: '^(crates/.+\.rs|tests/.+\.rs|fuzz/.+\.rs|scripts/check_rust_tests(_ratchets)?\.(py|txt))$'
+        pass_filenames: false
+
       # 2.6s on the whole corpus, so it runs on the commit rather than only in
       # `just guards`: a sentence written as a tracing message costs nothing to
       # write and is invisible afterwards, which is how 837 of them accumulated.

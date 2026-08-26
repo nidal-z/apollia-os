@@ -399,6 +399,16 @@ jobs:
         run: |
           python3 scripts/check_rust_rules.py --selftest
           python3 scripts/check_rust_rules.py
+      # The same rules one level in, on test bodies, which nothing read until
+      # this guard: 21 tests carried no assertion of any kind, one of them a
+      # body made only of comments, and 963 are missing at least one of the
+      # three markers `AGENTS.md` and `FORBIDDEN.md` both make mandatory.
+      # Sleeps and ports stay with `time-sensitive-tests` above; this rule
+      # fails if that one disappears rather than counting them twice.
+      - name: No Rust test that cannot fail, GIVEN/WHEN/THEN on a ratchet
+        run: |
+          python3 scripts/check_rust_tests.py --selftest
+          python3 scripts/check_rust_tests.py
       # The other half of the same rule: check_rust_rules.py holds the format
       # strings at zero, and nothing held the label form, so 837 of the 995
       # production events were prose and no query could group them. Selftest

@@ -567,6 +567,7 @@ guards:
       "scripts/check_python_rules.py"
       "scripts/check_release_artifacts.py"
       "scripts/check_rust_rules.py"
+      "scripts/check_rust_tests.py"
       "scripts/check_selftest.py"
       "scripts/check_serde_persisted_defaults.py"
       "scripts/check_sqlite_schema_versioning.py"

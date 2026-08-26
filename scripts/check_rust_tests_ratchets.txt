@@ -1,0 +1,240 @@
+# Ratchets of scripts/check_rust_tests.py.
+#
+# Two tables, one per rule that carries named debt. Both descend only, and both
+# fail in both directions: a file above its entry is red, and a file below its
+# entry is red too, until the number follows it down in the commit that removed
+# the sites. A ratchet that only failed upward outlives the debt.
+#
+# Format: one `path count` per line, `#` starts a comment, a `[rule]` line
+# opens a section.
+#
+# [gwt-markers]
+#   Tests missing at least one of GIVEN, WHEN and THEN. The corpus declares the
+#   rule twice, in `AGENTS.md` and in `docs/agents/FORBIDDEN.md`, and nothing
+#   read a test body until this guard, so the whole tree is in the table. It is
+#   emptied crate by crate, not by annotating: a test whose GIVEN cannot be
+#   named is a test that cannot fail for the reason it claims, and is rewritten
+#   or removed instead.
+#
+# [home-read]
+#   Tests that resolve the operator's home. Reading `home_dir_or_temp()` under
+#   a substituted HOME is legitimate; reading it under the real one is how a
+#   suite writes into `~/.apollia`. The table freezes who reads it, so a new
+#   reader is argued rather than discovered after the fact.
+
+[gwt-markers]
+crates/apollia-aip/src/a2a.rs 3
+crates/apollia-aip/src/context.rs 12
+crates/apollia-aip/src/datasources.rs 3
+crates/apollia-aip/src/events.rs 2
+crates/apollia-aip/src/llm.rs 1
+crates/apollia-aip/src/mail.rs 1
+crates/apollia-aip/src/package_loader.rs 3
+crates/apollia-aip/src/secrets.rs 6
+crates/apollia-aip/src/stt.rs 2
+crates/apollia-aip/src/templates.rs 8
+crates/apollia-auth/src/auth_manager.rs 5
+crates/apollia-auth/src/callback.rs 3
+crates/apollia-auth/src/connector_providers.rs 6
+crates/apollia-auth/src/drive_prefs.rs 13
+crates/apollia-auth/src/mcp_oauth.rs 11
+crates/apollia-auth/src/mcp_oauth_orchestrator.rs 3
+crates/apollia-auth/src/mcp_token_store.rs 5
+crates/apollia-auth/src/multi_account.rs 4
+crates/apollia-auth/src/oauth_clients_file.rs 7
+crates/apollia-auth/src/providers.rs 1
+crates/apollia-auth/src/secret_storage.rs 9
+crates/apollia-auth/src/token.rs 2
+crates/apollia-cli/src/client.rs 2
+crates/apollia-cli/src/commands/agent/tests.rs 8
+crates/apollia-cli/src/commands/audit.rs 6
+crates/apollia-cli/src/commands/chat.rs 10
+crates/apollia-cli/src/commands/chat_config.rs 14
+crates/apollia-cli/src/commands/config.rs 19
+crates/apollia-cli/src/commands/connector.rs 21
+crates/apollia-cli/src/commands/digest.rs 2
+crates/apollia-cli/src/commands/doctor.rs 3
+crates/apollia-cli/src/commands/fuzzy.rs 1
+crates/apollia-cli/src/commands/guide.rs 1
+crates/apollia-cli/src/commands/llm.rs 9
+crates/apollia-cli/src/commands/logs.rs 5
+crates/apollia-cli/src/commands/mcp.rs 8
+crates/apollia-cli/src/commands/mcp_oauth.rs 14
+crates/apollia-cli/src/commands/memory.rs 11
+crates/apollia-cli/src/commands/model.rs 6
+crates/apollia-cli/src/commands/permissions.rs 12
+crates/apollia-cli/src/commands/project.rs 14
+crates/apollia-cli/src/commands/run.rs 3
+crates/apollia-cli/src/commands/start.rs 5
+crates/apollia-cli/src/commands/stt.rs 3
+crates/apollia-cli/src/commands/suggest.rs 1
+crates/apollia-cli/src/commands/tools.rs 4
+crates/apollia-cli/src/commands/trace.rs 8
+crates/apollia-cli/src/commands/user_memory.rs 7
+crates/apollia-cli/src/commands/version.rs 2
+crates/apollia-cli/src/main.rs 52
+crates/apollia-connectors/src/google/calendar.rs 7
+crates/apollia-connectors/src/google/drive_workspace.rs 5
+crates/apollia-connectors/src/google/gmail.rs 4
+crates/apollia-connectors/src/google/mod.rs 6
+crates/apollia-connectors/src/http.rs 9
+crates/apollia-connectors/src/manifest.rs 1
+crates/apollia-connectors/src/microsoft/calendar.rs 4
+crates/apollia-connectors/src/microsoft/mail.rs 3
+crates/apollia-connectors/src/microsoft/mod.rs 5
+crates/apollia-connectors/src/microsoft/onedrive.rs 4
+crates/apollia-connectors/src/operation.rs 3
+crates/apollia-connectors/src/registry.rs 5
+crates/apollia-core/src/config/autonomy_tests.rs 1
+crates/apollia-core/src/config/tests.rs 20
+crates/apollia-core/src/manifest.rs 2
+crates/apollia-core/src/mcp_health.rs 1
+crates/apollia-core/src/notebook.rs 2
+crates/apollia-core/src/observability.rs 1
+crates/apollia-core/src/session_metrics.rs 13
+crates/apollia-core/src/subprocess_env.rs 1
+crates/apollia-core/src/task.rs 1
+crates/apollia-core/src/temporal_context.rs 6
+crates/apollia-desktop/src/bundled_agents.rs 8
+crates/apollia-desktop/src/commands/agents/messages.rs 1
+crates/apollia-desktop/src/commands/chat.rs 11
+crates/apollia-desktop/src/commands/chat/title.rs 3
+crates/apollia-desktop/src/commands/config.rs 3
+crates/apollia-desktop/src/commands/config/lifecycle.rs 1
+crates/apollia-desktop/src/commands/config/system.rs 2
+crates/apollia-desktop/src/commands/integrations.rs 8
+crates/apollia-desktop/src/commands/integrations/credentials.rs 5
+crates/apollia-desktop/src/commands/link_preview.rs 2
+crates/apollia-desktop/src/commands/onboarding.rs 1
+crates/apollia-desktop/src/commands/onboarding/ai_setup.rs 5
+crates/apollia-desktop/src/commands/onboarding/companion.rs 1
+crates/apollia-desktop/src/commands/onboarding/state.rs 11
+crates/apollia-desktop/src/commands/permissions_proposals.rs 3
+crates/apollia-desktop/src/commands/projects.rs 3
+crates/apollia-desktop/src/commands/stt.rs 1
+crates/apollia-desktop/src/commands/tool_governance.rs 4
+crates/apollia-desktop/src/commands/user_memory.rs 3
+crates/apollia-desktop/src/mcp/enrichments.rs 4
+crates/apollia-desktop/src/mcp/overrides.rs 6
+crates/apollia-desktop/src/mcp/secret_store.rs 3
+crates/apollia-desktop/src/stt/clipboard.rs 4
+crates/apollia-desktop/src/stt/hotkey.rs 4
+crates/apollia-desktop/src/tray.rs 6
+crates/apollia-desktop/tests/e2e/test_agents.rs 1
+crates/apollia-desktop/tests/e2e/test_chat.rs 1
+crates/apollia-desktop/tests/e2e/test_navigation.rs 1
+crates/apollia-desktop/tests/e2e/test_onboarding.rs 1
+crates/apollia-desktop/tests/e2e/test_startup.rs 1
+crates/apollia-llm/src/backends/vertex.rs 1
+crates/apollia-llm/src/hf_registry.rs 7
+crates/apollia-llm/src/meta/next_steps.rs 9
+crates/apollia-llm/src/meta/parse_automation.rs 20
+crates/apollia-llm/src/model_defaults/mod.rs 8
+crates/apollia-llm/src/repository.rs 2
+crates/apollia-llm/src/router.rs 1
+crates/apollia-loom-models/tests/models.rs 7
+crates/apollia-mcp/src/approvals.rs 2
+crates/apollia-mcp/src/discovery.rs 2
+crates/apollia-mcp/src/executor.rs 1
+crates/apollia-mcp/src/health.rs 3
+crates/apollia-mcp/src/manager.rs 7
+crates/apollia-mcp/src/protocol.rs 1
+crates/apollia-mcp/src/session.rs 4
+crates/apollia-mcp/src/tool_search.rs 2
+crates/apollia-mcp/src/transport/http.rs 9
+crates/apollia-mcp/src/transport/sse.rs 1
+crates/apollia-mcp/src/transport/stdio.rs 3
+crates/apollia-mcp/tests/integration_flow.rs 2
+crates/apollia-memory/src/injection_tracker.rs 1
+crates/apollia-memory/src/manager.rs 1
+crates/apollia-memory/src/profile_schema.rs 4
+crates/apollia-memory/src/user_memory.rs 14
+crates/apollia-notifications/src/channels/webhook.rs 9
+crates/apollia-notifications/src/config.rs 1
+crates/apollia-notifications/src/engine.rs 1
+crates/apollia-notifications/src/validation.rs 10
+crates/apollia-oria/src/actor.rs 2
+crates/apollia-oria/src/budget.rs 4
+crates/apollia-oria/src/resilience.rs 1
+crates/apollia-permissions/src/prefix_rule_engine.rs 20
+crates/apollia-prompts/src/lib.rs 3
+crates/apollia-runner/src/backends/whisper.rs 2
+crates/apollia-runner/src/lifecycle/ready.rs 2
+crates/apollia-runner/src/server/stt.rs 3
+crates/apollia-runner/tests/handshake.rs 1
+crates/apollia-runner/tests/llm_load_complete.rs 5
+crates/apollia-runtime/src/a2a/compatibility.rs 10
+crates/apollia-runtime/src/a2a/invoker.rs 1
+crates/apollia-runtime/src/a2a/telemetry.rs 2
+crates/apollia-runtime/src/api/routes_agents.rs 1
+crates/apollia-runtime/src/api/routes_audit.rs 1
+crates/apollia-runtime/src/api/routes_mcp.rs 1
+crates/apollia-runtime/src/api/routes_notifications.rs 4
+crates/apollia-runtime/src/api/routes_tasks.rs 1
+crates/apollia-runtime/src/api/routes_timeline.rs 2
+crates/apollia-runtime/src/audit_journal/subscriber.rs 1
+crates/apollia-runtime/src/chat/builtin_agent/tests.rs 2
+crates/apollia-runtime/src/chat/native_wrappers.rs 3
+crates/apollia-runtime/src/chat/plan_tool.rs 1
+crates/apollia-runtime/src/chat/types.rs 2
+crates/apollia-runtime/src/chat/types/approvals.rs 1
+crates/apollia-runtime/src/connectors_bridge/tests.rs 5
+crates/apollia-runtime/src/coordinator.rs 1
+crates/apollia-runtime/src/embedded.rs 3
+crates/apollia-runtime/src/mailbox.rs 5
+crates/apollia-runtime/src/observability/persistor.rs 4
+crates/apollia-runtime/src/observability/resilience_subscriber.rs 3
+crates/apollia-runtime/src/router.rs 1
+crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs 11
+crates/apollia-runtime/src/session.rs 4
+crates/apollia-runtime/src/session_metrics.rs 1
+crates/apollia-runtime/src/shutdown.rs 2
+crates/apollia-runtime/src/stt/engine.rs 1
+crates/apollia-runtime/src/supervisor/tests.rs 3
+crates/apollia-tools/src/agent_repository.rs 8
+crates/apollia-tools/src/chat_libre_config.rs 1
+crates/apollia-tools/src/descriptor.rs 2
+crates/apollia-tools/src/dispatcher_invoker.rs 3
+crates/apollia-tools/src/executor.rs 2
+crates/apollia-tools/src/project_repository.rs 1
+crates/apollia-tools/src/tool_registry.rs 1
+crates/apollia-tools/src/tools/ask_user.rs 1
+crates/apollia-tools/src/tools/file_glob.rs 1
+crates/apollia-tools/src/tools/file_grep.rs 1
+crates/apollia-tools/src/tools/file_list.rs 1
+crates/apollia-tools/src/tools/http_fetch.rs 1
+crates/apollia-tools/src/tools/memory_search.rs 1
+crates/apollia-tools/src/tools/notebook_edit.rs 1
+crates/apollia-tools/src/tools/notebook_read.rs 1
+crates/apollia-tools/src/tools/permission_rules.rs 5
+crates/apollia-tools/src/tools/python_executor.rs 1
+crates/apollia-tools/src/tools/risk_classifier.rs 2
+crates/apollia-tools/src/tools/rlimits.rs 1
+crates/apollia-tools/src/tools/web_read/mod.rs 15
+crates/apollia-tools/src/tools/web_read/ssrf.rs 16
+crates/apollia-tools/src/tools/web_search/backend.rs 4
+crates/apollia-tools/src/tools/web_search/brave.rs 12
+crates/apollia-tools/src/tools/web_search/duckduckgo.rs 10
+crates/apollia-tools/src/tools/web_search/mod.rs 9
+crates/apollia-tools/tests/integration_tool_registry.rs 5
+crates/apollia-triggers/src/definition_repository.rs 2
+crates/apollia-triggers/src/engine.rs 2
+crates/apollia-triggers/src/toml_config.rs 1
+crates/apollia-triggers/src/validation.rs 8
+crates/apollia-workspace/src/commands.rs 5
+tests/integration/test_agent_persistence.rs 1
+tests/integration/test_chat.rs 4
+tests/integration/test_config_crud.rs 7
+tests/integration/test_hello_agent.rs 1
+
+[home-read]
+crates/apollia-cli/src/commands/doctor.rs 1
+crates/apollia-core/src/paths.rs 1
+crates/apollia-desktop/src/commands/chat/export.rs 1
+crates/apollia-desktop/src/commands/config/system.rs 1
+crates/apollia-desktop/src/commands/projects.rs 3
+crates/apollia-desktop/tests/e2e/test_agents.rs 1
+crates/apollia-mcp/src/config.rs 2
+crates/apollia-runtime/src/chat/builtin_agent/tests.rs 1
+crates/apollia-runtime/src/embedded.rs 1
+crates/apollia-tools/src/sandbox_path.rs 2
