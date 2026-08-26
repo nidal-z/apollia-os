@@ -310,6 +310,7 @@ impl AgentRunner for BridgeRunner {
         let tool_registry = self.tool_registry.clone();
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
+        let memory_config = self.manifest.memory_config.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let user_memory_write = self.user_memory_write;
         let pending_user_inputs = self.pending_user_inputs.clone();
@@ -435,7 +436,11 @@ impl AgentRunner for BridgeRunner {
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
-                let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                let mut manager =
+                    MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                if let Some(ref memory_config) = memory_config {
+                    manager.start_auto_purge(memory_config, &eff_ns);
+                }
                 let iface = MemoryInterface::new(manager, eff_ns, agent_id.clone())?;
                 iface.announce_shared_namespaces(&event_bus);
                 Some(iface)

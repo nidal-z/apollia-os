@@ -296,7 +296,13 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let memory_interface: Option<MemoryInterface> =
             manifest.memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
-                let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                let mut manager =
+                    MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                // `manifest.memory_config.auto_purge` promises a purge pass when
+                // the manager starts; this is the call that keeps the promise.
+                if let Some(ref memory_config) = manifest.memory_config {
+                    manager.start_auto_purge(memory_config, &eff_ns);
+                }
                 // Always attach the global __user__ store so every agent can
                 let iface = MemoryInterface::new(manager, eff_ns, agent_name.to_string())?;
                 iface.announce_shared_namespaces(&event_bus);
@@ -852,6 +858,7 @@ impl AgentRunner for BridgeRunner {
         let tool_registry = self.tool_registry.clone();
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
+        let memory_config = self.manifest.memory_config.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
@@ -957,8 +964,11 @@ impl AgentRunner for BridgeRunner {
             let memory_interface: Option<MemoryInterface> =
                 memory_namespace.as_deref().and_then(|ns| {
                     let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
-                    let manager =
+                    let mut manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                    if let Some(ref memory_config) = memory_config {
+                        manager.start_auto_purge(memory_config, &eff_ns);
+                    }
                     let iface = MemoryInterface::new(manager, eff_ns, agent_id.clone())?;
                     iface.announce_shared_namespaces(&event_bus);
                     Some(iface)
