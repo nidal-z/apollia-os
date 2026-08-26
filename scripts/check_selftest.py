@@ -80,7 +80,9 @@ Usage:
 """
 
 import argparse
+import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -97,6 +99,7 @@ import check_panic_free as panicfree  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
 import check_design_tokens as designtokens  # noqa: E402
 import check_prose  # noqa: E402
+import binary_freshness  # noqa: E402
 import worktree_verdicts  # noqa: E402
 
 FAILURES: list[str] = []
@@ -2176,6 +2179,201 @@ def check_design_tokens_ratchet() -> None:
     )
 
 
+# ── The binary a guard judges ────────────────────────────────────────────────
+# The same family as everything above, on the one input none of these guards
+# owns. Four of them render a verdict by running `target/debug/apollia-os`, and
+# each tested that the file exists and nothing else. Five times in one campaign
+# the artefact at that path came from somewhere else, and the four answered
+# 183 contract breaches, 6 refused documentation lines, 198 leaves instead of
+# 199 and PASS 156 FAIL 16: precise, plausible, and about another tree. A
+# rebuild turned all of it green without one file changing.
+#
+# `binary_freshness.py` is the control the four now read, and it is held to the
+# property this file exists for: what it cannot establish is reported as
+# nothing measured, with the command that repairs it, never as a defect of the
+# tree. Every negative case is paired with the positive control, because a
+# control that always refused would satisfy the negative half and take the four
+# guards out of service.
+
+FRESHNESS_CALLERS = (
+    "scripts/check_cli_json_contract.py",
+    "scripts/check_cli_e2e_coverage.py",
+    "scripts/check_entry_doc_commands.py",
+    "tests/cli/cli-e2e.sh",
+)
+
+
+def _freshness_tree(root: Path, *, anchor: bool = True) -> tuple[Path, Path]:
+    """A tree of two sources, a binary, and the dep-info cargo writes beside it.
+
+    The timestamps are set rather than inherited: the whole criterion is an
+    order between them, and a fixture that let the filesystem decide would
+    assert nothing.
+    """
+    sources = []
+    if anchor:
+        sources.append(root / binary_freshness.ANCHOR)
+    sources.append(root / "crates/apollia-core/src/lib.rs")
+    for source in sources:
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("fn main() {}\n", encoding="utf-8")
+
+    binary = root / "target/debug/apollia-os"
+    binary.parent.mkdir(parents=True, exist_ok=True)
+    binary.write_bytes(b"\x7fELF")
+    dep_info = binary_freshness.dep_info_of(binary)
+    dep_info.write_text(
+        f"{binary}: " + " ".join(str(s) for s in sources) + "\n",
+        encoding="utf-8",
+    )
+
+    built = 1_700_000_000.0
+    for source in sources:
+        os.utime(source, (built - 10, built - 10))
+    os.utime(binary, (built, built))
+    os.utime(dep_info, (built + 0.03, built + 0.03))
+    return binary, dep_info
+
+
+def _refusal(binary: Path, tree: Path) -> tuple[int | None, str]:
+    out = io.StringIO()
+    code = binary_freshness.require(binary, tree, stream=out, report=out)
+    return code, out.getvalue()
+
+
+def check_binary_freshness() -> None:
+    print("binary freshness: a guard proves its binary came from the tree it judges")
+
+    # A space inside a path is escaped, and cargo writes one rule per source
+    # with an empty right-hand side. A parser that read those targets as
+    # sources would compare the artefact against itself.
+    dep_info_sample = "/t/target/debug/apollia-os: /t/a.rs /t/with\\ space.rs\n/t/a.rs:\n"
+    parsed = binary_freshness.dep_sources(dep_info_sample)
+    case(
+        "the dep-info parser reads prerequisites and skips rules without any",
+        parsed == [Path("/t/a.rs"), Path("/t/with space.rs")],
+        f"parsed {parsed!r} out of {dep_info_sample!r}",
+    )
+
+    with tempfile.TemporaryDirectory() as raw:
+        tree = Path(raw)
+        binary, dep_info = _freshness_tree(tree)
+
+        code, said = _refusal(binary, tree)
+        case(
+            "positive control: a binary this tree produced is judged",
+            code is None and "built from this tree, 2 sources" in said,
+            f"code {code}, output {said!r}. A control that refuses a correct "
+            f"build takes the four guards out of service, which is the same "
+            f"loss as the false verdict it replaces",
+        )
+
+        # P2, currency. The measured shape: the artefact of 2026-08-06 came
+        # back under a tree whose sources had moved on.
+        source = tree / binary_freshness.ANCHOR
+        os.utime(source, (1_700_000_100, 1_700_000_100))
+        code, said = _refusal(binary, tree)
+        case(
+            "a source newer than the binary is nothing measured, not a defect",
+            code == binary_freshness.NOTHING_MEASURED
+            and "1 source(s) changed" in said
+            and binary_freshness.REMEDY in said,
+            f"code {code}, output {said!r}. Expected 2, never 1: a stale "
+            f"artefact is not a defect of the tree, and the remedy has to be "
+            f"printed or the reader is left with a red they cannot resolve",
+        )
+        os.utime(source, (1_699_999_990, 1_699_999_990))
+
+        # P1, provenance. The measured shape: a build launched in another
+        # working tree of the same repository rewrote the shared artefact, and
+        # every timestamp stayed in order.
+        dep_info.write_text(
+            f"{binary}: /elsewhere/{binary_freshness.ANCHOR}\n", encoding="utf-8"
+        )
+        os.utime(dep_info, (1_700_000_000.03, 1_700_000_000.03))
+        code, said = _refusal(binary, tree)
+        case(
+            "a binary built from another working tree is nothing measured",
+            code == binary_freshness.NOTHING_MEASURED
+            and "was not built from" in said
+            and f"/elsewhere/{binary_freshness.ANCHOR}" in said
+            and binary_freshness.REMEDY in said,
+            f"code {code}, output {said!r}. This is the shape no timestamp can "
+            f"see: the artefact was the newest file of the three and still came "
+            f"from pre-campaign code",
+        )
+
+        # A source the build read and the tree no longer has. Same family as
+        # the two above, and it must not read as an unchanged tree.
+        gone = tree / "crates/apollia-core/src/lib.rs"
+        dep_info.write_text(f"{binary}: {tree / binary_freshness.ANCHOR} {gone}\n", encoding="utf-8")
+        os.utime(dep_info, (1_700_000_000.03, 1_700_000_000.03))
+        gone.unlink()
+        code, said = _refusal(binary, tree)
+        case(
+            "a source the build read and the tree lost is nothing measured",
+            code == binary_freshness.NOTHING_MEASURED and "no longer exist" in said,
+            f"code {code}, output {said!r}. A deleted module leaves the "
+            f"remaining timestamps in order, so silence here would pass a "
+            f"binary compiled from files the tree does not have",
+        )
+
+        dep_info.unlink()
+        code, said = _refusal(binary, tree)
+        case(
+            "a binary with no dep-info beside it is nothing measured",
+            code == binary_freshness.NOTHING_MEASURED
+            and "is absent" in said
+            and binary_freshness.REMEDY in said,
+            f"code {code}, output {said!r}. Without the dep-info nothing states "
+            f"which sources produced the artefact, and a control that passed on "
+            f"absent evidence is the success bias itself",
+        )
+
+    # The control must not be able to stop controlling in silence. Rename the
+    # anchor and the provenance predicate has nothing to recognise a build of
+    # this tree by, which has to be reported rather than passed.
+    with tempfile.TemporaryDirectory() as raw:
+        tree = Path(raw)
+        binary, _ = _freshness_tree(tree, anchor=False)
+        code, said = _refusal(binary, tree)
+        case(
+            "an anchor absent from the tree is nothing measured",
+            code == binary_freshness.NOTHING_MEASURED
+            and binary_freshness.ANCHOR in said,
+            f"code {code}, output {said!r}. The day the CLI entry point is "
+            f"renamed, this control would recognise nothing and pass "
+            f"everything, which is the guard that examines nothing reporting a "
+            f"pass",
+        )
+
+    # The crossing, same shape as the guard-boundary one above: a control four
+    # callers were meant to read is worth nothing in the caller that does not.
+    absent = [
+        rel
+        for rel in FRESHNESS_CALLERS
+        if "binary_freshness" not in (REPO_ROOT / rel).read_text(encoding="utf-8")
+    ]
+    case(
+        "the four guards over this artefact all read the control",
+        not absent,
+        f"{len(absent)} caller(s) render a verdict on the binary without the "
+        f"control: {absent!r}. The one that skips it keeps answering the "
+        f"question the other three stopped answering wrongly",
+    )
+    case(
+        "positive control: a file that does not read it is seen as absent",
+        "scripts/check_prose.py"
+        not in [
+            rel
+            for rel in ("scripts/check_prose.py",)
+            if "binary_freshness" in (REPO_ROOT / rel).read_text(encoding="utf-8")
+        ],
+        "a guard that never touches the binary was counted as a reader, so the "
+        "crossing above matches anything and proves nothing",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
@@ -2203,13 +2401,15 @@ def main() -> int:
     check_panic_sweep_fires()
     print()
     check_panic_sweep_scope()
+    print()
+    check_binary_freshness()
     if FAILURES:
         print(f"\n{len(FAILURES)} self-test failure(s):\n", file=sys.stderr)
         for f in FAILURES:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nfourteen properties hold: neither a comment nor a re-export is a use, "
+        "\nfifteen properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
@@ -2223,7 +2423,9 @@ def main() -> int:
         "verdict is read with staleness treated as nothing measured, and the "
         "design token guard reads what can style something rather than what "
         "is written about it, tells a value a token carries from one no token "
-        "names, and holds both behind a ratchet that fails in both directions"
+        "names, and holds both behind a ratchet that fails in both directions, "
+        "and the four guards that judge the built binary refuse to judge one "
+        "their tree did not produce, with the command that repairs it"
     )
     return 0
 

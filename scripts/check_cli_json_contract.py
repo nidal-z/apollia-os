@@ -29,8 +29,9 @@ reason. Verdict by exit code, since the caller reads it rather than the text:
 
   0  every measured leaf holds the contract
   1  at least one leaf breaks it
-  2  nothing was measured: the binary is absent (build it with
-     `cargo build -p apollia-cli`) or the tree walk produced no leaf
+  2  nothing was measured: the binary is absent, it was not produced by
+     this working tree (`binary_freshness.py`, which prints the command that
+     repairs it), or the tree walk produced no leaf
 
 `--selftest` exercises the classifiers on canned outputs, in both directions:
 a string envelope, a wrong exit code, an ANSI stderr, a header printed under
@@ -54,6 +55,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BIN = REPO_ROOT / "target/debug/apollia-os"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import binary_freshness  # noqa: E402
 
 # The exit code each envelope code publishes (crates/apollia-cli/src/exit_codes.rs).
 CODE_TO_EXIT = {
@@ -304,6 +309,13 @@ def measure(bin_path: str) -> int:
             file=sys.stderr,
         )
         return 2
+    # The leaf inventory and every contract breach below are read off this
+    # artefact, so a binary the tree did not produce turns each of them into a
+    # precise statement about somewhere else. Five times in one campaign it
+    # did: 183 breaches over 198 leaves, all of them gone after a rebuild.
+    stale = binary_freshness.require(Path(bin_path), REPO_ROOT)
+    if stale is not None:
+        return stale
     home = tempfile.mkdtemp(prefix="apollia-json-contract-")
     env = dict(os.environ, HOME=home)
     env.pop("NO_COLOR", None)

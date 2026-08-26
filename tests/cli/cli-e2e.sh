@@ -31,7 +31,8 @@
 #   APOLLIA_E2E_REPORT_DIR   report output dir. Default: tests/cli/report.
 #
 # Exit code: 0 when every assertion passed, 1 when one failed, 2 when the suite
-# refused to start and measured nothing (no binary to run).
+# refused to start and measured nothing (no binary to run, or a binary this
+# working tree did not produce).
 
 set -uo pipefail
 
@@ -62,6 +63,19 @@ elif [[ -x "$REPO_ROOT/target/debug/apollia-os" ]]; then
     BIN="$REPO_ROOT/target/debug/apollia-os"
 else
     echo "REFUSING: apollia-os binary not found. Build with \`cargo build -p apollia-cli\` or set APOLLIA_BIN." >&2
+    echo "          No assertion was run." >&2
+    exit 2
+fi
+
+# The suite resolves this binary, it never builds it, so until now nothing here
+# said it came from this tree. Five times in one campaign it did not, and the
+# run rendered a plausible red about another tree (PASS 156, FAIL 16), which
+# reads exactly like a product regression. The control is the one the three
+# Python guards over the same artefact read, and its refusal is `nothing
+# measured` (2), never a failed assertion.
+if ! FRESHNESS=$(/usr/bin/python3 "$REPO_ROOT/scripts/binary_freshness.py" \
+        --bin "$BIN" --tree "$REPO_ROOT" 2>&1); then
+    printf '%s\n' "$FRESHNESS" >&2
     echo "          No assertion was run." >&2
     exit 2
 fi

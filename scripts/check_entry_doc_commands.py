@@ -45,8 +45,9 @@ Verdict by exit code, since the caller reads it rather than the text:
 
   0  every documented invocation is accepted by the binary
   1  at least one is refused
-  2  nothing was measured, so the run says nothing: the binary is absent, or no
-     document holds an invocation. Build it with `cargo build -p apollia-cli`.
+  2  nothing was measured, so the run says nothing: the binary is absent, it
+     was not produced by this working tree (`binary_freshness.py`, which
+     prints the command that repairs it), or no document holds an invocation.
 """
 
 import argparse
@@ -60,6 +61,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BINARY = ROOT / "target/debug/apollia-os"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import binary_freshness  # noqa: E402
 
 DOCUMENTS = ["README.md", "agents/examples/README.md"]
 KNOWLEDGE = ROOT / "agents/system/apollia-guide/knowledge"
@@ -214,6 +219,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+
+    # Every refusal below is clap's, spoken by this artefact. A binary older
+    # than the documents turns a published line that works into a defect of
+    # the documentation: the campaign refused 6 lines that way.
+    stale = binary_freshness.require(BINARY, ROOT)
+    if stale is not None:
+        return stale
 
     found = [(p, line) for p in documents() for line in invocations(p)]
     if not found:

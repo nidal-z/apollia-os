@@ -20,9 +20,10 @@ Verdict by exit code, since the caller reads it rather than the text:
 
   0  every leaf has at least one real invocation in some track
   1  at least one leaf is invoked by no track
-  2  nothing was measured: the binary is absent (build it with
-     `cargo build -p apollia-cli`), the tree walk produced no leaf, or the
-     tracks directory holds no track
+  2  nothing was measured: the binary is absent, it was not produced by
+     this working tree (`binary_freshness.py`, which prints the command that
+     repairs it), the tree walk produced no leaf, or the tracks directory
+     holds no track
 
 `--selftest` exercises the classifier on fixtures, in both directions: a
 comment mention and a `skip` line must not count, a real call must.
@@ -43,6 +44,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BIN = REPO_ROOT / "target/debug/apollia-os"
 DEFAULT_TRACKS = REPO_ROOT / "tests/cli/tracks"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import binary_freshness  # noqa: E402
 
 # Global flags a track may place between the binary and the verb path.
 GLOBAL_FLAGS = re.compile(
@@ -217,6 +222,14 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+
+    # The floor is a count of leaves read off this artefact against tracks
+    # read off this tree. A binary from elsewhere moves one side of the
+    # comparison only: the campaign measured 198 leaves against 199 tracks and
+    # named a leaf nobody had removed.
+    stale = binary_freshness.require(bin_path, REPO_ROOT)
+    if stale is not None:
+        return stale
 
     leaves = enumerate_leaves(str(bin_path))
     if not leaves:

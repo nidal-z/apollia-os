@@ -390,6 +390,16 @@ the bundle of the main working tree, which the recipe resolves through git and
 prints as an absolute path, and it builds `apollia-os` because
 `tests/cli/cli-e2e.sh` resolves that binary and never builds it.
 
+Resolving it is not the same as trusting it. The suite, and the three guards
+that read the same artefact (`check_cli_json_contract.py`,
+`check_cli_e2e_coverage.py`, `check_entry_doc_commands.py`), first ask
+`scripts/binary_freshness.py` whether cargo produced it from this working
+tree, by reading the dep-info cargo writes beside it. When it did not, the
+four answer 2, nothing measured, and print `cargo build -p apollia-cli --bin
+apollia-os`. They never answer 1: an artefact from another tree, or from
+before the last edit, is not a defect of the tree, and five verdicts of one
+release campaign said it was.
+
 To check that a worktree measures what the main tree measures, record both and
 compare. The comparison is on each guard's characteristic measure, not on the
 exit code alone, and it refuses two records made on different commits:
