@@ -2,9 +2,9 @@
   "name": "screenshots-en-llm (operator-help doc captures needing a model turn, English, seeded)",
   "notes": [
     "Complement de screenshots-en.json. A lancer avec desktop-dev-automation-seeded-llama, pas avec la recette deterministe.",
-    "La boite de reception ne peut pas etre peuplee par le seed : list_pending_approvals lit l'ensemble en memoire PendingApprovals, pas la base (seed/fragments/hitl.sql:21-27 le documente). Il faut donc provoquer une vraie suspension.",
+    "The inbox cannot be filled by the seed: list_pending_approvals reads the in-memory PendingApprovals set, not the database (seed/fragments/hitl.sql:21-27 documents it). A real suspension has to be provoked.",
     "Prerequis : llama-server demasque et un modele charge.",
-    "Les deux captures mid-stream s'appuient sur chat-stop-button, qui n'existe que pendant la generation : waitFor le voit apparaitre, waitGone le voit disparaitre, et les deux sleeps tombent entre les deux. C'est le seul signal deterministe de cet etat ; un sleep seul depend de la vitesse du modele."
+    "The two mid-stream captures rely on chat-stop-button, which only exists while generating: waitFor sees it appear, waitGone sees it disappear, and both sleeps fall between the two. That is the only deterministic signal of this state; a bare sleep depends on the speed of the model."
   ],
   "stopOnError": false,
   "dynamicTestids": [

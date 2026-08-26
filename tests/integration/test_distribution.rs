@@ -1,10 +1,10 @@
-//! Tests d'intégration E2E - distribution des agents bundled.
+//! End-to-end integration tests - distribution of the bundled agents.
 //!
-//! Valide le flux complet de distribution via SupervisorConfig::bundled_agents_path :
-//! auto-installation des agents bundled au premier boot,
-//! et idempotence (agent déjà présent en DB non ré-installé).
+//! Validates the full distribution flow through SupervisorConfig::bundled_agents_path:
+//! the bundled agents are installed automatically at the first boot, and the
+//! install is idempotent (an agent already in the DB is not reinstalled).
 //!
-//! Pas de Python requis - utilise StubAgentLoader et InstantBackend.
+//! No Python required - uses StubAgentLoader and InstantBackend.
 
 use apollia_e2e_tests::reserve_port;
 use std::path::PathBuf;
@@ -19,9 +19,9 @@ use apollia_runtime::{
 use apollia_tools::{AgentRepository, InstalledAgent};
 use tempfile::TempDir;
 
-// ─── Backend de test ──────────────────────────────────────────────────────────
+// ─── Test backend ─────────────────────────────────────────────────────────────
 
-/// Backend qui complète instantanément sans Python.
+/// Backend that completes instantly, without Python.
 #[derive(Clone)]
 struct InstantBackend;
 
@@ -53,9 +53,9 @@ impl ExecutionBackend for InstantBackend {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Écrit `bundled/manifest.json` avec 4 agents dans le répertoire temporaire.
+/// Writes `bundled/manifest.json` with 4 agents into the temporary directory.
 ///
-/// Retourne le chemin vers le répertoire `bundled/` créé.
+/// Returns the path of the `bundled/` directory it created.
 fn write_bundled_manifest(tmp: &TempDir) -> PathBuf {
     let bundled_dir = tmp.path().join("bundled");
     std::fs::create_dir_all(&bundled_dir).expect("create bundled dir");
@@ -78,7 +78,7 @@ fn write_bundled_manifest(tmp: &TempDir) -> PathBuf {
     bundled_dir
 }
 
-/// Construit un `InstalledAgent` minimal avec l'horodatage fourni.
+/// Builds a minimal `InstalledAgent` with the given timestamp.
 fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
     let manifest = AgentManifest {
         format_version: 1,
@@ -128,7 +128,7 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
     }
 }
 
-/// Construit un `SupervisorConfig` pointant vers le répertoire temporaire.
+/// Builds a `SupervisorConfig` pointing at the temporary directory.
 fn supervisor_config(
     tmp: &TempDir,
     tcp_port: u16,
@@ -167,10 +167,10 @@ fn supervisor_config(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-/// Au premier boot, les 4 agents bundled sont auto-installés puis enregistrés.
+/// At the first boot, the 4 bundled agents are installed then registered.
 #[tokio::test]
 async fn test_bundled_agents_auto_installed() {
-    // GIVEN manifest.json avec 4 agents bundled et DB vide
+    // GIVEN a manifest.json with 4 bundled agents and an empty DB
     let tmp = TempDir::new().expect("create temp dir");
     let db_path = tmp.path().join("agents.db");
     let bundled_dir = write_bundled_manifest(&tmp);
@@ -181,7 +181,7 @@ async fn test_bundled_agents_auto_installed() {
     let config = supervisor_config(&tmp, port, Some(repo), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 
-    // WHEN le Supervisor démarre avec bundled_agents_path configuré
+    // WHEN the Supervisor starts with bundled_agents_path configured
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
     let handles = supervisor
@@ -189,18 +189,14 @@ async fn test_bundled_agents_auto_installed() {
         .await
         .expect("supervisor start");
 
-    // THEN 4 agents sont enregistrés dans l'AgentRegistry avec l'état Active
+    // THEN 4 agents are registered in the AgentRegistry, in the Active state
     let agents = handles
         .registry_handle
         .list_agents()
         .await
         .expect("list agents");
 
-    assert_eq!(
-        agents.len(),
-        4,
-        "les 4 agents bundled doivent être installés"
-    );
+    assert_eq!(agents.len(), 4, "the 4 bundled agents must be installed");
 
     let names: Vec<String> = agents.iter().map(|a| a.manifest.name.clone()).collect();
     for expected in &[
@@ -211,7 +207,7 @@ async fn test_bundled_agents_auto_installed() {
     ] {
         assert!(
             names.contains(&expected.to_string()),
-            "l'agent '{}' doit être dans le registry, trouvé : {:?}",
+            "the agent '{}' must be in the registry, found: {:?}",
             expected,
             names
         );
@@ -220,10 +216,10 @@ async fn test_bundled_agents_auto_installed() {
     handles.api_handle.shutdown();
 }
 
-/// Un agent déjà installé en DB n'est pas ré-installé lors d'un second boot.
+/// An agent already installed in the DB is not reinstalled on a second boot.
 #[tokio::test]
 async fn test_bundled_agents_skip_existing() {
-    // GIVEN excel-worker déjà présent en DB avec un horodatage sentinelle
+    // GIVEN excel-worker already in the DB with a sentinel timestamp
     let tmp = TempDir::new().expect("create temp dir");
     let db_path = tmp.path().join("agents.db");
     let bundled_dir = write_bundled_manifest(&tmp);
@@ -241,7 +237,7 @@ async fn test_bundled_agents_skip_existing() {
     let config = supervisor_config(&tmp, port, Some(repo2), Some(bundled_dir));
     let supervisor = Supervisor::new(config);
 
-    // WHEN le Supervisor démarre (excel-worker déjà en DB, 3 autres absents)
+    // WHEN the Supervisor starts (excel-worker in the DB, the 3 others absent)
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
     let handles = supervisor
@@ -249,7 +245,7 @@ async fn test_bundled_agents_skip_existing() {
         .await
         .expect("supervisor start");
 
-    // THEN le registry contient exactement 4 agents sans doublon
+    // THEN the registry holds exactly 4 agents, with no duplicate
     let agents = handles
         .registry_handle
         .list_agents()
@@ -259,7 +255,7 @@ async fn test_bundled_agents_skip_existing() {
     assert_eq!(
         agents.len(),
         4,
-        "4 agents au total - excel-worker non dupliqué, trouvé : {:?}",
+        "4 agents in total - excel-worker not duplicated, found: {:?}",
         agents.iter().map(|a| &a.manifest.name).collect::<Vec<_>>()
     );
 
@@ -267,12 +263,9 @@ async fn test_bundled_agents_skip_existing() {
         .iter()
         .filter(|a| a.manifest.name == "excel-worker")
         .count();
-    assert_eq!(
-        excel_count, 1,
-        "excel-worker doit apparaître exactement une fois"
-    );
+    assert_eq!(excel_count, 1, "excel-worker must appear exactly once");
 
-    // ET l'horodatage d'installation d'excel-worker est inchangé
+    // AND the install timestamp of excel-worker is unchanged
     let repo3 = AgentRepository::open(&db_path).expect("recheck repo");
     let excel = repo3
         .get("excel-worker")
@@ -280,7 +273,7 @@ async fn test_bundled_agents_skip_existing() {
         .expect("excel-worker must exist in DB");
     assert_eq!(
         excel.installed_at, sentinel,
-        "installed_at ne doit pas changer si l'agent était déjà présent en DB"
+        "installed_at must not change when the agent was already in the DB"
     );
 
     handles.api_handle.shutdown();

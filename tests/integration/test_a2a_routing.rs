@@ -1,7 +1,7 @@
-//! Tests d'intégration A2A - flux complet Director → Worker → résultat.
+//! A2A integration tests - full Director -> Worker -> result flow.
 //!
-//! Valide l'enchaînement complet : discovery → résolution → invocation → trust
-//! model → résultat, en assemblant les composants réels du runtime (EventBus,
+//! Validates the whole chain: discovery -> resolution -> invocation -> trust
+//! model -> result, assembling the real runtime components (EventBus,
 //! AgentRegistry, TaskRouter, A2AInvoker).
 
 use std::future::Future;
@@ -21,9 +21,9 @@ use apollia_runtime::{
 };
 use serde_json::json;
 
-// ─── Backends de test ────────────────────────────────────────────────────────
+// ─── Test backends ───────────────────────────────────────────────────────────
 
-/// Backend qui retourne immédiatement un résultat complété avec le texte fourni.
+/// Backend that returns a completed result carrying the given text, at once.
 #[derive(Clone)]
 struct SuccessBackend {
     output: String,
@@ -39,7 +39,7 @@ impl ExecutionBackend for SuccessBackend {
     }
 }
 
-/// Backend qui bloque indéfiniment - simule un agent qui ne répond jamais.
+/// Backend that blocks forever - simulates an agent that never answers.
 #[derive(Clone)]
 struct BlockingBackend;
 
@@ -57,12 +57,12 @@ impl ExecutionBackend for BlockingBackend {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Construit un `AgentSkill` minimal avec l'identifiant fourni.
+/// Builds a minimal `AgentSkill` with the given identifier.
 fn make_skill(id: &str) -> AgentSkill {
     AgentSkill {
         id: id.to_string(),
         name: id.to_string(),
-        description: format!("Compétence de test : {id}"),
+        description: format!("Test skill: {id}"),
         input_modes: vec!["text".to_string()],
         output_modes: vec!["text".to_string()],
         examples: vec![],
@@ -70,13 +70,13 @@ fn make_skill(id: &str) -> AgentSkill {
     }
 }
 
-/// Construit un manifest de Worker Agent A2A déclarant les skills fournis.
+/// Builds an A2A Worker Agent manifest declaring the given skills.
 fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
     AgentManifest {
         format_version: 1,
         name: name.to_string(),
         version: "0.1.0".to_string(),
-        description: format!("Worker agent de test : {name}"),
+        description: format!("Test worker agent: {name}"),
         tools_required: vec![],
         tools_optional: vec![],
         supports_streaming: false,
@@ -112,7 +112,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
 
 /// Infrastructure A2A minimale : EventBus + AgentRegistry + TaskRouter + worker actif.
 ///
-/// Retourne `(invoker, registry_handle, event_sender, worker_agent_id)`.
+/// Returns `(invoker, registry_handle, event_sender, worker_agent_id)`.
 async fn setup_a2a_runtime<B>(
     worker_manifest: AgentManifest,
     backend: B,
@@ -128,19 +128,19 @@ where
     let worker_id = registry
         .register(worker_manifest)
         .await
-        .expect("enregistrement du worker doit réussir");
+        .expect("registering the worker must succeed");
 
     registry
         .update_state(worker_id.as_str(), ProcessState::Active)
         .await
-        .expect("activation du worker doit réussir");
+        .expect("activating the worker must succeed");
 
     let coordinator =
         ExecutionCoordinator::new(worker_id.clone(), 1, event_sender.clone(), backend);
     router
         .register_coordinator(worker_id.clone(), coordinator)
         .await
-        .expect("enregistrement du coordinator doit réussir");
+        .expect("registering the coordinator must succeed");
 
     let invoker = A2AInvoker::new(
         registry.clone(),
@@ -154,10 +154,10 @@ where
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-/// Flux A2A complet : résolution skill → agent actif → délégation → résultat.
+/// Full A2A flow: skill resolution -> active agent -> delegation -> result.
 #[tokio::test]
 async fn test_full_a2a_routing_success() {
-    // GIVEN le runtime démarré avec excel-worker actif déclarant "read-excel"
+    // GIVEN the runtime started with excel-worker active, declaring "read-excel"
     let manifest = make_worker_manifest(
         "excel-worker",
         &["read-excel", "edit-excel", "analyze-excel"],
@@ -168,7 +168,7 @@ async fn test_full_a2a_routing_success() {
     let (invoker, _registry, _event_sender, _worker_id) =
         setup_a2a_runtime(manifest, backend).await;
 
-    // WHEN invoke("read-excel", ...) est appelé depuis "director"
+    // WHEN invoke("read-excel", ...) is called from "director"
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -180,28 +180,28 @@ async fn test_full_a2a_routing_success() {
         })
         .await;
 
-    // THEN le résultat est Ok avec agent_name, skill_id et duration correctement renseignés
-    let invocation = result.expect("l'invocation A2A doit réussir");
+    // THEN the result is Ok, with agent_name, skill_id and duration filled in
+    let invocation = result.expect("the A2A invocation must succeed");
     assert_eq!(invocation.agent_name, "excel-worker");
     assert_eq!(invocation.skill_id, "read-excel");
     assert!(
         matches!(invocation.result.status, TaskStatus::Completed),
-        "le statut doit être Completed, obtenu : {:?}",
+        "the status must be Completed, got: {:?}",
         invocation.result.status
     );
-    // duration_ms peut valoir 0 sur matériel rapide (précision milliseconde) ;
-    // on vérifie qu'il reste dans des bornes raisonnables plutôt qu'une valeur absolue.
+    // duration_ms can be 0 on fast hardware (millisecond precision), so this
+    // checks it stays within reasonable bounds rather than an absolute value.
     assert!(
         invocation.duration_ms < 60_000,
-        "duration_ms doit être < 60 s, obtenu : {}",
+        "duration_ms must be < 60 s, got: {}",
         invocation.duration_ms
     );
 }
 
-/// Skill inconnu → erreur SkillNotFound avec la liste des skills disponibles.
+/// Unknown skill -> SkillNotFound error, with the list of available skills.
 #[tokio::test]
 async fn test_skill_not_found_lists_available() {
-    // GIVEN excel-worker enregistré avec trois skills
+    // GIVEN excel-worker registered with three skills
     let manifest = make_worker_manifest(
         "excel-worker",
         &["read-excel", "edit-excel", "analyze-excel"],
@@ -212,7 +212,7 @@ async fn test_skill_not_found_lists_available() {
     let (invoker, _registry, _event_sender, _worker_id) =
         setup_a2a_runtime(manifest, backend).await;
 
-    // WHEN invoke("nonexistent-skill", ...) est appelé
+    // WHEN invoke("nonexistent-skill", ...) is called
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "nonexistent-skill",
@@ -224,7 +224,7 @@ async fn test_skill_not_found_lists_available() {
         })
         .await;
 
-    // THEN Err(SkillNotFound) avec les skills disponibles dans `available`
+    // THEN Err(SkillNotFound) with the available skills in `available`
     match result {
         Err(A2AError::SkillNotFound {
             skill_id,
@@ -233,17 +233,17 @@ async fn test_skill_not_found_lists_available() {
             assert_eq!(skill_id, "nonexistent-skill");
             assert!(
                 available.contains(&"read-excel".to_string()),
-                "available doit contenir 'read-excel', obtenu : {available:?}"
+                "available must hold 'read-excel', got: {available:?}"
             );
         }
-        other => panic!("attendu SkillNotFound, obtenu : {other:?}"),
+        other => panic!("expected SkillNotFound, got: {other:?}"),
     }
 }
 
-/// Agent en état Degraded → erreur AgentNotActive avant toute délégation.
+/// Agent in the Degraded state -> AgentNotActive error, before any delegation.
 #[tokio::test]
 async fn test_degraded_agent_rejected() {
-    // GIVEN excel-worker enregistré puis passé en état Degraded
+    // GIVEN excel-worker registered, then moved to the Degraded state
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
     let backend = SuccessBackend {
         output: "ok".to_string(),
@@ -253,9 +253,9 @@ async fn test_degraded_agent_rejected() {
     registry
         .update_state(worker_id.as_str(), ProcessState::Degraded)
         .await
-        .expect("transition Active → Degraded doit réussir");
+        .expect("the Active -> Degraded transition must succeed");
 
-    // WHEN invoke("read-excel", ...) est appelé
+    // WHEN invoke("read-excel", ...) is called
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -267,33 +267,33 @@ async fn test_degraded_agent_rejected() {
         })
         .await;
 
-    // THEN Err(AgentNotActive) avec le nom et l'état courant de l'agent
+    // THEN Err(AgentNotActive), with the name and the current state of the agent
     match result {
         Err(A2AError::AgentNotActive { agent_name, state }) => {
             assert_eq!(agent_name, "excel-worker");
             assert!(
                 state.to_lowercase().contains("degraded"),
-                "state doit mentionner Degraded, obtenu : {state}"
+                "state must mention Degraded, got: {state}"
             );
         }
-        other => panic!("attendu AgentNotActive, obtenu : {other:?}"),
+        other => panic!("expected AgentNotActive, got: {other:?}"),
     }
 }
 
-/// Timeout respecté : invocation sur agent bloquant → Err(Timeout) sans bloquer le runtime.
+/// Timeout honoured: invoking a blocking agent -> Err(Timeout), runtime not blocked.
 ///
 /// `Duration::from_millis(500).as_secs()` = 0 → `tokio::time::timeout(Duration::ZERO, …)`
-/// expire dès le premier poll de la boucle d'attente, rendant le test instantané.
+/// expires on the first poll of the wait loop, which makes the test instant.
 #[tokio::test]
 async fn test_timeout_respected() {
-    // GIVEN un agent qui bloque indéfiniment
+    // GIVEN an agent that blocks forever
     let manifest = make_worker_manifest("slow-worker", &["slow-skill"]);
     let (invoker, registry, _event_sender, _worker_id) =
         setup_a2a_runtime(manifest, BlockingBackend).await;
 
     let wall_start = std::time::Instant::now();
 
-    // WHEN invoke(..., timeout: Some(500ms)) est appelé
+    // WHEN invoke(..., timeout: Some(500ms)) is called
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "slow-skill",
@@ -305,7 +305,7 @@ async fn test_timeout_respected() {
         })
         .await;
 
-    // THEN Err(Timeout) reçu avec les identifiants corrects
+    // THEN Err(Timeout) is received, with the right identifiers
     match result {
         Err(A2AError::Timeout {
             skill_id,
@@ -315,29 +315,29 @@ async fn test_timeout_respected() {
             assert_eq!(skill_id, "slow-skill");
             assert_eq!(agent_name, "slow-worker");
         }
-        other => panic!("attendu Timeout, obtenu : {other:?}"),
+        other => panic!("expected Timeout, got: {other:?}"),
     }
 
-    // ET le timeout ne bloque pas le runtime (< 1 seconde réelle)
+    // AND the timeout does not block the runtime (under one real second)
     assert!(
         wall_start.elapsed() < Duration::from_secs(1),
-        "le timeout doit expirer rapidement, elapsed : {:?}",
+        "the timeout must expire quickly, elapsed: {:?}",
         wall_start.elapsed()
     );
 
-    // ET le registry répond encore après le timeout
+    // AND the registry still answers after the timeout
     let agents = registry
         .list_agents()
         .await
-        .expect("le registry doit encore répondre après le timeout");
-    assert_eq!(agents.len(), 1, "le worker doit toujours être enregistré");
+        .expect("the registry must still answer after the timeout");
+    assert_eq!(agents.len(), 1, "the worker must still be registered");
 }
 
-/// Trust model A2A : le contexte d'exécution d'un agent invoqué via A2A est en
-/// lecture seule pour la mémoire utilisateur globale.
+/// A2A trust model: the execution context of an agent invoked through A2A is
+/// read-only on the global user memory.
 #[tokio::test]
 async fn test_trust_model_context_config() {
-    // GIVEN un A2AInvoker configuré
+    // GIVEN a configured A2AInvoker
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
     let backend = SuccessBackend {
         output: "result".to_string(),
@@ -345,33 +345,33 @@ async fn test_trust_model_context_config() {
     let (invoker, _registry, _event_sender, _worker_id) =
         setup_a2a_runtime(manifest, backend).await;
 
-    // WHEN on génère la configuration de contexte pour un agent invoqué via A2A
+    // WHEN the context configuration is generated for an agent invoked over A2A
     let ctx_config = invoker.build_a2a_context();
 
-    // THEN user_memory_writable est false - la lecture de `__user__` est gérée
-    // directement par le `MemoryInterface` (toujours active si user_manager est
-    // fourni) et l'écriture n'est jamais octroyée par A2A.
+    // THEN user_memory_writable is false - reading `__user__` is handled
+    // directly by the `MemoryInterface` (always on when a user_manager is
+    // provided), and writing is never granted through A2A.
     assert!(
         !ctx_config.user_memory_writable,
         "A2A invocation must not grant user_memory write access"
     );
 }
 
-/// Observabilité : les événements A2AInvocationStarted et A2AInvocationCompleted
-/// sont émis sur l'EventBus lors d'une invocation réussie.
+/// Observability: the A2AInvocationStarted and A2AInvocationCompleted events
+/// are emitted on the EventBus during a successful invocation.
 #[tokio::test]
 async fn test_events_emitted() {
-    // GIVEN un EventBus receiver et excel-worker actif
+    // GIVEN an EventBus receiver and excel-worker active
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
     let backend = SuccessBackend {
         output: "data".to_string(),
     };
     let (invoker, _registry, event_sender, _worker_id) = setup_a2a_runtime(manifest, backend).await;
 
-    // Souscrire après le setup pour n'observer que les événements de l'invocation
+    // Subscribe after the setup, so only the invocation events are observed
     let mut event_rx = event_sender.subscribe();
 
-    // WHEN invoke("read-excel", ...) est appelé et complété
+    // WHEN invoke("read-excel", ...) is called and completes
     invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -382,15 +382,15 @@ async fn test_events_emitted() {
             chain_deadline: None,
         })
         .await
-        .expect("l'invocation doit réussir");
+        .expect("the invocation must succeed");
 
-    // Collecter les événements disponibles dans le canal
+    // Collect the events available on the channel
     let mut events: Vec<RuntimeEvent> = Vec::new();
     while let Ok(event) = event_rx.try_recv() {
         events.push(event);
     }
 
-    // THEN A2AInvocationStarted émis avec caller="director", target="excel-worker"
+    // THEN A2AInvocationStarted emitted with caller="director", target="excel-worker"
     let started = events.iter().any(|e| {
         matches!(
             e,
@@ -403,11 +403,11 @@ async fn test_events_emitted() {
     });
     assert!(
         started,
-        "A2AInvocationStarted doit être émis, événements reçus : {events:?}"
+        "A2AInvocationStarted must be emitted, events received: {events:?}"
     );
 
-    // ET A2AInvocationCompleted émis avec status="completed"
-    // (duration_ms peut être 0 sur matériel rapide - précision milliseconde)
+    // AND A2AInvocationCompleted emitted with status="completed"
+    // (duration_ms can be 0 on fast hardware - millisecond precision)
     let completed = events.iter().any(|e| {
         matches!(
             e,
@@ -416,6 +416,6 @@ async fn test_events_emitted() {
     });
     assert!(
         completed,
-        "A2AInvocationCompleted doit être émis avec status='completed', événements reçus : {events:?}"
+        "A2AInvocationCompleted must be emitted with status='completed', events received: {events:?}"
     );
 }

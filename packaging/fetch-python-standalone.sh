@@ -38,14 +38,14 @@ case "$TARGET" in
         PBS_TRIPLE="aarch64-unknown-linux-gnu"
         ;;
     x86_64-pc-windows-msvc)
-        # Depuis PBS 2025+, le suffix `-shared` a été dropped pour les
-        # archives install_only (cf. probe URLs sur release 20260414).
-        # Format réel : cpython-X.Y.Z+TAG-x86_64-pc-windows-msvc-install_only.tar.gz
+        # Since PBS 2025+, the `-shared` suffix was dropped for the
+        # install_only archives (see the probe URLs on release 20260414).
+        # Real format: cpython-X.Y.Z+TAG-x86_64-pc-windows-msvc-install_only.tar.gz
         PBS_TRIPLE="x86_64-pc-windows-msvc"
         ;;
     aarch64-pc-windows-msvc)
-        # PBS ships aarch64 Windows depuis 20240909+.
-        # Si la release pinned ne l'a pas, le téléchargement échouera bruyamment.
+        # PBS ships aarch64 Windows since 20240909+.
+        # When the pinned release does not have it, the download fails loudly.
         PBS_TRIPLE="aarch64-pc-windows-msvc"
         ;;
     universal-apple-darwin)
@@ -59,9 +59,9 @@ case "$TARGET" in
         ;;
 esac
 
-# Windows distributions sont packagées en .tar.gz comme les autres OS (PBS
-# n'utilise pas .zip pour `install_only`). L'archive contient `python/` au
-# top-level, identique à Linux/macOS.
+# The Windows distributions are packaged as .tar.gz like the other OSes (PBS
+# does not use .zip for `install_only`). The archive holds `python/` at the
+# top level, exactly as on Linux and macOS.
 
 ARCHIVE="cpython-${CPYTHON_VERSION}+${PBS_TAG}-${PBS_TRIPLE}-install_only.tar.gz"
 URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/${ARCHIVE}"
@@ -131,8 +131,8 @@ if [[ "$TARGET" == *"linux"* ]]; then
 fi
 
 echo "==> Python bundle ready at $PYTHON_DIR"
-# Layout diffère entre POSIX (bin/python3.13) et Windows (python.exe directement
-# à la racine, plus Lib/ et DLLs/).
+# The layout differs between POSIX (bin/python3.13) and Windows (python.exe at
+# the root, plus Lib/ and DLLs/).
 if [[ -x "${PYTHON_DIR}/bin/python3.13" ]]; then
     "${PYTHON_DIR}/bin/python3.13" --version
 elif [[ -f "${PYTHON_DIR}/python.exe" ]]; then

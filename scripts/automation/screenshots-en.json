@@ -1,10 +1,10 @@
 {
   "name": "screenshots-en (operator-help doc captures, English, seeded)",
   "notes": [
-    "Derive de screenshots-fr.json : memes pas, meme jeu de labels, seule la bascule de langue change.",
-    "Les deux jeux d'images sont SEPARES par locale, sous /img/operator-help/{en,fr}/. Les pages anglaises referencent en/, les francaises fr/, verifie : 85 references de chaque cote.",
-    "Ce script publie donc dans en/ UNIQUEMENT. Une note precedente affirmait qu'il n'existait qu'un seul jeu partage : c'etait vrai avant le passage aux repertoires par locale, et faux depuis. Le symptome que cela a produit : les pages anglaises affichaient des captures francaises, parce qu'un seul jeu avait ete copie dans les deux repertoires.",
-    "Le prelude bascule l'interface en anglais (settings > appearance > language-en) avant la premiere capture. Ne le retire pas : sans lui le run photographie la langue laissee par le run precedent."
+    "Derived from screenshots-fr.json: same steps, same label set, only the language switch changes.",
+    "The two image sets are SEPARATE per locale, under /img/operator-help/{en,fr}/. The English pages reference en/, the French ones fr/, checked: 85 references on each side.",
+    "So this script publishes into en/ ONLY. An earlier note claimed there was a single shared set: that was true before the move to per-locale directories, and false since. The symptom it produced: the English pages showed French captures, because a single set had been copied into both directories.",
+    "The prelude switches the interface to English (settings > appearance > language-en) before the first capture. Do not remove it: without it the run photographs whatever language the previous run left."
   ],
   "stopOnError": false,
   "dynamicTestids": [

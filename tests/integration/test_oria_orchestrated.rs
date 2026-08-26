@@ -239,14 +239,14 @@ fn make_manifest() -> AgentManifest {
     .expect("minimal manifest must deserialize")
 }
 
-// ── Plan séquentiel ───────────────────────────────────────────────────────────
+// ── Sequential plan ──────────────────────────────────────────────────────────
 
-/// Plan valide de 4 steps exécuté séquentiellement - `PlanCompleted` émis.
+/// Valid 4-step plan run sequentially - `PlanCompleted` emitted.
 ///
-/// ÉTANT DONNÉ un plan linéaire (s1→s2→s3→s4) et un `RecordingToolProxy`
-/// QUAND `ActorLoop::execute()` est appelé
-/// ALORS `Completed` est retourné, 4 appels sont enregistrés,
-///   ET `RuntimeEvent::PlanCompleted { step_count: 4 }` est émis.
+/// GIVEN a linear plan (s1->s2->s3->s4) and a `RecordingToolProxy`
+/// WHEN `ActorLoop::execute()` is called
+/// THEN `Completed` is returned, 4 calls are recorded,
+///   AND `RuntimeEvent::PlanCompleted { step_count: 4 }` is emitted.
 #[tokio::test]
 async fn test_ac1_plan_4_steps_execute_sequentiellement() {
     // GIVEN
@@ -312,11 +312,11 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
 
 // ── Ordre topologique ─────────────────────────────────────────────────────────
 
-/// Dépendances topologiques respectées - plan en diamant.
+/// Topological dependencies honoured - diamond-shaped plan.
 ///
-/// ÉTANT DONNÉ s1 et s3 sans deps, s2 dépend de s1, s4 dépend de s2 et s3
-/// QUAND `ActorLoop::execute()` est appelé
-/// ALORS l'ordre observé satisfait : s1 < s2, s3 < s4, s2 < s4.
+/// GIVEN s1 and s3 with no deps, s2 depending on s1, s4 depending on s2 and s3
+/// WHEN `ActorLoop::execute()` is called
+/// THEN the observed order satisfies: s1 < s2, s3 < s4, s2 < s4.
 #[tokio::test]
 async fn test_ac2_depends_on_respectes() {
     // GIVEN - diamond dependency: s1 and s3 independent, s2 needs s1, s4 needs s2+s3
@@ -376,13 +376,13 @@ async fn test_ac2_depends_on_respectes() {
     assert!(s3 < s4, "s3 must precede s4 (s3={s3}, s4={s4})");
 }
 
-// ── Budget épuisé ─────────────────────────────────────────────────────────────
+// ── Budget spent ─────────────────────────────────────────────────────────────
 
-/// Budget épuisé - plan de 5 steps indépendants, max 2 steps autorisés.
+/// Budget spent - plan of 5 independent steps, 2 steps allowed at most.
 ///
-/// ÉTANT DONNÉ 5 steps sans dépendances et `StepBudget::with_max(2)`
-/// QUAND `ActorLoop::execute()` est appelé
-/// ALORS `Failed("STEP_BUDGET_EXCEEDED")` est retourné après 2 exécutions.
+/// GIVEN 5 steps with no dependency and `StepBudget::with_max(2)`
+/// WHEN `ActorLoop::execute()` is called
+/// THEN `Failed("STEP_BUDGET_EXCEEDED")` is returned after 2 runs.
 #[tokio::test]
 async fn test_ac3_budget_epuise_step_3_sur_5() {
     // GIVEN
@@ -439,14 +439,14 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
 
 // ── Replanification ───────────────────────────────────────────────────────────
 
-/// Replanification déclenchée sur step retryable.
+/// Replanning triggered on a retryable step.
 ///
-/// ÉTANT DONNÉ un plan (s1 ok, s2 retryable fail) avec `max_replans = 1`
-///   ET un `Reasoner` qui retourne un plan de remplacement (s2b)
-/// QUAND `ActorLoop::execute()` est appelé
-/// ALORS `PlanReplanning { attempt: 1 }` est émis
-///   ET l'exécution continue avec s2b
-///   ET `Completed` est retourné si s2b réussit.
+/// GIVEN a plan (s1 ok, s2 retryable failure) with `max_replans = 1`
+///   AND a `Reasoner` returning a replacement plan (s2b)
+/// WHEN `ActorLoop::execute()` is called
+/// THEN `PlanReplanning { attempt: 1 }` is emitted
+///   AND the run carries on with s2b
+///   AND `Completed` is returned when s2b succeeds.
 #[tokio::test]
 async fn test_ac4_replanification_step_echec() {
     // GIVEN - plan s1 (succeeds), s2 (will fail with retryable error)
@@ -513,12 +513,12 @@ async fn test_ac4_replanification_step_echec() {
 
 // ── MAX_REPLAN_EXCEEDED ───────────────────────────────────────────────────────
 
-/// `MAX_REPLAN_EXCEEDED` - zéro replanification autorisée, step retryable échoue.
+/// `MAX_REPLAN_EXCEEDED` - zero replanning allowed, retryable step fails.
 ///
-/// ÉTANT DONNÉ un plan avec un step qui produit toujours une erreur retryable
-///   ET `max_replans = 0` (aucune replanification autorisée)
-/// QUAND `ActorLoop::execute()` est appelé
-/// ALORS `Failed("MAX_REPLAN_EXCEEDED")` est retourné immédiatement.
+/// GIVEN a plan with a step that always produces a retryable error
+///   AND `max_replans = 0` (no replanning allowed)
+/// WHEN `ActorLoop::execute()` is called
+/// THEN `Failed("MAX_REPLAN_EXCEEDED")` is returned at once.
 #[tokio::test]
 async fn test_ac5_max_replan_exceeded() {
     // GIVEN - single step that always fails (FailingToolProxy → ToolCallFailed → retryable)
@@ -563,19 +563,19 @@ async fn test_ac5_max_replan_exceeded() {
 
 // ── Reasoner retry ────────────────────────────────────────────────────────────
 
-/// `Reasoner` retry ×3 sur JSON invalide - `PlanParseError(attempts: 3)`.
+/// `Reasoner` retries three times on invalid JSON - `PlanParseError(attempts: 3)`.
 ///
-/// ÉTANT DONNÉ un mock `CompletionModel` retournant 3 fois du texte non-JSON
-/// QUAND `Reasoner::plan(&ctx).await` est appelé
-/// ALORS `Err(ReasonerError::PlanParseError { attempts: 3 })` est retourné
-///   ET le mock a été appelé exactement 3 fois.
+/// GIVEN a mock `CompletionModel` returning non-JSON text three times
+/// WHEN `Reasoner::plan(&ctx).await` is called
+/// THEN `Err(ReasonerError::PlanParseError { attempts: 3 })` is returned
+///   AND the mock was called exactly three times.
 #[tokio::test]
 async fn test_ac6_reasoner_retry_3_fois_json_invalide() {
     // GIVEN
     let model = MockCompletionModel::with_responses(vec![
-        "pas du json",
-        "toujours pas du json",
-        "définitivement pas du json",
+        "not json",
+        "still not json",
+        "definitely not json",
     ]);
     let reasoner = Reasoner::new(model.clone(), 10);
     let ctx = ContextBundle::default();
@@ -598,15 +598,15 @@ async fn test_ac6_reasoner_retry_3_fois_json_invalide() {
     );
 }
 
-// ── Concaténation automatique ─────────────────────────────────────────────────
+// ── Automatic concatenation ──────────────────────────────────────────────────
 
-/// Agent sans `on_plan_complete` → concaténation automatique des outputs.
+/// Agent without `on_plan_complete` -> the outputs are concatenated automatically.
 ///
-/// ÉTANT DONNÉ un agent Rust implémentant `AIPAgent` sans `on_plan_complete`
-///   ET un plan de 2 steps avec des outputs non vides
-/// QUAND `ORIAEngine::execute(task, &agent)` est appelé
-/// ALORS `Completed` est retourné
-///   ET l'output contient les sorties des 2 steps concaténées.
+/// GIVEN a Rust agent implementing `AIPAgent` without `on_plan_complete`
+///   AND a 2-step plan with non-empty outputs
+/// WHEN `ORIAEngine::execute(task, &agent)` is called
+/// THEN `Completed` is returned
+///   AND the output holds the outputs of the 2 steps, concatenated.
 #[tokio::test]
 async fn test_ac7_agent_sans_hook_concatenation() {
     // GIVEN - minimal agent, no on_plan_complete (trait default: false)
@@ -620,7 +620,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 version: "1.0.0".to_string(),
                 description: "Test agent without hook".to_string(),
                 execution_mode: "orchestrated".to_string(),
-                system_prompt: Some("Tu es un assistant de test.".to_string()),
+                system_prompt: Some("You are a test assistant.".to_string()),
                 tools_required: vec!["mock_tool".to_string()],
                 tools_optional: vec![],
                 step_budget: Some(StepBudgetConfig {

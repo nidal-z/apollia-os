@@ -2,53 +2,53 @@
 #
 # Apollia OS launcher - Linux / macOS.
 #
-# Ce script est inclus dans chaque archive de release (linux-* et macos-*).
-# Il garantit que apollia-os trouve l'interprète Python 3.13 bundlé même si
-# l'utilisateur n'a pas Python installé sur son système.
+# This script ships in every release archive (linux-* and macos-*).
+# It guarantees that apollia-os finds the bundled Python 3.13 interpreter even
+# when the user has no Python installed on the system.
 #
-# Placement attendu (extrait de l'archive) :
+# Expected layout (extracted from the archive):
 #   apollia-os/
-#   ├── apollia-os.sh        ← ce launcher
-#   ├── apollia-os           ← le binaire
+#   |-- apollia-os.sh        <- this launcher
+#   |-- apollia-os           <- the binary
 #   └── python/
-#       ├── bin/python3.13   ← interprète bundlé
+#       |-- bin/python3.13   <- bundled interpreter
 #       └── lib/...
 #
 # Usage :
-#   ./apollia-os.sh start         # démarre le daemon
-#   ./apollia-os.sh run <agent>   # toute commande apollia-os
+#   ./apollia-os.sh start         # starts the daemon
+#   ./apollia-os.sh run <agent>   # any apollia-os command
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# 1. PYO3_PYTHON pointe vers l'interprète bundlé. Le binaire compilé via PyO3
-#    avec linkage dynamique ouvre libpython3.13 relative à cet exécutable.
+# 1. PYO3_PYTHON points at the bundled interpreter. The binary, compiled with
+#    PyO3 dynamic linking, opens libpython3.13 relative to that executable.
 export PYO3_PYTHON="${HERE}/python/bin/python3.13"
 
 if [[ ! -x "$PYO3_PYTHON" ]]; then
     echo "error: bundled Python missing at $PYO3_PYTHON" >&2
-    echo "       l'archive est incomplète - re-télécharger depuis" >&2
+    echo "       the archive is incomplete - download it again from" >&2
     echo "       https://github.com/Apollia-OS/apollia-os/releases" >&2
     exit 1
 fi
 
-# 2. LD_LIBRARY_PATH (Linux) / DYLD_LIBRARY_PATH (macOS) pour que le loader
+# 2. LD_LIBRARY_PATH (Linux) / DYLD_LIBRARY_PATH (macOS), so the loader
 #    trouve libpython3.13.so / .dylib.
 case "$(uname -s)" in
     Linux)
         export LD_LIBRARY_PATH="${HERE}/python/lib:${LD_LIBRARY_PATH:-}"
         ;;
     Darwin)
-        # macOS : install_name du dylib a été ré-écrit côté packaging vers
-        # @executable_path/../Resources/python/lib/… - fonctionne dans le bundle
-        # Tauri, mais pour la CLI standalone on prepend explicitement.
+        # macOS: the install_name of the dylib was rewritten at packaging time
+        # to @executable_path/../Resources/python/lib/..., which works inside
+        # the Tauri bundle; for the standalone CLI it is prepended explicitly.
         export DYLD_LIBRARY_PATH="${HERE}/python/lib:${DYLD_LIBRARY_PATH:-}"
         ;;
 esac
 
-# 3. APOLLIA_PYTHON_BUNDLE_DIR : variable optionnelle lue par le runtime pour
-#    initialiser les venvs par agent en pointant pip vers l'interprète bundlé.
+# 3. APOLLIA_PYTHON_BUNDLE_DIR: an optional variable the runtime reads to
+#    build the per-agent venvs, pointing pip at the bundled interpreter.
 export APOLLIA_PYTHON_BUNDLE_DIR="${HERE}/python"
 
-# 4. Exécute le binaire avec tous les arguments transmis.
+# 4. Run the binary with every argument passed through.
 exec "${HERE}/apollia-os" "$@"

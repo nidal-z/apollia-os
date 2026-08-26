@@ -1,12 +1,12 @@
-//! Tests d'intégration E2E - garde-fous A2A.
+//! End-to-end integration tests - the A2A guards.
 //!
-//! Valide les trois garde-fous automatiques appliqués par A2AInvoker::invoke() :
-//! - Profondeur de récursivité (max_depth)
-//! - Auto-invocation (self_invocation)
-//! - Timeout cumulé de chaîne (chain_timeout)
+//! Validates the three automatic guards A2AInvoker::invoke() applies:
+//! - recursion depth (max_depth)
+//! - self invocation (self_invocation)
+//! - cumulative chain timeout (chain_timeout)
 //!
-//! Vérifie également l'émission de RuntimeEvent::A2AGuardTriggered sur le bus.
-//! Aucun Python requis - utilise SuccessBackend et BlockingBackend.
+//! Also checks that RuntimeEvent::A2AGuardTriggered is emitted on the bus.
+//! No Python required - uses SuccessBackend and BlockingBackend.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -25,9 +25,9 @@ use apollia_runtime::{
 };
 use serde_json::json;
 
-// ─── Backends de test ────────────────────────────────────────────────────────
+// ─── Test backends ───────────────────────────────────────────────────────────
 
-/// Backend qui complète instantanément avec le texte fourni.
+/// Backend that completes instantly with the given text.
 #[derive(Clone)]
 struct SuccessBackend {
     output: String,
@@ -43,7 +43,7 @@ impl ExecutionBackend for SuccessBackend {
     }
 }
 
-/// Backend qui bloque indéfiniment - simule un agent qui ne répond jamais.
+/// Backend that blocks forever - simulates an agent that never answers.
 #[derive(Clone)]
 struct BlockingBackend;
 
@@ -61,12 +61,12 @@ impl ExecutionBackend for BlockingBackend {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Construit un `AgentSkill` minimal.
+/// Builds a minimal `AgentSkill`.
 fn make_skill(id: &str) -> AgentSkill {
     AgentSkill {
         id: id.to_string(),
         name: id.to_string(),
-        description: format!("Skill de test : {id}"),
+        description: format!("Test skill: {id}"),
         input_modes: vec!["text".to_string()],
         output_modes: vec!["text".to_string()],
         examples: vec![],
@@ -74,13 +74,13 @@ fn make_skill(id: &str) -> AgentSkill {
     }
 }
 
-/// Construit un manifest de Worker Agent A2A déclarant les skills fournis.
+/// Builds an A2A Worker Agent manifest declaring the given skills.
 fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
     AgentManifest {
         format_version: 1,
         name: name.to_string(),
         version: "0.1.0".to_string(),
-        description: format!("Worker de test : {name}"),
+        description: format!("Test worker: {name}"),
         tools_required: vec![],
         tools_optional: vec![],
         supports_streaming: false,
@@ -116,7 +116,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
 
 /// Infrastructure A2A minimale (EventBus + AgentRegistry + TaskRouter + worker actif).
 ///
-/// Retourne `(invoker, registry_handle, event_sender, worker_agent_id)`.
+/// Returns `(invoker, registry_handle, event_sender, worker_agent_id)`.
 async fn setup_a2a_runtime<B>(
     worker_manifest: AgentManifest,
     backend: B,
@@ -133,19 +133,19 @@ where
     let worker_id = registry
         .register(worker_manifest)
         .await
-        .expect("enregistrement du worker");
+        .expect("registering the worker");
 
     registry
         .update_state(worker_id.as_str(), ProcessState::Active)
         .await
-        .expect("activation du worker");
+        .expect("activating the worker");
 
     let coordinator =
         ExecutionCoordinator::new(worker_id.clone(), 1, event_sender.clone(), backend);
     router
         .register_coordinator(worker_id.clone(), coordinator)
         .await
-        .expect("enregistrement du coordinator");
+        .expect("registering the coordinator");
 
     let invoker = A2AInvoker::new(registry.clone(), router, event_sender.clone(), config);
 
@@ -154,10 +154,10 @@ where
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-/// La profondeur maximale bloque l'invocation dès que a2a_depth >= max_depth.
+/// The maximum depth blocks the invocation as soon as a2a_depth >= max_depth.
 #[tokio::test]
 async fn test_max_depth_blocks_deep_recursion() {
-    // GIVEN A2AInvoker avec max_depth = 2 et excel-worker actif
+    // GIVEN an A2AInvoker with max_depth = 2 and excel-worker active
     let config = A2AConfig {
         max_depth: 2,
         ..A2AConfig::default()
@@ -172,7 +172,7 @@ async fn test_max_depth_blocks_deep_recursion() {
     )
     .await;
 
-    // WHEN invoke est appelé avec a2a_depth = 2 (atteint le plafond)
+    // WHEN invoke is called with a2a_depth = 2 (the ceiling is reached)
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -184,7 +184,7 @@ async fn test_max_depth_blocks_deep_recursion() {
         })
         .await;
 
-    // THEN MaxDepthExceeded est retourné avec le contexte complet
+    // THEN MaxDepthExceeded is returned with the full context
     match result {
         Err(A2AError::MaxDepthExceeded {
             current_depth,
@@ -197,14 +197,14 @@ async fn test_max_depth_blocks_deep_recursion() {
             assert_eq!(caller, "director");
             assert_eq!(skill_id, "read-excel");
         }
-        other => panic!("attendu MaxDepthExceeded, obtenu : {other:?}"),
+        other => panic!("expected MaxDepthExceeded, got: {other:?}"),
     }
 }
 
-/// Un agent ne peut pas s'invoquer lui-même via un skill A2A.
+/// An agent cannot invoke itself through an A2A skill.
 #[tokio::test]
 async fn test_self_invocation_blocked() {
-    // GIVEN excel-worker actif déclarant le skill "read-excel"
+    // GIVEN excel-worker active, declaring the "read-excel" skill
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
     let (invoker, _, _, _) = setup_a2a_runtime(
         manifest,
@@ -215,7 +215,7 @@ async fn test_self_invocation_blocked() {
     )
     .await;
 
-    // WHEN excel-worker invoque "read-excel" en tant que caller
+    // WHEN excel-worker invokes "read-excel" as the caller
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -227,7 +227,7 @@ async fn test_self_invocation_blocked() {
         })
         .await;
 
-    // THEN SelfInvocation est retourné avec le nom de l'agent et le skill ciblé
+    // THEN SelfInvocation is returned with the agent name and the target skill
     match result {
         Err(A2AError::SelfInvocation {
             agent_name,
@@ -236,21 +236,21 @@ async fn test_self_invocation_blocked() {
             assert_eq!(agent_name, "excel-worker");
             assert_eq!(skill_id, "read-excel");
         }
-        other => panic!("attendu SelfInvocation, obtenu : {other:?}"),
+        other => panic!("expected SelfInvocation, got: {other:?}"),
     }
 }
 
-/// Un chain_deadline expiré déclenche ChainTimeoutExceeded avant toute délégation.
+/// An expired chain_deadline raises ChainTimeoutExceeded before any delegation.
 #[tokio::test]
 async fn test_chain_timeout_propagated() {
-    // GIVEN excel-worker actif et un chain_deadline dans le passé
+    // GIVEN excel-worker active and a chain_deadline in the past
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
     let (invoker, _, _, _) =
         setup_a2a_runtime(manifest, BlockingBackend, A2AConfig::default()).await;
 
     let expired_deadline = Instant::now() - Duration::from_secs(1);
 
-    // WHEN invoke est appelé avec un chain_deadline déjà expiré
+    // WHEN invoke is called with an already expired chain_deadline
     let result = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "read-excel",
@@ -262,20 +262,20 @@ async fn test_chain_timeout_propagated() {
         })
         .await;
 
-    // THEN ChainTimeoutExceeded (ou Timeout) est retourné immédiatement sans bloquer
+    // THEN ChainTimeoutExceeded (or Timeout) comes back at once, without blocking
     assert!(
         matches!(
             result,
             Err(A2AError::ChainTimeoutExceeded { .. }) | Err(A2AError::Timeout { .. })
         ),
-        "attendu ChainTimeoutExceeded ou Timeout, obtenu : {result:?}"
+        "expected ChainTimeoutExceeded or Timeout, got: {result:?}"
     );
 }
 
-/// RuntimeEvent::A2AGuardTriggered est émis sur le bus avant que l'erreur soit retournée.
+/// RuntimeEvent::A2AGuardTriggered is emitted on the bus before the error returns.
 #[tokio::test]
 async fn test_guard_event_emitted() {
-    // GIVEN A2AInvoker avec max_depth = 1 et un subscriber sur l'EventBus
+    // GIVEN an A2AInvoker with max_depth = 1 and a subscriber on the EventBus
     let config = A2AConfig {
         max_depth: 1,
         ..A2AConfig::default()
@@ -292,7 +292,7 @@ async fn test_guard_event_emitted() {
 
     let mut guard_rx = event_sender.subscribe();
 
-    // WHEN invoke déclenche le garde-fou max_depth (depth = 1 == max_depth = 1)
+    // WHEN invoke trips the max_depth guard (depth = 1 == max_depth = 1)
     let _ = invoker
         .invoke(A2AInvokeRequest {
             skill_id: "extract-pdf",
@@ -304,7 +304,7 @@ async fn test_guard_event_emitted() {
         })
         .await;
 
-    // THEN A2AGuardTriggered est dans le buffer avec guard_type = "max_depth"
+    // THEN A2AGuardTriggered is in the buffer with guard_type = "max_depth"
     let mut guard_found = false;
     loop {
         match guard_rx.try_recv() {
@@ -313,10 +313,7 @@ async fn test_guard_event_emitted() {
                 ref skill_id,
                 ..
             }) if guard_type == "max_depth" => {
-                assert_eq!(
-                    skill_id, "extract-pdf",
-                    "skill_id incorrect dans l'événement"
-                );
+                assert_eq!(skill_id, "extract-pdf", "wrong skill_id in the event");
                 guard_found = true;
                 break;
             }
@@ -327,6 +324,6 @@ async fn test_guard_event_emitted() {
 
     assert!(
         guard_found,
-        "RuntimeEvent::A2AGuardTriggered avec guard_type=max_depth doit être émis"
+        "RuntimeEvent::A2AGuardTriggered with guard_type=max_depth must be emitted"
     );
 }

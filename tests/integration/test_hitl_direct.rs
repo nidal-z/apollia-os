@@ -65,7 +65,7 @@ impl AgentRunner for MockHitlRunner {
             if n == 0 {
                 // First call - suspend for human approval
                 Ok(AIPResult::input_required(
-                    "Confirmer l'envoi du devis ?",
+                    "Confirm sending the quote?",
                     serde_json::json!({"devis_id": 42, "montant": 12500}),
                 ))
             } else {
@@ -78,19 +78,19 @@ impl AgentRunner for MockHitlRunner {
                     task.input_response.is_some(),
                     "task.input_response must be set on resumed task"
                 );
-                Ok(AIPResult::completed("Devis envoyé avec succès"))
+                Ok(AIPResult::completed("Quote sent successfully"))
             }
         })
     }
 }
 
-// ── Mode Direct : approve → run() rappelé → Completed ────────────────
+// ── Direct mode: approve -> run() called again -> Completed ──────────
 
-/// ÉTANT DONNÉ un agent mock qui retourne InputRequired au premier appel
-///             et Completed au second (is_resumed=True)
-/// QUAND execute_direct() est lancé, puis pending.resolve(approved=true)
-/// ALORS run() est appelé 2 fois, résultat final Completed,
-///       TaskInputRequired{step_id:None} émis sur l'EventBus
+/// GIVEN a mock agent returning InputRequired on the first call
+///       and Completed on the second (is_resumed=True)
+/// WHEN execute_direct() runs, then pending.resolve(approved=true)
+/// THEN run() is called twice, the final result is Completed,
+///      TaskInputRequired{step_id:None} is emitted on the EventBus
 #[tokio::test]
 async fn test_ac1_mode_direct_approve_recalls_run() {
     // GIVEN
@@ -161,10 +161,10 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
 
 // ── Mode Direct : reject → AIPResult::failed("REJECTED") ──────────────
 
-/// ÉTANT DONNÉ même agent mock (retourne InputRequired au 1er appel)
-/// QUAND pending.resolve(approved=false, reason="Refus test")
-/// ALORS run() appelé 1 seule fois (pas de second appel),
-///       résultat : AIPResult::failed("REJECTED", "Refus test")
+/// GIVEN the same mock agent (returns InputRequired on the first call)
+/// WHEN pending.resolve(approved=false, reason="Test refusal")
+/// THEN run() is called once only (no second call),
+///      result: AIPResult::failed("REJECTED", "Test refusal")
 #[tokio::test]
 async fn test_ac2_mode_direct_reject_no_second_call() {
     // GIVEN

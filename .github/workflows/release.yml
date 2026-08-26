@@ -1,21 +1,21 @@
-# Release - production des artefacts distribuables.
+# Release - production of the distributable artefacts.
 #
-# Déclenché sur push d'un tag `v*` (release officielle) ou via dispatch
-# manuel pour tester sans bumper la version.
+# Triggered on a `v*` tag push (an official release), or through a manual
+# dispatch to test without bumping the version.
 #
-# Produit, en parallèle :
-#   1. 13 binaires CLI self-contained (Python + CRT statique bundlés)
-#      → tarball/zip par preset OS × arch × accélérateur
-#   2. Desktop installers (Tauri 2), un job par OS :
+# Produces, in parallel:
+#   1. 13 self-contained CLI binaries (Python plus static CRT bundled)
+#      -> one tarball/zip per OS x arch x accelerator preset
+#   2. Desktop installers (Tauri 2), one job per OS:
 #        macOS ARM64  : .dmg
 #        Linux x86_64 : .deb + .AppImage
 #        Windows x86_64 : .msi + .exe (NSIS)
-#      Chaque job desktop embarque le meme bundle Python (PyO3) que le job CLI.
+#      Every desktop job embeds the same Python bundle (PyO3) as the CLI job.
 #
-# Job final `release` agrège tout dans une GitHub Release draft (review manuel
-# avant publication).
+# The final `release` job aggregates everything into a draft GitHub Release
+# (reviewed by hand before publication).
 #
-# Wall-clock cold : ~35-40 min · warm cache : ~20 min.
+# Wall clock, cold: 35 to 40 min; warm cache: about 20 min.
 
 name: Release
 
@@ -25,11 +25,11 @@ on:
   workflow_dispatch:
     inputs:
       presets:
-        description: "CLI presets à builder (comma-separated, ex: macos-silicon,windows-x86-cuda). 'all' = tous."
+        description: "CLI presets to build (comma-separated, e.g. macos-silicon,windows-x86-cuda). 'all' = every one."
         required: false
         default: "all"
       skip_desktop:
-        description: "Skip le bundle desktop macOS (gain ~12 min si tu testes juste CLI)"
+        description: "Skip the macOS desktop bundle (about 12 min saved when testing the CLI alone)"
         required: false
         default: "false"
         type: choice
@@ -52,11 +52,11 @@ permissions:
 
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
-  # Setup - calcule la matrice CLI filtrée (dynamic matrix).
+  # Setup - computes the filtered CLI matrix (dynamic matrix).
   #
-  # GH Actions ne supporte PAS `matrix.preset` dans le `if:` au niveau du job
-  # (limitation parser). Le contournement standard : un job léger qui sort
-  # le JSON de la matrice, ingéré ensuite via `fromJSON(needs.setup.outputs.matrix)`.
+  # GH Actions does NOT support `matrix.preset` in a job-level `if:` (a parser
+  # limitation). The standard workaround: a light job that outputs the matrix
+  # JSON, then read back through `fromJSON(needs.setup.outputs.matrix)`.
   # ────────────────────────────────────────────────────────────────────────────
   setup:
     name: Setup matrix
@@ -131,7 +131,7 @@ jobs:
           fi
 
   # ────────────────────────────────────────────────────────────────────────────
-  # CLI binaries (13 presets max) - self-contained bundles avec Python embarqué
+  # CLI binaries (13 presets at most) - self-contained bundles with Python
   # ────────────────────────────────────────────────────────────────────────────
   cli:
     name: CLI ${{ matrix.preset }}
@@ -174,9 +174,9 @@ jobs:
           sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust"]'
           use-github-cache: true
 
-      # CUDA Windows x86 : DOIT inclure `visual_studio_integration` pour que
-      # CMake détecte le toolset CUDA-MSBuild. Sans ce sub-package, le build
-      # plante avec : "CMake Error : No CUDA toolset found".
+      # CUDA Windows x86: MUST include `visual_studio_integration` so CMake
+      # detects the CUDA-MSBuild toolset. Without that sub-package the build
+      # fails with: "CMake Error : No CUDA toolset found".
       # (Cf. ggml/src/ggml-cuda/CMakeLists.txt:58 → enable_language(CUDA))
       - name: Install CUDA Toolkit (Windows x86)
         if: matrix.needs_cuda && matrix.runner == 'windows-latest'
@@ -269,7 +269,7 @@ jobs:
           key: ${{ matrix.preset }}
           shared-key: cli-binaries
 
-      # ── Python bundle (avant cargo : PyO3 link contre l'interprète bundlé) ──
+      # ── Python bundle (before cargo: PyO3 links against the bundled interpreter) ──
       - name: Build Python bundle
         shell: bash
         run: |
@@ -284,13 +284,13 @@ jobs:
           fi
 
       # ── Build ─────────────────────────────────────────────────────────────
-      # Depuis le refactor multi-runner, apollia-cli n'expose plus de feature
-      # de backend : les clients cloud sont inconditionnels. `matrix.features`
-      # ne porte plus que le backend du runner, lu par l'étape "Extract runner
-      # feature" ci-dessous. Chaque nom y est déclaré dans un Cargo.toml : un
-      # nom inventé ne construit rien.
-      # Windows : +crt-static via .cargo/config.toml + CMAKE_MSVC_RUNTIME_LIBRARY
-      # pour aligner /MT côté apollia-runner (llama-cpp-sys-2 / whisper-rs-sys).
+      # Since the multi-runner refactor, apollia-cli exposes no backend
+      # feature: the cloud clients are unconditional. `matrix.features` now
+      # carries only the runner backend, read by the "Extract runner feature"
+      # step below. Every name there is declared in a Cargo.toml: an invented
+      # name builds nothing.
+      # Windows: +crt-static through .cargo/config.toml plus
+      # CMAKE_MSVC_RUNTIME_LIBRARY, to align /MT on the apollia-runner side.
       - name: Build CLI
         shell: bash
         env:
@@ -300,9 +300,9 @@ jobs:
             --target ${{ matrix.triple }} \
             --no-default-features
 
-      # Build apollia-runner avec la feature backend correspondante.
-      # Extrait local-{cpu,cuda,rocm,vulkan,metal} de matrix.features.
-      # Pour les presets sans local-* (cloud only), pas de runner buildé.
+      # Build apollia-runner with the matching backend feature.
+      # Extracts local-{cpu,cuda,rocm,vulkan,metal} from matrix.features.
+      # For the presets with no local-* (cloud only), no runner is built.
       - name: Extract runner feature
         id: runner_feat
         shell: bash
@@ -383,26 +383,26 @@ jobs:
           cp packaging/launchers/apollia-os.sh "$STAGE/apollia-os.sh"
           chmod +x "$STAGE/apollia-os.sh"
           cp -R target/python-bundle/${{ matrix.triple }}/python "$STAGE/python"
-          # Inclut le runner correspondant au backend du preset si compilé.
+          # Includes the runner matching the preset backend, when it was built.
           if [ -n "$RUNNER_BACKEND" ] && [ -f "target/${{ matrix.triple }}/release/apollia-runner" ]; then
             cp "target/${{ matrix.triple }}/release/apollia-runner" "$STAGE/apollia-runner-$RUNNER_BACKEND"
             chmod +x "$STAGE/apollia-runner-$RUNNER_BACKEND"
-            echo "  Runner bundled : apollia-runner-$RUNNER_BACKEND"
+            echo "  Runner bundled: apollia-runner-$RUNNER_BACKEND"
           fi
           if [ "${LLAMA_BUNDLED:-0}" = "1" ]; then
-            ENGINE=" + moteur llama-server"
+            ENGINE=" + llama-server engine"
             ENGINE_NOTE=""
           else
             ENGINE=""
-            ENGINE_NOTE="Note : moteur llama-server non embarqué pour ce preset (pas de build amont) ; le daemon utilise un llama-server présent sur le PATH."
+            ENGINE_NOTE="Note: the llama-server engine is not bundled for this preset (no upstream build); the daemon uses a llama-server found on PATH."
           fi
           cat > "$STAGE/README.txt" <<EOF
           Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
-          Lance : ./apollia-os.sh start
+          Run   : ./apollia-os.sh start
           Doc   : https://docs.apollia.fr/how-to/install-and-run
-          Inclus : daemon apollia-os + sidecar runner ($RUNNER_BACKEND)$ENGINE + Python 3.13.
-          Requis : driver GPU à jour si preset GPU.
+          Included: apollia-os daemon + sidecar runner ($RUNNER_BACKEND)$ENGINE + Python 3.13.
+          Required: an up-to-date GPU driver for a GPU preset.
           $ENGINE_NOTE
           EOF
           ARCHIVE="${{ steps.contract.outputs.archive }}"
@@ -427,19 +427,19 @@ jobs:
               Write-Host "  Runner bundled : apollia-runner-$rb.exe"
           }
           if ("${env:LLAMA_BUNDLED}" -eq "1") {
-              $engine = " + moteur llama-server"
+              $engine = " + llama-server engine"
               $engineNote = ""
           } else {
               $engine = ""
-              $engineNote = "Note : moteur llama-server non embarque pour ce preset (pas de build amont) ; le daemon utilise un llama-server present sur le PATH."
+              $engineNote = "Note: the llama-server engine is not bundled for this preset (no upstream build); the daemon uses a llama-server found on PATH."
           }
           @"
           Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
-          Lance : apollia-os.bat start
+          Run   : apollia-os.bat start
           Doc   : https://docs.apollia.fr/how-to/install-and-run
-          Inclus : daemon apollia-os.exe + sidecar runner ($rb)$engine + Python 3.13 + CRT statique.
-          Requis cote user : driver GPU a jour. Pas de VC++ Redist necessaire.
+          Included: apollia-os.exe daemon + sidecar runner ($rb)$engine + Python 3.13 + static CRT.
+          Required: an up-to-date GPU driver. No VC++ Redist needed.
           $engineNote
           "@ | Out-File "$stage/README.txt" -Encoding ASCII
           $archive = "${{ steps.contract.outputs.archive }}"
@@ -831,9 +831,9 @@ jobs:
             cargo tauri build --target x86_64-pc-windows-msvc
           fi
 
-      # ── Code-signing avec signtool (gated by secrets) ──────────────────────
-      # Le cert PFX est passé en base64, signé via signtool de Windows SDK
-      # (présent par défaut sur runner windows-latest).
+      # ── Code signing with signtool (gated by secrets) ──────────────────────
+      # The PFX cert is passed as base64 and signed with signtool of the
+      # Windows SDK (present by default on the windows-latest runner).
       - name: Sign MSI + NSIS installers (if cert present)
         if: env.WINDOWS_CERT_PFX_BASE64 != ''
         env:

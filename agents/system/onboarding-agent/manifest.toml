@@ -4,7 +4,7 @@
 [agent]
 name = "onboarding-agent"
 version = "0.1.0-preview"
-description = "Premier contact utilisateur - calibrage en 3 questions (identité, supervision, souveraineté)"
+description = "First user contact - two-phase calibration: the four Tier 1 facts, then profile enrichment"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <contact@apollia.fr>"]
 tags = ["onboarding", "conversational", "system"]
@@ -12,10 +12,10 @@ tags = ["onboarding", "conversational", "system"]
 [agent.manifest]
 agent_type = "system"
 execution_mode = "auto"
-# L'onboarding-agent propose les règles de permissions correspondant
-# aux préférences collectées (sovereignty, hitl, integrations) via des appels
-# d'outils HITL-gated. permission_rule_remove n'est volontairement pas exposé
-# (moindre privilège : reset/cleanup passe par UI Settings ou CLI).
+# The onboarding-agent proposes the permission rules matching the preferences
+# it collected (sovereignty, hitl, integrations), through HITL-gated tool
+# calls. permission_rule_remove is deliberately not exposed (least privilege:
+# reset and cleanup go through the Settings UI or the CLI).
 tools_required = ["permission_rule_add", "permission_rule_list"]
 tools_optional = []
 memory_namespace = "onboarding"

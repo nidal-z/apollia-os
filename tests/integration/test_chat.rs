@@ -527,7 +527,7 @@ async fn test_chat_libre_tool_call_hitl_accept() {
     // GIVEN a mock LLM: first returns tool_call, then returns text after tool result
     let model = MockChatModel::new(vec![
         tool_call_response("bash_executor", serde_json::json!({"command": "ls"})),
-        text_response("Voici les fichiers"),
+        text_response("Here are the files"),
     ]);
     let (handle, port, socket_path, mut event_rx) =
         start_chat_server(model, StepBudgetConfig::default()).await;
@@ -609,12 +609,12 @@ async fn test_chat_libre_tool_call_hitl_accept() {
     let completed = events.iter().find(|e| {
         matches!(
             e,
-            RuntimeEvent::ChatResponseCompleted { content, .. } if content.contains("Voici")
+            RuntimeEvent::ChatResponseCompleted { content, .. } if content.contains("Here are")
         )
     });
     assert!(
         completed.is_some(),
-        "expected ChatResponseCompleted with 'Voici les fichiers'"
+        "expected ChatResponseCompleted with 'Here are the files'"
     );
 
     cleanup(handle, &socket_path);
@@ -745,7 +745,7 @@ async fn test_chat_libre_refuse() {
     // GIVEN mock LLM: tool_call → (after refusal) text response
     let model = MockChatModel::new(vec![
         tool_call_response("bash_executor", serde_json::json!({"command": "rm -rf /"})),
-        text_response("D'accord, je ne fais rien."),
+        text_response("All right, I will do nothing."),
     ]);
     let (handle, port, socket_path, mut event_rx) =
         start_chat_server(model, StepBudgetConfig::default()).await;
@@ -922,7 +922,7 @@ async fn test_chat_close_session() {
     let (msg_status, _) = http_post(
         port,
         &format!("/api/v1/sessions/{session_id}/messages"),
-        serde_json::json!({ "content": "encore" }),
+        serde_json::json!({ "content": "again" }),
     )
     .await;
 

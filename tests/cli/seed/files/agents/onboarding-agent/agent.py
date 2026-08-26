@@ -945,8 +945,8 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
     name="onboarding-agent",
     version="0.1.0-preview",
     description=(
-        "Premier contact utilisateur - calibrage en 3 questions "
-        "(identité, supervision, souveraineté)"
+        "First user contact - two-phase calibration: the four Tier 1 facts, "
+        "then profile enrichment"
     ),
     tags=("onboarding", "conversational"),
     memory_namespace="onboarding",

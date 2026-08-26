@@ -1,12 +1,12 @@
 # Cross-rs (cross-rs/cross) configuration.
 #
-# `cross` exécute cargo dans un container Docker dédié pour cross-compile.
-# Le container a son propre sysroot (Ubuntu 22.04 minimal pour les images
-# `*-unknown-linux-gnu:main`) qui n'a PAS les system libs nécessaires à
-# `cpal` (ALSA), `whisper-rs-sys` (CMake/clang), etc.
+# `cross` runs cargo inside a dedicated Docker container to cross-compile.
+# The container has its own sysroot (a minimal Ubuntu 22.04 for the
+# `*-unknown-linux-gnu:main` images) which does NOT carry the system libs
+# `cpal` (ALSA), `whisper-rs-sys` (CMake/clang) and the rest need.
 #
-# `pre-build` est exécuté à chaque cross-build pour installer les deps
-# dans le container avant le `cargo build/check`.
+# `pre-build` runs on every cross-build to install those deps into the
+# container, before the `cargo build/check`.
 #
 # Cf. https://github.com/cross-rs/cross/blob/main/docs/cross_toml.md
 

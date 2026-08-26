@@ -3,9 +3,9 @@ CREATE TABLE trigger_history (
     trigger_id  TEXT NOT NULL,
     agent_name  TEXT NOT NULL,
     fired_at    TIMESTAMP NOT NULL,
-    task_id     TEXT,              -- NULL si skipped ou erreur
+    task_id     TEXT,              -- NULL when skipped or on error
     status      TEXT NOT NULL,     -- 'fired' | 'skipped' | 'error'
-    reason      TEXT,              -- raison si skipped/error
+    reason      TEXT,              -- reason when skipped or on error
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 , payload_json TEXT, dispatch_ms INTEGER);
 CREATE TABLE trigger_state (

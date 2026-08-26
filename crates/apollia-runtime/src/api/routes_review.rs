@@ -139,7 +139,7 @@ pub async fn post_review<B: ExecutionBackend + Clone>(
     let report: ReviewReport = serde_json::from_str(&raw_output).unwrap_or(ReviewReport {
         score: 0,
         issues: vec![],
-        summary: "Erreur parsing: invalid review agent output.".into(),
+        summary: "Parse error: invalid review agent output.".into(),
     });
 
     Ok(Json(report))

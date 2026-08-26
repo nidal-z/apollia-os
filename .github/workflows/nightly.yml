@@ -1,25 +1,25 @@
-# Nightly - checks lourds qui ne tiennent pas dans la boucle PR (<15 min).
+# Nightly - the heavy checks that do not fit in the PR loop (under 15 min).
 #
 # Tourne :
-#   - cron : tous les lundis 06:00 UTC (1 fois/semaine, suffisant)
-#   - workflow_dispatch : trigger manuel quand tu veux valider à la demande
+#   - cron: every Monday at 06:00 UTC (once a week, which is enough)
+#   - workflow_dispatch: manual trigger, to validate on demand
 #
-# Jobs (les 13, chacun déclenchable seul via workflow_dispatch.inputs.job) :
-#   - e2e-desktop         : tests E2E Tauri (lents, parfois flaky)
-#   - python-tests        : suite AIP gated PyO3 (agents Python via le pont)
-#   - cli-e2e-runtime     : suite CLI Tracks 1 + 2, daemon sur HOME jetable seedé
-#   - multirunner-cpu-e2e : daemon + sidecar runner CPU sur les 3 OS
-#   - feature-matrix      : sanity-check des features GPU sur apollia-llm/stt
+# Jobs (13 of them, each one launchable alone through workflow_dispatch.inputs.job):
+#   - e2e-desktop         : Tauri E2E tests (slow, sometimes flaky)
+#   - python-tests        : PyO3-gated AIP suite (Python agents through the bridge)
+#   - cli-e2e-runtime     : CLI suite Tracks 1 and 2, daemon on a seeded throwaway HOME
+#   - multirunner-cpu-e2e : daemon plus CPU sidecar runner on the 3 OSes
+#   - feature-matrix      : sanity check of the GPU features on apollia-llm/stt
 #   - coverage            : rapport coverage HTML/LCOV (heavy)
-#   - mutants             : cargo-mutants sur permissions + core (advisory)
-#   - deep-audit          : cargo-deny check all avec advisory DB rechargée
-#   - geiger              : rapport cargo-geiger de la surface unsafe (advisory)
-#   - loom                : modeles Loom d'entrelacement des actors (advisory)
-#   - miri                : detection UB sur les helpers purs proches du FFI (advisory)
-#   - kani                : preuves symboliques bornees des invariants cardinaux (advisory)
-#   - fuzz-deep           : session libFuzzer longue sur les parseurs (advisory)
+#   - mutants             : cargo-mutants on permissions plus core (advisory)
+#   - deep-audit          : cargo-deny check all, with the advisory DB reloaded
+#   - geiger              : cargo-geiger report of the unsafe surface (advisory)
+#   - loom                : Loom interleaving models of the actors (advisory)
+#   - miri                : UB detection on the pure helpers close to the FFI (advisory)
+#   - kani                : bounded symbolic proofs of the cardinal invariants (advisory)
+#   - fuzz-deep           : long libFuzzer session on the parsers (advisory)
 #
-# Si un job échoue : alerte mail GH, mais main reste vert (pas de PR bloquée).
+# When a job fails: a GH mail alert, but main stays green (no PR is blocked).
 
 name: Nightly
 
@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job spécifique à lancer (vide = tous)"
+        description: "One specific job to run (empty = all of them)"
         required: false
         type: choice
         default: "all"
@@ -167,11 +167,11 @@ jobs:
             --no-fail-fast
 
   # ── CLI E2E runtime ────────────────────────────────────────────────────────
-  # La boucle PR (`ci.yml`, job cli-e2e) ne joue que le Track 1 offline. Ici le
-  # daemon démarre sur un HOME jetable seedé (APOLLIA_REQUIRE_RUNTIME=1), donc
-  # les feuilles runtime-only sont rejouées par une machine. Le GGUF pointe sur
-  # un fichier inexistant : le Track 3 enregistre un skip justifié, jamais un
-  # échec. Le SDK est installé pour que l'agent stub du Track 2 puisse tourner.
+  # The PR loop (`ci.yml`, job cli-e2e) only plays Track 1, offline. Here the
+  # daemon starts on a seeded throwaway HOME (APOLLIA_REQUIRE_RUNTIME=1), so
+  # the runtime-only leaves are replayed by a machine. The GGUF points at a
+  # file that does not exist: Track 3 records a justified skip, never a
+  # failure. The SDK is installed so the Track 2 stub agent can run.
   cli-e2e-runtime:
     name: CLI E2E (runtime, Tracks 1+2)
     if: |
@@ -217,8 +217,8 @@ jobs:
           path: tests/cli/report/
 
   # ── Multi-runner CPU E2E ───────────────────────────────────────────────────
-  # Spawn le daemon + le sidecar runner CPU sur les 3 OS, vérifie le
-  # handshake HTTP loopback et l'inférence end-to-end sur un GGUF léger.
+  # Spawns the daemon plus the CPU sidecar runner on the 3 OSes, checks the
+  # loopback HTTP handshake and the end-to-end inference on a light GGUF.
   multirunner-cpu-e2e:
     name: Multi-runner CPU E2E (${{ matrix.os }})
     if: |
@@ -440,7 +440,7 @@ jobs:
           path: mutants.out/
           retention-days: 30
 
-  # ── Deep audit (re-télécharge la DB pour catcher les advisories récentes) ──
+  # ── Deep audit (redownloads the DB to catch the recent advisories) ────────
   deep-audit:
     name: Deep Dependency Check
     if: |

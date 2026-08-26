@@ -4,44 +4,30 @@
 # is not the interpreter you want to build against, export PYO3_PYTHON in your
 # shell or an uncommitted local override. Do not commit a machine-specific path.
 [env]
-# Aligne la cible macOS sur la version système réelle (Python 3.13 + Rust 1.89
-# via Homebrew ciblent 15.0 - sans cette valeur le linker avertit en permanence).
+# Aligns the macOS target on the real system version (Python 3.13 and Rust 1.89
+# from Homebrew both target 15.0; without this value the linker warns on every
+# build).
 MACOSX_DEPLOYMENT_TARGET = { value = "15.0", force = false }
-# Désactive la précompilation des shaders Metal au build - pas besoin de Xcode complet.
-# Les shaders sont compilés JIT par le driver Metal au premier appel d'inférence.
-# Pour activer la précompilation (Xcode requis) : export MISTRALRS_METAL_PRECOMPILE=1
-MISTRALRS_METAL_PRECOMPILE = { value = "0", force = false }
 
-# ── Profil dev accéléré ──────────────────────────────────────────────────────
-# split-debuginfo = "unpacked" : évite que le linker macOS agrège les debuginfo
-# dans un .dSYM - économise 20-40% du temps de link en dev.
-# codegen-units = 256 : parallélise la codegen au max (moins d'optimisations,
-# build plus rapide - acceptable en dev, jamais en release).
+# ── Faster dev profile ───────────────────────────────────────────────────────
+# split-debuginfo = "unpacked": keeps the macOS linker from aggregating the
+# debug info into a .dSYM, which saves 20 to 40% of the link time in dev.
+# codegen-units = 256: parallelises codegen as far as it goes (fewer
+# optimisations, faster build; acceptable in dev, never in release).
 [profile.dev]
 split-debuginfo = "unpacked"
 codegen-units = 256
 
-# ── Static CRT linking pour Windows ──────────────────────────────────────────
-# Évite la dépendance runtime au "Visual C++ Redistributable" sur la machine
-# de l'utilisateur. Le binaire embarque vcruntime140.dll et msvcp140.dll
-# directement → zéro install supplémentaire côté user.
+# ── Static CRT linking for Windows ───────────────────────────────────────────
+# Avoids the runtime dependency on the "Visual C++ Redistributable" on the
+# user's machine. The binary embeds vcruntime140.dll and msvcp140.dll directly,
+# so there is nothing extra to install.
 #
-# Doit être complété côté C/C++ (llama-cpp-sys-2, whisper-rs-sys) par :
+# It has to be matched on the C/C++ side (whisper-rs-sys) with:
 #   export CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-# (sinon link error /MD vs /MT). Le workflow CI le fait automatiquement.
+# (otherwise the link fails on /MD against /MT). The CI workflow does it.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 
 [target.aarch64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
-
-[alias]
-# Generate HTML coverage report (local - uses cargo-tarpaulin, no rustup required).
-# Prerequisites: cargo install cargo-tarpaulin
-# Output: target/tarpaulin/tarpaulin-report.html
-# Usage: cargo cov
-cov = "tarpaulin --workspace --out Html --output-dir target/tarpaulin"
-
-# Same + LCOV output (for IDE plugins like Coverage Gutters in VS Code).
-# Usage: cargo cov-lcov
-cov-lcov = "tarpaulin --workspace --out Html --out Lcov --output-dir target/tarpaulin"

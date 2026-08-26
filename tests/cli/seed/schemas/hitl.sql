@@ -2,9 +2,9 @@ CREATE TABLE tasks (
     task_id                  TEXT PRIMARY KEY,
     agent_name               TEXT NOT NULL DEFAULT '',
     status                   TEXT NOT NULL DEFAULT 'input_required',
-    step_id                  TEXT,                 -- NULL si Mode Direct
+    step_id                  TEXT,                 -- NULL in Direct mode
     input_required_prompt    TEXT,
-    input_required_context   TEXT,                 -- JSON sérialisé
+    input_required_context   TEXT,                 -- serialised JSON
     input_required_at        TIMESTAMP,
     input_response_approved  BOOLEAN,
     input_response_reason    TEXT,
@@ -15,10 +15,10 @@ CREATE TABLE tasks (
 CREATE TABLE task_approvals (
     id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
     task_id      TEXT NOT NULL,
-    step_id      TEXT,               -- NULL si Mode Direct
+    step_id      TEXT,               -- NULL in Direct mode
     prompt       TEXT NOT NULL,
     context_json TEXT NOT NULL,
-    approved     BOOLEAN,            -- NULL tant qu'en attente
+    approved     BOOLEAN,            -- NULL while pending
     reason       TEXT,
     requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     responded_at TIMESTAMP

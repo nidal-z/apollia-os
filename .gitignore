@@ -2,7 +2,7 @@
 /target/
 **/*.rs.bk
 
-# Cargo.lock - omis pour les binaires (conservé pour les libs)
+# Cargo.lock - omitted for binaries (kept for libraries)
 # Cargo.lock
 
 # Environnement
@@ -81,7 +81,7 @@ docs/backlog/
 # to build or use it.
 .claude/
 CLAUDE.md
-# Dossier de démonstration - fichiers locaux non versionnés
+# Demonstration directory - local files, not versioned
 demo/
 
 # Python bundle cache (packaging)
@@ -173,6 +173,6 @@ sdk/build/
 # CLI E2E suite report output (regenerated each run)
 tests/cli/report/
 
-# Backlog de travail: captures et lots. Voir backlog/README.md pour la raison
-# de ne pas le publier avant l'ouverture des contributions.
+# Work backlog: captures and lots. See backlog/README.md for the reason it is
+# not published before contributions open.
 /backlog/

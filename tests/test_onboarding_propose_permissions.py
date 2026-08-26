@@ -138,9 +138,9 @@ def _proposals_from(memory: _FakeMemory) -> list[dict[str, Any]]:
 
 @pytest.mark.asyncio
 async def test_writes_proposals_even_when_governance_has_prior_rules() -> None:
-    # GIVEN sovereignty=local-only ET des règles déjà persistées en gov.db
-    # par une session précédente d'onboarding (cas réel : utilisateur qui
-    # reset puis re-onboard).
+    # GIVEN sovereignty=local-only AND rules already persisted in gov.db by an
+    # earlier onboarding session (a real case: a user who resets, then
+    # onboards again).
     memory = _FakeMemory({"user.constraints.sovereignty": "local-only"})
     tools = _FakeTools(
         list_response={"rules": [{"id": 42, "tool_name": "http_fetch"}]},
@@ -150,30 +150,30 @@ async def test_writes_proposals_even_when_governance_has_prior_rules() -> None:
     # WHEN
     await _persist_proposed_permission_rules(ctx)
 
-    # THEN les propositions sont (re)écrites en mémoire - pas d'idempotence
-    # côté agent, le desktop dédupe lors de l'apply si nécessaire.
+    # THEN the proposals are (re)written into memory - the agent has no
+    # idempotence, the desktop deduplicates on apply when it needs to.
     proposals = _proposals_from(memory)
     assert proposals, "expected fresh proposals despite prior gov.db rules"
 
 
 @pytest.mark.asyncio
 async def test_continues_when_permission_rule_list_fails() -> None:
-    # GIVEN un dispatcher indisponible
+    # GIVEN an unavailable dispatcher
     memory = _FakeMemory({"user.constraints.sovereignty": "local-only"})
     tools = _FakeTools(list_should_raise=True)
     ctx = _FakeCtx(memory, tools)
 
     await _persist_proposed_permission_rules(ctx)
 
-    # On a quand même écrit les propositions - la défaillance de l'historique
-    # ne doit pas bloquer la dérivation.
+    # The proposals were written all the same - a failure of the history must
+    # not block the derivation.
     proposals = _proposals_from(memory)
     assert proposals, "expected proposals despite list failure"
 
 
 @pytest.mark.asyncio
 async def test_runs_without_tools_attribute() -> None:
-    # GIVEN un ctx sans dispatcher (ex. environnement de test minimal)
+    # GIVEN a ctx without a dispatcher (a minimal test environment, say)
     memory = _FakeMemory({"user.constraints.sovereignty": "local-only"})
     ctx = _FakeCtx(memory, tools=None)
 
@@ -344,8 +344,8 @@ async def test_github_integration_allows_api_endpoint() -> None:
 
 @pytest.mark.asyncio
 async def test_no_proposals_writes_empty_array() -> None:
-    # cloud-ok + hitl=always + no integrations → matrice vide → on écrit "[]"
-    # pour effacer toute liste résiduelle d'une session précédente.
+    # cloud-ok + hitl=always + no integrations -> empty matrix -> "[]" is
+    # written, to clear any list left by an earlier session.
     memory = _FakeMemory({
         "user.constraints.sovereignty": "cloud-ok",
         "user.agents.hitl": "always",

@@ -33,7 +33,7 @@ echo "==> Step 1/4: fetch python-build-standalone"
 
 PYTHON_DIR="${OUT_DIR}/python"
 
-# Layout diffère entre POSIX et Windows :
+# The layout differs between POSIX and Windows:
 #   POSIX   → python/bin/python3.13 (+ python/lib/python3.13/site-packages)
 #   Windows → python/python.exe     (+ python/Lib/site-packages, flat layout)
 if [[ -x "${PYTHON_DIR}/bin/python3.13" ]]; then
@@ -113,20 +113,20 @@ case "$TARGET" in
         echo "    Linux: using python-build-standalone's default \$ORIGIN RPATH"
         ;;
     *-pc-windows-msvc)
-        # Windows: la DLL python313.dll réside dans python/ (à côté de python.exe).
-        # Le binaire apollia-os doit la trouver via :
-        #   1. Le launcher (apollia-os.bat) qui prepend python/ au PATH avant
-        #      d'exécuter apollia-os.exe, OU
-        #   2. python313.dll copiée à côté de apollia-os.exe à l'install (option
-        #      retenue pour zero-config, faite par le job CI au repackaging).
-        # Pas de rewrite d'install_name à faire ici - Windows utilise la
-        # résolution DLL standard via PATH/dossier exécutable.
+        # Windows: python313.dll sits in python/ (next to python.exe).
+        # The apollia-os binary has to find it through:
+        #   1. the launcher (apollia-os.bat), which prepends python/ to PATH
+        #      before running apollia-os.exe, OR
+        #   2. python313.dll copied next to apollia-os.exe at install time (the
+        #      zero-config option, done by the CI job at repackaging).
+        # No install_name rewrite to do here - Windows uses the standard DLL
+        # resolution through PATH and the executable directory.
         echo "    Windows: python.exe + python313.dll resolved via launcher PATH"
         ;;
 esac
 
 TOTAL_SIZE=$(du -sh "$PYTHON_DIR" | cut -f1)
 echo "==> Python bundle ready at $PYTHON_DIR (${TOTAL_SIZE})"
-# Markdownify n'est plus dans requirements-bundled.txt - réduit la liste de validation.
+# Markdownify is no longer in requirements-bundled.txt - a shorter list to check.
 "$PYTHON_BIN" -c 'import pandas, openpyxl, pypdf, httpx, bs4; print("  bundled modules import OK")' \
     || echo "warning: some bundled modules failed to import (Windows wheel mismatch?)" >&2

@@ -66,17 +66,17 @@ async fn get_task_status(db_path: &Path, task_id: &str) -> Option<String> {
     .expect("spawn_blocking must not fail")
 }
 
-// ── TimeoutWatcher : tâche input_required expirée → TaskCanceled ──────
+// ── TimeoutWatcher: expired input_required task -> TaskCanceled ───────
 
-/// ÉTANT DONNÉ une tâche en status `input_required` dans SQLite
-///             avec `input_required_at` = 25h avant maintenant
-/// QUAND `TimeoutWatcher::run()` s'exécute avec timeout=24h et scan_interval=1ms
-/// ALORS `TaskApprovalTimeout{task_id, after_secs:86400}` émis sur l'EventBus,
-///       `TaskCanceled{task_id}` émis sur l'EventBus,
-///       tâche en status `cancelled` dans SQLite
+/// GIVEN a task in the `input_required` status in SQLite,
+///       with `input_required_at` set 25h before now
+/// WHEN `TimeoutWatcher::run()` runs with timeout=24h and scan_interval=1ms
+/// THEN `TaskApprovalTimeout{task_id, after_secs:86400}` is emitted on the EventBus,
+///      `TaskCanceled{task_id}` is emitted on the EventBus,
+///      the task is in the `cancelled` status in SQLite
 #[tokio::test]
 async fn test_ac5_timeout_watcher_cancels_expired_task() {
-    // GIVEN - tâche input_required depuis 25h (> timeout de 24h)
+    // GIVEN - a task input_required for 25h (past the 24h timeout)
     let (repo, db_path) = open_test_repo().await;
     let task_id = "t-timeout-001";
     insert_input_required_task(&db_path, task_id, 25).await;

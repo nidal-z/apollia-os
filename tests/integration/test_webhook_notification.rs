@@ -38,7 +38,7 @@ fn make_input_required_notification() -> Notification {
         timestamp: Utc::now(),
         task_id: Some("t-0042".into()),
         agent: Some("devis-agent".into()),
-        message: "Devis #42 - 12 500€ TTC pour Dupont SA - confirmer l'envoi ?".into(),
+        message: "Quote #42 - 12,500 EUR incl. VAT for Dupont SA - confirm sending?".into(),
         metadata,
         severity: Severity::Warning,
     }
@@ -59,14 +59,14 @@ fn make_channel(url: &str) -> WebhookChannel {
     .with_ssrf_guard(false)
 }
 
-// ── Payload JSON Apollia vérifié avec mock HTTP server ────────────────
+// ── Apollia JSON payload checked against a mock HTTP server ───────────
 
-/// ÉTANT DONNÉ un mock HTTP server (wiremock) qui attend POST sur /webhook
-/// QUAND `WebhookChannel.send(Notification{event:"task.input_required", ...})` est appelé
-/// ALORS le body reçu est un JSON valide avec tous les champs Apollia :
+/// GIVEN a mock HTTP server (wiremock) expecting a POST on /webhook
+/// WHEN `WebhookChannel.send(Notification{event:"task.input_required", ...})` is called
+/// THEN the received body is valid JSON carrying every Apollia field:
 ///       `event`, `timestamp`, `runtime`, `version`, `task_id`, `agent`,
 ///       `message`, `metadata`, `severity`
-///       ET le header `X-Apollia-Event` == `"task.input_required"`
+///      AND the `X-Apollia-Event` header == `"task.input_required"`
 #[tokio::test]
 async fn test_ac6_webhook_payload_verified() {
     // GIVEN - wiremock server that expects a POST to /webhook
@@ -152,12 +152,12 @@ async fn test_ac6_webhook_payload_verified() {
     );
 }
 
-// ── WebhookChannel : connexion refusée → NotifError retourné, pas de panic
+// ── WebhookChannel: connection refused -> NotifError returned, no panic
 
-/// ÉTANT DONNÉ une URL pointant vers un port sans listener (connexion refusée)
-/// QUAND `WebhookChannel.send()` est appelé
-/// ALORS `NotifError::WebhookFailed` retourné immédiatement (< 2 s)
-///       et le runtime continue sans crash
+/// GIVEN a URL pointing at a port with no listener (connection refused)
+/// WHEN `WebhookChannel.send()` is called
+/// THEN `NotifError::WebhookFailed` comes back at once (under 2 s)
+///      and the runtime carries on without crashing
 #[tokio::test]
 async fn test_ac7_webhook_timeout_returns_error() {
     // GIVEN - a port nobody listens on, so a TCP connect to it is refused. This

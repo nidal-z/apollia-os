@@ -1,4 +1,4 @@
-//! Integration tests for HITL Mode Orchestré.
+//! Integration tests for HITL Orchestrated mode.
 //!
 //! Tests `ActorLoop` with `tools_requiring_approval`:
 //! - step with sensitive tool → suspend mid-plan → approve → step executed
@@ -149,17 +149,17 @@ fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
     .expect("manifest must deserialize")
 }
 
-// ── tools_requiring_approval → suspend mid-plan → approve → step exécuté
+// ── tools_requiring_approval -> suspend mid-plan -> approve -> step runs
 
-/// ÉTANT DONNÉ un plan [s1:file_io, s2:smtp] + manifest.tools_requiring_approval=["smtp"]
-///             + mock outil "smtp" qui retourne "envoyé"
-/// QUAND execute() tourne, s1 s'exécute normalement,
-///       s2 se suspend (smtp dans tools_requiring_approval),
-///       puis PendingApprovals.resolve(approved=true)
-/// ALORS s2 est exécuté après approve,
-///       plan terminé avec statut Completed,
-///       TaskInputRequired{step_id:Some("s2")} émis sur l'EventBus,
-///       tool_proxy appelé 2 fois (s1 et s2)
+/// GIVEN a plan [s1:file_io, s2:smtp] plus manifest.tools_requiring_approval=["smtp"]
+///       and a mock "smtp" tool returning "sent"
+/// WHEN execute() runs, s1 executes normally,
+///      s2 suspends (smtp is in tools_requiring_approval),
+///      then PendingApprovals.resolve(approved=true)
+/// THEN s2 runs after the approval,
+///      the plan finishes with the Completed status,
+///      TaskInputRequired{step_id:Some("s2")} is emitted on the EventBus,
+///      tool_proxy is called twice (s1 and s2)
 #[tokio::test]
 async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     // GIVEN
@@ -170,7 +170,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
         steps: vec![
             PlanStep {
                 step_id: "s1".into(),
-                description: "Lire le fichier".into(),
+                description: "Read the file".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec![],
                 model_hint: None,
@@ -205,8 +205,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
     let manifest = make_manifest_with_approval(&["smtp"]);
 
-    let tool_proxy =
-        RecordingToolProxy::new(&[("file_io", "fichier lu"), ("smtp", "email envoyé")]);
+    let tool_proxy = RecordingToolProxy::new(&[("file_io", "file read"), ("smtp", "email sent")]);
 
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
@@ -282,14 +281,14 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     );
 }
 
-// ── step rejeté → plan stoppé, steps suivants non exécutés ──────────
+// ── step rejected -> plan stopped, the following steps do not run ──────
 
-/// ÉTANT DONNÉ un plan [s1:file_io, s2:smtp, s3:file_io]
+/// GIVEN a plan [s1:file_io, s2:smtp, s3:file_io]
 ///             + manifest.tools_requiring_approval=["smtp"]
-/// QUAND s2 est rejeté (approved=false)
-/// ALORS s3 n'est jamais exécuté,
-///       plan retourne AIPResult::failed("REJECTED"),
-///       file_io appelé 1 seule fois (pour s1, pas s3)
+/// WHEN s2 is rejected (approved=false)
+/// THEN s3 never runs,
+///      the plan returns AIPResult::failed("REJECTED"),
+///      file_io is called once only (for s1, not s3)
 #[tokio::test]
 async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     // GIVEN
@@ -300,7 +299,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
         steps: vec![
             PlanStep {
                 step_id: "s1".into(),
-                description: "Lire le fichier".into(),
+                description: "Read the file".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec![],
                 model_hint: None,
@@ -324,7 +323,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
             },
             PlanStep {
                 step_id: "s3".into(),
-                description: "Archiver le résultat".into(),
+                description: "Archive the result".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec!["s2".into()],
                 model_hint: None,

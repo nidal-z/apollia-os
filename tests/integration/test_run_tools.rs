@@ -1,13 +1,13 @@
-//! Tests e2e - boucle ReAct via `ToolCallHelper`.
+//! End-to-end tests - the ReAct loop through `ToolCallHelper`.
 //!
-//! Vérifie le comportement de la boucle ReAct depuis l'API publique de `apollia-llm` :
-//! - arrêt immédiat sur `FinishReason::Stop` ;
-//! - 1 appel d'outil puis réponse finale ;
-//! - garde-fou `max_iterations` ;
-//! - garde-fou `StepBudget` épuisé ;
-//! - absorption des erreurs d'outil comme résultat texte.
+//! Checks the behaviour of the ReAct loop from the public API of `apollia-llm`:
+//! - immediate stop on `FinishReason::Stop`;
+//! - one tool call, then the final answer;
+//! - the `max_iterations` guard;
+//! - the `StepBudget` guard, exhausted;
+//! - tool errors absorbed as a textual result.
 //!
-//! Aucune dépendance Python - utilise uniquement des mocks Rust.
+//! No Python dependency - Rust mocks only.
 
 use std::pin::Pin;
 use std::sync::{
@@ -23,10 +23,10 @@ use apollia_llm::{
 };
 
 // ─────────────────────────────────────────────
-// Mock CompletionModel : réponse Stop immédiate
+// Mock CompletionModel: immediate Stop answer
 // ─────────────────────────────────────────────
 
-/// Mock LLM qui retourne toujours `FinishReason::Stop` avec le contenu fourni.
+/// Mock LLM that always returns `FinishReason::Stop` with the given content.
 struct MockStopModel {
     response: String,
     call_count: Arc<AtomicU32>,
@@ -91,7 +91,7 @@ impl CompletionModel for MockStopModel {
 // Mock CompletionModel : ReAct (1 ToolCalls → Stop)
 // ─────────────────────────────────────────────
 
-/// Mock LLM qui émet 1 appel d'outil au 1er appel, puis `Stop` au 2ème.
+/// Mock LLM that emits one tool call on the first call, then `Stop` on the second.
 struct MockReActModel {
     tool_name: String,
     final_content: String,
@@ -162,7 +162,7 @@ impl CompletionModel for MockReActModel {
         &self,
         _req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        unimplemented!("non utilisé dans ce test")
+        unimplemented!("not used in this test")
     }
 
     fn is_available(&self) -> bool {
@@ -177,10 +177,10 @@ impl CompletionModel for MockReActModel {
 }
 
 // ─────────────────────────────────────────────
-// Mock CompletionModel : toujours ToolCalls (infini)
+// Mock CompletionModel: always ToolCalls (endless)
 // ─────────────────────────────────────────────
 
-/// Mock LLM qui retourne toujours `FinishReason::ToolCalls` - pour tester le garde-fou.
+/// Mock LLM that always returns `FinishReason::ToolCalls` - to exercise the guard.
 struct MockInfiniteToolCallModel {
     call_count: Arc<AtomicU32>,
 }
@@ -226,7 +226,7 @@ impl CompletionModel for MockInfiniteToolCallModel {
         &self,
         _req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        unimplemented!("non utilisé dans ce test")
+        unimplemented!("not used in this test")
     }
 
     fn is_available(&self) -> bool {
@@ -244,7 +244,7 @@ impl CompletionModel for MockInfiniteToolCallModel {
 // Mock ToolInvoker
 // ─────────────────────────────────────────────
 
-/// Mock `ToolInvoker` qui retourne un résultat configurable.
+/// Mock `ToolInvoker` returning a configurable result.
 struct MockToolInvoker {
     result: String,
     call_count: Arc<AtomicU32>,
@@ -275,7 +275,7 @@ impl ToolInvoker for MockToolInvoker {
     }
 }
 
-/// Mock `ToolInvoker` qui échoue toujours.
+/// Mock `ToolInvoker` that always fails.
 struct FailingToolInvoker;
 
 #[async_trait::async_trait]
@@ -296,7 +296,7 @@ impl ToolInvoker for FailingToolInvoker {
 fn make_tool_spec(name: &str) -> ToolSpec {
     ToolSpec {
         name: name.to_string(),
-        description: "outil de test".to_string(),
+        description: "test tool".to_string(),
         parameters: serde_json::json!({}),
     }
 }
@@ -309,16 +309,16 @@ fn user_message(text: &str) -> ChatMessage {
 // Tests
 // ─────────────────────────────────────────────
 
-/// La boucle s'arrête immédiatement quand le LLM retourne `Stop`.
+/// The loop stops at once when the LLM returns `Stop`.
 #[tokio::test]
 async fn test_react_loop_stops_on_finish_stop() {
-    // GIVEN un mock qui répond directement avec Stop
-    let (model, model_count) = MockStopModel::new("réponse directe");
+    // GIVEN a mock that answers Stop straight away
+    let (model, model_count) = MockStopModel::new("direct answer");
     let (invoker, invoker_count) = MockToolInvoker::new("ok");
     let helper = ToolCallHelper::new(model, invoker);
     let budget = StepBudgetView::unlimited();
 
-    // WHEN la boucle ReAct est exécutée
+    // WHEN the ReAct loop runs
     let result = helper
         .run_tools(
             vec![user_message("question")],
@@ -328,32 +328,32 @@ async fn test_react_loop_stops_on_finish_stop() {
         )
         .await;
 
-    // THEN le résultat est Ok avec le contenu du mock
-    assert_eq!(result.unwrap(), "réponse directe");
-    // ET le LLM a été appelé exactement 1 fois
+    // THEN the result is Ok, with the content of the mock
+    assert_eq!(result.unwrap(), "direct answer");
+    // AND the LLM was called exactly once
     assert_eq!(
         model_count.load(Ordering::Relaxed),
         1,
-        "le LLM doit être appelé exactement 1 fois"
+        "the LLM must be called exactly once"
     );
-    // ET aucun outil n'a été invoqué
+    // AND no tool was invoked
     assert_eq!(
         invoker_count.load(Ordering::Relaxed),
         0,
-        "aucun outil ne doit être invoqué"
+        "no tool must be invoked"
     );
 }
 
-/// Boucle ReAct : 1 appel d'outil puis réponse finale (2 appels LLM, 1 appel outil).
+/// ReAct loop: one tool call then the final answer (2 LLM calls, 1 tool call).
 #[tokio::test]
 async fn test_react_loop_calls_tool_once() {
-    // GIVEN un mock ReAct : ToolCalls au 1er appel, Stop au 2ème
-    let (model, model_count) = MockReActModel::new("echo", "réponse finale");
-    let (invoker, invoker_count) = MockToolInvoker::new("résultat_outil");
+    // GIVEN a ReAct mock: ToolCalls on the first call, Stop on the second
+    let (model, model_count) = MockReActModel::new("echo", "final answer");
+    let (invoker, invoker_count) = MockToolInvoker::new("tool_result");
     let helper = ToolCallHelper::new(model, invoker);
     let budget = StepBudgetView::unlimited();
 
-    // WHEN la boucle ReAct est exécutée
+    // WHEN the ReAct loop runs
     let result = helper
         .run_tools(
             vec![user_message("question")],
@@ -363,37 +363,37 @@ async fn test_react_loop_calls_tool_once() {
         )
         .await;
 
-    // THEN le résultat est Ok avec la réponse finale
-    assert_eq!(result.unwrap(), "réponse finale");
-    // ET le LLM a été appelé exactement 2 fois (ToolCalls + Stop)
+    // THEN the result is Ok, with the final answer
+    assert_eq!(result.unwrap(), "final answer");
+    // AND the LLM was called exactly twice (ToolCalls + Stop)
     assert_eq!(
         model_count.load(Ordering::Relaxed),
         2,
-        "le LLM doit être appelé exactement 2 fois"
+        "the LLM must be called exactly twice"
     );
-    // ET l'outil a été invoqué exactement 1 fois
+    // AND the tool was invoked exactly once
     assert_eq!(
         invoker_count.load(Ordering::Relaxed),
         1,
-        "l'outil doit être invoqué exactement 1 fois"
+        "the tool must be invoked exactly once"
     );
 }
 
-/// Garde-fou `max_iterations` : la boucle infinie est arrêtée à N itérations.
+/// `max_iterations` guard: the endless loop is stopped after N iterations.
 #[tokio::test]
 async fn test_react_loop_max_iterations_guard() {
-    // GIVEN un mock qui retourne toujours ToolCalls (boucle infinie potentielle)
+    // GIVEN a mock that always returns ToolCalls (a potentially endless loop)
     let (model, model_count) = MockInfiniteToolCallModel::new();
     let (invoker, _) = MockToolInvoker::new("ok");
     let helper = ToolCallHelper::new(model, invoker);
     let budget = StepBudgetView::unlimited();
 
-    // WHEN la boucle est exécutée avec max_iterations = 3
+    // WHEN the loop runs with max_iterations = 3
     let result = helper
         .run_tools(vec![user_message("q")], vec![], 3, &budget)
         .await;
 
-    // THEN MaxIterationsReached(3) est retourné
+    // THEN MaxIterationsReached(3) is returned
     assert!(
         matches!(
             result,
@@ -401,63 +401,60 @@ async fn test_react_loop_max_iterations_guard() {
         ),
         "expected MaxIterationsReached(3), got: {result:?}"
     );
-    // ET exactement 3 appels LLM ont eu lieu
+    // AND exactly three LLM calls happened
     assert_eq!(
         model_count.load(Ordering::Relaxed),
         3,
-        "le LLM doit être appelé exactement 3 fois"
+        "the LLM must be called exactly three times"
     );
 }
 
-/// Garde-fou `StepBudget` : aucun appel LLM si le budget est épuisé.
+/// `StepBudget` guard: no LLM call at all when the budget is spent.
 #[tokio::test]
 async fn test_react_loop_budget_exhausted_guard() {
-    // GIVEN un budget déjà épuisé (100/100 steps)
+    // GIVEN a budget already spent (100/100 steps)
     let counter = Arc::new(AtomicU32::new(100));
     let budget = StepBudgetView::new(counter, 100);
-    let (model, model_count) = MockStopModel::new("ne doit pas être atteint");
+    let (model, model_count) = MockStopModel::new("must not be reached");
     let (invoker, _) = MockToolInvoker::new("ok");
     let helper = ToolCallHelper::new(model, invoker);
 
-    // WHEN la boucle est exécutée avec un budget épuisé
+    // WHEN the loop runs on a spent budget
     let result = helper
         .run_tools(vec![user_message("q")], vec![], 5, &budget)
         .await;
 
-    // THEN BudgetExceeded est retourné immédiatement
+    // THEN BudgetExceeded is returned at once
     assert!(
         matches!(result, Err(LlmError::BudgetExceeded)),
         "expected BudgetExceeded, got: {result:?}"
     );
-    // ET aucun appel LLM n'a eu lieu
+    // AND no LLM call happened
     assert_eq!(
         model_count.load(Ordering::Relaxed),
         0,
-        "aucun appel LLM ne doit avoir lieu avec un budget épuisé"
+        "no LLM call must happen on a spent budget"
     );
 }
 
-/// Les erreurs d'outil sont absorbées comme texte, la boucle continue.
+/// Tool errors are absorbed as text, and the loop carries on.
 ///
-/// Vérifie que `ToolInvoker::invoke` retournant `Err` ne fait pas planter la boucle :
-/// l'erreur est transmise au LLM comme résultat textuel.
+/// Checks that a `ToolInvoker::invoke` returning `Err` does not break the loop:
+/// the error is passed to the LLM as a textual result.
 #[tokio::test]
 async fn test_react_loop_tool_error_absorbed() {
-    // GIVEN un mock ReAct + un ToolInvoker qui échoue toujours
-    let (model, _) = MockReActModel::new("fail_tool", "réponse malgré erreur");
+    // GIVEN a ReAct mock plus a ToolInvoker that always fails
+    let (model, _) = MockReActModel::new("fail_tool", "answer despite the error");
     let invoker = Arc::new(FailingToolInvoker);
     let helper = ToolCallHelper::new(model, invoker);
     let budget = StepBudgetView::unlimited();
 
-    // WHEN la boucle est exécutée
+    // WHEN the loop runs
     let result = helper
         .run_tools(vec![user_message("q")], vec![], 5, &budget)
         .await;
 
-    // THEN la boucle ne panic pas et retourne Ok (erreur absorbée comme texte)
-    assert!(
-        result.is_ok(),
-        "erreur d'outil ne doit pas être fatale : {result:?}"
-    );
-    assert_eq!(result.unwrap(), "réponse malgré erreur");
+    // THEN the loop does not panic and returns Ok (the error is absorbed as text)
+    assert!(result.is_ok(), "a tool error must not be fatal: {result:?}");
+    assert_eq!(result.unwrap(), "answer despite the error");
 }

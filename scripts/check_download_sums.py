@@ -106,26 +106,26 @@ def check_pinned_set(
 ) -> int:
     """Compare selectable archives against pinned sums, both directions."""
     problems = 0
-    print(f"  tag script={tag} tag fichier={file_tag or 'absent'}")
+    print(f"  script tag={tag} file tag={file_tag or 'absent'}")
     if file_tag != tag:
         print(f"  ECART  {subject}: sums file tag differs from the script tag")
         problems += 1
     for label, asset in sorted(expected.items()):
         s = pinned.get(asset)
         if s is None:
-            print(f"  ECART  {label:34s} {asset}  sans somme")
+            print(f"  GAP    {label:34s} {asset}  no sum")
             problems += 1
         elif not SHA256_HEX.fullmatch(s):
-            print(f"  ECART  {label:34s} {asset}  somme mal formee")
+            print(f"  GAP    {label:34s} {asset}  malformed sum")
             problems += 1
         else:
             print(f"  ok     {label:34s} {asset}")
     for asset in pinned:
         if asset not in expected.values():
-            print(f"  ECART  {subject}: somme orpheline: {asset}")
+            print(f"  GAP    {subject}: orphan sum: {asset}")
             problems += 1
         elif tag not in asset and asset not in tag_exempt:
-            print(f"  ECART  {subject}: somme hors tag {tag}: {asset}")
+            print(f"  GAP    {subject}: sum outside tag {tag}: {asset}")
             problems += 1
     return problems
 
@@ -193,7 +193,7 @@ def check_python_standalone(script_path: Path, sums_path: Path) -> int:
         sys.exit(2)
     tag, expected = parsed
     if not sums_path.is_file():
-        print(f"  ECART  {sums_path.name}: absent, {len(expected)} archives sans somme")
+        print(f"  GAP    {sums_path.name}: absent, {len(expected)} archives with no sum")
         return len(expected) + 1
     sums = _read(sums_path)
     if sums is None:
@@ -203,7 +203,7 @@ def check_python_standalone(script_path: Path, sums_path: Path) -> int:
     # A sums file nothing reads is decorative: the fetch script must name it
     # and compare with a sha256 tool.
     if sums_path.name not in script or not VERIFY_TOKEN.search(script):
-        print(f"  ECART  {script_path.name}: ne verifie pas contre {sums_path.name}")
+        print(f"  GAP    {script_path.name}: does not verify against {sums_path.name}")
         problems += 1
     return problems
 
@@ -234,27 +234,27 @@ def check_requirements(req_path: Path, build_path: Path) -> int:
     problems = 0
     lines = requirement_lines(req)
     if not lines:
-        print(f"  ECART  {req_path.name}: aucune exigence, rien a verifier")
+        print(f"  GAP    {req_path.name}: no requirement, nothing to verify")
         problems += 1
     for line in lines:
         name = line.split("==")[0].split()[0]
         if "==" not in line:
-            print(f"  ECART  {name}: version non epinglee: {line[:60]}")
+            print(f"  GAP    {name}: version not pinned: {line[:60]}")
             problems += 1
         hashes = re.findall(r"--hash=sha256:([0-9a-f]+)", line)
         if not hashes:
-            print(f"  ECART  {name}: aucune somme --hash=sha256:")
+            print(f"  GAP    {name}: no --hash=sha256: sum")
             problems += 1
         elif any(len(h) != 64 for h in hashes):
-            print(f"  ECART  {name}: somme mal formee")
+            print(f"  GAP    {name}: malformed sum")
             problems += 1
         else:
-            print(f"  ok     {name}: {len(hashes)} somme(s)")
+            print(f"  ok     {name}: {len(hashes)} sum(s)")
     if "--require-hashes" not in build:
-        print(f"  ECART  {build_path.name}: pip install sans --require-hashes")
+        print(f"  GAP    {build_path.name}: pip install without --require-hashes")
         problems += 1
     if not re.search(r"pip==\d", build):
-        print(f"  ECART  {build_path.name}: pip non epingle")
+        print(f"  GAP    {build_path.name}: pip not pinned")
         problems += 1
     return problems
 
@@ -347,21 +347,21 @@ def check_workflows(
             if not downloads:
                 continue
             if VERIFY_TOKEN.search(run):
-                print(f"  ok     {path.name}: {name or '(sans nom)'}: verifie")
+                print(f"  ok     {path.name}: {name or '(unnamed)'}: verified")
                 continue
             if (path.name, name) in exempt:
                 used.add((path.name, name))
                 print(f"  exempt {path.name}: {name}")
                 continue
             print(
-                f"  ECART  {path.name}: step {name or '(sans nom)'!r} telecharge "
-                f"sans verification: {downloads[0][:90]}"
+                f"  GAP    {path.name}: step {name or '(unnamed)'!r} downloads "
+                f"without verification: {downloads[0][:90]}"
             )
             problems += 1
     for entry in sorted(exempt - used):
-        print(f"  ECART  exemption perimee (plus aucun telechargement): {entry}")
+        print(f"  GAP    stale exemption (no download left): {entry}")
         problems += 1
-    print(f"  exemptions nommees: {len(exempt)}, utilisees: {len(used)}")
+    print(f"  named exemptions: {len(exempt)}, used: {len(used)}")
     return problems
 
 
@@ -391,11 +391,11 @@ def check_fetch_scripts(root: Path, dirs: tuple[str, ...]) -> int:
                 print(f"  ok     {path.relative_to(root)}")
             else:
                 print(
-                    f"  ECART  {path.relative_to(root)}: telecharge sans table "
-                    f"de sommes: {downloads[0].strip()[:90]}"
+                    f"  GAP    {path.relative_to(root)}: downloads without a "
+                    f"sum table: {downloads[0].strip()[:90]}"
                 )
                 problems += 1
-    print(f"  scripts parcourus: {scanned}")
+    print(f"  scripts scanned: {scanned}")
     return problems
 
 
@@ -409,7 +409,7 @@ def github_digests(repo: str, tag: str, pinned: dict[str, str]) -> int:
         text=True,
     )
     if out.returncode != 0:
-        print(f"gh api indisponible pour {repo}@{tag}: {out.stderr.strip()}")
+        print(f"gh api unavailable for {repo}@{tag}: {out.stderr.strip()}")
         sys.exit(2)
     remote = dict(
         reversed(line.split(" ", 1))
@@ -420,13 +420,13 @@ def github_digests(repo: str, tag: str, pinned: dict[str, str]) -> int:
     for asset, s in sorted(pinned.items()):
         d = remote.get(asset)
         if d is None:
-            print(f"  ECART  {asset}: absent de la release GitHub {tag}")
+            print(f"  GAP    {asset}: absent from the GitHub release {tag}")
             problems += 1
         elif d != f"sha256:{s}":
-            print(f"  ECART  {asset}: GitHub {d} != epingle {s}")
+            print(f"  GAP    {asset}: GitHub {d} != pinned {s}")
             problems += 1
         else:
-            print(f"  ok     {asset}: somme epinglee == digest GitHub")
+            print(f"  ok     {asset}: pinned sum == GitHub digest")
     return problems
 
 
@@ -465,7 +465,7 @@ def selftest() -> int:
         if fired:
             print(f"  ok     selftest: {label}")
         else:
-            print(f"  ECART  selftest: {label}: l'alteration n'a pas ete vue")
+            print(f"  GAP    selftest: {label}: the alteration went unseen")
             failures += 1
 
     with tempfile.TemporaryDirectory() as tmp_s:
@@ -477,13 +477,13 @@ def selftest() -> int:
             "\n".join(real.splitlines()[:-1]), encoding="utf-8"
         )
         control(
-            "une somme llama retiree est un ecart",
+            "a removed llama sum is a gap",
             check_llama(REPO_ROOT / LLAMA_FETCH, altered) > 0,
         )
 
         pbs_real = _read(REPO_ROOT / PBS_SUMS)
         if pbs_real is None:
-            control("le fichier de sommes python-standalone existe", False)
+            control("the python-standalone sum file exists", False)
         else:
             corrupt = tmp / "pbs-sums.txt"
             corrupt.write_text(
@@ -491,7 +491,7 @@ def selftest() -> int:
                 encoding="utf-8",
             )
             control(
-                "une somme python-standalone corrompue est un ecart",
+                "a corrupted python-standalone sum is a gap",
                 check_python_standalone(REPO_ROOT / PBS_FETCH, corrupt) > 0,
             )
 
@@ -503,20 +503,20 @@ def selftest() -> int:
             encoding="utf-8",
         )
         control(
-            "une exigence sans --hash est un ecart",
+            "a requirement without --hash is a gap",
             check_requirements(req, build_ok) > 0,
         )
         req.write_text(
             "pypdf==6.0.0 --hash=sha256:" + "0" * 64 + "\n", encoding="utf-8"
         )
         control(
-            "une exigence epinglee et sommee passe",
+            "a pinned and summed requirement passes",
             check_requirements(req, build_ok) == 0,
         )
         build_bad = tmp / "build-bad.sh"
         build_bad.write_text("pip install -r r.txt\n", encoding="utf-8")
         control(
-            "un pip install sans --require-hashes est un ecart",
+            "a pip install without --require-hashes is a gap",
             check_requirements(req, build_bad) > 0,
         )
 
@@ -530,11 +530,11 @@ def selftest() -> int:
             encoding="utf-8",
         )
         control(
-            "un telechargement de workflow non exempte est un ecart",
+            "an unexempted workflow download is a gap",
             check_workflows(wf, set()) > 0,
         )
         control(
-            "le meme telechargement exempte nominalement passe",
+            "the same download, exempted by name, passes",
             check_workflows(wf, {("fixture.yml", "Fetch tool")}) == 0,
         )
         (wf / "fixture.yml").write_text(
@@ -546,11 +546,11 @@ def selftest() -> int:
             encoding="utf-8",
         )
         control(
-            "une exemption perimee est un ecart",
+            "a stale exemption is a gap",
             check_workflows(wf, {("fixture.yml", "Fetch tool")}) > 0,
         )
 
-    print(f"\nselftest: {failures} controle(s) rate(s)")
+    print(f"\nselftest: {failures} control(s) failed")
     return 1 if failures else 0
 
 
@@ -579,7 +579,7 @@ def main() -> int:
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)
     if args.github:
         problems += check_github()
-    print(f"\necarts={problems}")
+    print(f"\ngaps={problems}")
     return 1 if problems else 0
 
 

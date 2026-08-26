@@ -1,12 +1,12 @@
-//! Tests e2e - comportement dégradé sans backend LLM.
+//! End-to-end tests - degraded behaviour with no LLM backend.
 //!
-//! Vérifie que :
-//! - le runtime démarre correctement avec `llm_router = None` ;
-//! - `AgentDegraded` peut être émis et reçu sur l'EventBus ;
-//! - `LlmRouter::empty()` n'a aucun backend disponible ;
-//! - une erreur d'initialisation LLM n'empêche pas le runtime de démarrer.
+//! Checks that:
+//! - the runtime starts correctly with `llm_router = None`;
+//! - `AgentDegraded` can be emitted and received on the EventBus;
+//! - `LlmRouter::empty()` has no backend available;
+//! - an LLM initialisation error does not stop the runtime from starting.
 //!
-//! Aucune dépendance Python - CI OK.
+//! No Python dependency - CI friendly.
 
 use apollia_e2e_tests::reserve_port;
 use std::collections::HashMap;
@@ -29,10 +29,10 @@ use apollia_runtime::{
 };
 
 // ─────────────────────────────────────────────
-// Mock backend - bloque indéfiniment
+// Mock backend - blocks forever
 // ─────────────────────────────────────────────
 
-/// Backend qui ne se termine jamais - utilisé pour tester le démarrage du runtime.
+/// Backend that never finishes - used to exercise the runtime start-up.
 #[derive(Clone)]
 struct NeverMockBackend;
 
@@ -67,10 +67,10 @@ fn temp_socket_path() -> PathBuf {
 // Tests
 // ─────────────────────────────────────────────
 
-/// Le runtime démarre sans erreur quand `llm_router = None`.
+/// The runtime starts without error when `llm_router = None`.
 #[tokio::test]
 async fn test_runtime_starts_without_llm_router() {
-    // GIVEN un runtime configuré sans LLM
+    // GIVEN a runtime configured without an LLM
     let (event_sender, _rx) = EventBus::new();
     let registry = AgentRegistry::spawn(event_sender.clone());
     let router: TaskRouterHandle<NeverMockBackend> =
@@ -88,7 +88,7 @@ async fn test_runtime_starts_without_llm_router() {
         plan_gates: None,
         audit_journal: None,
         backend: NeverMockBackend,
-        llm_router: empty_shared_llm_router(), // aucun LLM configuré
+        llm_router: empty_shared_llm_router(), // no LLM configured
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -119,7 +119,7 @@ async fn test_runtime_starts_without_llm_router() {
         llama_server_supervisor: None,
     };
 
-    // WHEN l'APIServer démarre
+    // WHEN the APIServer starts
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
@@ -135,33 +135,36 @@ async fn test_runtime_starts_without_llm_router() {
     reserved_port.release();
     let result = api.start().await;
 
-    // THEN il démarre sans erreur (pas de panic, pas d'Err)
-    assert!(result.is_ok(), "APIServer doit démarrer sans LLM router");
+    // THEN it starts without an error (no panic, no Err)
+    assert!(
+        result.is_ok(),
+        "the APIServer must start without an LLM router"
+    );
 
     let _ = std::fs::remove_file(&socket_path);
 }
 
-/// `AgentDegraded` peut être émis et reçu via l'EventBus.
+/// `AgentDegraded` can be emitted and received through the EventBus.
 ///
-/// Vérifie l'infrastructure d'événements : le runtime peut observer
-/// et propager la dégradation d'un agent sans backend LLM.
+/// Exercises the event infrastructure: the runtime can observe and propagate
+/// the degradation of an agent with no LLM backend.
 #[tokio::test]
 async fn test_agent_degraded_event_emitted_when_no_llm() {
-    // GIVEN un EventBus avec un subscriber actif
+    // GIVEN an EventBus with an active subscriber
     let (event_sender, _rx) = EventBus::new();
     let mut event_rx = event_sender.subscribe();
     let agent_id = AgentId::new_v4();
 
-    // WHEN AgentDegraded est émis (comme le ferait RuntimeContext sans LLM)
+    // WHEN AgentDegraded is emitted (as RuntimeContext would without an LLM)
     let _ = event_sender.send(RuntimeEvent::AgentDegraded {
         agent_id: agent_id.clone(),
         reason: "no LLM backend available".into(),
     });
 
-    // THEN l'événement est reçu avec l'agent_id et la raison corrects
+    // THEN the event is received with the right agent_id and reason
     let event = event_rx
         .try_recv()
-        .expect("AgentDegraded doit être présent dans le bus");
+        .expect("AgentDegraded must be present on the bus");
 
     assert!(
         matches!(
@@ -171,40 +174,40 @@ async fn test_agent_degraded_event_emitted_when_no_llm() {
                 ref reason,
             } if *id == agent_id && reason.contains("no LLM")
         ),
-        "événement inattendu : {event:?}"
+        "unexpected event: {event:?}"
     );
 }
 
-/// `LlmRouter::empty()` n'a aucun backend disponible.
+/// `LlmRouter::empty()` has no backend available.
 ///
-/// Correspond au comportement de `ctx.llm = None` quand le router est vide.
+/// Matches the behaviour of `ctx.llm = None` when the router is empty.
 #[tokio::test]
 async fn test_ctx_llm_is_none_when_no_backend() {
-    // GIVEN un LlmRouter sans backend configuré
+    // GIVEN an LlmRouter with no configured backend
     let router = LlmRouter::empty();
 
-    // WHEN on interroge les backends disponibles
+    // WHEN the available backends are queried
     let backends = router.list();
     let default_backend = router.get(None);
 
-    // THEN il n'y a aucun backend et get() retourne None
+    // THEN there is no backend and get() returns None
     assert!(
         backends.is_empty(),
-        "LlmRouter::empty() ne doit avoir aucun backend"
+        "LlmRouter::empty() must have no backend"
     );
     assert!(
         default_backend.is_none(),
-        "get(None) doit retourner None pour un router vide"
+        "get(None) must return None for an empty router"
     );
 }
 
-/// le runtime continue de fonctionner après un échec d'initialisation LLM.
+/// the runtime keeps working after an LLM initialisation failure.
 ///
-/// Vérifie le principe #4 (fail fast) : l'erreur est détectée au démarrage,
-/// mais le runtime peut continuer avec `llm_router = None`.
+/// Exercises principle #4 (fail fast): the error is detected at start-up, but
+/// the runtime can carry on with `llm_router = None`.
 #[tokio::test]
 async fn test_runtime_continues_after_llm_init_failure() {
-    // GIVEN une config LLM avec un backend par défaut inexistant
+    // GIVEN an LLM config whose default backend does not exist
     let config = LlmConfig {
         default: "backend-inexistant".to_owned(),
         backends: vec![],
@@ -216,16 +219,16 @@ async fn test_runtime_continues_after_llm_init_failure() {
         runner: apollia_core::config::LlmRunnerConfig::default(),
     };
 
-    // WHEN LlmRouter::from_config() échoue (backend absent)
+    // WHEN LlmRouter::from_config() fails (the backend is absent)
     let llm_result = LlmRouter::from_config(&config).await;
 
-    // THEN l'erreur est retournée proprement (pas de panic)
+    // THEN the error comes back cleanly (no panic)
     assert!(
         llm_result.is_err(),
-        "from_config doit échouer pour un backend par défaut inconnu"
+        "from_config must fail for an unknown default backend"
     );
 
-    // ET le runtime peut quand même démarrer sans LLM
+    // AND the runtime can still start without an LLM
     let (event_sender, _rx) = EventBus::new();
     let registry = AgentRegistry::spawn(event_sender.clone());
     let router: TaskRouterHandle<NeverMockBackend> =
@@ -291,7 +294,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
 
     assert!(
         result.is_ok(),
-        "le runtime doit continuer sans LLM après un échec d'initialisation"
+        "the runtime must carry on without an LLM after an init failure"
     );
 
     let _ = std::fs::remove_file(&socket_path);

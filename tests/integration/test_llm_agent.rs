@@ -1,12 +1,12 @@
-//! Tests e2e - agent Python avec `ctx.llm`.
+//! End-to-end tests - Python agent using `ctx.llm`.
 //!
-//! Vérifie le cycle complet LLM depuis un agent Python :
-//! - agent qui appelle `ctx.llm.chat()` avec un mock Python → Completed ;
-//! - `LlmCallCompleted` émis sur l'EventBus via `LlmRouter` ;
-//! - stream de chunks depuis un mock CompletionModel ;
-//! - boucle ReAct complète avec mock `run_tools` Python.
+//! Checks the full LLM cycle from a Python agent:
+//! - an agent calling `ctx.llm.chat()` with a Python mock -> Completed;
+//! - `LlmCallCompleted` emitted on the EventBus through `LlmRouter`;
+//! - a chunk stream from a mock CompletionModel;
+//! - the full ReAct loop with a Python `run_tools` mock.
 //!
-//! Nécessite `--features python-tests`. À exécuter avec :
+//! Requires `--features python-tests`. Run it with:
 //!   PYO3_PYTHON=/opt/homebrew/bin/python3.13 \
 //!   cargo test -p apollia-e2e-tests --features python-tests -- --nocapture
 
@@ -31,10 +31,10 @@ use apollia_llm::{
 use apollia_runtime::eventbus::EventBus;
 
 // ─────────────────────────────────────────────
-// Mock CompletionModel - réponse textuelle simple
+// Mock CompletionModel - plain text answer
 // ─────────────────────────────────────────────
 
-/// Mock LLM qui retourne un contenu fixe avec `FinishReason::Stop`.
+/// Mock LLM returning fixed content with `FinishReason::Stop`.
 struct MockLlmBackend {
     response: String,
     call_count: Arc<AtomicU32>,
@@ -115,13 +115,13 @@ fn default_task() -> AIPTask {
 // Tests
 // ─────────────────────────────────────────────
 
-/// Un agent Python avec un mock ctx Python complète avec succès.
+/// A Python agent with a Python mock ctx completes successfully.
 ///
-/// Teste la chaîne : AIPBridge → agent.run(task, ctx) → AIPResult::Completed.
-/// Le ctx est un objet Python pur (pas RuntimeContext Rust) avec un `llm` mock Python.
+/// Exercises the chain: AIPBridge -> agent.run(task, ctx) -> AIPResult::Completed.
+/// The ctx is a pure Python object (not the Rust RuntimeContext), with a Python `llm` mock.
 #[tokio::test]
 async fn test_agent_llm_chat_completed() {
-    // GIVEN un agent Python decorateur qui appelle ctx.llm.chat()
+    // GIVEN a decorated Python agent calling ctx.llm.chat()
     let agent_code = concat!(
         "from apollia import agent, on_message\n",
         "\n",
@@ -146,7 +146,7 @@ async fn test_agent_llm_chat_completed() {
     let validated = validate_agent(&agent_obj).expect("agent should pass validation");
     let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
-    // AND un ctx Python avec un mock LLM natif Python
+    // AND a Python ctx with a native Python LLM mock
     let mock_ctx_code = concat!(
         "class MockLlm:\n",
         "    async def chat(self, system='', user='', backend=None):\n",
@@ -165,7 +165,7 @@ async fn test_agent_llm_chat_completed() {
     );
 
     let ctx: PyObject = Python::with_gil(|py| -> PyObject {
-        // globals == locals pour que MockLlm soit visible dans MockCtx
+        // globals == locals, so MockLlm is visible inside MockCtx
         let ns = pyo3::types::PyDict::new(py);
         let code = std::ffi::CString::new(mock_ctx_code).expect("mock ctx code contains NUL byte");
         py.run(code.as_c_str(), Some(&ns), Some(&ns))
@@ -176,14 +176,14 @@ async fn test_agent_llm_chat_completed() {
             .unbind()
     });
 
-    // WHEN une tâche est soumise à l'agent
+    // WHEN a task is submitted to the agent
     let task = default_task();
     let result = bridge
         .call_run(&task, ctx)
         .await
         .expect("call_run should succeed");
 
-    // THEN le statut final est Completed
+    // THEN the final status is Completed
     assert_eq!(
         result.status,
         TaskStatus::Completed,
@@ -191,13 +191,13 @@ async fn test_agent_llm_chat_completed() {
     );
 }
 
-/// `LlmCallCompleted` est émis sur l'EventBus après un appel LLM.
+/// `LlmCallCompleted` is emitted on the EventBus after an LLM call.
 ///
-/// Teste la couche d'observabilité de `LlmRouter::complete_with_observability`.
-/// Test Rust pur - pas de Python.
+/// Exercises the observability layer of `LlmRouter::complete_with_observability`.
+/// Pure Rust test - no Python.
 #[tokio::test]
 async fn test_llm_call_completed_event_emitted() {
-    // GIVEN un LlmRouter avec un mock backend et un EventBus
+    // GIVEN an LlmRouter with a mock backend and an EventBus
     let (backend, _count) = MockLlmBackend::new("mock response");
     let router = make_router_with_mock(backend);
 
@@ -210,18 +210,18 @@ async fn test_llm_call_completed_event_emitted() {
         ..Default::default()
     };
 
-    // WHEN complete_with_observability est appelé
+    // WHEN complete_with_observability is called
     let result = router
         .complete_with_observability(None, req, Some(&event_sender), &obs)
         .await;
 
-    // THEN Ok est retourné
+    // THEN Ok is returned
     assert!(
         result.is_ok(),
-        "complete_with_observability doit réussir : {result:?}"
+        "complete_with_observability must succeed: {result:?}"
     );
 
-    // ET LlmCallCompleted est émis sur le bus avec backend == "mock"
+    // AND LlmCallCompleted is emitted on the bus with backend == "mock"
     tokio::time::timeout(Duration::from_millis(100), async {
         loop {
             match event_rx.try_recv() {
@@ -236,44 +236,44 @@ async fn test_llm_call_completed_event_emitted() {
         }
     })
     .await
-    .expect("LlmCallCompleted doit être émis dans le délai imparti");
+    .expect("LlmCallCompleted must be emitted within the deadline");
 }
 
-/// Le stream d'un mock CompletionModel retourne les chunks attendus.
+/// The stream of a mock CompletionModel returns the expected chunks.
 ///
-/// Teste le mode streaming depuis l'API publique - Rust pur, pas de Python.
+/// Exercises the streaming mode from the public API - pure Rust, no Python.
 #[tokio::test]
 async fn test_llm_stream_yields_chunks() {
     use futures::StreamExt;
 
-    // GIVEN un mock backend avec stream de 2 chunks
+    // GIVEN a mock backend streaming 2 chunks
     let (backend, _count) = MockLlmBackend::new("ignored for stream");
     let req = apollia_llm::CompletionRequest {
         messages: vec![apollia_llm::ChatMessage::user("test stream")],
         ..Default::default()
     };
 
-    // WHEN stream() est appelé
-    let stream = backend.stream(req).await.expect("stream() doit réussir");
+    // WHEN stream() is called
+    let stream = backend.stream(req).await.expect("stream() must succeed");
 
     let chunks: Vec<StreamChunk> = stream
-        .map(|r| r.expect("chunk doit être Ok"))
+        .map(|r| r.expect("the chunk must be Ok"))
         .collect()
         .await;
 
-    // THEN 2 chunks sont retournés dans l'ordre
+    // THEN 2 chunks come back, in order
     assert_eq!(chunks.len(), 2, "2 chunks attendus");
     assert!(matches!(&chunks[0], StreamChunk::Text(t) if t == "chunk1"));
     assert!(matches!(&chunks[1], StreamChunk::Text(t) if t == "chunk2"));
 }
 
-/// Agent Python appelant `ctx.llm.run_tools()` sur un mock Python → Completed.
+/// Python agent calling `ctx.llm.run_tools()` on a Python mock -> Completed.
 ///
-/// Simule le cycle ReAct complet en Python pur : 2 appels LLM, 1 appel outil.
-/// Vérifie que l'agent retourne `Completed` après la boucle.
+/// Simulates the full ReAct cycle in pure Python: 2 LLM calls, 1 tool call.
+/// Checks that the agent returns `Completed` after the loop.
 #[tokio::test]
 async fn test_run_tools_full_react_cycle() {
-    // GIVEN un agent Python decorateur qui appelle ctx.llm.run_tools()
+    // GIVEN a decorated Python agent calling ctx.llm.run_tools()
     let agent_code = concat!(
         "from apollia import agent, on_message\n",
         "\n",
@@ -302,7 +302,7 @@ async fn test_run_tools_full_react_cycle() {
     let validated = validate_agent(&agent_obj).expect("validation should succeed");
     let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
-    // AND un mock ctx Python avec run_tools qui simule 1 ToolCall puis Stop
+    // AND a mock Python ctx whose run_tools simulates 1 ToolCall then Stop
     let mock_ctx_code = concat!(
         "class MockLlm:\n",
         "    def __init__(self):\n",
@@ -310,7 +310,7 @@ async fn test_run_tools_full_react_cycle() {
         "        self.tool_call_count = 0\n",
         "    async def run_tools(self, messages, tools, max_iterations=5):\n",
         "        import asyncio\n",
-        "        # Simule : 1er appel LLM → 1 ToolCall, 2ème appel → Stop\n",
+        "        # Simulates: 1st LLM call -> 1 ToolCall, 2nd call -> Stop\n",
         "        self.llm_call_count += 1\n",
         "        await asyncio.sleep(0)\n",
         "        self.tool_call_count += 1\n",
@@ -335,17 +335,17 @@ async fn test_run_tools_full_react_cycle() {
             .unbind()
     });
 
-    // WHEN la tâche est soumise
+    // WHEN the task is submitted
     let task = default_task();
     let result = bridge
         .call_run(&task, ctx)
         .await
         .expect("call_run should succeed");
 
-    // THEN le statut final est Completed
+    // THEN the final status is Completed
     assert_eq!(
         result.status,
         TaskStatus::Completed,
-        "ReAct agent doit se terminer avec Completed : {result:?}"
+        "the ReAct agent must finish with Completed: {result:?}"
     );
 }

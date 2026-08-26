@@ -132,8 +132,8 @@ hmac = "0.12"
 aes-gcm = "0.10"
 
 # --- Random ---
-# rand 0.9 = dernier major stable largement adopte (0.10 tout juste sorti,
-# ecosysteme pas encore aligne : eviter les doublons de version).
+# rand 0.9 = the latest widely adopted stable major (0.10 has only just
+# shipped and the ecosystem is not aligned yet: avoid duplicate versions).
 rand = "0.9"
 
 # --- LLM (apollia-llm) ---
@@ -158,8 +158,8 @@ lru = "0.18"
 hound = "3.5"
 
 # --- Config parsing ---
-# toml reste en 0.8.x : le passage 1.0 declenche des conflits de resolution
-# (toml_datetime/toml_edit) sans gain reel ; 0.8.23 est deja recent.
+# toml stays on 0.8.x: moving to 1.0 raises resolution conflicts
+# (toml_datetime/toml_edit) for no real gain; 0.8.23 is recent enough.
 toml = "0.8"
 toml_edit = "0.22"
 
