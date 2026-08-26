@@ -136,10 +136,6 @@ pub const DEFAULT_MAX_REDIRECTS: usize = 10;
 /// what any of those legitimately carries.
 pub const MAX_METADATA_BYTES: u64 = 1024 * 1024;
 
-/// Cap for a response that carries a document rather than metadata: a release
-/// archive, a model file listing, an exported drive file.
-pub const MAX_DOWNLOAD_BYTES: u64 = 512 * 1024 * 1024;
-
 /// Outcome of evaluating a single redirect hop against the SSRF policy.
 ///
 /// Pure and constructible in tests: reqwest's `Attempt` has no public
