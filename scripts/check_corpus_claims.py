@@ -107,6 +107,7 @@ FOREIGN_SYMBOLS = {
 # sentence that warns against writing one is red the day someone writes it.
 ABSENT_SYMBOLS_ON_PURPOSE = {
     "AgentTimeoutError": "PYTHON-PATTERNS §4 states nothing defines it",
+    "CliError": "apollia-cli/AGENTS.md §8 states the crate carries no such enum",
 }
 
 # The test and build vocabulary, and the search that proves each tool is part
@@ -249,8 +250,13 @@ def _resolves(
     seg: str, tracked_set: set[str], basenames: dict[str, list[str]], citing_dir: str = ""
 ) -> bool:
     bare = LINE_SUFFIX.sub("", seg).rstrip("/")
-    # A crate's own AGENTS.md cites `src/foo.rs`, meaning its own src/.
-    roots = [""] + ([citing_dir] if citing_dir else [])
+    # A crate's own AGENTS.md cites `src/foo.rs`, meaning its own src/, and
+    # `apollia-cli/Cargo.toml`, meaning the manifest one directory above it.
+    roots = [""]
+    if citing_dir:
+        roots.append(citing_dir)
+        if "/" in citing_dir:
+            roots.append(citing_dir.rsplit("/", 1)[0])
     for root in roots:
         candidate = f"{root}/{bare}" if root else bare
         if candidate in tracked_set:
