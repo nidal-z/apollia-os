@@ -9,6 +9,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// LLM subcommands: `apollia-os llm <verb>`.
 #[derive(Debug, Subcommand)]
@@ -1302,7 +1303,7 @@ async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i3
                 if is_default { " (default)" } else { "" }
             );
             if let Some(cfg) = resp.get("config_json") {
-                println!("Config      :");
+                note!("Config      :");
                 let rendered = serde_json::to_string_pretty(cfg).unwrap_or_default();
                 for line in rendered.lines() {
                     println!("  {line}");

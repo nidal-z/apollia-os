@@ -9,6 +9,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Audit subcommands: `apollia-os audit <verb>`.
 #[derive(Debug, Subcommand)]
@@ -619,13 +620,13 @@ fn print_divergences(report: &serde_json::Value, run: &str) {
     let (plan, other) = group_divergences(divergences);
 
     if !other.is_empty() {
-        println!("  inputs ({} divergence(s)):", other.len());
+        note!("  inputs ({} divergence(s)):", other.len());
         for divergence in &other {
             print_divergence_line(divergence);
         }
     }
     if !plan.is_empty() {
-        println!("  plan ({} divergence(s)):", plan.len());
+        note!("  plan ({} divergence(s)):", plan.len());
         for divergence in &plan {
             print_divergence_line(divergence);
         }

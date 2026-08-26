@@ -10,6 +10,7 @@ use apollia_oria::plan_cache::PlanCacheRepository;
 use clap::Subcommand;
 
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of the `plan` noun: `apollia-os plan <verb>`.
 #[derive(Debug, Subcommand)]
@@ -80,7 +81,7 @@ fn run_stats(db_path: &Path, json: bool) -> i32 {
             serde_json::to_string_pretty(&stats).unwrap_or_default()
         );
     } else {
-        println!("Plan cache statistics:");
+        note!("Plan cache statistics:");
         println!("  Total entries : {}", stats.total_entries);
         println!("  Cache hits    : {}", stats.cache_hits);
         println!(

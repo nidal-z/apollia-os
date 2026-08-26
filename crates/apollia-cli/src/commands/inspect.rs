@@ -25,6 +25,7 @@ use serde::Serialize;
 
 use crate::community::validation_sys_paths;
 use crate::exit_codes;
+use crate::note;
 
 /// Schema version of the `--json` output document. Bump on breaking changes.
 const SCHEMA_VERSION: u32 = 1;
@@ -151,13 +152,13 @@ struct InspectReport {
 /// Inspect a Python agent file and print a static report.
 ///
 /// `path` is the agent `.py` file. `json` forces the structured JSON
-/// document. `quiet` restricts the human report to warnings and errors.
-/// `no_color` (or the `NO_COLOR` env var, or a non-TTY stdout) disables
-/// ANSI styling.
+/// document. `--quiet`, read from the output layer, restricts the human report
+/// to warnings and errors. `no_color` (or the `NO_COLOR` env var, or a non-TTY
+/// stdout) disables ANSI styling.
 ///
 /// Returns [`exit_codes::SUCCESS`] when the inspection succeeds (warnings
 /// allowed) and [`exit_codes::GENERAL_ERROR`] otherwise.
-pub fn run(path: &Path, json: bool, quiet: bool, no_color: bool) -> i32 {
+pub fn run(path: &Path, json: bool, no_color: bool) -> i32 {
     let report = build_report(path);
     let ok = report.ok;
 
@@ -175,7 +176,7 @@ pub fn run(path: &Path, json: bool, quiet: bool, no_color: bool) -> i32 {
         }
     } else {
         let color = use_color(no_color);
-        print_human(&report, quiet, color);
+        print_human(&report, color);
     }
 
     if ok {
@@ -470,12 +471,12 @@ impl Style {
     }
 }
 
-/// Render the report in human-readable form. `quiet` keeps only warnings and
+/// Render the report in human-readable form. `--quiet` keeps only warnings and
 /// errors plus the final status line.
-fn print_human(report: &InspectReport, quiet: bool, color: bool) {
+fn print_human(report: &InspectReport, color: bool) {
     let style = Style { color };
 
-    if !quiet {
+    if !crate::output::is_quiet() {
         if let Some(manifest) = &report.manifest {
             let class = manifest.agent_class.as_deref().unwrap_or("unknown class");
             println!();
@@ -576,25 +577,25 @@ fn print_human(report: &InspectReport, quiet: bool, color: bool) {
         }
     }
 
-    println!();
+    note!();
     println!("  {} ({})", style.bold("Warnings"), report.warnings.len());
     for w in &report.warnings {
         println!("    {} {w}", style.yellow("!"));
     }
 
-    println!();
+    note!();
     println!("  {} ({})", style.bold("Errors"), report.errors.len());
     for e in &report.errors {
         println!("    {} {e}", style.red("x"));
     }
 
-    println!();
+    note!();
     if report.ok {
         println!("  {}", style.green("Inspection OK"));
     } else {
         println!("  {}", style.red("Inspection FAILED"));
     }
-    println!();
+    note!();
 }
 
 /// Render a colored status badge for an artifact.

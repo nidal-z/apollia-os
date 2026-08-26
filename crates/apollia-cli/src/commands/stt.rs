@@ -9,6 +9,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────
 
@@ -567,7 +568,7 @@ async fn run_config_update(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ STT configuration updated");
+                note!("✔ STT configuration updated");
             }
             exit_codes::SUCCESS
         }

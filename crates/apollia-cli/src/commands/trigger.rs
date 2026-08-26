@@ -12,6 +12,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ async fn run_fire(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                 );
             } else {
                 let task_id = resp.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
-                println!("✔ Trigger '{id}' fired → task {task_id}");
+                note!("✔ Trigger '{id}' fired → task {task_id}");
             }
             exit_codes::SUCCESS
         }
@@ -242,7 +243,7 @@ async fn run_enable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' enabled");
+                note!("✔ Trigger '{id}' enabled");
             }
             exit_codes::SUCCESS
         }
@@ -265,7 +266,7 @@ async fn run_disable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' disabled");
+                note!("✔ Trigger '{id}' disabled");
             }
             exit_codes::SUCCESS
         }
@@ -312,7 +313,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
                 );
             } else {
                 let count = resp.get("reloaded").and_then(|v| v.as_u64()).unwrap_or(0);
-                println!("✔ Triggers reloaded - {count} active");
+                note!("✔ Triggers reloaded - {count} active");
             }
             exit_codes::SUCCESS
         }
@@ -540,7 +541,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' created ({kind} → {agent})");
+                note!("✔ Trigger '{id}' created ({kind} → {agent})");
             }
             exit_codes::SUCCESS
         }
@@ -756,7 +757,7 @@ async fn run_update(client: &RuntimeClient, args: UpdateArgs<'_>, json: bool) ->
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' updated");
+                note!("✔ Trigger '{id}' updated");
             }
             exit_codes::SUCCESS
         }
@@ -788,7 +789,7 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' deleted");
+                note!("✔ Trigger '{id}' deleted");
             }
             exit_codes::SUCCESS
         }

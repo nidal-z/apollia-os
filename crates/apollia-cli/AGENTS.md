@@ -59,7 +59,7 @@ If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 | Flag | Effect |
 |---|---|
 | `--json` | machine-readable output; stable schema per command |
-| `--quiet` | suppress non-essential output |
+| `--quiet` (`-q`) | stdout carries the requested data and nothing else |
 | `--socket <path>` | connect to a non-default runtime socket |
 | `--verbose` (`-v`) | increase tracing verbosity for this invocation |
 | `--no-color` | disable ANSI styling |
@@ -68,6 +68,16 @@ If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
 TTY auto-detection : when stdout is not a TTY, the CLI assumes machine
 mode and emits compact output. `--json` forces JSON regardless of TTY.
+
+**`--quiet` is not passed down, it is read.** `main` records it once with
+`output::set_quiet`, and one place reads it: the `note!` macro. A line that is
+NOT the requested data (a section header, a blank spacer, a separator rule, a
+hint, a confirmation of the action just asked for) is written with `note!`; a
+line that IS the data stays a `println!`. Handing the flag down each call chain
+is what produced the state this rule replaces: accepted by 199 leaves, honoured
+by two nouns. The rule is measured by `scripts/check_cli_json_contract.py`,
+which drives every leaf under `-q` and refuses a blank line, a separator rule, a
+bare section header or a hint on stdout.
 
 ---
 

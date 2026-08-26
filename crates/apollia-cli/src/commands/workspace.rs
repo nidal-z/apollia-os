@@ -13,6 +13,7 @@ use thiserror::Error;
 use apollia_workspace::git::GitContextCollector;
 
 use crate::exit_codes;
+use crate::note;
 
 /// Template written by `apollia-os workspace init`.
 const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md - Instructions for AI agents\n\
@@ -177,7 +178,7 @@ fn print_workspace_status(s: &WorkspaceStatusOutput) {
     if s.modified_files.is_empty() {
         println!("Modified files: (none)");
     } else {
-        println!("Modified files:");
+        note!("Modified files:");
         for f in &s.modified_files {
             println!("  {f}");
         }

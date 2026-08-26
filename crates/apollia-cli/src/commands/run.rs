@@ -23,6 +23,7 @@ use apollia_core::{AutonomyLevel, ORIAConfig};
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 // ─── SSE types ───────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ pub struct RunDisplayState {
     ///
     /// Used by the default (non-`--stream`) `run` invocation to display only the final
     /// result while still using SSE internally to receive the agent output.
-    pub quiet: bool,
+    pub terminal_only: bool,
     /// When `true`, the stream should pause on `plan_alternatives_generated` and prompt
     /// for a plan choice before continuing.
     pub alternatives_mode: bool,
@@ -68,13 +69,13 @@ pub struct RunDisplayState {
 
 impl RunDisplayState {
     /// Create a new display state.
-    pub fn new(json_mode: bool, quiet: bool) -> Self {
+    pub fn new(json_mode: bool, terminal_only: bool) -> Self {
         Self {
             plan_id: None,
             step_count: 0,
             current_num: 0,
             json_mode,
-            quiet,
+            terminal_only,
             alternatives_mode: false,
             chosen_plan: None,
             plan_mode: false,
@@ -332,11 +333,11 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
         );
     }
 
-    // In quiet mode only terminal events produce output; intermediate plan/step
+    // In terminal-only mode intermediate plan/step events produce no output;
     // events are silently consumed.  This is used by the default (non-`--stream`)
     // invocation so that the final agent output is still surfaced cleanly.
-    if state.quiet {
-        return handle_quiet_event(event);
+    if state.terminal_only {
+        return handle_terminal_only_event(event);
     }
 
     match event.event_type.as_str() {
@@ -396,8 +397,8 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let step_count = event.data["step_count"].as_u64().unwrap_or(0);
             let duration_ms = event.data["duration_ms"].as_u64().unwrap_or(0);
             let secs = duration_ms as f64 / 1000.0;
-            println!();
-            println!("  ✔ Plan completed - {step_count} steps in {secs:.1}s");
+            note!();
+            note!("  ✔ Plan completed - {step_count} steps in {secs:.1}s");
             false
         }
 
@@ -411,7 +412,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 
         // ── Plan gate: approved, execution resumes ───────────────────────
         "plan_approved" => {
-            println!("  ✔ Plan approved, executing.");
+            note!("  ✔ Plan approved, executing.");
             false
         }
 
@@ -431,10 +432,10 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
         // ── Common: task completed (direct or orchestrated), terminal ────
         "completed" => {
             if let Some(result) = event.data["result"].as_str() {
-                println!();
+                note!();
                 println!("{result}");
             }
-            println!();
+            note!();
             true
         }
 
@@ -469,7 +470,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 }
 
 /// Quiet-mode dispatch: only terminal events produce output.
-fn handle_quiet_event(event: &SseEvent) -> bool {
+fn handle_terminal_only_event(event: &SseEvent) -> bool {
     match event.event_type.as_str() {
         "completed" => {
             if let Some(result) = event.data["result"].as_str() {
@@ -501,7 +502,7 @@ fn handle_plan_generated(event: &SseEvent, state: &mut RunDisplayState) -> bool 
     state.step_count = step_count;
     state.plan_id = event.data["plan_id"].as_str().map(String::from);
     eprintln!();
-    println!("  Plan generated ({step_count} steps):");
+    note!("  Plan generated ({step_count} steps):");
     if let Some(steps) = event.data["steps"].as_array() {
         let last = steps.len().saturating_sub(1);
         for (i, step) in steps.iter().enumerate() {
@@ -707,7 +708,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
             task_id: &task_id,
             json,
             start,
-            quiet: false,
+            terminal_only: false,
             alternatives,
             plan,
         })
@@ -1004,8 +1005,8 @@ fn report_completed_task(task_json: &serde_json::Value, task_id: &str, json: boo
 /// Returns when a terminal event is received or falls back to polling if the
 /// stream closes without a terminal event (e.g. race on task already completed).
 ///
-/// When `quiet` is `true`, intermediate events are suppressed and only the final
-/// agent output is printed (used by the default non-`--stream` path).
+/// When `terminal_only` is `true`, intermediate events are suppressed and only
+/// the final agent output is printed (used by the default non-`--stream` path).
 ///
 /// When `alternatives` is `true`, the stream pauses on `plan_alternatives_generated`
 /// and prompts the operator for a plan choice before continuing.
@@ -1020,7 +1021,7 @@ struct StreamTaskArgs<'a> {
     /// Wall-clock start used to report elapsed time on fallback polling.
     start: Instant,
     /// Suppress intermediate events, surfacing only the final output.
-    quiet: bool,
+    terminal_only: bool,
     /// Pause on `plan_alternatives_generated` and prompt for a choice.
     alternatives: bool,
     /// Pause on `plan_approval_required` and prompt for an approve/reject decision.
@@ -1033,7 +1034,7 @@ async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
         task_id,
         json,
         start,
-        quiet,
+        terminal_only,
         alternatives,
         plan,
     } = args;
@@ -1058,7 +1059,7 @@ async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
     } else if plan {
         RunDisplayState::with_plan(json)
     } else {
-        RunDisplayState::new(json, quiet)
+        RunDisplayState::new(json, terminal_only)
     };
     let mut terminal_event_type = String::new();
 

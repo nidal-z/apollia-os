@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use clap::Subcommand;
 
 use crate::exit_codes;
+use crate::note;
 
 /// Model subcommands: `apollia-os model <verb>`.
 #[derive(Debug, Subcommand)]
@@ -328,7 +329,7 @@ fn run_list(json: bool) -> i32 {
         );
     } else {
         println!("  Models directory: {}", models_dir.display());
-        println!();
+        note!();
         println!("  {:<48} {:<28} SIZE", "NAME", "LAYOUT");
         if models.is_empty() {
             println!("  (no .gguf models found)");

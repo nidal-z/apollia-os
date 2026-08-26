@@ -17,6 +17,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RawResponse, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Maximum output length before truncation in human-readable display.
 const MAX_OUTPUT_LEN: usize = 120;
@@ -373,9 +374,9 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
         let status = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("?");
 
         if approved {
-            println!("✔ Task {task_id} approved - {agent} › {status}...");
+            note!("✔ Task {task_id} approved - {agent} › {status}...");
         } else {
-            println!("✔ Task {task_id} rejected - {agent} › done ({status})");
+            note!("✔ Task {task_id} rejected - {agent} › done ({status})");
         }
     }
     exit_codes::SUCCESS
@@ -437,13 +438,13 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
                 );
             } else {
                 println!("Task {task_id} has no execution plan.");
-                println!();
+                note!();
                 println!("Plans are only generated for agents with `execution_mode =");
                 println!("\"orchestrated\"` in their manifest. Agents marked `direct` drive");
                 println!("their own logic (state machines, A2A delegation, ReAct loops) and");
                 println!("never go through the ORIA Reasoner, so plans.db has nothing to");
                 println!("show for them.");
-                println!();
+                note!();
                 println!("To see a real plan, run an orchestrated agent (e.g. email-triage)");
                 println!("then re-run `apollia-os task inspect <id>`.");
             }
@@ -629,7 +630,7 @@ pub fn build_resume_body(approved: bool, reason: Option<&str>) -> serde_json::Va
 /// Displays a header with task metadata followed by one block per step showing
 /// its status icon, description, tool hint, output (truncated to 120 chars), and error if any.
 fn display_plan_human(plan: &PlanWithSteps) {
-    println!();
+    note!();
     println!("  Task        : {}", plan.task_id);
     println!("  Agent       : {}", plan.agent_name);
     println!("  Mode        : orchestrated");
@@ -639,8 +640,8 @@ fn display_plan_human(plan: &PlanWithSteps) {
         format_rfc3339_compact(&plan.created_at)
     );
     println!("  Replans     : {}/2", plan.replan_count);
-    println!();
-    println!("  Execution plan:");
+    note!();
+    note!("  Execution plan:");
 
     for step in &plan.steps {
         let icon = step_status_icon(&step.status);
@@ -650,7 +651,7 @@ fn display_plan_human(plan: &PlanWithSteps) {
             ""
         };
 
-        println!();
+        note!();
         println!(
             "  {} [{}]  {}{}",
             icon, step.step_id, step.description, replan_marker
@@ -672,11 +673,11 @@ fn display_plan_human(plan: &PlanWithSteps) {
         if let Some(ref error) = step.error {
             println!("          error: \"{error}\"");
             if step.status == "failed" {
-                println!("          → replanning triggered");
+                note!("          → replanning triggered");
             }
         }
     }
-    println!();
+    note!();
 }
 
 /// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS` for compact display.

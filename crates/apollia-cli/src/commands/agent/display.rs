@@ -1,4 +1,5 @@
 use super::*;
+use crate::note;
 
 /// Formats the A2A agent list as a human-readable table.
 ///
@@ -169,7 +170,7 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
     if let Some(manifest) = detail.get("manifest") {
         if let Some(skills) = manifest.get("skills").and_then(|s| s.as_array()) {
             if !skills.is_empty() {
-                println!("  Skills ({}) :", skills.len());
+                note!("  Skills ({}) :", skills.len());
                 for s in skills {
                     let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("?");
                     let n = s.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -184,7 +185,7 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
             }
         }
     }
-    println!(
+    note!(
         "  Hint         : run `apollia-os agent enable {name}` then `apollia-os agent start {name}` to load."
     );
 }

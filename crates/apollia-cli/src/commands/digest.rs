@@ -10,6 +10,7 @@ use clap::ValueEnum;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Time windows recognised by the digest command.
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -85,13 +86,13 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {
-        println!("  Apollia OS digest ({}):", window.label());
-        println!();
+        note!("  Apollia OS digest ({}):", window.label());
+        note!();
         println!("  Tasks");
         println!("    total    {task_total}");
         println!("    running  {task_running}");
         println!("    failed   {task_failed}");
-        println!();
+        note!();
         println!("  LLM");
         if let Some(total_cost) = costs
             .get("total_cost_usd")
@@ -105,7 +106,7 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
         if let Some(calls) = costs.get("total_calls").and_then(|v| v.as_u64()) {
             println!("    calls    {calls}");
         }
-        println!();
+        note!();
         println!("  Audit");
         if let Some(total) = audit_stats.get("total").and_then(|v| v.as_u64()) {
             println!("    events   {total}");

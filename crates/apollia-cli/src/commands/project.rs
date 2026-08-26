@@ -10,6 +10,7 @@ use clap::Subcommand;
 use apollia_tools::{ProjectPatch, ProjectRepository};
 
 use crate::exit_codes;
+use crate::note;
 
 /// Top-level subcommands of `apollia-os project`.
 #[derive(Debug, Subcommand)]
@@ -338,7 +339,7 @@ fn run_chats(project_id: &str, chat_db: Option<&Path>, json: bool) -> i32 {
     } else if sessions.is_empty() {
         println!("No chat sessions linked to project {project_id}.");
     } else {
-        println!(
+        note!(
             "  Chat sessions linked to {project_id} ({}):",
             sessions.len()
         );

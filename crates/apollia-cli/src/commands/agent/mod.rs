@@ -186,12 +186,12 @@ pub enum PackageCommand {
 /// Execute an `agent` subcommand.
 ///
 /// Returns the process exit code.
-pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet: bool) -> i32 {
+pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     let socket_path = socket.unwrap_or_else(default_socket_path);
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json, quiet).await,
+        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json).await,
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Show { agent_id } => run_info(&client, agent_id, json).await,

@@ -23,6 +23,7 @@ use toml_edit::{DocumentMut, Item, Value};
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::config::parse_apollia_toml;
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os tools`.
 #[derive(Debug, Subcommand)]
@@ -419,7 +420,7 @@ fn run_set_enabled(name: &str, enabled: bool, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ {name} {action}");
+        note!("✔ {name} {action}");
     }
     exit_codes::SUCCESS
 }
@@ -565,7 +566,7 @@ fn run_config_set(key_path: &str, value: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ {} → {} ({})", key_path, value, path.display());
+        note!("✔ {} → {} ({})", key_path, value, path.display());
     }
     exit_codes::SUCCESS
 }
@@ -684,7 +685,7 @@ fn run_reload(json: bool) -> i32 {
             serde_json::to_string_pretty(&payload).unwrap_or_default()
         );
     } else {
-        println!("✔ Governance snapshot reloaded");
+        note!("✔ Governance snapshot reloaded");
         if snapshot.disabled_tools.is_empty() {
             println!("  Disabled tools    : (none)");
         } else {
@@ -699,7 +700,7 @@ fn run_reload(json: bool) -> i32 {
             "absent"
         };
         println!("  Brave API key     : {brave}");
-        println!(
+        note!(
             "  Note: the runtime rereads this snapshot on every agent run - \
              no restart required."
         );
@@ -838,9 +839,9 @@ fn run_credentials_delete(tool: &str, key: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else if removed {
-        println!("✔ credential {tool}/{key} deleted");
+        note!("✔ credential {tool}/{key} deleted");
     } else {
-        println!("ℹ no credential {tool}/{key} stored");
+        note!("ℹ no credential {tool}/{key} stored");
     }
     exit_codes::SUCCESS
 }
@@ -909,9 +910,9 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
                     .unwrap_or_default()
                 );
             } else if status.is_success() {
-                println!("✔ brave.api_key valide ({elapsed_ms}ms, HTTP {status})");
+                note!("✔ brave.api_key valide ({elapsed_ms}ms, HTTP {status})");
             } else {
-                println!("✗ brave.api_key rejected (HTTP {status}, {elapsed_ms}ms)");
+                note!("✗ brave.api_key rejected (HTTP {status}, {elapsed_ms}ms)");
             }
             if status.is_success() {
                 exit_codes::SUCCESS

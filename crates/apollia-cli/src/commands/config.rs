@@ -11,6 +11,7 @@ use clap::Subcommand;
 use toml_edit::{value, DocumentMut, Item};
 
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os config`.
 #[derive(Debug, Subcommand)]
@@ -614,7 +615,7 @@ fn emit_reset_dry_run(home: &Path, entries: &[PathBuf], json: bool) {
             serde_json::to_string_pretty(&body).unwrap_or_default()
         );
     } else {
-        println!(
+        note!(
             "  Dry run - {} entries under {} would be removed:",
             entries.len(),
             home.display()

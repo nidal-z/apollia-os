@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Execute the `status` command.
 ///
@@ -61,7 +62,7 @@ fn format_text_status(agents_json: &serde_json::Value) {
         .count();
 
     println!("  Runtime  ACTIVE");
-    println!();
+    note!();
     println!("  AGENTS ({active_count} active)");
     println!("  {:<30} {:<12}", "NAME", "STATE");
 

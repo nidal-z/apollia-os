@@ -18,6 +18,7 @@ use serde_json::Value;
 
 use crate::client::{ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// A2A sub-commands.
 #[derive(Debug, Clone, Subcommand)]
@@ -113,8 +114,8 @@ async fn run_skills(client: &RuntimeClient, json: bool) -> i32 {
             };
             if items.is_empty() {
                 println!("No A2A skills exposed by any active worker.");
-                println!();
-                println!("Tip: install a worker agent and start the runtime,");
+                note!();
+                note!("Tip: install a worker agent and start the runtime,");
                 println!("     then re-run `apollia-os a2a skills`.");
                 return exit_codes::SUCCESS;
             }
@@ -217,7 +218,7 @@ fn render_invoke_success(resp: &Value, skill_id: &str) -> i32 {
         return exit_codes::GENERAL_ERROR;
     }
     if let Some(output) = result.and_then(|r| r.get("output")) {
-        println!("  Output    :");
+        note!("  Output    :");
         let rendered = serde_json::to_string_pretty(output).unwrap_or_default();
         for line in rendered.lines() {
             println!("    {line}");

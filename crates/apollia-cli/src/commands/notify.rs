@@ -11,6 +11,7 @@ use clap::Subcommand;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────────
 
@@ -503,7 +504,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
                     .or_else(|| resp.get("channel_id"))
                     .and_then(|v| v.as_str())
                     .unwrap_or(channel_id.as_str());
-                println!("✔ Notification channel '{echoed}' created (type: {kind})");
+                note!("✔ Notification channel '{echoed}' created (type: {kind})");
             }
             exit_codes::SUCCESS
         }
@@ -539,7 +540,7 @@ async fn run_update_channel(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Channel '{id}' updated");
+                note!("✔ Channel '{id}' updated");
             }
             exit_codes::SUCCESS
         }
@@ -570,7 +571,7 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Channel '{id}' deleted");
+                note!("✔ Channel '{id}' deleted");
             }
             exit_codes::SUCCESS
         }
@@ -609,7 +610,7 @@ async fn run_events_get(client: &RuntimeClient, json: bool) -> i32 {
                 if events.is_empty() {
                     println!("  (no event type configured)");
                 } else {
-                    println!("  Active events:");
+                    note!("  Active events:");
                     for e in &events {
                         println!("    - {e}");
                     }
@@ -632,7 +633,7 @@ async fn run_events_set(client: &RuntimeClient, events: &[String], json: bool) -
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Event types updated ({} active)", events.len());
+                note!("✔ Event types updated ({} active)", events.len());
             }
             exit_codes::SUCCESS
         }

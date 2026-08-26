@@ -13,6 +13,7 @@ use apollia_auth::{AccountId, AuthManager, ConnectorProvider};
 use apollia_connectors::{ConnectorRegistry, GoogleConnector, MicrosoftConnector};
 
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os connector`.
 #[derive(Debug, Subcommand)]
@@ -286,7 +287,7 @@ async fn run_list(json: bool) -> i32 {
     } else if summaries.is_empty() {
         println!("No connectors registered in this build.");
     } else {
-        println!("  Available connectors:");
+        note!("  Available connectors:");
         for s in &summaries {
             println!(
                 "  * {:<10} {} ({} services, {} operations)",
@@ -360,7 +361,7 @@ async fn run_accounts(filter: Option<&str>, json: bool) -> i32 {
             );
             return exit_codes::SUCCESS;
         }
-        println!("  Connected accounts:");
+        note!("  Connected accounts:");
         for (provider, accounts) in &rows {
             for account in accounts {
                 println!("  * {:<10} {}", provider.id(), account.as_str());
@@ -452,7 +453,7 @@ fn render_test_report_text(
         println!("    detail: {}", report.detail);
     }
     if !report.granted_scopes.is_empty() {
-        println!("    scopes ({}):", report.granted_scopes.len());
+        note!("    scopes ({}):", report.granted_scopes.len());
         for s in &report.granted_scopes {
             println!("      - {s}");
         }
@@ -532,7 +533,7 @@ async fn revoke_and_report(
                     provider_id.id(),
                     account
                 );
-                println!(
+                note!(
                     "    Note: upstream AS not notified. Visit the provider revocation page if needed."
                 );
             }
@@ -658,7 +659,7 @@ fn run_client_id_list(json: bool) -> i32 {
             serde_json::to_string_pretty(&serde_json::Value::Array(array)).unwrap_or_default()
         );
     } else {
-        println!("  OAuth client configuration:");
+        note!("  OAuth client configuration:");
         for (p, effective, source, ov, sec_src, has_sec, key_src, has_key) in &rows {
             let masked_id = mask_secret(effective);
             println!("  * {} ({}):", p.id(), source);
@@ -853,7 +854,7 @@ async fn run_drive_folder_list(json: bool) -> i32 {
     } else if rows.is_empty() {
         println!("No connected Google accounts. Connect one from the desktop app, Settings > Integrations.");
     } else {
-        println!("  Drive folder configuration (google):");
+        note!("  Drive folder configuration (google):");
         for (account_id, override_path, effective) in &rows {
             println!("  * {account_id}");
             match override_path {

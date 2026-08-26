@@ -23,6 +23,7 @@ use apollia_auth::{
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os mcp oauth`.
 #[derive(Debug, Subcommand)]
@@ -743,7 +744,7 @@ fn print_discover_json(ctx: &DiscoverReport<'_>) {
 }
 
 fn print_discover_human(ctx: &DiscoverReport<'_>) {
-    println!("  Discovery report for '{}':", ctx.server);
+    note!("  Discovery report for '{}':", ctx.server);
     println!("    server URL              : {}", ctx.server_url);
     println!(
         "    WWW-Authenticate probe  : {}",
@@ -759,7 +760,7 @@ fn print_discover_human(ctx: &DiscoverReport<'_>) {
         if ctx.supports_pkce { "yes" } else { "NO" }
     );
     if !ctx.prm.scopes_supported.is_empty() {
-        println!("    PRM scopes_supported    :");
+        note!("    PRM scopes_supported    :");
         for s in &ctx.prm.scopes_supported {
             println!("      - {s}");
         }

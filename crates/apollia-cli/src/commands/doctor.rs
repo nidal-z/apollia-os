@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Status of a single diagnostic check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -367,9 +368,9 @@ async fn check_runtime_socket(socket: Option<PathBuf>) -> CheckResult {
 
 /// Render the report in human-readable form.
 fn print_text_report(checks: &[CheckResult], any_error: bool) {
-    println!();
+    note!();
     println!("  Apollia OS Doctor");
-    println!("  -----------------");
+    note!("  -----------------");
     let label_width = checks.iter().map(|c| c.label.len()).max().unwrap_or(20);
     for c in checks {
         let glyph = match c.status {
@@ -387,13 +388,13 @@ fn print_text_report(checks: &[CheckResult], any_error: bool) {
             println!("    -> {hint}");
         }
     }
-    println!("  -----------------");
+    note!("  -----------------");
     if any_error {
         println!("  Overall: FAILED (one or more checks errored)");
     } else {
         println!("  Overall: HEALTHY");
     }
-    println!();
+    note!();
 }
 
 #[cfg(test)]

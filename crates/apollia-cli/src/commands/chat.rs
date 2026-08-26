@@ -24,6 +24,7 @@ use apollia_runtime::commands::CommandRegistry;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os chat` for persisted session hygiene.
 ///
@@ -332,7 +333,7 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str, json: bool, no_colo
             }
             Err(ReadlineError::Eof) => {
                 // Ctrl+D: clean exit.
-                println!();
+                note!();
                 break;
             }
             Err(e) => {
@@ -588,7 +589,7 @@ fn handle_find(arg: &str, registry: &CommandRegistry) -> SlashOutcome {
     if ranked.is_empty() {
         println!("no command matches '{arg}'");
     } else {
-        println!("Commands:");
+        note!("Commands:");
         for cmd in ranked.iter().take(12) {
             println!("  {cmd}");
         }
@@ -620,7 +621,7 @@ fn command_catalog(registry: &CommandRegistry) -> Vec<String> {
 }
 
 fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
-    println!("Built-in commands:");
+    note!("Built-in commands:");
     println!("  /fork              Fork current session (copies full history)");
     println!("  /fork N            Fork keeping the first N messages");
     println!("  /fork list         List child sessions");

@@ -1,14 +1,57 @@
-//! Shared error emission for every CLI leaf.
+//! Shared output layer for every CLI leaf: errors and non-essential lines.
 //!
-//! The published contract (`AGENTS.md` section 6 of this crate,
+//! The published contract (`AGENTS.md` sections 2 and 6 of this crate,
 //! `docs/site/docs/architecture/08-decisions.md#cli`) promises one shape for
 //! machine-readable errors: a single `{"error": {"code": ..., "message": ...}}`
 //! document on stdout, paired with the exit code the `code` field names. Every
 //! error path of every leaf goes through [`emit_error`] so the shape exists in
 //! exactly one place; `scripts/check_cli_json_contract.py` drives the binary to
 //! hold it.
+//!
+//! The same file holds `--quiet`. The flag used to be handed leaf by leaf, so
+//! two nouns honoured it and the rest printed their headers, separators and
+//! hints whatever the operator asked. It is now recorded once by `main` and
+//! read by exactly one place, the [`note!`](crate::note) macro, which every
+//! non-essential line goes through.
 
 use crate::exit_codes;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// The global `--quiet`, recorded once by `main` and read by [`note!`].
+static QUIET: AtomicBool = AtomicBool::new(false);
+
+/// Record the global `--quiet` flag. Called once, before any command runs.
+pub fn set_quiet(value: bool) {
+    QUIET.store(value, Ordering::Relaxed);
+}
+
+/// True when the operator asked for `--quiet`.
+///
+/// Read by [`note!`]; a leaf whose whole rendering changes shape under the flag
+/// (`agent list`, `inspect`, `run`) reads it too, rather than carrying the flag
+/// down its call chain.
+pub fn is_quiet() -> bool {
+    QUIET.load(Ordering::Relaxed)
+}
+
+/// One non-essential line on stdout: a header, a separator, a blank spacer, a
+/// hint, a confirmation sentence.
+///
+/// Dropped under `--quiet`, which promises stdout carries the requested data
+/// and nothing else. A line that IS the requested data stays a `println!`.
+#[macro_export]
+macro_rules! note {
+    () => {
+        if !$crate::output::is_quiet() {
+            println!();
+        }
+    };
+    ($($arg:tt)*) => {
+        if !$crate::output::is_quiet() {
+            println!($($arg)*);
+        }
+    };
+}
 
 /// Stable machine name for an exit code, published as `error.code`.
 pub fn code_label(exit_code: i32) -> &'static str {
@@ -50,7 +93,7 @@ pub fn emit_client_error(json: bool, err: &crate::client::ClientError) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{code_label, emit_error};
+    use super::{code_label, emit_error, is_quiet, set_quiet};
     use crate::exit_codes;
 
     // GIVEN the five contractual exit codes
@@ -95,5 +138,19 @@ mod tests {
         assert_eq!(err.len(), 2);
         assert_eq!(err["code"], "general_error");
         assert_eq!(err["message"], "m");
+    }
+
+    // GIVEN the global quiet flag, owned by this one test so no ordering
+    // between tests can decide its value
+    // WHEN it is set and restored
+    // THEN the output layer reads back what main recorded
+    #[test]
+    fn test_quiet_flag_round_trips_through_the_output_layer() {
+        let previous = is_quiet();
+        set_quiet(true);
+        assert!(is_quiet());
+        set_quiet(false);
+        assert!(!is_quiet());
+        set_quiet(previous);
     }
 }

@@ -626,11 +626,13 @@ fn main() {
     };
 
     init_tracing(&cli);
+    // Recorded once, read by the output layer alone. Handing the flag down each
+    // call chain is how it came to be honoured by two nouns out of two hundred.
+    output::set_quiet(cli.quiet);
 
     let rt = tokio::runtime::Runtime::new().expect("failed to create Tokio runtime");
 
     let json = cli.json;
-    let quiet = cli.quiet;
     let no_color = cli.no_color;
     let exit_code = rt.block_on(async {
         match cli.command {
@@ -665,9 +667,7 @@ fn main() {
                 })
                 .await
             }
-            Commands::Agent { command } => {
-                commands::agent::run(&command, cli.socket, json, quiet).await
-            }
+            Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,
             Commands::A2a { command } => commands::a2a::run(&command, cli.socket, json).await,
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Eval { command } => commands::eval::run(&command, cli.socket, json).await,
@@ -705,7 +705,7 @@ fn main() {
             }
             Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
-            Commands::Inspect { path } => commands::inspect::run(&path, json, quiet, no_color),
+            Commands::Inspect { path } => commands::inspect::run(&path, json, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,

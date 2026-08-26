@@ -4,12 +4,11 @@ use super::*;
 ///
 /// When `supports_a2a` is `true`, fetches from `/api/v1/a2a/agents` instead
 /// and displays only A2A-capable agents with their skill descriptors.
-/// When `quiet` is `true`, only agent names are printed, one per line.
+/// Under `--quiet`, only agent names are printed, one per line.
 pub(in crate::commands::agent) async fn run_list(
     client: &RuntimeClient,
     supports_a2a: bool,
     json: bool,
-    quiet: bool,
 ) -> i32 {
     if supports_a2a {
         return run_list_a2a(client, json).await;
@@ -30,7 +29,7 @@ pub(in crate::commands::agent) async fn run_list(
             "{}",
             serde_json::to_string_pretty(&output).unwrap_or_default()
         );
-    } else if quiet {
+    } else if crate::output::is_quiet() {
         // Quiet mode: emit only agent names, one per line.
         for agent in &installed {
             println!("{}", agent.name);

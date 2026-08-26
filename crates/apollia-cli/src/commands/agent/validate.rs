@@ -1,4 +1,5 @@
 use super::*;
+use crate::note;
 
 /// `apollia-os agent validate <path>`: validate an agent manifest without starting it.
 ///
@@ -85,7 +86,7 @@ fn print_validate_text(manifest: &apollia_core::AgentManifest) {
     let required = &manifest.tools_required;
     let optional = &manifest.tools_optional;
 
-    println!("✔ Manifest valide");
+    note!("✔ Manifest valide");
     println!("  Name             : {}", manifest.name);
     println!("  Version          : {}", manifest.version);
     if !manifest.description.is_empty() {
@@ -104,7 +105,7 @@ fn print_validate_text(manifest: &apollia_core::AgentManifest) {
     }
     if !optional.is_empty() {
         println!("  Optional tools   : {}", optional.join(", "));
-        println!("  ⚠ Optional tools not checked - agent may start in DEGRADED mode if absent");
+        note!("  ⚠ Optional tools not checked - agent may start in DEGRADED mode if absent");
     }
     if !manifest.tools_requiring_approval.is_empty() {
         println!(
@@ -128,7 +129,7 @@ fn print_validate_text_skills(manifest: &apollia_core::AgentManifest) {
     if manifest.skills.is_empty() {
         return;
     }
-    println!("  Skills ({})       :", manifest.skills.len());
+    note!("  Skills ({})       :", manifest.skills.len());
     for skill in &manifest.skills {
         println!("    - {} ({})", skill.id, skill.name);
     }
@@ -142,7 +143,7 @@ fn print_validate_text_setup_notes(manifest: &apollia_core::AgentManifest) {
     if notes.is_empty() {
         return;
     }
-    println!("  Setup notes      :");
+    note!("  Setup notes      :");
     for line in notes.lines() {
         println!("    {line}");
     }

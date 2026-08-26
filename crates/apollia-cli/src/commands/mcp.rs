@@ -14,6 +14,7 @@ use apollia_mcp::discovery;
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
+use crate::note;
 
 /// MCP server subcommands.
 #[derive(Debug, Subcommand)]
@@ -244,7 +245,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             let client = make_runtime_client(socket.clone());
             match run_list(&client, *discover, config.as_deref(), use_json).await {
                 Ok(output) => {
-                    println!("{output}");
+                    println!("{}", output.trim_end());
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
@@ -276,7 +277,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             let use_json = json || *cmd_json;
             match run_list_pending(db.as_deref(), use_json) {
                 Ok(output) => {
-                    println!("{output}");
+                    println!("{}", output.trim_end());
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
@@ -525,7 +526,7 @@ async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: bool) -> i3
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ MCP server '{name}' added to the runtime");
+                note!("✔ MCP server '{name}' added to the runtime");
             }
             exit_codes::SUCCESS
         }
@@ -564,7 +565,7 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ MCP server '{name}' removed from the runtime");
+                note!("✔ MCP server '{name}' removed from the runtime");
             }
             exit_codes::SUCCESS
         }
@@ -690,7 +691,7 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ MCP server '{name}' restarted");
+                note!("✔ MCP server '{name}' restarted");
             }
             exit_codes::SUCCESS
         }

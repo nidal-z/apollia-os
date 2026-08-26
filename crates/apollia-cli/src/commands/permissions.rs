@@ -24,6 +24,7 @@ use apollia_tools::GovernanceDb;
 use clap::Subcommand;
 
 use crate::exit_codes;
+use crate::note;
 
 /// Subcommands of `apollia-os permissions`.
 #[derive(Debug, Subcommand)]
@@ -311,7 +312,7 @@ fn run_revoke(
             .unwrap_or_default()
         );
     } else {
-        println!("✔ rule #{parsed} revoked");
+        note!("✔ rule #{parsed} revoked");
     }
     exit_codes::SUCCESS
 }
@@ -389,7 +390,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ {removed} {} rule(s) revoked", scope.as_str());
+        note!("✔ {removed} {} rule(s) revoked", scope.as_str());
     }
     exit_codes::SUCCESS
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::note;
 
 /// `apollia-os agent package list`: list installed packages.
 pub(in crate::commands::agent) fn run_package_list(json: bool) -> i32 {
@@ -503,12 +504,12 @@ pub(in crate::commands::agent) async fn run_repair(name: &str, json: bool) -> i3
             "OK venv for '{name}' provisioned at {}",
             venv_base.join(name).display()
         );
-        println!("    Packages installed:");
+        note!("    Packages installed:");
         for p in &declared {
             println!("      - {p}");
         }
-        println!();
-        println!("Restart the runtime to pick up the new venv:");
+        note!();
+        note!("Restart the runtime to pick up the new venv:");
         println!("    apollia-os stop && apollia-os start");
     }
     exit_codes::SUCCESS
