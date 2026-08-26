@@ -374,6 +374,14 @@ jobs:
       # exemptions), PEP 563 + TypedDict, and the agent module contract.
       - name: Python rules beyond ruff, on sdk/ and agents/
         run: python3 scripts/check_python_rules.py
+      # The rulebook against the tree it describes: every path, CamelCase
+      # symbol and test tool it cites, plus the line references. It ran here
+      # first on a corpus that carried five dead paths, eight absent types and
+      # nine tools no manifest declares, none of which any existing gate read.
+      - name: The rulebook describes this tree
+        run: |
+          python3 scripts/check_corpus_claims.py --selftest
+          python3 scripts/check_corpus_claims.py
       # Runs before the checks it covers. Two of them independently counted a
       # symbol named in a doc-comment as a live call site, always in the
       # direction that declares a dead capability alive. This pins that case on a

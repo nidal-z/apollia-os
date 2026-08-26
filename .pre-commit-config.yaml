@@ -106,7 +106,9 @@ repos:
       # honest one would name nearly every path.
       #
       # A filter decides when a defect is seen first, not whether it is seen:
-      # `just guards` runs the seventeen unfiltered.
+      # the `guards` recipe of the justfile runs the whole corpus unfiltered.
+      # The count is deliberately not written here: it moved twice while this
+      # comment claimed seventeen.
 
       - id: check-claim-anchors
         name: claim anchors (markers against CLAIMS.toml, both locales)
@@ -118,6 +120,18 @@ repos:
         name: declared claims against the code that backs them
         entry: python3 scripts/check_claims.py
         language: system
+        pass_filenames: false
+
+      # The rulebook read before every change described a tree that had moved
+      # under it: a merged-away file still pointed at, eight types the code
+      # does not carry, nine test tools no manifest declares. The filter names
+      # the corpus and the guard's own file; the code the claims are checked
+      # against is the whole repository, which no honest filter could name.
+      - id: check-corpus-claims
+        name: the rulebook's paths, symbols and tools exist
+        entry: python3 scripts/check_corpus_claims.py
+        language: system
+        files: '^(AGENTS\.md|docs/agents/.*\.md|.*/AGENTS\.md|scripts/check_corpus_claims\.py)$'
         pass_filenames: false
 
       - id: check-crate-lints
