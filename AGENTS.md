@@ -6,7 +6,7 @@ without a cloud dependency.
 
 This file is the standard entry point for LLM coding assistants (Codex, Claude
 Code, Cursor, Gemini CLI, Aider, Continue, Windsurf, GitHub Copilot, and
-others). It briefs you in ~120 lines and points you to the long-form rulebook.
+others). It is the short brief; the long-form rulebook is `docs/agents/`.
 
 ---
 
@@ -32,7 +32,7 @@ bottom of this file.
 | HTTP API | axum on Unix socket + TCP 7771 |
 | CLI | clap v4 derive |
 | Desktop | Tauri v2 + Svelte 5 + Tailwind 3.4 |
-| SDK | Python 3.12+ , `apollia` package (AgentKit) |
+| SDK | `apollia` package (AgentKit). Source floor Python 3.10 (`sdk/pyproject.toml` `requires-python`); the runtime embeds a 3.12+ interpreter, which is the supported configuration |
 
 ---
 
@@ -45,8 +45,8 @@ Use file-scoped commands first. Reach for the workspace-wide ones only after.
 cargo test -p apollia-<crate> <test_name>
 cargo clippy -p apollia-<crate> -- -D warnings
 
-# Full sweep (before commit and in CI)
-cargo test --workspace --all-features --no-fail-fast
+# Full sweep (run it yourself before a commit; CI runs the same three)
+cargo test --workspace --no-fail-fast
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 
@@ -66,16 +66,28 @@ gated by `APOLLIA_REQUIRE_RUNTIME` and `APOLLIA_TEST_MODEL_GGUF`. Read
 `tests/cli/README.md` before changing a track or the fixture: the suite asserts
 the seed's exact row counts, so a fixture change is a suite change.
 
+`--all-features` is not part of that sweep, and adding it does not work:
+`apollia-runner` exposes `local-cuda`, `local-metal` and `local-rocm`, which
+turn on three mutually exclusive `whisper-rs` backends at once. CI omits it for
+the same reason (`ci.yml`), and the feature matrix is exercised in
+`nightly.yml`.
+
 The desktop UI is covered by Vitest unit tests and by Playwright suites under
 `crates/apollia-desktop/ui/tests/`. There is no WebDriver for WKWebView on
-macOS, so there is no browser-driven end-to-end suite for the Tauri shell; the
-runtime paths it exercises are covered through the CLI suite above.
+macOS, so nothing drives the packaged bundle; a dev build of the real
+application is driven by the gestural automaton in `scripts/automation/`, which
+addresses the interface by `data-testid` against a seeded throwaway `HOME` and
+is tree-shaken out of release builds. Read `scripts/automation/README.md`
+before touching a recipe. The runtime paths behind the UI are also covered
+through the CLI suite above.
 
 Pre-commit hooks guard every commit, and `.pre-commit-config.yaml` is the list
 to read rather than a copy to trust: it holds more than formatting and lints,
 the prose rules and the documentation-site build among them. Two of its entries
 run elsewhere, `clippy` on push and the commit-message convention at
-`commit-msg`. Do not bypass any of them.
+`commit-msg`. What it does **not** hold is the test suite: the Rust entry is
+`cargo check --workspace`, so a green hook run says nothing about
+`cargo test`. Do not bypass any of them.
 
 ---
 
@@ -137,10 +149,12 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
 - Use `TypedDict` for agent payload schemas. Never `from __future__ import
   annotations` in those modules.
 - Use absolute Python imports (`from apollia.foo import bar`).
-- Run `cargo test --workspace --no-fail-fast` before `git commit`. Without the flag
-  cargo stops at the first failing test binary, so a single red test silently hides
-  every test that would have run after it.
-- Write tests in GIVEN / WHEN / THEN structure.
+- Run `cargo test --workspace --no-fail-fast` before `git commit`. No hook does
+  it for you. Without the flag cargo stops at the first failing test binary, so a
+  single red test silently hides every test that would have run after it.
+- Write tests in GIVEN / WHEN / THEN structure. `scripts/check_rust_tests.py`
+  holds it on a descending ratchet: a new test without the three markers fails
+  the guard, and the backlog of older ones can only shrink.
 
 ## ASK FIRST
 

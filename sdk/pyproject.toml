@@ -95,7 +95,7 @@ addopts = [
 markers = [
     "unit: fast unit test",
     "integration: integration test, may touch the filesystem",
-    "slow: skipped unless --run-slow is passed",
+    "slow: long test; select with `pytest -m 'not slow'` (no conftest skips it)",
 ]
 
 [tool.coverage.run]

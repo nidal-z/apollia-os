@@ -65,9 +65,8 @@ test(apollia-cli): add parsing tests for agent logs
 **Documentation scopes** :
 
 ```
-docs(book): chapter 8 on declarative orchestration
-docs(wiki): update Architecture-Principes
 docs(site): document the multi-runner sidecar
+docs(agents): state the tool inventory the manifests carry
 docs(help): operator article for OAuth setup
 ```
 
@@ -168,17 +167,22 @@ commits.
 
 ## 9. Pre-commit gate
 
-The pre-commit hook runs :
+`.pre-commit-config.yaml` is the list, and it is longer than any summary of
+it: hygiene hooks, `detect-private-key`, a file-size cap, `ruff-format` and
+`ruff-check` on `sdk/`, `rustfmt` and `cargo check --workspace` on Rust, the
+documentation-site build when the site changes, and a large subset of the
+guard scripts under `scripts/`. Read it there rather than a copy here; the
+copy that used to sit at this spot named six entries and missed a dozen.
 
-1. `ruff format` (Python)
-2. `ruff check` (Python)
-3. `rustfmt --check` (Rust)
-4. `cargo clippy --workspace -- -D warnings`
-5. `cargo check --workspace`
-6. `commitlint` on the commit message
+Two entries do not run at commit time, and that is the part worth carrying :
 
-A failing hook means the commit did not happen. Fix the issue and re-stage.
-Never `--no-verify`.
+- `cargo clippy --workspace --all-targets -- -D warnings` is staged on
+  `pre-push`.
+- `conventional-pre-commit` judges this message at `commit-msg`, which is why
+  a malformed subject is refused after the rest has already passed.
+
+Nothing in the hook runs the test suite. A failing hook means the commit did
+not happen. Fix the issue and re-stage. Never `--no-verify`.
 
 ---
 

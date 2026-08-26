@@ -43,7 +43,8 @@ let re = Regex::new(r"^\d+$").unwrap();
 ```
 
 **NEVER `todo!()`, `unimplemented!()`, or `panic!()` in committed code.** If you cannot
-complete an implementation now, do not commit. Create a story instead.
+complete an implementation now, do not commit. Write down what you observed,
+where the queue for it lives, and leave the tree in a state that compiles.
 
 **NEVER `println!`, `eprintln!`, or `dbg!` in committed code.** The CLI binary
 `apollia-cli` is the only exception, and only for user-facing output. Everywhere else,
@@ -73,11 +74,17 @@ threshold for review attention drops sharply past that size.
 **NEVER `unsafe` code without a SAFETY doc-comment** explaining the invariant being
 upheld. Workspace lint: `unsafe_code = "deny"` unless explicitly allowed per crate.
 
-**NEVER tests that depend on ordering.** Use `serial_test` if a global mutex is
-required.
+**NEVER tests that depend on ordering.** A test that needs a global resource
+takes a process-wide `static LOCK: Mutex<()>` declared beside it. No
+serialization crate is declared in any manifest of this workspace, so reaching
+for one is adding a dependency, which is an ASK FIRST.
 
-**NEVER `#[ignore]` merged without a story link.** A skipped test that no one tracks
-becomes dead code.
+**NEVER `#[ignore]` without naming, in the attribute string, what has to be true
+for the test to run again.** `#[ignore = "requires live OS keychain"]` is the
+form; a bare `#[ignore]` is a test nobody can ever justify re-enabling. Do not
+write a tracker identifier there: this tree is public and the tracker is not,
+and the rule that used to demand "a story link" was unsatisfiable for exactly
+that reason.
 
 **NEVER `pub use crate::internal::*`** or any wildcard re-export from internal modules.
 Re-export only the public contract.
@@ -104,6 +111,12 @@ from my_agent.schemas import EmailPayload
 
 **NEVER `print()` in agent or SDK code.** Use `ctx.logger` (a stdlib
 `logging.Logger` routed to the runtime tracer), e.g. `ctx.logger.info(...)`.
+
+One carve-out, and it is written rather than tolerated: a module that *is* a
+command-line entry point prints, because printing is its output. It declares
+so on the spot with a `# REASON: print-call:` pragma, which
+`scripts/check_python_rules.py` reads; the SDK's own `apollia` CLI modules are
+the only holders today. A `print()` with no pragma fails the guard.
 
 **NEVER Pydantic when TypedDict suffices.** Apollia agents are stdlib-only by default.
 Use Pydantic only when runtime validation of external API responses is unavoidable,
@@ -209,6 +222,13 @@ public and the tracker is not.
 **NEVER hardcoded secrets, API keys, tokens, or PII** in any committed file. Use
 `SecretStore` backends (Keyring or AgeFile). See `docs/agents/SECURITY.md`.
 
+One exemption, measured and bounded: `.mailmap` carries the maintainer's commit
+addresses, because that is the file git reads to fold an author's identities
+into one. It is the only committed file that holds an address on purpose, and
+it holds nothing else. Every other appearance of a personal address, path or
+handle is a defect; `scripts/check_prose.py` holds the personal-path and stale-
+handle halves of that at zero across the tracked tree.
+
 **NEVER justify a rule by pointing at a document the reader cannot open.** There
 is no numbered decision record to cite. The decisions in force are stated in the
 architecture chapter of `docs/site/`, under stable anchors; link to the anchor,
@@ -277,8 +297,9 @@ propagation is the canonical path.
 
 **NEVER commit with a failing `cargo test --workspace --no-fail-fast`.** The flag is
 part of the rule: without it cargo halts at the first failing test binary and the run
-reports a partial pass as a pass. Pre-commit hook enforces
-this; do not bypass.
+reports a partial pass as a pass. No hook enforces this: the pre-commit entry is
+`cargo check --workspace` and `clippy` is staged on `pre-push`, so a green hook
+run says nothing about the suite. Run it yourself before the commit.
 
 **NEVER feature-flag dead code** to preserve a half-finished implementation. Either
 ship the feature or remove the code.

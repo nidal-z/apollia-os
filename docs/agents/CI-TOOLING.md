@@ -86,29 +86,35 @@ fails the build on that shape. The full explanation is in
 time, in one line: the usual hygiene hooks plus `detect-private-key` and a
 500 KB file cap, `ruff-check` and `ruff-format` on `sdk/`, `rustfmt` and
 `cargo check` on the workspace, `check-prose` on the five prose rules,
-`docs-site-build` when `docs/site/` or `clients/openapi.json` changes, and
-eight of the guard scripts of `scripts/`.
+`docs-site-build` when `docs/site/` or `clients/openapi.json` changes, and a
+subset of the guard scripts of `scripts/`.
 
-Those eight are `check-claim-anchors` and `check-claims`, which carry no filter
-because their subject is the whole repository, plus `check-crate-lints`,
-`check-subprocess-window`, `check-optional-builders`, `check-tauri-ipc-args`,
-`check-tauri-ipc-callers` and `check-docs-routes`, each filtered on the roots
-its own source declares. A filter decides when a defect is seen first, never
-whether it is seen: `just guards` runs the seventeen tracked guards unfiltered
-and reports every red one, and `just ci` starts with it.
+Which subset, and how large, is a moving number, and this document does not
+carry a copy of it. It carried one for months and the copy went stale in both
+directions at once, understating the hook and understating the recipe. Count it
+instead :
 
-The eight guards that stay out of the hook stay out for a measured reason, or,
-for the last three, for no measured reason at all.
-`check_guard_verdicts.py` and `check_instrument_verdicts.py` need a built tree,
-so a hook entry would refuse the first commit of a contributor who has not yet
-run `npm ci` or `cargo build`. `check_no_font_cdn.py` and `check_selftest.py`
-cost more than the commits they would sit on. `check_panic_free.py` re-reads
-every production Rust file whatever the diff holds, 2.7 seconds on three runs
-of this tree, and a filter on `crates/` would not lower that on the commits
-that touch Rust. `check_docs_frontmatter.py`, `check_i18n_catalogue.py` and
-`check_ctx_contract.py` joined the corpus after this list was drawn, and no cost
-was measured for them either way: they stay out because nobody has put them in,
-which is a state and not a decision.
+```sh
+grep -oE 'python3 scripts/check_[a-z_]+\.py' .pre-commit-config.yaml | sort -u | wc -l
+just --show guards
+```
+
+The shape does not move. Two guards whose subject is the whole repository
+(`check-claim-anchors`, `check-claims`) carry no filter; every other hook entry
+is filtered on the roots its own source declares, and every filter also names
+the guard's own file, so a change to a guard cannot escape it. A filter decides
+when a defect is seen first, never whether it is seen: `just guards` runs the
+whole corpus unfiltered and reports every red one, and `just ci` starts with it.
+
+A guard stays out of the hook for one of three reasons, and the third is not a
+decision. It needs a built tree, so a hook entry would refuse the first commit
+of a contributor who has not run `npm ci` or `cargo build`
+(`check_guard_verdicts.py`, `check_instrument_verdicts.py`). Or it costs more
+than the commits it would sit on (`check_no_font_cdn.py`, `check_selftest.py`;
+`check_panic_free.py` re-reads every production Rust file whatever the diff
+holds, 2.7 seconds on three runs of this tree, and a filter on `crates/` would
+not lower that on the commits that touch Rust). Or nobody has put it in, which
+is a state, not a measurement.
 
 Two entries are not commit-time hooks, and reading the list as one is how a
 contributor gets surprised: `clippy -D warnings` is staged on `pre-push`, and

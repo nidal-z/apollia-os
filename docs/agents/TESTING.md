@@ -15,12 +15,12 @@ apply.
 |  | Rust crates | Python SDK | Tauri desktop | CLI | HTTP API | Actor mesh | LLM / MCP backends |
 |---|---|---|---|---|---|---|---|
 | **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest, `node` environment, no DOM (see §7) | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
-| **Integration** | per-crate `tests/` directory | pytest + `tmp_path` fixtures | Playwright on the bundle with the Tauri bridge stubbed | `assert_cmd` + `predicates` | `axum-test::TestServer`, `tower::ServiceExt::oneshot` | inter-actor channel exchanges | `wiremock`, `respx` |
-| **E2E** | delegated to CLI tests | n/a | none on the packaged app (no WKWebView WebDriver) | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
-| **Property** | `proptest` | `hypothesis` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
-| **Snapshot** | `insta` | `syrupy` | none; no visual baseline suite exists | snapshot CLI human + `--json` output | `insta` on serialized response | event-stream traces | tool outputs |
-| **Benchmark** | `criterion` | `pytest-benchmark` | Lighthouse | `hyperfine` | `wrk` or criterion | criterion ops/sec | n/a |
-| **Fuzzing** | `cargo-fuzz` (libFuzzer) | `atheris` if needed | n/a | `cargo-fuzz` on argv | `cargo-fuzz` on HTTP payloads | n/a | n/a |
+| **Integration** | per-crate `tests/` directory, or a `#[cfg(test)]` module driving the public API | pytest + `tmp_path` fixtures | Playwright on the production bundle with the Tauri bridge stubbed | `tests/cli/cli-e2e.sh` against a seeded HOME | `tower::ServiceExt::oneshot` on the built router | inter-actor channel exchanges | `wiremock` |
+| **E2E** | delegated to CLI tests | n/a | `scripts/automation/` drives a dev build of the real app by `data-testid`; the packaged bundle is driven by nothing (no WKWebView WebDriver) | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
+| **Property** | `proptest` | none declared in `sdk/pyproject.toml` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
+| **Snapshot** | none declared; assert on the value | none declared | none; no visual baseline suite exists | assert on the rendered string and on the `--json` value | assert on the serialized response | event-stream traces | tool outputs |
+| **Benchmark** | none in this tree, see §10 | none in this tree | none in this tree | none in this tree | none in this tree | none in this tree | n/a |
+| **Fuzzing** | `cargo-fuzz` (libFuzzer) | none declared | n/a | `cargo-fuzz` on argv | `cargo-fuzz` on HTTP payloads | n/a | n/a |
 
 ---
 
@@ -49,8 +49,9 @@ async fn test_eventbus_publish_blocks_when_capacity_full() {
 **One test = one behavior.** Multi-assertion tests that touch unrelated paths
 become impossible to triage when one fails.
 
-**`pretty_assertions::assert_eq!(full_struct, expected)` over multi-asserts**
-when comparing structures. The diff output is dramatically better.
+**One `assert_eq!` on the whole structure over a chain of field asserts.**
+The failure then names the structure that differs, not the first field that
+happened to be compared.
 
 **Test naming** : `test_<unit>_<scenario>_<expected>`. See
 `docs/agents/NAMING.md` §9.
@@ -58,18 +59,23 @@ when comparing structures. The diff output is dramatically better.
 **At least one error case per public enum variant.** A `Result<T, MyError>`
 return type with no test of any error branch is incomplete.
 
-**No `#[ignore]` merged without a story link.** A skipped test that no one
-tracks is dead code.
+**No `#[ignore]` without naming, in the attribute itself, what has to be
+true for the test to run again.** The form is §13 below, and every ignored
+test in the tree carries it today. A bare `#[ignore]` is a test nobody will
+ever re-enable, because nobody knows what would justify it.
 
-**No tests that depend on ordering.** Use `serial_test` if a global mutex is
-genuinely required.
+**No tests that depend on ordering.** A test that needs a global resource
+takes a process-wide lock declared next to it (`static LOCK: Mutex<()>`);
+no serialization crate is declared in any manifest, so do not reach for one
+without adding it to the workspace first.
 
 **Never `--test-threads=1`.** It hides deadlocks. The remedy is fixing the
-deadlock, not serializing the suite.
+deadlock, not serializing the suite. `scripts/check_ci_workflows.py` holds
+this one: a `run:` line that forces it fails the guard.
 
-**Tests run in CI with `cargo nextest`** for parallelism and isolation
-(3x faster, process-level isolation). Doctests still run with `cargo test
---doc`.
+**Tests run under `cargo test`**, in CI (`ci.yml`, wrapped by
+`scripts/check_test_home_isolation.py` so a test cannot reach the real
+`HOME`) and locally. Doctests run in the same invocation.
 
 ---
 
@@ -98,11 +104,14 @@ mod tests {
 ```
 
 Rules :
-- `#[tokio::test(start_paused = true)]` whenever timing matters. Deterministic.
+- `#[tokio::test(start_paused = true)]` whenever timing matters. Deterministic,
+  and the only way a duration assertion stays honest on a loaded machine. No
+  test in the tree uses it yet; the wall-clock sites that remain sit on the
+  `time-sensitive-tests` ratchet of `scripts/check_rust_rules.py`.
 - Mock time via `tokio::time::pause` / `tokio::time::advance` when the test
-  is too complex for the rune macro.
-- Mock traits via `mockall` for traits with many methods. Hand-written
-  mocks for two- or three-method traits.
+  is too complex for the macro.
+- Mock traits by hand. No mocking crate is declared in any manifest, and a
+  trait small enough to test is small enough to implement twice.
 
 ---
 
@@ -123,8 +132,9 @@ Rules :
   unit test misplaced.
 - Real SQLite (in-memory or `tmp_path`). Never mock the database for
   integration tests of the persistence layer.
-- Use `axum-test::TestServer` to exercise HTTP handlers. It mounts the
-  router and dispatches requests without a real bind.
+- Exercise HTTP handlers through `tower::ServiceExt::oneshot` on the built
+  router. It dispatches a request without a real bind, which is what the
+  `routes_*.rs` test modules do today.
 - `wiremock` for external HTTP dependencies (LLM cloud providers, OAuth
   providers).
 
@@ -153,8 +163,8 @@ Target : 150+ parsing tests workspace-wide (acquired in the CLI sprint).
 
 Orchestrator (bash) over a fixed, deterministically-seeded HOME (built by
 `tests/cli/seed/build-seed.sh`, never its optional narrative overlay),
-with a machine + human report (`tests/cli/report/report.{json,md}`). Three
-tracks :
+with a machine + human report written under `tests/cli/report/` (gitignored,
+rebuilt by each run). Three tracks :
 - **Track 1 (OFFLINE)** : every daemon-free command against the seeded HOME.
   Asserts KNOWN seeded content (not empty states) + the exit-code contract.
   Runs on every PR (`cli-e2e` job in `ci.yml`).
@@ -163,7 +173,7 @@ tracks :
 - **Track 3 (LLM CAPTURE, opt-in + a real model `APOLLIA_TEST_MODEL_GGUF`)** :
   non-deterministic commands (`run --stream`, `chat` REPL via pty, `llm chat`,
   `do`, `explain`). Asserts STRUCTURE only (exit, streaming happened, timing);
-  the input/output is captured into `report.md` for human review.
+  the input/output is captured into the run's report for human review.
 
 Exit codes 0-5 are tested explicitly. See `crates/apollia-cli/AGENTS.md`
 for the contract, and `tests/cli/README.md` for the full layout.
@@ -179,32 +189,23 @@ asyncio_mode = "strict"
 markers = [
   "unit: fast unit test",
   "integration: integration test, may touch the filesystem",
-  "slow: skipped unless --run-slow is passed",
+  "slow: long test; select with `pytest -m 'not slow'` (no conftest skips it)",
 ]
 ```
+
+The `slow` marker selects, it does not skip. There is no `conftest.py` in the
+SDK, so no `--run-slow` option exists; a test marked `slow` runs like any
+other unless the invocation deselects it. The marker text said the opposite
+for as long as it existed.
 
 Rules :
 - `asyncio_mode = "strict"` : every async test carries
   `@pytest.mark.asyncio` explicitly. Prevents collision with `trio` /
   `anyio` runners.
-- Hypothesis for property-based tests :
-
-  ```python
-  from hypothesis import given, strategies as st
-
-  @given(st.text())
-  def test_normalize_idempotent(s: str) -> None:
-      assert normalize(normalize(s)) == normalize(s)
-  ```
-
-- `syrupy` for snapshots :
-
-  ```python
-  def test_agent_manifest_shape(snapshot):
-      assert build_manifest(my_agent) == snapshot
-  ```
-
-- `respx` for HTTP mocks. Never `requests_mock` (sync-only).
+- Property-based and snapshot testing have no library here. `dependencies`
+  is empty by principle 2 and the dev extras carry pytest, pytest-asyncio,
+  pytest-cov, ruff and mypy, nothing else. Adding one is an ASK FIRST.
+- Mock HTTP by injecting a fake transport, not by patching a client library.
 - Fixture scoping : function > module > session. `autouse=True` only for
   project-wide setup.
 
@@ -218,11 +219,12 @@ Rules :
   `package.json` carries no rendering library, so a test that mounts a
   component cannot run here. Cover a component by exporting the logic under
   test from its `<script module>` block and asserting on that export, the way
-  `src/components/observability/TaskTimeline.test.ts` does. Anything that
+  `crates/apollia-desktop/ui/src/components/observability/TaskTimeline.test.ts` does. Anything that
   needs a rendered tree is a Playwright test. One exemption: a file may
   declare `// @vitest-environment jsdom` (the `jsdom` devDependency exists
   for it) when the unit under test is inert without a DOM,
-  the way `src/lib/utils/markdown-sanitize.test.ts` drives DOMPurify, whose
+  the way `crates/apollia-desktop/ui/src/lib/utils/markdown-sanitize.test.ts`
+  drives DOMPurify, whose
   sanitize is a no-op in the `node` environment. That buys a document, not a
   renderer: mounting a component still needs Playwright.
 - **Browser tests** : Playwright, in `crates/apollia-desktop/ui/tests/`, run
@@ -230,11 +232,15 @@ Rules :
   stubbed. They cover machinery that needs a real browser: dirty state, nav
   guards, hotkey capture, responsive layout, perf. They do **not** exercise the
   packaged application.
-- **E2E on the packaged application** : none in this repository. macOS has no
-  WebDriver for WKWebView, so the Tauri shell cannot be driven by a standard
-  browser harness. The runtime paths behind the UI are covered through
-  `tests/cli/cli-e2e.sh`, which drives the same commands against a seeded
-  throwaway `HOME`.
+- **Gestural tests on the running application** : `scripts/automation/`, a
+  dev-only automaton. macOS has no WebDriver for WKWebView, so it drives a
+  `cargo tauri dev` build by injecting steps addressed by `data-testid`,
+  against a seeded throwaway `HOME`. Read `scripts/automation/README.md`
+  before touching a recipe. It is tree-shaken out of release builds and it
+  never drives the packaged bundle.
+- **E2E on the packaged application** : none in this repository. The runtime
+  paths behind the UI are covered through `tests/cli/cli-e2e.sh`, which drives
+  the same commands against a seeded throwaway `HOME`.
 - There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
   write a test that assumes either, and note the package manager is `npm`.
 
@@ -247,8 +253,9 @@ Rules :
 
 ## 8. Property-based testing
 
-Use `proptest` (Rust) or `hypothesis` (Python) when the input space is
-large and invariants are well-defined :
+Use `proptest` (Rust) when the input space is large and invariants are
+well-defined. Python has no property library here, so the same invariants are
+written as table-driven cases :
 
 - Serializers : `roundtrip(value)` returns the same value.
 - Idempotent operations : `f(f(x)) == f(x)`.
@@ -393,37 +400,63 @@ Rules :
 
 ## 9. Snapshot testing
 
-Use `insta` (Rust) or `syrupy` (Python) for :
-- Complex structured outputs (ORIA plans, manifests, tool descriptors).
-- CLI human-readable output (the rendered table for `apollia agent list`).
-- Serialized HTTP responses where the schema is wide.
+No snapshot library is declared, in either language. Wide outputs (ORIA plans,
+manifests, tool descriptors, serialized HTTP responses, the rendered table of
+`apollia agent list`) are asserted against a value written in the test.
 
-Update workflow : `cargo insta review` (Rust) or `pytest --snapshot-update`
-(Python). Never commit snapshot updates without reviewing the diff.
+That is a decision, not an omission: a snapshot file is reviewed once and
+accepted forever after, and this tree has already shipped documents nobody
+re-read. If you want one, adding the crate is an ASK FIRST, and it lands with
+the review discipline that makes a snapshot worth having.
 
 ---
 
 ## 10. Benchmarks
 
-- `criterion` for Rust micro-benchmarks. Place in `benches/` per crate.
-- `pytest-benchmark` for Python.
-- `hyperfine` for full-binary CLI invocations.
-- Never benchmark with `target-cpu=native` or `--release` differing from
-  production build configuration.
-- Run benchmarks in isolation (no parallel workload). Document the
-  environment in `BENCH-README.md` per crate.
+There is no benchmark in this repository: `git ls-files | grep '/benches/'`
+returns nothing, and no benchmarking harness is declared in any manifest. The
+performance work done so far lives in throwaway scripts and in measurements
+recorded outside the tree.
+
+If a benchmark lands, it lands with its harness declared as a workspace
+dependency (an ASK FIRST), with the environment written next to it, and never
+built with `target-cpu=native` or with a profile that differs from the
+production one. Until then, do not write a rule here describing tooling this
+tree does not have: the section that used to sit here prescribed three
+harnesses and a per-crate README, none of which ever existed.
 
 ---
 
-## 11. Coverage targets
+## 11. Coverage
 
-- Lines : > 80% on core crates (`apollia-core`, `apollia-runtime`,
-  `apollia-oria`, `apollia-permissions`, `apollia-memory`).
-- Branches : > 70% on the same.
-- Workspace-wide : aspirational, not gated.
+Two things, kept apart because conflating them is how a target gets read as a
+state.
 
-Tooling : `cargo llvm-cov nextest --lcov --output-path lcov.info` then
-upload to Codecov.
+**The target**, unchanged: more than 80 % of lines on the core crates
+(`apollia-core`, `apollia-runtime`, `apollia-oria`, `apollia-permissions`,
+`apollia-memory`).
+
+**What is gated today**, in the `coverage` job of `ci.yml`: a workspace floor
+(`COVERAGE_FLOOR`) and one floor per core crate, each set to the measured
+baseline rounded down and ratcheted up, never down. `apollia-runtime` sits
+below the target and carries the floor that says so. The numbers live in
+`ci.yml`; read them there rather than trusting a copy here.
+
+Nothing is uploaded anywhere: the run produces `lcov.info` as a build
+artifact, and the gate is the floor, not a dashboard.
+
+Locally, the same measure runs without a rustup component if LLVM is
+installed out of band :
+
+```sh
+LLVM_COV=/opt/homebrew/opt/llvm/bin/llvm-cov \
+LLVM_PROFDATA=/opt/homebrew/opt/llvm/bin/llvm-profdata \
+  cargo llvm-cov -p apollia-prompts --summary-only
+```
+
+`cargo llvm-cov` otherwise refuses to start, because the `llvm-tools`
+component is absent from every toolchain installed here. The two variables
+point it at the Homebrew LLVM instead; adapt the prefix to your machine.
 
 ---
 
@@ -432,11 +465,15 @@ upload to Codecov.
 `cargo test --workspace --no-fail-fast` and `pytest` both pass before a PR can merge.
 The flag matters: cargo otherwise stops at the first failing test binary, and a run
 that covered a third of the suite reads exactly like a full green one.
-Pre-commit hook enforces this locally. Do not bypass.
 
-Sequence : `cargo fmt --all --check` -> `cargo clippy --workspace -- -D warnings`
--> `cargo nextest run --workspace` -> `cargo test --doc` -> `pytest` ->
-`pnpm test` (desktop) -> `bash tests/cli/cli-e2e.sh` (Track 1, offline).
+No hook runs the test suite. The pre-commit entry is `cargo check --workspace`,
+and `clippy` is staged on `pre-push`; the tests are on you, before the commit.
+Do not read the green hook output as a green suite.
+
+Sequence, as `ci.yml` chains it : `cargo fmt --all --check` ->
+`cargo clippy --workspace --all-targets -- -D warnings` ->
+`cargo test --workspace --no-fail-fast` -> `pytest` -> `npm test` (desktop,
+Vitest) -> `bash tests/cli/cli-e2e.sh` (Track 1, offline).
 
 ---
 
@@ -447,5 +484,6 @@ Sequence : `cargo fmt --all --check` -> `cargo clippy --workspace -- -D warnings
   without naming, on the spot, what has to be true for it to run again.
 - Need to test private internals : restructure to expose a `pub(crate)`
   facade for the test. Do not reach into private modules.
-- Long-running test : mark `@pytest.mark.slow` or `#[ignore]` with a
-  story link.
+- Long-running test : mark `@pytest.mark.slow`, or `#[ignore = "..."]` whose
+  string names the condition, the way the desktop end-to-end tests name the
+  job that starts the runtime and the app before running them.
