@@ -110,6 +110,18 @@ repos:
       # The count is deliberately not written here: it moved twice while this
       # comment claimed seventeen.
 
+      # The seven subtree AGENTS.md were written as specifications and never
+      # replayed against the code: sixteen symbols they described did not
+      # exist, a budget with five dimensions where the crate carries three
+      # among them. The filter names the rulebooks, the guard's own file, and
+      # the sources the claims are checked against.
+      - id: check-agents-md
+        name: every crate rulebook names its own crate
+        entry: python3 scripts/check_agents_md.py
+        language: system
+        files: '^((crates/.+|sdk)/AGENTS\.md|crates/.+\.rs|sdk/apollia/.+\.py|scripts/check_agents_md\.py)$'
+        pass_filenames: false
+
       - id: check-claim-anchors
         name: claim anchors (markers against CLAIMS.toml, both locales)
         entry: python3 scripts/check_claim_anchors.py

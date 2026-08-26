@@ -534,6 +534,7 @@ guards:
     # files that declare a boundary, and a glob would name none of them.
     guards=(
       "scripts/automation/tools/validate.py"
+      "scripts/check_agents_md.py"
       "scripts/check_automation_derived.py"
       "scripts/check_ci_workflows.py"
       "scripts/check_claim_anchors.py"

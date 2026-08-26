@@ -388,6 +388,14 @@ jobs:
       # fixture so the next check written here cannot reintroduce it quietly.
       - name: The checks themselves, on a fixture
         run: python3 scripts/check_selftest.py
+      # The crate rulebooks described a budget with five dimensions where
+      # apollia-core carries three, an AipError enum that does not exist, a
+      # runtime.db and an auth.toml no path builds, and a SIGHUP reload nothing
+      # handles. Sixteen symbols, none of them more than a git grep away.
+      - name: Every crate rulebook names its own crate
+        run: |
+          python3 scripts/check_agents_md.py --selftest
+          python3 scripts/check_agents_md.py
       # A rule in a document is not a gate. This one exists because the trap it
       # catches was invisible: five crates lost `unwrap_used = "deny"` by
       # declaring a local [lints] table, and clippy kept passing. It now also
