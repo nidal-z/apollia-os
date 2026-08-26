@@ -2,9 +2,12 @@
   import { onMount, onDestroy, tick } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, MessageSquare, Link, Zap, Check } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
-  import { Spinner } from "$lib/components/ui/progress";
+  import CorruptedSessionPanel from "./CorruptedSessionPanel.svelte";
+  import {
+    createA2ADelegation,
+    type RuntimeEventPayload,
+  } from "./useA2ADelegation.svelte";
   import {
     currentSession, memoryEntryCount,
     chatConversationStats, globalTokenBuffers,
@@ -15,59 +18,52 @@
   import { uiMode } from "$lib/stores/mode";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
-  import { contextDrawerOpen } from "$lib/stores/chatLayout";
   import type {
     ChatSessionDetail,
     ChatMessageView,
     ConversationStatsView,
-    ProjectSummary,
   } from "$lib/types";
-  import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
+  import ChatMessageScroller from "./ChatMessageScroller.svelte";
+  import type { LiveToolCall } from "./liveToolChain";
   import { parseStream } from "$lib/chat/streamParser";
-  import { computeScrollFollow } from "$lib/chat/scrollFollow";
+  import { restoreConversationState } from "./restoreConversationState";
+  import {
+    handleChatChangedEvent,
+    type ChatChangedEvent,
+    type ChatChangedPort,
+  } from "./chatChangedEvents";
+  import { createConversationScroll } from "./useConversationScroll.svelte";
   import { createSubscriptionGuard } from "$lib/utils/subscriptionGuard";
   import { createIdentityGuard } from "$lib/utils/identityGuard";
   import ChatInput from "./ChatInput.svelte";
-  import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-  import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
+  import { createSessionActions } from "./useSessionActions.svelte";
   import {
     editAndResendChatMessage,
-    exportConversation as ipcExportConversation,
     getChatSession,
     getConversationStats,
-    linkChatToProject,
-    listChatSessions,
     pauseChatSession,
     regenerateChatResponse,
-    renameChatSession,
     sendChatMessage,
   } from "$lib/ipc/chat";
   import { getProfile } from "$lib/ipc/profile";
-  import { listProjects } from "$lib/ipc/projects";
   import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
-  import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
   import type { InjectedEntry } from "$lib/types";
-  import ApprovalCard from "./ApprovalCard.svelte";
-  import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
-  import ChatPlanHost from "./ChatPlanHost.svelte";
-  import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
-  import { sessionScope, type NextStepsFacts } from "$lib/stores/nextSteps";
+  import { sessionScope } from "$lib/stores/nextSteps";
+  import { sessionEndFacts } from "./sessionEndFacts";
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
-  import { AlertOctagon } from "lucide-svelte";
-  import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
@@ -149,11 +145,7 @@
       $agents.length > 0 &&
       !$agents.some((a) => a.name === sessionAgentName),
   );
-  let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
-  let userScrolledUp = $state(false);
-  /** Floating "jump to latest" button visibility + unread count. */
-  let showScrollToBottom = $state(false);
-  let unreadWhileScrolled = $state(0);
+  const scroll = createConversationScroll(() => isStreaming || isProcessing);
   let tokenBuffer = $state("");
   let configOpen = $state(false);
   let injectedSheetOpen = $state(false);
@@ -225,34 +217,15 @@
    * otherwise leave its listeners subscribed for the lifetime of the app, one
    * of them still buffering tokens for a session nobody is looking at.
    */
+  const actions = createSessionActions(
+    () => sessionId,
+    () => sessionDetail?.project_id ?? null,
+    () => refreshSession(),
+  );
   const subscriptions = createSubscriptionGuard();
-  /** Non-null while an A2A delegation is in progress. */
-  let activeA2A = $state<{ target: string; skill_id: string } | null>(null);
-  /** Steps reported by the sub-agent during A2A delegation. */
-  let a2aSteps = $state<
-    { step_id: string; step_num: number; total: number; desc: string; status: "running" | "done" | "failed"; durationMs?: number }[]
-  >([]);
-  /** Guard trigger message from A2A guardrails. */
-  let a2aGuardMessage = $state<string | null>(null);
-  /** Start time of current A2A delegation for live duration display. */
-  let a2aStartTime = $state<number | null>(null);
-  /** Elapsed seconds of current A2A delegation (updated every second). */
-  let a2aElapsed = $state<number>(0);
-  /**
-   * Live tool call chain for the current LLM turn - cleared on response
-   * completion. `reasoningCursor` records how many closed reasoning fragments
-   * had streamed when the tool started, so `StreamingMessage` can interleave
-   * reasoning captions and tool rows in true arrival order.
-   */
-  let liveToolChain = $state<
-    {
-      name: string;
-      status: "running" | "done" | "refused";
-      startedAt: number;
-      durationMs?: number;
-      reasoningCursor: number;
-    }[]
-  >([]);
+  const a2a = createA2ADelegation();
+  /** Live tool call chain for the current turn, cleared on completion. */
+  let liveToolChain = $state<LiveToolCall[]>([]);
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
@@ -263,10 +236,60 @@
   // is its own row, so the real-time sequence of actions is preserved instead of
   // being collapsed into a "tool_name · ×N" summary that hid the ordering.
 
+  /**
+   * What `handleChatChangedEvent` is allowed to touch. Declared next to the
+   * state it drives, so a rule of the router reads against one list rather than
+   * against the whole component.
+   */
+  const chatChangedPort: ChatChangedPort = {
+    get sessionId() {
+      return sessionId;
+    },
+    closedReasoningCount: () =>
+      parseStream(tokenBuffer).filter((b) => b.type === "thinking" && b.closed).length,
+    addToolCall(name, reasoningCursor) {
+      liveToolChain = [
+        ...liveToolChain,
+        { name, status: "running", startedAt: Date.now(), reasoningCursor },
+      ];
+    },
+    completeLastToolCall(success) {
+      const now = Date.now();
+      liveToolChain = liveToolChain.map((step, i) =>
+        i === liveToolChain.length - 1 && step.status === "running"
+          ? { ...step, status: success ? "done" : "refused", durationMs: now - step.startedAt }
+          : step,
+      );
+    },
+    get pendingApprovalToolCallId() {
+      return pendingApproval?.toolCallId ?? null;
+    },
+    setApproval: (approval) => (pendingApproval = approval),
+    forgetApproval: (resolvedId) =>
+      removePendingChatApproval(sessionId, undefined, resolvedId),
+    setUserInput: (input) =>
+      (pendingUserInput = input as typeof pendingUserInput),
+    forgetUserInput: (requestId) => removePendingUserInput(requestId),
+    setStreaming: (streaming) => (isStreaming = streaming),
+    setProcessing: (processing) => (isProcessing = processing),
+    setPendingError: (detail) => (pendingError = detail),
+    showErrorMessage(label) {
+      messages = [
+        ...(messages ?? []).filter((m) => m.id !== "exchange-error"),
+        makeErrorMessage(label),
+      ];
+    },
+    translate: (key, values) => $t(key, values ? { values } : undefined),
+    toast: (label) => addToast(label, "error"),
+    scrollToBottom: () => scroll.toBottom(),
+    finalizeStreaming: () => void finalizeStreaming(),
+    refreshSession: () => void refreshSession(),
+  };
+
   onMount(async () => {
     await loadSession();
     restoreGlobalState();
-    void loadAvailableProjects();
+    void actions.loadProjects();
 
     subscriptions.keep(await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -275,235 +298,31 @@
         tokenBuffer += event.payload.token;
         isStreaming = true;
         isProcessing = false;
-        scrollToBottom();
+        scroll.toBottom();
       },
     ));
 
-    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
-      "runtime-event",
-      (event) => {
-        if (event.payload.category !== "a2a") return;
-        const evt = event.payload;
-        if (evt.event_type === "A2AInvocationStarted") {
-          const p = evt.payload as { caller?: string; target?: string; skill_id?: string };
-          if (p.caller === "chat-libre") {
-            activeA2A = { target: p.target ?? "", skill_id: p.skill_id ?? "" };
-            a2aSteps = [];
-            a2aGuardMessage = null;
-            a2aStartTime = Date.now();
-            a2aElapsed = 0;
-            scrollToBottom();
-          }
-        } else if (evt.event_type === "A2AInvocationCompleted") {
-          const p = evt.payload as { status?: string; duration_ms?: number };
-          // Brief delay to show final status before clearing
-          const finalStatus = p.status ?? "completed";
-          const finalDuration = p.duration_ms;
-          if (finalStatus === "failed" && activeA2A) {
-            a2aGuardMessage = $t("chat.a2a.delegation_failed", {
-              values: {
-                duration: finalDuration
-                  ? `${finalDuration}ms`
-                  : $t("chat.a2a.unknown_duration"),
-              },
-            });
-          }
-          setTimeout(() => {
-            activeA2A = null;
-            a2aSteps = [];
-            a2aGuardMessage = null;
-            a2aStartTime = null;
-            a2aElapsed = 0;
-          }, finalStatus === "failed" ? 2000 : 300);
-        } else if (evt.event_type === "A2AGuardTriggered") {
-          const p = evt.payload as { detail?: string; guard_type?: string };
-          a2aGuardMessage =
-            p.detail ??
-            $t("chat.a2a.guard_triggered", { values: { type: p.guard_type ?? "" } });
-          scrollToBottom();
-        }
-      },
-    ));
+    subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
+      a2a.onLifecycleEvent(event.payload, () => scroll.toBottom());
+    }));
 
-    // Listen for sub-agent step events during A2A delegation.
-    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
-      "runtime-event",
-      (event) => {
-        if (event.payload.category !== "task-changed") return;
-        if (!activeA2A) return;
-        const evt = event.payload;
+    // Sub-agent step events, which only mean something while a delegation runs.
+    subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
+      a2a.onStepEvent(event.payload, () => scroll.toBottom());
+    }));
 
-        if (evt.event_type === "StepStarted") {
-          const p = evt.payload as { step_id?: string; step_num?: number; total?: number; desc?: string };
-          a2aSteps = [
-            ...a2aSteps,
-            {
-              step_id: p.step_id ?? `s${a2aSteps.length}`,
-              step_num: p.step_num ?? a2aSteps.length + 1,
-              total: p.total ?? 0,
-              desc: p.desc ?? "",
-              status: "running",
-            },
-          ];
-          scrollToBottom();
-        } else if (evt.event_type === "StepCompleted") {
-          const p = evt.payload as { step_id?: string; duration_ms?: number };
-          a2aSteps = a2aSteps.map((s) =>
-            s.step_id === p.step_id ? { ...s, status: "done" as const, durationMs: p.duration_ms } : s,
-          );
-        } else if (evt.event_type === "StepFailed") {
-          const p = evt.payload as { step_id?: string; error?: string };
-          a2aSteps = a2aSteps.map((s) =>
-            s.step_id === p.step_id ? { ...s, status: "failed" as const } : s,
-          );
-        }
-      },
-    ));
-
-    subscriptions.keep(await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
-      "runtime-event",
-      (event) => {
-        if (event.payload.category !== "chat-changed") return;
-        const evt = event.payload;
-
-        if (evt.event_type === "ChatToolCallStarted") {
-          const p = evt.payload as { session_id?: string; tool_name?: string };
-          if (p.session_id === sessionId) {
-            // Snapshot how many reasoning fragments have closed so the live
-            // timeline can place this tool after them, preserving arrival order.
-            const reasoningCursor = parseStream(tokenBuffer).filter(
-              (b) => b.type === "thinking" && b.closed,
-            ).length;
-            liveToolChain = [
-              ...liveToolChain,
-              { name: p.tool_name ?? "?", status: "running", startedAt: Date.now(), reasoningCursor },
-            ];
-            pendingApproval = null;
-            scrollToBottom();
-          }
-          return;
-        }
-        if (evt.event_type === "ChatToolCallCompleted") {
-          const p = evt.payload as { session_id?: string; success?: boolean };
-          if (p.session_id === sessionId) {
-            const now = Date.now();
-            liveToolChain = liveToolChain.map((step, i) =>
-              i === liveToolChain.length - 1 && step.status === "running"
-                ? { ...step, status: p.success === false ? "refused" : "done", durationMs: now - step.startedAt }
-                : step,
-            );
-          }
-          return;
-        }
-        if (evt.event_type === "ChatApprovalRequired") {
-          // Payload is externally-tagged serde: { ChatApprovalRequired: { session_id, ... } }
-          const inner = (evt.payload as Record<string, unknown>)?.ChatApprovalRequired as
-            { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string } | undefined;
-          const p = inner ?? evt.payload as { session_id?: string; message_id?: string; tool_call_id?: string; tool_name?: string; prompt?: string };
-          if (!p.session_id || p.session_id === sessionId) {
-            // Keep isStreaming: the approval pauses the turn but the streamed
-            // reasoning/answer so far must stay on screen (it is the context the
-            // user judges the approval on), not be torn down under the card.
-            pendingApproval = {
-              sessionId: sessionId,
-              messageId: p.message_id ?? "",
-              toolCallId: p.tool_call_id ?? p.tool_name ?? "",
-              toolName: p.tool_name ?? "",
-              inputPreview: p.prompt ?? "",
-            };
-            scrollToBottom();
-          }
-          return;
-        }
-        if (evt.event_type === "ChatApprovalResolved" || evt.event_type === "ChatApprovalTimeout") {
-          const inner = (evt.payload as Record<string, unknown>)?.[evt.event_type] as
-            { tool_call_id?: string } | undefined;
-          const resolvedId = inner?.tool_call_id ?? (evt.payload as { tool_call_id?: string }).tool_call_id;
-          // Only clear the visible card when the resolution matches it. A stale
-          // resolve for a previous call (arriving after the next card is shown)
-          // must not grey out or dismiss the live approval.
-          if (!resolvedId || !pendingApproval || pendingApproval.toolCallId === resolvedId) {
-            pendingApproval = null;
-          }
-          removePendingChatApproval(sessionId, undefined, resolvedId);
-          return;
-        }
-        if (evt.event_type === "ChatUserInputRequired") {
-          const inner = (evt.payload as Record<string, unknown>)?.ChatUserInputRequired as
-            { request_id?: string; session_id?: string; questions_json?: string; context?: string } | undefined;
-          const p = inner ?? evt.payload as { request_id?: string; session_id?: string; questions_json?: string; context?: string };
-          if (!p.session_id || p.session_id === sessionId || p.session_id === "") {
-            // Keep isStreaming so the streamed reasoning stays visible above the
-            // ask_user card (the turn is paused, not finished).
-            try {
-              const questions = JSON.parse(p.questions_json ?? "[]");
-              pendingUserInput = {
-                requestId: p.request_id ?? "",
-                questions,
-                context: p.context ?? null,
-              };
-            } catch {
-              console.warn("Failed to parse ask_user questions:", p.questions_json);
-            }
-            scrollToBottom();
-          }
-          return;
-        }
-        if (evt.event_type === "ChatUserInputResolved") {
-          const inner = (evt.payload as Record<string, unknown>)?.ChatUserInputResolved as
-            { request_id?: string } | undefined;
-          const p = inner ?? evt.payload as { request_id?: string };
-          pendingUserInput = null;
-          if (p.request_id) removePendingUserInput(String(p.request_id));
-          return;
-        }
-        if (evt.event_type === "ChatError") {
-          const inner = (evt.payload as Record<string, unknown>)?.ChatError as
-            { session_id?: string; error?: string } | undefined;
-          const p = inner ?? evt.payload as { session_id?: string; error?: string };
-          if (!p.session_id || p.session_id === sessionId || p.session_id === "") {
-            isStreaming = false;
-            isProcessing = false;
-            const detail = p.error?.trim() ? p.error : $t("chat.exchange_error_generic");
-            pendingError = detail;
-            const label = $t("chat.exchange_error", { values: { error: detail } });
-            addToast(label, "error");
-            messages = [
-              ...(messages ?? []).filter((m) => m.id !== "exchange-error"),
-              makeErrorMessage(label),
-            ];
-            scrollToBottom();
-          }
-          return;
-        }
-        if (evt.event_type === "ChatResponseCompleted") {
-          pendingApproval = null;
-          void finalizeStreaming();
-          return;
-        }
-        void refreshSession();
-      },
-    ));
+    subscriptions.keep(await listen<ChatChangedEvent>("runtime-event", (event) => {
+      handleChatChangedEvent(event.payload, chatChangedPort);
+    }));
   });
 
   // Track new messages that land while the user is scrolled up.
-  let lastSeenMessageCount = $state(0);
-  $effect(() => {
-    const count = messages.length;
-    if (userScrolledUp && count > lastSeenMessageCount) {
-      unreadWhileScrolled += count - lastSeenMessageCount;
-    }
-    lastSeenMessageCount = count;
-  });
+  $effect(() => scroll.noteMessageCount(messages.length));
 
   // Live A2A duration timer - updates every second while delegation is active.
   $effect(() => {
-    if (!a2aStartTime) return;
-    const interval = setInterval(() => {
-      if (a2aStartTime) {
-        a2aElapsed = Math.round((Date.now() - a2aStartTime) / 1000);
-      }
-    }, 1000);
+    if (!a2a.running) return;
+    const interval = setInterval(() => a2a.tick(), 1000);
     return () => clearInterval(interval);
   });
 
@@ -512,19 +331,11 @@
   $effect(() => {
     if (sessionId !== previousSessionId) {
       previousSessionId = sessionId;
-      unreadWhileScrolled = 0;
-      showScrollToBottom = false;
-      userScrolledUp = false;
-      previousScrollTop = 0;
-      lastSeenMessageCount = 0;
+      scroll.reset();
       isStreaming = false;
       isProcessing = false;
       tokenBuffer = "";
-      activeA2A = null;
-      a2aSteps = [];
-      a2aGuardMessage = null;
-      a2aStartTime = null;
-      a2aElapsed = 0;
+      a2a.reset();
       liveToolChain = [];
       pendingApproval = null;
       messages = [];
@@ -533,10 +344,7 @@
   });
 
   onDestroy(() => {
-    if (followFrame !== null) {
-      cancelAnimationFrame(followFrame);
-      followFrame = null;
-    }
+    scroll.dispose();
     subscriptions.dispose();
     currentSession.set(null);
     closeSessionBuffer(sessionId);
@@ -561,7 +369,7 @@
       loadError = err instanceof Error ? err.message : String(err);
     }
     finally {
-      if (ticket.current) { loading = false; await tick(); scrollToBottom(true); }
+      if (ticket.current) { loading = false; await tick(); scroll.toBottom(true); }
     }
   }
 
@@ -570,7 +378,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scrollToBottom();
+      applySessionDetail(detail); scroll.toBottom();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -583,7 +391,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scrollToBottom();
+      applySessionDetail(detail); scroll.toBottom();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -695,54 +503,6 @@
     }
   }
 
-  /** Pending follow frame, so several calls within one frame scroll once. */
-  let followFrame: number | null = null;
-  /** Offset at the previous scroll event, read to tell a follow from a user. */
-  let previousScrollTop = 0;
-
-  function scrollToBottom(force = false): void {
-    if (!force && userScrolledUp) return;
-    if (followFrame !== null) return;
-    followFrame = requestAnimationFrame(() => {
-      followFrame = null;
-      if (!messagesContainer) return;
-      // A smooth animation retargeted on every chunk never reaches the bottom,
-      // and its lag is indistinguishable from content the user has not read.
-      // Instant while the answer is still arriving, smooth for a settled thread.
-      const behavior: ScrollBehavior =
-        force || isStreaming || isProcessing ? "instant" : "smooth";
-      messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior });
-    });
-  }
-
-  /** Scroll observer. Pauses the follow when the user moves up, shows the
-   *  floating button once they are well above the bottom, and resets the unread
-   *  counter on catch-up. */
-  function handleScroll(): void {
-    if (!messagesContainer) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const next = computeScrollFollow({
-      scrollTop,
-      scrollHeight,
-      clientHeight,
-      previousScrollTop,
-      wasReleased: userScrolledUp,
-    });
-    previousScrollTop = scrollTop;
-    userScrolledUp = next.userScrolledUp;
-    showScrollToBottom = next.showScrollToBottom;
-    if (!userScrolledUp) {
-      unreadWhileScrolled = 0;
-    }
-  }
-
-  function jumpToLatest(): void {
-    userScrolledUp = false;
-    unreadWhileScrolled = 0;
-    showScrollToBottom = false;
-    scrollToBottom(true);
-  }
-
   async function handleSend(content: string, attachments: PendingAttachment[] = []): Promise<void> {
     // Auto-name fallback: covers conversations created without an initial
     // prompt (QuickPicker handles the common case before mount). Idempotent
@@ -768,7 +528,7 @@
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scrollToBottom(true);
+    await tick(); scroll.toBottom(true);
 
     try {
       await sendChatMessage(sessionId, payload);
@@ -780,7 +540,7 @@
         tool_calls: null, tool_name: null,
         seq: (messages ?? []).length, created_at: new Date().toISOString(),
       };
-      messages = [...(messages ?? []), errMsg]; scrollToBottom();
+      messages = [...(messages ?? []), errMsg]; scroll.toBottom();
     }
   }
 
@@ -801,7 +561,7 @@
     pendingError = null;
     messages = msgs.slice(0, userIdx + 1);
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scrollToBottom(true);
+    await tick(); scroll.toBottom(true);
     try {
       await regenerateChatResponse(sessionId, messageId);
     } catch (err: unknown) {
@@ -828,7 +588,7 @@
     };
     messages = [...kept, tempMsg];
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scrollToBottom(true);
+    await tick(); scroll.toBottom(true);
     try {
       await editAndResendChatMessage(sessionId, messageId, newContent);
     } catch (err: unknown) {
@@ -848,151 +608,10 @@
     return null;
   });
 
-  // Bumped by `/rename` to ask the header to open its inline title editor.
-  // The browser prompt() is unavailable in the Tauri webview, so /rename used to
-  // silently no-op; the inline editor is the canonical rename path.
-  let renameTrigger = $state(0);
-
-  async function handleSlashCommand(cmdId: "export" | "rename"): Promise<void> {
-    switch (cmdId) {
-      case "rename":
-        renameTrigger++;
-        return;
-      case "export":
-        await exportCurrentSession("markdown-with-tools");
-        return;
-    }
-  }
-
-  async function exportCurrentSession(format: ExportFormat): Promise<void> {
-    try {
-      const detail = await getChatSession(sessionId);
-      const { content, filename, mime } = exportConversation(detail, format);
-      const dest = await saveDialog({
-        defaultPath: filename,
-        filters: [{
-          name: format === "json" ? "JSON" : "Markdown",
-          extensions: [format === "json" ? "json" : "md"],
-        }],
-      });
-      if (!dest) return;
-      await ipcExportConversation(dest, content, mime);
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
   function handleDeleteSession(): void {
     if (!ondelete) return;
     ondelete(sessionId);
   }
-
-  async function handleRename(title: string): Promise<void> {
-    try {
-      await renameChatSession(sessionId, title);
-      void refreshSession();
-    } catch (err) {
-      console.warn("rename_chat_session failed", err);
-    }
-  }
-
-  // ─── Project linking ─────────────────────────────────────────────────────
-
-  let availableProjects = $state<ProjectSummary[]>([]);
-
-  const linkedProject = $derived<ProjectSummary | null>(
-    (() => {
-      const pid = sessionDetail?.project_id ?? null;
-      if (!pid) return null;
-      return availableProjects.find((p) => p.id === pid) ?? null;
-    })(),
-  );
-
-  async function loadAvailableProjects(): Promise<void> {
-    try {
-      availableProjects = await listProjects();
-    } catch (err) {
-      console.warn("list_projects failed", err);
-    }
-  }
-
-  async function handleLinkProject(projectId: string | null): Promise<void> {
-    try {
-      await linkChatToProject(sessionId, projectId);
-      await refreshSession();
-      // Refresh the global chat-sessions store so the sidebar chip updates
-      // immediately (link_chat_to_project does not emit a runtime event).
-      try {
-        const updated = await listChatSessions();
-        const { chatSessions } = await import("$lib/stores/sse");
-        chatSessions.set(updated);
-      } catch { /* non-blocking */ }
-      if (projectId) {
-        const project = availableProjects.find((p) => p.id === projectId);
-        addToast(
-          $t("chat.project_linked_toast", {
-            values: { name: project?.name ?? "" },
-          }),
-          "success",
-        );
-      } else {
-        addToast($t("chat.project_unlinked_toast"), "success");
-      }
-    } catch (err) {
-      addToast(
-        `${$t("chat.project_link_failed")} - ${err instanceof Error ? err.message : String(err)}`,
-        "error",
-      );
-    }
-  }
-
-  function handleProjectChipOpen(_projectId: string): void {
-    import("$lib/stores/navigation").then((m) => m.navigateTo("projects"));
-  }
-
-  async function exportCorruptedSessionRaw(): Promise<void> {
-    // The UX contract is "give me something to send to support". We dump
-    // whatever the backend was able to surface - even if only the load
-    // error - into a JSON envelope so the user can forward it. The session
-    // detail is the only stored form the backend exposes; when the load that
-    // set `loadError` fails again here, the envelope carries the error alone.
-    let raw: unknown = null;
-    try {
-      raw = await getChatSession(sessionId);
-    } catch {
-      raw = null;
-    }
-    const envelope = {
-      session_id: sessionId,
-      captured_at: new Date().toISOString(),
-      load_error: loadError,
-      raw,
-    };
-    try {
-      // Browser-native download - works inside the Tauri webview without
-      // pulling an extra plugin dependency. The user picks the destination
-      // via the OS "Save as" dialog emitted by the anchor click.
-      const blob = new Blob([JSON.stringify(envelope, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `apollia-session-${sessionId.slice(0, 8)}-raw.json`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.warn("export corrupted session failed", err);
-    }
-  }
-
-  function deleteCorruptedSession(): void {
-    if (ondelete) ondelete(sessionId);
-    else onclose();
-  }
-
 
   /**
    * Restore streaming & approval state from global stores when the component
@@ -1000,76 +619,26 @@
    * backend continued streaming while the user was on a different page.
    */
   function restoreGlobalState(): void {
-    // Restore accumulated tokens from global buffer
-    const buffers = $globalTokenBuffers;
-    const bufferedText = buffers[sessionId];
-    if (bufferedText) {
-      tokenBuffer = bufferedText;
-      isStreaming = true;
-      isProcessing = false;
-      scrollToBottom();
-    }
-
-    // Restore pending approval from global store
-    const approval = getPendingChatApprovalForSession(sessionId);
-    if (approval) {
-      pendingApproval = {
-        sessionId: approval.sessionId,
-        messageId: approval.messageId,
-        toolCallId: approval.toolCallId,
-        toolName: approval.toolName,
-        inputPreview: approval.inputPreview,
-      };
-      isStreaming = false;
-      scrollToBottom();
-    }
-
-    // Restore pending ask_user request from global store
-    const userInput = getPendingUserInputForSession(sessionId);
-    if (userInput && !pendingUserInput) {
-      try {
-        const questions = JSON.parse(userInput.questions_json);
-        pendingUserInput = {
-          requestId: userInput.request_id,
-          questions,
-          context: userInput.context,
-        };
-        isStreaming = false;
-        scrollToBottom();
-      } catch {
-        // Malformed questions_json - ignore, will be re-emitted by backend
-      }
-    }
-
-    // If session is still processing but we have no tokens yet, show processing state
-    if (sessionStatus === "processing" && !bufferedText && !approval && !userInput) {
-      isProcessing = true;
-    }
+    const patch = restoreConversationState({
+      sessionId,
+      buffers: $globalTokenBuffers,
+      sessionStatus,
+      approval: getPendingChatApprovalForSession(sessionId),
+      userInput: getPendingUserInputForSession(sessionId),
+      hasUserInput: pendingUserInput !== null,
+    });
+    if (patch.tokenBuffer !== undefined) tokenBuffer = patch.tokenBuffer;
+    if (patch.isStreaming !== undefined) isStreaming = patch.isStreaming;
+    if (patch.isProcessing !== undefined) isProcessing = patch.isProcessing;
+    if (patch.approval) pendingApproval = patch.approval;
+    if (patch.userInput) pendingUserInput = patch.userInput;
+    if (patch.scroll) scroll.toBottom();
   }
 
   // ── Next Steps ─────────────────────────────────────────
   // Rendered only when the session is closed - acts as a debrief panel.
   const sessionEndScope = $derived(sessionScope(sessionId));
-  const nextStepsFacts = $derived<NextStepsFacts>({
-    recentMessages: messages
-      .slice(-8)
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => `${m.role}: ${m.content.slice(0, 240)}`),
-    toolsUsed: Array.from(
-      new Set(
-        messages
-          .flatMap((m) => m.tool_calls ?? [])
-          .map((tc) => tc.tool_name),
-      ),
-    ).slice(0, 12),
-    memoriesCreated: 0,
-    memoriesRecalled: $memoryEntryCount ?? 0,
-    inboxPending: 0,
-    tasksFailed: 0,
-    tasksCompleted: 0,
-    automationsFailing: 0,
-    signals: [],
-  });
+  const nextStepsFacts = $derived(sessionEndFacts(messages, $memoryEntryCount ?? 0));
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
@@ -1083,17 +652,17 @@
       {sessionStatus}
       {hideConfig}
       {collapseActions}
-      {renameTrigger}
+      renameTrigger={actions.renameTrigger}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
       {oncontextopen}
-      onrename={handleRename}
+      onrename={(title) => void actions.rename(title)}
       ondelete={handleDeleteSession}
-      {linkedProject}
-      {availableProjects}
-      onlink={(projectId) => void handleLinkProject(projectId)}
-      onprojectopen={handleProjectChipOpen}
+      linkedProject={actions.linkedProject}
+      availableProjects={actions.availableProjects}
+      onlink={(projectId) => void actions.link(projectId)}
+      onprojectopen={() => actions.openProjects()}
       {planMode}
       onplanmodechange={(enabled) => {
         planMode = enabled;
@@ -1134,48 +703,11 @@
       onnewChat={() => (onnewChat ? onnewChat() : onclose())}
     />
   {:else if loadErrorKind === "corrupted"}
-    <div
-      class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center"
-      role="alert"
-      aria-live="assertive"
-      data-testid="session-corrupted"
-    >
-      <div
-        class="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/15 text-destructive"
-        aria-hidden="true"
-      >
-        <AlertOctagon size={22} />
-      </div>
-      <div class="max-w-md">
-        <p class="text-sm font-medium text-destructive">
-          {$t("chat.session_corrupted.title")}
-        </p>
-        <p class="mt-1 text-xs text-muted-foreground">
-          {$t("chat.session_corrupted.description")}
-        </p>
-        <p class="mt-2 font-mono text-micro text-muted-foreground/60">
-          {loadError}
-        </p>
-      </div>
-      <div class="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={exportCorruptedSessionRaw}
-          data-testid="session-corrupted-export"
-        >
-          {$t("chat.session_corrupted.export_raw")}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onclick={deleteCorruptedSession}
-          data-testid="session-corrupted-delete"
-        >
-          {$t("chat.session_corrupted.delete")}
-        </Button>
-      </div>
-    </div>
+    <CorruptedSessionPanel
+      {sessionId}
+      {loadError}
+      ondelete={() => (ondelete ? ondelete(sessionId) : onclose())}
+    />
   {:else if loadErrorKind === "other"}
     <div
       class="flex flex-1 items-center justify-center px-6"
@@ -1185,197 +717,26 @@
       <p class="text-xs text-destructive">{loadError}</p>
     </div>
   {:else}
-    <div class="relative flex-1 min-h-0">
-    <div
-      bind:this={messagesContainer}
-      onscroll={handleScroll}
-      class="h-full overflow-y-auto px-4 py-5 space-y-5 [&>*]:mx-auto [&>*]:w-full {$contextDrawerOpen
-        ? '[&>*]:max-w-[680px]'
-        : '[&>*]:max-w-[860px]'}"
-      data-testid="chat-messages-list"
-    >
-      {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
-        <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
-          <MessageSquare size={28} />
-          <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
-        </div>
-      {:else}
-        <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
-             - no longer rendered inline in the message list. -->
-
-        {#each messageGroups as group (group.key)}
-          {@const firstMsg = group.messages[0]}
-          {@const isSingleCrossSession =
-            group.messages.length === 1 &&
-            firstMsg.role === "assistant" &&
-            Boolean(firstMsg.metadata?.cross_session)}
-          <div class="relative" data-message-id={group.key} tabindex="-1">
-            <MessageGroup
-              {group}
-              {sessionId}
-              agentName={sessionAgentName}
-              busy={isProcessing || isStreaming}
-              onregenerate={handleRegenerate}
-              onedit={handleEdit}
-            />
-            {#if $uiMode === "builder" && hasCrossSessionRefs && isSingleCrossSession}
-              <div
-                class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-secondary/20 px-2 py-0.5"
-                data-testid="cross-session-badge"
-              >
-                <Link size={9} class="text-secondary" />
-                <span class="text-micro-xs font-medium text-secondary">{$t("chat.past_session")}</span>
-              </div>
-            {/if}
-          </div>
-        {/each}
-
-        {#if isStreaming || liveToolChain.length > 0}
-          <!-- Streaming turn is isolated in its own component so only this
-               subtree re-renders per token. It renders the append-only live
-               timeline (reasoning captions + tool rows in arrival order) plus
-               the streaming answer, so nothing is torn down when a tool call or
-               approval card appears. Rendered while streaming OR while any tool
-               row is live (a tool can precede the first token). -->
-          <StreamingMessage
-            text={tokenBuffer}
-            {sessionMode}
-            agentName={sessionAgentName}
-            toolChain={liveToolChain}
-            skin={liveSkin}
-          />
-        {/if}
-
-        {#if activeA2A}
-          <div class="flex justify-start" data-testid="chat-a2a-delegating">
-            <div class="w-full overflow-hidden rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-secondary px-2.5 py-2">
-              <div class="flex items-center gap-1.5">
-                <Zap size={11} class="animate-pulse text-secondary" />
-                <span class="text-caption font-medium text-secondary/80">
-                  {$t("chat.a2a_delegating", { values: { agent: activeA2A.target, skill: activeA2A.skill_id } })}
-                </span>
-                {#if a2aElapsed > 0}
-                  <span class="ml-auto flex-shrink-0 text-micro text-muted-foreground/40">{a2aElapsed}s</span>
-                {/if}
-              </div>
-
-              {#if a2aSteps.length > 0}
-                <div class="mt-1.5 space-y-0.5">
-                  {#each a2aSteps as step (step.step_id)}
-                    <div class="flex items-center gap-1.5">
-                      <div class="flex-shrink-0">
-                        {#if step.status === "running"}
-                          <Spinner size={9} class="text-secondary/60" />
-                        {:else if step.status === "done"}
-                          <Check size={9} class="text-success/70" />
-                        {:else}
-                          <X size={9} class="text-destructive/70" />
-                        {/if}
-                      </div>
-                      <span class="truncate text-caption text-muted-foreground"
-                        >{step.desc ||
-                          $t("chat.a2a.step", { values: { n: step.step_num } })}</span
-                      >
-                      {#if step.total > 0}
-                        <span class="flex-shrink-0 text-micro text-muted-foreground/40">{step.step_num}/{step.total}</span>
-                      {/if}
-                      {#if step.durationMs !== undefined}
-                        <span class="ml-auto flex-shrink-0 text-micro text-muted-foreground/40">{step.durationMs}ms</span>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-
-              {#if a2aGuardMessage}
-                <div class="mt-1.5 rounded bg-destructive/10 px-2 py-1 text-micro text-destructive/80">
-                  {a2aGuardMessage}
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        {#if pendingApproval}
-          <div class="flex flex-col items-start gap-1" data-testid="chat-approval-inline">
-            <div class="w-full">
-              <!-- Key on the approval identity so back-to-back HITL prompts each
-                   mount a fresh card, never inheriting the previous card's busy
-                   (greyed) state. -->
-              {#key pendingApproval.toolCallId}
-                <ApprovalCard
-                  sessionId={pendingApproval.sessionId}
-                  messageId={pendingApproval.messageId}
-                  toolCallId={pendingApproval.toolCallId}
-                  toolName={pendingApproval.toolName}
-                  inputPreview={pendingApproval.inputPreview}
-                />
-              {/key}
-            </div>
-            <Button variant="ghost" size="sm"
-              type="button"
-              class="text-caption text-primary hover:underline"
-              onclick={() => {
-                const pa = pendingApproval;
-                if (!pa) return;
-                const id = `chat:${pa.sessionId}:${pa.messageId}:${pa.toolCallId}`;
-                if (typeof window !== "undefined") {
-                  history.replaceState(null, "", `#inbox?item=${encodeURIComponent(id)}`);
-                }
-                // Lazy import keeps the chat bundle clean.
-                import("$lib/stores/navigation").then((m) => m.navigateTo("inbox"));
-              }}
-              data-testid="chat-approval-open-inbox"
-            >
-              {$t("inbox.open_in_inbox")} →
-            </Button>
-          </div>
-        {/if}
-
-        {#if pendingUserInput}
-          <div class="flex justify-start" data-testid="chat-ask-user-inline">
-            <div class="w-full">
-              <AskUserCard
-                requestId={pendingUserInput.requestId}
-                questions={pendingUserInput.questions}
-                context={pendingUserInput.context}
-              />
-            </div>
-          </div>
-        {/if}
-
-        <!-- Plan gate flows below the assistant message in normal document
-             flow (inside the scroll), so the "Proposed plan" card sits under
-             the streamed turn instead of overlapping it. -->
-        {#if sessionId && sessionStatus !== "closed"}
-          <ChatPlanHost {sessionId} />
-        {/if}
-
-        {#if isProcessing && sessionMode === "agent"}
-          <div class="flex justify-start" data-testid="chat-agent-loading">
-            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground">
-              <Spinner size={11} />
-              <span>{$t("chat.agent_processing")}</span>
-            </div>
-          </div>
-        {/if}
-
-        {#if isProcessing && sessionMode === "libre"}
-          <div class="flex justify-start">
-            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground">
-              <Spinner size={11} />
-              <span>{$t("chat.thinking")}</span>
-            </div>
-          </div>
-        {/if}
-      {/if}
-    </div>
-    <ScrollToBottomButton
-      visible={showScrollToBottom}
-      unreadCount={unreadWhileScrolled}
-      onclick={jumpToLatest}
+    <ChatMessageScroller
+      {sessionId}
+      {sessionMode}
+      {sessionAgentName}
+      {sessionStatus}
+      {messageGroups}
+      empty={(messages ?? []).length === 0}
+      {isStreaming}
+      {isProcessing}
+      {tokenBuffer}
+      {liveToolChain}
+      {liveSkin}
+      {hasCrossSessionRefs}
+      {a2a}
+      {scroll}
+      {pendingApproval}
+      {pendingUserInput}
+      onregenerate={handleRegenerate}
+      onedit={handleEdit}
     />
-    </div>
   {/if}
 
   {#if sessionStatus === "closed" && !loading && loadErrorKind === "none"}
@@ -1397,7 +758,7 @@
       onstop={handleStop}
       onsend={handleSend}
       lastUserMessage={lastUserMessageText}
-      oncommand={handleSlashCommand}
+      oncommand={(cmdId) => void actions.runSlashCommand(cmdId)}
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
