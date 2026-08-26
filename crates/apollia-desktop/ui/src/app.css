@@ -168,12 +168,27 @@
     --ease-accel: cubic-bezier(0.4, 0, 1, 1);
     --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    /* ── Z-index stack ── */
-    /* Page-level chrome sits under the app-wide backdrop: a drawer scrim
-       dims one pane, not the window. The three values below are what the
-       routes already wrote as `z-30` and `z-40`; naming them changed no
-       number. Two names share rung 30 because two things live there, the
-       same arrangement `--z-backdrop` and `--z-toast` already have at 40. */
+    /* ── Project swatches ──
+       The colours the project picker offers, next to the two brand tokens.
+       A palette of choices rather than a role: nothing in the interface is
+       "swatch coloured", the user picks one for a project. They are held here
+       so no component writes a hex by hand. */
+    --swatch-green: 160 84% 39%;
+    --swatch-amber: 38 92% 50%;
+    --swatch-red: 0 84% 60%;
+    --swatch-sky: 199 89% 48%;
+    --swatch-pink: 330 81% 60%;
+    --swatch-slate: 215 16% 47%;
+
+    /* ── Z-index stack ──
+       Page-level chrome sits under the app-wide backdrop: a drawer scrim
+       dims one pane, not the window. The values below are what the routes,
+       the sidebar and the topbar already wrote as `z-30` and `z-40`; naming
+       them changed no number. Two names share rung 30 because two things
+       live there, the same arrangement `--z-backdrop` and `--z-toast`
+       already have at 40. `tailwind.config.ts` maps the whole stack onto
+       `z-*` classes so a stacking decision reads as a layer rather than as a
+       number. */
     --z-sticky: 30;
     --z-drawer-backdrop: 30;
     --z-drawer: 40;
@@ -181,6 +196,40 @@
     --z-toast: 40;
     --z-overlay: 50;
     --z-tooltip: 70;
+
+    /* ── Type scale ──
+       One declaration per tier, and the single source of the sizes: the
+       `fontSize` table of tailwind.config.ts reads these, and holds the
+       line-height, letter-spacing and weight that go with each tier. A style
+       block cannot write a Tailwind class, so a component that sizes text in
+       CSS reads the tier from here rather than repeating its rem value.
+       The five chrome tiers (`caption-lg` and the `micro-*`) carry a size and
+       nothing else: they name the sizes between 9 and 11.5 px the reading
+       scale had no palier for,
+       and every site that uses one already carries its own weight, tracking
+       and leading. `overline` keeps 10.5 px as a role (uppercase eyebrow,
+       600, wide tracking); `micro-lg` is the same size without the role. */
+    --text-display-xl: clamp(3rem, 2rem + 3.2vw, 4.5rem);
+    --text-display-lg: clamp(2.25rem, 1.5rem + 2.2vw, 3.25rem);
+    --text-display-md: clamp(1.75rem, 1.25rem + 1.4vw, 2.25rem);
+    --text-display-sm: 1.5rem;
+    --text-heading-lg: 1.25rem;
+    --text-heading-md: 1.125rem;
+    --text-heading-sm: 1rem;
+    --text-body-lg: 1rem;
+    --text-body-md: 0.875rem;
+    --text-body-sm: 0.8125rem;
+    --text-body-xs: 0.75rem;
+    --text-label-md: 0.8125rem;
+    --text-label-sm: 0.75rem;
+    --text-code-sm: 0.78125rem;
+    --text-caption-lg: 0.71875rem;
+    --text-caption: 0.6875rem;
+    --text-overline: 0.65625rem;
+    --text-micro-lg: 0.65625rem;
+    --text-micro: 0.625rem;
+    --text-micro-sm: 0.59375rem;
+    --text-micro-xs: 0.5625rem;
 
     /* ── Hover ── */
     --hover-surface-lift: -2px;

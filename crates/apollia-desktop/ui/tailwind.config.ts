@@ -31,19 +31,19 @@ const config: Config = {
       // xs (375 px) and xl (1280 px) breakpoints without extra media queries.
       fontSize: {
         "display-xl": [
-          "clamp(3rem, 2rem + 3.2vw, 4.5rem)",
+          "var(--text-display-xl)",
           { lineHeight: "1.05", letterSpacing: "-0.03em", fontWeight: "700" },
         ],
         "display-lg": [
-          "clamp(2.25rem, 1.5rem + 2.2vw, 3.25rem)",
+          "var(--text-display-lg)",
           { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "700" },
         ],
         "display-md": [
-          "clamp(1.75rem, 1.25rem + 1.4vw, 2.25rem)",
+          "var(--text-display-md)",
           { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "600" },
         ],
         "display-sm": [
-          "1.5rem",
+          "var(--text-display-sm)",
           { lineHeight: "1.2", letterSpacing: "-0.015em", fontWeight: "600" },
         ],
 
@@ -53,105 +53,110 @@ const config: Config = {
         // product chrome stays predictable. Tuple form matches the display
         // tiers: [size, { lineHeight, letterSpacing, fontWeight? }].
         //
-        // Chat-surface px map (the `.tb-*` / `.chat-*` literals in app.css
-        // already use these sizes; keep 1:1 so a future per-surface
-        // migration stays pixel-identical):
-        //   10px    → (no dedicated tier; nearest `overline` 10.5, chat
-        //             keeps its literal until migration: .tb-card-top)
-        //   10.5px  → overline   (.tb-iolabel, .tb-pill)
+        // Every size comes from a `--text-*` token of src/app.css, which is
+        // the single place a size is written: a component that sizes text
+        // inside a style block reads the same token, and cannot drift from
+        // the class it replaces.
+        //
+        // The px map of the scale:
+        //    9px    → micro-xs
+        //    9.5px  → micro-sm
+        //   10px    → micro     (.tb-card-top)
+        //   10.5px  → overline as a role, micro-lg as a plain size
+        //             (.tb-iolabel, .tb-pill)
         //   11px    → caption    (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
+        //   11.5px  → caption-lg
         //   12px    → body-xs / label-sm (.tb-chip, .tb-code, .tb-term, .tb-preview)
         //   12.5px  → code-sm    (.tb-frow, .tb-step, .chat-ft-head, .tb-card-body, .tb-extract)
         //   13px    → body-sm / label-md (.tb-extract-title)
         //   14px    → body-md    (chat body copy)
-        //   16.5px  → (no dedicated tier; nearest `body-lg` 16, chat keeps
-        //             its literal until migration: .chat-answer)
+        //   16px    → body-lg / heading-sm (.chat-answer rounds up to it)
+        //
+        // The five chrome tiers carry a size and nothing else. They were
+        // added for the sizes a measure of the tree found at least five times
+        // with no palier (10px at 159 sites, 11.5 at 29, 9 at 22, 9.5 at 8),
+        // and 10.5px as the plain size behind the `overline` role. A tuple
+        // would have fought the `tracking-*`, `font-*` and `leading-*`
+        // utilities those chrome sites already carry, since two utilities
+        // writing the same property are resolved by stylesheet order rather
+        // than by the order they appear in a class list.
         "heading-lg": [
-          "1.25rem",
+          "var(--text-heading-lg)",
           { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "600" },
         ],
         "heading-md": [
-          "1.125rem",
+          "var(--text-heading-md)",
           { lineHeight: "1.35", letterSpacing: "-0.01em", fontWeight: "600" },
         ],
         "heading-sm": [
-          "1rem",
+          "var(--text-heading-sm)",
           { lineHeight: "1.4", letterSpacing: "-0.006em", fontWeight: "600" },
         ],
         "body-lg": [
-          "1rem",
+          "var(--text-body-lg)",
           { lineHeight: "1.6", letterSpacing: "-0.003em" },
         ],
         "body-md": [
-          "0.875rem",
+          "var(--text-body-md)",
           { lineHeight: "1.55", letterSpacing: "0em" },
         ],
         "body-sm": [
-          "0.8125rem",
+          "var(--text-body-sm)",
           { lineHeight: "1.5", letterSpacing: "0em" },
         ],
         "body-xs": [
-          "0.75rem",
+          "var(--text-body-xs)",
           { lineHeight: "1.5", letterSpacing: "0em" },
         ],
         "label-md": [
-          "0.8125rem",
+          "var(--text-label-md)",
           { lineHeight: "1.2", letterSpacing: "0em", fontWeight: "500" },
         ],
         "label-sm": [
-          "0.75rem",
+          "var(--text-label-sm)",
           { lineHeight: "1.2", letterSpacing: "0.005em", fontWeight: "500" },
         ],
         caption: [
-          "0.6875rem",
+          "var(--text-caption)",
           { lineHeight: "1.45", letterSpacing: "0.005em" },
         ],
         overline: [
-          "0.65625rem",
+          "var(--text-overline)",
           { lineHeight: "1.4", letterSpacing: "0.08em", fontWeight: "600" },
         ],
         "code-sm": [
-          "0.78125rem",
+          "var(--text-code-sm)",
           { lineHeight: "1.5", letterSpacing: "-0.01em" },
         ],
-
-        // ── Chrome sizes ───────────────────────────────────────────────
-        // The sizes the product chrome actually writes and the reading
-        // scale had no rung for. Each one below is present at least five
-        // times in `src/`, which is the bar for a rung; the sizes under
-        // that bar (9.6, 13.5, 14.5, 15, 16.5, 28 px) round to the nearest
-        // rung instead of getting one of their own.
+        // Counted in the tree when the five chrome rungs were added: micro
+        // 159 sites, micro-lg 41, caption-lg 29, micro-xs 22, micro-sm 8.
+        // The sizes under the five-site bar (9.6, 13.5, 14.5, 15, 16.5,
+        // 28 px) round to the nearest rung instead of getting one of their
+        // own.
         //
-        //   caption-lg  0.71875rem  11.5px   29 sites
-        //   micro-lg    0.65625rem  10.5px   41 sites
-        //   micro       0.625rem    10px    159 sites
-        //   micro-sm    0.59375rem   9.5px    8 sites
-        //   micro-xs    0.5625rem    9px     22 sites
-        //
-        // These are bare strings, not tuples, and that is deliberate. A
+        // These five are bare sizes, not tuples, and that is deliberate. A
         // tuple emits `line-height` alongside `font-size`, so replacing
-        // `text-[10px]` with a tuple rung would move ~160 call sites by a
-        // fraction of a line box for a line-height nobody chose. At these
+        // `text-[10px]` with a tuple rung would move some 160 call sites by
+        // a fraction of a line box for a line-height nobody chose. At these
         // sizes the line box belongs to the surface, which sets it with
         // `leading-*`. The rungs above keep their tuples: their
-        // line-heights are designed values.
-        //
-        // `micro-lg` and `overline` share a size and differ in style:
-        // `overline` carries eyebrow tracking and weight, `micro-lg` is the
-        // plain 10.5px. Same arrangement as `body-sm` and `label-md`, which
-        // have shared 13px since the scale was written.
-        "caption-lg": "0.71875rem",
-        "micro-lg": "0.65625rem",
-        micro: "0.625rem",
-        "micro-sm": "0.59375rem",
-        "micro-xs": "0.5625rem",
+        // line-heights are designed values. `micro-lg` and `overline` share
+        // a size and differ in style, the same arrangement `body-sm` and
+        // `label-md` have had since the scale was written.
+        "caption-lg": "var(--text-caption-lg)",
+        "micro-lg": "var(--text-micro-lg)",
+        micro: "var(--text-micro)",
+        "micro-sm": "var(--text-micro-sm)",
+        "micro-xs": "var(--text-micro-xs)",
       },
-      // The `--z-*` stack of app.css, reachable as a class. Tailwind ships
-      // no `zIndex` mapping by default, so `z-30` and `z-40` were raw
-      // numbers that happened to agree with a token rather than reads of
-      // it. Values are unchanged; only the name is new.
-      // `src/components/` and `src/lib/` still write rungs that have no
-      // token (20, 64, 80, 90, 91); they join this table with their file.
+      // The `--z-*` stack of app.css, reachable as a class, so a stacking
+      // decision is taken by name rather than by a number a reader has to
+      // compare with every other number in the tree. Tailwind ships no
+      // `zIndex` mapping by default, so `z-30` and `z-40` were raw numbers
+      // that happened to agree with a token rather than reads of it. Values
+      // are unchanged; only the name is new. `src/components/` and
+      // `src/lib/` still write rungs that have no token (20, 64, 80, 90,
+      // 91); they join this table with their file.
       zIndex: {
         sticky: "var(--z-sticky)",
         "drawer-backdrop": "var(--z-drawer-backdrop)",
@@ -172,6 +177,10 @@ const config: Config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
+        // The scrim behind a drawer or a modal. Its own token rather than a
+        // role tinted by opacity: it is warm in the light theme and near
+        // black in the dark one, which no `<role>/30` can express.
+        backdrop: "var(--backdrop)",
         foreground: "hsl(var(--foreground))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
