@@ -286,6 +286,9 @@ jobs:
       - name: i18n catalogue audit
         working-directory: crates/apollia-desktop/ui
         run: npm run audit:i18n
+      - name: Accessibility audit (form labels, icon-only buttons)
+        working-directory: crates/apollia-desktop/ui
+        run: npm run audit:a11y
 
   # ── Security / dependencies ──────────────────────────────────────────────
   deny:

@@ -1417,13 +1417,7 @@ EXTERNAL_GUARDS = {
 # list can only shrink: an entry whose pattern shows up in a launching line is
 # stale and fails the crossing, and the entry leaves with the condition that
 # justifies it. An unnamed waiver would be the ratchet growing in the dark.
-EXTERNAL_GUARDS_AWAITING_BOUNDARY = {
-    "npm run audit:a11y": (
-        "red on this tree, 127 violations at last measure, so a boundary "
-        "would only relay a permanent red; it enters one once the findings "
-        "are cleared"
-    ),
-}
+EXTERNAL_GUARDS_AWAITING_BOUNDARY: dict[str, str] = {}
 
 _YAML_LAUNCH_KEY = re.compile(r"^(\s*)(?:-\s+)?(?:run|entry):\s*(.*?)\s*$")
 
