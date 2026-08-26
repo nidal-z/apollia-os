@@ -81,6 +81,19 @@ repos:
         language: system
         pass_filenames: false
 
+      # One language per file, on the code as well as on the prose: every
+      # French line of a code file, and every document that mixes the two.
+      # It sits here rather than in `just guards` alone because the defect it
+      # catches is written by hand, one comment at a time, and the commit is
+      # the only boundary between writing it and shipping it. It costs 3.5 s
+      # over the whole tracked tree, which is the cost check-prose above
+      # already pays at this boundary for the same inventory.
+      - id: check-file-language
+        name: one language per file (code and documents)
+        entry: python3 scripts/check_file_language.py
+        language: system
+        pass_filenames: false
+
       # The Python rules ruff cannot express: exception hierarchy rooted at
       # AgentError, the print() carve-out with written REASON exemptions,
       # PEP 563 + TypedDict, third-party imports, the agent module contract.

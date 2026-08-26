@@ -1,10 +1,10 @@
 # CI - validation continue.
 #
-# Tourne sur chaque push vers main et chaque PR. Goal : garder main vert,
-# attraper les régressions en < 15 min de feedback.
+# Runs on every push to main and every PR. Goal: keep main green, and catch
+# the regressions within 15 min of feedback.
 #
-# Ce qui n'est PAS ici :
-#   - Build/release artifacts → release.yml (sur tag v*)
+# What is NOT here:
+#   - Build and release artifacts -> release.yml (on a v* tag)
 #   - E2E desktop, compile-cuda sanity, coverage profonde → nightly.yml
 
 name: CI
@@ -28,7 +28,7 @@ env:
   # up. Restoring the two excluded crates is a tracked backlog item.
   COVERAGE_FLOOR: "70"
 
-# Annule les runs en cours sur un même ref si un push plus récent arrive.
+# Cancels the runs in flight on the same ref when a newer push arrives.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -39,7 +39,7 @@ permissions:
   contents: read
 
 jobs:
-  # ── Rust : fmt → clippy → test (chaîne - chacun bloque le suivant) ─────────
+  # ── Rust: fmt -> clippy -> test (a chain - each one blocks the next) ───────
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -375,6 +375,10 @@ jobs:
       # the boundary invokes the script.
       - name: Prose rules, the same guard the pre-commit hook runs
         run: python3 scripts/check_prose.py
+      # One language per file, over the code as well as the prose: the rule
+      # `FORBIDDEN.md` states and nothing measured until now.
+      - name: One language per file, code and documents
+        run: python3 scripts/check_file_language.py
       # The Python rules no ruff configuration expresses: the AgentError
       # exception root, the print() carve-out (with its written REASON
       # exemptions), PEP 563 + TypedDict, and the agent module contract.

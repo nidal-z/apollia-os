@@ -27,7 +27,7 @@ llama_port := "8899"
 
 # Generate Rust API docs (rustdoc)
 rustdoc:
-    @echo "→ Génération rustdoc..."
+    @echo "-> Generating rustdoc..."
     cargo doc --no-deps --workspace --document-private-items
     @echo "✅ rustdoc → target/doc/"
 
@@ -554,6 +554,7 @@ guards:
       "scripts/check_docs_lang.py"
       "scripts/check_docs_mirror.py"
       "scripts/check_docs_routes.py"
+      "scripts/check_file_language.py"
       "scripts/check_eventbus_variants.py"
       "scripts/check_download_sums.py"
       "scripts/check_guard_verdicts.py"
@@ -643,12 +644,12 @@ guards:
 
 # Local CI: guards + lint + tests
 ci: guards lint test
-    @echo "✅ CI locale passée"
+    @echo "OK local CI passed"
 
 # Clean generated artifacts
 clean:
     cargo clean
-    @echo "✅ Artefacts nettoyés"
+    @echo "OK artifacts cleaned"
 
 # -----------------------------------------------------------------------------
 # Desktop test automaton (dev-only gestural runner)
