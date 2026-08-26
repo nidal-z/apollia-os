@@ -78,7 +78,7 @@
   align="center"
   state={isCancelled ? "dimmed" : "default"}
   onclick={onclick}
-  class="text-[12px]"
+  class="text-body-xs"
   data-testid={`task-row-${task.id ?? task.title}`}
 >
   <div class="flex-[2] min-w-0">
@@ -99,7 +99,7 @@
     >
       <Sparkles size={9} color="white" />
     </div>
-    <span class="text-[11.5px] text-muted-foreground truncate">{task.agent}</span>
+    <span class="text-caption-lg text-muted-foreground truncate">{task.agent}</span>
   </div>
   <div class="w-[140px]">
     {#if showProgress}
@@ -110,7 +110,7 @@
         ></div>
       </div>
     {:else}
-      <span class="text-[10.5px] text-muted-foreground/70 font-mono">- -</span>
+      <span class="text-micro-lg text-muted-foreground/70 font-mono">- -</span>
     {/if}
   </div>
   <div class="w-[120px]">
@@ -128,7 +128,7 @@
     </Badge>
   </div>
   <div
-    class="w-[90px] text-[10.5px] text-muted-foreground text-right font-mono"
+    class="w-[90px] text-micro-lg text-muted-foreground text-right font-mono"
   >
     {task.started ?? task.eta ?? ""}
   </div>
@@ -136,7 +136,7 @@
 
 {#if builder}
   <div
-    class="bg-foreground text-[hsl(var(--background))] font-mono text-[10.5px] leading-[1.5] px-4 py-2.5 pl-[182px]"
+    class="bg-foreground text-[hsl(var(--background))] font-mono text-micro-lg leading-[1.5] px-4 py-2.5 pl-[182px]"
   >
     {#if task.builderMeta}
       {task.builderMeta}

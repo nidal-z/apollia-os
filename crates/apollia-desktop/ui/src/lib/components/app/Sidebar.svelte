@@ -122,7 +122,7 @@
 {#if isDrawer}
   {#if $drawerOpen}
     <div
-      class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+      class="fixed inset-0 z-backdrop bg-backdrop backdrop-blur-sm"
       role="button"
       tabindex="-1"
       aria-label={$t("nav.close_sidebar")}
@@ -133,7 +133,7 @@
     ></div>
     <div
       bind:this={drawerRef}
-      class="fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col glass-panel border-r glass-border shadow-xl"
+      class="fixed inset-y-0 left-0 z-overlay flex w-64 max-w-[85vw] flex-col glass-panel border-r glass-border shadow-xl"
       role="dialog"
       tabindex="-1"
       aria-modal="true"
@@ -275,7 +275,7 @@
           `title` would draw a second label, in the system chrome and after the
           system delay, over the one below.
         -->
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>
@@ -302,7 +302,7 @@
             {/if}
             <item.Icon size={17} strokeWidth={1.5} />
           </button>
-          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
             {label}
           </span>
         </div>
@@ -330,7 +330,7 @@
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
         </button>
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>

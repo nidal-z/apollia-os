@@ -56,7 +56,7 @@
     aria-busy={loading || undefined}
     disabled={disabled || loading}
     {id}
-    class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border ring-offset-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border ring-offset-background transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
     class:bg-primary={checked && !loading}
     class:border-primary={checked && !loading}
     onclick={handleClick}

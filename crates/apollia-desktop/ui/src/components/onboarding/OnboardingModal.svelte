@@ -361,7 +361,7 @@
 
   .onboarding-card-title {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: var(--text-heading-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
     letter-spacing: -0.01em;
@@ -380,9 +380,9 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
-    transition: color 150ms ease;
+    transition: color var(--motion-fast) ease;
   }
 
   .onboarding-step-dot {
@@ -394,12 +394,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     transition:
       background 180ms var(--ease-spring),
-      color 150ms ease,
-      border-color 150ms ease,
+      color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
       box-shadow 180ms var(--ease-spring);
   }
 
@@ -475,13 +475,13 @@
     background: none;
     border: none;
     color: hsl(var(--muted-foreground));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     cursor: pointer;
     padding: 0.25rem 0.75rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     transition:
-      color 150ms ease,
-      background 150ms ease;
+      color var(--motion-fast) ease,
+      background var(--motion-fast) ease;
   }
 
   .onboarding-skip:hover {

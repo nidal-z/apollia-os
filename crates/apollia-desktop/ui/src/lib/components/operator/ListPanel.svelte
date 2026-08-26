@@ -46,7 +46,7 @@
     {@render header()}
   {:else if columns && columns.length}
     <div
-      class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2.5 text-[10.5px] uppercase tracking-[1px] font-semibold text-muted-foreground/70"
+      class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2.5 text-micro-lg uppercase tracking-[1px] font-semibold text-muted-foreground/70"
     >
       {#each columns as col}
         <div class={col.class}>{col.label}</div>

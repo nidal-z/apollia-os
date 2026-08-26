@@ -175,7 +175,7 @@
 
 <Dialog {open} {onclose} size="md" title={dialogTitle} data-testid="provider-edit-dialog">
   {#if step === "pick"}
-    <p class="m-0 mb-4 text-[12.5px] text-muted-foreground">
+    <p class="m-0 mb-4 text-code-sm text-muted-foreground">
       {$t("projects.provider_pick_subtitle")}
     </p>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -191,10 +191,10 @@
             <IconCmp size={14} />
           </div>
           <div class="min-w-0">
-            <div class="text-[12.5px] font-semibold text-foreground">
+            <div class="text-code-sm font-semibold text-foreground">
               {$t(`projects.provider_type_${type.id}`)}
             </div>
-            <div class="text-[10.5px] text-muted-foreground mt-0.5 leading-[1.45]">
+            <div class="text-micro-lg text-muted-foreground mt-0.5 leading-[1.45]">
               {$t(`projects.provider_type_${type.id}_desc`)}
             </div>
           </div>
@@ -207,10 +207,10 @@
   {:else}
     <div class="space-y-4">
       <div>
-        <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+        <div class="text-caption text-muted-foreground mb-1 font-semibold">
           {$t("projects.provider_field_type")}
         </div>
-        <div class="text-[12.5px] text-foreground">
+        <div class="text-code-sm text-foreground">
           {$t(`projects.provider_type_${providerType}`)}
           <span class="text-muted-foreground"> - {$t(`projects.provider_type_${providerType}_desc`)}</span>
         </div>
@@ -219,7 +219,7 @@
       <div>
         <label
           for="provider-field-name"
-          class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          class="block text-caption text-muted-foreground mb-1 font-semibold"
         >
           {$t("projects.provider_field_name")}
         </label>
@@ -230,7 +230,7 @@
         <div>
           <label
             for="provider-field-max-lines"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >
             {$t("projects.provider_field_max_lines")}
           </label>
@@ -242,7 +242,7 @@
         <div>
           <label
             for="provider-field-script-path"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >
             {$t("projects.provider_field_script_path")}
           </label>
@@ -257,7 +257,7 @@
         <div>
           <label
             for="provider-field-timeout-ms"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >
             {$t("projects.provider_field_timeout_ms")}
           </label>
@@ -266,7 +266,7 @@
       {/if}
 
       {#if providerType === "style"}
-        <div class="px-3 py-2 rounded-md bg-warning/10 text-[11px] text-warning-a11y border border-warning/20">
+        <div class="px-3 py-2 rounded-md bg-warning/10 text-caption text-warning-a11y border border-warning/20">
           {$t("projects.provider_type_style_warning")}
         </div>
       {/if}
@@ -275,7 +275,7 @@
         <div class="flex-1">
           <label
             for="provider-field-priority"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >
             {$t("projects.context_priority_label")}
             <span class="text-muted-foreground/70 font-normal"> · {$t("projects.provider_priority_hint")}</span>
@@ -283,7 +283,7 @@
           <Input id="provider-field-priority" type="number" min="1" max="100" bind:value={priority} />
         </div>
         <div>
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <div class="text-caption text-muted-foreground mb-1 font-semibold">
             {$t("projects.context_enabled_label")}
           </div>
           <Toggle bind:checked={enabled} aria-label={$t("projects.context_enabled_label")} />

@@ -70,7 +70,7 @@
     data-testid="ask-user-summary-toggle"
   >
     <Check class="h-3.5 w-3.5 text-success" aria-hidden="true" />
-    <span class="flex-1 text-[11px] font-medium text-foreground">
+    <span class="flex-1 text-caption font-medium text-foreground">
       {$t("chat.ask_user_answered", { values: { count: answeredCount } })}
     </span>
     {#if expanded}
@@ -89,8 +89,8 @@
       <Separator />
       {#each answers as answer (answer.id)}
         <div>
-          <p class="text-[10px] font-medium text-muted-foreground">{questionLabel(answer.id)}</p>
-          <p class="text-[11px] text-foreground {answer.skipped ? 'italic text-muted-foreground' : ''}">
+          <p class="text-micro font-medium text-muted-foreground">{questionLabel(answer.id)}</p>
+          <p class="text-caption text-foreground {answer.skipped ? 'italic text-muted-foreground' : ''}">
             {answerText(answer)}
           </p>
         </div>

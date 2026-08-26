@@ -29,7 +29,7 @@
   data-testid="empty-agents-state"
 >
   <Bot size={18} class="text-muted-foreground/60" aria-hidden="true" />
-  <p class="text-[12px] text-muted-foreground">
+  <p class="text-body-xs text-muted-foreground">
     {$t("chat.quickpicker.empty_agents")}
   </p>
   <div class="flex gap-2">
@@ -41,7 +41,7 @@
       target="_blank"
       rel="noreferrer"
       onclick={handleExternalLinkClick}
-      class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]
+      class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-caption
         text-muted-foreground hover:text-foreground
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >

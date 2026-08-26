@@ -73,7 +73,7 @@
         onclick={(e) => { onchange(f.key); (e.currentTarget as HTMLButtonElement).blur(); }}
         class={cn(
           "inline-flex items-center rounded-full border font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60",
-          compact ? "gap-1 px-2 py-0.5 text-[10.5px]" : "gap-1.5 px-2.5 py-1 text-[11.5px]",
+          compact ? "gap-1 px-2 py-0.5 text-micro-lg" : "gap-1.5 px-2.5 py-1 text-caption-lg",
           isActive
             ? "border-primary/40 bg-primary/10 text-primary"
             : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-border/80",

@@ -436,7 +436,7 @@
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="text-body-sm font-medium text-foreground">{eventBody(event)}</span>
                       <span
-                        class="inline-flex items-center gap-1 rounded-full border px-2 py-[1px] text-caption font-medium {TYPE_CHIP[event.event_type] ?? 'glass-border-subtle glass-inset text-muted-foreground'}"
+                        class="inline-flex items-center gap-1 rounded-full border px-2 py-px text-caption font-medium {TYPE_CHIP[event.event_type] ?? 'glass-border-subtle glass-inset text-muted-foreground'}"
                       >
                         {$t(TYPE_LABEL_KEYS[event.event_type as EventTypeFilter] ?? "observability.type_task")}
                       </span>

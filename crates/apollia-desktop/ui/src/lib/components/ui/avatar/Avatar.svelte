@@ -44,7 +44,7 @@
   }: Props = $props();
 
   const SIZE_CLASSES: Record<AvatarSize, string> = {
-    xs: "h-6 w-6 text-[10px] rounded-md",
+    xs: "h-6 w-6 text-micro rounded-md",
     sm: "h-8 w-8 text-xs rounded-lg",
     md: "h-10 w-10 text-sm rounded-lg",
     lg: "h-12 w-12 text-base rounded-xl",
@@ -77,7 +77,7 @@
     {src}
     alt={name}
     onerror={() => (imgFailed = true)}
-    class="agent-avatar-shadow shrink-0 object-cover font-semibold text-white {sizeClass} {ringClass} {klass}"
+    class="agent-avatar-shadow shrink-0 object-cover font-semibold text-primary-foreground {sizeClass} {ringClass} {klass}"
     style="--agent-hue: {hue}; background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%);"
     data-avatar-hue={hue}
     {...rest}
@@ -86,7 +86,7 @@
   <span
     role="img"
     aria-label={name}
-    class="agent-avatar-shadow inline-flex shrink-0 items-center justify-center font-semibold text-white select-none {sizeClass} {ringClass} {klass}"
+    class="agent-avatar-shadow inline-flex shrink-0 items-center justify-center font-semibold text-primary-foreground select-none {sizeClass} {ringClass} {klass}"
     style="--agent-hue: {hue}; background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%);"
     data-avatar-hue={hue}
     {...rest}

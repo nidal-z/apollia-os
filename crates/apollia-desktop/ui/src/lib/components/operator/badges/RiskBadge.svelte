@@ -34,7 +34,7 @@
       case "critical":
         return "bg-destructive/10 text-destructive border-destructive/40";
       case "high":
-        return "bg-orange-500/10 text-orange-500 border-orange-500/30";
+        return "bg-warning/10 text-warning border-warning/30";
       case "medium":
         return "bg-warning/10 text-warning border-warning/30";
       default:
@@ -62,7 +62,7 @@
 </script>
 
 <span
-  class="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide {badgeClass}"
+  class="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-micro font-semibold uppercase tracking-wide {badgeClass}"
   data-testid={kind === "approval" ? "approval-risk-badge" : "risk-badge"}
   data-impact-level={kind === "approval" ? undefined : level}
   data-risk-level={kind === "approval" ? level : undefined}

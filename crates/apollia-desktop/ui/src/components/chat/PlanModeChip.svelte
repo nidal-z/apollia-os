@@ -54,7 +54,7 @@
     : $t("chat.planMode.toggle.off")}
   data-active={planMode}
   data-testid="chat-plan-mode-chip"
-  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {planMode
+  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-caption font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {planMode
     ? 'border-primary/40 bg-primary/12 text-primary'
     : 'border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
 >

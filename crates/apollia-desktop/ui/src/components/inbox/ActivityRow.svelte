@@ -30,7 +30,7 @@
       case "trigger.error":
         return { icon: XCircle, tone: "text-destructive" };
       case "agent.degraded":
-        return { icon: AlertTriangle, tone: "text-amber-500" };
+        return { icon: AlertTriangle, tone: "text-warning" };
       case "llm.backend_down":
         return { icon: Zap, tone: "text-destructive" };
       default:
@@ -68,7 +68,7 @@
       <span class="text-sm font-medium text-foreground">
         {$t(eventLabelKey(entry.event_name))}
       </span>
-      <span class="shrink-0 text-[11px] text-muted-foreground">
+      <span class="shrink-0 text-caption text-muted-foreground">
         {formatRelativeTime(entry.sent_at, $locale ?? "en")}
       </span>
     </div>

@@ -185,7 +185,7 @@
 
   /* ── Hint ─────────────────────────────────────── */
   .hint {
-    font-size: 10px;
+    font-size: var(--text-micro);
     color: var(--hint);
     letter-spacing: 0.01em;
     margin-top: 8px;

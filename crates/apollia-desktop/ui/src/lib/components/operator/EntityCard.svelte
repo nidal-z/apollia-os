@@ -89,11 +89,11 @@
       {/if}
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          {#if title}<span class="truncate text-[13px] font-medium">{title}</span>{/if}
+          {#if title}<span class="truncate text-body-sm font-medium">{title}</span>{/if}
           {#if badges}{@render badges()}{/if}
         </div>
         {#if subtitle}
-          <p class="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>
+          <p class="mt-0.5 truncate text-caption text-muted-foreground">{subtitle}</p>
         {/if}
       </div>
       {#if trailing}<div class="shrink-0">{@render trailing()}</div>{/if}

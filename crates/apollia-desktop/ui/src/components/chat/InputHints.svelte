@@ -18,19 +18,19 @@
 </script>
 
 <div
-  class="mt-1 flex items-center justify-between gap-2 px-1 text-[10px] text-muted-foreground/50"
+  class="mt-1 flex items-center justify-between gap-2 px-1 text-micro text-muted-foreground/50"
   data-testid="chat-input-hints"
 >
   <div class="flex items-center gap-2 truncate">
-    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.send")}</span>
+    <span><kbd class="rounded bg-muted/50 px-1 py-px text-micro-xs">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.send")}</span>
     <span aria-hidden="true">·</span>
-    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">⇧</kbd> + <kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.newline")}</span>
+    <span><kbd class="rounded bg-muted/50 px-1 py-px text-micro-xs">⇧</kbd> + <kbd class="rounded bg-muted/50 px-1 py-px text-micro-xs">{$t("chat.hints.key_enter")}</kbd> {$t("chat.hints.newline")}</span>
     <span aria-hidden="true">·</span>
-    <span><kbd class="rounded bg-muted/50 px-1 py-[1px] text-[9px]">/</kbd> {$t("chat.hints.commands")}</span>
+    <span><kbd class="rounded bg-muted/50 px-1 py-px text-micro-xs">/</kbd> {$t("chat.hints.commands")}</span>
   </div>
   {#if status}
     <span
-      class="shrink-0 rounded px-1.5 py-[1px] text-[10px]"
+      class="shrink-0 rounded px-1.5 py-px text-micro"
       class:text-warning={statusTone === "warn"}
       class:bg-warning-subtle={statusTone === "warn"}
       data-testid="chat-input-hint-status"

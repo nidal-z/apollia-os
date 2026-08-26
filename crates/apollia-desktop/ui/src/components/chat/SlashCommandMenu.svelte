@@ -31,7 +31,7 @@
         type="button"
         role="option"
         aria-selected={i === selectedIndex}
-        class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-muted/60"
+        class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-body-xs hover:bg-muted/60"
         class:bg-muted={i === selectedIndex}
         class:text-foreground={i === selectedIndex}
         onmousedown={(e) => { e.preventDefault(); onselect(cmd); }}
@@ -45,7 +45,7 @@
             <span>{cmd.name}</span>
             <span class="text-muted-foreground/60">- {$t(cmd.labelKey)}</span>
           </div>
-          <div class="truncate text-[10px] text-muted-foreground/70">
+          <div class="truncate text-micro text-muted-foreground/70">
             {$t(cmd.descriptionKey)}
           </div>
         </div>

@@ -70,8 +70,8 @@
 
   const titleClass = $derived(
     monoTitle
-      ? "min-w-0 flex-1 truncate font-medium font-mono text-[12px] text-foreground"
-      : "min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/85",
+      ? "min-w-0 flex-1 truncate font-medium font-mono text-body-xs text-foreground"
+      : "min-w-0 flex-1 truncate text-body-xs font-medium text-foreground/85",
   );
 
   const tone = $derived.by<Accent>(() => {
@@ -142,7 +142,7 @@
       {/if}
       <ChevronRight
         size={12}
-        class="flex-shrink-0 text-muted-foreground/50 transition-transform duration-150 {meta ? '' : 'ml-auto'} {expanded ? 'rotate-90' : ''}"
+        class="flex-shrink-0 text-muted-foreground/50 transition-transform duration-fast {meta ? '' : 'ml-auto'} {expanded ? 'rotate-90' : ''}"
       />
     </Button>
   {:else}

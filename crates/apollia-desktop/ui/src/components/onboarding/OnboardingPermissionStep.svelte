@@ -216,7 +216,7 @@
 
   .step-title {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: var(--text-heading-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
     letter-spacing: -0.01em;
@@ -224,7 +224,7 @@
 
   .step-subtitle {
     margin: 0.1875rem 0 0 0;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     line-height: 1.45;
     color: hsl(var(--muted-foreground));
   }
@@ -237,7 +237,7 @@
     border-radius: 999px;
     background: hsl(var(--primary) / 0.14);
     color: hsl(var(--primary));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -258,7 +258,7 @@
     flex-direction: column;
     gap: 0.625rem;
     padding: 0.875rem 1rem;
-    border-radius: 0.625rem;
+    border-radius: var(--radius);
     border: 1px solid hsl(var(--border) / 0.7);
     background: hsl(var(--card));
     position: relative;
@@ -295,7 +295,7 @@
     gap: 0.3125rem;
     padding: 0.1875rem 0.5625rem;
     border-radius: 999px;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     border: 1px solid transparent;
     text-transform: uppercase;
@@ -322,7 +322,7 @@
     font-family:
       ui-monospace, SFMono-Regular, "Menlo", "Monaco", "Consolas", "Liberation Mono",
       "Courier New", monospace;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
     flex-shrink: 0;
@@ -330,7 +330,7 @@
 
   .rule-scope {
     margin-left: auto;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     font-variant: small-caps;
     letter-spacing: 0.04em;
@@ -345,7 +345,7 @@
   }
 
   .rule-target-label {
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -362,7 +362,7 @@
     font-family:
       ui-monospace, SFMono-Regular, "Menlo", "Monaco", "Consolas", "Liberation Mono",
       "Courier New", monospace;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
     overflow: hidden;
     text-overflow: ellipsis;
@@ -381,7 +381,7 @@
     padding: 2rem 0.75rem;
     text-align: center;
     color: hsl(var(--muted-foreground));
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;

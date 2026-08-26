@@ -41,7 +41,7 @@
         <Sparkles size={12} class="flex-none animate-pulse text-primary" aria-hidden="true" />
       {/if}
       <span
-        class="inline-block leading-none transition-transform duration-150"
+        class="inline-block leading-none transition-transform duration-fast"
         class:rotate-90={expanded}>›</span
       >
       <span class="font-medium">

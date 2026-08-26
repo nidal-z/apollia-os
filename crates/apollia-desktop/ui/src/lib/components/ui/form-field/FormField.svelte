@@ -78,7 +78,7 @@
         {#if required}
           <span class="text-destructive" aria-hidden="true">*</span>
         {:else if optional}
-          <span class="ml-1 text-[10px] font-normal text-muted-foreground">{optionalLabel ?? $t("common.optional_label")}</span>
+          <span class="ml-1 text-micro font-normal text-muted-foreground">{optionalLabel ?? $t("common.optional_label")}</span>
         {/if}
       </label>
       {#if labelTrailing}
@@ -92,8 +92,8 @@
   </div>
 
   {#if error}
-    <p id={errorId} class="text-[11px] text-destructive" role="alert">{error}</p>
+    <p id={errorId} class="text-caption text-destructive" role="alert">{error}</p>
   {:else if hint}
-    <p id={hintId} class="text-[11px] text-muted-foreground/80">{hint}</p>
+    <p id={hintId} class="text-caption text-muted-foreground/80">{hint}</p>
   {/if}
 </div>

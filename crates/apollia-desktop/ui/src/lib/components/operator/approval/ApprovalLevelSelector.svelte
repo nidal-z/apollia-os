@@ -44,7 +44,7 @@
   {#each APPROVAL_OPTIONS as option (option.value)}
     <div
       class={cn(
-        "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 transition-colors duration-150",
+        "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 transition-colors duration-fast",
         level === option.value
           ? "border-primary bg-primary/5"
           : "border-border",

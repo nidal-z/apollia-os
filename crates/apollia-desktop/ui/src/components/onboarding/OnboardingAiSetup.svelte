@@ -1537,14 +1537,14 @@
     text-align: center;
   }
   .setup-title {
-    font-size: 1.25rem;
+    font-size: var(--text-heading-lg);
     font-weight: 600;
     color: hsl(var(--foreground));
     margin: 0;
     letter-spacing: -0.015em;
   }
   .setup-subtitle {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--muted-foreground));
     margin: 0;
     line-height: 1.5;
@@ -1561,7 +1561,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 500;
     color: hsl(var(--muted-foreground));
     background: hsl(var(--muted));
@@ -1580,7 +1580,7 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 1.25rem 0;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--muted-foreground));
   }
 
@@ -1601,7 +1601,7 @@
   }
   .section-title {
     flex: 1;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
   }
@@ -1609,7 +1609,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     color: hsl(var(--success));
     background: hsl(var(--success) / 0.12);
@@ -1632,7 +1632,7 @@
     gap: 0.5rem;
   }
   .hotkey-label {
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--muted-foreground));
     flex-shrink: 0;
   }
@@ -1640,14 +1640,14 @@
     flex: 1;
     min-width: 0;
     padding: 0.25rem 0.5rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px dashed hsl(var(--border));
     background: hsl(var(--background));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--muted-foreground));
     text-align: left;
     cursor: pointer;
-    transition: all 150ms ease;
+    transition: all var(--motion-fast) ease;
   }
   .hotkey-capture:hover {
     border-color: hsl(var(--primary) / 0.6);
@@ -1661,7 +1661,7 @@
   .hotkey-display {
     font-family:
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
     padding: 0.0625rem 0.375rem;
     border-radius: 0.25rem;
@@ -1673,10 +1673,10 @@
   }
   .hotkey-save {
     padding: 0.25rem 0.625rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: hsl(var(--card));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
   }
   .hotkey-save:disabled {
@@ -1688,17 +1688,17 @@
   }
   .hotkey-hint {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
   }
   .mic-select {
     flex: 1;
     min-width: 0;
     padding: 0.25rem 0.5rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: hsl(var(--background));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
     cursor: pointer;
   }
@@ -1712,10 +1712,10 @@
     gap: 0.3rem;
     margin: 0;
     padding: 0.35rem 0.5rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--warning) / 0.3);
     background: hsl(var(--warning) / 0.1);
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--warning-foreground));
   }
   .stt-test-row {
@@ -1729,10 +1729,10 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.25rem 0.625rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: hsl(var(--card));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
   }
   .stt-test-btn:disabled {
@@ -1760,7 +1760,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--success));
     font-style: italic;
   }
@@ -1768,7 +1768,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--destructive));
   }
 
@@ -1787,14 +1787,14 @@
     gap: 0.5rem;
     width: 100%;
     padding: 0.5rem 0.625rem;
-    border-radius: 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
     border: 1px solid hsl(var(--border));
     background: hsl(var(--card));
     cursor: pointer;
     text-align: left;
     transition:
-      background 120ms ease,
-      border-color 120ms ease;
+      background var(--motion-fast) ease,
+      border-color var(--motion-fast) ease;
   }
   .model-row:hover:not(:disabled) {
     background: hsl(var(--primary) / 0.04);
@@ -1812,7 +1812,7 @@
   .model-icon {
     width: 1.625rem;
     height: 1.625rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     background: hsl(var(--primary) / 0.1);
     display: flex;
     align-items: center;
@@ -1833,7 +1833,7 @@
     min-width: 0;
   }
   .model-name {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     font-weight: 500;
     color: hsl(var(--foreground));
     white-space: nowrap;
@@ -1841,7 +1841,7 @@
     text-overflow: ellipsis;
   }
   .model-meta {
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
   }
   .model-lang {
@@ -1852,7 +1852,7 @@
   }
 
   .badge-recommended {
-    font-size: 0.6rem;
+    font-size: var(--text-micro-sm);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1885,7 +1885,7 @@
     flex-shrink: 0;
   }
   .success-filename {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     font-weight: 500;
     color: hsl(var(--success));
     white-space: nowrap;
@@ -1900,15 +1900,15 @@
     justify-content: center;
     width: 1.375rem;
     height: 1.375rem;
-    border-radius: 0.375rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: transparent;
     color: hsl(var(--muted-foreground));
     cursor: pointer;
     flex-shrink: 0;
     transition:
-      background 120ms ease,
-      color 120ms ease;
+      background var(--motion-fast) ease,
+      color var(--motion-fast) ease;
   }
   .btn-rescan:hover {
     background: hsl(var(--secondary) / 0.08);
@@ -1935,7 +1935,7 @@
     background: hsl(var(--muted));
     border: 1px solid hsl(var(--border));
     position: relative;
-    transition: background 150ms ease;
+    transition: background var(--motion-fast) ease;
   }
   .toggle-track::after {
     content: "";
@@ -1946,7 +1946,7 @@
     height: 0.75rem;
     border-radius: 50%;
     background: hsl(var(--primary-foreground));
-    transition: transform 150ms ease;
+    transition: transform var(--motion-fast) ease;
     box-shadow: var(--shadow-elev-1);
   }
   .toggle-track.on {
@@ -1959,7 +1959,7 @@
 
   /* Empty hints */
   .empty-hint {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--muted-foreground));
     margin: 0;
     line-height: 1.5;
@@ -1998,7 +1998,7 @@
     background: hsl(var(--border));
   }
   .curated-divider span {
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     white-space: nowrap;
     text-transform: uppercase;
@@ -2032,16 +2032,16 @@
     gap: 0.375rem;
     padding: 0.35rem 0.75rem;
     border: 1px solid hsl(var(--border));
-    border-radius: 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
     background: hsl(var(--card));
     color: hsl(var(--muted-foreground));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     font-weight: 500;
     cursor: pointer;
     transition:
-      background 120ms ease,
-      color 120ms ease,
-      border-color 120ms ease;
+      background var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease;
   }
   .btn-search-hf:hover {
     background: hsl(var(--muted));
@@ -2065,13 +2065,13 @@
     justify-content: center;
     width: 1.875rem;
     height: 1.875rem;
-    border-radius: 0.4rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: transparent;
     color: hsl(var(--muted-foreground));
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 120ms ease;
+    transition: background var(--motion-fast) ease;
   }
   .btn-back:hover {
     background: hsl(var(--muted));
@@ -2080,13 +2080,13 @@
     flex: 1;
     height: 1.875rem;
     padding: 0 0.625rem;
-    border-radius: 0.4rem;
+    border-radius: calc(var(--radius) - 4px);
     border: 1px solid hsl(var(--border));
     background: hsl(var(--card));
     color: hsl(var(--foreground));
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     outline: none;
-    transition: border-color 120ms ease;
+    transition: border-color var(--motion-fast) ease;
   }
   .search-input:focus {
     border-color: hsl(var(--primary) / 0.5);
@@ -2097,13 +2097,13 @@
     justify-content: center;
     width: 1.875rem;
     height: 1.875rem;
-    border-radius: 0.4rem;
+    border-radius: calc(var(--radius) - 4px);
     border: none;
     background: hsl(var(--primary) / 0.12);
     color: hsl(var(--primary));
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 120ms ease;
+    transition: background var(--motion-fast) ease;
   }
   .btn-search:hover:not(:disabled) {
     background: hsl(var(--primary) / 0.2);
@@ -2116,7 +2116,7 @@
   /* Search results */
   .search-result-item {
     border: 1px solid hsl(var(--border));
-    border-radius: 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
     overflow: hidden;
     background: hsl(var(--card));
   }
@@ -2133,7 +2133,7 @@
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: background 120ms ease;
+    transition: background var(--motion-fast) ease;
   }
   .search-result-header:hover:not(:disabled) {
     background: hsl(var(--primary) / 0.04);
@@ -2143,7 +2143,7 @@
     cursor: not-allowed;
   }
   .badge-gated {
-    font-size: 0.6rem;
+    font-size: var(--text-micro-sm);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -2175,7 +2175,7 @@
     background: hsl(var(--muted) / 0.5);
     cursor: pointer;
     text-align: left;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--foreground));
     transition:
       background 100ms ease,
@@ -2202,12 +2202,12 @@
     text-overflow: ellipsis;
   }
   .file-size {
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     flex-shrink: 0;
   }
   .compat-chip {
-    font-size: 0.6rem;
+    font-size: var(--text-micro-sm);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -2234,7 +2234,7 @@
     flex-direction: column;
     gap: 0.375rem;
     padding: 0.55rem 0.7rem;
-    border-radius: 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
     border: 1px solid hsl(var(--primary) / 0.2);
     background: hsl(var(--primary) / 0.05);
   }
@@ -2245,7 +2245,7 @@
     gap: 0.5rem;
   }
   .dl-filename {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     font-weight: 500;
     color: hsl(var(--foreground));
     white-space: nowrap;
@@ -2266,8 +2266,8 @@
     cursor: pointer;
     flex-shrink: 0;
     transition:
-      background 120ms ease,
-      color 120ms ease;
+      background var(--motion-fast) ease,
+      color var(--motion-fast) ease;
   }
   .btn-cancel-dl:hover {
     background: hsl(var(--destructive) / 0.12);
@@ -2283,7 +2283,7 @@
     height: 100%;
     border-radius: 99px;
     background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
-    transition: width 300ms ease;
+    transition: width var(--motion-base) ease;
   }
   .progress-fill.indeterminate {
     width: 40%;
@@ -2300,7 +2300,7 @@
   .dl-meta {
     display: flex;
     justify-content: space-between;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
   }
 
@@ -2309,11 +2309,11 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--destructive));
     background: hsl(var(--destructive) / 0.05);
     border: 1px solid hsl(var(--destructive) / 0.2);
-    border-radius: 0.4rem;
+    border-radius: calc(var(--radius) - 4px);
     padding: 0.45rem 0.625rem;
     margin: 0;
   }
@@ -2337,13 +2337,13 @@
     background: none;
     border: none;
     color: hsl(var(--muted-foreground));
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     cursor: pointer;
     padding: 0.4rem 0.6rem;
-    border-radius: 0.4rem;
+    border-radius: calc(var(--radius) - 4px);
     transition:
-      color 150ms ease,
-      background 150ms ease;
+      color var(--motion-fast) ease,
+      background var(--motion-fast) ease;
   }
   .btn-secondary:hover:not(:disabled),
   .btn-tertiary:hover:not(:disabled) {

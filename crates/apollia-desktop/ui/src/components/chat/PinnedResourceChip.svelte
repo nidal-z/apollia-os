@@ -19,7 +19,7 @@
 </script>
 
 <div
-  class="inline-flex max-w-[15rem] items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-1.5 py-1 text-[11px]"
+  class="inline-flex max-w-[15rem] items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-1.5 py-1 text-caption"
   data-testid="chat-pinned-resource-chip"
   title={resource.uri}
 >

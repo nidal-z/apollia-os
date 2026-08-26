@@ -116,7 +116,7 @@
   const isBuilder = $derived(mode === "builder");
 </script>
 
-<div class="rounded-[10px] px-4 py-3.5 relative bg-card border border-border">
+<div class="rounded-lg px-4 py-3.5 relative bg-card border border-border">
   <div class="absolute top-[18px] bottom-[18px] left-[22px] w-px bg-border"></div>
   {#each events as e}
     {@const cfg = CFG[e.type]}
@@ -135,16 +135,16 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-baseline gap-1.5">
           <span
-            class="text-[11px] font-semibold text-foreground {isBuilder ? 'font-mono' : ''}"
+            class="text-caption font-semibold text-foreground {isBuilder ? 'font-mono' : ''}"
           >
             {e.heading}
           </span>
-          <span class="ml-auto text-[9.5px] font-mono text-muted-foreground">
+          <span class="ml-auto text-micro-sm font-mono text-muted-foreground">
             {e.time}
           </span>
         </div>
         <div
-          class="text-[10.5px] mt-0.5 {isBuilder ? 'font-mono whitespace-pre-wrap break-words' : ''}"
+          class="text-micro-lg mt-0.5 {isBuilder ? 'font-mono whitespace-pre-wrap break-words' : ''}"
           style:color={e.live ? cfg.color : "hsl(var(--muted-foreground))"}
         >
           {e.body}

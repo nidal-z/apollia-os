@@ -91,7 +91,7 @@
 </script>
 
 <div
-  class="rounded-[10px] overflow-hidden bg-card border border-border shadow-elev-1"
+  class="rounded-lg overflow-hidden bg-card border border-border shadow-elev-1"
 >
   <div
     class="px-3.5 py-2.5 border-b border-border/60 flex items-center gap-2.5"
@@ -103,9 +103,9 @@
       <Shield size={12} />
     </div>
     <div class="flex-1 min-w-0">
-      <div class="text-[12.5px] font-semibold text-foreground">{action}</div>
+      <div class="text-code-sm font-semibold text-foreground">{action}</div>
       <div
-        class="text-[10.5px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap"
+        class="text-micro-lg text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap"
       >
         {#if agent}
           <span>{agent}</span>
@@ -113,7 +113,7 @@
         {/if}
         {#if tool}
           <code
-            class="font-mono text-[10.5px] px-1.5 py-px rounded bg-primary/10 text-primary"
+            class="font-mono text-micro-lg px-1.5 py-px rounded bg-primary/10 text-primary"
           >
             {tool}
           </code>
@@ -130,13 +130,13 @@
   </div>
   <div class="px-3.5 py-2.5">
     {#if summary}
-      <p class="text-[12px] text-muted-foreground leading-[1.6] mb-2">
+      <p class="text-body-xs text-muted-foreground leading-[1.6] mb-2">
         {summary}
       </p>
     {/if}
     {#if params.length > 0}
       <ul
-        class="m-0 pl-[17px] text-[12px] leading-[1.7] text-muted-foreground"
+        class="m-0 pl-[17px] text-body-xs leading-[1.7] text-muted-foreground"
       >
         {#each params as p}
           <li>{p}</li>
@@ -145,7 +145,7 @@
     {/if}
     {#if cost}
       <div
-        class="mt-2 px-2.5 py-1.5 rounded-md bg-warning/10 text-warning-a11y text-[11.5px] font-medium inline-flex items-center gap-1.5"
+        class="mt-2 px-2.5 py-1.5 rounded-md bg-warning/10 text-warning-a11y text-caption-lg font-medium inline-flex items-center gap-1.5"
       >
         <Zap size={11} /> {$t("approval.cost_estimate", { values: { cost } })}
       </div>
@@ -156,14 +156,14 @@
   >
     <Button variant="primary-solid" size="sm" onclick={onApprove}>
       {#snippet icon()}<Check size={11} />{/snippet}
-      {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
+      {#snippet kbd()}<span class="font-mono text-micro opacity-80">↵</span>{/snippet}
       {$t("approval.action.allow")}
     </Button>
     <Button variant="outline" size="sm" onclick={onReject}>{$t("approval.action.refuse")}</Button>
     {#if onAlwaysAccept}
       <button
         type="button"
-        class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-primary hover:bg-primary/10 transition-colors"
+        class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-caption text-primary hover:bg-primary/10 transition-colors"
         onclick={() => (scopeOpen = !scopeOpen)}
         aria-expanded={scopeOpen}
         data-testid="hitl-always-toggle"
@@ -177,7 +177,7 @@
     {/if}
     {#if expires}
       <span
-        class="ml-auto text-[10.5px] text-muted-foreground/70 font-mono"
+        class="ml-auto text-micro-lg text-muted-foreground/70 font-mono"
       >
         {$t("approval.expires_in", { values: { expires } })}
       </span>
@@ -191,36 +191,36 @@
     >
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_session"); }}
         data-testid="hitl-scope-session"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.session_desc")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_agent"); }}
         data-testid="hitl-scope-agent"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={!hasProject}
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_project"); }}
         data-testid="hitl-scope-project"
         title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
       >
         <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {hasProject
             ? $t("approval.scope.project_desc")
             : $t("approval.scope.project_unavailable")}
@@ -228,12 +228,12 @@
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
         onclick={() => { scopeOpen = false; onAlwaysAccept!("global"); }}
         data-testid="hitl-scope-global"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
-        <div class="text-[10px] text-warning-a11y">
+        <div class="text-micro text-warning-a11y">
           {$t("approval.scope.global_desc")}
         </div>
       </button>

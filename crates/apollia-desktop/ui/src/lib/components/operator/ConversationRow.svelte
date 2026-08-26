@@ -150,7 +150,7 @@
 >
   <div
     class="w-[22px] h-[22px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {isActive
-      ? 'bg-primary text-white'
+      ? 'bg-primary text-primary-foreground'
       : 'bg-muted text-muted-foreground'}"
   >
     {#if isPinned}
@@ -173,13 +173,13 @@
         type="text"
         maxlength="100"
         data-testid="conversation-row-rename-input"
-        class="w-full rounded-sm border border-primary/40 bg-background px-1 py-0.5 text-[12.5px] text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+        class="w-full rounded-sm border border-primary/40 bg-background px-1 py-0.5 text-code-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
         style:font-weight={isActive || isUnread ? 600 : 500}
       />
     {:else}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
-        class="text-[12.5px] text-foreground truncate"
+        class="text-code-sm text-foreground truncate"
         style:font-weight={isActive || isUnread ? 600 : 500}
         style:text-decoration={isClosed ? "line-through" : "none"}
         ondblclick={onTitleDblClick}
@@ -187,12 +187,12 @@
         {title}
       </div>
     {/if}
-    <div class="text-[10.5px] text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
+    <div class="text-micro-lg text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
       {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
       <span>· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
       {#if projectLabel}
         <span
-          class="inline-flex items-center gap-0.5 rounded-sm px-1 py-px text-[9.5px] text-primary/80 bg-primary/10 max-w-[9rem]"
+          class="inline-flex items-center gap-0.5 rounded-sm px-1 py-px text-micro-sm text-primary/80 bg-primary/10 max-w-[9rem]"
           title={projectLabel}
           data-testid="conversation-row-project-chip"
         >
@@ -210,7 +210,7 @@
   </div>
   {#if unreadCount !== undefined && unreadCount > 0}
     <span
-      class="self-center bg-primary text-white text-[9.5px] font-semibold px-1.5 py-px rounded-full"
+      class="self-center bg-primary text-primary-foreground text-micro-sm font-semibold px-1.5 py-px rounded-full"
     >
       {unreadCount}
     </span>
@@ -246,7 +246,7 @@
               <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => { ondelete?.(); confirmingDelete = false; close(); }}
-                class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-caption font-semibold text-primary-foreground hover:bg-destructive/90"
                 data-testid="conversation-row-delete-confirm-btn"
               >
                 <Check size={11} /> {$t("common.confirm")}
@@ -254,7 +254,7 @@
               <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => { confirmingDelete = false; close(); }}
-                class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-caption font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 data-testid="conversation-row-delete-cancel-btn"
               >
                 <X size={11} /> {$t("common.cancel")}
@@ -268,7 +268,7 @@
                     type="button"
                     role="menuitem"
                     onclick={() => { close(); onconfigure?.(); }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted"
                     data-testid="conversation-row-menu-configure"
                   >
                     <Settings2 size={12} /> {$t("chat.conversation_configure")}
@@ -281,7 +281,7 @@
                     type="button"
                     role="menuitem"
                     onclick={() => { close(); void startEdit(); }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted"
                     data-testid="conversation-row-menu-rename"
                   >
                     <Edit3 size={12} /> {$t("chat.rename_session")}
@@ -294,7 +294,7 @@
                     type="button"
                     role="menuitem"
                     onclick={() => { confirmingDelete = true; }}
-                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-destructive hover:bg-destructive/10"
                     data-testid="conversation-row-menu-delete"
                   >
                     <Trash2 size={12} /> {$t("common.delete")}

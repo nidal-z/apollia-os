@@ -107,14 +107,14 @@
       </div>
       <div class="flex-1 min-w-0">
         <div
-          class="text-[13px] font-semibold text-foreground"
+          class="text-body-sm font-semibold text-foreground"
           style:text-decoration={isDone ? "line-through" : "none"}
           style:text-decoration-color="hsl(var(--muted-foreground)/0.6)"
         >
           {title}
         </div>
         <div
-          class="text-[10.5px] text-muted-foreground mt-0.5 inline-flex items-center gap-1.5"
+          class="text-micro-lg text-muted-foreground mt-0.5 inline-flex items-center gap-1.5"
         >
           {#if live && !isDone && !isBlocked && !isPause}
             <StatusDot color="hsl(var(--primary))" glow />
@@ -125,14 +125,14 @@
     </div>
 
     {#if description}
-      <p class="text-[11.5px] text-muted-foreground mb-2 leading-[1.45]">
+      <p class="text-caption-lg text-muted-foreground mb-2 leading-[1.45]">
         {description}
       </p>
     {/if}
 
     {#if isBlocked && nextAction}
       <div
-        class="text-[10.5px] text-danger-a11y bg-destructive/10 px-2 py-1.5 rounded-md mb-2.5 inline-flex items-center gap-1.5"
+        class="text-micro-lg text-danger-a11y bg-destructive/10 px-2 py-1.5 rounded-md mb-2.5 inline-flex items-center gap-1.5"
       >
         <Shield size={10} />
         {nextAction}
@@ -141,7 +141,7 @@
 
     {#if metrics.length > 0}
       <div
-        class="flex gap-2.5 text-[10.5px] text-muted-foreground mb-2.5"
+        class="flex gap-2.5 text-micro-lg text-muted-foreground mb-2.5"
       >
         {#each metrics as m}
           <span>{m}</span>
@@ -160,7 +160,7 @@
           ></div>
         </div>
         <div
-          class="text-[10px] text-muted-foreground/80 mt-1 font-mono"
+          class="text-micro text-muted-foreground/80 mt-1 font-mono"
         >
           {Math.round(progress)}%{isDone ? ` · ${$t("projects.card_delivered")}` : ""}
         </div>
@@ -185,7 +185,7 @@
           {/each}
         </div>
         <span
-          class="text-[10px] text-muted-foreground ml-1 truncate"
+          class="text-micro text-muted-foreground ml-1 truncate"
         >
           {agents.length > 0
             ? agents.join(", ")

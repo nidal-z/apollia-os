@@ -93,7 +93,7 @@
     <div class="min-w-0">
       <h2 class="text-sm font-semibold">{$t("chat.planMode.title")}</h2>
       {#if steps.length > 0}
-        <p class="mt-0.5 text-[11px] text-muted-foreground" data-testid="chat-plan-review-meta">
+        <p class="mt-0.5 text-caption text-muted-foreground" data-testid="chat-plan-review-meta">
           {$t("chat.planMode.stepCount", { values: { count: steps.length } })}
           <span class="text-muted-foreground/50">·</span>
           {$t("chat.planMode.revisionLabel", { values: { n: revision } })}
@@ -101,7 +101,7 @@
       {/if}
     </div>
     <span
-      class="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+      class="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary"
       data-testid="chat-plan-review-phase"
     >
       {$t(phaseLabelKey(planState.phase))}
@@ -120,7 +120,7 @@
           data-testid="chat-plan-review-step"
         >
           <span
-            class="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums {isPending(
+            class="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-micro font-semibold tabular-nums {isPending(
               step,
             )
               ? 'bg-primary/10 text-primary'
@@ -129,7 +129,7 @@
             {i + 1}
           </span>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-medium leading-snug text-foreground">
+            <p class="truncate text-body-sm font-medium leading-snug text-foreground">
               {step.title || step.description}
             </p>
             {#if step.title && step.description && step.description !== step.title}
@@ -138,7 +138,7 @@
               </p>
             {/if}
             {#if step.depends_on.length > 0}
-              <span class="text-[10px] text-muted-foreground/70">
+              <span class="text-micro text-muted-foreground/70">
                 {$t("chat.planMode.dependenciesLabel")}: {depLabel(step.depends_on)}
               </span>
             {/if}

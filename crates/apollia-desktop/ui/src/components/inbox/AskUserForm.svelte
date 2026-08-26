@@ -88,7 +88,7 @@
 <div class="flex flex-col gap-4" data-testid="ask-user-form">
   {#if context}
     <div
-      class="rounded-md border border-blue-500/30 bg-blue-500/[0.08] px-3 py-2 text-sm text-foreground"
+      class="rounded-md border border-info/30 bg-info/[0.08] px-3 py-2 text-sm text-foreground"
       data-testid="ask-user-context"
     >
       {context}

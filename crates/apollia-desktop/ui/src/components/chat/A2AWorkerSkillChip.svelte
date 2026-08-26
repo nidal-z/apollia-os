@@ -37,7 +37,7 @@
 
 <Tooltip content={tooltipContent} side="top" delay={150}>
   <span
-    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset {color.bg} {color.text} {color.ring}"
+    class="inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium ring-1 ring-inset {color.bg} {color.text} {color.ring}"
     data-testid="a2a-skill-chip-{skillId}"
   >
     {skillName}

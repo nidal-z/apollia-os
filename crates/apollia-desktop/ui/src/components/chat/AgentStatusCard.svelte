@@ -53,7 +53,7 @@
     >
       <Bot size={14} />
     </div>
-    <span class="flex-1 truncate text-[12px] font-medium text-foreground">{agent.name}</span>
+    <span class="flex-1 truncate text-body-xs font-medium text-foreground">{agent.name}</span>
     <span
       title={$t(`chat.agent_status.${status}`)}
       aria-label={$t(`chat.agent_status.${status}`)}
@@ -63,21 +63,21 @@
   </div>
 
   {#if agent.description}
-    <p class="line-clamp-2 text-[11px] text-muted-foreground/80">{agent.description}</p>
+    <p class="line-clamp-2 text-caption text-muted-foreground/80">{agent.description}</p>
   {/if}
 
   {#if topSkills.length > 0}
     <div class="flex flex-wrap gap-1">
       {#each topSkills as skill (skill.id)}
         <span
-          class="rounded bg-secondary/10 px-1.5 py-0.5 text-[10px] text-secondary/80"
+          class="rounded bg-secondary/10 px-1.5 py-0.5 text-micro text-secondary/80"
           title={skill.description}
         >
           {skill.name}
         </span>
       {/each}
       {#if hiddenSkillCount > 0}
-        <span class="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground/50">
+        <span class="rounded px-1.5 py-0.5 text-micro text-muted-foreground/50">
           +{hiddenSkillCount}
         </span>
       {/if}

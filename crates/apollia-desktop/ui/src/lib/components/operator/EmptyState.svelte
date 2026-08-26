@@ -34,10 +34,10 @@
       {@render icon()}
     </div>
   {/if}
-  <h4 class="m-0 text-[15px] font-semibold text-foreground">{title}</h4>
+  <h4 class="m-0 text-heading-sm font-semibold text-foreground">{title}</h4>
   {#if desc}
     <p
-      class="m-0 text-[12.5px] text-muted-foreground max-w-[380px] leading-[1.5]"
+      class="m-0 text-code-sm text-muted-foreground max-w-95 leading-[1.5]"
     >
       {desc}
     </p>

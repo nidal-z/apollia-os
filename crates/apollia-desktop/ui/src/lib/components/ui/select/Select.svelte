@@ -56,7 +56,7 @@
   <select
     bind:value
     class={cn(
-      "flex w-full appearance-none rounded-md border border-border bg-background ring-offset-background transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50",
+      "flex w-full appearance-none rounded-md border border-border bg-background ring-offset-background transition-shadow duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50",
       sizeClasses[size],
       hasIcon && iconPaddingLeft,
       className,

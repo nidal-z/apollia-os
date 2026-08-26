@@ -69,7 +69,7 @@
     {#snippet actions()}
       {#if entries.length > 0}
         <span
-          class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary tabular-nums"
+          class="rounded-full bg-primary/10 px-2 py-0.5 text-micro text-primary tabular-nums"
           data-testid="injected-memory-count"
         >
           {entries.length}
@@ -80,20 +80,20 @@
 
   <SheetContent padding="flush" class="px-4 py-3" data-testid="injected-memory-sheet">
     {#if !turnId}
-      <p class="text-[11px] italic text-muted-foreground/60">
+      <p class="text-caption italic text-muted-foreground/60">
         {$t("memory.injected_no_turn")}
       </p>
     {:else if loading}
-      <p class="text-[11px] text-muted-foreground/60">{$t("common.loading")}</p>
+      <p class="text-caption text-muted-foreground/60">{$t("common.loading")}</p>
     {:else if error}
-      <p class="text-[11px] text-destructive" data-testid="injected-memory-error">
+      <p class="text-caption text-destructive" data-testid="injected-memory-error">
         {error}
       </p>
     {:else if entries.length === 0}
-      <p class="text-[11px] italic text-muted-foreground/60">
+      <p class="text-caption italic text-muted-foreground/60">
         {$t("memory.injected_empty")}
       </p>
-      <p class="mt-2 text-[10px] text-muted-foreground/50">
+      <p class="mt-2 text-micro text-muted-foreground/50">
         {$t("memory.injected_principle")}
       </p>
     {:else}
@@ -107,7 +107,7 @@
               onclick={() => handleEntryClick(entry)}
             >
               <div class="flex items-start justify-between gap-2">
-                <p class="flex-1 text-[11px] leading-snug text-foreground/90">
+                <p class="flex-1 text-caption leading-snug text-foreground/90">
                   {entry.content_preview}
                 </p>
                 <ExternalLink
@@ -115,7 +115,7 @@
                   class="mt-0.5 text-muted-foreground/40 transition-colors group-hover:text-primary"
                 />
               </div>
-              <div class="mt-2 flex items-center gap-2 text-[10px]">
+              <div class="mt-2 flex items-center gap-2 text-micro">
                 <span
                   class="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-muted-foreground"
                   data-testid="injected-memory-namespace"
@@ -130,7 +130,7 @@
                 </span>
               </div>
               <p
-                class="mt-1 text-[10px] italic text-muted-foreground/60"
+                class="mt-1 text-micro italic text-muted-foreground/60"
                 data-testid="injected-memory-reason"
               >
                 {entry.injection_reason}

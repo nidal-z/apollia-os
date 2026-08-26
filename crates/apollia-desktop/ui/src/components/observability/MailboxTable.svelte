@@ -147,7 +147,7 @@
                 </td>
                 <td class="px-3 py-3">
                   <span
-                    class="inline-flex items-center rounded-full border px-2 py-[1px] text-caption font-medium {stateChip(row.state)}"
+                    class="inline-flex items-center rounded-full border px-2 py-px text-caption font-medium {stateChip(row.state)}"
                     data-testid="mailbox-message-state"
                   >
                     {stateLabel(row.state)}

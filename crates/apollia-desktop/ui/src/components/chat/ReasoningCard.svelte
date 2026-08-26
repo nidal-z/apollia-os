@@ -397,7 +397,7 @@
   {:else if item.status === "success" || item.status === "approved"}
     <Check class="h-3 w-3 text-success" />
     {#if duration != null}
-      <span class="text-[11px] tabular-nums text-muted-foreground"
+      <span class="text-caption tabular-nums text-muted-foreground"
         >{formatSecondsLocalized(duration, $locale ?? "en")} s</span
       >
     {/if}
@@ -441,13 +441,13 @@
       </span>
       {#if skin === "operator" && rationale?.summary == null && toolDisplay && (bashDisplay || httpDisplay)}
         <span
-          class="ml-1 hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground/70 sm:inline"
+          class="ml-1 hidden min-w-0 truncate font-mono text-micro text-muted-foreground/70 sm:inline"
         >{bashDisplay ?? httpDisplay}</span>
       {/if}
       <span class="chat-ft-meta">
         {@render statusBadge(item.duration_ms)}
         {#if isError && item.exit_code != null}
-          <span class="text-[11px] tabular-nums text-destructive"
+          <span class="text-caption tabular-nums text-destructive"
             >{$t("chat.reasoning.exit_code", { values: { code: item.exit_code } })}</span
           >
         {/if}
@@ -461,7 +461,7 @@
     </button>
 
     {#if expanded}
-      <div class="chat-ft-body space-y-1.5 text-[11px] leading-relaxed">
+      <div class="chat-ft-body space-y-1.5 text-caption leading-relaxed">
         {#if dispatchedTool && item.tool === "web_search"}
           <WebSearchBody {item} {skin} />
         {:else if dispatchedTool && item.tool === "web_read"}
@@ -489,7 +489,7 @@
         {:else}
         {#if askUserPairs}
           <div class="space-y-1">
-            <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            <div class="flex items-center gap-1.5 text-micro uppercase tracking-wide text-muted-foreground/60">
               <span>{$t("chat.ask_user_qa_label")}</span>
               {#if askUserCounts}
                 <span class="text-muted-foreground/50 normal-case tracking-normal">
@@ -522,7 +522,7 @@
               {rationale.summary}
             </p>
             {#if rationale.inputs_recap.length > 0}
-              <ul class="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+              <ul class="flex flex-wrap gap-x-3 gap-y-0.5 text-micro text-muted-foreground">
                 {#each rationale.inputs_recap as [k, v] (k)}
                   <li class="font-mono">
                     <span class="opacity-60">{k}</span>
@@ -532,7 +532,7 @@
                 {/each}
               </ul>
             {/if}
-            <p class="text-[10px] italic text-muted-foreground/80">
+            <p class="text-micro italic text-muted-foreground/80">
               → {rationale.expected_outcome}
             </p>
           </div>
@@ -540,7 +540,7 @@
 
         {#if skin === "builder" && !askUserPairs}
           <div class="space-y-1">
-            <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            <div class="flex items-center gap-1.5 text-micro uppercase tracking-wide text-muted-foreground/60">
               <span>{$t("chat.reasoning.input_label")}</span>
               <Separator variant="inline" />
             </div>
@@ -557,7 +557,7 @@
               {#if argsPreview.truncated}
                 <button
                   type="button"
-                  class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  class="text-micro text-muted-foreground hover:text-foreground transition-colors"
                   onclick={(e) => {
                     e.stopPropagation();
                     showFullJson = !showFullJson;
@@ -573,7 +573,7 @@
 
           {#if item.output !== null && (item.status === "error" || (item.status === "success" && !isWebTool))}
             <div class="space-y-1">
-              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
+              <div class="flex items-center gap-1.5 text-micro uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
                 <span>{$t("chat.reasoning.output_label")}</span>
                 <Separator variant="inline" class={isError ? "bg-destructive/30" : undefined} />
               </div>
@@ -585,7 +585,7 @@
               {#if outputPreview.truncated}
                 <button
                   type="button"
-                  class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  class="text-micro text-muted-foreground hover:text-foreground transition-colors"
                   onclick={(e) => {
                     e.stopPropagation();
                     showFullOutput = !showFullOutput;
@@ -602,12 +602,12 @@
           {#if operatorTargetLine}
             <p class="text-foreground/80">
               <span class="text-muted-foreground/70">{$t("chat.reasoning.target_label")}:</span>
-              <span class="font-mono text-[10.5px]">{operatorTargetLine}</span>
+              <span class="font-mono text-micro-lg">{operatorTargetLine}</span>
             </p>
           {/if}
           {#if bashDisplay !== null}
             <div class="space-y-1">
-              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+              <div class="flex items-center gap-1.5 text-micro uppercase tracking-wide text-muted-foreground/60">
                 <span>{$t("chat.reasoning.command_label")}</span>
                 <Separator variant="inline" />
               </div>
@@ -616,7 +616,7 @@
               ><code>{bashDisplay}</code></pre>
             </div>
           {:else if httpDisplay !== null}
-            <p class="font-mono text-foreground/85 break-all text-[10.5px]">{httpDisplay}</p>
+            <p class="font-mono text-foreground/85 break-all text-micro-lg">{httpDisplay}</p>
           {/if}
           {#if operatorOutputSummary}
             <p class="text-foreground/85">
@@ -626,7 +626,7 @@
           {/if}
           {#if item.output !== null && isError}
             <div class="space-y-1">
-              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-destructive/70">
+              <div class="flex items-center gap-1.5 text-micro uppercase tracking-wide text-destructive/70">
                 <span>{$t("chat.reasoning.error_label")}</span>
                 <span class="h-px flex-1 bg-destructive/30"></span>
               </div>
@@ -678,7 +678,7 @@
     {#if expanded}
       <div class="chat-ft-body">
         <div
-          class="reasoning-caption min-w-0 text-[12.5px] italic leading-relaxed text-muted-foreground"
+          class="reasoning-caption min-w-0 text-code-sm italic leading-relaxed text-muted-foreground"
           data-testid="reasoning-thought"
         >
           <MarkdownContent content={item.content} />
@@ -704,22 +704,22 @@
       <ol class="space-y-1">
         {#each item.attempts as a (a.index)}
           <li
-            class="flex items-center gap-2 rounded px-2 py-1 text-[11px] {a.status === 'success'
+            class="flex items-center gap-2 rounded px-2 py-1 text-caption {a.status === 'success'
               ? 'bg-success/5 text-success'
               : a.status === 'error' || a.status === 'rejected'
                 ? 'bg-destructive/5 text-destructive'
                 : 'bg-muted/30 text-muted-foreground'}"
           >
-            <span class="font-mono text-[10px] tabular-nums opacity-70">#{a.index}</span>
+            <span class="font-mono text-micro tabular-nums opacity-70">#{a.index}</span>
             <span class="flex-1 truncate">{a.error ?? a.status}</span>
             {#if a.duration_ms != null}
-              <span class="text-[10px] tabular-nums opacity-70">{a.duration_ms}ms</span>
+              <span class="text-micro tabular-nums opacity-70">{a.duration_ms}ms</span>
             {/if}
           </li>
         {/each}
       </ol>
       {#if item.final_error}
-        <p class="mt-1 text-[11px] text-destructive">{item.final_error}</p>
+        <p class="mt-1 text-caption text-destructive">{item.final_error}</p>
       {/if}
     {/snippet}
   </ReasoningCardShell>
@@ -734,14 +734,14 @@
       >{item.source}</Button>
     {/snippet}
     {#snippet body()}
-      <p class="text-[11px] text-muted-foreground line-clamp-3">{item.excerpt}</p>
+      <p class="text-caption text-muted-foreground line-clamp-3">{item.excerpt}</p>
       {#if item.url}
         <a
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
           onclick={handleExternalLinkClick}
-          class="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+          class="mt-1 inline-flex items-center gap-1 text-micro text-muted-foreground hover:text-foreground"
         >
           <span class="font-mono">{hostname(item.url)}</span>
           <ExternalLink class="h-3 w-3" />

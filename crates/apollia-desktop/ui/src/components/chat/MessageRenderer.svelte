@@ -88,7 +88,7 @@
         class="rounded-md border border-border/40 bg-muted/20 p-2"
         aria-label={$t("chat.citations_aria")}
       >
-        <p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p class="mb-1 text-micro font-medium uppercase tracking-wide text-muted-foreground">
           {$t("chat.activity.sources")}
         </p>
         <ol class="space-y-1">

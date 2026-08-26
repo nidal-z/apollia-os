@@ -53,7 +53,7 @@
 .apollia-code-block {
   position: relative;
   margin: 0.5em 0;
-  border-radius: 0.5rem;
+  border-radius: calc(var(--radius) - 2px);
   overflow: hidden;
   background: hsl(var(--muted) / 0.35);
   border: 1px solid hsl(var(--border) / 0.3);
@@ -98,7 +98,7 @@
   color: hsl(var(--muted-foreground) / 0.5);
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.15s, color 0.15s;
+  transition: opacity var(--motion-fast), color var(--motion-fast);
 }
 .apollia-code-copy:hover {
   color: hsl(var(--foreground));

@@ -31,7 +31,7 @@
     align-items: center;
     gap: 0.4375rem;
     padding: 0.5rem 0.5rem 0.25rem;
-    font-size: 0.65625rem;
+    font-size: var(--text-micro-lg);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -39,7 +39,7 @@
   }
 
   .badge {
-    font-size: 0.5625rem;
+    font-size: var(--text-micro-xs);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: none;

@@ -110,7 +110,7 @@
     background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
-    animation: about-wordmark-shimmer 7s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    animation: about-wordmark-shimmer 7s var(--ease-apple) infinite;
   }
 
   .channel-pill {

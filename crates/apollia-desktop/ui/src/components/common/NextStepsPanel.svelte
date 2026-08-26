@@ -146,7 +146,7 @@
       </h2>
       <button
         type="button"
-        class="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground disabled:opacity-40"
+        class="flex items-center gap-1 rounded-md px-2 py-1 text-caption text-muted-foreground/70 transition-colors hover:text-foreground disabled:opacity-40"
         aria-label={$t("next_steps.refresh")}
         data-testid="next-steps-refresh"
         disabled={$visible.loading}
@@ -183,7 +183,7 @@
         {/each}
       </div>
       {#if !$visible.fromLlm}
-        <p class="mt-2 text-[10px] italic text-muted-foreground/60" data-testid="next-steps-fallback-flag">
+        <p class="mt-2 text-micro italic text-muted-foreground/60" data-testid="next-steps-fallback-flag">
           {$t("next_steps.fallback_hint")}
         </p>
       {/if}

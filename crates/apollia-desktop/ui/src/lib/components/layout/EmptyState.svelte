@@ -73,7 +73,7 @@
         class="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-primary shadow-primary-lg"
         aria-hidden="true"
       >
-        <IconComponent size={36} strokeWidth={1.5} class="text-white/95" />
+        <IconComponent size={36} strokeWidth={1.5} class="text-primary-foreground/95" />
       </div>
     {/if}
   </div>

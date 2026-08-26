@@ -217,14 +217,14 @@
             rows="3"
             autofocus
             class="w-full resize-y rounded-md border border-border bg-background px-3 py-2
-              text-[14px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              text-body-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             data-testid="chat-message-edit-input-{message.id}"
           ></textarea>
           <div class="flex justify-end gap-2">
             <button
               type="button"
               onclick={cancelEdit}
-              class="rounded-md px-2.5 py-1 text-[12px] text-muted-foreground
+              class="rounded-md px-2.5 py-1 text-body-xs text-muted-foreground
                 hover:bg-surface-3 hover:text-foreground transition-colors"
               data-testid="chat-message-edit-cancel-{message.id}"
             >
@@ -234,7 +234,7 @@
               type="button"
               onclick={saveEdit}
               disabled={busy || !editValue.trim()}
-              class="rounded-md bg-primary-solid px-2.5 py-1 text-[12px] text-primary-foreground
+              class="rounded-md bg-primary-solid px-2.5 py-1 text-body-xs text-primary-foreground
                 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               data-testid="chat-message-edit-save-{message.id}"
             >
@@ -247,7 +247,7 @@
       {/if}
     {:else if isEmptyAgentResponse}
       <p
-        class="whitespace-pre-wrap break-words text-[14px] italic text-muted-foreground/80"
+        class="whitespace-pre-wrap break-words text-body-md italic text-muted-foreground/80"
         data-testid="chat-empty-response-{message.id}"
       >
         {emptyResponseLabel}
@@ -275,7 +275,7 @@
           {#each actionButtons as btn (btn.action + btn.target + btn.label)}
             <button
               type="button"
-              class="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[13px]
+              class="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-body-sm
                 font-medium text-foreground hover:bg-surface-3 hover:text-primary
                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring
                 transition-colors"
@@ -289,7 +289,7 @@
     {/if}
 
     {#if showTimestamp}
-      <p class="mt-1 text-[10px] text-left text-muted-foreground/50">
+      <p class="mt-1 text-micro text-left text-muted-foreground/50">
         {formattedTime}
       </p>
     {/if}

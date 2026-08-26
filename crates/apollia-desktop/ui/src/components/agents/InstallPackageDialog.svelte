@@ -240,11 +240,11 @@
         </div>
         <div class="ml-auto">
           {#if preview.valid}
-            <Badge variant="success" class="text-[10px] px-2 py-0.5 gap-1">
+            <Badge variant="success" class="text-micro px-2 py-0.5 gap-1">
               <CheckCircle2 size={10} />{$t("agents.install.valid")}
             </Badge>
           {:else}
-            <Badge variant="destructive" class="text-[10px] px-2 py-0.5 gap-1">
+            <Badge variant="destructive" class="text-micro px-2 py-0.5 gap-1">
               <AlertTriangle size={10} />{$t("agents.install.invalid")}
             </Badge>
           {/if}
@@ -264,14 +264,14 @@
 
       <!-- Agents -->
       <div>
-        <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
+        <h4 class="text-micro font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
           <Users size={10} />{$t("agents.install.section_agents", { values: { n: preview.agents.length } })}
         </h4>
         <div class="space-y-1">
           {#each preview.agents as agent (agent.name)}
             <div class="flex items-center justify-between rounded-lg bg-muted/30 px-2.5 py-1.5 text-xs">
               <span class="font-medium">{agent.name}</span>
-              <Badge variant={agent.role === "director" ? "default" : "secondary"} class="text-[9px] px-1.5 py-0">
+              <Badge variant={agent.role === "director" ? "default" : "secondary"} class="text-micro-xs px-1.5 py-0">
                 {agent.role}
               </Badge>
             </div>
@@ -282,7 +282,7 @@
       <!-- Triggers -->
       {#if preview.triggers.length > 0}
         <div>
-          <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
+          <h4 class="text-micro font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
             <Zap size={10} />{$t("agents.install.section_triggers", { values: { n: preview.triggers.length } })}
           </h4>
           <div class="space-y-1">
@@ -293,11 +293,11 @@
                 <Icon size={11} class="shrink-0 text-muted-foreground" />
                 <span class="font-medium flex-1 truncate">{trigger.id}</span>
                 {#if detail}
-                  <span class="text-muted-foreground font-mono text-[10px] shrink-0">{detail}</span>
+                  <span class="text-muted-foreground font-mono text-micro shrink-0">{detail}</span>
                 {/if}
-                <Badge variant="outline" class="text-[9px] px-1.5 py-0 shrink-0">{trigger.source_type}</Badge>
+                <Badge variant="outline" class="text-micro-xs px-1.5 py-0 shrink-0">{trigger.source_type}</Badge>
                 {#if trigger.needs_config}
-                  <Badge variant="warning" class="text-[9px] px-1.5 py-0 gap-0.5 shrink-0">
+                  <Badge variant="warning" class="text-micro-xs px-1.5 py-0 gap-0.5 shrink-0">
                     <!-- i18n-ignore: abbreviation of configuration, shared by both languages -->
                     <Settings size={8} />config
                   </Badge>
@@ -306,7 +306,7 @@
             {/each}
           </div>
           {#if needsConfig}
-            <p class="mt-1.5 text-[10px] text-amber-500/80 flex items-center gap-1">
+            <p class="mt-1.5 text-micro text-warning/80 flex items-center gap-1">
               <AlertTriangle size={10} />
               {$t("agents.install.triggers_need_config", { values: { n: webhookTriggers.filter((tr) => tr.needs_config).length } })}
             </p>
@@ -317,11 +317,11 @@
       <!-- pip packages -->
       {#if preview.pip_packages.length > 0}
         <div>
-          <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
+          <h4 class="text-micro font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
             <Package2 size={10} />{$t("agents.install.section_pip_deps", { values: { n: preview.pip_packages.length } })}
           </h4>
           {#if $agentInstallPrefs.autoInstallPythonDeps}
-            <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-primary">
+            <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-caption text-primary">
               <p class="leading-relaxed">
                 {preview.pip_packages.length > 1
                   ? $t("agents.install.deps_auto_many", { values: { n: preview.pip_packages.length } })
@@ -329,7 +329,7 @@
               </p>
             </div>
           {:else}
-            <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+            <div class="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-caption text-warning-a11y">
               <p class="leading-relaxed">
                 {preview.pip_packages.length > 1
                   ? $t("agents.install.deps_manual_many", { values: { n: preview.pip_packages.length } })
@@ -369,22 +369,22 @@
         {$t("agents.install.deps_confirm_title")}
       </div>
 
-      <div class="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed space-y-1.5">
+      <div class="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2.5 text-xs text-warning-a11y leading-relaxed space-y-1.5">
         <p>
           {$t("agents.install.deps_confirm_intro_prefix", { values: { name: preview.name } })}
           <span class="font-medium">{preview.pip_packages.length > 1
             ? $t("agents.install.deps_confirm_count_many", { values: { n: preview.pip_packages.length } })
             : $t("agents.install.deps_confirm_count_one", { values: { n: preview.pip_packages.length } })}</span>
-          {$t("agents.install.deps_confirm_intro_suffix")} <code class="text-[10px] bg-amber-500/10 px-1 rounded font-mono">~/.apollia/venvs/</code>.
+          {$t("agents.install.deps_confirm_intro_suffix")} <code class="text-micro bg-warning/10 px-1 rounded font-mono">~/.apollia/venvs/</code>.
         </p>
-        <p class="text-amber-600/80 dark:text-amber-400/80">
+        <p class="text-warning/80">
           {$t("agents.install.deps_confirm_no_install")}
         </p>
       </div>
 
       <!-- List of packages -->
       <div>
-        <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5">
+        <h4 class="text-micro font-medium uppercase text-muted-foreground tracking-wide mb-1.5">
           {$t("agents.install.deps_list_title")}
         </h4>
         <div class="rounded-lg border border-border/60 bg-muted/20 max-h-48 overflow-y-auto">
@@ -397,7 +397,7 @@
         </div>
       </div>
 
-      <p class="text-[10px] text-muted-foreground leading-relaxed">
+      <p class="text-micro text-muted-foreground leading-relaxed">
         {$t("agents.install.deps_venv_note")}
         {$t("agents.install.deps_provenance_prefix")} <a
           href="https://pypi.org"
@@ -442,11 +442,11 @@
               <Webhook size={13} class="text-primary" />
               <span class="text-sm font-medium">{trigger.id}</span>
               {#if trigger.agent}
-                <span class="text-[10px] text-muted-foreground">→ {trigger.agent}</span>
+                <span class="text-micro text-muted-foreground">→ {trigger.agent}</span>
               {/if}
             </div>
             {#if !trigger.needs_config}
-              <Badge variant="success" class="text-[9px] px-1.5 py-0 gap-0.5">
+              <Badge variant="success" class="text-micro-xs px-1.5 py-0 gap-0.5">
                 <CheckCircle2 size={8} />{$t("agents.install.preconfigured")}
               </Badge>
             {/if}
@@ -454,9 +454,9 @@
 
           <!-- Endpoint URL -->
           <div class="space-y-1">
-            <p class="text-[10px] text-muted-foreground uppercase tracking-wide">{$t("agents.install.endpoint")}</p>
+            <p class="text-micro text-muted-foreground uppercase tracking-wide">{$t("agents.install.endpoint")}</p>
             <div class="flex items-center gap-1.5 rounded bg-muted/50 px-2 py-1.5">
-              <code class="text-[10px] flex-1 truncate text-muted-foreground font-mono">
+              <code class="text-micro flex-1 truncate text-muted-foreground font-mono">
                 {webhookEndpoint(trigger.id)}
               </code>
               <button
@@ -477,7 +477,7 @@
           <FormField
             id="secret-{trigger.id}"
             label={$t("agents.install.secret_label")}
-            labelClass="text-[10px] font-normal uppercase tracking-wide"
+            labelClass="text-micro font-normal uppercase tracking-wide"
             required={trigger.needs_config}
           >
             <div class="relative">
@@ -504,7 +504,7 @@
               {/if}
             </div>
             {#if trigger.needs_config && (webhookSecrets[trigger.id] ?? "").trim().length > 0 && (webhookSecrets[trigger.id] ?? "").trim().length < 32}
-              <p class="text-[10px] text-destructive">{$t("agents.install.secret_too_short")}</p>
+              <p class="text-micro text-destructive">{$t("agents.install.secret_too_short")}</p>
             {/if}
           </FormField>
         </div>
@@ -561,7 +561,7 @@
         {#if installResult.trigger_errors.length > 0}
           <div class="mt-3 text-left space-y-1">
             {#each installResult.trigger_errors as err}
-              <div class="flex items-start gap-1.5 text-[10px] text-amber-500/80">
+              <div class="flex items-start gap-1.5 text-micro text-warning/80">
                 <AlertTriangle size={10} class="mt-0.5 shrink-0" />
                 <span>{err}</span>
               </div>

@@ -39,7 +39,7 @@
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
         <h2
-          class="m-0 truncate text-[18px] font-semibold text-foreground"
+          class="m-0 truncate text-heading-md font-semibold text-foreground"
           style="letter-spacing: -0.3px;"
           data-testid={titleTestid}
         >
@@ -48,7 +48,7 @@
         {#if badges}{@render badges()}{/if}
       </div>
       {#if meta}
-        <p class="mt-0.5 truncate text-[11.5px] text-muted-foreground">{meta}</p>
+        <p class="mt-0.5 truncate text-caption-lg text-muted-foreground">{meta}</p>
       {/if}
     </div>
     {#if actions}

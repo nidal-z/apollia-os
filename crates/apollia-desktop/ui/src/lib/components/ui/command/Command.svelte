@@ -233,7 +233,7 @@
   .count {
     flex: none;
     font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
-    font-size: 0.65625rem;
+    font-size: var(--text-micro-lg);
     color: hsl(var(--faint-foreground));
   }
 </style>

@@ -1153,7 +1153,7 @@
         <p class="mt-1 text-xs text-muted-foreground">
           {$t("chat.session_corrupted.description")}
         </p>
-        <p class="mt-2 font-mono text-[10px] text-muted-foreground/60">
+        <p class="mt-2 font-mono text-micro text-muted-foreground/60">
           {loadError}
         </p>
       </div>
@@ -1224,7 +1224,7 @@
                 data-testid="cross-session-badge"
               >
                 <Link size={9} class="text-secondary" />
-                <span class="text-[9px] font-medium text-secondary">{$t("chat.past_session")}</span>
+                <span class="text-micro-xs font-medium text-secondary">{$t("chat.past_session")}</span>
               </div>
             {/if}
           </div>
@@ -1251,11 +1251,11 @@
             <div class="w-full overflow-hidden rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-secondary px-2.5 py-2">
               <div class="flex items-center gap-1.5">
                 <Zap size={11} class="animate-pulse text-secondary" />
-                <span class="text-[11px] font-medium text-secondary/80">
+                <span class="text-caption font-medium text-secondary/80">
                   {$t("chat.a2a_delegating", { values: { agent: activeA2A.target, skill: activeA2A.skill_id } })}
                 </span>
                 {#if a2aElapsed > 0}
-                  <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{a2aElapsed}s</span>
+                  <span class="ml-auto flex-shrink-0 text-micro text-muted-foreground/40">{a2aElapsed}s</span>
                 {/if}
               </div>
 
@@ -1272,15 +1272,15 @@
                           <X size={9} class="text-destructive/70" />
                         {/if}
                       </div>
-                      <span class="truncate text-[11px] text-muted-foreground"
+                      <span class="truncate text-caption text-muted-foreground"
                         >{step.desc ||
                           $t("chat.a2a.step", { values: { n: step.step_num } })}</span
                       >
                       {#if step.total > 0}
-                        <span class="flex-shrink-0 text-[10px] text-muted-foreground/40">{step.step_num}/{step.total}</span>
+                        <span class="flex-shrink-0 text-micro text-muted-foreground/40">{step.step_num}/{step.total}</span>
                       {/if}
                       {#if step.durationMs !== undefined}
-                        <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
+                        <span class="ml-auto flex-shrink-0 text-micro text-muted-foreground/40">{step.durationMs}ms</span>
                       {/if}
                     </div>
                   {/each}
@@ -1288,7 +1288,7 @@
               {/if}
 
               {#if a2aGuardMessage}
-                <div class="mt-1.5 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive/80">
+                <div class="mt-1.5 rounded bg-destructive/10 px-2 py-1 text-micro text-destructive/80">
                   {a2aGuardMessage}
                 </div>
               {/if}
@@ -1314,7 +1314,7 @@
             </div>
             <Button variant="ghost" size="sm"
               type="button"
-              class="text-[11px] text-primary hover:underline"
+              class="text-caption text-primary hover:underline"
               onclick={() => {
                 const pa = pendingApproval;
                 if (!pa) return;
@@ -1353,7 +1353,7 @@
 
         {#if isProcessing && sessionMode === "agent"}
           <div class="flex justify-start" data-testid="chat-agent-loading">
-            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground">
               <Spinner size={11} />
               <span>{$t("chat.agent_processing")}</span>
             </div>
@@ -1362,7 +1362,7 @@
 
         {#if isProcessing && sessionMode === "libre"}
           <div class="flex justify-start">
-            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground">
               <Spinner size={11} />
               <span>{$t("chat.thinking")}</span>
             </div>

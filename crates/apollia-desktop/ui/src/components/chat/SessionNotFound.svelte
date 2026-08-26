@@ -43,7 +43,7 @@
       {$t("chat.session_not_found.description")}
     </p>
     {#if sessionId}
-      <p class="mt-2 font-mono text-[10px] text-muted-foreground/60">
+      <p class="mt-2 font-mono text-micro text-muted-foreground/60">
         {sessionId}
       </p>
     {/if}

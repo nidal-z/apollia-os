@@ -119,7 +119,7 @@
       {#if overflow}
         <Button variant="ghost" size="sm"
           type="button"
-          class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
+          class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-caption text-muted-foreground hover:bg-muted/25"
           onclick={showMore}
           data-testid="reasoning-show-more"
         >
@@ -131,7 +131,7 @@
       {:else if visibleCount > COLLAPSE_ITEM_THRESHOLD && items.length > COLLAPSE_ITEM_THRESHOLD}
         <Button variant="ghost" size="sm"
           type="button"
-          class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
+          class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-caption text-muted-foreground hover:bg-muted/25"
           onclick={collapse}
           data-testid="reasoning-collapse"
         >

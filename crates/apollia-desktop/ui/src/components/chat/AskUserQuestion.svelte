@@ -43,7 +43,7 @@
 <div class="mt-3 first:mt-2" data-testid="ask-user-question-{question.id}">
   <label
     for="ask-user-{question.id}"
-    class="flex items-baseline gap-1.5 text-[12px] font-medium text-foreground"
+    class="flex items-baseline gap-1.5 text-body-xs font-medium text-foreground"
   >
     <span class="text-muted-foreground">{index + 1}.</span>
     {question.question}
@@ -84,7 +84,7 @@
               {disabled}
               class="gap-2"
             >
-              <span class="text-[12px] text-foreground">{option}</span>
+              <span class="text-body-xs text-foreground">{option}</span>
             </RadioItem>
           </div>
         {/each}
@@ -103,7 +103,7 @@
               onchange={(checked) => handleCheckboxToggle(option, checked)}
               {disabled}
             />
-            <span class="text-[12px] text-foreground">{option}</span>
+            <span class="text-body-xs text-foreground">{option}</span>
           </label>
         {/each}
       </div>

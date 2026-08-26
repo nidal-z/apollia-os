@@ -47,7 +47,7 @@
     {@const Icon = step.icon}
     <li
       class={cn(
-        "relative flex gap-3 transition-all duration-200",
+        "relative flex gap-3 transition-all duration-base",
         orientation === "horizontal" ? "flex-col items-center text-center" : "flex-row items-start",
       )}
       aria-current={state === "active" ? "step" : undefined}
@@ -75,7 +75,7 @@
            alone to differentiate the states. -->
       <span
         class={cn(
-          "relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-[background-color,transform,opacity] duration-200",
+          "relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-[background-color,transform,opacity] duration-base",
           state === "completed" && "bg-primary text-primary-foreground",
           state === "active" &&
             "bg-primary text-primary-foreground scale-105",

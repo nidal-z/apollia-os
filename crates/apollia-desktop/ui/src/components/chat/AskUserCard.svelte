@@ -235,12 +235,12 @@
         onclick={() => (promptExpanded = !promptExpanded)}
         data-testid="ask-user-prompt-toggle"
       >
-        <span class="text-[12px] font-medium text-foreground">
+        <span class="text-body-xs font-medium text-foreground">
           {$t("chat.ask_user_title")}
         </span>
         <span
           id="ask-user-prompt-{requestId}"
-          class="ml-1 text-[12px] text-muted-foreground {promptExpanded ? '' : 'line-clamp-1'}"
+          class="ml-1 text-body-xs text-muted-foreground {promptExpanded ? '' : 'line-clamp-1'}"
         >
           - {firstQuestionText}
         </span>
@@ -254,7 +254,7 @@
 
     <!-- Context (optional, rendered when provided) -->
     {#if context}
-      <p class="mt-1 text-[11px] italic text-muted-foreground">{context}</p>
+      <p class="mt-1 text-caption italic text-muted-foreground">{context}</p>
     {/if}
 
     <!-- HITL structured context -->
@@ -264,10 +264,10 @@
         <div class="flex items-start justify-between gap-2">
           {#if hitl.contextThinking}
             <div class="flex-1">
-              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <div class="text-micro font-semibold uppercase tracking-wide text-muted-foreground">
                 {$t("hitl.section.why")}
               </div>
-              <p class="mt-0.5 text-[11px] text-foreground">
+              <p class="mt-0.5 text-caption text-foreground">
                 {hitl.contextThinking}
               </p>
             </div>
@@ -281,7 +281,7 @@
         <!-- Risk categories + mitigations -->
         {#if hitl.riskAnalysis.categories.length > 0 || hitl.riskAnalysis.mitigations.length > 0}
           <details class="rounded-md bg-muted/40 px-2 py-1" data-testid="ask-user-risk-details">
-            <summary class="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <summary class="cursor-pointer text-micro font-semibold uppercase tracking-wide text-muted-foreground">
               {$t("hitl.section.risk")}
             </summary>
             {#if hitl.riskAnalysis.categories.length > 0}
@@ -294,7 +294,7 @@
               </div>
             {/if}
             {#if hitl.riskAnalysis.mitigations.length > 0}
-              <ul class="mt-1 list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+              <ul class="mt-1 list-inside list-disc space-y-0.5 text-caption text-muted-foreground">
                 {#each hitl.riskAnalysis.mitigations as mit}
                   <li>{mit}</li>
                 {/each}
@@ -309,10 +309,10 @@
             class="rounded-md border border-success/30 bg-success/5 px-2 py-1"
             data-testid="ask-user-if-approved"
           >
-            <div class="text-[10px] font-semibold uppercase tracking-wide text-success">
+            <div class="text-micro font-semibold uppercase tracking-wide text-success">
               {$t("hitl.section.if_approved")}
             </div>
-            <p class="mt-0.5 text-[11px] text-foreground">
+            <p class="mt-0.5 text-caption text-foreground">
               {hitl.consequencesIfApproved ?? $t("hitl.risk.fallback_approved")}
             </p>
           </div>
@@ -320,10 +320,10 @@
             class="rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1"
             data-testid="ask-user-if-rejected"
           >
-            <div class="text-[10px] font-semibold uppercase tracking-wide text-destructive">
+            <div class="text-micro font-semibold uppercase tracking-wide text-destructive">
               {$t("hitl.section.if_rejected")}
             </div>
-            <p class="mt-0.5 text-[11px] text-foreground">
+            <p class="mt-0.5 text-caption text-foreground">
               {hitl.consequencesIfRejected ?? $t("hitl.risk.fallback_rejected")}
             </p>
           </div>
@@ -346,7 +346,7 @@
         {#if question.type === "open" && charLimit > 0}
           {@const cur = (openValues[question.id] ?? "").length}
           <p
-            class="mt-1 text-right text-[10px] {cur > charLimit ? 'text-destructive' : 'text-muted-foreground'}"
+            class="mt-1 text-right text-micro {cur > charLimit ? 'text-destructive' : 'text-muted-foreground'}"
             data-testid="ask-user-charcount-{question.id}"
           >
             {cur} / {charLimit}
@@ -363,7 +363,7 @@
       >
         <label
           for="ask-user-reject-reason-{requestId}"
-          class="mb-1 block text-[11px] font-medium text-destructive"
+          class="mb-1 block text-caption font-medium text-destructive"
         >
           {$t("hitl.reject.reason_required", {
             values: { min: MIN_REJECT_REASON_LENGTH },
@@ -376,7 +376,7 @@
           placeholder={$t("hitl.reject.reason_placeholder")}
           data-testid="ask-user-reject-reason"
         />
-        <p class="mt-1 text-[10px] text-muted-foreground">
+        <p class="mt-1 text-micro text-muted-foreground">
           {rejectReason.trim().length} / {MIN_REJECT_REASON_LENGTH}
         </p>
       </div>
@@ -384,7 +384,7 @@
 
     <!-- Error -->
     {#if error}
-      <p class="mt-1.5 text-[10px] text-destructive" role="alert">{error}</p>
+      <p class="mt-1.5 text-micro text-destructive" role="alert">{error}</p>
     {/if}
 
     <!-- Actions -->
@@ -393,7 +393,7 @@
         <Button
           variant="ghost"
           size="sm"
-          class="text-[11px] h-7 px-3"
+          class="text-caption h-7 px-3"
           disabled={isProcessing}
           onclick={() => {
             showRejectForm = false;
@@ -406,7 +406,7 @@
         <Button
           size="sm"
           variant="destructive"
-          class="text-[11px] h-7 px-3"
+          class="text-caption h-7 px-3"
           disabled={isProcessing || !rejectReasonValid}
           onclick={handleRejectConfirm}
           data-testid="ask-user-reject-confirm"
@@ -421,7 +421,7 @@
         <Button
           variant="ghost"
           size="sm"
-          class="text-[11px] h-7 px-3 text-destructive hover:bg-destructive/10"
+          class="text-caption h-7 px-3 text-destructive hover:bg-destructive/10"
           disabled={isProcessing}
           onclick={() => {
             showRejectForm = true;
@@ -435,7 +435,7 @@
       <Button
         variant="ghost"
         size="sm"
-        class="text-[11px] h-7 px-3"
+        class="text-caption h-7 px-3"
         disabled={isProcessing}
         onclick={handleSkip}
         data-testid="ask-user-skip"
@@ -446,7 +446,7 @@
         <Button
           variant="outline"
           size="sm"
-          class="text-[11px] h-7 px-3"
+          class="text-caption h-7 px-3"
           disabled={isProcessing}
           onclick={handleSkipWithDefault}
           data-testid="ask-user-skip-default"
@@ -456,7 +456,7 @@
       {/if}
       <Button
         size="sm"
-        class="text-[11px] h-7 px-4"
+        class="text-caption h-7 px-4"
         disabled={isProcessing || !canSubmit || anyOverLimit}
         onclick={handleSubmit}
         data-testid="ask-user-submit"

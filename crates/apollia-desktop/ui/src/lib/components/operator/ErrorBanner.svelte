@@ -55,7 +55,7 @@
 <div
   role="alert"
   data-testid={testid}
-  class="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-[12.5px] {toneClass} {className}"
+  class="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-code-sm {toneClass} {className}"
 >
   <Icon size={14} class="shrink-0" />
   <div class="min-w-0 flex-1">
@@ -66,7 +66,7 @@
       type="button"
       onclick={onretry}
       disabled={loading}
-      class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-current/30 px-2.5 py-1 text-[11.5px] font-medium transition-colors hover:bg-current/10 disabled:opacity-50"
+      class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-current/30 px-2.5 py-1 text-caption-lg font-medium transition-colors hover:bg-current/10 disabled:opacity-50"
     >
       <RefreshCw size={11} class={loading ? "animate-spin" : ""} />
       {retryLabel ?? $t("common.retry")}

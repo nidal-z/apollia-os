@@ -28,7 +28,7 @@
     background: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
     font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
-    font-size: 0.65625rem;
+    font-size: var(--text-micro-lg);
     font-weight: 600;
     line-height: 1;
   }
@@ -36,6 +36,6 @@
   .keycap-lg {
     height: 1.25rem;
     min-width: 1.25rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
   }
 </style>

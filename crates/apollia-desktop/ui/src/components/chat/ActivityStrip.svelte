@@ -122,7 +122,7 @@
     <button
       type="button"
       class="flex w-full cursor-pointer select-none items-center gap-2.5 px-3 py-2
-        text-left text-[12.5px] text-muted-foreground outline-none transition-colors
+        text-left text-code-sm text-muted-foreground outline-none transition-colors
         hover:bg-surface-2/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
       aria-expanded={expanded}
       aria-label={$t("chat.activity.toggle")}
@@ -131,14 +131,14 @@
       {@render summary()}
       <ChevronRight
         size={14}
-        class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-200"
+        class="chev ml-auto flex-none text-muted-foreground/60 transition-transform duration-base"
         style={expanded ? "transform: rotate(90deg);" : ""}
         aria-hidden="true"
       />
     </button>
   {:else}
     <div
-      class="flex w-full select-none items-center gap-2.5 px-3 py-2 text-[12.5px] text-muted-foreground"
+      class="flex w-full select-none items-center gap-2.5 px-3 py-2 text-code-sm text-muted-foreground"
     >
       {@render summary()}
     </div>

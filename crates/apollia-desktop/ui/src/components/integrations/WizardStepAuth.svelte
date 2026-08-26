@@ -177,7 +177,7 @@
           <span class="text-sm font-medium text-foreground">
             {$t("integrations.wizard.local_loopback_title")}
           </span>
-          <span class="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+          <span class="rounded bg-primary/15 px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-primary">
             {$t("integrations.wizard.local_loopback_badge")}
           </span>
         </div>
@@ -272,11 +272,11 @@
              champ de saisie pour que les users non-techniques n'aient PAS
              à passer par une variable d'environnement. Persisté en
              keychain via `mcp_oauth_store_client_id`. -->
-        <div class="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-4 py-3" data-testid="auth-oauth-client-id-input">
+        <div class="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-4 py-3" data-testid="auth-oauth-client-id-input">
           <p class="text-sm font-medium text-foreground">
             {$t("integrations.wizard.oauth_client_id_title")}
           </p>
-          <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
+          <p class="text-caption-lg text-muted-foreground leading-[1.5]">
             {$t("integrations.wizard.oauth_client_id_hint")}
           </p>
           <div class="flex gap-2">
@@ -305,7 +305,7 @@
             </Button>
           </div>
           {#if oauthSaveClientIdError}
-            <p class="text-[11px] text-destructive" data-testid="auth-oauth-client-id-error">
+            <p class="text-caption text-destructive" data-testid="auth-oauth-client-id-error">
               {oauthSaveClientIdError}
             </p>
           {/if}
@@ -316,7 +316,7 @@
         <!-- Pre-registered OAuth app - scopes are baked at the provider's
              dev portal, not chooseable per sign-in. Surface that with a
              short note so the user doesn't expect the selector. -->
-        <p class="text-[11.5px] text-muted-foreground leading-[1.5]" data-testid="auth-oauth-preregistered-scope-note">
+        <p class="text-caption-lg text-muted-foreground leading-[1.5]" data-testid="auth-oauth-preregistered-scope-note">
           {$t("integrations.wizard.oauth_preregistered_scope_note")}
         </p>
       {:else if oauthDiscovery}
@@ -325,7 +325,7 @@
             <p class="text-sm font-medium text-foreground">
               {$t("integrations.wizard.oauth_scope_selector_title")}
             </p>
-            <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
+            <p class="text-caption-lg text-muted-foreground leading-[1.5]">
               {oauthDiscovery.scopes_supported.length > 0
                 ? $t("integrations.wizard.oauth_scope_selector_hint")
                 : $t("integrations.wizard.oauth_scope_selector_empty")}
@@ -346,9 +346,9 @@
                       data-testid={`auth-oauth-scope-${scope}`}
                     />
                     <span class="flex-1">
-                      <span class="font-mono text-[12.5px] text-foreground">{scope}</span>
+                      <span class="font-mono text-code-sm text-foreground">{scope}</span>
                       {#if desc}
-                        <span class="block text-[11px] text-muted-foreground">{desc}</span>
+                        <span class="block text-caption text-muted-foreground">{desc}</span>
                       {/if}
                     </span>
                   </label>
@@ -485,7 +485,7 @@
           hint={envVar.description ?? undefined}
         >
           {#if envVar.isSecret}
-            <p class="flex items-center gap-1 text-[11px] text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
+            <p class="flex items-center gap-1 text-caption text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
               <Lock size={10} aria-hidden="true" />
               {$t("integrations.wizard.encrypted_locally")}
             </p>

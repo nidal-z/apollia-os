@@ -884,7 +884,7 @@
           onclick={onplantoggle}
           disabled={disabled || planDisabled}
           aria-pressed={planMode}
-          class="mr-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {planMode
+          class="mr-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-caption font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {planMode
             ? 'border-primary/40 bg-primary/12 text-primary'
             : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'}"
           aria-label={$t("chat.planMode.chipLabel")}
@@ -975,7 +975,7 @@
       <div class="flex-1"></div>
 
       {#if isDesktop}
-        <span class="mr-1.5 select-none text-[11px] text-muted-foreground/50" aria-hidden="true">
+        <span class="mr-1.5 select-none text-caption text-muted-foreground/50" aria-hidden="true">
           ⌘↵
         </span>
       {/if}
@@ -1021,7 +1021,7 @@
 
 <style>
   .chat-input-textarea::placeholder {
-    transition: opacity 300ms ease;
+    transition: opacity var(--motion-base) ease;
     opacity: 1;
   }
 

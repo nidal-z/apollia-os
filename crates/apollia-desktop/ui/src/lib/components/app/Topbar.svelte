@@ -25,7 +25,7 @@
 </script>
 
 <header
-  class="topbar sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-muted/80 px-4 backdrop-blur-xl"
+  class="topbar sticky top-0 z-drawer flex items-center gap-3 border-b border-border bg-muted/80 px-4 backdrop-blur-xl"
   data-testid="topbar"
 >
   <!-- Left: breadcrumb (+ hamburger on drawer breakpoint) -->

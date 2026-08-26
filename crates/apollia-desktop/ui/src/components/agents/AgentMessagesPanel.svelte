@@ -92,7 +92,7 @@
     <div class="space-y-2 max-h-[400px] overflow-y-auto">
       {#each messages as msg, i (msg.sent_at + msg.from_agent)}
         <button
-          class="w-full text-left bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-3 cursor-pointer hover:bg-white/[0.08] transition-colors"
+          class="w-full text-left bg-surface-2 backdrop-blur-sm border border-border rounded-lg p-3 cursor-pointer hover:bg-surface-3 transition-colors"
           onclick={() => toggleExpand(i)}
           data-testid="agent-message-item"
           transition:fly={{ y: -10, duration: 200 }}
@@ -115,7 +115,7 @@
 
           {#if expandedIndex === i}
             <pre
-              class="mt-2 bg-black/20 rounded-lg p-3 text-xs font-mono text-foreground/80 whitespace-pre-wrap overflow-x-auto"
+              class="mt-2 bg-surface-3 rounded-lg p-3 text-xs font-mono text-foreground/80 whitespace-pre-wrap overflow-x-auto"
               data-testid="agent-message-payload"
             >{formatPayload(msg.payload)}</pre>
           {/if}

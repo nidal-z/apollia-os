@@ -28,7 +28,7 @@
 </script>
 
 <li
-  class="flex gap-2 rounded-md border border-border/40 bg-card/40 px-2 py-1.5 text-[11px] transition-colors {highlighted
+  class="flex gap-2 rounded-md border border-border/40 bg-card/40 px-2 py-1.5 text-caption transition-colors {highlighted
     ? 'border-primary/60 bg-primary/5'
     : 'hover:bg-card/70'}"
   onmouseenter={() => onHover(citation.id)}
@@ -37,7 +37,7 @@
   data-testid="citation-footnote-{citation.id}"
 >
   <span
-    class="mt-[1px] inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-muted text-[9px] font-medium text-muted-foreground"
+    class="mt-px inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-muted text-micro-xs font-medium text-muted-foreground"
     aria-hidden="true"
   >
     {number}

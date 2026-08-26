@@ -77,9 +77,9 @@
     info: "bg-info/10 text-info dark:bg-info/20",
     outline: "border border-border text-foreground",
     "gradient-primary": `bg-gradient-to-b from-primary/20 to-primary/30 text-primary dark:from-primary/30 dark:to-primary/40 ${gradientInset}`,
-    "gradient-success": `bg-gradient-to-b from-emerald-50 to-emerald-100 text-success-a11y dark:from-emerald-900/40 dark:to-emerald-950/60 ${gradientInset}`,
-    "gradient-warning": `bg-gradient-to-b from-amber-50 to-amber-100 text-warning-a11y dark:from-amber-900/40 dark:to-amber-950/60 ${gradientInset}`,
-    "gradient-destructive": `bg-gradient-to-b from-red-50 to-red-100 text-danger-a11y dark:from-red-900/40 dark:to-red-950/60 ${gradientInset}`,
+    "gradient-success": `bg-gradient-to-b from-success/20 to-success/30 text-success-a11y dark:from-success/30 dark:to-success/40 ${gradientInset}`,
+    "gradient-warning": `bg-gradient-to-b from-warning/20 to-warning/30 text-warning-a11y dark:from-warning/30 dark:to-warning/40 ${gradientInset}`,
+    "gradient-destructive": `bg-gradient-to-b from-destructive/20 to-destructive/30 text-danger-a11y dark:from-destructive/30 dark:to-destructive/40 ${gradientInset}`,
     default: "bg-primary/10 text-primary dark:bg-primary/20",
     secondary: "bg-muted text-muted-foreground",
     destructive:
@@ -87,7 +87,7 @@
   };
 
   const sizeClasses: Record<Size, string> = {
-    sm: "text-[10px] px-2 py-0.5 gap-1",
+    sm: "text-micro px-2 py-0.5 gap-1",
     md: "text-xs px-2.5 py-0.5 gap-1.5",
     lg: "text-sm px-3 py-1 gap-1.5",
   };

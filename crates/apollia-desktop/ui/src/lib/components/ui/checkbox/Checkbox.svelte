@@ -46,7 +46,7 @@
   disabled={disabled || loading}
   {id}
   class={cn(
-    "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-border ring-offset-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-border ring-offset-background transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
     checked && !loading ? "bg-primary border-primary text-primary-foreground" : "bg-background",
     className,
   )}

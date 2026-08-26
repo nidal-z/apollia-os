@@ -295,7 +295,7 @@
       {$t("triggers.advanced_section")}
       <ChevronDown
         size={14}
-        class="transition-transform duration-200 {advancedOpen ? 'rotate-180' : ''}"
+        class="transition-transform duration-base {advancedOpen ? 'rotate-180' : ''}"
       />
     </button>
     {#if advancedOpen}

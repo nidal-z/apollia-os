@@ -167,7 +167,7 @@
     data-testid="tool-card-{tool.name}"
     aria-label={title}
     class={cn(
-      "flex items-center gap-3 rounded-lg border bg-card px-3.5 py-3 outline-none transition duration-150",
+      "flex items-center gap-3 rounded-lg border bg-card px-3.5 py-3 outline-none transition duration-fast",
       "hover:shadow-sm focus-visible:border-primary/55 focus-visible:ring-2 focus-visible:ring-primary/15 focus-within:border-primary/55",
       status === "attention" ? "border-warning/45" : "border-border",
       !tool.enabled && "bg-card/60",

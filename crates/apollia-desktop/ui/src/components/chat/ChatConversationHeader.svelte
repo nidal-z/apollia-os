@@ -253,7 +253,7 @@
           type="text"
           maxlength="120"
           placeholder={$t("chat.rename_placeholder")}
-          class="w-full rounded-sm border border-primary/40 bg-background px-1.5 py-0.5 text-[13px] font-medium outline-none focus:border-primary"
+          class="w-full rounded-sm border border-primary/40 bg-background px-1.5 py-0.5 text-body-sm font-medium outline-none focus:border-primary"
           data-testid="chat-header-title-input"
         />
       {:else}
@@ -264,7 +264,7 @@
           aria-label={$t("chat.rename_session")}
           data-testid="chat-header-title"
         >
-          <span class="truncate text-[13px] font-medium">{displayTitle}</span>
+          <span class="truncate text-body-sm font-medium">{displayTitle}</span>
           <Edit3
             size={10}
             class="shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors"
@@ -275,19 +275,19 @@
 
     <!-- Status badge -->
     {#if sessionStatus === "closed"}
-      <Badge variant="secondary" class="text-[9px] px-1.5 py-0 shrink-0">
+      <Badge variant="secondary" class="text-micro-xs px-1.5 py-0 shrink-0">
         {$t("chat.status_closed")}
       </Badge>
     {:else if sessionStatus === "processing"}
       <span
-        class="flex items-center gap-1 text-[11px] text-primary/70 shrink-0"
+        class="flex items-center gap-1 text-caption text-primary/70 shrink-0"
         data-testid="chat-header-processing"
       >
         <Spinner size={11} />
         <span class="hidden sm:inline">{$t("chat.thinking")}</span>
       </span>
     {:else}
-      <Badge variant="outline" class="text-[9px] px-1.5 py-0 shrink-0 border-success/30 text-success">
+      <Badge variant="outline" class="text-micro-xs px-1.5 py-0 shrink-0 border-success/30 text-success">
         {$t("chat.status_active")}
       </Badge>
     {/if}
@@ -360,7 +360,7 @@
                 role="menuitem"
                 onclick={() => handleMenuAction("rename")}
                 disabled={sessionStatus === "closed"}
-                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="chat-header-menu-rename"
               >
                 <Edit3 size={12} /> {$t("chat.rename_session")}
@@ -375,7 +375,7 @@
                   role="menuitem"
                   onclick={() => handleLinkPick(null)}
                   disabled={!onlink}
-                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                   data-testid="chat-header-menu-unlink-project"
                 >
                   <FolderMinus size={12} />
@@ -393,7 +393,7 @@
                   role="menuitem"
                   onclick={() => (linkOpen = !linkOpen)}
                   disabled={!onlink || availableProjects.length === 0}
-                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-expanded={linkOpen}
                   data-testid="chat-header-menu-link-project"
                 >
@@ -406,7 +406,7 @@
                     data-testid="chat-header-link-project-menu"
                   >
                     {#if availableProjects.length === 0}
-                      <div class="px-3 py-1.5 text-[11px] text-muted-foreground">
+                      <div class="px-3 py-1.5 text-caption text-muted-foreground">
                         {$t("chat.no_project_to_link")}
                       </div>
                     {:else}
@@ -434,7 +434,7 @@
                   type="button"
                   role="menuitem"
                   onclick={() => handleMenuAction("drawer")}
-                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted"
                   data-testid="chat-header-menu-drawer"
                 >
                   <Settings2 size={12} /> {$t("chat.toggle_context_drawer")}
@@ -451,7 +451,7 @@
                 type="button"
                 role="menuitem"
                 onclick={() => handleMenuAction("delete")}
-                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
+                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-destructive hover:bg-destructive/10"
                 data-testid="chat-header-menu-delete"
               >
                 <Trash2 size={12} /> {$t("chat.delete_session")}
@@ -475,7 +475,7 @@
 
   <!-- Meta row: counts / context / duration / mode -->
   <div
-    class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/70"
+    class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-micro text-muted-foreground/70"
     data-testid="chat-header-meta"
   >
     <span class="inline-flex items-center gap-1" data-testid="chat-header-meta-mode">
@@ -503,7 +503,7 @@
         title={$t("chat.linked_project_tooltip", {
           values: { name: linkedProject.name },
         })}
-        class="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] text-primary/80 bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer max-w-[12rem]"
+        class="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-micro text-primary/80 bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer max-w-[12rem]"
         data-testid="chat-header-meta-project"
       >
         <FolderOpen size={10} class="shrink-0" />

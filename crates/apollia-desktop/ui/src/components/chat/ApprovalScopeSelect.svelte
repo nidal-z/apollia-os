@@ -66,7 +66,7 @@
 
 <details class="group rounded-md glass-border-subtle" data-testid="approval-scope-select">
   <summary
-    class="flex cursor-pointer items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+    class="flex cursor-pointer items-center gap-1 px-2 py-1 text-caption text-muted-foreground hover:text-foreground"
     aria-label={$t("approvals.scope.open_disclosure")}
   >
     <ChevronDown
@@ -83,7 +83,7 @@
   <div class="flex flex-col gap-0.5 border-t border-border/30 px-2 py-1.5">
     {#each SCOPES as scope (scope.key)}
       <label
-        class="flex items-start gap-2 rounded px-1.5 py-1 text-[11px] hover:bg-muted/40 {value === scope.key ? 'bg-muted/60' : ''}"
+        class="flex items-start gap-2 rounded px-1.5 py-1 text-caption hover:bg-muted/40 {value === scope.key ? 'bg-muted/60' : ''}"
       >
         <input
           type="radio"
@@ -97,7 +97,7 @@
         />
         <span class="flex-1">
           <span class="block font-medium text-foreground">{$t(scope.labelKey)}</span>
-          <span class="block text-[10px] text-muted-foreground">{$t(scope.descKey)}</span>
+          <span class="block text-micro text-muted-foreground">{$t(scope.descKey)}</span>
         </span>
       </label>
     {/each}

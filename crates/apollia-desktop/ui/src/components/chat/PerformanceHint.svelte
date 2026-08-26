@@ -17,11 +17,11 @@
 
 {#if hint}
   <span
-    class="inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+    class="inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-micro text-muted-foreground"
     title={hint}
     data-testid="tool-performance-hint"
   >
-    <Lightbulb class="h-3 w-3 text-amber-500/80" aria-hidden="true" />
+    <Lightbulb class="h-3 w-3 text-warning/80" aria-hidden="true" />
     <span class="line-clamp-1 max-w-[28ch]">{hint}</span>
   </span>
 {/if}

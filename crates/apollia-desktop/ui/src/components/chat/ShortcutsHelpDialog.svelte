@@ -83,7 +83,7 @@
       <div class="max-h-[60vh] overflow-y-auto space-y-3 pr-1">
         {#each grouped as [group, entries] (group)}
           <section>
-            <h3 class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 class="mb-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
               {group}
             </h3>
             <ul class="space-y-1">

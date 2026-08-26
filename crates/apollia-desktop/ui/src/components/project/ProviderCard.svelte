@@ -84,19 +84,19 @@
 
   {#snippet badges()}
     <span
-      class="text-[9.5px] font-mono uppercase tracking-[1px] px-1.5 py-px rounded border border-border text-muted-foreground"
+      class="text-micro-sm font-mono uppercase tracking-[1px] px-1.5 py-px rounded border border-border text-muted-foreground"
     >
       {provider.provider_type}
     </span>
     <span
-      class="text-[9.5px] font-mono px-1.5 py-px rounded bg-surface-1 text-muted-foreground"
+      class="text-micro-sm font-mono px-1.5 py-px rounded bg-surface-1 text-muted-foreground"
       title={$t("projects.context_priority_label")}
     >
       <!-- i18n-ignore: priority prefix, identical in every locale -->
       P{provider.priority}
     </span>
     {#if !provider.enabled}
-      <span class="text-[9.5px] font-medium text-muted-foreground italic">
+      <span class="text-micro-sm font-medium text-muted-foreground italic">
         {$t("projects.provider_disabled_label")}
       </span>
     {/if}
@@ -113,11 +113,11 @@
   {/snippet}
 
   {#snippet body()}
-    <p class="m-0 mt-1 text-[11.5px] text-muted-foreground leading-[1.5]">
+    <p class="m-0 mt-1 text-caption-lg text-muted-foreground leading-[1.5]">
       {description}
     </p>
     {#if provider.path}
-      <p class="m-0 mt-1 text-[10.5px] text-muted-foreground font-mono truncate">
+      <p class="m-0 mt-1 text-micro-lg text-muted-foreground font-mono truncate">
         {provider.path}
       </p>
     {/if}

@@ -93,7 +93,7 @@
 </script>
 
 <div class="flex flex-col gap-0.5" data-testid="approval-timer" data-urgency={urgency}>
-  <div class="flex items-center gap-1 text-[10px] {textClass}">
+  <div class="flex items-center gap-1 text-micro {textClass}">
     <Clock class="h-3 w-3" aria-hidden="true" />
     <span>
       {$t("approvals.timer.waiting_since", { values: { elapsed: format(elapsedMs) } })}
@@ -113,7 +113,7 @@
       aria-valuenow={Math.round(ratio * 100)}
     >
       <div
-        class="h-full transition-[width] duration-200 ease-linear {barClass}"
+        class="h-full transition-[width] duration-base ease-linear {barClass}"
         style:width="{ratio * 100}%"
       ></div>
     </div>

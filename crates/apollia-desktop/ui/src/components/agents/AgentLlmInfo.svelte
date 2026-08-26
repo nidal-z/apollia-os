@@ -60,7 +60,7 @@
             <span>{$t('agent_detail.llm_model')}: {activeBackend.model}</span>
             <Badge
               variant={activeBackend.enabled ? "success" : "destructive"}
-              class="text-[10px]"
+              class="text-micro"
             >
               {activeBackend.enabled ? "ENABLED" : "DISABLED"}
             </Badge>

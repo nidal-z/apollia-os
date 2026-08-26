@@ -431,7 +431,7 @@
     height: 0.25rem;
     border-radius: 99px;
     background: hsl(var(--border));
-    transition: background 200ms ease;
+    transition: background var(--motion-base) ease;
   }
 
   .chat-progress-pip.active {
@@ -449,12 +449,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 700;
     transition:
-      background 200ms ease,
-      color 200ms ease,
-      border-color 200ms ease;
+      background var(--motion-base) ease,
+      color var(--motion-base) ease,
+      border-color var(--motion-base) ease;
   }
 
   .chat-progress-check.active {
@@ -520,14 +520,14 @@
   }
   .celebration-title {
     margin: 0;
-    font-size: 1.125rem;
+    font-size: var(--text-heading-md);
     font-weight: 600;
     color: hsl(var(--foreground));
   }
   .celebration-detail {
     margin: 0;
     max-width: 32rem;
-    font-size: 0.875rem;
+    font-size: var(--text-body-md);
     line-height: 1.5;
     color: hsl(var(--muted-foreground));
   }
@@ -536,7 +536,7 @@
     margin: 0;
     padding: 0.3rem 1rem 0;
     text-align: center;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -549,7 +549,7 @@
     border-bottom: 1px solid hsl(var(--border) / 0.5);
     background: hsl(var(--primary) / 0.06);
     color: hsl(var(--muted-foreground));
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     line-height: 1.4;
     text-align: center;
     flex-shrink: 0;
@@ -567,7 +567,7 @@
   }
 
   .chat-finish-hint {
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     line-height: 1.3;
     color: hsl(var(--muted-foreground));
   }
@@ -586,7 +586,7 @@
 
   .chat-status-title {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: var(--text-heading-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
   }
@@ -594,7 +594,7 @@
   .chat-status-detail {
     margin: 0;
     max-width: 28rem;
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     line-height: 1.5;
   }
 

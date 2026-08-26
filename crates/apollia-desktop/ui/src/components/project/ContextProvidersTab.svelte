@@ -93,7 +93,7 @@
 <div class="px-8 pb-6 space-y-4">
   <!-- Header actions -->
   <div class="flex items-center justify-between gap-3">
-    <p class="m-0 text-[12px] text-muted-foreground leading-[1.55] max-w-[640px]">
+    <p class="m-0 text-body-xs text-muted-foreground leading-[1.55] max-w-[640px]">
       {$t("projects.context_intro")}
     </p>
     <div class="flex gap-2 shrink-0">
@@ -140,10 +140,10 @@
     <div class="rounded-xl border border-border bg-card p-4 space-y-3">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <div class="text-[12.5px] font-semibold text-foreground">
+          <div class="text-code-sm font-semibold text-foreground">
             {$t("projects.context_snapshot_preview")}
           </div>
-          <div class="text-[10.5px] text-muted-foreground mt-0.5">
+          <div class="text-micro-lg text-muted-foreground mt-0.5">
             {$t("projects.context_snapshot_cwd_hint")}
           </div>
         </div>

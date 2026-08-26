@@ -114,9 +114,9 @@
             <div class="flex items-center gap-2">
               <h2 class="truncate text-base font-medium" data-testid="agent-detail-name">{agent.name}</h2>
               {#if config}
-                <Badge variant={config.variant} class="text-[9px] px-1.5 py-0" data-testid="agent-detail-status">{$t(config.labelKey)}</Badge>
+                <Badge variant={config.variant} class="text-micro-xs px-1.5 py-0" data-testid="agent-detail-status">{$t(config.labelKey)}</Badge>
               {:else}
-                <Badge variant="secondary" class="text-[9px] px-1.5 py-0" data-testid="agent-detail-status">{$t("agents.not_loaded")}</Badge>
+                <Badge variant="secondary" class="text-micro-xs px-1.5 py-0" data-testid="agent-detail-status">{$t("agents.not_loaded")}</Badge>
               {/if}
             </div>
             <p class="mt-0.5 text-xs text-muted-foreground">
@@ -152,7 +152,7 @@
             {/if}
             {#if isInstalled}
               <div class="ml-auto flex items-center gap-2">
-                <span class="text-[11px] text-muted-foreground">{$t("agents.auto_start_enabled")}</span>
+                <span class="text-caption text-muted-foreground">{$t("agents.auto_start_enabled")}</span>
                 <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" aria-label={$t("agents.auto_start_enabled")} data-testid="agent-detail-enabled-toggle" />
               </div>
             {/if}
@@ -173,7 +173,7 @@
       <!-- Description card -->
       {#if agent.description}
         <Card class="rounded-lg px-4 py-3.5" data-testid="agent-detail-description">
-          <p class="text-[13px] text-foreground/85 leading-relaxed">{agent.description}</p>
+          <p class="text-body-sm text-foreground/85 leading-relaxed">{agent.description}</p>
         </Card>
       {/if}
 
@@ -183,7 +183,7 @@
           <Card class="rounded-lg px-3.5 py-3" data-testid="agent-detail-execution-mode">
             <div class="flex items-center gap-2 mb-1.5">
               <Cpu size={12} class="text-muted-foreground/50" />
-              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.execution_mode_title')}</span>
+              <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.execution_mode_title')}</span>
             </div>
             <p class="text-sm text-foreground/80">{executionModeLabel(agent.execution_mode)}</p>
           </Card>
@@ -192,7 +192,7 @@
           <Card class="rounded-lg px-3.5 py-3" data-testid="agent-detail-install-path">
             <div class="flex items-center gap-2 mb-1.5">
               <Terminal size={12} class="text-muted-foreground/50" />
-              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.install_path_title')}</span>
+              <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.install_path_title')}</span>
             </div>
             <p class="text-xs text-muted-foreground font-mono truncate" title={agent.install_path}>{agent.install_path}</p>
           </Card>
@@ -204,11 +204,11 @@
         <Card class="rounded-lg px-4 py-3.5" data-testid="agent-detail-tags">
           <div class="flex items-center gap-2 mb-2.5">
             <Tag size={12} class="text-muted-foreground/50" />
-            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tags_title')}</span>
+            <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tags_title')}</span>
           </div>
           <div class="flex flex-wrap gap-1.5">
             {#each agent.tags as tag}
-              <span class="rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-foreground/65">{tag}</span>
+              <span class="rounded-md bg-muted/50 px-2 py-0.5 text-caption text-foreground/65">{tag}</span>
             {/each}
           </div>
         </Card>
@@ -219,14 +219,14 @@
         <Card class="rounded-lg overflow-hidden" data-testid="agent-detail-tools">
           <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
             <Wrench size={12} class="text-muted-foreground/50" />
-            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tools_title')}</span>
-            <span class="text-[10px] text-muted-foreground/30 ml-auto">{allTools.length}</span>
+            <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tools_title')}</span>
+            <span class="text-micro text-muted-foreground/30 ml-auto">{allTools.length}</span>
           </div>
           <div class="divide-y divide-border/40">
             {#each allTools as tool}
-              <div class="flex items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-primary/5">
-                <span class="flex-1 text-[13px] text-foreground/80">{tool.name}</span>
-                <Badge variant={tool.required ? "destructive" : "outline"} class="text-[9px] px-1.5 py-0">
+              <div class="flex items-center gap-3 px-4 py-2 transition-colors duration-fast hover:bg-primary/5">
+                <span class="flex-1 text-body-sm text-foreground/80">{tool.name}</span>
+                <Badge variant={tool.required ? "destructive" : "outline"} class="text-micro-xs px-1.5 py-0">
                   {tool.required ? $t('agent_detail.tools_required_label') : $t('agent_detail.tools_optional_label')}
                 </Badge>
               </div>
@@ -257,7 +257,7 @@
         <Card class="rounded-lg px-4 py-3.5" data-testid="agent-messages-tab">
           <div class="flex items-center gap-2 mb-3">
             <MessageSquare size={12} class="text-muted-foreground/50" />
-            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.messages_title')}</span>
+            <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.messages_title')}</span>
           </div>
           <AgentMessagesPanel agentName={agent.name} />
         </Card>

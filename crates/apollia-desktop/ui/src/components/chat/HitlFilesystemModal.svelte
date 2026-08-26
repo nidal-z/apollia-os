@@ -228,7 +228,7 @@
     <div class="mb-3 flex items-center gap-2">
       <ApprovalRiskBadge level={riskLevel} />
       <span
-        class="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground"
+        class="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-caption font-medium text-foreground"
         data-testid="hitl-fs-op"
       >
         <OpIcon class="h-3 w-3" aria-hidden="true" />
@@ -251,11 +251,11 @@
 
     <!-- Path -->
     <div class="mb-3">
-      <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <p class="mb-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
         {$t("hitl.fs.path_label")}
       </p>
       <code
-        class="block break-all rounded-md bg-muted/50 px-3 py-1.5 font-mono text-[11px] text-foreground"
+        class="block break-all rounded-md bg-muted/50 px-3 py-1.5 font-mono text-caption text-foreground"
         data-testid="hitl-fs-path"
       >{pending.path}</code>
     </div>
@@ -264,54 +264,54 @@
     {#if pending.preview.kind === "diff"}
       {@const diff = pending.preview}
       <div class="mb-3">
-        <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p class="mb-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_diff")}
         </p>
-        <div class="overflow-hidden rounded-md border border-border/40 text-[11px] font-mono">
+        <div class="overflow-hidden rounded-md border border-border/40 text-caption font-mono">
           {#if diff.before}
             <div class="border-b border-border/30 bg-destructive/5 px-3 py-1.5">
-              <span class="mb-1 block text-[10px] font-semibold text-muted-foreground/60">
+              <span class="mb-1 block text-micro font-semibold text-muted-foreground/60">
                 {$t("hitl.fs.preview_before")}
               </span>
               <pre class="max-h-32 overflow-auto whitespace-pre-wrap break-all text-destructive/80">{diff.before}</pre>
             </div>
           {/if}
           <div class="bg-success/5 px-3 py-1.5">
-            <span class="mb-1 block text-[10px] font-semibold text-muted-foreground/60">
+            <span class="mb-1 block text-micro font-semibold text-muted-foreground/60">
               {$t("hitl.fs.preview_after")}
             </span>
             <pre class="max-h-32 overflow-auto whitespace-pre-wrap break-all text-success/80">{diff.after}</pre>
           </div>
         </div>
         {#if diff.truncated}
-          <p class="mt-1 text-[10px] text-muted-foreground/60">{$t("hitl.fs.preview_truncated")}</p>
+          <p class="mt-1 text-micro text-muted-foreground/60">{$t("hitl.fs.preview_truncated")}</p>
         {/if}
       </div>
     {:else if pending.preview.kind === "content"}
       {@const content = pending.preview}
       <div class="mb-3">
-        <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p class="mb-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_content")}
           <span class="ml-1 font-normal normal-case text-muted-foreground/60">
             ({$t("hitl.fs.preview_size", { values: { size: content.size_bytes } })})
           </span>
         </p>
         <pre
-          class="max-h-48 overflow-auto rounded-md bg-muted/40 px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-all text-foreground"
+          class="max-h-48 overflow-auto rounded-md bg-muted/40 px-3 py-2 font-mono text-caption whitespace-pre-wrap break-all text-foreground"
           data-testid="hitl-fs-content-preview"
         >{content.content}</pre>
         {#if content.truncated}
-          <p class="mt-1 text-[10px] text-muted-foreground/60">{$t("hitl.fs.preview_truncated")}</p>
+          <p class="mt-1 text-micro text-muted-foreground/60">{$t("hitl.fs.preview_truncated")}</p>
         {/if}
       </div>
     {:else if pending.preview.kind === "mode"}
       {@const mode = pending.preview}
       <div class="mb-3">
-        <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p class="mb-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_mode")}
         </p>
         <p
-          class="rounded-md bg-muted/40 px-3 py-2 font-mono text-[12px] text-foreground"
+          class="rounded-md bg-muted/40 px-3 py-2 font-mono text-body-xs text-foreground"
           data-testid="hitl-fs-mode-preview"
         >
           {$t("hitl.fs.preview_mode_label", {
@@ -330,7 +330,7 @@
         <FormField
           id="hitl-fs-critical-input"
           label={$t("hitl.fs.critical_confirm_label", { values: { word: confirmWord } })}
-          labelClass="text-[11px] text-destructive"
+          labelClass="text-caption text-destructive"
         >
           <input
             id="hitl-fs-critical-input"
@@ -352,7 +352,7 @@
         <FormField
           id="hitl-fs-reject-reason"
           label={$t("hitl.fs.reject_reason_label")}
-          labelClass="text-[11px] text-destructive"
+          labelClass="text-caption text-destructive"
         >
           <Textarea
             id="hitl-fs-reject-reason"
@@ -374,7 +374,7 @@
 
     <!-- Error -->
     {#if error}
-      <p class="mb-2 text-[11px] text-destructive" role="alert" data-testid="hitl-fs-error">
+      <p class="mb-2 text-caption text-destructive" role="alert" data-testid="hitl-fs-error">
         {error}
       </p>
     {/if}
@@ -404,7 +404,7 @@
       <Button
         variant="ghost"
         size="sm"
-        class="ml-auto h-8 px-3 text-[11px] text-primary"
+        class="ml-auto h-8 px-3 text-caption text-primary"
         disabled={!canApprove}
         onclick={() => {
           if (showScope) {

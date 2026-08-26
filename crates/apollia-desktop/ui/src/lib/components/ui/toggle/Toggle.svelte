@@ -52,7 +52,7 @@
   disabled={disabled || loading}
   {id}
   class={cn(
-    "relative inline-flex shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+    "relative inline-flex shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent ring-offset-background transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
     checked ? "bg-primary" : "bg-border",
     sizes[size].track,
     className,
@@ -63,7 +63,7 @@
 >
   <span
     class={cn(
-      "pointer-events-none flex items-center justify-center rounded-full shadow-sm transition-transform duration-150",
+      "pointer-events-none flex items-center justify-center rounded-full shadow-sm transition-transform duration-fast",
       loading ? "bg-transparent text-primary-foreground" : "bg-primary-foreground",
       sizes[size].dot,
       checked ? sizes[size].translate : "translate-x-0",

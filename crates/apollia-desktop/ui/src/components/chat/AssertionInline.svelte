@@ -46,7 +46,7 @@
      Bidirectional highlight: when a citation number is hovered elsewhere, the
      owning span lifts its ring, and vice-versa. -->
 <span
-  class="inline-baseline rounded-[3px] px-[2px] transition-colors {highlight}"
+  class="inline-baseline rounded-[3px] px-0.5 transition-colors {highlight}"
   data-assertion-citations={assertion.citation_ids.join(",")}
 >
   <span
@@ -56,7 +56,7 @@
     })}
   >
     <span
-      class="inline-block h-[6px] w-[6px] rounded-full border {levelClass}"
+      class="inline-block h-1.5 w-1.5 rounded-full border {levelClass}"
       aria-hidden="true"
     ></span>
     <span>{text}</span>
@@ -65,10 +65,10 @@
     {@const n = footnoteNumbers.get(cid)}
     {#if n !== undefined}
       {@const cite = citations.find((c) => c.id === cid)}
-      <sup class="ml-[1px]">
+      <sup class="ml-px">
         <Button variant="ghost" size="sm"
           type="button"
-          class="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full border border-border/50 bg-card/70 px-[3px] text-[9px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {hoveredId === cid ? 'bg-primary/15 text-primary ring-1 ring-primary/50' : ''}"
+          class="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-border/50 bg-card/70 px-[3px] text-micro-xs font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {hoveredId === cid ? 'bg-primary/15 text-primary ring-1 ring-primary/50' : ''}"
           onmouseenter={() => onCitationHover(cid)}
           onmouseleave={() => onCitationHover(null)}
           onfocus={() => onCitationHover(cid)}

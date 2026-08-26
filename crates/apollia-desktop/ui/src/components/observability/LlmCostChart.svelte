@@ -437,7 +437,7 @@
                 opacity={isHover || hoverIndex === null ? 1 : 0.45}
                 rx={isTopSegment ? Math.min(4, barWidth / 4) : 0}
                 ry={isTopSegment ? Math.min(4, barWidth / 4) : 0}
-                style="transition: opacity 140ms ease;"
+                style="transition: opacity var(--motion-fast) ease;"
               >
                 <title>{segment.backend}: {formatCost(segment.cost)} - {shortDateLabel(day.date)}</title>
               </rect>

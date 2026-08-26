@@ -203,7 +203,7 @@
           </div>
           <div>
             <h2 class="text-sm font-medium">{$t('agents.logs_title')}</h2>
-            <p class="text-[11px] text-muted-foreground">
+            <p class="text-caption text-muted-foreground">
               {#if hasActiveFilters}
                 {filteredTasks.length} / {taskList.length} {$t('agents.tasks_label')}
               {:else}
@@ -263,7 +263,7 @@
             <Button variant="ghost" size="sm"
               type="button"
               onclick={() => (statusFilter = filter.key)}
-              class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
+              class="text-micro px-2 py-0.5 rounded-full border transition-colors
                 {statusFilter === filter.key
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'}"
@@ -277,7 +277,7 @@
           <ArrowDownWideNarrow size={11} class="text-muted-foreground/60" />
           <select
             bind:value={sortBy}
-            class="text-[10px] bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            class="text-micro bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             aria-label={$t('agents.sort_label')}
           >
             {#each SORT_OPTIONS as option (option.key)}
@@ -307,7 +307,7 @@
         <Card class="rounded-lg px-4 py-8 text-center">
           <Search size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground mb-2">{$t('agents.no_matching_tasks')}</p>
-          <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
+          <Button size="sm" variant="ghost" class="h-6 text-micro" onclick={resetFilters}>
             {$t('agents.clear_filters')}
           </Button>
         </Card>
@@ -319,7 +319,7 @@
             {@const isFailed = task.status === 'failed'}
             {@const hasOutput = !!task.output_text}
             <div
-              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-150 hover:bg-primary/5"
+              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-fast hover:bg-primary/5"
               in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
             >
               <!-- Row 1: status + timing -->
@@ -332,17 +332,17 @@
                       task.status === 'working' ? 'text-primary animate-spin' :
                       'text-muted-foreground'} shrink-0"
                   />
-                  <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">
+                  <Badge variant={cfg.variant} class="text-micro-xs px-1.5 py-0 shrink-0">
                     {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
                   </Badge>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
                   {#if task.duration_ms !== undefined && task.duration_ms !== null}
-                    <span class="text-[10px] text-muted-foreground/50">{formatDuration(task.duration_ms)}</span>
-                    <span class="text-muted-foreground/20 text-[10px]">·</span>
+                    <span class="text-micro text-muted-foreground/50">{formatDuration(task.duration_ms)}</span>
+                    <span class="text-muted-foreground/20 text-micro">·</span>
                   {/if}
                   <span
-                    class="text-[10px] text-muted-foreground/40"
+                    class="text-micro text-muted-foreground/40"
                     title={formatAbsoluteTime(task.created_at)}
                   >
                     {formatRelativeTime(task.created_at)}
@@ -352,7 +352,7 @@
 
               <!-- Row 2: input preview - what triggered the task -->
               <p
-                class="text-[11px] text-foreground/75 leading-snug line-clamp-2"
+                class="text-caption text-foreground/75 leading-snug line-clamp-2"
                 title={task.input_preview || undefined}
               >
                 {task.input_preview || $t('agents.task_no_description')}
@@ -361,7 +361,7 @@
               <!-- Row 3: output / error detail -->
               {#if hasOutput}
                 <p
-                  class="text-[10px] leading-snug line-clamp-2 {isFailed ? 'text-destructive/70' : 'text-muted-foreground/50'}"
+                  class="text-micro leading-snug line-clamp-2 {isFailed ? 'text-destructive/70' : 'text-muted-foreground/50'}"
                   title={task.output_text || undefined}
                 >
                   <span class="font-medium">{isFailed ? $t('agents.task_error_label') : $t('agents.task_output_label')}:</span>
@@ -370,7 +370,7 @@
               {/if}
 
               <!-- UUID as subtle metadata -->
-              <code class="text-[9px] text-muted-foreground/25 font-mono">{shortId(task.id)}</code>
+              <code class="text-micro-xs text-muted-foreground/25 font-mono">{shortId(task.id)}</code>
             </div>
           {/each}
         </Card>

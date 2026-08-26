@@ -57,12 +57,12 @@
     <h2 class="text-sm font-semibold">{$t("chat.planMode.title")}</h2>
     <div class="flex items-center gap-2">
       {#if plan}
-        <span class="text-[10px] text-muted-foreground" data-testid="chat-plan-review-revision">
+        <span class="text-micro text-muted-foreground" data-testid="chat-plan-review-revision">
           r{plan.revision}
         </span>
       {/if}
       <span
-        class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+        class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary"
         data-testid="chat-plan-review-phase"
       >
         {$t("chat.planMode.phaseLabel")}: {$t(phaseLabelKey(planState.phase))}
@@ -85,13 +85,13 @@
           {/if}
 
           {#if step.depends_on.length > 0}
-            <p class="mt-1 text-[11px] text-muted-foreground">
+            <p class="mt-1 text-caption text-muted-foreground">
               <span class="font-medium">{$t("chat.planMode.dependenciesLabel")}:</span>
               {step.depends_on.join(", ")}
             </p>
           {/if}
 
-          <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+          <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-caption text-muted-foreground">
             {#if step.tool_hint}
               <span><span class="font-medium">{$t("chat.planMode.toolLabel")}:</span> {step.tool_hint}</span>
             {/if}
@@ -105,7 +105,7 @@
           </div>
 
           {#if step.rationale}
-            <p class="mt-1 text-[11px] text-muted-foreground">
+            <p class="mt-1 text-caption text-muted-foreground">
               <span class="font-medium">{$t("chat.planMode.rationaleLabel")}:</span>
               {step.rationale}
             </p>

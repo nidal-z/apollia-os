@@ -184,10 +184,10 @@
         <Sparkles size={14} />
       </div>
       <div class="min-w-0">
-        <h3 class="text-[14px] font-semibold">
+        <h3 class="text-body-md font-semibold">
           {$t("agents.chat_config.personality_title")}
         </h3>
-        <p class="text-[11.5px] text-muted-foreground">
+        <p class="text-caption-lg text-muted-foreground">
           {$t("agents.chat_config.personality_hint")}
         </p>
       </div>
@@ -201,7 +201,7 @@
       placeholder={$t("agents.chat_config.personality_placeholder")}
       data-testid="apollia-chat-system-prompt"
     />
-    <p class="text-[10.5px] text-muted-foreground">
+    <p class="text-micro-lg text-muted-foreground">
       {$t("agents.chat_config.personality_empty_hint")}
     </p>
   </section>
@@ -217,7 +217,7 @@
         <Wrench size={14} />
       </div>
       <div class="min-w-0 flex-1">
-        <h3 class="text-[14px] font-semibold">
+        <h3 class="text-body-md font-semibold">
           {$t("agents.chat_config.tools_title")}
           <span class="ml-1 text-muted-foreground font-normal">
             · {$t("agents.chat_config.tools_selected_count", {
@@ -225,7 +225,7 @@
             })}
           </span>
         </h3>
-        <p class="text-[11.5px] text-muted-foreground">
+        <p class="text-caption-lg text-muted-foreground">
           {$t("agents.chat_config.tools_hint")}
         </p>
       </div>
@@ -260,7 +260,7 @@
         bind:value={toolFilter}
         placeholder={$t("agents.chat_config.tools_filter_placeholder")}
         disabled={loading}
-        class="flex-1 border-none bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+        class="flex-1 border-none bg-transparent text-body-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
         data-testid="apollia-chat-tools-filter"
       />
     </div>
@@ -301,14 +301,14 @@
             >
               <Checkbox {checked} class="mt-0.5" />
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 text-[12.5px]">
+                <div class="flex items-center gap-2 text-code-sm">
                   <code class="font-mono text-foreground">{tool.name}</code>
-                  <Badge variant="secondary" class="text-[10px]">
+                  <Badge variant="secondary" class="text-micro">
                     {kindLabel(tool.kind)}
                   </Badge>
                 </div>
                 {#if tool.description}
-                  <p class="mt-0.5 text-[11px] text-muted-foreground">
+                  <p class="mt-0.5 text-caption text-muted-foreground">
                     {tool.description}
                   </p>
                 {/if}
@@ -331,10 +331,10 @@
         <Cpu size={14} />
       </div>
       <div class="min-w-0">
-        <h3 class="text-[14px] font-semibold">
+        <h3 class="text-body-md font-semibold">
           {$t("agents.chat_config.model_title")}
         </h3>
-        <p class="text-[11.5px] text-muted-foreground">
+        <p class="text-caption-lg text-muted-foreground">
           {$t("agents.chat_config.model_hint")}
         </p>
       </div>
@@ -366,7 +366,7 @@
       {/each}
     </Select>
     {#if availableBackends.length === 0 && !loading}
-      <p class="text-[10.5px] text-muted-foreground">
+      <p class="text-micro-lg text-muted-foreground">
         {$t("agents.chat_config.model_empty")}
       </p>
     {/if}

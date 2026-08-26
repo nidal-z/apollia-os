@@ -97,7 +97,7 @@
       <div class="space-y-3">
         {#each grouped as [group, entries]}
           <section>
-            <h3 class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-a11y">
+            <h3 class="mb-1 text-caption font-semibold uppercase tracking-wider text-muted-a11y">
               {group}
             </h3>
             <ul class="space-y-1">

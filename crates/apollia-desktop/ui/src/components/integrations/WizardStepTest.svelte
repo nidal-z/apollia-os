@@ -146,17 +146,17 @@
 
   {#if testResult}
     <div
-      class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-950/30"
+      class="rounded-md border border-success/30 bg-success/10 px-4 py-3"
       data-testid="test-result-success"
     >
       <div class="flex items-center gap-2">
         <CheckCircle2
           size={16}
-          class="shrink-0 text-emerald-600 dark:text-emerald-400"
+          class="shrink-0 text-success"
           aria-hidden="true"
         />
         <p
-          class="text-sm font-medium text-emerald-700 dark:text-emerald-300"
+          class="text-sm font-medium text-success-a11y"
         >
           {$t("integrations.wizard.test_success", {
             values: { count: testResult.tools.length },
@@ -164,7 +164,7 @@
         </p>
       </div>
       <p
-        class="mt-1 text-xs text-emerald-600/80 dark:text-emerald-400/80"
+        class="mt-1 text-xs text-success/80"
       >
         {$t("integrations.wizard.test_duration", {
           values: { ms: testResult.test_duration_ms },
@@ -192,7 +192,7 @@
         <summary class="cursor-pointer text-muted-foreground">
           {$t("integrations.wizard.test_err.raw_details")}
         </summary>
-        <p class="mt-1 font-mono text-[11px] text-destructive/80 break-all">
+        <p class="mt-1 font-mono text-caption text-destructive/80 break-all">
           {testError}
         </p>
       </details>

@@ -130,7 +130,7 @@
   data-skin={effectiveSkin}
 >
   {#if $traceState.live && context !== "standalone"}
-    <div class="flex items-center gap-1.5 px-2 text-[10.5px] text-muted-foreground">
+    <div class="flex items-center gap-1.5 px-2 text-micro-lg text-muted-foreground">
       <span
         class="inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse"
         aria-hidden="true"
@@ -140,19 +140,19 @@
   {/if}
 
   {#if $traceState.error}
-    <div class="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-[12px] text-destructive">
+    <div class="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-body-xs text-destructive">
       <AlertCircle size={13} class="shrink-0 mt-0.5" />
       <span>{$t("trace.error_load", { values: { error: $traceState.error } })}</span>
     </div>
   {/if}
 
   {#if $traceState.events.length === 0 && $traceState.loading}
-    <div class="flex items-center gap-2 px-2.5 py-3 text-[12px] text-muted-foreground">
+    <div class="flex items-center gap-2 px-2.5 py-3 text-body-xs text-muted-foreground">
       <Spinner size={13} />
       <span>{$t("trace.loading")}</span>
     </div>
   {:else if $traceState.events.length === 0 && !$traceState.loading}
-    <div class="px-2.5 py-3 text-center text-[12px] text-muted-foreground">
+    <div class="px-2.5 py-3 text-center text-body-xs text-muted-foreground">
       {$t("trace.empty")}
     </div>
   {:else}
@@ -169,7 +169,7 @@
         type="button"
         onclick={loadMore}
         disabled={$traceState.loading}
-        class="self-center mt-1.5 px-3 py-1 text-[11px] text-primary hover:underline disabled:opacity-50"
+        class="self-center mt-1.5 px-3 py-1 text-caption text-primary hover:underline disabled:opacity-50"
       >
         {#if $traceState.loading}
           <Spinner size={11} class="inline" />

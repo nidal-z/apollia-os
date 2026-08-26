@@ -29,11 +29,11 @@
   data-testid="chat-mention-menu"
 >
   {#if loading}
-    <div class="px-3 py-2 text-[11px] text-muted-foreground/70">
+    <div class="px-3 py-2 text-caption text-muted-foreground/70">
       {$t("chat.resources.loading")}
     </div>
   {:else if resources.length === 0}
-    <div class="px-3 py-2 text-[11px] text-muted-foreground/70">
+    <div class="px-3 py-2 text-caption text-muted-foreground/70">
       {$t("chat.resources.empty")}
     </div>
   {:else}
@@ -42,7 +42,7 @@
         type="button"
         role="option"
         aria-selected={i === selectedIndex}
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-muted/60"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-body-xs hover:bg-muted/60"
         class:bg-muted={i === selectedIndex}
         class:text-foreground={i === selectedIndex}
         onmousedown={(e) => { e.preventDefault(); onselect(resource); }}
@@ -56,7 +56,7 @@
             <span class="truncate">{resource.name}</span>
             <span class="shrink-0 text-muted-foreground/60">{resource.server}</span>
           </div>
-          <div class="truncate text-[10px] text-muted-foreground/70">
+          <div class="truncate text-micro text-muted-foreground/70">
             {resource.description ?? resource.uri}
           </div>
         </div>

@@ -13,8 +13,8 @@
     trailing?: Snippet;
     /**
      * Vertical density - mirrors `Input.size`.
-     * - `sm`      = `min-h-[64px] px-2 py-1 text-xs`
-     * - `default` = `min-h-[80px] px-3 py-2 text-sm` (current default)
+     * - `sm`      = `min-h-16 px-2 py-1 text-xs`
+     * - `default` = `min-h-20 px-3 py-2 text-sm` (current default)
      * - `lg`      = `min-h-[120px] px-4 py-2.5 text-base`
      */
     size?: Size;
@@ -31,8 +31,8 @@
   }: Props = $props();
 
   const sizeClasses: Record<Size, string> = {
-    sm: "min-h-[64px] px-2 py-1 text-xs",
-    default: "min-h-[80px] px-3 py-2 text-sm",
+    sm: "min-h-16 px-2 py-1 text-xs",
+    default: "min-h-20 px-3 py-2 text-sm",
     lg: "min-h-[120px] px-4 py-2.5 text-base",
   };
 
@@ -63,7 +63,7 @@
     <textarea
       bind:value
       class={cn(
-        "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50 resize-y",
+        "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-fast placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50 resize-y",
         sizeClasses[size],
         hasIcon && iconPaddingLeft,
         hasTrailing && trailingPaddingRight,
@@ -82,7 +82,7 @@
   <textarea
     bind:value
     class={cn(
-      "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50 resize-y",
+      "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-fast placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50 resize-y",
       sizeClasses[size],
       className,
     )}

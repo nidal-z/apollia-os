@@ -89,14 +89,14 @@
     <div class="flex items-center gap-1.5">
       <Badge size="sm" variant={cfg.tone}>{$t(cfg.labelKey)}</Badge>
       <span
-        class="text-[12.5px] text-foreground truncate"
+        class="text-code-sm text-foreground truncate"
         style:font-weight={unread ? 600 : 500}
       >
         {title}
       </span>
     </div>
     <div
-      class="text-[10.5px] text-muted-foreground mt-1 inline-flex items-center gap-1.5"
+      class="text-micro-lg text-muted-foreground mt-1 inline-flex items-center gap-1.5"
     >
       <Sparkles size={9} />
       {agent} · {timestamp}

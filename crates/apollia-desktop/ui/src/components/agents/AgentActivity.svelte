@@ -81,7 +81,7 @@
           data-testid="agent-detail-task-row"
           data-task-id={task.id}
         >
-          <Badge variant={TASK_STATUS_VARIANT[task.status] ?? "secondary"} class="shrink-0 text-[10px]">
+          <Badge variant={TASK_STATUS_VARIANT[task.status] ?? "secondary"} class="shrink-0 text-micro">
             {task.status}
           </Badge>
           <SmartOutputPreview

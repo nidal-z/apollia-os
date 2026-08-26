@@ -57,7 +57,7 @@
   data-testid="inbox-reject-dialog"
 >
   {#if position > 0}
-    <div class="mb-2 text-[11px] text-muted-foreground" data-testid="modal-stack-indicator">
+    <div class="mb-2 text-caption text-muted-foreground" data-testid="modal-stack-indicator">
       {$t("inbox.dialog_stack_indicator", { values: { current: position, total: $stackDepth } })}
     </div>
   {/if}
@@ -71,7 +71,7 @@
     aria-invalid={!valid && length > 0}
     data-testid="inbox-reject-reason"
   />
-  <div class="mt-1 flex items-center justify-between text-[11px]">
+  <div class="mt-1 flex items-center justify-between text-caption">
     <span
       id="inbox-reject-error"
       class={tooLong ? "text-destructive" : "text-muted-foreground"}

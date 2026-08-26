@@ -173,7 +173,7 @@
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
-    border-radius: 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
     border: 1px solid hsl(var(--border) / 0.6);
     background: hsl(var(--muted) / 0.4);
     padding: 0.75rem;

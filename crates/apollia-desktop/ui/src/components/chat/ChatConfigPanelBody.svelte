@@ -159,7 +159,7 @@
         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
           <Settings2 class="h-4 w-4 text-primary" />
         </div>
-        <h3 class="text-[13px] font-medium">{$t("chat.config_title")}</h3>
+        <h3 class="text-body-sm font-medium">{$t("chat.config_title")}</h3>
       </div>
     </div>
   {/if}
@@ -167,7 +167,7 @@
   <div class="flex-1 {embedded ? '' : 'overflow-y-auto'} px-5 py-5 space-y-4">
     <!-- LLM Provider section -->
     <Card class="p-3.5 space-y-2.5">
-      <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+      <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
         {$t("chat.config_provider")}
       </p>
       {#if $llmBackends.length > 0}
@@ -188,7 +188,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-medium truncate">{backend.name}</p>
-                <p class="text-[10px] text-muted-foreground/60 truncate">{backend.model}</p>
+                <p class="text-micro text-muted-foreground/60 truncate">{backend.model}</p>
               </div>
               {#if backend.enabled}
                 <StatusDot color="hsl(var(--success))" size={8} />
@@ -206,7 +206,7 @@
     <!-- LLM provider error - inline feedback for required validation. -->
     {#if llmBackendError}
       <p
-        class="text-[10px] text-destructive -mt-2"
+        class="text-micro text-destructive -mt-2"
         data-testid="config-llm-error"
       >{llmBackendError}</p>
     {/if}
@@ -216,7 +216,7 @@
       <FormField
         id="config-prompt"
         label={$t("chat.system_prompt")}
-        labelClass="text-[10px] uppercase tracking-wider text-muted-foreground/50"
+        labelClass="text-micro uppercase tracking-wider text-muted-foreground/50"
         class="space-y-2.5"
         error={systemPromptError ?? undefined}
       >
@@ -243,7 +243,7 @@
       <FormField
         id="config-step-budget"
         label={$t("chat.step_budget_label")}
-        labelClass="text-[10px] uppercase tracking-wider text-muted-foreground/50"
+        labelClass="text-micro uppercase tracking-wider text-muted-foreground/50"
         class="space-y-2.5"
         error={stepBudgetError ?? undefined}
         hint={stepBudgetError ? undefined : $t("chat.step_budget_hint")}
@@ -276,7 +276,7 @@
     <!-- Tools section (libre mode only) -->
     {#if session?.mode === "libre"}
       <Card class="p-3.5 space-y-3">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+        <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
           {isOperator ? $t("tools.select.title_operator") : $t("tools.select.title_builder")}
         </p>
 
@@ -298,21 +298,21 @@
                 data-testid="config-group-header-{group.id}"
               >
                 <GroupIcon class="h-3 w-3 text-muted-foreground/60" />
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <span class="text-micro font-semibold uppercase tracking-wider text-muted-foreground/60">
                   {isOperator ? $t(group.labelOperatorKey) : $t(group.labelBuilderKey)}
                 </span>
                 {#if isCollapsed}
-                  <span class="text-[10px] text-muted-foreground/40 font-normal normal-case tracking-normal">
+                  <span class="text-micro text-muted-foreground/40 font-normal normal-case tracking-normal">
                     {state === "all" ? "· all" : state === "some" ? `· ${enabledCount}/${groupTools.length}` : "· none"}
                   </span>
                 {/if}
                 <ChevronDown
-                  class="h-3 w-3 text-muted-foreground/30 transition-transform duration-150 ml-auto {isCollapsed ? '' : 'rotate-180'}"
+                  class="h-3 w-3 text-muted-foreground/30 transition-transform duration-fast ml-auto {isCollapsed ? '' : 'rotate-180'}"
                 />
               </Button>
               {#if !isCollapsed && !isReadOnly}
                 <button
-                  class="text-[9px] text-muted-foreground/30 hover:text-primary transition-colors px-1.5 ml-1"
+                  class="text-micro-xs text-muted-foreground/30 hover:text-primary transition-colors px-1.5 ml-1"
                   onclick={() => { enabledTools = toggleGroup(group, enabledTools); }}
                   data-testid="config-group-toggle-{group.id}"
                 >
@@ -327,17 +327,17 @@
                 {@const ToolIcon = tool.icon}
                 <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface {isReadOnly ? 'opacity-50' : ''}">
                   <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                    <ToolIcon class="h-3.5 w-3.5 shrink-0 {tool.dangerous ? 'text-amber-500/70' : 'text-muted-foreground'}" />
+                    <ToolIcon class="h-3.5 w-3.5 shrink-0 {tool.dangerous ? 'text-warning/70' : 'text-muted-foreground'}" />
                     <div class="min-w-0">
                       <div class="flex items-center gap-1.5">
                         <span class="text-xs font-medium truncate">
                           {isOperator ? $t(tool.labelOperatorKey) : tool.id}
                         </span>
                         {#if tool.dangerous && !isOperator}
-                          <TriangleAlert class="h-2.5 w-2.5 text-amber-500/60 shrink-0" />
+                          <TriangleAlert class="h-2.5 w-2.5 text-warning/60 shrink-0" />
                         {/if}
                       </div>
-                      <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">
+                      <p class="text-micro text-muted-foreground/50 leading-tight mt-0.5">
                         {isOperator ? $t(tool.descOperatorKey) : $t(tool.descBuilderKey)}
                       </p>
                     </div>
@@ -363,7 +363,7 @@
 
     <!-- User memory toggle -->
     <Card class="p-3.5 space-y-2.5">
-      <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+      <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
         {$t("chat.memory_section")}
       </p>
       <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface">
@@ -383,7 +383,7 @@
     <!-- Context window usage -->
     {#if contextBarSegments}
       <Card class="p-3.5 space-y-2.5">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+        <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
           {$t("chat.context_window")}
         </p>
         <div
@@ -405,7 +405,7 @@
           <div class="h-full bg-muted-foreground/30 flex-1"
             title={$t("chat.context_free", { values: { pct: Math.round(contextBarSegments.freePct) } })}></div>
         </div>
-        <div class="flex items-center gap-3 text-[9px] text-muted-foreground/50">
+        <div class="flex items-center gap-3 text-micro-xs text-muted-foreground/50">
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>{$t("chat.legend_messages")}</span>
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-secondary"></span>{$t("chat.legend_memory")}</span>
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>{$t("chat.legend_summary")}</span>

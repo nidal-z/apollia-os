@@ -52,7 +52,7 @@
     "primary-solid": "bg-primary-solid",
     "primary-gradient": "bg-primary-gradient",
     destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
-    success: "bg-emerald-600 text-white shadow-sm hover:bg-emerald-600/90 dark:bg-emerald-700 dark:hover:bg-emerald-700/90",
+    success: "bg-success text-primary-foreground shadow-sm hover:bg-success/90",
     outline: "border border-border bg-transparent text-foreground hover:bg-muted",
     secondary: "bg-muted text-foreground hover:bg-muted/80",
     ghost: "text-foreground hover:bg-muted",
@@ -74,7 +74,7 @@
 
 <button
   class={cn(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
     variantClasses[variant],
     sizeClasses[size],
     className

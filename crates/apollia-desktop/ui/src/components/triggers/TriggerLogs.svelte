@@ -227,7 +227,7 @@
             {@const IconComponent = cfg.icon}
             {@const isError = entry.status === 'error'}
             <div
-              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-150 hover:bg-primary/5"
+              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-fast hover:bg-primary/5"
               in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
             >
               <!-- Row 1: status badge + timing -->

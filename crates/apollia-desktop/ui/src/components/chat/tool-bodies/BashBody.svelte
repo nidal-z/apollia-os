@@ -75,7 +75,7 @@
   );
 </script>
 
-<div class="text-[12px]" in:fly={{ y: 8, duration: 200 }}>
+<div class="text-body-xs" in:fly={{ y: 8, duration: 200 }}>
   {#key skin}
     <div in:fade={{ duration: 150 }}>
       {#if skin === "operator"}

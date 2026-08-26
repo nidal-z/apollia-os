@@ -32,9 +32,9 @@
       case "success":
         return "bg-success";
       case "timed_out":
-        return "bg-amber-500";
+        return "bg-warning";
       case "fallback":
-        return "bg-blue-500";
+        return "bg-info";
       case "failed":
       default:
         return "bg-destructive";
@@ -63,7 +63,7 @@
 {#if visible.length > 0}
   {#if skin === "operator"}
     <span
-      class="inline-flex items-center gap-1 rounded-full bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      class="inline-flex items-center gap-1 rounded-full bg-muted/40 px-1.5 py-0.5 text-micro text-muted-foreground"
       data-testid="retry-badge"
       title={$t("chat.retry.badge_title", {
         values: { n: retryCount },
@@ -79,7 +79,7 @@
       class="mt-1 rounded border border-border/30 bg-muted/20 px-2 py-1.5"
       data-testid="retry-timeline"
     >
-      <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div class="flex items-center gap-1.5 text-micro text-muted-foreground">
         <RotateCcw class="h-3 w-3" />
         <span>
           {$t("chat.retry.timeline_label", {
@@ -98,7 +98,7 @@
           ></li>
         {/each}
       </ol>
-      <ul class="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+      <ul class="mt-1 space-y-0.5 text-micro text-muted-foreground">
         {#each visible as a (a.attempt_number)}
           <li class="flex items-center gap-2">
             <span class="font-mono opacity-70">#{a.attempt_number}</span>

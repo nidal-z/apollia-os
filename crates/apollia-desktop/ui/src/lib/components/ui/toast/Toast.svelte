@@ -170,7 +170,7 @@
 <style>
   .desc {
     margin-top: 0.125rem;
-    font-size: 0.71875rem;
+    font-size: var(--text-caption-lg);
   }
 
   .progress {

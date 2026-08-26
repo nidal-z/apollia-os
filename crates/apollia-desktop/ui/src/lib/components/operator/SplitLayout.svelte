@@ -66,7 +66,7 @@
   {#if !isWide && drawerOpen}
     <button
       type="button"
-      class="absolute inset-0 z-30 bg-foreground/20"
+      class="absolute inset-0 z-drawer-backdrop bg-foreground/20"
       aria-label={$t("common.close")}
       onclick={() => (drawerOpen = false)}
       data-testid="split-sidebar-backdrop"
@@ -78,7 +78,7 @@
       "border-r border-border flex flex-col bg-background",
       isWide
         ? "shrink-0"
-        : "absolute inset-y-0 left-0 z-40 max-w-[85%] shadow-elev-3 transition-transform duration-200 " +
+        : "absolute inset-y-0 left-0 z-drawer max-w-[85%] shadow-elev-3 transition-transform duration-base " +
             (drawerOpen ? "translate-x-0" : "-translate-x-full"),
       sidebarClass,
     )}
@@ -98,7 +98,7 @@
         <button
           type="button"
           onclick={() => (drawerOpen = true)}
-          class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-body-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           data-testid="split-open-sidebar"
         >
           <PanelLeft size={14} />

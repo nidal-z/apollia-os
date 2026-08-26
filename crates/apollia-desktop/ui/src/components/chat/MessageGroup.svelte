@@ -54,8 +54,8 @@
   {#if showHeader}
     <div class="flex items-center gap-2 mb-3 px-0.5">
       <Avatar name={displayName} size="xs" ring={false} />
-      <span class="text-[13px] font-semibold text-foreground">{displayName}</span>
-      <span class="text-[11.5px] tabular-nums text-muted-foreground/50">{headerTime}</span>
+      <span class="text-body-sm font-semibold text-foreground">{displayName}</span>
+      <span class="text-caption-lg tabular-nums text-muted-foreground/50">{headerTime}</span>
     </div>
   {/if}
 

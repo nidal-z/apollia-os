@@ -106,11 +106,11 @@
   }
 
   .label {
-    font-size: 0.84375rem;
+    font-size: var(--text-body-sm);
   }
 
   .desc {
-    font-size: 0.71875rem;
+    font-size: var(--text-caption-lg);
     color: hsl(var(--muted-foreground));
   }
 

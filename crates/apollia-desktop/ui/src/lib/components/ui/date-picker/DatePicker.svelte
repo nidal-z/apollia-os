@@ -38,7 +38,7 @@
     {max}
     {disabled}
     class={cn(
-      "date-picker-native flex h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 py-2 text-sm ring-offset-background transition-shadow duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+      "date-picker-native flex h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 py-2 text-sm ring-offset-background transition-shadow duration-fast placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50",
       className,
     )}
     {...restProps}

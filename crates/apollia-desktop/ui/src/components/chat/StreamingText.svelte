@@ -68,7 +68,7 @@
 <style>
   .interrupted {
     margin-left: 0.25rem;
-    font-size: 11px;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground) / 0.7);
     font-style: italic;
   }

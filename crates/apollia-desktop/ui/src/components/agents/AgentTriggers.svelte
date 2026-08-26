@@ -103,11 +103,11 @@
 
             <div class="flex shrink-0 items-center gap-2">
               {#if trigger.enabled}
-                <Badge variant="outline" class="text-[10px] px-1.5 py-0 border-success/50 text-success">
+                <Badge variant="outline" class="text-micro px-1.5 py-0 border-success/50 text-success">
                   {$t('agent_detail.trigger_enabled')}
                 </Badge>
               {:else}
-                <Badge variant="secondary" class="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" class="text-micro px-1.5 py-0">
                   {$t('agent_detail.trigger_disabled')}
                 </Badge>
               {/if}
@@ -115,7 +115,7 @@
           </div>
 
           <!-- Detail row: config + stats -->
-          <div class="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div class="mt-1.5 flex items-center gap-3 text-caption text-muted-foreground">
             <span class="truncate">{triggerConfigDetail(trigger)}</span>
             <span class="shrink-0">{trigger.fire_count} {$t('triggers.fires')}</span>
             {#if trigger.last_fired}
@@ -128,7 +128,7 @@
               <Badge variant="outline" class={SOURCE_BADGE_CLASS[trigger.source_kind] ?? ""}>
                 {trigger.source_kind.toUpperCase()}
               </Badge>
-              <code class="text-[10px]">{trigger.id}</code>
+              <code class="text-micro">{trigger.id}</code>
             </div>
           {/if}
         </div>

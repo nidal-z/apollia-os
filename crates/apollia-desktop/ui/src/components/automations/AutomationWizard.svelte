@@ -263,11 +263,11 @@
         {/if}
 
         {#if scheduleAmbiguities.length > 0}
-          <div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3" data-testid="automation-wizard-ambiguities">
-            <p class="mb-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+          <div class="rounded-md border border-warning/40 bg-warning/10 p-3" data-testid="automation-wizard-ambiguities">
+            <p class="mb-1 text-xs font-medium text-warning-a11y">
               {$t("automations.wizard.needs_clarification")}
             </p>
-            <ul class="list-disc space-y-0.5 pl-5 text-xs text-amber-900 dark:text-amber-100">
+            <ul class="list-disc space-y-0.5 pl-5 text-xs text-warning-a11y">
               {#each scheduleAmbiguities as ambiguity}
                 <li>{ambiguity}</li>
               {/each}
@@ -298,8 +298,8 @@
       <div class="space-y-3">
         <p class="text-sm text-muted-foreground">{$t("automations.wizard.agent_intro")}</p>
         {#if !parsed?.agent && agentAmbiguities.length > 0}
-          <div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3" data-testid="automation-wizard-agent-hint">
-            <p class="text-xs text-amber-900 dark:text-amber-100">
+          <div class="rounded-md border border-warning/40 bg-warning/10 p-3" data-testid="automation-wizard-agent-hint">
+            <p class="text-xs text-warning-a11y">
               {$t("automations.wizard.agent_not_matched_hint")}
             </p>
           </div>

@@ -86,7 +86,7 @@
   {#snippet trigger(triggerProps: Record<string, unknown>)}
     <button
       {...triggerProps}
-      class="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-[10px] font-medium text-secondary hover:bg-secondary/20 transition-colors"
+      class="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-micro font-medium text-secondary hover:bg-secondary/20 transition-colors"
       aria-label={$t("chat.a2a_workers")}
       data-testid="a2a-worker-badge"
     >
@@ -98,13 +98,13 @@
   {/snippet}
   {#snippet content()}
     <div class="p-2 max-h-80 overflow-y-auto" data-testid="a2a-worker-popover">
-      <p class="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+      <p class="px-2 pb-1.5 text-micro font-semibold uppercase tracking-wider text-muted-foreground/60">
         {$t("chat.a2a_workers")}
       </p>
       {#if loading && workers.length === 0}
-        <p class="px-2 py-3 text-[11px] text-muted-foreground">{$t("common.loading")}</p>
+        <p class="px-2 py-3 text-caption text-muted-foreground">{$t("common.loading")}</p>
       {:else if workers.length === 0}
-        <p class="px-2 py-3 text-[11px] text-muted-foreground/70">{$t("chat.a2a_no_workers")}</p>
+        <p class="px-2 py-3 text-caption text-muted-foreground/70">{$t("chat.a2a_no_workers")}</p>
       {:else}
         <ul class="space-y-2">
           {#each workers as worker (worker.name)}
@@ -118,15 +118,15 @@
                   size={18}
                   class="-m-1 shrink-0 {statusTone(worker.runtime_status)}"
                 />
-                <span class="flex-1 truncate text-[12px] font-medium text-foreground">
+                <span class="flex-1 truncate text-body-xs font-medium text-foreground">
                   {worker.name}
                 </span>
-                <span class="shrink-0 text-[9px] uppercase tracking-wider {statusTone(worker.runtime_status)}">
+                <span class="shrink-0 text-micro-xs uppercase tracking-wider {statusTone(worker.runtime_status)}">
                   {worker.runtime_status ?? $t("chat.a2a_worker_stopped")}
                 </span>
               </div>
               {#if worker.description}
-                <p class="mt-0.5 truncate text-[10px] text-muted-foreground/80">
+                <p class="mt-0.5 truncate text-micro text-muted-foreground/80">
                   {worker.description}
                 </p>
               {/if}

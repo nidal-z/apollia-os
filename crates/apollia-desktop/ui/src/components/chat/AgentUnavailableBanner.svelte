@@ -31,7 +31,7 @@
   {#snippet trailing()}
     <Button variant="ghost" size="sm"
       type="button"
-      class="rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2
+      class="rounded px-2 py-0.5 text-caption font-medium underline-offset-2
         hover:underline focus-visible:outline-none focus-visible:ring-2
         focus-visible:ring-primary/40"
       onclick={() => navigateTo("agents")}

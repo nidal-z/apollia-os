@@ -164,7 +164,7 @@
 
 <div
   class={expanded
-    ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background/95 p-4 backdrop-blur"
+    ? "fixed inset-0 z-overlay flex flex-col gap-2 bg-background/95 p-4 backdrop-blur"
     : "flex h-full w-full flex-col"}
 >
   {#if hasPlan}

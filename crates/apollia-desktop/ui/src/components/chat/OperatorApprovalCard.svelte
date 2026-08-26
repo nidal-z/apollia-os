@@ -124,13 +124,13 @@
   <!-- Human-readable action description with tool icon -->
   <div class="mt-3 flex items-center gap-2">
     <ToolIcon class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-    <span class="text-[12px] text-foreground">
+    <span class="text-body-xs text-foreground">
       {$t(display.descriptionKey, { values: display.templateParams })}
     </span>
   </div>
 
   {#if error}
-    <p class="mt-1.5 text-[10px] text-destructive">{error}</p>
+    <p class="mt-1.5 text-micro text-destructive">{error}</p>
   {/if}
 
   <!-- Decision buttons -->
@@ -138,7 +138,7 @@
     <Button
       variant="outline"
       size="sm"
-      class="h-7 px-3 text-[11px]"
+      class="h-7 px-3 text-caption"
       disabled={isProcessing}
       onclick={handleAccept}
       data-testid="operator-approval-accept-{toolCall.tool_name}"
@@ -148,7 +148,7 @@
     <Button
       variant="ghost"
       size="sm"
-      class="h-7 px-3 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+      class="h-7 px-3 text-caption text-destructive hover:bg-destructive/10 hover:text-destructive"
       disabled={isProcessing}
       onclick={() => (rejectDialogOpen = true)}
       data-testid="operator-approval-refuse-{toolCall.tool_name}"
@@ -158,7 +158,7 @@
     <Button
       variant="ghost"
       size="sm"
-      class="h-7 px-3 text-[11px] text-primary"
+      class="h-7 px-3 text-caption text-primary"
       disabled={isProcessing}
       onclick={() => (scopeOpen = !scopeOpen)}
       data-testid="operator-approval-always-toggle-{toolCall.tool_name}"
@@ -180,38 +180,38 @@
     >
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_session")}
         data-testid="operator-approval-scope-session-{toolCall.tool_name}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.session_desc")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_agent")}
         data-testid="operator-approval-scope-agent-{toolCall.tool_name}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc_apollia")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="operator-approval-scope-project-{toolCall.tool_name}"
         title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
       >
         <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {hasProject
             ? $t("approval.scope.project_desc")
             : $t("approval.scope.project_unavailable")}
@@ -219,13 +219,13 @@
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("global")}
         data-testid="operator-approval-scope-global-{toolCall.tool_name}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
-        <div class="text-[10px] text-warning">
+        <div class="text-micro text-warning">
           {$t("approval.scope.global_desc")}
         </div>
       </button>

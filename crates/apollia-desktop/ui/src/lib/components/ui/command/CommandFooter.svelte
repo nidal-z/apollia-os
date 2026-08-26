@@ -30,7 +30,7 @@
     gap: 0.875rem;
     padding: 0.5rem 0.75rem;
     border-top: 1px solid hsl(var(--border-soft));
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
   }
 

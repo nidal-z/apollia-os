@@ -29,12 +29,12 @@
   {#if title || actions}
     <div class="flex min-w-0 items-center gap-2">
       {#if title}
-        <h2 class="m-0 truncate text-[13px] font-semibold tracking-tight text-foreground">
+        <h2 class="m-0 truncate text-body-sm font-semibold tracking-tight text-foreground">
           {title}
         </h2>
       {/if}
       {#if count !== undefined}
-        <span class="text-[10.5px] tabular-nums text-muted-foreground">{count}</span>
+        <span class="text-micro-lg tabular-nums text-muted-foreground">{count}</span>
       {/if}
       {#if actions}
         <div class="ml-auto flex items-center gap-1.5">{@render actions()}</div>

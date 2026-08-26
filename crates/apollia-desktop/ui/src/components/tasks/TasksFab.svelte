@@ -19,7 +19,7 @@
 
 {#if $uiMode === "operator"}
   <button
-    class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:hidden"
+    class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:hidden"
     onclick={onclick}
     data-testid="tasks-fab"
     aria-label={$t("tasks.fab_new_task_label")}

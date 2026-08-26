@@ -170,16 +170,16 @@
     text-align: left;
     cursor: pointer;
     transition:
-      transform 150ms ease,
-      border-color 150ms ease,
-      box-shadow 150ms ease,
-      background 150ms ease;
+      transform var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      background var(--motion-fast) ease;
   }
 
   .profile-card:hover:not(:disabled) {
     transform: translateY(-2px);
     border-color: hsl(var(--primary) / 0.45);
-    box-shadow: 0 8px 24px -10px hsl(var(--primary) / 0.25);
+    box-shadow: var(--hover-glow-primary);
     background: hsl(var(--card));
   }
 
@@ -202,7 +202,7 @@
   .card-icon {
     width: 2.5rem;
     height: 2.5rem;
-    border-radius: 0.625rem;
+    border-radius: var(--radius);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -218,7 +218,7 @@
   }
 
   .card-title {
-    font-size: 1rem;
+    font-size: var(--text-heading-sm);
     font-weight: 600;
     color: hsl(var(--foreground));
     margin: 0;
@@ -226,7 +226,7 @@
   }
 
   .card-desc {
-    font-size: 0.8125rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--foreground) / 0.78);
     margin: 0;
     line-height: 1.5;
@@ -239,7 +239,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--text-body-xs);
     color: hsl(var(--muted-foreground));
     line-height: 1.45;
   }
@@ -261,7 +261,7 @@
   }
 
   .card-examples {
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     color: hsl(var(--muted-foreground) / 0.85);
     margin: 0.25rem 0 0;
     font-style: italic;

@@ -158,14 +158,14 @@
       </div>
 
       {#if !valid && captured.combo}
-        <p class="mb-4 text-center text-sm text-amber-500" data-testid="hotkey-capture-needs-modifier">
+        <p class="mb-4 text-center text-sm text-warning" data-testid="hotkey-capture-needs-modifier">
           {$t("settings.stt.hotkey.needs_modifier")}
         </p>
       {/if}
 
       {#if collision}
         <p
-          class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-sm text-amber-600 dark:text-amber-400"
+          class="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-center text-sm text-warning"
           data-testid="hotkey-capture-collision"
         >
           {$t("settings.stt.hotkey.collision_warning", { values: { combo: captured.combo } })}

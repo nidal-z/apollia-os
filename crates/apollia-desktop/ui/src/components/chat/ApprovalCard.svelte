@@ -133,17 +133,17 @@
     {/if}
   </div>
 
-  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
+  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-2 font-mono text-micro text-muted-foreground">{inputPreview}</pre>
 
   {#if error}
-    <p class="mt-1.5 text-[10px] text-destructive">{error}</p>
+    <p class="mt-1.5 text-micro text-destructive">{error}</p>
   {/if}
 
   <div class="mt-2.5 flex flex-wrap items-center gap-2">
     <Button
       variant="outline"
       size="sm"
-      class="h-7 px-3 text-[11px]"
+      class="h-7 px-3 text-caption"
       disabled={isProcessing}
       onclick={handleAccept}
       data-testid="approval-accept-{toolName}"
@@ -153,7 +153,7 @@
     <Button
       variant="ghost"
       size="sm"
-      class="h-7 px-3 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+      class="h-7 px-3 text-caption text-destructive hover:bg-destructive/10 hover:text-destructive"
       disabled={isProcessing}
       onclick={() => (rejectDialogOpen = true)}
       data-testid="approval-refuse-{toolName}"
@@ -163,7 +163,7 @@
     <Button
       variant="ghost"
       size="sm"
-      class="h-7 px-3 text-[11px] text-primary"
+      class="h-7 px-3 text-caption text-primary"
       disabled={isProcessing}
       onclick={() => (scopeOpen = !scopeOpen)}
       data-testid="approval-always-toggle-{toolName}"
@@ -185,38 +185,38 @@
     >
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_session")}
         data-testid="approval-scope-session-{toolName}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.session_desc")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_agent")}
         data-testid="approval-scope-agent-{toolName}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc_apollia")}
         </div>
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="approval-scope-project-{toolName}"
         title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
       >
         <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-[10px] text-muted-foreground">
+        <div class="text-micro text-muted-foreground">
           {hasProject
             ? $t("approval.scope.project_desc")
             : $t("approval.scope.project_unavailable")}
@@ -224,13 +224,13 @@
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("global")}
         data-testid="approval-scope-global-{toolName}"
       >
         <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
-        <div class="text-[10px] text-warning">
+        <div class="text-micro text-warning">
           {$t("approval.scope.global_desc")}
         </div>
       </button>

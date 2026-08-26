@@ -26,7 +26,7 @@
 {#if sources.length > 0}
   <section class="mt-4 w-full" data-testid="source-cards">
     <h4
-      class="tb-header-rule mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
+      class="tb-header-rule mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground/60"
     >
       {$t("chat.activity.sources")}
     </h4>
@@ -39,14 +39,14 @@
           onclick={handleExternalLinkClick}
           in:fly={{ y: 8, duration: 220, delay: i * 30, easing: quintOut }}
           class="group flex items-start gap-2.5 rounded-lg border border-border bg-surface-1 px-3 py-2.5
-            no-underline transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/50
-            hover:shadow-[0_8px_22px_-14px_hsl(var(--primary)/0.5)]
+            no-underline transition-all duration-base ease-out hover:-translate-y-0.5 hover:border-primary/50
+            hover:shadow-primary-md
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           data-testid="source-card-{source.index}"
         >
           <span
             class="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-md
-              text-[10px] font-bold text-white"
+              text-micro font-bold text-primary-foreground"
             style="background: hsl({avatarHue(source.domain)} 55% 48%);"
             aria-hidden="true"
           >
@@ -54,12 +54,12 @@
           </span>
           <span class="min-w-0">
             <span
-              class="block text-[10.5px] font-semibold tabular-nums text-muted-foreground/60"
+              class="block text-micro-lg font-semibold tabular-nums text-muted-foreground/60"
             >
               {source.index} · {source.domain}
             </span>
             <span
-              class="mt-0.5 block text-[12.5px] font-medium leading-snug text-foreground line-clamp-2"
+              class="mt-0.5 block text-code-sm font-medium leading-snug text-foreground line-clamp-2"
             >
               {source.title}
             </span>

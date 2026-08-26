@@ -49,12 +49,12 @@
   const COLOR_SWATCHES = [
     "hsl(var(--primary))",
     "hsl(var(--secondary))",
-    "#10b981",
-    "#f59e0b",
-    "#ef4444",
-    "#0ea5e9",
-    "#ec4899",
-    "#64748b",
+    "hsl(var(--swatch-green))",
+    "hsl(var(--swatch-amber))",
+    "hsl(var(--swatch-red))",
+    "hsl(var(--swatch-sky))",
+    "hsl(var(--swatch-pink))",
+    "hsl(var(--swatch-slate))",
   ];
 
   const selected = $derived(templates.find((t) => t.id === selectedId) ?? templates[0]);
@@ -67,7 +67,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center"
+    class="fixed inset-0 z-overlay flex items-center justify-center"
     style="background: hsl(var(--foreground) / 0.35);"
     role="dialog"
     aria-modal="true"
@@ -79,13 +79,13 @@
         <div class="flex items-center justify-between mb-3">
           <div>
             <div
-              class="text-[11px] tracking-[1.2px] text-muted-foreground font-mono font-semibold"
+              class="text-caption tracking-[1.2px] text-muted-foreground font-mono font-semibold"
             >
               {$t("projects.dialog.step_1_of_2")}
             </div>
             <h2
               class="mt-1 m-0 font-normal text-foreground"
-              style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
+              style="font-size: var(--text-heading-lg); font-weight: 600; letter-spacing: -0.3px;"
             >
               {$t("projects.dialog.step1_title")}
             </h2>
@@ -100,7 +100,7 @@
             <X size={16} />
           </Button>
         </div>
-        <p class="m-0 mb-4 text-[12.5px] text-muted-foreground">
+        <p class="m-0 mb-4 text-code-sm text-muted-foreground">
           {$t("projects.dialog.step1_subtitle")}
         </p>
         <div class="grid grid-cols-2 gap-2.5">
@@ -109,7 +109,7 @@
             <Button variant="ghost" size="auto"
               type="button"
               onclick={() => (selectedId = tpl.id)}
-              class="w-full flex-col items-stretch whitespace-normal px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
+              class="w-full flex-col items-stretch whitespace-normal px-3.5 py-3 rounded-lg cursor-pointer text-left transition-all {isActive
                 ? 'bg-primary/10 border-2 border-primary'
                 : 'bg-surface-1 border border-border hover:border-primary/40'}"
               data-testid="new-project-template-{tpl.id}"
@@ -119,23 +119,23 @@
                   class="w-1.5 h-1.5 rounded-full"
                   style="background: {tpl.color ?? 'hsl(var(--primary))'};"
                 ></div>
-                <span class="text-[12.5px] font-semibold text-foreground">{tpl.name}</span>
+                <span class="text-code-sm font-semibold text-foreground">{tpl.name}</span>
               </div>
-              <div class="text-[10.5px] text-muted-foreground mb-1.5">
+              <div class="text-micro-lg text-muted-foreground mb-1.5">
                 {tpl.description}
               </div>
               {#if tpl.agents.length > 0}
                 <div class="flex gap-1 flex-wrap">
                   {#each tpl.agents as a}
                     <span
-                      class="text-[9.5px] px-1.5 py-px rounded-full bg-card text-muted-foreground border border-border"
+                      class="text-micro-sm px-1.5 py-px rounded-full bg-card text-muted-foreground border border-border"
                     >
                       {a}
                     </span>
                   {/each}
                 </div>
               {:else if tpl.blank}
-                <div class="text-[10px] text-muted-foreground italic">
+                <div class="text-micro text-muted-foreground italic">
                   {$t("projects.dialog.manual_config")}
                 </div>
               {/if}
@@ -155,7 +155,7 @@
             }}
             data-testid="new-project-continue"
           >
-            {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
+            {#snippet kbd()}<span class="font-mono text-micro opacity-80">↵</span>{/snippet}
             {$t("common.continue")}
           </Button>
         </div>
@@ -166,13 +166,13 @@
       >
         <div class="mb-3">
           <div
-            class="text-[11px] tracking-[1.2px] text-muted-foreground font-mono font-semibold"
+            class="text-caption tracking-[1.2px] text-muted-foreground font-mono font-semibold"
           >
             {$t("projects.dialog.step_2_of_2", { values: { name: selected?.name?.toUpperCase() ?? "" } })}
           </div>
           <h2
             class="mt-1 m-0 font-normal text-foreground"
-            style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
+            style="font-size: var(--text-heading-lg); font-weight: 600; letter-spacing: -0.3px;"
           >
             {$t("projects.dialog.step2_title")}
           </h2>
@@ -181,12 +181,12 @@
         <div class="mb-3.5">
           <label
             for="new-project-name"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >{$t("projects.field_name")}</label>
           <Input
             id="new-project-name"
             bind:value={name}
-            class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-[13.5px] font-medium text-foreground outline-none"
+            class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-body-sm font-medium text-foreground outline-none"
             placeholder={$t("projects.dialog.name_placeholder")}
             data-testid="new-project-name-input"
            />
@@ -195,7 +195,7 @@
         <div class="mb-3.5">
           <label
             for="new-project-description"
-            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+            class="block text-caption text-muted-foreground mb-1 font-semibold"
           >
             {$t("projects.field_description")}
           </label>
@@ -203,13 +203,13 @@
             id="new-project-description"
             bind:value={description}
             rows={3}
-            class="w-full px-3 py-2 rounded-lg border border-border bg-surface-1 text-[12.5px] text-muted-foreground min-h-[54px] leading-[1.55] outline-none resize-y"
+            class="w-full px-3 py-2 rounded-lg border border-border bg-surface-1 text-code-sm text-muted-foreground min-h-[54px] leading-[1.55] outline-none resize-y"
             data-testid="new-project-description-input"
           ></Textarea>
         </div>
 
         <div class="mb-3.5">
-          <div class="text-[11px] text-muted-foreground mb-1.5 font-semibold">{$t("projects.dialog.color_label")}</div>
+          <div class="text-caption text-muted-foreground mb-1.5 font-semibold">{$t("projects.dialog.color_label")}</div>
           <div class="flex gap-2">
             {#each COLOR_SWATCHES as c}
               <Button variant="ghost" size="sm"
@@ -232,11 +232,11 @@
           class="px-3 py-2.5 rounded-lg bg-primary/5 border border-primary/10 mb-3"
         >
           <div
-            class="text-[11px] font-semibold text-primary mb-1 inline-flex items-center gap-1.5"
+            class="text-caption font-semibold text-primary mb-1 inline-flex items-center gap-1.5"
           >
             <Sparkles size={10} /> {$t("projects.dialog.ready_title")}
           </div>
-          <div class="text-[11px] text-muted-foreground leading-[1.5]">
+          <div class="text-caption text-muted-foreground leading-[1.5]">
             {$t("projects.dialog.ready_detail", { values: { count: selected?.agents?.length ?? 0 } })}
           </div>
         </div>
@@ -257,7 +257,7 @@
             }}
             data-testid="new-project-create"
           >
-            {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘↵</span>{/snippet}
+            {#snippet kbd()}<span class="font-mono text-micro opacity-80">⌘↵</span>{/snippet}
             {$t("projects.create_project")}
           </Button>
         </div>

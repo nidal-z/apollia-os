@@ -111,7 +111,7 @@
 <div class="flex flex-col items-start" data-testid="chat-message-streaming" data-mode={sessionMode}>
   <div class="flex items-center gap-2 mb-3 px-0.5">
     <Avatar name={displayName} size="xs" ring={false} />
-    <span class="text-[13px] font-semibold text-foreground">{displayName}</span>
+    <span class="text-body-sm font-semibold text-foreground">{displayName}</span>
   </div>
 
   <!-- Live: the same activity block as a finalized turn, held open so the user
@@ -142,11 +142,11 @@
                   {/if}
                 </span>
                 <span
-                  class="truncate text-[11.5px] text-foreground/80"
+                  class="truncate text-caption-lg text-foreground/80"
                   title={row.name}
                 >{toolLabel(row.name)}</span>
                 {#if row.durationMs && row.durationMs > 0}
-                  <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/50"
+                  <span class="ml-auto flex-shrink-0 text-micro text-muted-foreground/50"
                     >{formatSecondsLocalized(row.durationMs, $locale ?? "en")} s</span
                   >
                 {/if}
@@ -159,7 +159,7 @@
                it is happening now. -->
           {#if activeThinking && activeThinkingContent.trim()}
             <div
-              class="min-w-0 max-h-40 overflow-hidden whitespace-pre-wrap py-1 text-[12.5px] italic leading-relaxed text-muted-foreground"
+              class="min-w-0 max-h-40 overflow-hidden whitespace-pre-wrap py-1 text-code-sm italic leading-relaxed text-muted-foreground"
               data-testid="streaming-active-thinking"
             >{activeThinkingContent}</div>
           {/if}
@@ -170,7 +170,7 @@
 
   <!-- Main response (thinking-free), transparent in the flat thread. -->
   {#if textContent || !activeThinking}
-    <div class="w-full py-1 text-[14px] text-foreground">
+    <div class="w-full py-1 text-body-md text-foreground">
       <StreamingText text={textContent} />
     </div>
   {/if}

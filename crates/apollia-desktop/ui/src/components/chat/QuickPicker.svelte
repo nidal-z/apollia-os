@@ -348,7 +348,7 @@
     <div class="mb-3 flex items-center gap-2">
       <label
         for="quickpicker-project-select"
-        class="text-[11px] font-medium text-muted-foreground/80 shrink-0"
+        class="text-caption font-medium text-muted-foreground/80 shrink-0"
       >
         {$t("chat.project_selector")}
       </label>
@@ -387,7 +387,7 @@
 
   <!-- Plan mode toggle: starts this conversation under the plan gate. -->
   <label
-    class="mt-2 flex w-fit cursor-pointer select-none items-center gap-2 text-[11px] text-muted-foreground"
+    class="mt-2 flex w-fit cursor-pointer select-none items-center gap-2 text-caption text-muted-foreground"
     data-testid="quickpicker-plan-mode-label"
   >
     <input
@@ -401,7 +401,7 @@
   </label>
 
   <div class="mt-2 flex items-center justify-between">
-    <span class="text-[10px] text-muted-foreground/50">
+    <span class="text-micro text-muted-foreground/50">
       {$t("chat.quickpicker.submit_hint")}
     </span>
     <div class="flex items-center gap-2">
@@ -466,7 +466,7 @@
   <section class="mt-4">
     <button
       type="button"
-      class="mb-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase
+      class="mb-2 inline-flex items-center gap-1.5 text-micro font-semibold uppercase
         tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded"
       onclick={() => toggleSection("agents")}

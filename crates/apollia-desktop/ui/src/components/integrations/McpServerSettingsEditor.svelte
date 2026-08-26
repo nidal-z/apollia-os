@@ -302,13 +302,13 @@
 </script>
 
 {#if loading}
-  <div class="flex items-center gap-2 text-[12.5px] text-muted-foreground" data-testid="mcp-settings-loading">
+  <div class="flex items-center gap-2 text-code-sm text-muted-foreground" data-testid="mcp-settings-loading">
     <Spinner size={14} />
     <span>{$t("connections.mcp_settings.loading")}</span>
   </div>
 {:else if loadError}
   <Card class="border-destructive/30 bg-destructive/5 p-[14px_16px]">
-    <p class="text-[12.5px] text-destructive" data-testid="mcp-settings-load-error">{loadError}</p>
+    <p class="text-code-sm text-destructive" data-testid="mcp-settings-load-error">{loadError}</p>
   </Card>
 {:else if raw}
   <div class="space-y-4">
@@ -316,39 +316,39 @@
     {#if stdio}
       <!-- Launcher (read-only) -->
       <Card class="p-[14px_16px] space-y-2">
-        <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+        <div class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.launch")}
         </div>
-        <div class="grid gap-1.5 text-[12px]">
+        <div class="grid gap-1.5 text-body-xs">
           <div class="flex items-baseline gap-2">
-            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.command")}</span>
+            <span class="w-[88px] shrink-0 text-micro-lg uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.command")}</span>
             <span class="font-mono text-foreground truncate" data-testid="mcp-settings-command">{raw.command}</span>
           </div>
           {#if launcherHead.length > 0}
             <div class="flex items-baseline gap-2">
-              <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.prefix")}</span>
+              <span class="w-[88px] shrink-0 text-micro-lg uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.prefix")}</span>
               <span class="font-mono text-foreground/80 truncate" title={launcherHead.join(" ")}>
                 {launcherHead.join(" ")}
               </span>
             </div>
           {/if}
           <div class="flex items-baseline gap-2">
-            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.transport")}</span>
+            <span class="w-[88px] shrink-0 text-micro-lg uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.transport")}</span>
             <span class="font-mono text-foreground/80">stdio</span>
           </div>
         </div>
-        <p class="text-[10.5px] text-muted-foreground leading-[1.5]">
+        <p class="text-micro-lg text-muted-foreground leading-[1.5]">
           {$t("connections.mcp_settings.launch_readonly_note")}
         </p>
       </Card>
 
       <!-- User-editable args -->
       <Card class="p-[14px_16px] space-y-2">
-        <label for="mcp-settings-args" class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+        <label for="mcp-settings-args" class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.server_args")}
         </label>
         {#if argsHint}
-          <p class="text-[11px] text-muted-foreground leading-[1.5]" data-testid="mcp-settings-args-hint">
+          <p class="text-caption text-muted-foreground leading-[1.5]" data-testid="mcp-settings-args-hint">
             {argsHint}
           </p>
         {/if}
@@ -359,11 +359,11 @@
           placeholder={launcherHead.some((a) => a.includes("server-filesystem"))
             ? "/Users/moi/Documents\n/Users/moi/Desktop"
             : $t("connections.mcp_settings.args_placeholder")}
-          class="font-mono text-[12px]"
+          class="font-mono text-body-xs"
           data-testid="mcp-settings-args-input"
           disabled={saving}
         />
-        <p class="text-[10.5px] text-muted-foreground leading-[1.5]">
+        <p class="text-micro-lg text-muted-foreground leading-[1.5]">
           {$t("connections.mcp_settings.args_note")}
         </p>
       </Card>
@@ -372,7 +372,7 @@
     {#if remote}
       <!-- Remote endpoint -->
       <Card class="p-[14px_16px] space-y-2">
-        <label for="mcp-settings-url" class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+        <label for="mcp-settings-url" class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.server_url")}
         </label>
         <!-- i18n-ignore: example endpoint URL -->
@@ -380,16 +380,16 @@
           id="mcp-settings-url"
           type="url"
           bind:value={urlDraft}
-          class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           placeholder="https://mcp.example.com/mcp"
           disabled={saving}
           data-testid="mcp-settings-url-input"
         />
         {#if urlInvalid}
-          <p class="text-[11px] text-destructive">{$t("connections.mcp_settings.url_invalid_prefix")} <code>http://</code> {$t("connections.mcp_settings.url_invalid_or")} <code>https://</code>{$t("connections.mcp_settings.url_invalid_suffix")}</p>
+          <p class="text-caption text-destructive">{$t("connections.mcp_settings.url_invalid_prefix")} <code>http://</code> {$t("connections.mcp_settings.url_invalid_or")} <code>https://</code>{$t("connections.mcp_settings.url_invalid_suffix")}</p>
         {/if}
-        <div class="flex items-baseline gap-2 text-[11.5px] text-muted-foreground">
-          <span class="text-[10.5px] uppercase tracking-wide">{$t("connections.mcp_settings.transport")}</span>
+        <div class="flex items-baseline gap-2 text-caption-lg text-muted-foreground">
+          <span class="text-micro-lg uppercase tracking-wide">{$t("connections.mcp_settings.transport")}</span>
           <span class="font-mono">{raw.transport}</span>
         </div>
       </Card>
@@ -406,9 +406,9 @@
             <p class="text-sm font-medium text-foreground">
               {$t("integrations.wizard.oauth_settings_connected")}
             </p>
-            <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
+            <p class="text-caption-lg text-muted-foreground leading-[1.5]">
               {#each oauthEnvHeaders as header (header)}
-                <span class="font-mono text-[11px]">{header}</span>
+                <span class="font-mono text-caption">{header}</span>
                 {' '}
               {/each}
               · ${'{APOLLIA_OAUTH}'}
@@ -437,7 +437,7 @@
           </Button>
         </div>
         {#if oauthReconnectError}
-          <p class="text-[11.5px] text-destructive" data-testid="mcp-settings-oauth-error">
+          <p class="text-caption-lg text-destructive" data-testid="mcp-settings-oauth-error">
             {oauthReconnectError}
           </p>
         {/if}
@@ -447,19 +447,19 @@
     {#if plainEnvKeys.length > 0}
       <!-- Plain env vars (non-secret) -->
       <Card class="p-[14px_16px] space-y-2.5">
-        <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+        <div class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.env_vars")}
         </div>
         {#each plainEnvKeys as key (key)}
           <div class="space-y-1">
-            <label for={`mcp-settings-env-${key}`} class="text-[11.5px] font-mono text-foreground">
+            <label for={`mcp-settings-env-${key}`} class="text-caption-lg font-mono text-foreground">
               {key}
             </label>
             <input
               id={`mcp-settings-env-${key}`}
               type="text"
               bind:value={envValuesDraft[key]}
-              class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               disabled={saving}
               data-testid={`mcp-settings-env-${key}`}
             />
@@ -471,15 +471,15 @@
     {#if secretEnvKeys.length > 0}
       <!-- Secret env vars (stored in keychain) -->
       <Card class="p-[14px_16px] space-y-2.5">
-        <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+        <div class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.secrets")}
         </div>
-        <p class="text-[11px] text-muted-foreground leading-[1.5]">
+        <p class="text-caption text-muted-foreground leading-[1.5]">
           {$t("connections.mcp_settings.secrets_note")}
         </p>
         {#each secretEnvKeys as key (key)}
           <div class="space-y-1">
-            <label for={`mcp-settings-secret-${key}`} class="text-[11.5px] font-mono text-foreground">
+            <label for={`mcp-settings-secret-${key}`} class="text-caption-lg font-mono text-foreground">
               {key}
             </label>
             <input
@@ -487,7 +487,7 @@
               type="password"
               autocomplete="off"
               bind:value={secretRotateValues[key]}
-              class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               placeholder={$t("connections.mcp_settings.secret_placeholder")}
               disabled={saving}
               data-testid={`mcp-settings-secret-${key}`}
@@ -499,12 +499,12 @@
 
     <!-- Timeouts -->
     <Card class="p-[14px_16px] space-y-2.5">
-      <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+      <div class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
         {$t("connections.mcp_settings.timeouts")}
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
-          <label for="mcp-settings-init-timeout" class="text-[11.5px] text-foreground">
+          <label for="mcp-settings-init-timeout" class="text-caption-lg text-foreground">
             {$t("connections.mcp_settings.init_timeout")}
           </label>
           <input
@@ -513,16 +513,16 @@
             min="1"
             max="300"
             bind:value={initTimeoutDraft}
-            class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             disabled={saving}
             data-testid="mcp-settings-init-timeout"
           />
           {#if initTimeoutInvalid}
-            <p class="text-[10.5px] text-destructive">{$t("connections.mcp_settings.init_timeout_range")}</p>
+            <p class="text-micro-lg text-destructive">{$t("connections.mcp_settings.init_timeout_range")}</p>
           {/if}
         </div>
         <div class="space-y-1">
-          <label for="mcp-settings-call-timeout" class="text-[11.5px] text-foreground">
+          <label for="mcp-settings-call-timeout" class="text-caption-lg text-foreground">
             {$t("connections.mcp_settings.call_timeout")}
           </label>
           <input
@@ -531,22 +531,22 @@
             min="1"
             max="600"
             bind:value={callTimeoutDraft}
-            class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             disabled={saving}
             data-testid="mcp-settings-call-timeout"
           />
           {#if callTimeoutInvalid}
-            <p class="text-[10.5px] text-destructive">{$t("connections.mcp_settings.call_timeout_range")}</p>
+            <p class="text-micro-lg text-destructive">{$t("connections.mcp_settings.call_timeout_range")}</p>
           {/if}
         </div>
       </div>
     </Card>
 
     {#if saveError}
-      <p class="text-[12px] text-destructive" data-testid="mcp-settings-save-error">{saveError}</p>
+      <p class="text-body-xs text-destructive" data-testid="mcp-settings-save-error">{saveError}</p>
     {/if}
     {#if saveOk}
-      <p class="text-[12px] text-success" data-testid="mcp-settings-save-ok">
+      <p class="text-body-xs text-success" data-testid="mcp-settings-save-ok">
         {$t("connections.mcp_settings.save_ok")}
       </p>
     {/if}

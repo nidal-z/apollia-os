@@ -19,20 +19,20 @@
   <div class="flex-1 min-w-0">
     {#if kicker}
       <div
-        class="font-mono text-[10.5px] tracking-[1.5px] font-semibold text-muted-foreground/70 uppercase mb-1.5"
+        class="font-mono text-micro-lg tracking-[1.5px] font-semibold text-muted-foreground/70 uppercase mb-1.5"
       >
         {kicker}
       </div>
     {/if}
     <h1
       class="m-0 text-foreground"
-      style="font-size: 28px; font-weight: 600; letter-spacing: -0.6px; line-height: 1.15;"
+      style="font-size: var(--text-display-sm); font-weight: 600; letter-spacing: -0.6px; line-height: 1.15;"
     >
       {title}
     </h1>
     {#if subtitle}
       <p
-        class="mt-2 text-[13.5px] leading-[1.5] text-muted-foreground max-w-[620px]"
+        class="mt-2 text-body-sm leading-[1.5] text-muted-foreground max-w-[620px]"
       >
         {subtitle}
       </p>

@@ -19,7 +19,7 @@
     align-items: center;
     padding: 2.5rem 0.75rem;
     text-align: center;
-    font-size: 0.84375rem;
+    font-size: var(--text-body-sm);
     color: hsl(var(--muted-foreground));
   }
 
@@ -36,7 +36,7 @@
 
   .empty-hint {
     margin-top: 0.375rem;
-    font-size: 0.71875rem;
+    font-size: var(--text-caption-lg);
     color: hsl(var(--muted-foreground) / 0.85);
   }
 </style>

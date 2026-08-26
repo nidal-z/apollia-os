@@ -65,7 +65,7 @@
       ></div>
     {:else}
       <div
-        class={cn("h-full rounded-full bg-gradient-to-r transition-[width] duration-300", fillClass)}
+        class={cn("h-full rounded-full bg-gradient-to-r transition-[width] duration-base", fillClass)}
         style:width="{clamped}%"
       ></div>
     {/if}
