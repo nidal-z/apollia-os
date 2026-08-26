@@ -308,8 +308,8 @@ mod tests {
         ep.record(
             namespace,
             "agent-1",
-            "budget client Dupont cinq mille euros",
             "budget client Dupont five thousand euros",
+            0.9,
             None,
             None,
             None,
