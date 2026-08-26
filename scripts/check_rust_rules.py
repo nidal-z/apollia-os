@@ -128,8 +128,9 @@ MODULE_SIZE_FILES: set[str] = set()
 # Per-file counts of Arc<Mutex|RwLock> production sites. The actor migration
 # that shrinks a count lowers the entry with it.
 ARC_MUTEX_COUNTS: dict[str, int] = {
-    "crates/apollia-aip/src/llm.rs": 1,
-    "crates/apollia-aip/src/memory.rs": 14,
+    "crates/apollia-aip/src/llm/stream.rs": 1,
+    "crates/apollia-aip/src/memory.rs": 2,
+    "crates/apollia-aip/src/memory/inner.rs": 12,
     "crates/apollia-aip/src/secrets.rs": 2,
     "crates/apollia-auth/src/auth_manager.rs": 1,
     "crates/apollia-auth/src/callback.rs": 2,
@@ -161,7 +162,8 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-mcp/src/session.rs": 3,
     "crates/apollia-mcp/src/transport/stdio.rs": 1,
     "crates/apollia-oria/src/actor.rs": 2,
-    "crates/apollia-oria/src/engine.rs": 4,
+    "crates/apollia-oria/src/engine.rs": 2,
+    "crates/apollia-oria/src/engine/builder.rs": 2,
     "crates/apollia-runner/src/server/mod.rs": 1,
     "crates/apollia-runtime/src/a2a/sidechain.rs": 2,
     "crates/apollia-runtime/src/api/routes_llm/backends.rs": 1,
