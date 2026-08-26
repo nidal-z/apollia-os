@@ -81,7 +81,6 @@ ALLOWED: dict[str, int] = {
     "apollia-mcp": 33,
     "apollia-memory": 28,
     "apollia-notifications": 18,
-    "apollia-oria": 51,
     "apollia-permissions": 4,
     "apollia-runner": 10,
     "apollia-stt": 5,

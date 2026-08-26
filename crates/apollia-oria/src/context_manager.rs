@@ -337,7 +337,8 @@ impl ContextManager {
             Some(b) => b,
             None => {
                 tracing::warn!(
-                    "no LLM backend available for context summarization, using fallback"
+                    detail = "falling back to a static summary",
+                    "context.summarize.unavailable"
                 );
                 return fallback_summary();
             }
@@ -355,7 +356,11 @@ impl ContextManager {
         {
             Ok(resp) => truncate_on_char_boundary(resp.content, self.summary_max_chars),
             Err(e) => {
-                tracing::warn!(error = %e, "context summarization failed, using fallback");
+                tracing::warn!(
+                    error = %e,
+                    detail = "falling back to a static summary",
+                    "context.summarize.failed"
+                );
                 fallback_summary()
             }
         }

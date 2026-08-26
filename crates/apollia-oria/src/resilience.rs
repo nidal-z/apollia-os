@@ -236,7 +236,8 @@ impl ResilienceLayer {
                     cb.state = CircuitState::HalfOpen;
                     tracing::info!(
                         tool = %cb.tool_name,
-                        "circuit breaker transitioning Open -> HalfOpen (cooldown elapsed)"
+                        reason = "cooldown elapsed",
+                        "circuit.half_open"
                     );
                     Ok(())
                 } else {
@@ -268,7 +269,8 @@ impl ResilienceLayer {
             cb.state = CircuitState::Closed;
             tracing::info!(
                 tool = %cb.tool_name,
-                "circuit breaker restored: HalfOpen -> Closed"
+                reason = "probe succeeded",
+                "circuit.closed"
             );
         }
 
@@ -299,7 +301,8 @@ impl ResilienceLayer {
             cb.last_failure_at = Some(Instant::now());
             tracing::warn!(
                 tool = %cb.tool_name,
-                "circuit breaker probe failed: HalfOpen -> Open"
+                reason = "probe failed",
+                "circuit.opened"
             );
             return Ok(true);
         }
@@ -313,7 +316,8 @@ impl ResilienceLayer {
                 tool = %cb.tool_name,
                 failure_count = cb.failure_count,
                 threshold = cb.failure_threshold,
-                "circuit breaker opened: Closed -> Open"
+                reason = "failure threshold reached",
+                "circuit.opened"
             );
             return Ok(true);
         }
@@ -386,7 +390,8 @@ impl ResilienceLayer {
                 if was_open {
                     tracing::info!(
                         tool = %cb.tool_name,
-                        "circuit breaker manually reset to Closed"
+                        reason = "manual reset",
+                        "circuit.closed"
                     );
                 }
                 true
@@ -456,7 +461,8 @@ impl ResilienceLayer {
                             attempt = attempt,
                             max_attempts = max_attempts,
                             delay_ms = delay.as_millis() as u64,
-                            "transient error, retrying after backoff"
+                            reason = "transient error",
+                            "tool.retry.scheduled"
                         );
                         tokio::time::sleep(delay).await;
                     } else {
@@ -539,7 +545,8 @@ impl ResilienceLayer {
                             attempt = attempt,
                             delay_ms = delay.as_millis() as u64,
                             elapsed_ms = start_instant.elapsed().as_millis() as u64,
-                            "transient error, retrying after backoff"
+                            reason = "transient error",
+                            "tool.retry.scheduled"
                         );
                         tokio::time::sleep(delay).await;
                     } else {

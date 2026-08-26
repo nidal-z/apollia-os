@@ -317,7 +317,7 @@ impl Reasoner {
             steps_b = plan_b.steps.len(),
             temp_a = config.plan_alternatives_temp_a,
             temp_b = config.plan_alternatives_temp_b,
-            "plan alternatives generated"
+            "plan.alternatives.generated"
         );
 
         Ok(PlanAlternatives {
@@ -391,7 +391,7 @@ impl Reasoner {
                     tracing::info!(
                         attempt = attempt + 1,
                         steps = plan.steps.len(),
-                        "ExecutionPlan ready"
+                        "plan.ready"
                     );
                     self.emit_thinking_ended(
                         &turn_id,
@@ -404,7 +404,7 @@ impl Reasoner {
                     return Ok(plan);
                 }
                 Err(e) => {
-                    tracing::warn!(attempt = attempt + 1, error = %e, "plan invalide, retry");
+                    tracing::warn!(attempt = attempt + 1, error = %e, "plan.invalid.retrying");
                     last_error = e.to_string();
                 }
             }

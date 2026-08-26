@@ -487,7 +487,7 @@ impl ORIAEngine {
 
         tracing::info!(
             session_id = %alternatives.session_id,
-            "plan alternatives emitted on EventBus"
+            "plan.alternatives.emitted"
         );
 
         Ok(alternatives)
@@ -1074,7 +1074,11 @@ impl ORIAEngine {
         let cache = match cache_mutex.lock() {
             Ok(cache) => cache,
             Err(e) => {
-                tracing::warn!(error = %e, "plan cache mutex poisoned, skipping lookup");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the lookup is skipped",
+                    "plan.cache.lock.poisoned"
+                );
                 return None;
             }
         };
@@ -1082,7 +1086,7 @@ impl ORIAEngine {
             Ok(Some(cached_plan)) => cached_plan,
             Ok(None) => return None,
             Err(e) => {
-                tracing::warn!(error = %e, "plan cache lookup failed");
+                tracing::warn!(error = %e, "plan.cache.lookup.failed");
                 return None;
             }
         };
@@ -1104,11 +1108,15 @@ impl ORIAEngine {
         match cache_mutex.lock() {
             Ok(cache) => {
                 if let Err(e) = cache.store(cache_key, plan, &manifest.name, &manifest.version) {
-                    tracing::warn!(error = %e, "plan cache store failed");
+                    tracing::warn!(error = %e, "plan.cache.store.failed");
                 }
             }
             Err(e) => {
-                tracing::warn!(error = %e, "plan cache mutex poisoned, skipping store");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the store is skipped",
+                    "plan.cache.lock.poisoned"
+                );
             }
         }
     }
@@ -1226,16 +1234,20 @@ impl ORIAEngine {
         let repo = match PlanRepository::new(db_path) {
             Ok(r) => r,
             Err(e) => {
-                tracing::error!(error = %e, "Failed to open PlanRepository - falling back to :memory:");
+                tracing::error!(
+                    error = %e,
+                    detail = "falling back to an in-memory database",
+                    "plan.repository.open.failed"
+                );
                 PlanRepository::new(":memory:")?
             }
         };
 
         if let Err(e) = repo.insert_plan(plan, agent_name) {
-            tracing::error!(error = %e, "Failed to persist plan (non-blocking)");
+            tracing::error!(error = %e, detail = "non-blocking", "plan.persist.failed");
         }
         if let Err(e) = repo.insert_steps(&plan.plan_id, &plan.steps) {
-            tracing::error!(error = %e, "Failed to persist plan steps (non-blocking)");
+            tracing::error!(error = %e, detail = "non-blocking", "plan.steps.persist.failed");
         }
 
         Ok(repo)
@@ -1295,7 +1307,8 @@ impl ORIAEngine {
                 tracing::warn!(
                     task_id = %task.task_id,
                     error = %e,
-                    "failed to persist input_required - continuing without DB record"
+                    detail = "continuing without a database record",
+                    "task.input_required.persist.failed"
                 );
             }
 
@@ -1309,7 +1322,8 @@ impl ORIAEngine {
                 tracing::warn!(
                     task_id = %task.task_id,
                     error = %e,
-                    "failed to persist suspended_at - continuing without timing record"
+                    detail = "continuing without a timing record",
+                    "task.suspended_at.persist.failed"
                 );
             }
         }
@@ -1325,7 +1339,7 @@ impl ORIAEngine {
         tracing::info!(
             task_id = %task.task_id,
             %prompt,
-            "task suspended - waiting for human approval"
+            "task.approval.suspended"
         );
 
         // register on PendingApprovals: if not configured, degrade gracefully
@@ -1334,7 +1348,8 @@ impl ORIAEngine {
             None => {
                 tracing::warn!(
                     task_id = %task.task_id,
-                    "PendingApprovals not configured - returning InputRequired without suspension"
+                    detail = "returning input_required without suspending",
+                    "task.approval.unconfigured"
                 );
                 return Ok(AIPResult::input_required(&prompt, context));
             }
@@ -1348,7 +1363,7 @@ impl ORIAEngine {
         tracing::info!(
             task_id = %task.task_id,
             approved = response.approved,
-            "human approval received - resuming task"
+            "task.approval.received"
         );
 
         // rejection: AIPResult::failed without calling run()

@@ -375,7 +375,7 @@ impl ActorLoop {
             Ok(l) => l,
             Err(_) => {
                 if let Err(e) = self.db.fail_plan(&self.plan.plan_id, "INVALID_PLAN") {
-                    tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+                    tracing::warn!(error = %e, detail = "ignored", "plan.fail.persist.failed");
                 }
                 return AIPResult::failed("INVALID_PLAN", "Circular dependency in execution plan");
             }
@@ -411,7 +411,7 @@ impl ActorLoop {
 
         // All steps completed.
         if let Err(e) = self.db.complete_plan(&self.plan.plan_id) {
-            tracing::warn!(error = %e, "complete_plan DB call failed (ignored)");
+            tracing::warn!(error = %e, detail = "ignored", "plan.complete.persist.failed");
         }
         let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
             task_id: self.plan.task_id.clone().into(),
@@ -488,7 +488,12 @@ impl ActorLoop {
                 self.db
                     .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
             {
-                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+                tracing::warn!(
+                    error = %e,
+                    step_id = %step_id,
+                    detail = "ignored",
+                    "step.duration.persist.failed"
+                );
             }
             match result {
                 Ok(output) => {
@@ -591,7 +596,12 @@ impl ActorLoop {
                 self.db
                     .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
             {
-                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+                tracing::warn!(
+                    error = %e,
+                    step_id = %step_id,
+                    detail = "ignored",
+                    "step.duration.persist.failed"
+                );
             }
 
             match result {
@@ -864,7 +874,8 @@ impl ActorLoop {
                 tracing::warn!(
                     step_id = %step.step_id,
                     tool = ?step.tool_hint,
-                    "PendingApprovals not configured - executing sensitive step without approval"
+                    detail = "the sensitive step runs without approval",
+                    "step.approval.unconfigured"
                 );
             }
         }
@@ -977,7 +988,7 @@ impl ActorLoop {
                 summary_chars,
                 original_messages,
                 step_id = %step.step_id,
-                "step context compacted before LLM call"
+                "step.context.compacted"
             );
             let _ = self
                 .event_bus
@@ -1000,7 +1011,8 @@ impl ActorLoop {
                     tracing::warn!(
                         step_id = %step.step_id,
                         model_hint = %hint,
-                        "model_hint backend not found, falling back to default"
+                        detail = "falling back to the default backend",
+                        "step.model_hint.unknown"
                     );
                     None
                 }
@@ -1058,7 +1070,7 @@ impl ActorLoop {
             task_id = %self.plan.task_id,
             step_id = %step.step_id,
             tool = ?step.tool_hint,
-            "step suspended - waiting for human approval"
+            "step.approval.suspended"
         );
 
         // 3. Wait for the human decision (pure await: StepBudget does not advance)
@@ -1068,7 +1080,7 @@ impl ActorLoop {
             task_id = %self.plan.task_id,
             step_id = %step.step_id,
             approved = response.approved,
-            "human decision received for step"
+            "step.approval.decided"
         );
 
         // 4/5. Return based on the decision
@@ -1120,7 +1132,8 @@ impl ActorLoop {
                     tracing::warn!(
                         error = %e,
                         step_id = %task_id,
-                        "failed to acquire memory_manager lock for step memory (ignored)"
+                        detail = "ignored",
+                        "step.memory.lock.failed"
                     );
                     return;
                 }
@@ -1131,7 +1144,8 @@ impl ActorLoop {
                     tracing::warn!(
                         error = %e,
                         namespace = %namespace_owned,
-                        "failed to open memory store for step memory (ignored)"
+                        detail = "ignored",
+                        "step.memory.store.open.failed"
                     );
                     return;
                 }
@@ -1150,7 +1164,8 @@ impl ActorLoop {
                 tracing::warn!(
                     error = %e,
                     namespace = %namespace_owned,
-                    "failed to record episodic step memory (ignored)"
+                    detail = "ignored",
+                    "step.memory.record.failed"
                 );
             }
         });
@@ -1202,7 +1217,11 @@ impl ActorLoop {
                 Ok(p) => p,
                 Err(e) => {
                     if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, &e.to_string()) {
-                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                        tracing::warn!(
+                            error = %db_err,
+                            detail = "ignored",
+                            "plan.fail.persist.failed"
+                        );
                     }
                     let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
                         task_id: self.plan.task_id.clone().into(),
@@ -1215,10 +1234,10 @@ impl ActorLoop {
 
             // Update SQLite: begin_replan removes pending steps, then we reinsert.
             if let Err(e) = self.db.begin_replan(&self.plan.plan_id, self.replan_count) {
-                tracing::warn!(error = %e, "begin_replan DB call failed (ignored)");
+                tracing::warn!(error = %e, detail = "ignored", "plan.replan.persist.failed");
             }
             if let Err(e) = self.db.insert_steps(&self.plan.plan_id, &new_plan.steps) {
-                tracing::warn!(error = %e, "insert_steps DB call failed (ignored)");
+                tracing::warn!(error = %e, detail = "ignored", "plan.steps.persist.failed");
             }
 
             let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
@@ -1266,7 +1285,7 @@ impl ActorLoop {
                 Ok(o) => o,
                 Err(_) => {
                     if let Err(e) = self.db.fail_plan(&self.plan.plan_id, "INVALID_REPLAN") {
-                        tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+                        tracing::warn!(error = %e, detail = "ignored", "plan.fail.persist.failed");
                     }
                     return AIPResult::failed("INVALID_REPLAN", "Circular dependency in replan");
                 }
@@ -1316,7 +1335,12 @@ impl ActorLoop {
                     self.db
                         .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
                 {
-                    tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+                    tracing::warn!(
+                        error = %e,
+                        step_id = %step_id,
+                        detail = "ignored",
+                        "step.duration.persist.failed"
+                    );
                 }
 
                 match result {
@@ -1344,7 +1368,7 @@ impl ActorLoop {
             }
 
             if let Err(e) = self.db.complete_plan(&self.plan.plan_id) {
-                tracing::warn!(error = %e, "complete_plan DB call failed (ignored)");
+                tracing::warn!(error = %e, detail = "ignored", "plan.complete.persist.failed");
             }
             let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
                 task_id: self.plan.task_id.clone().into(),
@@ -1367,10 +1391,20 @@ impl ActorLoop {
             self.db
                 .save_step_output(step_id, &self.plan.plan_id, output, &self.obs_config)
         {
-            tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.output.persist.failed"
+            );
         }
         if let Err(e) = self.db.complete_step(&self.plan.plan_id, step_id, output) {
-            tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.complete.persist.failed"
+            );
         }
         let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
             task_id: self.plan.task_id.clone().into(),
@@ -1390,10 +1424,20 @@ impl ActorLoop {
             .db
             .save_step_error(step_id, &self.plan.plan_id, error_msg)
         {
-            tracing::warn!(error = %e, step_id = %step_id, "save_step_error DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.error.persist.failed"
+            );
         }
         if let Err(e) = self.db.fail_step(&self.plan.plan_id, step_id, error_msg) {
-            tracing::warn!(error = %e, step_id = %step_id, "fail_step DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.fail.persist.failed"
+            );
         }
     }
 
@@ -1412,7 +1456,7 @@ impl ActorLoop {
     /// [`RuntimeEvent::PlanFailed`]. DB errors are logged and ignored.
     fn fail_plan(&self, reason: &str) {
         if let Err(e) = self.db.fail_plan(&self.plan.plan_id, reason) {
-            tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+            tracing::warn!(error = %e, detail = "ignored", "plan.fail.persist.failed");
         }
         let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
             task_id: self.plan.task_id.clone().into(),
@@ -1520,21 +1564,36 @@ impl ActorLoop {
             desc: step.description.clone(),
         });
         if let Err(e) = self.db.start_step(&self.plan.plan_id, step_id) {
-            tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.start.persist.failed"
+            );
         }
         let rendered = interpolate_outputs(&step.description, completed_outputs);
         if let Err(e) =
             self.db
                 .save_step_input(step_id, &self.plan.plan_id, &rendered, &self.obs_config)
         {
-            tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.input.persist.failed"
+            );
         }
         let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
         if let Err(e) = self
             .db
             .save_step_tool(step_id, &self.plan.plan_id, actual_tool)
         {
-            tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
+            tracing::warn!(
+                error = %e,
+                step_id = %step_id,
+                detail = "ignored",
+                "step.tool.persist.failed"
+            );
         }
     }
 
