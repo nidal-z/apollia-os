@@ -105,14 +105,36 @@ BASELINE: dict[str, str] = {
     "with_hitl@apollia-mcp": "dead second gate: approval is enforced by the ORIA "
     "actor loop for orchestrated runs and by the chat dispatcher for free chat, "
     "both of which are wired. Redundant defence nobody installs, not a hole.",
-    "with_session_filter@apollia-tools": "unjudged capability, no doc claim.",
-    "with_file_path_extractor@apollia-tools": "unjudged capability, no doc claim.",
-    "with_timestamp_cache@apollia-tools": "unjudged capability, no doc claim.",
-    "with_telemetry@apollia-runtime": "unjudged capability, no doc claim.",
-    "with_thinking@apollia-core": "unjudged capability, no doc claim.",
-    "with_details@apollia-runner": "unjudged capability, no doc claim.",
-    "with_wall_clock_secs@apollia-aip:bridge": "unjudged capability, no doc claim.",
-    "with_wall_clock_secs@apollia-aip:context": "unjudged capability, no doc claim.",
+    "with_session_filter@apollia-tools": "defect, open, and the chain has no middle: "
+    "`apollia run --allowed-tools` / `--disallowed-tools` build a `session_config` "
+    "fragment (`commands/run.rs:868`) and push it into the AIP input payload. Nothing "
+    "on the runtime side reads that key, so `SessionToolPolicy::into_tool_filter` is "
+    "never called and `dispatch()` never evaluates a filter. Both ends exist, the wire "
+    "between them does not, and the operator gets no error.",
+    "with_file_path_extractor@apollia-tools": "defect, open: nothing installs the "
+    "extractor, so a bash command that touches files reports none of them upward. Its "
+    "only caller is a unit test of the extraction itself.",
+    "with_timestamp_cache@apollia-tools": "defect, open: `FileRead` never receives a "
+    "cache, so `RuntimeEvent::FileModifiedSinceRead` has no producer and an agent is "
+    "never told a file changed under it. The builder also sits behind `memory-search`, "
+    "which only `apollia-runtime` enables.",
+    "with_thinking@apollia-core": "unwired by decision: no producer fills the "
+    "`thinking` field of a HITL request, so the approval surfaces render the reason "
+    "without it. Filling it means deciding what of a model's reasoning may be shown to "
+    "a user, which is a product question rather than a repair.",
+    "with_details@apollia-runner": "dead: an IPC `ErrorBody` is built by `new` at "
+    "every site and no caller ever attaches a details payload. Delete rather than "
+    "wire.",
+    "with_telemetry@apollia-runtime": "dead, and so is what it installs: nothing "
+    "calls the builder, and `invoke_with_logging`, the only method that reads the "
+    "telemetry handle, has no caller either. Delete rather than wire.",
+    "with_wall_clock_secs@apollia-aip:bridge": "unwired, and the default is the whole "
+    "policy: `call_run` falls back to `DEFAULT_WALL_CLOCK_SECS` (300 s) on every "
+    "binary, so the per-agent budget this builder exists for is not configurable. "
+    "Wiring it means adding a manifest field, not calling a setter.",
+    "with_wall_clock_secs@apollia-aip:context": "the context mirror of the bridge "
+    "budget above: `ctx.budget.wall_clock_remaining` stays `None` because nothing sets "
+    "it, and it stays so until the bridge one is wired. One decision, two call sites.",
     # The four below became visible when SETS_SOME learned the `.ok()` form.
     # Each verdict was reached by reading the call path, on 2026-08-22.
     "with_notify@apollia-aip": "defect, open: nothing calls it, so the getter "
@@ -269,6 +291,18 @@ def main() -> int:
         return 0
 
     problems: list[str] = []
+    # A baseline entry that says nothing is not a verdict. The docstring above
+    # promises "a verdict someone reached by reading the call path", and for
+    # eight entries the text read "unjudged capability, no doc claim.", which is
+    # the sentence someone writes instead of reading it. The guard was green by
+    # inscription rather than by judgement, so the word is refused here.
+    for key, verdict in sorted(BASELINE.items()):
+        if "unjudged" in verdict.lower() or not verdict.strip():
+            problems.append(
+                f"{key}: the baseline entry carries no verdict. Read the call path, "
+                f"then say what the capability does today and what wiring it would "
+                f"take, or delete the builder."
+            )
     for key in unjudged:
         problems.append(
             f"{key}: a builder installs an optional capability and nothing in "
