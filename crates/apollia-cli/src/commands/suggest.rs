@@ -48,7 +48,7 @@ mod tests {
         assert_eq!(levenshtein("stat", "status"), 2);
     }
 
-    // GIVEN une faute proche WHEN on cherche THEN le bon candidat.
+    // GIVEN a near typo WHEN searching THEN the right candidate.
     #[test]
     fn test_nearest_suggests_close_match() {
         let cands = ["agent", "audit", "auth", "task"];
@@ -56,7 +56,7 @@ mod tests {
         assert_eq!(nearest("aduit", &cands, 2), Some("audit"));
     }
 
-    // GIVEN une saisie trop eloignee WHEN on cherche THEN None.
+    // GIVEN an input too far away WHEN searching THEN None.
     #[test]
     fn test_nearest_none_when_far() {
         let cands = ["agent", "audit"];

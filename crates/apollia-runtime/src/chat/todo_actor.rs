@@ -179,7 +179,7 @@ mod tests {
         // WHEN persisting one pending item
         h.set_items(
             "s1",
-            vec![item("t1", "Analyser le fichier", TodoStatus::Pending)],
+            vec![item("t1", "Analyse the file", TodoStatus::Pending)],
         )
         .await
         .expect("set ok");
@@ -188,7 +188,7 @@ mod tests {
         let got = h.get_items("s1").await.expect("get ok");
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].id, "t1");
-        assert_eq!(got[0].content, "Analyser le fichier");
+        assert_eq!(got[0].content, "Analyse the file");
         assert_eq!(got[0].status, TodoStatus::Pending);
     }
 

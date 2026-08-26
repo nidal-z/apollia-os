@@ -268,7 +268,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_returns_entries_with_type_and_size() {
-        // GIVEN: sandbox avec "file.txt" (10 octets) et "subdir/"
+        // GIVEN: a sandbox with "file.txt" (10 bytes) and "subdir/"
         let tmp = TempDir::new().expect("temp dir");
         create_file(tmp.path(), "file.txt", b"0123456789");
         std::fs::create_dir(tmp.path().join("subdir")).expect("create subdir");
@@ -285,7 +285,7 @@ mod tests {
             .expect("run ok");
 
         // THEN: entries contiennent { name: "file.txt", entry_type: "file", size_bytes: 10 }
-        //       et { name: "subdir", entry_type: "directory", size_bytes: null }
+        //       and { name: "subdir", entry_type: "directory", size_bytes: null }
         let file_entry = result
             .entries
             .iter()
@@ -305,7 +305,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_recursive_returns_nested_entries() {
-        // GIVEN: sandbox avec "a.txt" et "sub/b.txt"
+        // GIVEN: a sandbox with "a.txt" and "sub/b.txt"
         let tmp = TempDir::new().expect("temp dir");
         create_file(tmp.path(), "a.txt", b"a");
         create_file(tmp.path(), "sub/b.txt", b"b");
@@ -321,7 +321,7 @@ mod tests {
             .await
             .expect("run ok");
 
-        // THEN: entries contiennent "a.txt", "sub", et "sub/b.txt"
+        // THEN: entries hold "a.txt", "sub", and "sub/b.txt"
         let names: Vec<&str> = result.entries.iter().map(|e| e.name.as_str()).collect();
         assert!(names.contains(&"a.txt"), "missing a.txt in {names:?}");
         assert!(names.contains(&"sub"), "missing sub in {names:?}");
@@ -333,7 +333,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_nonexistent_dir_returns_not_found() {
-        // GIVEN: sandbox sans "missing/"
+        // GIVEN: a sandbox without "missing/"
         let tmp = TempDir::new().expect("temp dir");
         let tool = FileList::new(tmp.path().to_path_buf()).expect("FileList::new");
 
@@ -374,7 +374,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_results_are_sorted() {
-        // GIVEN: sandbox avec "c.txt", "a.txt", "b.txt"
+        // GIVEN: a sandbox with "c.txt", "a.txt", "b.txt"
         let tmp = TempDir::new().expect("temp dir");
         create_file(tmp.path(), "c.txt", b"c");
         create_file(tmp.path(), "a.txt", b"a");

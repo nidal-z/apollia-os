@@ -1,20 +1,20 @@
-# Sampling defaults pour les familles de modèles populaires.
+# Sampling defaults for the popular model families.
 #
-# Sources : `generation_config.json` officiel publié par les éditeurs sur
-# HuggingFace Hub. Les valeurs sont des FAITS (paramètres recommandés par
-# l'éditeur) - non-copyrightables sous Feist (US) et la directive 96/9/CE (UE).
-# Pas de redistribution du modèle ; uniquement les params recommandés.
+# Sources: the official `generation_config.json` each publisher ships on the
+# HuggingFace Hub. The values are FACTS (the hyperparameters the publisher
+# recommends), not copyrightable under Feist (US) or directive 96/9/EC (EU).
+# No model is redistributed here; only the recommended parameters.
 #
-# Matching : `arch_pattern` est testé contre `general.architecture` du GGUF
-# (lower-case, exact OU prefix terminé par `*`). `name_pattern` est testé
-# contre `general.name` ou le filename GGUF (lower-case, substring).
+# Matching: `arch_pattern` is tested against `general.architecture` of the GGUF
+# (lower-case, exact OR a prefix ending in `*`). `name_pattern` is tested
+# against `general.name` or the GGUF filename (lower-case, substring).
 #
-# Précédence à la résolution : entrées plus haut dans la liste l'emportent.
-# Garder donc les patterns les plus spécifiques en haut (Qwen3-Thinking
-# avant Qwen3 générique, Llama-3.1 avant Llama générique).
+# Precedence at resolution: entries higher in the list win. Keep the most
+# specific patterns at the top (Qwen3-Thinking before generic Qwen3, Llama-3.1
+# before generic Llama).
 #
-# Mise à jour : si vous modifiez/ajoutez une entrée, citez la source dans
-# le commit (URL du `generation_config.json` HF).
+# Updating: when an entry changes or is added, cite the source in the commit
+# (the URL of the HF `generation_config.json`).
 
 # ── Qwen ────────────────────────────────────────────────────────
 [[entry]]

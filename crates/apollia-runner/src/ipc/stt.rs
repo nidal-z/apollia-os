@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Params pour `POST /stt/transcribe`.
+/// Params of `POST /stt/transcribe`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscribeParams {
     pub model_id: String,
@@ -24,7 +24,7 @@ fn default_task() -> String {
     "transcribe".into()
 }
 
-/// Segment temporel d'une transcription.
+/// Time segment of a transcription.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscribeSegment {
     pub start: f32,
@@ -32,7 +32,7 @@ pub struct TranscribeSegment {
     pub text: String,
 }
 
-/// Réponse de `POST /stt/transcribe`.
+/// Response of `POST /stt/transcribe`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscribeData {
     pub text: String,

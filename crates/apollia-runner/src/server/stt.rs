@@ -1,4 +1,4 @@
-//! Handlers axum pour `/stt/*`.
+//! axum handlers for `/stt/*`.
 
 use axum::extract::State;
 #[cfg_attr(not(feature = "local-cpu"), allow(unused_imports))]
@@ -60,7 +60,7 @@ pub async fn transcribe(
     ))
 }
 
-// `validate` est gated par `feature = "local-cpu"`. Tests idem.
+// `validate` is gated by `feature = "local-cpu"`. Same for the tests.
 #[cfg(all(test, feature = "local-cpu"))]
 mod tests {
     use super::*;

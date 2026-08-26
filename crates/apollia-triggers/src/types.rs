@@ -354,7 +354,8 @@ mod tests {
     #[test]
     fn test_render_timer_variables() {
         // GIVEN
-        let template = InputTemplate("Rapport du {{scheduled_at}} - généré à {{fired_at}}".into());
+        let template =
+            InputTemplate("Report of {{scheduled_at}} - generated at {{fired_at}}".into());
         let scheduled = Utc.with_ymd_and_hms(2026, 3, 9, 8, 0, 0).unwrap();
         let fired = Utc.with_ymd_and_hms(2026, 3, 9, 8, 0, 1).unwrap();
         let payload = TriggerPayload::Timer {
@@ -364,10 +365,10 @@ mod tests {
         // WHEN
         let result = template.render(&payload);
         // THEN
-        assert!(result.contains("2026-03-09"), "résultat: {result}");
+        assert!(result.contains("2026-03-09"), "result: {result}");
         assert!(
             !result.contains("{{"),
-            "des variables non substituées restent: {result}"
+            "unsubstituted variables remain: {result}"
         );
     }
 
@@ -400,10 +401,7 @@ mod tests {
         let result = template.render(&payload);
         // THEN
         assert_eq!(result, " texte");
-        assert!(
-            !result.contains("{{"),
-            "des patterns {{}} restent: {result}"
-        );
+        assert!(!result.contains("{{"), "{{}} patterns remain: {result}");
     }
 
     #[test]
@@ -425,11 +423,11 @@ mod tests {
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
-            input_template: InputTemplate("Rapport du {{scheduled_at}}".into()),
+            input_template: InputTemplate("Report of {{scheduled_at}}".into()),
         };
         // WHEN
-        let json = serde_json::to_string(&def).expect("sérialisation JSON");
-        let back: TriggerDefinition = serde_json::from_str(&json).expect("désérialisation JSON");
+        let json = serde_json::to_string(&def).expect("JSON serialisation");
+        let back: TriggerDefinition = serde_json::from_str(&json).expect("JSON deserialisation");
         // THEN
         assert_eq!(back.id, "rapport-hebdo");
         assert_eq!(back.agent, "rapport-agent");

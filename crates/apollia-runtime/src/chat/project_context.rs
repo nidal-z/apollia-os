@@ -60,10 +60,10 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
 
         let mut block = String::from(
             "## Project Context\n\
-             Le snapshot suivant a été collecté juste avant ce tour par les \
-             providers du projet (git, rules, tree, etc.). Privilégie ces \
-             informations à un appel d'outil pour répondre aux questions \
-             factuelles auxquelles elles répondent déjà.\n",
+             The snapshot below was collected just before this turn by the \
+             project providers (git, rules, tree, and so on). Prefer this \
+             information over a tool call for the factual questions it \
+             already answers.\n",
         );
         let mut has_content = false;
 

@@ -364,7 +364,7 @@ mod tests {
         m.push_summarization(SummarizationEvent {
             messages_summarized_count: 10,
             tokens_saved: 2500,
-            summary_excerpt: "Résumé de 10 messages…".into(),
+            summary_excerpt: "Summary of 10 messages…".into(),
         });
         // WHEN serialize / deserialize
         let json = serde_json::to_string(&m).expect("serialize");

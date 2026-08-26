@@ -380,7 +380,7 @@ mod tests {
         // GIVEN PendingChatApprovals
         let approvals = PendingChatApprovals::new();
 
-        // WHEN register puis resolve(Refuse)
+        // WHEN register then resolve(Refuse)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
         let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::refuse());
 
@@ -395,7 +395,7 @@ mod tests {
         // GIVEN PendingChatApprovals
         let approvals = PendingChatApprovals::new();
 
-        // WHEN register puis resolve(AlwaysAccept)
+        // WHEN register then resolve(AlwaysAccept)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
         let resolved =
             approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());

@@ -353,7 +353,7 @@ async fn persist_sampling_defaults(
             // `cardData.base_model` or a `base_model:...` tag, does contain it.
             // Retry once against that.
             let Some(base) = client.resolve_base_model(repo_id).await else {
-                return Err("generation_config.json absent et aucun base_model déclaré".to_string());
+                return Err("generation_config.json absent, and no base_model declared".to_string());
             };
             tracing::info!(
                 repo = %repo_id,
@@ -362,7 +362,7 @@ async fn persist_sampling_defaults(
                 "model.generation_config.missing"
             );
             client.get_generation_config(&base).await.ok_or_else(|| {
-                format!("generation_config.json absent aussi sur base_model {base}")
+                format!("generation_config.json absent on base_model {base} as well")
             })?
         }
     };
@@ -377,14 +377,12 @@ async fn persist_sampling_defaults(
     };
 
     if defaults.is_empty() {
-        return Err(
-            "generation_config.json présent mais sans hyperparamètre exploitable".to_string(),
-        );
+        return Err("generation_config.json present but with no usable hyperparameter".to_string());
     }
 
     let path = crate::model_defaults::UserOverrides::default_path();
     crate::model_defaults::UserOverrides::upsert(&path, model_filename, defaults.clone())
-        .map_err(|e| format!("écriture {}: {e}", path.display()))?;
+        .map_err(|e| format!("writing {}: {e}", path.display()))?;
 
     tracing::info!(
         repo = %repo_id,

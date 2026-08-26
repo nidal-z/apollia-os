@@ -122,7 +122,7 @@ fn test_all_variants_exist_and_clone() {
             step_id: "s1".into(),
             step_num: 1,
             total: 4,
-            desc: "Lire le fichier".into(),
+            desc: "Read the file".into(),
         },
         RuntimeEvent::StepCompleted {
             task_id: "task-1".into(),
@@ -298,7 +298,7 @@ fn test_all_variants_exist_and_clone() {
             model_name: "whisper-large-v3".into(),
         },
         RuntimeEvent::SttTranscribed {
-            text: "Bonjour le monde".into(),
+            text: "Hello world".into(),
             language: Some("fr".into()),
             source: "hotkey".into(),
             duration_ms: 3000,
@@ -478,7 +478,7 @@ fn test_serialisation_plan_generated() {
         run_id: None,
     };
     // WHEN
-    let json = serde_json::to_string(&event).expect("sérialisation échoue");
+    let json = serde_json::to_string(&event).expect("serialisation must succeed");
     // THEN
     assert!(json.contains("plan-abc"));
     assert!(json.contains("\"step_count\":4"));
@@ -493,10 +493,10 @@ fn test_serialisation_step_started() {
         step_id: "s1".into(),
         step_num: 1,
         total: 4,
-        desc: "Lire le fichier".into(),
+        desc: "Read the file".into(),
     };
     // WHEN
-    let json = serde_json::to_string(&event).expect("sérialisation échoue");
+    let json = serde_json::to_string(&event).expect("serialisation must succeed");
     // THEN
     assert!(json.contains("\"step_num\":1"));
     assert!(json.contains("\"total\":4"));
@@ -513,7 +513,7 @@ fn test_serialisation_step_failed() {
         retryable: true,
     };
     // WHEN
-    let json = serde_json::to_string(&event).expect("sérialisation échoue");
+    let json = serde_json::to_string(&event).expect("serialisation must succeed");
     // THEN
     assert!(json.contains("\"retryable\":true"));
 }
@@ -532,13 +532,13 @@ async fn test_broadcast_plan_generated() {
         run_id: None,
     };
     // WHEN
-    tx.send(event).expect("envoi échoue");
+    tx.send(event).expect("send must succeed");
     // THEN
-    let received = rx.recv().await.expect("réception échoue");
+    let received = rx.recv().await.expect("receive must succeed");
     if let RuntimeEvent::PlanGenerated { step_count, .. } = received {
         assert_eq!(step_count, 3);
     } else {
-        panic!("Mauvais event reçu");
+        panic!("wrong event received");
     }
 }
 
@@ -569,13 +569,14 @@ fn test_round_trip_step_failed() {
         retryable: true,
     };
     // WHEN
-    let json = serde_json::to_string(&original).expect("sérialisation échoue");
-    let deserialized: RuntimeEvent = serde_json::from_str(&json).expect("désérialisation échoue");
+    let json = serde_json::to_string(&original).expect("serialisation must succeed");
+    let deserialized: RuntimeEvent =
+        serde_json::from_str(&json).expect("deserialisation must succeed");
     // THEN
     if let RuntimeEvent::StepFailed { retryable, .. } = deserialized {
         assert!(retryable);
     } else {
-        panic!("Mauvais variant après désérialisation");
+        panic!("wrong variant after deserialisation");
     }
 }
 

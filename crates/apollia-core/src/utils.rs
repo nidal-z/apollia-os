@@ -50,7 +50,7 @@ pub fn truncate_middle(s: &str, max_chars: usize) -> (String, Option<usize>) {
     let middle_lines = middle.lines().count();
 
     let truncated = format!(
-        "{}\n\n... [{} lignes tronquées] ...\n\n{}",
+        "{}\n\n... [{} lines truncated] ...\n\n{}",
         start, middle_lines, end
     );
     (truncated, Some(middle_lines))
@@ -152,7 +152,7 @@ mod tests {
         // THEN
         assert!(truncated.is_some());
         assert!(result.contains("... ["));
-        assert!(result.contains("lignes tronquées] ..."));
+        assert!(result.contains("lines truncated] ..."));
         // The first 20 and last 20 chars are preserved
         assert!(result.starts_with(&"A".repeat(20)));
         assert!(result.ends_with(&"A".repeat(20)));
@@ -168,7 +168,7 @@ mod tests {
         // THEN
         let n = truncated.unwrap();
         assert!(n > 0);
-        assert!(result.contains(&format!("... [{} lignes tronquées] ...", n)));
+        assert!(result.contains(&format!("... [{} lines truncated] ...", n)));
     }
 
     #[test]
@@ -204,6 +204,6 @@ mod tests {
         let (result, truncated) = truncate_middle(s, 0);
         // THEN truncated with a message (empty head and tail, everything is "middle")
         assert!(truncated.is_some());
-        assert!(result.contains("lignes tronquées"));
+        assert!(result.contains("lines truncated"));
     }
 }

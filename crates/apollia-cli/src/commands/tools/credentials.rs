@@ -68,15 +68,15 @@ pub(super) fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
         println!("  (no credential stored)");
     } else {
         println!(
-            "  {:<14} {:<18} {:<12} DERNIÈRE UTILISATION",
-            "OUTIL", "CLÉ", "AJOUTÉ LE"
+            "  {:<14} {:<18} {:<12} LAST USED",
+            "TOOL", "KEY", "ADDED ON"
         );
         for e in &entries {
             let created = format_unix_date(e.created_at);
             let last = e
                 .last_used_at
                 .map(format_unix_date)
-                .unwrap_or_else(|| "jamais".to_string());
+                .unwrap_or_else(|| "never".to_string());
             println!(
                 "  {:<14} {:<18} {:<12} {}",
                 e.tool_name, e.key_name, created, last
@@ -94,7 +94,7 @@ pub(super) fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
         Ok(d) => d,
         Err(code) => return code,
     };
-    let prompt = format!("Valeur pour {tool}/{key} : ");
+    let prompt = format!("Value for {tool}/{key}: ");
     let value = match rpassword::prompt_password(&prompt) {
         Ok(v) => v,
         Err(e) => return emit_error(format!("failed to read prompt: {e}"), json),

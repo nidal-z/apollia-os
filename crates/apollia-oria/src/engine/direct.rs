@@ -206,7 +206,7 @@ impl ORIAEngine {
         if !response.approved {
             return Ok(AIPResult::failed(
                 "REJECTED",
-                response.reason.as_deref().unwrap_or("Refusé"),
+                response.reason.as_deref().unwrap_or("Refused"),
             ));
         }
 

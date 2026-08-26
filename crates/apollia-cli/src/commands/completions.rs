@@ -23,7 +23,7 @@ pub fn run(shell: Shell) -> i32 {
     let mut out = std::io::stdout();
     match out.write_all(&buf).and_then(|()| out.flush()) {
         Ok(()) => exit_codes::SUCCESS,
-        // Pipe ferme par le lecteur (head, less q, ...): sortie propre.
+        // Pipe closed by the reader (head, less q, ...): exit cleanly.
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => exit_codes::SUCCESS,
         Err(_) => exit_codes::GENERAL_ERROR,
     }
@@ -33,8 +33,8 @@ pub fn run(shell: Shell) -> i32 {
 mod tests {
     use super::*;
 
-    // GIVEN chaque shell supporte WHEN on genere THEN un script non vide, sans
-    // panique.
+    // GIVEN every supported shell WHEN a script is generated THEN it is not
+    // empty, and nothing panics.
     #[test]
     fn test_generation_succeeds_for_each_shell() {
         for shell in [Shell::Bash, Shell::Zsh, Shell::Fish, Shell::PowerShell] {

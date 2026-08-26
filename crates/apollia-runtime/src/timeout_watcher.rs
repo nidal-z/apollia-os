@@ -54,7 +54,7 @@ impl Default for TimeoutWatcherConfig {
 #[non_exhaustive]
 pub enum TimeoutWatcherError {
     /// SQLite error while accessing the [`TaskRepository`].
-    #[error("erreur DB : {0}")]
+    #[error("DB error: {0}")]
     Database(#[from] apollia_tools::TaskRepoError),
 }
 
@@ -250,19 +250,19 @@ mod tests {
         let result = watcher.scan_and_cancel().await;
 
         // THEN 1 task cancelled, DB status = 'cancelled'
-        assert!(result.is_ok(), "scan_and_cancel doit réussir");
-        assert_eq!(result.unwrap(), 1, "1 tâche doit être annulée");
+        assert!(result.is_ok(), "scan_and_cancel must succeed");
+        assert_eq!(result.unwrap(), 1, "1 task must be cancelled");
 
         let status = get_task_status(&db_path, task_id).await;
         assert_eq!(
             status.as_deref(),
             Some("cancelled"),
-            "statut DB doit être 'cancelled'"
+            "the DB status must be 'cancelled'"
         );
 
         // AND 2 events emitted: TaskApprovalTimeout + TaskCanceled
-        let ev1 = rx.try_recv().expect("TaskApprovalTimeout doit être émis");
-        let ev2 = rx.try_recv().expect("TaskCanceled doit être émis");
+        let ev1 = rx.try_recv().expect("TaskApprovalTimeout must be emitted");
+        let ev2 = rx.try_recv().expect("TaskCanceled must be emitted");
 
         assert!(
             matches!(
@@ -272,11 +272,11 @@ mod tests {
                     ..
                 }
             ),
-            "premier event doit être TaskApprovalTimeout ; got={ev1:?}"
+            "the first event must be TaskApprovalTimeout ; got={ev1:?}"
         );
         assert!(
             matches!(ev2, RuntimeEvent::TaskCanceled { .. }),
-            "second event doit être TaskCanceled ; got={ev2:?}"
+            "the second event must be TaskCanceled ; got={ev2:?}"
         );
     }
 
@@ -306,13 +306,13 @@ mod tests {
 
         // THEN 0 tasks cancelled, DB status unchanged
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0, "aucune tâche ne doit être annulée");
+        assert_eq!(result.unwrap(), 0, "no task must be cancelled");
 
         let status = get_task_status(&db_path, task_id).await;
         assert_eq!(
             status.as_deref(),
             Some("input_required"),
-            "statut doit rester 'input_required'"
+            "the status must stay 'input_required'"
         );
     }
 
@@ -343,7 +343,7 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             1,
-            "1 tâche doit être annulée (3h > timeout 2h)"
+            "1 task must be cancelled (3h > timeout 2h)"
         );
 
         let status = get_task_status(&db_path, task_id).await;
@@ -376,7 +376,7 @@ mod tests {
         // THEN Err returned (no panic), the run() loop can keep going
         assert!(
             result.is_err(),
-            "scan_and_cancel doit retourner Err sur DB corrompue"
+            "scan_and_cancel must return Err on a corrupted DB"
         );
     }
 
@@ -404,13 +404,17 @@ mod tests {
 
         // THEN 0 tasks cancelled, the task stays paused indefinitely
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0, "aucune annulation sans timeout global");
+        assert_eq!(
+            result.unwrap(),
+            0,
+            "no cancellation without a global timeout"
+        );
 
         let status = get_task_status(&db_path, task_id).await;
         assert_eq!(
             status.as_deref(),
             Some("input_required"),
-            "statut doit rester 'input_required' - pause indéfinie"
+            "the status must stay 'input_required' - paused indefinitely"
         );
     }
 }

@@ -117,9 +117,9 @@ pub fn validate_label(label: Option<&str>) -> Result<(), NotificationConfigError
     Ok(())
 }
 
-/// Valide une liste de noms d'événements contre [`KNOWN_EVENTS`].
+/// Validates a list of event names against [`KNOWN_EVENTS`].
 ///
-/// Retourne une erreur dès le premier événement inconnu rencontré.
+/// Returns an error on the first unknown event encountered.
 pub fn validate_events(events: &[String]) -> Result<(), NotificationConfigError> {
     for event in events {
         if !KNOWN_EVENTS.contains(&event.as_str()) {
@@ -239,7 +239,7 @@ mod tests {
     fn test_validate_label_human_text_ok() {
         // GIVEN a free-form label with spaces and accents
         // WHEN / THEN validation passes
-        assert!(validate_label(Some("Alertes Slack équipe")).is_ok());
+        assert!(validate_label(Some("Team Slack alerts")).is_ok());
     }
 
     #[test]

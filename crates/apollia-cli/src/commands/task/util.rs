@@ -44,7 +44,7 @@ pub(super) fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
 /// Maps the approval decision to its display label.
 pub(super) fn approval_decision(a: &serde_json::Value, pending: bool) -> &'static str {
     if pending {
-        return "en attente";
+        return "pending";
     }
     match a.get("approved").and_then(|v| v.as_bool()) {
         Some(true) => "approved",

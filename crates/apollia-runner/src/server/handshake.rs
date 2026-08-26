@@ -1,4 +1,4 @@
-//! `GET /handshake` : annonce du protocole + GPU info.
+//! `GET /handshake`: protocol announcement plus GPU info.
 
 use axum::extract::State;
 use axum::Json;
@@ -33,7 +33,7 @@ fn supported_endpoints() -> Vec<String> {
         "/shutdown".to_string(),
     ];
 
-    // Endpoint STT exposé sur les builds avec backend local (whisper).
+    // STT endpoint exposed on the builds with a local backend (whisper).
     #[cfg(feature = "local-cpu")]
     {
         endpoints.push("/stt/transcribe".to_string());

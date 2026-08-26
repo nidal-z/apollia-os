@@ -1,4 +1,4 @@
-//! Prompt d'approbation d'outil en ligne, humain et JSON.
+//! Inline tool approval prompt, human and JSON.
 
 use std::io::{self, BufRead, Write};
 
@@ -6,18 +6,18 @@ use crate::client::{AuthorizeToolArgs, RuntimeClient};
 
 use super::classify::{parse_scope_choice, parse_tool_decision, ToolDecisionInput};
 
-// ─── Approbation en ligne ────────────────────────────────────────────────────
+// ─── Inline approval ────────────────────────────────────────────────────────
 
-/// Lit une ligne de stdin, `None` si le flux est ferme. Bloque le thread: a
-/// appeler sous `block_in_place` depuis un contexte async.
+/// Reads one line from stdin, `None` when the stream is closed. Blocks the
+/// thread: call it under `block_in_place` from an async context.
 pub(super) fn read_stdin_line() -> Option<String> {
     io::stdin().lock().lines().next().and_then(|r| r.ok())
 }
 
-/// Prompt d'approbation TTY: affiche la demande, lit la decision, la soumet.
+/// TTY approval prompt: shows the request, reads the decision, submits it.
 ///
-/// Le stream est en pause pendant la saisie (le pump SSE est une tache separee
-/// bufferisee, une pause breve est sans risque).
+/// The stream is paused while the operator types (the SSE pump is a separate
+/// buffered task, so a brief pause carries no risk).
 pub(super) async fn handle_chat_approval(
     client: &RuntimeClient,
     session_id: &str,
@@ -34,7 +34,7 @@ pub(super) async fn handle_chat_approval(
         );
         let _ = io::stdout().flush();
         let Some(line) = tokio::task::block_in_place(read_stdin_line) else {
-            // stdin ferme: refuser par securite.
+            // stdin closed: refuse, to be safe.
             submit_authorize(
                 client,
                 &refuse_args(session_id, message_id, tool_name, Some("stdin closed")),
@@ -89,7 +89,7 @@ pub(super) async fn handle_chat_approval(
     }
 }
 
-/// Construit les arguments d'un refus.
+/// Builds the arguments of a refusal.
 pub(super) fn refuse_args<'a>(
     session_id: &'a str,
     message_id: &'a str,
@@ -106,7 +106,7 @@ pub(super) fn refuse_args<'a>(
     }
 }
 
-/// Sous-prompt de portee pour "toujours autoriser". Renvoie la valeur wire.
+/// Scope sub-prompt for "always allow". Returns the wire value.
 pub(super) fn prompt_scope() -> &'static str {
     loop {
         print!("  Always scope: [1] this session (default) / [2] this tool / [3] this project > ");
@@ -121,7 +121,7 @@ pub(super) fn prompt_scope() -> &'static str {
     }
 }
 
-/// Prompt d'approbation en mode machine: lit une decision JSON sur stdin.
+/// Machine-mode approval prompt: reads a JSON decision from stdin.
 pub(super) async fn handle_chat_approval_json(
     client: &RuntimeClient,
     session_id: &str,
@@ -152,8 +152,8 @@ pub(super) async fn handle_chat_approval_json(
     .await;
 }
 
-/// Soumet la decision d'approbation a l'API. Une erreur de transport est
-/// signalee mais ne tue pas le REPL.
+/// Submits the approval decision to the API. A transport error is reported
+/// but does not kill the REPL.
 pub(super) async fn submit_authorize(client: &RuntimeClient, args: &AuthorizeToolArgs<'_>) {
     if let Err(e) = client.authorize_tool(args).await {
         eprintln!("  x Failed to submit the decision: {e}");

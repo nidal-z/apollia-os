@@ -1,4 +1,4 @@
-//! Client HTTP vers le runner (loopback TCP).
+//! HTTP client towards the runner (loopback TCP).
 
 use std::time::Duration;
 
@@ -86,7 +86,7 @@ impl RunnerClient {
         &self.base_url
     }
 
-    /// GET un endpoint, parse JSON.
+    /// GET an endpoint, parse JSON.
     pub async fn get<D: DeserializeOwned>(&self, path: &str) -> Result<D, RunnerError> {
         let url = format!("{}{}", self.base_url, path);
         let resp = self

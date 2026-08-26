@@ -30,7 +30,7 @@ pub struct PurgeReport {
     pub procedural_deleted: usize,
 }
 
-/// Intervalle minimum entre deux purges automatiques (5 minutes).
+/// Minimum interval between two automatic purges (5 minutes).
 const PURGE_INTERVAL_SECS: u64 = 300;
 
 /// Memory manager with per-namespace isolation.
@@ -424,7 +424,7 @@ mod tests {
         assert_eq!(mgr.access_level("private"), Some(MemoryAccess::ReadWrite));
     }
 
-    // -- Acces refuse a un namespace non-declare
+    // -- Access refused to an undeclared namespace
     #[test]
     fn test_undeclared_namespace_rejected() {
         // GIVEN
@@ -439,7 +439,7 @@ mod tests {
         ));
     }
 
-    // -- Stats d'un namespace
+    // -- Stats of one namespace
     #[test]
     fn test_stats_returns_counts() {
         // GIVEN
@@ -456,7 +456,7 @@ mod tests {
         assert!(stats.db_size_bytes > 0);
     }
 
-    // -- Agent sans memory_namespace (None)
+    // -- Agent without a memory_namespace (None)
     #[test]
     fn test_no_namespace_returns_error() {
         // GIVEN
@@ -490,7 +490,7 @@ mod tests {
         assert!(matches!(result, Err(MemoryManagerError::NoNamespace)));
     }
 
-    // purge_expired delegue correctement aux backends
+    // purge_expired delegates correctly to the backends
     #[test]
     fn test_purge_expired_delegates_to_backends() {
         // GIVEN -- insert expired episodic + semantic entries
@@ -576,7 +576,7 @@ mod tests {
         assert!(!base.join("lazy-ns.db").exists());
     }
 
-    // maybe_purge -- purge au premier appel, skip si intervalle non ecoule
+    // maybe_purge -- purges on the first call, skips when the interval has not elapsed
     #[test]
     fn test_maybe_purge_runs_after_interval() {
         // GIVEN -- manager with an expired episodic entry

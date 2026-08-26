@@ -82,7 +82,7 @@ async fn test_supervised_checks_pass_no_retry() {
     .await;
 
     // THEN it passes on the first run, no retry, one invocation
-    let report = report.expect("report attendu pour palier supervised");
+    let report = report.expect("a report is expected at the supervised tier");
     assert!(report.passed);
     assert_eq!(report.retry_iterations, 0);
     assert_eq!(invoker.call_count(), 1);
@@ -118,7 +118,7 @@ async fn test_budget_exhausted_no_retry() {
     .await;
 
     // THEN no retry is attempted and a failing report is returned, not an error
-    let report = report.expect("report attendu meme quand budget epuise");
+    let report = report.expect("a report is expected even when the budget is spent");
     assert!(!report.passed);
     assert_eq!(report.retry_iterations, 0);
 }
@@ -228,7 +228,7 @@ async fn test_max_retries_bounded() {
     .await;
 
     // THEN exactly max_retries iterations ran (initial + 2 = 3 invocations)
-    let report = report.expect("report attendu");
+    let report = report.expect("a report is expected");
     assert!(!report.passed);
     assert_eq!(report.retry_iterations, VERIFICATION_MAX_RETRIES);
     assert_eq!(invoker.call_count(), VERIFICATION_MAX_RETRIES + 1);
@@ -272,7 +272,7 @@ async fn test_retry_resolves_failure() {
     .await;
 
     // THEN the retry ran once and the final report passes
-    let report = report.expect("report attendu");
+    let report = report.expect("a report is expected");
     assert!(report.passed);
     assert_eq!(report.retry_iterations, 1);
     assert_eq!(retry_calls.load(Ordering::SeqCst), 1);
@@ -290,8 +290,8 @@ fn test_correction_message_contains_failures_and_corrections() {
     }];
     let corrections = vec![Correction {
         kind: "missing_file".into(),
-        description: "fichier absent".into(),
-        suggestion: "creer le fichier".into(),
+        description: "file missing".into(),
+        suggestion: "create the file".into(),
     }];
 
     // WHEN building the correction message
@@ -301,7 +301,7 @@ fn test_correction_message_contains_failures_and_corrections() {
     assert!(message.contains("cargo test"));
     assert!(message.contains("boom"));
     assert!(message.contains("missing_file"));
-    assert!(message.contains("creer le fichier"));
+    assert!(message.contains("create the file"));
     assert!(message.contains("<verification_feedback>"));
     assert!(message.contains("Please address the issues"));
 }

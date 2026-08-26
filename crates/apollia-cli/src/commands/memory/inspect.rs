@@ -57,9 +57,9 @@ pub fn execute_inspect(
     let size_display = format_size(stats.db_size_bytes);
     let output = format!(
         "Namespace   : {}\n\
-         Fichier     : {} ({})\n\
+         File        : {} ({})\n\
          Episodes    : {}\n\
-         Semantique  : {} cles\n\
+         Semantic    : {} keys\n\
          Procedures  : {}",
         stats.namespace,
         db_path.display(),

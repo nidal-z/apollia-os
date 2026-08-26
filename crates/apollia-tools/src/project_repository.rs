@@ -131,7 +131,7 @@ pub struct ProjectPatch {
 #[non_exhaustive]
 pub enum ProjectRepositoryError {
     /// Underlying SQLite error.
-    #[error("erreur SQLite : {0}")]
+    #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
     /// The database schema could not be brought to the supported version.
@@ -143,15 +143,15 @@ pub enum ProjectRepositoryError {
     NotFound(String),
 
     /// JSON serialization error.
-    #[error("erreur JSON : {0}")]
+    #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
     /// A `spawn_blocking` task failed.
-    #[error("erreur tâche async : {0}")]
+    #[error("async task error: {0}")]
     SpawnError(String),
 
     /// The internal lock was poisoned.
-    #[error("verrou interne empoisonné")]
+    #[error("internal lock poisoned")]
     LockPoisoned,
 }
 
@@ -552,7 +552,7 @@ impl ProjectRepository {
             .lock()
             .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
-        // "Développement Git" template: git + rules + tree providers
+        // "Git development" template: git + rules + tree providers
         let git_providers = serde_json::json!([
             {"provider_type": "git",   "name": "Git Status",    "enabled": true, "priority": 10},
             {"provider_type": "rules", "name": "Project Rules",  "enabled": true, "priority": 20},
@@ -566,22 +566,22 @@ impl ProjectRepository {
              VALUES (?1, ?2, ?3, ?4, 1, ?5)",
             params![
                 "builtin-git",
-                "Développement Git",
-                "Projet orienté code : git, règles APOLLIA.md et arborescence.",
+                "Git development",
+                "Code-oriented project: git, APOLLIA.md rules and file tree.",
                 git_providers,
                 now,
             ],
         )?;
 
-        // "Vide" template: no providers
+        // "Empty" template: no providers
         conn.execute(
             "INSERT OR IGNORE INTO project_templates
                 (id, name, description, providers_config_json, is_builtin, created_at)
              VALUES (?1, ?2, ?3, ?4, 1, ?5)",
             params![
                 "builtin-empty",
-                "Vide",
-                "Projet sans contexte workspace - à configurer manuellement.",
+                "Empty",
+                "Project with no workspace context - configure it by hand.",
                 "[]",
                 now,
             ],

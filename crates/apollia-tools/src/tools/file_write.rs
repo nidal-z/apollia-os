@@ -194,7 +194,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_creates_file_and_directories() {
-        // GIVEN: sandbox temp vide
+        // GIVEN: an empty temp sandbox
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_write =
             FileWrite::new(temp_dir.path().to_path_buf()).expect("Failed to create FileWrite");
@@ -206,7 +206,7 @@ mod tests {
         };
         let result = file_write.run(input).await;
 
-        // THEN: le fichier existe et contient "hello"
+        // THEN: the file exists and holds "hello"
         assert!(result.is_ok());
         let file_path = temp_dir.path().join("deep/nested/file.txt");
         assert!(file_path.exists());
@@ -218,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_overwrites_existing_file() {
-        // GIVEN: fichier "test.txt" contenant "old"
+        // GIVEN: a "test.txt" file holding "old"
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = temp_dir.path().join("test.txt");
         tokio::fs::write(&file_path, "old")
@@ -235,7 +235,7 @@ mod tests {
         };
         let result = file_write.run(input).await;
 
-        // THEN: le fichier contient "new" (et non "oldnew")
+        // THEN: the file holds "new" (and not "oldnew")
         assert!(result.is_ok());
         let content = tokio::fs::read_to_string(&file_path)
             .await

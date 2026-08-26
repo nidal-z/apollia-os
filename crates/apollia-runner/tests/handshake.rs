@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Test d'intégration : spawn le binaire, parse READY <port>, curl /handshake.
+//! Integration test: spawn the binary, parse READY <port>, curl /handshake.
 
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
@@ -7,7 +7,7 @@ use std::time::Duration;
 
 #[test]
 fn spawn_runner_and_handshake() {
-    // Localise le binaire compilé.
+    // Locate the compiled binary.
     // GIVEN the runner binary, spawned with its stdout piped
     let bin = env!("CARGO_BIN_EXE_apollia-runner");
     let mut child = Command::new(bin)
@@ -16,7 +16,7 @@ fn spawn_runner_and_handshake() {
         .spawn()
         .expect("spawn runner");
 
-    // Parse READY <port>\n sur stdout.
+    // Parse READY <port>\n on stdout.
     // WHEN the announced port is read, then handshake, health and shutdown are called
     let stdout = child.stdout.take().expect("stdout pipe");
     let mut reader = BufReader::new(stdout);
@@ -50,14 +50,14 @@ fn spawn_runner_and_handshake() {
         .expect("health request");
     assert_eq!(resp.status(), 200);
 
-    // POST /shutdown → le binaire doit exit.
+    // POST /shutdown -> the binary must exit.
     let resp = client
         .post(format!("http://127.0.0.1:{port}/shutdown"))
         .send()
         .expect("shutdown request");
     assert_eq!(resp.status(), 200);
 
-    // Le binaire doit exit dans les ~1 seconde.
+    // The binary must exit within about one second.
     // THEN the process exits on its own, rather than having to be killed
     let exit = child
         .wait_timeout_or_kill(Duration::from_secs(3))
@@ -65,8 +65,8 @@ fn spawn_runner_and_handshake() {
     assert!(exit.success(), "runner did not exit cleanly");
 }
 
-// Petit helper trait pour attendre un child avec timeout (std::process::Child
-// n'a pas wait_timeout en stable).
+// Small helper trait to wait on a child with a timeout (std::process::Child
+// has no wait_timeout on stable).
 trait WaitTimeout {
     fn wait_timeout_or_kill(
         &mut self,

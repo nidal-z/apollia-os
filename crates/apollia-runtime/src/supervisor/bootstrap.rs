@@ -304,8 +304,8 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
         }
     });
     let label = match name {
-        Some(n) => format!("Bureau de {n}"),
-        None => "Bureau".to_string(),
+        Some(n) => format!("{n}'s desktop"),
+        None => "Desktop".to_string(),
     };
 
     // 4. Insert the channel.

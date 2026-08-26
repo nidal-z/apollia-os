@@ -36,7 +36,7 @@ impl WorkspaceProvider for TreeProvider {
     }
 
     fn description(&self) -> &str {
-        "Arborescence du répertoire courant"
+        "File tree of the current directory"
     }
 
     fn priority(&self) -> u8 {

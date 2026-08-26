@@ -1086,7 +1086,7 @@ mod tests {
         };
 
         // WHEN
-        let json = serde_json::to_value(&result).expect("sérialisation");
+        let json = serde_json::to_value(&result).expect("serialisation");
 
         // THEN
         assert_eq!(json["channel_id"], "desktop");

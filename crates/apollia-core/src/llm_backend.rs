@@ -445,10 +445,10 @@ impl LlmBackendRepository {
 
 /// Sentinel comment marking the auto-generated backends section in `apollia.toml`.
 const MANAGED_SECTION_COMMENT: &str =
-    "# ⚠️  Section gérée automatiquement par Apollia - éditer via Settings";
+    "# ⚠️  Section managed automatically by Apollia - edit it through Settings";
 
 /// Stable substring used to recognise (and strip) the sentinel comment.
-const MANAGED_SECTION_MARKER: &str = "Section gérée automatiquement par Apollia";
+const MANAGED_SECTION_MARKER: &str = "Section managed automatically by Apollia";
 
 /// Removes the auto-managed backends representation from TOML content so it can be
 /// regenerated cleanly. Strips three things that would otherwise make the file

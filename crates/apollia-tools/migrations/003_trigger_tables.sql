@@ -1,4 +1,4 @@
--- Migration 003 - trigger_history et trigger_state
+-- Migration 003 - trigger_history and trigger_state
 -- Idempotente : utilise CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS trigger_history (
@@ -6,9 +6,9 @@ CREATE TABLE IF NOT EXISTS trigger_history (
     trigger_id  TEXT NOT NULL,
     agent_name  TEXT NOT NULL,
     fired_at    TIMESTAMP NOT NULL,
-    task_id     TEXT,              -- NULL si skipped ou erreur
+    task_id     TEXT,              -- NULL when skipped or on error
     status      TEXT NOT NULL,     -- 'fired' | 'skipped' | 'error'
-    reason      TEXT,              -- raison si skipped/error
+    reason      TEXT,              -- reason when skipped or on error
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

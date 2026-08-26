@@ -485,7 +485,7 @@ mod tests {
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
             source_config: serde_json::json!({ "schedule": schedule }),
-            input_template: Some("Rapport du {{scheduled_at}}".to_string()),
+            input_template: Some("Report of {{scheduled_at}}".to_string()),
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -514,8 +514,8 @@ mod tests {
             got.source_config.get("schedule").and_then(|v| v.as_str()),
             Some("0 0 8 * * MON *")
         );
-        assert!(!got.created_at.is_empty(), "created_at doit être renseigné");
-        assert!(!got.updated_at.is_empty(), "updated_at doit être renseigné");
+        assert!(!got.created_at.is_empty(), "created_at must be filled in");
+        assert!(!got.updated_at.is_empty(), "updated_at must be filled in");
     }
 
     // --- Insert duplicate ID ---------------------------------------------
@@ -563,7 +563,7 @@ mod tests {
         );
         assert!(
             got.updated_at >= original_updated_at,
-            "updated_at doit être rafraîchi"
+            "updated_at must be refreshed"
         );
     }
 

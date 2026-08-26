@@ -765,7 +765,7 @@ mod tests {
         // GIVEN
         let results = [
             serde_json::json!({"channel_id": "desktop", "type": "desktop", "status": "ok",    "error": null,                  "latency_ms": 12}),
-            serde_json::json!({"channel_id": "slack",   "type": "webhook", "status": "error", "error": "connexion refusée",  "latency_ms": 5001}),
+            serde_json::json!({"channel_id": "slack",   "type": "webhook", "status": "error", "error": "connection refused",  "latency_ms": 5001}),
         ];
         // WHEN
         let has_error = results.iter().any(|r| {
@@ -796,7 +796,7 @@ mod tests {
 
         // WHEN
         let result: crate::client::ChannelTestResult =
-            serde_json::from_value(raw).expect("désérialisation échoue");
+            serde_json::from_value(raw).expect("deserialisation must not fail");
 
         // THEN
         assert_eq!(result.channel_id, "desktop");

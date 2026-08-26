@@ -388,7 +388,7 @@ mod tests {
                 },
                 UserQuestion {
                     id: "deploy".to_string(),
-                    question: "Où déployer ?".to_string(),
+                    question: "Where should it be deployed?".to_string(),
                     question_type: QuestionType::SingleChoice,
                     options: vec![
                         "Vercel".to_string(),
@@ -398,7 +398,7 @@ mod tests {
                     hint: None,
                 },
             ],
-            context: Some("Besoin de contexte pour la spec".to_string()),
+            context: Some("Context needed for the spec".to_string()),
         })
         .unwrap();
 

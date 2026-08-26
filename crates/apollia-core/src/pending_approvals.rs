@@ -17,7 +17,7 @@ use crate::result::InputResponseData;
 #[non_exhaustive]
 pub enum PendingApprovalError {
     /// No pending approval for the given task.
-    #[error("aucune approbation en attente pour la tâche : {0}")]
+    #[error("no pending approval for task: {0}")]
     NotFound(String),
 }
 

@@ -48,7 +48,7 @@ impl WorkspaceProvider for StyleProvider {
     }
 
     fn description(&self) -> &str {
-        "Conventions de code détectées automatiquement via LLM"
+        "Code conventions detected automatically through the LLM"
     }
 
     fn priority(&self) -> u8 {
@@ -76,7 +76,7 @@ impl WorkspaceProvider for StyleProvider {
             Some(content) => WorkspaceSlice {
                 source: "style".to_owned(),
                 sections: vec![WorkspaceSection {
-                    title: "Style de code".to_owned(),
+                    title: "Code style".to_owned(),
                     content,
                     source: "style".to_owned(),
                 }],

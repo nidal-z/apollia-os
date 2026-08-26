@@ -702,7 +702,7 @@ mod tests {
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         let stored = results[0].stdout.as_ref().expect("stdout should be set");
-        assert!(stored.contains("500 octets total"));
+        assert!(stored.contains("500 bytes total"));
         assert!(stored.len() < 500);
         handle.shutdown().await;
     }

@@ -49,7 +49,7 @@ pub struct InstalledPackage {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PackageRepositoryError {
-    #[error("erreur SQLite : {0}")]
+    #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
     /// The database schema could not be brought to the supported version.
@@ -59,10 +59,10 @@ pub enum PackageRepositoryError {
     #[error("package '{0}' introuvable")]
     NotFound(String),
 
-    #[error("erreur sérialisation JSON : {0}")]
+    #[error("JSON serialisation error: {0}")]
     SerdeError(#[from] serde_json::Error),
 
-    #[error("erreur tâche async : {0}")]
+    #[error("async task error: {0}")]
     SpawnError(String),
 }
 

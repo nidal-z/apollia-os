@@ -168,7 +168,7 @@ pub(super) fn parse_value_for(
         ("web_search", "backend") => match raw {
             "auto" | "duckduckgo" | "brave" => Ok(Value::from(raw)),
             _ => Err(format!(
-                "valeur invalide '{raw}' pour web_search.backend - attendu : auto | duckduckgo | brave"
+                "invalid value '{raw}' for web_search.backend - expected: auto | duckduckgo | brave"
             )),
         },
         ("web_search", "require_configured") => parse_bool(raw),
@@ -194,8 +194,9 @@ pub(super) fn valid_keys_help(tool: &str) -> String {
                          duckduckgo.max_response_kb"
             .to_string(),
         "web_read" => "valid keys: timeout_secs, max_response_kb, ssrf_guard".to_string(),
-        _ => "outil sans configuration TOML - outils configurables : web_search, web_read"
-            .to_string(),
+        _ => {
+            "tool with no TOML configuration - configurable tools: web_search, web_read".to_string()
+        }
     }
 }
 
@@ -212,7 +213,7 @@ pub(super) fn parse_int_in(raw: &str, min: i64, max: i64) -> Result<Value, Strin
         .parse()
         .map_err(|_| format!("integer expected, got '{raw}'"))?;
     if n < min || n > max {
-        return Err(format!("valeur {n} hors bornes [{min}, {max}]"));
+        return Err(format!("value {n} out of range [{min}, {max}]"));
     }
     Ok(Value::from(n))
 }

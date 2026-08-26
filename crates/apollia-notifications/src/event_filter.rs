@@ -133,7 +133,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: Some(task_id.to_string()),
                 agent: Some(agent_id.to_string()),
-                message: "Tâche échouée".into(),
+                message: "Task failed".into(),
                 metadata,
                 severity: Severity::Error,
             })
@@ -152,7 +152,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: Some(task_id.to_string()),
                 agent: Some(agent_id.to_string()),
-                message: "Tâche terminée avec succès".into(),
+                message: "Task completed successfully".into(),
                 metadata,
                 severity: Severity::Info,
             })
@@ -166,7 +166,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: Some(agent_id.to_string()),
-                message: format!("Agent dégradé : {}", reason),
+                message: format!("Agent degraded: {}", reason),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -196,7 +196,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: format!("Erreur trigger : {}", error),
+                message: format!("Trigger error: {}", error),
                 metadata,
                 severity: Severity::Error,
             })
@@ -222,7 +222,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: format!("Outil « {} » échoué", tool_name),
+                message: format!("Tool '{}' failed", tool_name),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -243,7 +243,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: format!("Approbation requise pour {tool_name}"),
+                message: format!("Approval required for {tool_name}"),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -272,7 +272,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: "Un agent vous pose une question".into(),
+                message: "An agent is asking you a question".into(),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -298,7 +298,7 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "task.input_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -319,7 +319,7 @@ mod tests {
             output: None,
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "task.failed");
         assert_eq!(notif.severity, Severity::Error);
@@ -335,7 +335,7 @@ mod tests {
             reason: "outil manquant : smtp".into(),
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "agent.degraded");
         assert_eq!(notif.severity, Severity::Warning);
@@ -354,7 +354,7 @@ mod tests {
             output: None,
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "task.completed");
         assert_eq!(notif.severity, Severity::Info);
@@ -369,7 +369,7 @@ mod tests {
             reason: "API key invalide".into(),
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "llm.backend_down");
         assert_eq!(notif.severity, Severity::Error);
@@ -384,10 +384,10 @@ mod tests {
         // GIVEN
         let event = RuntimeEvent::TriggerError {
             trigger_id: "rapport-hebdo".into(),
-            error: "agent non trouvé".into(),
+            error: "agent not found".into(),
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "trigger.error");
         assert_eq!(notif.severity, Severity::Error);
@@ -436,10 +436,10 @@ mod tests {
             message_id: "msg-005".into(),
             tool_call_id: "call-001".into(),
             tool_name: "bash_executor".into(),
-            prompt: "L'outil 'bash_executor' demande à être exécuté".into(),
+            prompt: "The 'bash_executor' tool asks to run".into(),
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "chat.approval_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -470,7 +470,7 @@ mod tests {
             analysis: None,
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "chat.tool_failed");
         assert_eq!(notif.severity, Severity::Warning);
@@ -533,9 +533,9 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some");
+        let notif = map_event("http://127.0.0.1:7771", &event).expect("must return Some");
         // THEN
-        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        let resume_url = notif.metadata.get("resume_url").expect("key present");
         assert_eq!(
             resume_url,
             "http://127.0.0.1:7771/api/v1/tasks/t-100/resume"
@@ -551,9 +551,9 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event("http://127.0.0.1:8080", &event).expect("doit retourner Some");
+        let notif = map_event("http://127.0.0.1:8080", &event).expect("must return Some");
         // THEN
-        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        let resume_url = notif.metadata.get("resume_url").expect("key present");
         assert_eq!(
             resume_url,
             "http://127.0.0.1:8080/api/v1/tasks/t-200/resume"
@@ -569,9 +569,9 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event("http://0.0.0.0:9090", &event).expect("doit retourner Some");
+        let notif = map_event("http://0.0.0.0:9090", &event).expect("must return Some");
         // THEN
-        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        let resume_url = notif.metadata.get("resume_url").expect("key present");
         assert_eq!(resume_url, "http://0.0.0.0:9090/api/v1/tasks/t-300/resume");
     }
 
@@ -585,16 +585,16 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some");
+        let notif = map_event("http://127.0.0.1:7771", &event).expect("must return Some");
         // THEN
-        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        let resume_url = notif.metadata.get("resume_url").expect("key present");
         assert!(
             resume_url.contains(task_id),
-            "resume_url doit contenir le task_id : {resume_url}"
+            "resume_url must contain the task_id: {resume_url}"
         );
         assert!(
             resume_url.ends_with("/resume"),
-            "resume_url doit se terminer par /resume : {resume_url}"
+            "resume_url must end with /resume: {resume_url}"
         );
     }
 
@@ -613,7 +613,7 @@ mod tests {
             },
             {
                 "id": "notes",
-                "question": "Autre chose à préciser ?",
+                "question": "Anything else to specify?",
                 "question_type": "open",
                 "options": [],
                 "hint": null,
@@ -625,10 +625,10 @@ mod tests {
             session_id: "sess-001".into(),
             message_id: "msg-006".into(),
             questions_json: questions,
-            context: Some("Besoin de votre input avant de coder".into()),
+            context: Some("Need your input before coding".into()),
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN
         assert_eq!(notif.event, "chat.user_input_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -647,7 +647,7 @@ mod tests {
         );
         assert_eq!(
             notif.metadata.get("context").map(String::as_str),
-            Some("Besoin de votre input avant de coder")
+            Some("Need your input before coding")
         );
         assert_eq!(
             notif.metadata.get("action_url").map(String::as_str),
@@ -666,7 +666,7 @@ mod tests {
             context: None,
         };
         // WHEN
-        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
         // THEN the notification exists, but without preview or context
         assert_eq!(notif.event, "chat.user_input_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -683,20 +683,14 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif_a = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some (a)");
-        let notif_b = map_event("http://127.0.0.1:8080", &event).expect("doit retourner Some (b)");
+        let notif_a = map_event("http://127.0.0.1:7771", &event).expect("must return Some (a)");
+        let notif_b = map_event("http://127.0.0.1:8080", &event).expect("must return Some (b)");
         // THEN the resume URLs differ depending on the config
-        let url_a = notif_a
-            .metadata
-            .get("resume_url")
-            .expect("clé présente (a)");
-        let url_b = notif_b
-            .metadata
-            .get("resume_url")
-            .expect("clé présente (b)");
+        let url_a = notif_a.metadata.get("resume_url").expect("key present (a)");
+        let url_b = notif_b.metadata.get("resume_url").expect("key present (b)");
         assert_ne!(
             url_a, url_b,
-            "des configs différentes doivent produire des URLs différentes"
+            "different configs must produce different URLs"
         );
         assert!(url_a.contains("7771"));
         assert!(url_b.contains("8080"));

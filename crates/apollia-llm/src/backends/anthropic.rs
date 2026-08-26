@@ -613,7 +613,7 @@ mod tests {
     #[test]
     fn test_parse_max_tokens_finish_reason() {
         let json = json!({
-            "content": [{"type": "text", "text": "tronqué"}],
+            "content": [{"type": "text", "text": "truncated"}],
             "stop_reason": "max_tokens",
             "usage": {"input_tokens": 100, "output_tokens": 500}
         });
@@ -630,7 +630,7 @@ mod tests {
     fn test_parse_mixed_content_text_and_tool_use() {
         let json = json!({
             "content": [
-                {"type": "text", "text": "Je vais lire ce fichier."},
+                {"type": "text", "text": "I am going to read this file."},
                 {"type": "tool_use", "id": "toolu_02", "name": "bash_executor",
                  "input": {"command": "cat /tmp/data.txt"}}
             ],
@@ -641,7 +641,7 @@ mod tests {
         let response = AnthropicClient::parse_response(&json).unwrap();
 
         assert_eq!(response.finish_reason, FinishReason::ToolCalls);
-        assert_eq!(response.content, "Je vais lire ce fichier.");
+        assert_eq!(response.content, "I am going to read this file.");
         assert_eq!(response.tool_calls.len(), 1);
         assert_eq!(response.tool_calls[0].id, "toolu_02");
         assert_eq!(response.tool_calls[0].name, "bash_executor");

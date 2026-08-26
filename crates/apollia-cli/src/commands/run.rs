@@ -265,7 +265,7 @@ async fn surface_cost_ceiling(client: &RuntimeClient, json: bool) {
                 println!("  session cost: {cost:.2} USD / {ceiling:.2} USD");
                 if ceiling_reached {
                     eprintln!(
-                        "  Plafond de cout atteint : le run s'arrete proprement quand ceiling_action = hard_stop"
+                        "  Cost ceiling reached: the run stops cleanly when ceiling_action = hard_stop"
                     );
                 }
             }
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn test_completed_est_terminal() {
         // GIVEN
-        let event = make_event("completed", serde_json::json!({"result": "Résultat final"}));
+        let event = make_event("completed", serde_json::json!({"result": "Final result"}));
         let mut state = RunDisplayState::new(false, false);
 
         // WHEN
@@ -591,7 +591,7 @@ mod tests {
 
         // WHEN / THEN each parses and serializes back to the same string
         for (s, expected) in inputs {
-            let parsed = AutonomyLevel::from_str(s).expect("doit parser");
+            let parsed = AutonomyLevel::from_str(s).expect("must parse");
             assert_eq!(parsed, expected);
             assert_eq!(parsed.as_str(), s);
         }

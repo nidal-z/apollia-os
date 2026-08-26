@@ -692,7 +692,7 @@ mod tests {
     // Reject: AIPResult::failed("REJECTED") without calling run() again.
 
     /// GIVEN a task suspended in input_required
-    /// WHEN PendingApprovals.resolve(approved=false, reason="Trop cher")
+    /// WHEN PendingApprovals.resolve(approved=false, reason="Too expensive")
     /// THEN execute_direct() returns AIPResult::failed("REJECTED") without calling run() again
     #[tokio::test]
     async fn test_reject_returns_failed_without_run() {
@@ -717,7 +717,7 @@ mod tests {
                     "t-0003",
                     apollia_core::InputResponseData {
                         approved: false,
-                        reason: Some("Trop cher".into()),
+                        reason: Some("Too expensive".into()),
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
                     },
@@ -745,7 +745,7 @@ mod tests {
             .map(|e| e.message.as_str())
             .unwrap_or("");
         assert!(
-            msg.contains("Trop cher"),
+            msg.contains("Too expensive"),
             "reason should appear in message: {msg}"
         );
         // run() was called exactly once (first call only)
@@ -773,7 +773,7 @@ mod workspace_tests {
         let prompt = engine.build_system_prompt().await;
         // THEN
         assert!(
-            prompt.contains("<context name=\"Règles du projet\">"),
+            prompt.contains("<context name=\"Project rules\">"),
             "expected context tag in: {prompt}"
         );
         assert!(
@@ -791,8 +791,8 @@ mod workspace_tests {
         let prompt = engine.build_system_prompt().await;
         // THEN: build_system_prompt returns an empty string (no empty section)
         assert!(
-            !prompt.contains("Règles du projet"),
-            "no 'Règles du projet' section expected when APOLLIA.md is absent"
+            !prompt.contains("Project rules"),
+            "no 'Project rules' section expected when APOLLIA.md is absent"
         );
     }
 
@@ -1088,7 +1088,7 @@ mod orchestrated_tests {
             execution_mode: "orchestrated".into(),
             supports_mailbox: false,
             mailbox_allowlist: None,
-            system_prompt: Some("Planifie les étapes nécessaires.".into()),
+            system_prompt: Some("Plan the necessary steps.".into()),
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],

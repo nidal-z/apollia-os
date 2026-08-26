@@ -455,12 +455,12 @@ async fn test_start_without_llm_config_succeeds() {
             None,
         )
         .await
-        .expect("start() doit reussir sans config LLM");
+        .expect("start() must succeed without an LLM config");
 
     // THEN llm_router is None and startup proceeded normally
     assert!(
         handles.llm_router.is_none(),
-        "llm_router doit etre None quand llm_config est absent"
+        "llm_router must be None when llm_config is absent"
     );
 
     // Cleanup
@@ -529,7 +529,7 @@ async fn test_app_state_clone_with_llm_router_none() {
     // inner option stays None after clone).
     assert!(
         cloned.llm_router.read().await.is_none(),
-        "le clone doit preserver llm_router = None"
+        "the clone must preserve llm_router = None"
     );
 }
 
@@ -587,12 +587,12 @@ async fn test_supervisor_starts_with_zero_triggers() {
         .await;
 
     // THEN startup succeeds and TriggerEngine is present with 0 triggers
-    assert!(result.is_ok(), "start() doit reussir avec 0 triggers");
+    assert!(result.is_ok(), "start() must succeed with 0 triggers");
     let handles = result.unwrap();
     let trigger_list = handles.trigger_engine.list().await;
     assert!(
         trigger_list.is_empty(),
-        "aucun trigger attendu, got {:?}",
+        "no trigger expected, got {:?}",
         trigger_list
     );
 
@@ -661,7 +661,7 @@ async fn test_no_notifications_section_starts_ok() {
     // THEN no error, NotificationEngine silently not started
     assert!(
         result.is_ok(),
-        "démarrage sans [notifications] doit réussir, erreur: {:?}",
+        "start without [notifications] must succeed, error: {:?}",
         result.err()
     );
 
@@ -740,14 +740,14 @@ async fn test_trigger_engine_loads_from_sqlite() {
             None,
         )
         .await
-        .expect("start() doit reussir");
+        .expect("start() must succeed");
 
     // THEN trigger_engine holds 1 trigger loaded from SQLite
     let trigger_list = handles.trigger_engine.list().await;
     assert_eq!(
         trigger_list.len(),
         1,
-        "1 trigger attendu, got {:?}",
+        "1 trigger expected, got {:?}",
         trigger_list
     );
     assert_eq!(trigger_list[0].id, "test-trigger");
@@ -835,8 +835,8 @@ fn test_seed_inserts_channel_when_empty_and_no_marker() {
     assert_eq!(ch.id, "desktop-default");
     assert_eq!(ch.channel_type, "desktop");
     assert!(ch.enabled);
-    // Label falls back to "Bureau" since no profile name was set.
-    assert_eq!(ch.label.as_deref(), Some("Bureau"));
+    // Label falls back to "Desktop" since no profile name was set.
+    assert_eq!(ch.label.as_deref(), Some("Desktop"));
 
     // AND the marker was set in user memory
     let marker = um
@@ -869,7 +869,7 @@ fn test_seed_uses_profile_name_when_present() {
         .get_channel("desktop-default")
         .expect("get")
         .expect("Some");
-    assert_eq!(ch.label.as_deref(), Some("Bureau de Nidal"));
+    assert_eq!(ch.label.as_deref(), Some("Nidal's desktop"));
 }
 
 #[test]

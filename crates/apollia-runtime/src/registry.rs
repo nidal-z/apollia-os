@@ -35,7 +35,7 @@ pub enum AgentRegistryError {
         to: ProcessState,
     },
     /// The channel to the actor is closed: the actor has stopped.
-    #[error("L'acteur AgentRegistry est mort (canal fermé)")]
+    #[error("the AgentRegistry actor is dead (channel closed)")]
     ActorDead,
 }
 

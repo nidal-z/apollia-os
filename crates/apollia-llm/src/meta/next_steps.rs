@@ -443,12 +443,11 @@ pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
     if req.facts.memories_created == 0 {
         steps.push(NextStep {
             id: "capture-note".into(),
-            title: "Enregistrer une note".into(),
-            description:
-                "Gardez une trace utile de ce que vous venez de faire dans votre mémoire Apollia."
-                    .into(),
+            title: "Save a note".into(),
+            description: "Keep a useful trace of what you have just done in your Apollia memory."
+                .into(),
             action_button: NextStepButton {
-                label: "Ouvrir Mémoire".into(),
+                label: "Open Memory".into(),
                 action: NextStepAction::Navigate,
                 payload: serde_json::json!({ "route": "/memory?new" }),
             },
@@ -459,12 +458,10 @@ pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
     if req.facts.tasks_completed >= 2 || !req.facts.signals.is_empty() {
         steps.push(NextStep {
             id: "create-automation".into(),
-            title: "Créer une automatisation".into(),
-            description:
-                "Transformez une routine en automatisation pour que Apollia la relance toute seule."
-                    .into(),
+            title: "Create an automation".into(),
+            description: "Turn a routine into an automation, so Apollia runs it on its own.".into(),
             action_button: NextStepButton {
-                label: "Ouvrir l'assistant".into(),
+                label: "Open the wizard".into(),
                 action: NextStepAction::Navigate,
                 payload: serde_json::json!({ "route": "/automations?wizard=open" }),
             },
@@ -474,10 +471,10 @@ pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
     // (3) Always-on: ask Apollia Guide.
     steps.push(NextStep {
         id: "ask-apollia".into(),
-        title: "Demander à Apollia".into(),
-        description: "Apollia Guide vous aide à trouver la prochaine étape utile.".into(),
+        title: "Ask Apollia".into(),
+        description: "Apollia Guide helps you find the next useful step.".into(),
         action_button: NextStepButton {
-            label: "Ouvrir Apollia".into(),
+            label: "Open Apollia".into(),
             action: NextStepAction::Navigate,
             payload: serde_json::json!({ "route": "/chat" }),
         },
@@ -488,10 +485,10 @@ pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
     if matches!(req.mode, NextStepsMode::Builder) && steps.len() < MAX_NEXT_STEPS {
         steps.push(NextStep {
             id: "view-logs".into(),
-            title: "Voir les logs".into(),
-            description: "Inspectez la timeline et les métriques de vos agents.".into(),
+            title: "View the logs".into(),
+            description: "Inspect the timeline and the metrics of your agents.".into(),
             action_button: NextStepButton {
-                label: "Observabilité".into(),
+                label: "Observability".into(),
                 action: NextStepAction::Navigate,
                 payload: serde_json::json!({ "route": "/observability" }),
             },
@@ -581,18 +578,18 @@ mod tests {
     fn parse_three_valid_steps() {
         // GIVEN a model answer holding three well-formed steps, invoke and navigate mixed
         let raw = r#"{"steps":[
-            {"title":"Enregistrer conclusions","description":"Capture en mémoire.",
-             "action_button":{"label":"Mémoire","action":"invoke","payload":{"command":"memory_insert"}}},
-            {"title":"Créer une automatisation","description":"Routine récurrente.",
+            {"title":"Save the conclusions","description":"Capture into memory.",
+             "action_button":{"label":"Memory","action":"invoke","payload":{"command":"memory_insert"}}},
+            {"title":"Create an automation","description":"Recurring routine.",
              "action_button":{"label":"Automations","action":"navigate","payload":{"route":"/automations?wizard=open"}}},
-            {"title":"Installer Review","description":"Assistant spécialisé.",
+            {"title":"Install Review","description":"Specialised assistant.",
              "action_button":{"label":"Templates","action":"navigate","payload":{"route":"/templates?filter=agents"}}}
         ]}"#;
         // WHEN it is parsed
         let steps = parse_steps(raw).expect("parse");
         // THEN the three come back, the first slugified and typed as an invocation
         assert_eq!(steps.len(), 3);
-        assert_eq!(steps[0].id, "enregistrer-conclusions");
+        assert_eq!(steps[0].id, "save-the-conclusions");
         assert!(matches!(
             steps[0].action_button.action,
             NextStepAction::Invoke
@@ -643,7 +640,7 @@ mod tests {
     fn parse_extracts_json_from_fence_decorated_output() {
         // GIVEN a model answer wrapped in a fenced code block
         let raw = "```json\n{\"steps\":[\
-            {\"title\":\"Ouvrir mémoire\",\"description\":\"…\",\
+            {\"title\":\"Open memory\",\"description\":\"…\",\
             \"action_button\":{\"label\":\"Go\",\"action\":\"navigate\",\"payload\":{\"route\":\"/memory\"}}}\
         ]}\n```";
         // WHEN it is parsed
@@ -680,13 +677,10 @@ mod tests {
 
     #[test]
     fn slugify_is_ascii_and_hyphenated() {
-        // GIVEN an accented title carrying punctuation, and an empty one
+        // GIVEN a title carrying punctuation, and an empty one
         // WHEN each is slugified
         // THEN the first turns ascii and hyphenated, the second falls back on a fixed name
-        assert_eq!(
-            slugify("Enregistrer les conclusions !"),
-            "enregistrer-les-conclusions"
-        );
+        assert_eq!(slugify("Save the conclusions!"), "save-the-conclusions");
         assert_eq!(slugify(""), "next-step");
     }
 

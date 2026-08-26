@@ -447,10 +447,7 @@ impl BuiltInChatAgent {
             message_id: message_id.to_string(),
             tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
-            prompt: format!(
-                "L'outil '{}' demande à être exécuté avec: {}",
-                call.name, input_preview
-            ),
+            prompt: format!("Tool '{}' asks to run with: {}", call.name, input_preview),
         });
 
         let rx = pending_approvals.register(key.clone());

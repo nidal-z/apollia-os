@@ -507,7 +507,7 @@ mod tests {
             .as_str()
             .expect("truncated output must be a JSON string");
         assert!(
-            content.contains("lignes tronquées"),
+            content.contains("lines truncated"),
             "expected truncation marker, got: {content}"
         );
     }
@@ -524,7 +524,7 @@ mod tests {
         // THEN: truncated (serialized "x".repeat(100) is 102 chars > 50)
         let val = result.expect("should succeed");
         assert!(val.is_string());
-        assert!(val.as_str().unwrap().contains("lignes tronquées"));
+        assert!(val.as_str().unwrap().contains("lines truncated"));
     }
 
     // -----------------------------------------------------------------------

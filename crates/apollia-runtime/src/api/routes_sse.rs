@@ -718,7 +718,7 @@ mod tests {
             step_id: "s1".into(),
             step_num: 1,
             total: 4,
-            desc: "Lire le fichier".into(),
+            desc: "Read the file".into(),
         };
 
         // WHEN converted to SSE
@@ -768,7 +768,7 @@ mod tests {
         // THEN "plan_failed" event with is_terminal=true (closes the stream)
         assert_eq!(sse.event, "plan_failed");
         assert_eq!(sse.data["reason"], "MAX_REPLAN");
-        assert!(is_terminal, "plan_failed doit etre terminal");
+        assert!(is_terminal, "plan_failed must be terminal");
     }
 
     // Tests: human-in-the-loop events mapped to SSE
@@ -790,7 +790,7 @@ mod tests {
         assert_eq!(sse.event, "input_required");
         assert_eq!(sse.data["channel"], "approvals");
         assert_eq!(sse.data["prompt"], "Confirmer l'envoi ?");
-        assert!(!is_terminal, "input_required est non-terminal");
+        assert!(!is_terminal, "input_required is non-terminal");
     }
 
     #[test]
@@ -808,6 +808,6 @@ mod tests {
         let (sse, is_terminal) = result.expect("TaskResumed should match t-001");
         assert_eq!(sse.event, "resumed");
         assert_eq!(sse.data["approved"], true);
-        assert!(!is_terminal, "resumed est non-terminal");
+        assert!(!is_terminal, "resumed is non-terminal");
     }
 }

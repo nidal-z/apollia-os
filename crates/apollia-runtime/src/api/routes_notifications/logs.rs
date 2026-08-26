@@ -137,7 +137,7 @@ pub(super) fn query_notification_logs(
     last: usize,
 ) -> Result<Vec<serde_json::Value>, String> {
     let conn = rusqlite::Connection::open(db_path)
-        .map_err(|e| format!("impossible d'ouvrir la base : {e}"))?;
+        .map_err(|e| format!("cannot open the database: {e}"))?;
 
     apollia_core::schema::open_versioned(
         &conn,
@@ -145,7 +145,7 @@ pub(super) fn query_notification_logs(
         HITL_SCHEMA_VERSION,
         &HITL_MIGRATIONS,
     )
-    .map_err(|e| format!("migration notification_logs échouée : {e}"))?;
+    .map_err(|e| format!("notification_logs migration failed: {e}"))?;
 
     let mut stmt = conn
         .prepare(
@@ -154,7 +154,7 @@ pub(super) fn query_notification_logs(
               ORDER BY sent_at DESC
               LIMIT ?1",
         )
-        .map_err(|e| format!("prepare échoué : {e}"))?;
+        .map_err(|e| format!("prepare failed: {e}"))?;
 
     let rows = stmt
         .query_map(rusqlite::params![last as i64], |row| {
@@ -169,12 +169,12 @@ pub(super) fn query_notification_logs(
                 row.get::<_, Option<String>>(6)?,
             ))
         })
-        .map_err(|e| format!("query échouée : {e}"))?;
+        .map_err(|e| format!("query failed: {e}"))?;
 
     let mut entries = Vec::new();
     for row_result in rows {
         let (id, event_name, task_id, agent_id, sent_at, channels_raw, error) =
-            row_result.map_err(|e| format!("lecture ligne échouée : {e}"))?;
+            row_result.map_err(|e| format!("reading a row failed: {e}"))?;
 
         let channels = serde_json::from_str(&channels_raw)
             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));

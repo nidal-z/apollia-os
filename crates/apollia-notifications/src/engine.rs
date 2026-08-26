@@ -29,17 +29,17 @@ pub enum NotifError {
     #[error("canal desktop indisponible : {0}")]
     DesktopUnavailable(String),
     /// Webhook call failed (network error, timeout, non-2xx HTTP code).
-    #[error("webhook échoué : {0}")]
+    #[error("webhook failed: {0}")]
     WebhookFailed(String),
     /// Internal channel error (serialization, inconsistent state, etc.).
-    #[error("erreur interne : {0}")]
+    #[error("internal error: {0}")]
     Internal(String),
     /// Malformed webhook URL: parsing failed.
     #[error("URL webhook invalide : {0}")]
     InvalidUrl(String),
     /// SSRF guard refused the send (URL pointing to loopback / RFC1918 /
     /// link-local / cloud metadata / `.local|.internal|localhost` domain).
-    #[error("SSRF bloqué : {0}")]
+    #[error("SSRF blocked: {0}")]
     Ssrf(String),
 }
 
@@ -296,7 +296,7 @@ fn build_cost_alert_notification(
         timestamp: chrono::Utc::now(),
         task_id: None,
         agent: None,
-        message: format!("Coût session : ${session_cost_usd:.3} (seuil : ${threshold_usd:.3})"),
+        message: format!("Session cost: ${session_cost_usd:.3} (threshold: ${threshold_usd:.3})"),
         metadata,
         severity: crate::config::Severity::Warning,
     }
@@ -521,7 +521,7 @@ mod tests {
         async fn send(&self, _notif: &Notification) -> Result<(), NotifError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             if self.should_fail {
-                Err(NotifError::Internal("erreur simulée".into()))
+                Err(NotifError::Internal("simulated error".into()))
             } else {
                 Ok(())
             }
@@ -626,7 +626,7 @@ mod tests {
             prompt: "Confirmer ?".into(),
             step_id: None,
         })
-        .expect("envoi échoue");
+        .expect("send must succeed");
 
         // Let the dispatch run.
         tokio::task::yield_now().await;
@@ -717,7 +717,8 @@ mod tests {
             "events": ["task.input_required", "task.failed"]
         }"#;
         // WHEN it is deserialised
-        let config: ChannelConfig = serde_json::from_str(json).expect("désérialisation échoue");
+        let config: ChannelConfig =
+            serde_json::from_str(json).expect("deserialisation must succeed");
         // THEN the id, the kind, the enabled flag and the event filter are all read
         assert_eq!(config.id, "desktop");
         assert!(matches!(config.kind, ChannelKind::Desktop));

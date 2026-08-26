@@ -507,7 +507,7 @@ mod tests {
     #[tokio::test]
     async fn test_stop_immediately_no_tool_call() {
         // GIVEN
-        let model = Arc::new(MockStopModel::new("réponse finale"));
+        let model = Arc::new(MockStopModel::new("final answer"));
         let invoker = Arc::new(MockToolInvoker::new());
         let helper = ToolCallHelper::new(model, invoker.clone());
 
@@ -522,7 +522,7 @@ mod tests {
             .await;
 
         // THEN
-        assert_eq!(result.unwrap(), "réponse finale");
+        assert_eq!(result.unwrap(), "final answer");
         assert_eq!(invoker.call_count(), 0);
     }
 
@@ -536,9 +536,9 @@ mod tests {
                 name: "echo".into(),
                 arguments: serde_json::json!({}),
             }],
-            "réponse après outil",
+            "answer after the tool",
         ));
-        let invoker = Arc::new(MockToolInvoker::with_result("résultat_outil"));
+        let invoker = Arc::new(MockToolInvoker::with_result("tool_result"));
         let helper = ToolCallHelper::new(model, invoker.clone());
 
         // WHEN
@@ -556,7 +556,7 @@ mod tests {
             .await;
 
         // THEN
-        assert_eq!(result.unwrap(), "réponse après outil");
+        assert_eq!(result.unwrap(), "answer after the tool");
         assert_eq!(invoker.call_count(), 1);
     }
 
@@ -629,7 +629,7 @@ mod tests {
                 name: "fail_tool".into(),
                 arguments: serde_json::json!({}),
             }],
-            "réponse malgré erreur",
+            "answer despite the error",
         ));
         let invoker = Arc::new(MockFailingToolInvoker);
         let helper = ToolCallHelper::new(model, invoker);
@@ -641,7 +641,7 @@ mod tests {
 
         // THEN: the tool error is not fatal
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "réponse malgré erreur");
+        assert_eq!(result.unwrap(), "answer despite the error");
     }
 
     // ── GBNF grammar wiring ───────────────────────────────────

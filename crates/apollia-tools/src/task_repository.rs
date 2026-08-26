@@ -26,11 +26,11 @@ use rusqlite::params;
 #[non_exhaustive]
 pub enum TaskRepoError {
     /// No task found for the given `task_id`.
-    #[error("tâche introuvable : {0}")]
+    #[error("task not found: {0}")]
     NotFound(String),
 
     /// Underlying SQLite error.
-    #[error("erreur SQLite : {0}")]
+    #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
     /// The database schema could not be brought to the supported version.
@@ -38,11 +38,11 @@ pub enum TaskRepoError {
     Schema(#[from] apollia_core::schema::SchemaError),
 
     /// JSON deserialization error.
-    #[error("erreur de désérialisation JSON : {0}")]
+    #[error("JSON deserialisation error: {0}")]
     Json(#[from] serde_json::Error),
 
     /// Infrastructure error (spawn_blocking join error, etc.).
-    #[error("erreur interne : {0}")]
+    #[error("internal error: {0}")]
     Internal(String),
 }
 
@@ -461,7 +461,7 @@ mod tests {
         .expect("join failed");
 
         assert_eq!(truncated, 1);
-        assert!(text.ends_with("octets total]"), "got: {text}");
+        assert!(text.ends_with("bytes total]"), "got: {text}");
         assert!(text.contains("500"), "marker should mention 500 bytes");
     }
 
@@ -643,7 +643,7 @@ mod tests {
         ] {
             assert!(
                 cols.contains(&expected.to_string()),
-                "colonne manquante : {expected} ; colonnes trouvées = {cols:?}"
+                "missing column: {expected} ; columns found = {cols:?}"
             );
         }
     }
@@ -682,7 +682,7 @@ mod tests {
         ] {
             assert!(
                 cols.contains(&expected.to_string()),
-                "colonne manquante : {expected} ; colonnes trouvées = {cols:?}"
+                "missing column: {expected} ; columns found = {cols:?}"
             );
         }
 
@@ -706,7 +706,7 @@ mod tests {
 
         assert!(
             !tables.is_empty(),
-            "la table task_approvals doit exister après la migration"
+            "the task_approvals table must exist after the migration"
         );
     }
 
@@ -756,7 +756,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(approved, 1, "input_response_approved doit être 1 (true)");
+        assert_eq!(approved, 1, "input_response_approved must be 1 (true)");
         assert_eq!(at, "2026-03-09T10:00:00Z");
         assert_eq!(status, "working");
 
@@ -773,10 +773,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(
-            count, 1,
-            "task_approvals doit contenir exactement une ligne"
-        );
+        assert_eq!(count, 1, "task_approvals must hold exactly one row");
     }
 
     // rebuild_for_resume() rebuilds the AIPTask with is_resumed=true
@@ -804,20 +801,17 @@ mod tests {
         let task = repo.rebuild_for_resume(task_id).await.unwrap();
 
         // THEN is_resumed=true, input_response.approved=true, context == original
-        assert!(task.is_resumed, "is_resumed doit être true");
+        assert!(task.is_resumed, "is_resumed must be true");
         assert_eq!(task.task_id, task_id);
 
         let ir = task
             .input_response
-            .expect("input_response doit être Some après rebuild");
-        assert!(ir.approved, "approved doit être true");
-        assert_eq!(
-            ir.context, context,
-            "context doit correspondre à l'original"
-        );
+            .expect("input_response must be Some after the rebuild");
+        assert!(ir.approved, "approved must be true");
+        assert_eq!(ir.context, context, "context must match the original");
         assert!(
             !ir.responded_at.is_empty(),
-            "responded_at ne doit pas être vide"
+            "responded_at must not be empty"
         );
     }
 
@@ -895,7 +889,7 @@ mod tests {
         // THEN the task_id is present in the expired list
         assert!(
             expired.contains(&task_id.to_string()),
-            "task_id doit être dans la liste des expirées ; got={expired:?}"
+            "task_id must be in the expired list ; got={expired:?}"
         );
     }
 
@@ -920,7 +914,7 @@ mod tests {
         // THEN the task_id is NOT in the list
         assert!(
             !expired.contains(&task_id.to_string()),
-            "tâche récente ne doit PAS être dans les expirées ; got={expired:?}"
+            "a recent task must NOT be in the expired list ; got={expired:?}"
         );
     }
 
@@ -1067,7 +1061,7 @@ mod tests {
         .expect("join failed");
 
         // THEN the index exists
-        assert!(has_index, "idx_task_approvals_pending doit exister");
+        assert!(has_index, "idx_task_approvals_pending must exist");
     }
 
     // ─── list_resolved_approvals tests ────────────────────────────────
@@ -1079,7 +1073,7 @@ mod tests {
         let task_id = "t-141-resolved";
         let context = serde_json::json!({"montant": 5000});
 
-        repo.save_input_required(task_id, None, "Valider le paiement ?", &context)
+        repo.save_input_required(task_id, None, "Approve the payment?", &context)
             .await
             .expect("save_input_required failed");
 
@@ -1116,7 +1110,7 @@ mod tests {
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-141-pending";
 
-        repo.save_input_required(task_id, None, "En attente", &serde_json::json!({}))
+        repo.save_input_required(task_id, None, "Pending", &serde_json::json!({}))
             .await
             .expect("save_input_required failed");
 

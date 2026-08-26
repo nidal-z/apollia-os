@@ -13,8 +13,8 @@ name = "apollia-runner"
 path = "src/main.rs"
 
 [features]
-# Exclusif : une seule feature backend doit être active par compilation.
-# `cargo check --features local-cpu` etc. comme pour apollia-llm aujourd'hui.
+# Exclusive: exactly one backend feature must be active per build.
+# `cargo check --features local-cpu` and so on, as for apollia-llm today.
 default = []
 # The runner is STT-only (whisper). Each backend feature selects the whisper-rs
 # acceleration; local LLM inference runs through the embedded llama-server.
@@ -38,7 +38,7 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 # STT backend (optional, selected by a local-* feature)
 whisper-rs      = { workspace = true, optional = true }
 
-# Audio (toujours nécessaire pour /stt/*)
+# Audio (always needed for /stt/*)
 hound = { workspace = true }
 rubato = { workspace = true }
 

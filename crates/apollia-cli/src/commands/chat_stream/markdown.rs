@@ -1,4 +1,4 @@
-//! Rendu markdown inline et rendu des appels d'outil.
+//! Inline markdown rendering, and rendering of tool calls.
 
 use std::io::{self, Write};
 
@@ -6,28 +6,28 @@ use super::render_loop::RenderState;
 
 // ─── Rendu markdown inline ───────────────────────────────────────────────────
 
-/// Sequence de retour en debut de ligne + effacement de la ligne entiere, pour
-/// repeindre la ligne courante en mode couleur.
+/// Carriage return plus erase-whole-line sequence, used to repaint the current
+/// line in colour mode.
 pub(super) const CLEAR_LINE: &str = "\r\x1b[2K";
 
-/// Streame un token en mode couleur: finalise les lignes completes (rendu
-/// markdown fige) et repeint la ligne partielle en cours a chaque token.
+/// Streams a token in colour mode: finalises the complete lines (frozen
+/// markdown render) and repaints the partial line in progress at every token.
 pub(super) fn stream_markdown_token(
     tok: &str,
     st: &mut RenderState,
     out: &mut impl Write,
 ) -> io::Result<()> {
     st.line_buf.push_str(tok);
-    // Finaliser chaque ligne complete: on efface la ligne repeinte puis on
-    // ecrit la version markdown suivie d'un saut definitif.
+    // Finalise every complete line: erase the repainted line, then write the
+    // markdown version followed by a definitive break.
     while let Some(nl) = st.line_buf.find('\n') {
         let line: String = st.line_buf.drain(..=nl).collect();
         let content = &line[..line.len() - 1];
         write!(out, "{CLEAR_LINE}{}", render_markdown_line(content, true))?;
         writeln!(out)?;
     }
-    // Repeindre la ligne partielle restante (delimiteurs non fermes rendus
-    // litteralement jusqu'a leur fermeture par un token ulterieur).
+    // Repaint the remaining partial line (unclosed delimiters are rendered
+    // literally until a later token closes them).
     write!(
         out,
         "{CLEAR_LINE}{}",
@@ -38,7 +38,7 @@ pub(super) fn stream_markdown_token(
     Ok(())
 }
 
-/// Rend un bloc multi-ligne (fallback `response_completed` sans tokens).
+/// Renders a multi-line block (the `response_completed` fallback, no tokens).
 pub(super) fn render_block(content: &str, use_color: bool, out: &mut impl Write) -> io::Result<()> {
     let mut first = true;
     for line in content.split('\n') {
@@ -51,14 +51,13 @@ pub(super) fn render_block(content: &str, use_color: bool, out: &mut impl Write)
     Ok(())
 }
 
-/// Rend une ligne markdown: prefixes de bloc (titres, listes) puis style inline.
+/// Renders one markdown line: block prefixes (headings, lists) then inline style.
 ///
-/// En mode couleur, applique des codes SGR ANSI; sinon retire simplement les
-/// delimiteurs pour un texte propre. Rendu volontairement leger (pas de tableaux
-/// ni de blocs de code multi-lignes), robuste (delimiteurs non apparies laisses
-/// tels quels).
+/// In colour mode, applies ANSI SGR codes; otherwise it simply strips the
+/// delimiters for clean text. Deliberately light (no tables, no multi-line code
+/// blocks) and robust (unpaired delimiters are left as they are).
 pub(super) fn render_markdown_line(line: &str, use_color: bool) -> String {
-    // Titre `#`, `##`, `###` -> ligne en gras.
+    // Heading `#`, `##`, `###` -> line in bold.
     for prefix in ["### ", "## ", "# "] {
         if let Some(rest) = line.strip_prefix(prefix) {
             let inner = render_inline(rest, use_color);
@@ -80,19 +79,18 @@ pub(super) fn render_markdown_line(line: &str, use_color: bool) -> String {
     render_inline(line, use_color)
 }
 
-/// Applique le style inline: code, gras, italique. Ordre important pour que le
-/// gras `**` soit traite avant l'italique `*`.
+/// Applies the inline style: code, bold, italic. The order matters, so that
+/// bold `**` is handled before italic `*`.
 pub(super) fn render_inline(text: &str, use_color: bool) -> String {
-    let s = wrap_pairs(text, "`", "7", use_color); // video inverse pour le code
-    let s = wrap_pairs(&s, "**", "1", use_color); // gras
-    let s = wrap_pairs(&s, "__", "1", use_color); // gras
+    let s = wrap_pairs(text, "`", "7", use_color); // reverse video for code
+    let s = wrap_pairs(&s, "**", "1", use_color); // bold
+    let s = wrap_pairs(&s, "__", "1", use_color); // bold
     let s = wrap_pairs(&s, "*", "3", use_color); // italique
     wrap_pairs(&s, "_", "3", use_color) // italique
 }
 
-/// Enveloppe chaque paire de `delim` dans le code SGR `sgr` (mode couleur) ou
-/// retire les delimiteurs (mode brut). Un delimiteur non apparie est conserve
-/// litteralement.
+/// Wraps every pair of `delim` in the SGR code `sgr` (colour mode), or strips
+/// the delimiters (plain mode). An unpaired delimiter is kept literally.
 pub(super) fn wrap_pairs(text: &str, delim: &str, sgr: &str, use_color: bool) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -103,15 +101,15 @@ pub(super) fn wrap_pairs(text: &str, delim: &str, sgr: &str, use_color: bool) ->
         };
         let after = &rest[i + delim.len()..];
         match after.find(delim) {
-            // Pas de fermeture: on garde le delimiteur ouvrant tel quel.
+            // No closer: keep the opening delimiter as it is.
             None => {
                 out.push_str(&rest[..i + delim.len()]);
                 rest = after;
             }
             Some(j) => {
                 let inner = &after[..j];
-                // Contenu vide (delimiteurs adjacents, p.ex. un `**` non ferme
-                // vu par la passe `*`): garder l'ouvrant litteralement.
+                // Empty content (adjacent delimiters, for instance a `**` left
+                // open seen by the `*` pass): keep the opener literally.
                 if inner.is_empty() {
                     out.push_str(&rest[..i + delim.len()]);
                     rest = after;
@@ -130,9 +128,9 @@ pub(super) fn wrap_pairs(text: &str, delim: &str, sgr: &str, use_color: bool) ->
     out
 }
 
-// ─── Rendu inline ────────────────────────────────────────────────────────────
+// ─── Inline rendering ───────────────────────────────────────────────────────
 
-/// Applique un code SGR ANSI si la couleur est active, sinon renvoie le texte nu.
+/// Applies an ANSI SGR code when colour is on, otherwise returns the bare text.
 pub(super) fn paint(text: &str, code: &str, use_color: bool) -> String {
     if use_color {
         format!("\x1b[{code}m{text}\x1b[0m")
@@ -141,7 +139,7 @@ pub(super) fn paint(text: &str, code: &str, use_color: bool) -> String {
     }
 }
 
-/// Rend un appel d'outil qui demarre: glyphe, nom, apercu d'entree, intention.
+/// Renders a tool call that starts: glyph, name, input preview, intent.
 pub(super) fn render_tool_started(
     tool_name: &str,
     input_preview: &str,
@@ -161,7 +159,7 @@ pub(super) fn render_tool_started(
     Ok(())
 }
 
-/// Vue empruntee d'un appel d'outil termine, pour le rendu.
+/// Borrowed view of a finished tool call, for rendering.
 pub(super) struct ToolResultView<'a> {
     pub(super) tool_name: &'a str,
     pub(super) success: bool,
@@ -169,7 +167,7 @@ pub(super) struct ToolResultView<'a> {
     pub(super) analysis: Option<&'a str>,
 }
 
-/// Rend un appel d'outil termine: glyphe succes/echec, nom, apercu, analyse.
+/// Renders a finished tool call: success/failure glyph, name, preview, analysis.
 pub(super) fn render_tool_completed(
     view: &ToolResultView<'_>,
     use_color: bool,

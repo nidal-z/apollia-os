@@ -42,9 +42,9 @@ fn make_manifest(name: &str) -> AgentManifest {
     }
 }
 
-/// Collecte `count` événements du receiver avec un timeout.
+/// Collects `count` events from the receiver, with a timeout.
 ///
-/// Retourne moins que `count` si le timeout expire avant d'en recevoir assez.
+/// Returns fewer than `count` when the timeout expires first.
 async fn collect_events(
     rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>,
     count: usize,
@@ -60,10 +60,10 @@ async fn collect_events(
     events
 }
 
-/// Cycle de vie complet d'un agent.
+/// Full life cycle of one agent.
 ///
 /// Transitions : register → Active → Degraded → Active → Stopping → Stopped → unregister
-/// Événements attendus (7) :
+/// Expected events (7):
 ///   AgentRegistered → AgentReady → AgentDegraded → AgentReady → AgentStopping → AgentStopped → AgentStopped
 #[tokio::test]
 async fn test_cycle_de_vie_complet() {
@@ -98,12 +98,12 @@ async fn test_cycle_de_vie_complet() {
         .unwrap();
     registry.unregister(id.as_str()).await.unwrap();
 
-    // THEN - 7 événements dans l'ordre exact
+    // THEN - 7 events, in that exact order
     let events = collect_events(&mut bus_rx, 7, 200).await;
     assert_eq!(
         events.len(),
         7,
-        "Attendu 7 événements, reçu {}",
+        "expected 7 events, received {}",
         events.len()
     );
 
@@ -116,7 +116,7 @@ async fn test_cycle_de_vie_complet() {
     assert!(matches!(&events[6], RuntimeEvent::AgentStopped(eid) if eid == &id));
 }
 
-/// Plusieurs agents simultanés.
+/// Several agents at once.
 #[tokio::test]
 async fn test_agents_simultanes() {
     // GIVEN
@@ -134,11 +134,11 @@ async fn test_agents_simultanes() {
 
     assert!(id1.is_ok() && id2.is_ok() && id3.is_ok());
 
-    // THEN - list_agents retourne exactement 3 entrées
+    // THEN - list_agents returns exactly 3 entries
     let agents = registry.list_agents().await.unwrap();
     assert_eq!(agents.len(), 3);
 
-    // ET - le bus a reçu 3 événements AgentRegistered
+    // AND - the bus received 3 AgentRegistered events
     let events = collect_events(&mut bus_rx, 3, 200).await;
     assert_eq!(events.len(), 3);
     assert!(events
@@ -146,7 +146,7 @@ async fn test_agents_simultanes() {
         .all(|e| matches!(e, RuntimeEvent::AgentRegistered(_))));
 }
 
-/// Transition invalide n'altère pas l'état.
+/// An invalid transition does not alter the state.
 #[tokio::test]
 async fn test_transition_invalide_preserve_etat() {
     // GIVEN
@@ -161,7 +161,7 @@ async fn test_transition_invalide_preserve_etat() {
         .await
         .unwrap();
 
-    // Vider les 2 événements déjà publiés (AgentRegistered + AgentReady)
+    // Drain the 2 events already published (AgentRegistered + AgentReady)
     collect_events(&mut bus_rx, 2, 100).await;
 
     // WHEN - transition invalide Active → Initializing
@@ -169,22 +169,22 @@ async fn test_transition_invalide_preserve_etat() {
         .update_state(id.as_str(), ProcessState::Initializing)
         .await;
 
-    // THEN - erreur InvalidTransition retournée
+    // THEN - an InvalidTransition error is returned
     assert!(matches!(
         result.unwrap_err(),
         apollia_runtime::AgentRegistryError::InvalidTransition { .. }
     ));
 
-    // ET - l'état est toujours Active
+    // AND - the state is still Active
     let entry = registry.get_agent(id.as_str()).await.unwrap().unwrap();
     assert!(matches!(entry.process_state, ProcessState::Active));
 
-    // ET - aucun événement supplémentaire publié
+    // AND - no extra event is published
     let extra_events = collect_events(&mut bus_rx, 1, 50).await;
     assert!(extra_events.is_empty());
 }
 
-/// Unregister d'un agent inconnu.
+/// Unregister of an unknown agent.
 #[tokio::test]
 async fn test_unregister_agent_inconnu() {
     // GIVEN

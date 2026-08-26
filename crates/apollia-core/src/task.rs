@@ -206,7 +206,7 @@ mod tests {
             input: AIPInput {
                 parts: vec![
                     AIPPart::Text(TextPart {
-                        text: "Génère un devis".into(),
+                        text: "Generate a quote".into(),
                     }),
                     AIPPart::Data(DataPart {
                         data: json!({ "client": "Dupont" }),

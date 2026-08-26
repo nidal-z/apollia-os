@@ -131,6 +131,6 @@ pub fn handle_alternatives(
     match line.trim() {
         "1" => Ok(ChosenPlan::PlanA),
         "2" => Ok(ChosenPlan::PlanB),
-        other => Err(format!("choix invalide : '{other}' (attendu 1 ou 2)")),
+        other => Err(format!("invalid choice: '{other}' (expected 1 or 2)")),
     }
 }

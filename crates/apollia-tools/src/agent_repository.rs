@@ -58,7 +58,7 @@ pub struct InstalledAgent {
 #[non_exhaustive]
 pub enum AgentRepositoryError {
     /// Underlying SQLite error.
-    #[error("erreur SQLite : {0}")]
+    #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
     /// The database schema could not be brought to the supported version.
@@ -70,11 +70,11 @@ pub enum AgentRepositoryError {
     NotFound(String),
 
     /// Manifest JSON serialization/deserialization error.
-    #[error("erreur sérialisation manifest : {0}")]
+    #[error("manifest serialisation error: {0}")]
     SerdeError(#[from] serde_json::Error),
 
     /// A `spawn_blocking` task failed (panic in the worker thread).
-    #[error("erreur tâche async : {0}")]
+    #[error("async task error: {0}")]
     SpawnError(String),
 }
 
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(count, 0);
     }
 
-    // save() + get() round-trip avec manifest serde
+    // save() + get() round-trip with a serde manifest
     #[test]
     fn test_save_and_get_roundtrip() {
         let repo = open_test_repo();
@@ -472,7 +472,7 @@ mod tests {
         assert_eq!(loaded.manifest.tools_required, vec!["bash"]);
     }
 
-    // list() retourne tous les agents
+    // list() returns every agent
     #[test]
     fn test_list_all_agents() {
         // GIVEN three saved agents
@@ -504,7 +504,7 @@ mod tests {
         assert!(repo.get("to-delete").expect("get after delete").is_none());
     }
 
-    // list_enabled() filtre les disabled
+    // list_enabled() filters the disabled ones
     #[test]
     fn test_list_enabled_filters_disabled() {
         // GIVEN two enabled agents and one disabled

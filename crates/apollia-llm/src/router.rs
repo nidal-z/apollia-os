@@ -609,12 +609,12 @@ mod tests {
         // THEN
         assert!(
             result.is_some(),
-            "get(None) doit retourner Some pour le backend défaut"
+            "get(None) must return Some for the default backend"
         );
         assert_eq!(
             result.unwrap().backend_name(),
             "local",
-            "le backend retourné doit être le backend défaut"
+            "the returned backend must be the default backend"
         );
     }
 
@@ -634,7 +634,7 @@ mod tests {
         // THEN
         assert!(
             result.is_some(),
-            "get(Some(\"anthropic\")) doit retourner Some"
+            "get(Some(\"anthropic\")) must return Some"
         );
         assert_eq!(result.unwrap().backend_name(), "anthropic");
     }
@@ -652,7 +652,7 @@ mod tests {
         // WHEN / THEN
         assert!(
             router.get(Some("inexistant")).is_none(),
-            "get(Some(\"inexistant\")) doit retourner None pour un backend inconnu"
+            "get(Some(\"missing\")) must return None for an unknown backend"
         );
     }
 
@@ -674,7 +674,7 @@ mod tests {
         assert_eq!(
             list.len(),
             2,
-            "list() doit retourner autant d'entrées que de backends"
+            "list() must return as many entries as there are backends"
         );
     }
 
@@ -694,7 +694,7 @@ mod tests {
         // THEN
         assert!(
             cloned.get(None).is_some(),
-            "le clone doit avoir accès aux mêmes backends"
+            "the clone must reach the same backends"
         );
         assert_eq!(cloned.list().len(), 1);
     }
@@ -725,7 +725,7 @@ mod tests {
                 result,
                 Err(LlmError::BackendUnavailable { ref backend, .. }) if backend == "local"
             ),
-            "from_config doit retourner BackendUnavailable si le backend défaut est absent"
+            "from_config must return BackendUnavailable when the default backend is absent"
         );
     }
 
@@ -796,18 +796,16 @@ mod tests {
         router
             .complete_with_observability(None, req, Some(&tx), &obs)
             .await
-            .expect("complete_with_observability ne doit pas échouer avec un mock valide");
+            .expect("complete_with_observability must not fail with a valid mock");
 
         // THEN
-        let event = rx
-            .try_recv()
-            .expect("un événement doit être présent dans le bus");
+        let event = rx.try_recv().expect("one event must be present on the bus");
         assert!(
             matches!(
                 event,
                 RuntimeEvent::LlmCallCompleted { ref backend, .. } if backend == "mock"
             ),
-            "l'événement reçu doit être LlmCallCompleted avec backend == \"mock\", obtenu: {event:?}"
+            "the received event must be LlmCallCompleted with backend == \"mock\", got: {event:?}"
         );
     }
 
@@ -885,7 +883,7 @@ mod tests {
         // THEN
         assert!(
             result.is_ok(),
-            "complete_with_observability doit retourner Ok même sans bus : {result:?}"
+            "complete_with_observability must return Ok even without a bus: {result:?}"
         );
     }
 
@@ -920,7 +918,7 @@ mod tests {
                 result,
                 Err(LlmError::BackendUnavailable { ref backend, .. }) if backend == "local"
             ),
-            "from_config_with_bus doit retourner BackendUnavailable si aucun backend n'est disponible"
+            "from_config_with_bus must return BackendUnavailable when no backend is available"
         );
     }
 

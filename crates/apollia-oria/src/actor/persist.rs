@@ -120,7 +120,7 @@ impl ActorLoop {
                 self.fail_plan("MAX_REPLAN_EXCEEDED");
                 AIPResult::failed(
                     "MAX_REPLAN_EXCEEDED",
-                    &format!("{} replanifications dépassées", self.max_replans),
+                    &format!("{} replans exceeded", self.max_replans),
                 )
             }
             StepError::RejectedByUser { reason } => {

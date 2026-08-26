@@ -532,7 +532,7 @@ async fn test_no_hybrid_config_leaves_ceiling_flag_false() {
     //   threshold of 3), then final text, and a router with no hybrid section.
     let model = Arc::new(MockFailingThenStopModel {
         tool_turns: 4,
-        final_tokens: split_tokens("Terminé"),
+        final_tokens: split_tokens("Done"),
         iteration: AtomicU32::new(0),
     });
     let router = make_router(model);
@@ -583,7 +583,7 @@ async fn test_no_hybrid_config_leaves_ceiling_flag_false() {
     // THEN the loop crossed the escalation threshold but, with no hybrid
     // config, stayed local and never set the ceiling flag.
     let resp = result.expect("should produce a final response");
-    assert_eq!(resp.content, "Terminé");
+    assert_eq!(resp.content, "Done");
     assert!(!resp.frontier_ceiling_reached);
 
     tool_registry.shutdown().await;
@@ -783,7 +783,7 @@ async fn test_tool_call_authorized() {
             name: "bash_executor".into(),
             arguments: serde_json::json!({"command": "echo hello"}),
         }],
-        final_tokens: split_tokens("Commande exécutée"),
+        final_tokens: split_tokens("Command executed"),
         iteration: AtomicU32::new(0),
     });
     let router = make_router(model);
@@ -814,7 +814,7 @@ async fn test_tool_call_authorized() {
             &RunId::new(),
             "Execute echo",
             &[],
-            "Tu es un assistant.",
+            "You are an assistant.",
             &["bash_executor".to_string()],
             &authorized,
             &approvals,
@@ -831,7 +831,7 @@ async fn test_tool_call_authorized() {
 
     // THEN tool was executed, response contains final text
     let resp = result.expect("should succeed");
-    assert_eq!(resp.content, "Commande exécutée");
+    assert_eq!(resp.content, "Command executed");
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].tool_name, "bash_executor");
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
@@ -850,7 +850,7 @@ async fn test_tool_call_hitl_accept() {
             name: "file_read".into(),
             arguments: serde_json::json!({"path": "test.txt"}),
         }],
-        final_tokens: split_tokens("Fichier lu"),
+        final_tokens: split_tokens("File read"),
         iteration: AtomicU32::new(0),
     });
     let router = make_router(model);
@@ -910,7 +910,7 @@ async fn test_tool_call_hitl_accept() {
 
     // THEN tool was executed after approval
     let resp = result.expect("should succeed");
-    assert_eq!(resp.content, "Fichier lu");
+    assert_eq!(resp.content, "File read");
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
     assert!(resp.newly_authorized.is_empty());
@@ -928,7 +928,7 @@ async fn test_tool_call_hitl_refuse() {
             name: "file_read".into(),
             arguments: serde_json::json!({}),
         }],
-        final_tokens: split_tokens("Ok, pas de souci."),
+        final_tokens: split_tokens("Fine, no problem."),
         iteration: AtomicU32::new(0),
     });
     let router = make_router(model);
@@ -987,7 +987,7 @@ async fn test_tool_call_hitl_refuse() {
 
     // THEN refusal recorded, LLM sees it and produces final text
     let resp = result.expect("should succeed");
-    assert_eq!(resp.content, "Ok, pas de souci.");
+    assert_eq!(resp.content, "Fine, no problem.");
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
@@ -1567,9 +1567,9 @@ async fn test_stream_with_tool_call() {
             let current = self.iteration.fetch_add(1, Ordering::SeqCst);
             if current == 0 {
                 let chunks = vec![
-                    Ok(LlmStreamChunk::Text("Je ".into())),
-                    Ok(LlmStreamChunk::Text("vais ".into())),
-                    Ok(LlmStreamChunk::Text("lire".into())),
+                    Ok(LlmStreamChunk::Text("I ".into())),
+                    Ok(LlmStreamChunk::Text("will ".into())),
+                    Ok(LlmStreamChunk::Text("read".into())),
                     Ok(LlmStreamChunk::ToolCall(LlmToolCall {
                         id: "c1".into(),
                         name: "file_read".into(),
@@ -1579,8 +1579,8 @@ async fn test_stream_with_tool_call() {
                 Ok(Box::pin(futures::stream::iter(chunks)))
             } else {
                 let chunks = vec![
-                    Ok(LlmStreamChunk::Text("Fichier ".into())),
-                    Ok(LlmStreamChunk::Text("lu.".into())),
+                    Ok(LlmStreamChunk::Text("File ".into())),
+                    Ok(LlmStreamChunk::Text("read.".into())),
                 ];
                 Ok(Box::pin(futures::stream::iter(chunks)))
             }
@@ -1626,7 +1626,7 @@ async fn test_stream_with_tool_call() {
             "sess-1",
             "msg-1",
             &RunId::new(),
-            "lis le fichier",
+            "read the file",
             &[],
             "",
             &["file_read".to_string()],
@@ -1645,7 +1645,7 @@ async fn test_stream_with_tool_call() {
         .expect("should succeed");
 
     // THEN final content from second iteration
-    assert_eq!(resp.content, "Fichier lu.");
+    assert_eq!(resp.content, "File read.");
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].tool_name, "file_read");
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
@@ -1658,7 +1658,7 @@ async fn test_stream_with_tool_call() {
         }
     }
     // First iteration text tokens + second iteration text tokens
-    assert_eq!(tokens, vec!["Je ", "vais ", "lire", "Fichier ", "lu."]);
+    assert_eq!(tokens, vec!["I ", "will ", "read", "File ", "read."]);
 
     tool_registry.shutdown().await;
 }

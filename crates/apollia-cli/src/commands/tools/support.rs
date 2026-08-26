@@ -71,8 +71,8 @@ pub(super) fn emit_unknown_tool(name: &str, json: bool) -> i32 {
     let known = NATIVE_TOOL_NAMES.join(", ");
     emit_error(
         format!(
-            "cible inconnue '{name}' - outils natifs disponibles : {known} ; \
-             ou '{AGENT_CREDENTIALS_NAMESPACE}' pour un secret déclaré par un agent"
+            "unknown target '{name}' - native tools available: {known} ; \
+             or '{AGENT_CREDENTIALS_NAMESPACE}' for a secret an agent declares"
         ),
         json,
     )

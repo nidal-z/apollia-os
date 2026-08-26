@@ -159,7 +159,7 @@ pub fn channel_accepts_event(
 #[non_exhaustive]
 pub enum NotifConfigError {
     /// Missing `url` field for a `webhook` channel.
-    #[error("url manquante pour le canal webhook '{id}'")]
+    #[error("missing url for webhook channel '{id}'")]
     MissingWebhookUrl {
         /// Identifier of the misconfigured channel.
         id: String,
@@ -370,8 +370,8 @@ mod tests {
         // WHEN
         let result = build_channels(&configs);
 
-        // THEN 1 canal retourné
-        let channels = result.expect("build_channels ne doit pas échouer");
+        // THEN 1 channel is returned
+        let channels = result.expect("build_channels must not fail");
         assert_eq!(channels.len(), 1);
         assert_eq!(channels[0].id(), "desktop");
     }
@@ -395,7 +395,7 @@ mod tests {
         let result = build_channels(&configs);
 
         // THEN 0 channels returned (disabled channel silently ignored)
-        let channels = result.expect("build_channels ne doit pas échouer");
+        let channels = result.expect("build_channels must not fail");
         assert!(channels.is_empty());
     }
 
@@ -420,11 +420,11 @@ mod tests {
         // THEN Err(NotifConfigError::MissingWebhookUrl) with the channel id
         let err = match result {
             Err(e) => e,
-            Ok(_) => panic!("build_channels doit retourner une erreur pour webhook sans url"),
+            Ok(_) => panic!("build_channels must return an error for a webhook without url"),
         };
         assert!(
             matches!(&err, NotifConfigError::MissingWebhookUrl { id } if id == "monitoring"),
-            "attendu MissingWebhookUrl {{ id: monitoring }}, obtenu: {err:?}"
+            "expected MissingWebhookUrl {{ id: monitoring }}, got: {err:?}"
         );
         assert!(err.to_string().contains("monitoring"));
     }

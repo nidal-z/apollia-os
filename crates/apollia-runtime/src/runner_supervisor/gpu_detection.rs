@@ -378,7 +378,7 @@ struct NvidiaSmiLine {
     driver_version: String,
 }
 
-/// Parse une ligne `--format=csv,noheader,nounits` au format
+/// Parses one `--format=csv,noheader,nounits` line in the format
 /// `"GeForce RTX 4070, 12288, 550.78"`.
 // Only the Linux probe parses `nvidia-smi` output; Windows detects GPUs through
 // WMI. Keeping `windows` in this gate declared both items with no consumer

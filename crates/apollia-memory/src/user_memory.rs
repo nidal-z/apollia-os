@@ -410,7 +410,7 @@ impl UserMemoryRepository {
         );
 
         if let Some(ref lang) = language {
-            output.push_str(&format!("Langue : {lang}\n"));
+            output.push_str(&format!("Language: {lang}\n"));
         }
 
         Self::push_prefixed_list(
@@ -419,7 +419,7 @@ impl UserMemoryRepository {
             PrefixedListSpec {
                 exact: "goals",
                 prefix: "goal",
-                header: "\nObjectifs :\n",
+                header: "\nGoals:\n",
                 inline: false,
             },
         );
@@ -429,7 +429,7 @@ impl UserMemoryRepository {
             PrefixedListSpec {
                 exact: "tools.daily",
                 prefix: "tools",
-                header: "\nOutils : ",
+                header: "\nTools: ",
                 inline: true,
             },
         );
@@ -455,7 +455,7 @@ impl UserMemoryRepository {
         }
         if let Some(ref r) = role {
             if headline_parts.is_empty() {
-                headline_parts.push(format!("Rôle : {r}"));
+                headline_parts.push(format!("Role: {r}"));
             } else {
                 headline_parts.push(format!("({r})"));
             }
@@ -468,10 +468,10 @@ impl UserMemoryRepository {
         }
         output.push_str(&headline_parts.join(" "));
         if let Some(ref exp) = expertise {
-            output.push_str(&format!(". Niveau : {exp}"));
+            output.push_str(&format!(". Level: {exp}"));
         }
         if let Some(ref ts) = team_size {
-            output.push_str(&format!(". Équipe : {ts}"));
+            output.push_str(&format!(". Team: {ts}"));
         }
         output.push('\n');
     }
@@ -486,25 +486,25 @@ impl UserMemoryRepository {
         let mut gov_parts: Vec<String> = Vec::new();
         if let Some(ref h) = hitl {
             let label = match h.as_str() {
-                "always" => "supervision systématique",
-                "critical-only" => "supervision sur actions critiques",
-                "never" => "autonomie complète demandée",
+                "always" => "systematic supervision",
+                "critical-only" => "supervision on critical actions",
+                "never" => "full autonomy requested",
                 other => other,
             };
-            gov_parts.push(format!("Supervision : {label}"));
+            gov_parts.push(format!("Supervision: {label}"));
         }
         if let Some(ref s) = sovereignty {
             let label = match s.as_str() {
-                "local-only" => "données strictement locales",
-                "local-preferred" => "local préféré, cloud en dernier recours",
-                "cloud-ok" => "cloud autorisé",
+                "local-only" => "strictly local data",
+                "local-preferred" => "local preferred, cloud as a last resort",
+                "cloud-ok" => "cloud allowed",
                 other => other,
             };
-            gov_parts.push(format!("Souveraineté : {label}"));
+            gov_parts.push(format!("Sovereignty: {label}"));
         }
         if let Some(ref c) = compliance {
             if !c.trim().is_empty() {
-                gov_parts.push(format!("Conformité : {c}"));
+                gov_parts.push(format!("Compliance: {c}"));
             }
         }
         if !gov_parts.is_empty() {
@@ -548,9 +548,9 @@ impl UserMemoryRepository {
 
     /// Appends the "Adaptation" section based on language and role profile.
     fn push_adaptation(output: &mut String, language: Option<&str>, role: Option<&str>) {
-        output.push_str("\nAdaptation :\n");
+        output.push_str("\nAdaptation:\n");
         if let Some(lang) = language {
-            output.push_str(&format!("- Langue : {lang}\n"));
+            output.push_str(&format!("- Language: {lang}\n"));
         }
         if let Some(r) = role {
             output.push_str(Self::role_adaptation_line(&r.to_lowercase()));
@@ -572,13 +572,13 @@ impl UserMemoryRepository {
             "coo",
         ];
         if TECH.iter().any(|k| r_lower.contains(k)) {
-            "- Profil technique : vocabulaire technique approprié\n"
+            "- Technical profile: appropriate technical vocabulary\n"
         } else if CREATIVE.iter().any(|k| r_lower.contains(k)) {
-            "- Profil créatif : éviter le jargon technique, privilégier les visuels\n"
+            "- Creative profile: avoid technical jargon, favour the visuals\n"
         } else if BUSINESS.iter().any(|k| r_lower.contains(k)) {
-            "- Profil business : focus résultats, KPIs, pas de détails techniques inutiles\n"
+            "- Business profile: focus on outcomes, KPIs, no needless technical detail\n"
         } else {
-            "- Adapter le vocabulaire au profil de l'utilisateur\n"
+            "- Adapt the vocabulary to the user's profile\n"
         }
     }
 
@@ -609,10 +609,10 @@ impl UserMemoryRepository {
         if remaining.is_empty() {
             return;
         }
-        output.push_str("\nContexte :\n");
+        output.push_str("\nContext:\n");
         for entry in remaining {
             let stale_marker = if Self::is_stale(&entry.updated_at) {
-                " (peut-être obsolète)"
+                " (possibly stale)"
             } else {
                 ""
             };
@@ -942,11 +942,8 @@ mod tests {
             "brief should contain name: {brief}"
         );
         assert!(brief.contains("CTO fintech"), "{brief}");
-        assert!(
-            brief.contains("supervision sur actions critiques"),
-            "{brief}"
-        );
-        assert!(brief.contains("local préféré"), "{brief}");
+        assert!(brief.contains("supervision on critical actions"), "{brief}");
+        assert!(brief.contains("local preferred"), "{brief}");
         assert!(brief.contains("fintech"), "{brief}");
         assert!(brief.contains("expert"), "{brief}");
     }

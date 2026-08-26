@@ -38,7 +38,7 @@ impl WorkspaceProvider for GitProvider {
     }
 
     fn description(&self) -> &str {
-        "Branche git, statut des fichiers et commits récents"
+        "Git branch, file status and recent commits"
     }
 
     fn priority(&self) -> u8 {
@@ -65,7 +65,7 @@ impl WorkspaceProvider for GitProvider {
         }
         if !result.recent_commits.is_empty() {
             content.push_str(&format!(
-                "\n\nCommits récents :\n{}",
+                "\n\nRecent commits:\n{}",
                 result.recent_commits.join("\n")
             ));
         }

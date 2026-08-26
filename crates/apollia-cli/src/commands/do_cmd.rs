@@ -21,8 +21,8 @@ pub async fn run(request: &str, yes: bool, socket: Option<PathBuf>, json: bool) 
         eprintln!("describe what you want to do");
         return exit_codes::GENERAL_ERROR;
     }
-    // Grammaire GBNF (appliquee par le backend llama-cpp) ET catalogue injecte
-    // dans le prompt (pour les backends qui ignorent la grammaire, type OpenAI).
+    // GBNF grammar (applied by the llama-cpp backend) AND catalogue injected
+    // into the prompt (for the backends that ignore the grammar, OpenAI style).
     let cli_cmd = crate::Cli::command();
     let grammar = build_grammar_from(&cli_cmd);
     let catalog = command_list(&cli_cmd);
@@ -59,16 +59,16 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
 
     let args: Vec<String> = mapped.split_whitespace().map(String::from).collect();
 
-    // Pas de recursion sur `do`.
+    // No recursion on `do`.
     if args.first().map(|s| s == "do").unwrap_or(false) {
         eprintln!("refusing to map to `do` itself, try rephrasing");
         return exit_codes::GENERAL_ERROR;
     }
 
-    // La grammaire GBNF n'est appliquee que par le backend llama-cpp local ; un
-    // backend OpenAI-compatible l'ignore et peut renvoyer une commande invalide.
-    // On valide donc TOUJOURS la commande mappee contre le vrai parser avant de
-    // proposer quoi que ce soit : c'est le filet independant du backend.
+    // The GBNF grammar is only applied by the local llama-cpp backend; an
+    // OpenAI-compatible backend ignores it and can return an invalid command.
+    // So the mapped command is ALWAYS validated against the real parser before
+    // anything is proposed: that is the backend-independent safety net.
     let argv = std::iter::once("apollia-os".to_string()).chain(args.iter().cloned());
     if crate::Cli::try_parse_from(argv).is_err() {
         eprintln!("mapped to an invalid command: `apollia-os {mapped}` (try rephrasing)");
@@ -78,13 +78,13 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
     if json {
         println!("{}", serde_json::json!({ "command": mapped }));
     }
-    // Transparence: quel backend a produit le mapping (jamais de cloud silencieux).
+    // Transparency: which backend produced the mapping (never a silent cloud).
     eprintln!("(via backend: {})", resp["backend"].as_str().unwrap_or("?"));
-    // Dry-run: montrer la commande deduite avant toute execution.
+    // Dry run: show the deduced command before any execution.
     println!("would run: apollia-os {mapped}");
 
-    // Confirmation requise sauf `-y`. En mode `--json` (non interactif), on ne
-    // demande pas : n'execute qu'avec `-y`.
+    // Confirmation required unless `-y`. In `--json` mode (non interactive),
+    // nothing is asked: it only executes with `-y`.
     let do_exec = if yes {
         true
     } else if json {
@@ -99,8 +99,8 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
         return exit_codes::SUCCESS;
     }
 
-    // Re-executer via un processus frais: passe par le dispatch normal, donc la
-    // gouvernance/les permissions/l'audit s'appliquent comme une saisie manuelle.
+    // Re-executed through a fresh process: it goes through the normal dispatch,
+    // so governance, permissions and audit apply as for a manual invocation.
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -113,7 +113,7 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
     }
 }
 
-/// Interactive `[o/N]` confirmation. Bloque le thread (commande one-shot).
+/// Interactive `[y/N]` confirmation. Blocks the thread (one-shot command).
 fn confirm() -> bool {
     print!("execute? [o/N] ");
     let _ = std::io::stdout().flush();
@@ -155,7 +155,7 @@ fn build_grammar_from(cmd: &clap::Command) -> String {
     for sub in cmd.get_subcommands() {
         let name = sub.get_name();
         if name == "do" {
-            continue; // pas de recursion sur `do`
+            continue; // no recursion on `do`
         }
         let verbs: Vec<&str> = sub.get_subcommands().map(clap::Command::get_name).collect();
         if verbs.is_empty() {
@@ -184,8 +184,8 @@ fn build_grammar_from(cmd: &clap::Command) -> String {
 mod tests {
     use super::*;
 
-    // GIVEN l'arbre clap reel WHEN on genere la grammaire THEN elle contient des
-    // prefixes noun-verb valides et le sentinel unknown, et exclut `do`.
+    // GIVEN the real clap tree WHEN the grammar is generated THEN it holds
+    // valid noun-verb prefixes and the unknown sentinel, and excludes `do`.
     #[test]
     fn test_grammar_contains_valid_prefixes() {
         let g = build_grammar_from(&crate::Cli::command());

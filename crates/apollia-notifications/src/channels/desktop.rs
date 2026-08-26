@@ -243,7 +243,7 @@ fn post_resume_decision(resume_url: &str, approved: bool) {
     } else {
         serde_json::json!({
             "approved": false,
-            "reason": "Refusé depuis la notification"
+            "reason": "Refused from the notification"
         })
     };
     let label = if approved { "approve" } else { "reject" };
@@ -374,7 +374,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
             task_id: task_id.map(String::from),
             agent: Some("test-agent".into()),
-            message: "Message de test".into(),
+            message: "Test message".into(),
             metadata,
             severity: Severity::Warning,
         }
@@ -481,7 +481,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
             task_id: Some("t-001".into()),
             agent: Some("test-agent".into()),
-            message: "Erreur".into(),
+            message: "Error".into(),
             metadata: HashMap::new(),
             severity: Severity::Error,
         };

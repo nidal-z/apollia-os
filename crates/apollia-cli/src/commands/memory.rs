@@ -433,7 +433,7 @@ mod tests {
         let output = result.unwrap();
         assert!(output.contains("Namespace   : test-ns"));
         assert!(output.contains("Episodes    : 0"));
-        assert!(output.contains("Semantique  : 0 cles"));
+        assert!(output.contains("Semantic    : 0 keys"));
         assert!(output.contains("Procedures  : 0"));
     }
 
@@ -782,7 +782,7 @@ mod tests {
         let result = execute_learn_procedure(
             "agent-proc",
             "analyser rapport",
-            &["étape 1".to_string(), "étape 2".to_string()],
+            &["step 1".to_string(), "step 2".to_string()],
             &dir,
             false,
         );
@@ -799,7 +799,7 @@ mod tests {
         assert!(entry.is_some());
         let e = entry.unwrap();
         assert_eq!(e.steps.len(), 2);
-        assert_eq!(e.steps[0], "étape 1");
+        assert_eq!(e.steps[0], "step 1");
     }
 
     // learn-procedure with missing namespace returns error

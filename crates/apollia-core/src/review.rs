@@ -46,7 +46,7 @@ mod tests {
                 message: "missing docstring".into(),
                 location: Some("src/lib.rs:42".into()),
             }],
-            summary: "Bon code, quelques conventions manquantes.".into(),
+            summary: "Good code, a few conventions missing.".into(),
         };
 
         // WHEN serialized and deserialized
@@ -60,7 +60,7 @@ mod tests {
         assert_eq!(parsed.issues[0].severity, "warning");
         assert_eq!(parsed.issues[0].category, "convention");
         assert_eq!(parsed.issues[0].location.as_deref(), Some("src/lib.rs:42"));
-        assert_eq!(parsed.summary, "Bon code, quelques conventions manquantes.");
+        assert_eq!(parsed.summary, "Good code, a few conventions missing.");
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
         let report = ReviewReport {
             score: 100,
             issues: Vec::new(),
-            summary: "Aucun changement à analyser.".into(),
+            summary: "No change to analyse.".into(),
         };
 
         // WHEN serialized

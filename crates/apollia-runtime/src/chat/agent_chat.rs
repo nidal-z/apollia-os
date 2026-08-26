@@ -821,7 +821,7 @@ mod tests {
         let response = executor
             .execute(AgentChatRequest {
                 session: &session,
-                user_message: "Génère un devis",
+                user_message: "Generate a quote",
                 message_id: "msg-1",
                 authorized_tools: &HashSet::new(),
                 pending_approvals: &approvals,

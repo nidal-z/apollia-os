@@ -47,7 +47,7 @@ pub(super) fn short_uuid(uuid: &str) -> String {
 
 /// Render pending-approval tasks as a human-readable table.
 ///
-/// Columns: `TASK_ID | AGENT | DEPUIS | PROMPT` (prompt truncated to 60 chars).
+/// Columns: `TASK_ID | AGENT | SINCE | PROMPT` (prompt truncated to 60 chars).
 pub(super) fn format_pending_table(tasks: &[serde_json::Value]) {
     println!("  {:<36} {:<20} {:<8} PROMPT", "TASK_ID", "AGENT", "SINCE");
 

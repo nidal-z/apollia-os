@@ -122,7 +122,7 @@ mod tests {
         }
     }
 
-    // GIVEN un sujet inconnu proche WHEN on suggere THEN un sujet valide.
+    // GIVEN an unknown but close topic WHEN suggesting THEN a valid topic.
     #[test]
     fn test_unknown_topic_has_suggestion() {
         let names: Vec<&str> = TOPICS.iter().map(|(k, _)| *k).collect();

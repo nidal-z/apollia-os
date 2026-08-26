@@ -6,10 +6,10 @@ use super::*;
 #[test]
 fn rationale_parses_full_payload() {
     let raw = r#"{
-            "summary": "Lire le fichier de config avant l'édition.",
+            "summary": "Read the config file before editing it.",
             "inputs_recap": [["path", "/tmp/cfg.toml"], ["offset", "0"]],
-            "expected_outcome": "Obtenir le contenu courant pour décider l'édition.",
-            "performance_hint": "Durée attendue: 50ms"
+            "expected_outcome": "Get the current content to decide on the edit.",
+            "performance_hint": "Expected duration: 50ms"
         }"#;
     let r = ToolCallRationale::parse(raw).expect("parse ok");
     assert_eq!(r.inputs_recap.len(), 2);

@@ -596,7 +596,7 @@ fn maybe_suggest_command(err: &clap::Error) {
     ) {
         return;
     }
-    // Premier argument positionnel apres le nom du binaire.
+    // First positional argument after the binary name.
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
         return;
@@ -2225,7 +2225,7 @@ mod tests {
                     command: WorkspaceCommand::Status
                 }
             ),
-            "doit parser workspace status"
+            "must parse workspace status"
         );
         assert!(!cli.json);
     }
@@ -2243,7 +2243,7 @@ mod tests {
                     command: WorkspaceCommand::Init { force: false }
                 }
             ),
-            "doit parser workspace init sans --force"
+            "must parse workspace init without --force"
         );
     }
 
@@ -2260,7 +2260,7 @@ mod tests {
                     command: WorkspaceCommand::Init { force: true }
                 }
             ),
-            "doit parser workspace init --force"
+            "must parse workspace init --force"
         );
     }
 
@@ -2270,7 +2270,7 @@ mod tests {
         let cli = parse(&["apollia-os", "--json", "workspace", "status"]);
         // WHEN clap parses the argument line
         // THEN json=true
-        assert!(cli.json, "flag global --json doit être activé");
+        assert!(cli.json, "the global --json flag must be on");
         assert!(matches!(
             cli.command,
             Commands::Workspace {

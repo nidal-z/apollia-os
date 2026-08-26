@@ -309,7 +309,7 @@ mod tests {
             namespace,
             "agent-1",
             "budget client Dupont cinq mille euros",
-            0.9,
+            "budget client Dupont five thousand euros",
             None,
             None,
             None,
@@ -318,7 +318,7 @@ mod tests {
         ep.record(
             namespace,
             "agent-1",
-            "reunion planifiee avec client Martin",
+            "meeting planned with client Martin",
             0.4,
             None,
             None,

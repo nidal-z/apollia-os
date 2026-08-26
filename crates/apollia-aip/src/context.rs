@@ -700,14 +700,14 @@ mod runtime_context_tests {
             false,         // user_memory_writable
         );
         // THEN an AgentDegraded event is present on the bus
-        let event = rx.try_recv().expect("un événement doit être présent");
+        let event = rx.try_recv().expect("one event must be present");
         assert!(
             matches!(
                 event,
                 RuntimeEvent::AgentDegraded { ref reason, .. }
                     if reason.contains("no LLM backend")
             ),
-            "événement inattendu : {event:?}"
+            "unexpected event: {event:?}"
         );
     }
 
@@ -1949,9 +1949,9 @@ mod workspace_context_tests {
 
     #[test]
     fn test_workspace_context_py_rules_getter() {
-        // GIVEN a WorkspaceContextPy with a "Règles du projet" section
+        // GIVEN a WorkspaceContextPy with a "Project rules" section
         let mut ws = WorkspaceContextPy::empty();
-        ws.set_section("Règles du projet", "Reply in French".to_string());
+        ws.set_section("Project rules", "Reply in French".to_string());
         ws.set_section("Git", "branch: main".to_string());
         // WHEN its getters are called
         // THEN rules() and apollia_md() both return the rules content

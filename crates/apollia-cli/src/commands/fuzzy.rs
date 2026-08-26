@@ -56,13 +56,13 @@ mod tests {
         assert_eq!(score("", "anything"), Some(0));
     }
 
-    // GIVEN une requete WHEN on classe THEN les meilleures correspondances en tete.
+    // GIVEN a query WHEN ranked THEN the best matches come first.
     #[test]
     fn test_rank_orders_best_first() {
         let cands = ["audit list", "audit verify", "agent list", "task list"];
         let ranked = rank("aud", &cands);
         assert_eq!(ranked[0], "audit list");
         assert!(ranked.contains(&"audit verify"));
-        assert!(!ranked.contains(&"task list")); // 'aud' pas sous-sequence
+        assert!(!ranked.contains(&"task list")); // 'aud' is not a subsequence
     }
 }

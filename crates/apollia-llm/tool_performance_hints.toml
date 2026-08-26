@@ -1,9 +1,9 @@
-# Hints de performance par outil natif.
+# Per-tool performance hints for the native tools.
 #
-# `expected_duration_ms` : p50 estimé ; sert à afficher un hint informatif
-#   avant exécution ("Durée attendue: Xms").
-# `faster_alternative` (optionnel) : phrase courte suggérant un outil plus
-#   rapide selon le contexte (ex. file_grep → file_glob si pattern de chemin).
+# `expected_duration_ms`: estimated p50; used to show an informative hint
+#   before execution ("Expected duration: Xms").
+# `faster_alternative` (optional): a short phrase suggesting a faster tool
+#   for the context (for instance file_grep -> file_glob for a path pattern).
 
 [tools.file_read]
 expected_duration_ms = 50
@@ -22,7 +22,7 @@ expected_duration_ms = 150
 
 [tools.file_grep]
 expected_duration_ms = 400
-faster_alternative = "file_glob si le motif porte sur des chemins, pas du contenu"
+faster_alternative = "file_glob when the pattern is about paths, not contents"
 
 [tools.bash_executor]
 expected_duration_ms = 1500

@@ -321,7 +321,7 @@ impl ActorLoop {
 
         // 2. Emit TaskInputRequired with step_id set (distinguishes Direct / Orchestrated mode)
         let prompt = format!(
-            "Approbation requise avant d'exécuter '{}' (step: {})",
+            "Approval required before running '{}' (step: {})",
             step.tool_hint.as_deref().unwrap_or("llm"),
             step.step_id
         );
@@ -355,7 +355,7 @@ impl ActorLoop {
             Err(StepError::RejectedByUser {
                 reason: response
                     .reason
-                    .unwrap_or_else(|| "Rejeté par l'utilisateur".into()),
+                    .unwrap_or_else(|| "Rejected by the user".into()),
             })
         }
     }

@@ -505,8 +505,8 @@ pub async fn stream_session<B: ExecutionBackend + Clone>(
         }
     };
 
-    // Verifier l'existence de la session avant de s'abonner (parite avec
-    // `stream_task`): sinon un id inconnu ouvre un flux qui n'emet jamais rien.
+    // Check that the session exists before subscribing (parity with
+    // `stream_task`): otherwise an unknown id opens a stream that emits nothing.
     if manager.get_session(id.clone()).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
@@ -534,7 +534,7 @@ pub async fn stream_session<B: ExecutionBackend + Clone>(
                 }
             }
         })
-        // Fermer le flux apres l'evenement terminal (`session_closed`).
+        // Close the stream after the terminal event (`session_closed`).
         .take_while_inclusive(|(_event, is_terminal)| !is_terminal)
         .map(|(sse_event, _)| {
             let json = serde_json::to_string(&sse_event).unwrap_or_else(|_| "{}".into());

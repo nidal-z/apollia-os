@@ -213,7 +213,7 @@ fn display_arg(
     scope: PermissionScope,
     project_path: Option<&Path>,
 ) -> String {
-    let prefix = arg_prefix.unwrap_or("(tous)");
+    let prefix = arg_prefix.unwrap_or("(all)");
     if matches!(scope, PermissionScope::Project) {
         if let Some(p) = project_path {
             return format!("{prefix} @ {}", p.display());
@@ -629,7 +629,7 @@ fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
         "project" => Ok(PermissionScope::Project),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "scope inconnu '{other}' - attendu : session | project | global"
+            "unknown scope '{other}' - expected: session | project | global"
         )),
     }
 }

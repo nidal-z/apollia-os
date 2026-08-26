@@ -43,7 +43,7 @@ pub enum PermissionRuleToolError {
 
     /// The provided scope is not recognized.
     #[error(
-        "invalid scope '{scope}': expected 'project' | 'agent' | 'global' (session non persisté)"
+        "invalid scope '{scope}': expected 'project' | 'agent' | 'global' (session is not persisted)"
     )]
     InvalidScope {
         /// Received value.
@@ -266,7 +266,7 @@ impl PermissionRuleAdd {
         Ok(PermissionRuleAddOutput { rule_id: id })
     }
 
-    /// Descriptor pour enregistrement dans le `ToolRegistry`.
+    /// Descriptor for registration into the `ToolRegistry`.
     pub fn descriptor() -> ToolDescriptor {
         ToolDescriptor {
             name: "permission_rule_add".to_string(),

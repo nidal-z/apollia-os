@@ -267,7 +267,7 @@ mod tests {
         // Episodic
         conn.execute(
             "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at, metadata)
-             VALUES ('ep-1', ?1, 'agent', 'épisode test', 0.7, '2026-01-01T00:00:00Z', '{}')",
+             VALUES ('ep-1', ?1, 'agent', 'test episode', 0.7, '2026-01-01T00:00:00Z', '{}')",
             rusqlite::params![namespace],
         )
         .unwrap();
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(export.episodic.len(), 1);
         assert_eq!(export.semantic.len(), 1);
         assert_eq!(export.procedural.len(), 1);
-        assert_eq!(export.episodic[0]["content"], "épisode test");
+        assert_eq!(export.episodic[0]["content"], "test episode");
         assert_eq!(export.semantic[0]["key"], "budget");
         assert_eq!(export.procedural[0]["trigger"], "analyser rapport");
     }

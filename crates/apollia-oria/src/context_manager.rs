@@ -177,7 +177,7 @@ impl ContextManager {
             ChatMessage {
                 role: Role::User,
                 content: MessageContent::Text(format!(
-                    "[Résumé de la conversation précédente]\n\n{}",
+                    "[Summary of the previous conversation]\n\n{}",
                     summary
                 )),
                 cache_control: None,
@@ -220,7 +220,7 @@ impl ContextManager {
             result.push(ChatMessage {
                 role: Role::User,
                 content: MessageContent::Text(format!(
-                    "[Résumé des échanges précédents]\n\n{}",
+                    "[Summary of the earlier exchanges]\n\n{}",
                     old_summary
                 )),
                 cache_control: None,
@@ -370,7 +370,7 @@ impl ContextManager {
 // Helpers
 
 fn fallback_summary() -> String {
-    "[Résumé indisponible]\n\n[Session continue avec contexte compacté]".to_owned()
+    "[Summary unavailable]\n\n[Session continues with a compacted context]".to_owned()
 }
 
 /// Render messages as a role-prefixed, length-capped transcript for summarization.
@@ -564,7 +564,7 @@ mod tests {
             ChatMessage::system("system"),
             ChatMessage::user(big_content),
         ];
-        let llm = make_llm(MockSummaryModel::with_response("résumé du contexte"));
+        let llm = make_llm(MockSummaryModel::with_response("context summary"));
 
         // WHEN
         let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
@@ -577,8 +577,8 @@ mod tests {
             MessageContent::Text(s) => s.as_str(),
             _ => panic!("expected Text"),
         };
-        assert!(summary_text.contains("[Résumé de la conversation précédente]"));
-        assert!(summary_text.contains("résumé du contexte"));
+        assert!(summary_text.contains("[Summary of the previous conversation]"));
+        assert!(summary_text.contains("context summary"));
     }
 
     /// GIVEN a history at ~60% of the window (under the 0.80 threshold on its own)
@@ -593,7 +593,7 @@ mod tests {
             ChatMessage::system("system"),
             ChatMessage::user("x".repeat(400_000)),
         ];
-        let llm = make_llm(MockSummaryModel::with_response("résumé"));
+        let llm = make_llm(MockSummaryModel::with_response("summary"));
 
         // WHEN no reserve: 60% < 80% threshold.
         let (_, without_reserve) = manager.maybe_compact_with_reserve(&messages, &llm, 0).await;
@@ -645,7 +645,7 @@ mod tests {
             MessageContent::Text(s) => s.as_str(),
             _ => panic!("expected Text"),
         };
-        assert!(summary_text.contains("[Résumé indisponible]"));
+        assert!(summary_text.contains("[Summary unavailable]"));
     }
 
     /// GIVEN empty messages
@@ -695,7 +695,7 @@ mod tests {
         assert_eq!(result[0].role, Role::System);
         assert_eq!(message_text(&result[0]), "system prompt");
         let summary_text = message_text(&result[1]);
-        assert!(summary_text.contains("[Résumé des échanges précédents]"));
+        assert!(summary_text.contains("[Summary of the earlier exchanges]"));
         assert!(summary_text.contains("compact summary"));
         for i in 0..6 {
             assert_eq!(message_text(&result[2 + i]), format!("recent message {i}"));
@@ -724,7 +724,7 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].role, Role::System);
         let summary_text = message_text(&result[1]);
-        assert!(summary_text.contains("[Résumé de la conversation précédente]"));
+        assert!(summary_text.contains("[Summary of the previous conversation]"));
         assert!(summary_text.contains("global summary"));
     }
 

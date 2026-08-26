@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_parse_interval_accepts_seconds_unit() {
         // GIVEN an interval string using the seconds unit, as emitted by the
-        // natural-language automation parser for "toutes les 30 secondes"
+        // natural-language automation parser, for the French interval phrasings
         // WHEN it is parsed
         // THEN it is accepted as a duration in seconds
         assert_eq!(parse_interval("30s").unwrap(), Duration::from_secs(30));

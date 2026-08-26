@@ -318,7 +318,7 @@ mod tests {
             format_version: default_format_version(),
             name: "devis-agent".into(),
             version: "1.0.0".into(),
-            description: "Génère des devis".into(),
+            description: "Generates quotes".into(),
             tools_required: vec!["file_io".into(), "bash_executor".into()],
             tools_optional: vec![],
             supports_streaming: false,

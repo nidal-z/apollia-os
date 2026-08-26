@@ -1,21 +1,21 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Tests d'intégration end-to-end de la gouvernance des outils natifs.
+//! End-to-end integration tests for the governance of the native tools.
 //!
-//! Ces tests exercent les APIs publiques de `apollia-tools` (registry,
-//! credential store, dispatcher factory et `WebSearch::from_config`) en
-//! validant les invariants critiques :
+//! These tests exercise the public APIs of `apollia-tools` (registry,
+//! credential store, dispatcher factory and `WebSearch::from_config`) and
+//! assert the critical invariants:
 //!
-//! - un outil désactivé via `ToolRegistry` est strictement absent du
-//!   dispatcher natif et toute invocation retourne `UnknownTool` ;
-//! - les credentials chiffrées AES-256-GCM survivent à un redémarrage
-//!   complet du store (clé maître relue depuis le `.keyfile`) ;
-//! - `WebSearch::from_config` n'enregistre pas Brave lorsque la clé n'est
-//!   pas résolue, garantissant que DuckDuckGo reste l'unique backend ;
-//! - `WebSearch::from_config` en mode Brave non bloquant retombe sur
-//!   DuckDuckGo lorsque la clé est absente (équivalent côté config du
-//!   fallback runtime sur HTTP 401) ;
-//! - une `permissions.db` héritée est migrée vers `governance.db` avec
-//!   conservation d'un backup et `scope = 'global'` sur les règles.
+//! - a tool disabled through `ToolRegistry` is strictly absent from the
+//!   native dispatcher, and any invocation returns `UnknownTool`;
+//! - the AES-256-GCM encrypted credentials survive a full restart of the
+//!   store (master key read back from the `.keyfile`);
+//! - `WebSearch::from_config` does not register Brave when the key is not
+//!   resolved, so DuckDuckGo stays the only backend;
+//! - `WebSearch::from_config` in non-blocking Brave mode falls back to
+//!   DuckDuckGo when the key is absent (the config-side equivalent of the
+//!   runtime fallback on HTTP 401);
+//! - a legacy `permissions.db` is migrated to `governance.db`, keeping a
+//!   backup and setting `scope = 'global'` on the rules.
 
 use std::path::PathBuf;
 

@@ -46,16 +46,16 @@ pub fn lookup(tool_name: &str) -> Option<&'static ToolPerformanceHint> {
 
 /// Build the formatted hint phrase for a tool, or `None` if absent.
 ///
-/// Format: `"Durée attendue: {ms}ms"` or, when an alternative is present,
-/// `"Durée attendue: {ms}ms - alternative: {alt}"` (the phrase shown to the
+/// Format: `"Expected duration: {ms}ms"` or, when an alternative is present,
+/// `"Expected duration: {ms}ms - alternative: {alt}"` (the phrase shown to the
 /// user is French).
 pub fn format_hint(tool_name: &str) -> Option<String> {
     lookup(tool_name).map(|h| match &h.faster_alternative {
         Some(alt) => format!(
-            "Durée attendue: {}ms - alternative: {}",
+            "Expected duration: {}ms - alternative: {}",
             h.expected_duration_ms, alt
         ),
-        None => format!("Durée attendue: {}ms", h.expected_duration_ms),
+        None => format!("Expected duration: {}ms", h.expected_duration_ms),
     })
 }
 

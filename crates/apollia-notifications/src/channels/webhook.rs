@@ -190,7 +190,7 @@ pub(crate) fn build_apollia_payload(notif: &Notification) -> serde_json::Value {
 pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
     let mut fields: Vec<serde_json::Value> = Vec::new();
     fields.push(serde_json::json!({
-        "name": "Événement",
+        "name": "Event",
         "value": format!("`{}`", notif.event),
         "inline": true,
     }));
@@ -203,7 +203,7 @@ pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
     }
     if let Some(ref task) = notif.task_id {
         fields.push(serde_json::json!({
-            "name": "Tâche",
+            "name": "Task",
             "value": format!("`{task}`"),
             "inline": true,
         }));
@@ -244,7 +244,7 @@ pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
     };
 
     let mut fields: Vec<serde_json::Value> = vec![serde_json::json!({
-        "title": "Événement",
+        "title": "Event",
         "value": notif.event,
         "short": true,
     })];
@@ -257,7 +257,7 @@ pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
     }
     if let Some(ref task) = notif.task_id {
         fields.push(serde_json::json!({
-            "title": "Tâche",
+            "title": "Task",
             "value": task,
             "short": true,
         }));
@@ -450,7 +450,7 @@ mod tests {
             timestamp: Utc::now(),
             task_id: task_id.map(String::from),
             agent: Some("devis-agent".into()),
-            message: "Message de test".into(),
+            message: "Test message".into(),
             metadata,
             severity,
         }
@@ -561,7 +561,7 @@ mod tests {
             "url": "http://example.com",
             "enabled": true
         }"#;
-        let cfg: WebhookChannelConfig = serde_json::from_str(json).expect("déserialisation");
+        let cfg: WebhookChannelConfig = serde_json::from_str(json).expect("deserialisation");
 
         // WHEN / THEN min_severity = Info (Severity::default())
         assert_eq!(cfg.min_severity, Severity::Info);
@@ -585,20 +585,20 @@ mod tests {
         assert_eq!(payload["severity"], "warning");
         assert!(
             payload["timestamp"].as_str().is_some(),
-            "timestamp doit être une chaîne ISO8601"
+            "timestamp must be an ISO8601 string"
         );
         assert!(
             payload["version"].as_str().is_some(),
-            "version doit être présente"
+            "version must be present"
         );
         // metadata contains the HITL URLs
         assert!(
             payload["metadata"]["resume_url"].as_str().is_some(),
-            "resume_url absent des metadata"
+            "resume_url missing from the metadata"
         );
         assert!(
             payload["metadata"]["inspect_url"].as_str().is_some(),
-            "inspect_url absent des metadata"
+            "inspect_url missing from the metadata"
         );
     }
 
@@ -624,7 +624,7 @@ mod tests {
             timestamp: Utc::now(),
             task_id: None,
             agent: Some("mon-agent".into()),
-            message: "Agent dégradé".into(),
+            message: "Agent degraded".into(),
             metadata: HashMap::new(),
             severity: Severity::Warning,
         };
@@ -744,7 +744,7 @@ mod tests {
         // THEN a single field (the event)
         let fields = payload["embeds"][0]["fields"].as_array().expect("fields");
         assert_eq!(fields.len(), 1);
-        assert_eq!(fields[0]["name"], "Événement");
+        assert_eq!(fields[0]["name"], "Event");
     }
 
     // --- Slack payload format --------------------------------------------
@@ -781,7 +781,7 @@ mod tests {
         // GIVEN a TCP server that accepts the connection but never responds
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         tokio::spawn(async move {
@@ -818,7 +818,7 @@ mod tests {
         // THEN NotifError::WebhookFailed returned, no panic
         assert!(
             matches!(result, Err(NotifError::WebhookFailed(_))),
-            "attendu Err(WebhookFailed), obtenu {:?}",
+            "expected Err(WebhookFailed), got {:?}",
             result
         );
     }
@@ -830,7 +830,7 @@ mod tests {
         // GIVEN a minimal HTTP server that responds 500
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         tokio::spawn(async move {
@@ -863,10 +863,10 @@ mod tests {
             Err(NotifError::WebhookFailed(msg)) => {
                 assert!(
                     msg.contains("500"),
-                    "message doit contenir '500', obtenu: {msg}"
+                    "the message must contain '500', got: {msg}"
                 );
             }
-            other => panic!("attendu Err(WebhookFailed), obtenu {:?}", other),
+            other => panic!("expected Err(WebhookFailed), got {:?}", other),
         }
     }
 
@@ -877,7 +877,7 @@ mod tests {
         // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         let (captured_tx, captured_rx) = tokio::sync::oneshot::channel::<String>();
@@ -902,14 +902,14 @@ mod tests {
         // THEN headers X-Apollia-Event, Content-Type and User-Agent present
         let request = captured_rx
             .await
-            .expect("requête non capturée par le serveur mock");
+            .expect("request not captured by the mock server");
 
         // X-Apollia-Event must contain the event name.
         assert!(
             request
                 .to_lowercase()
                 .contains("x-apollia-event: task.failed"),
-            "header X-Apollia-Event absent ou incorrect\n---\n{request}"
+            "X-Apollia-Event header missing or wrong\n---\n{request}"
         );
         // Content-Type application/json (set by reqwest via .json())
         assert!(
@@ -921,7 +921,7 @@ mod tests {
         // User-Agent contains the apollia-os prefix.
         assert!(
             request.to_lowercase().contains("apollia-os/"),
-            "header User-Agent absent ou incorrect\n---\n{request}"
+            "User-Agent header missing or wrong\n---\n{request}"
         );
     }
 
@@ -940,7 +940,7 @@ mod tests {
         // THEN both computations produce the same result
         assert_eq!(
             signature, expected,
-            "compute_signature doit correspondre au calcul HMAC direct"
+            "compute_signature must match the direct HMAC computation"
         );
     }
 
@@ -971,7 +971,7 @@ mod tests {
         // THEN distinct signatures
         assert_ne!(
             sig1, sig2,
-            "des secrets différents doivent produire des signatures différentes"
+            "different secrets must produce different signatures"
         );
     }
 
@@ -984,17 +984,17 @@ mod tests {
         // THEN format "sha256=<64 hex chars>"
         assert!(
             signature.starts_with("sha256="),
-            "la signature doit commencer par 'sha256='"
+            "the signature must start with 'sha256='"
         );
         let hex_part = &signature["sha256=".len()..];
         assert_eq!(
             hex_part.len(),
             64,
-            "la partie hex doit faire 64 caractères (HMAC-SHA256 = 32 octets)"
+            "the hex part must be 64 characters (HMAC-SHA256 = 32 bytes)"
         );
         assert!(
             hex_part.chars().all(|c| c.is_ascii_hexdigit()),
-            "la partie hex ne doit contenir que des caractères hexadécimaux"
+            "the hex part must contain only hexadecimal characters"
         );
     }
 
@@ -1005,7 +1005,7 @@ mod tests {
         // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         let (tx, rx) = tokio::sync::oneshot::channel::<String>();
@@ -1029,13 +1029,13 @@ mod tests {
 
         // WHEN
         let _ = channel.send(&notif).await;
-        let request = rx.await.expect("requête non capturée");
+        let request = rx.await.expect("request not captured");
 
         // THEN X-Apollia-Signature present with the correct format
         let request_lower = request.to_lowercase();
         assert!(
             request_lower.contains("x-apollia-signature: sha256="),
-            "header X-Apollia-Signature absent ou malformé\n---\n{request}"
+            "X-Apollia-Signature header missing or malformed\n---\n{request}"
         );
     }
 
@@ -1044,7 +1044,7 @@ mod tests {
         // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         let (tx, rx) = tokio::sync::oneshot::channel::<String>();
@@ -1066,12 +1066,12 @@ mod tests {
 
         // WHEN
         let _ = channel.send(&notif).await;
-        let request = rx.await.expect("requête non capturée");
+        let request = rx.await.expect("request not captured");
 
         // THEN X-Apollia-Signature absent
         assert!(
             !request.to_lowercase().contains("x-apollia-signature"),
-            "X-Apollia-Signature ne doit pas être présent sans secret\n---\n{request}"
+            "X-Apollia-Signature must not be present without a secret\n---\n{request}"
         );
     }
 
@@ -1098,7 +1098,7 @@ mod tests {
         // THEN NotifError::Ssrf, never an HTTP attempt
         assert!(
             matches!(result, Err(NotifError::Ssrf(_))),
-            "attendu Err(Ssrf), obtenu {:?}",
+            "expected Err(Ssrf), got {:?}",
             result
         );
     }
@@ -1122,7 +1122,7 @@ mod tests {
         // THEN
         assert!(
             matches!(result, Err(NotifError::Ssrf(_))),
-            "attendu Err(Ssrf), obtenu {:?}",
+            "expected Err(Ssrf), got {:?}",
             result
         );
     }
@@ -1133,7 +1133,7 @@ mod tests {
         // link-local address
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("bind échoue");
+            .expect("bind must succeed");
         let addr = listener.local_addr().expect("local_addr");
 
         tokio::spawn(async move {
@@ -1164,7 +1164,7 @@ mod tests {
         // THEN the send fails at the redirect instead of reaching the metadata IP
         assert!(
             matches!(result, Err(NotifError::WebhookFailed(_))),
-            "attendu Err(WebhookFailed), obtenu {:?}",
+            "expected Err(WebhookFailed), got {:?}",
             result
         );
     }

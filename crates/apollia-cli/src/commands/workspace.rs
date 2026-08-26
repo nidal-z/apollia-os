@@ -272,7 +272,7 @@ mod tests {
         // THEN the git branch is detected
         assert!(
             status.git_branch.is_some(),
-            "doit détecter la branche dans un dépôt git"
+            "must detect the branch inside a git repository"
         );
     }
 
@@ -286,11 +286,11 @@ mod tests {
         // THEN the file is created successfully
         assert!(
             result.is_ok(),
-            "init doit réussir si le fichier n'existe pas"
+            "init must succeed when the file does not exist"
         );
         assert!(
             dir.path().join("APOLLIA.md").exists(),
-            "APOLLIA.md doit être créé"
+            "APOLLIA.md must be created"
         );
     }
 
@@ -306,7 +306,7 @@ mod tests {
         // THEN Err(FileExists)
         assert!(
             matches!(result, Err(WorkspaceCliError::FileExists)),
-            "doit retourner FileExists sans --force"
+            "must return FileExists without --force"
         );
     }
 
@@ -320,17 +320,17 @@ mod tests {
         // WHEN init --force
         let result = init_apollia_md(dir.path(), true).await;
         // THEN success, with the standard template content
-        assert!(result.is_ok(), "init --force doit réussir");
+        assert!(result.is_ok(), "init --force must succeed");
         let content = tokio::fs::read_to_string(dir.path().join("APOLLIA.md"))
             .await
             .expect("read");
         assert!(
             content.contains("APOLLIA.md"),
-            "le template doit être présent après --force : {content}"
+            "the template must be present after --force: {content}"
         );
         assert!(
             !content.contains("ancien contenu"),
-            "l'ancien contenu doit avoir été effacé"
+            "the former content must have been erased"
         );
     }
 
@@ -349,19 +349,19 @@ mod tests {
         );
         assert!(
             parsed["git_branch"].is_string() || parsed["git_branch"].is_null(),
-            "git_branch doit être string ou null"
+            "git_branch must be a string or null"
         );
         assert!(
             parsed["modified_files"].is_array(),
-            "modified_files doit être un tableau"
+            "modified_files must be an array"
         );
         assert!(
             parsed["apollia_md_found"].is_boolean(),
-            "apollia_md_found doit être boolean"
+            "apollia_md_found must be a boolean"
         );
         assert!(
             parsed["file_count"].is_number(),
-            "file_count doit être un nombre"
+            "file_count must be a number"
         );
     }
 
@@ -372,7 +372,7 @@ mod tests {
         // WHEN
         let files = parse_modified_files(Some(status));
         // THEN three paths are extracted
-        assert_eq!(files.len(), 3, "doit extraire 3 fichiers");
+        assert_eq!(files.len(), 3, "must extract 3 files");
         assert!(files.contains(&"src/main.rs".to_owned()));
         assert!(files.contains(&"Cargo.toml".to_owned()));
         assert!(files.contains(&"crates/foo/bar.rs".to_owned()));
@@ -384,7 +384,7 @@ mod tests {
         // WHEN / THEN
         assert!(
             parse_modified_files(None).is_empty(),
-            "None doit retourner une liste vide"
+            "None must return an empty list"
         );
     }
 
@@ -413,9 +413,6 @@ mod tests {
         // WHEN
         let count = count_files(dir.path()).await;
         // THEN only src/main.rs is counted
-        assert_eq!(
-            count, 1,
-            ".git et target doivent être ignorés : got {count}"
-        );
+        assert_eq!(count, 1, ".git and target must be ignored: got {count}");
     }
 }

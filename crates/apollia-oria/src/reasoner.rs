@@ -274,10 +274,10 @@ impl Reasoner {
     ) -> Result<ExecutionPlan, ReasonerError> {
         let note = match feedback {
             Some(fb) => format!(
-                "Le plan précédent (identifiant {previous_plan_id}) a été rejeté par l'opérateur.\nRetour : {fb}\nGénère un nouveau plan qui corrige ce point et renvoie uniquement du JSON valide."
+                "The previous plan (identifier {previous_plan_id}) was rejected by the operator.\nFeedback: {fb}\nProduce a new plan that fixes that point, and return valid JSON only."
             ),
             None => format!(
-                "Le plan précédent (identifiant {previous_plan_id}) a été rejeté par l'opérateur sans précision.\nGénère un nouveau plan sensiblement différent et renvoie uniquement du JSON valide."
+                "The previous plan (identifier {previous_plan_id}) was rejected by the operator, with no detail.\nProduce a noticeably different plan, and return valid JSON only."
             ),
         };
         self.plan_internal(ctx, None, Some(&note)).await
@@ -711,7 +711,7 @@ mod tests {
         {"step_id":"s2","description":"Step 2","depends_on":["s1"]}
     ]}"#;
 
-    // ─── Plan valide depuis mock LLM ───
+    // ─── Valid plan from a mock LLM ───
 
     /// GIVEN a Reasoner with a mock CompletionModel returning valid JSON
     /// WHEN reasoner.plan(&ctx).await is called

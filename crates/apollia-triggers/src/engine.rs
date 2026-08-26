@@ -647,7 +647,7 @@ mod tests {
         .await;
         // THEN list() returns an empty vec
         let list = handle.list().await;
-        assert!(list.is_empty(), "liste attendue vide, got {:?}", list);
+        assert!(list.is_empty(), "expected an empty list, got {:?}", list);
     }
 
     #[tokio::test]
@@ -690,11 +690,7 @@ mod tests {
         // WHEN
         let result = handle.fire_now("busy-trigger").await;
         // THEN submit was NOT called
-        assert_eq!(
-            calls.load(Ordering::SeqCst),
-            0,
-            "submit ne doit pas être appelé"
-        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "submit must not be called");
         // AND fire_now returns an error (SubmitFailed)
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
@@ -762,13 +758,13 @@ mod tests {
         handle.disable("factures").await.expect("disable failed");
         let list = handle.list().await;
         // THEN enabled = false
-        assert!(!list[0].enabled, "trigger doit être désactivé");
+        assert!(!list[0].enabled, "the trigger must be disabled");
 
         // WHEN re-enable
         handle.enable("factures").await.expect("enable failed");
         let list = handle.list().await;
         // THEN enabled = true
-        assert!(list[0].enabled, "trigger doit être réactivé");
+        assert!(list[0].enabled, "the trigger must be enabled again");
     }
 
     #[tokio::test]
@@ -790,7 +786,7 @@ mod tests {
 
         // THEN the actor is still alive
         let list = handle.list().await;
-        assert_eq!(list.len(), 1, "l'acteur doit encore répondre");
+        assert_eq!(list.len(), 1, "the actor must still answer");
         // fire_now returns Err(SubmitFailed) because submission failed
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
@@ -827,7 +823,7 @@ mod tests {
 
         // THEN the counter carries both fires, not just the last one
         let list = handle.list().await;
-        assert_eq!(list[0].fire_count, 2, "fire_count doit être 2");
+        assert_eq!(list[0].fire_count, 2, "fire_count must be 2");
     }
 
     #[tokio::test]
@@ -864,10 +860,10 @@ mod tests {
 
         // THEN 2 triggers actifs, trigger-1 absent
         let list = handle.list().await;
-        assert_eq!(list.len(), 2, "list() doit retourner 2 triggers");
+        assert_eq!(list.len(), 2, "list() must return 2 triggers");
         assert!(
             !list.iter().any(|t| t.id == "trigger-1"),
-            "trigger-1 ne doit plus être présent"
+            "trigger-1 must no longer be present"
         );
         assert!(list.iter().any(|t| t.id == "trigger-2"));
         assert!(list.iter().any(|t| t.id == "trigger-3"));
@@ -903,7 +899,7 @@ mod tests {
         assert_eq!(
             received,
             Ok(true),
-            "TriggersReloaded {{ count: 1 }} doit être émis"
+            "TriggersReloaded {{ count: 1 }} must be emitted"
         );
     }
 
@@ -926,11 +922,11 @@ mod tests {
         let result = handle.fire_now("rapport-hebdo").await;
 
         // THEN TaskRouter.submit() called exactly once; behavior unchanged
-        assert!(result.is_ok(), "fire_now doit réussir, got {result:?}");
+        assert!(result.is_ok(), "fire_now must succeed, got {result:?}");
         assert_eq!(
             calls.load(Ordering::SeqCst),
             1,
-            "TaskRouter doit être appelé exactement une fois"
+            "TaskRouter must be called exactly once"
         );
     }
 
@@ -989,13 +985,13 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(
             list[0].fire_count, 3,
-            "fire_count doit être 3 après restart"
+            "fire_count must be 3 after the restart"
         );
         assert_eq!(
             list[0].skip_count, 2,
-            "skip_count doit être 2 après restart"
+            "skip_count must be 2 after the restart"
         );
-        assert!(list[0].last_fired.is_some(), "last_fired doit être Some");
+        assert!(list[0].last_fired.is_some(), "last_fired must be Some");
     }
 
     // --- OnBusyPolicy::Queue ---------------------------------------------
@@ -1023,7 +1019,7 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
-            "aucune soumission tant que l'agent est occupé"
+            "no submission while the agent is busy"
         );
     }
 
@@ -1054,7 +1050,7 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
-            "le 4ème trigger doit être droppé, pas soumis"
+            "the 4th trigger must be dropped, not submitted"
         );
         // AND TriggerQueueFull emitted on the bus
         let queue_full = tokio::time::timeout(std::time::Duration::from_millis(200), async {
@@ -1072,12 +1068,12 @@ mod tests {
         .unwrap_or_default();
         assert_eq!(
             queue_full, "full-trigger",
-            "TriggerQueueFull doit indiquer le bon trigger"
+            "TriggerQueueFull must name the right trigger"
         );
         // AND fire_now returns SubmitFailed
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
-            "expected SubmitFailed pour queue pleine, got {:?}",
+            "expected SubmitFailed for a full queue, got {:?}",
             result
         );
     }
@@ -1103,7 +1099,7 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
-            "Skip ne doit pas soumettre ni mettre en queue"
+            "Skip must neither submit nor queue"
         );
     }
 
@@ -1127,7 +1123,7 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
-            "aucune soumission tant que l'agent est occupé"
+            "no submission while the agent is busy"
         );
 
         // WHEN the agent becomes free. `notify_agent_free` expects no reply,
@@ -1140,7 +1136,7 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::SeqCst),
             2,
-            "les 2 triggers en queue doivent être dispatachés"
+            "the 2 queued triggers must be dispatched"
         );
     }
 }

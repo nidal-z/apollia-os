@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_detects_network_egress() {
-        // GIVEN config avec block_network_egress=true et network_egress_patterns=["curl"]
+        // GIVEN a config with block_network_egress=true and network_egress_patterns=["curl"]
         let config = config_with_network(vec!["curl"]);
         // WHEN
         let risks = RiskClassifier::classify("curl https://example.com", &config);
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_detects_destructive_op() {
-        // GIVEN config avec block_destructive=true et destructive_patterns=["rm -rf /"]
+        // GIVEN a config with block_destructive=true and destructive_patterns=["rm -rf /"]
         let config = config_with_destructive(vec!["rm -rf /"]);
         // WHEN
         let risks = RiskClassifier::classify("rm -rf /home", &config);
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_safe_command_no_risks() {
-        // GIVEN config standard avec patterns non-vides mais commande safe
+        // GIVEN a standard config with non-empty patterns but a safe command
         let config = config_with_network(vec!["curl", "wget"]);
         // WHEN
         let risks = RiskClassifier::classify("git status", &config);
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_detects_privilege_escalation() {
-        // GIVEN config avec block_privilege_escalation=true et patterns=["sudo"]
+        // GIVEN a config with block_privilege_escalation=true and patterns=["sudo"]
         let config = BashValidatorConfig {
             block_privilege_escalation: true,
             privilege_patterns: vec!["sudo".to_owned()],
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_detects_resource_exhaustion() {
-        // GIVEN config avec block_resource_exhaustion=true et fork bomb pattern
+        // GIVEN a config with block_resource_exhaustion=true and a fork bomb pattern
         let config = BashValidatorConfig {
             block_resource_exhaustion: true,
             exhaustion_patterns: vec![":(){ :|:& };:".to_owned()],

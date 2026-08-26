@@ -217,7 +217,7 @@ fn build_recap_notification(
 ) -> Notification {
     let total = dropped_count.saturating_add(1); // initial drop plus those during the window
     let message = format!(
-        "{} événements « {} » au cours des {} dernières secondes",
+        "{} '{}' events over the last {} seconds",
         total, sample.event, window_seconds,
     );
     Notification {

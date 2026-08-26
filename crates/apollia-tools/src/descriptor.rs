@@ -311,7 +311,7 @@ mod tests {
             "tags": [], "dangerous": false
         }"#;
         // WHEN
-        let d: ToolDescriptor = serde_json::from_str(json).expect("deserialisation échouée");
+        let d: ToolDescriptor = serde_json::from_str(json).expect("deserialisation failed");
         // THEN: fields absent in JSON fall back to default values
         assert!(!d.is_read_only);
         assert_eq!(d.risk_score, 0);
@@ -361,7 +361,7 @@ mod tests {
         d.impact_description = Some("Deletes the file permanently".to_string());
         d.reject_reason_required = true;
         // WHEN
-        let json = serde_json::to_value(&d).expect("serialisation échouée");
+        let json = serde_json::to_value(&d).expect("serialisation failed");
         // THEN
         assert_eq!(json["approval_risk_level"], "high");
         assert_eq!(json["impact_description"], "Deletes the file permanently");
@@ -375,8 +375,8 @@ mod tests {
         d.is_read_only = true;
         d.risk_score = 2;
         // WHEN
-        let json = serde_json::to_string(&d).expect("serialisation échouée");
-        let d2: ToolDescriptor = serde_json::from_str(&json).expect("déserialisation échouée");
+        let json = serde_json::to_string(&d).expect("serialisation failed");
+        let d2: ToolDescriptor = serde_json::from_str(&json).expect("deserialisation failed");
         // THEN
         assert!(d2.is_read_only);
         assert_eq!(d2.risk_score, 2);

@@ -249,7 +249,7 @@ pub(super) async fn repl_loop(
                 ResolvedMessage::Exit(code) => return code,
             };
 
-        // Envoyer le message et rendre la reponse en streaming token par token.
+        // Send the message and render the reply as it streams, token by token.
         if let Err(code) = crate::commands::chat_stream::stream_send(
             client,
             &current_session_id,

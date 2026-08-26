@@ -13,7 +13,7 @@ pub enum AuthError {
     StateMismatch,
 
     /// The callback URL did not contain an authorization code.
-    #[error("code manquant dans le callback")]
+    #[error("missing code in the callback")]
     MissingCode,
 
     /// The authorization server returned an error in the callback or token response.
@@ -25,7 +25,7 @@ pub enum AuthError {
     TokenExchangeFailed(String),
 
     /// An HTTP transport error occurred.
-    #[error("erreur HTTP: {0}")]
+    #[error("HTTP error: {0}")]
     HttpError(String),
 
     /// The local callback HTTP server encountered an error.
@@ -37,7 +37,7 @@ pub enum AuthError {
     Keyring(String),
 
     /// JSON serialization or deserialization failed.
-    #[error("sérialisation: {0}")]
+    #[error("serialisation: {0}")]
     Serialization(String),
 
     /// A remote response exceeded the byte cap before it could be read.
@@ -45,11 +45,11 @@ pub enum AuthError {
     /// OAuth authorization servers and MCP protected-resource metadata are
     /// untrusted; this bounds memory when a peer returns an oversized body.
     /// The value is the byte ceiling that was exceeded.
-    #[error("réponse dépasse le plafond de {0} octets")]
+    #[error("response exceeds the {0}-byte ceiling")]
     ResponseTooLarge(u64),
 
     /// A refresh was requested but no refresh token is stored.
-    #[error("pas de refresh token disponible")]
+    #[error("no refresh token available")]
     NoRefreshToken,
 
     /// The requested provider name is not supported.

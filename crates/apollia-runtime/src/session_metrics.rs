@@ -217,7 +217,7 @@ fn process_event(
                 m.push_summarization(SummarizationEvent {
                     messages_summarized_count: *original_messages,
                     tokens_saved,
-                    summary_excerpt: format!("[{summary_chars} chars résumés]"),
+                    summary_excerpt: format!("[{summary_chars} chars summarised]"),
                 });
                 m.set_context_window_used(summary_tokens);
                 let alert = thresholds.evaluate(m.tokens_used_for_budget(), m.token_budget);
@@ -334,7 +334,7 @@ mod tests {
                 token_budget: 0,
             },
         );
-        assert!(u1.is_empty(), "started ne doit pas émettre de snapshot");
+        assert!(u1.is_empty(), "started must not emit a snapshot");
         assert!(in_flight.contains_key("msg-1"));
 
         let u2 = process_event(

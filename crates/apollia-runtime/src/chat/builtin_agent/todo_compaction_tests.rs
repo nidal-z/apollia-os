@@ -30,7 +30,7 @@ async fn test_todo_injected_after_compaction() {
     let h = todo_handle();
     h.set_items(
         "s1",
-        vec![item("t1", "Analyser les logs", TodoStatus::InProgress)],
+        vec![item("t1", "Analyse the logs", TodoStatus::InProgress)],
     )
     .await
     .expect("seed");
@@ -44,7 +44,7 @@ async fn test_todo_injected_after_compaction() {
     let last = messages.last().expect("message present");
     assert!(matches!(last.role, Role::User));
     let body = text_of(last);
-    assert!(body.contains("Analyser les logs"));
+    assert!(body.contains("Analyse the logs"));
     assert!(body.contains("in_progress"));
 }
 

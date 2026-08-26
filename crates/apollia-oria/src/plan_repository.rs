@@ -802,14 +802,14 @@ mod tests {
         repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
 
         let config = ObservabilityConfig::default();
-        repo.save_step_output("s1", &plan.plan_id, "contenu du fichier", &config)
+        repo.save_step_output("s1", &plan.plan_id, "file content", &config)
             .unwrap();
         repo.save_step_tool("s1", &plan.plan_id, "file_io").unwrap();
         repo.save_step_duration("s1", &plan.plan_id, 42).unwrap();
 
         let result = repo.get_plan_with_steps("task-obs-2").unwrap();
         let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
-        assert_eq!(s1.output_text.as_deref(), Some("contenu du fichier"));
+        assert_eq!(s1.output_text.as_deref(), Some("file content"));
         assert!(!s1.output_truncated);
         assert_eq!(s1.tool_used.as_deref(), Some("file_io"));
         assert_eq!(s1.duration_ms, Some(42));
@@ -881,7 +881,7 @@ mod tests {
         assert!(s1
             .input_rendered
             .as_ref()
-            .is_some_and(|t| t.contains("200 octets total")));
+            .is_some_and(|t| t.contains("200 bytes total")));
     }
 
     // provenance and rationale

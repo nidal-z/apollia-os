@@ -1,4 +1,4 @@
-//! `GET /health` : health-check polled par le daemon toutes les 30s.
+//! `GET /health`: health check polled by the daemon every 30s.
 
 use axum::extract::State;
 use axum::Json;

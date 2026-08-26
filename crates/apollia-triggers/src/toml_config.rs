@@ -320,7 +320,7 @@ id             = "rapport-hebdo"
 agent          = "rapport-agent"
 enabled        = true
 on_busy        = "queue"
-input_template = "Rapport du {{scheduled_at}}"
+input_template = "Report of {{scheduled_at}}"
 
 [triggers.source]
 type     = "cron"
@@ -329,7 +329,7 @@ schedule = "0 8 * * MON"
         // WHEN
         let result = parse_triggers_from_toml_str(toml);
         // THEN
-        let defs = result.expect("doit parser sans erreur");
+        let defs = result.expect("must parse without an error");
         assert_eq!(defs.len(), 1);
         assert_eq!(defs[0].id, "rapport-hebdo");
         assert!(defs[0].enabled);
@@ -356,7 +356,7 @@ schedule = "not-valid"
         let msg = result.unwrap_err().to_string();
         assert!(
             msg.contains("bad-cron"),
-            "message doit contenir 'bad-cron': {msg}"
+            "the message must contain 'bad-cron': {msg}"
         );
     }
 
@@ -366,7 +366,7 @@ schedule = "not-valid"
         let result = parse_triggers_from_toml_str("[agents]\ndirectory = \"agents/\"");
         // WHEN it is parsed
         // THEN empty vec, no error
-        let defs = result.expect("doit parser sans erreur");
+        let defs = result.expect("must parse without an error");
         assert!(defs.is_empty());
     }
 
@@ -391,7 +391,7 @@ secret = ""
         let msg = result.unwrap_err().to_string();
         assert!(
             msg.contains("crm-sync"),
-            "message doit contenir 'crm-sync': {msg}"
+            "the message must contain 'crm-sync': {msg}"
         );
     }
 

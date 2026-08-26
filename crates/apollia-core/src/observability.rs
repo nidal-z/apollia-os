@@ -106,7 +106,7 @@ pub fn truncate_with_marker(text: &str, max_bytes: usize) -> (String, bool) {
         return (text.to_string(), false);
     }
     let total = text.len();
-    let marker = format!("\n[TRONQUÉ - {} octets total]", total);
+    let marker = format!("\n[TRUNCATED - {} bytes total]", total);
     let keep = max_bytes.saturating_sub(marker.len());
     let safe_end = floor_char_boundary(text, keep);
     let mut result = text[..safe_end].to_string();
@@ -149,7 +149,7 @@ mod tests {
         // THEN result is truncated with a marker
         assert!(truncated);
         assert!(result.len() <= 100 + 50, "result should be near max_bytes");
-        assert!(result.ends_with("octets total]"));
+        assert!(result.ends_with("bytes total]"));
         assert!(result.contains("500"));
     }
 
@@ -172,7 +172,7 @@ mod tests {
         let (result, truncated) = truncate_with_marker(text, 0);
         // THEN truncated, contains the marker
         assert!(truncated);
-        assert!(result.contains("5 octets total"));
+        assert!(result.contains("5 bytes total"));
     }
 
     #[test]

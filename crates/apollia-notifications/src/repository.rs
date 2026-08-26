@@ -691,7 +691,7 @@ mod tests {
         // GIVEN a channel with a free-form label (spaces, accents)
         let (_path, repo) = temp_db();
         let mut ch = make_channel("alertes-slack-equipe", "webhook");
-        ch.label = Some("Alertes Slack équipe".into());
+        ch.label = Some("Team Slack alerts".into());
 
         // WHEN insert then read
         repo.insert_channel(&ch).expect("insert");
@@ -701,7 +701,7 @@ mod tests {
             .expect("Some");
 
         // THEN the label is preserved as-is
-        assert_eq!(found.label.as_deref(), Some("Alertes Slack équipe"));
+        assert_eq!(found.label.as_deref(), Some("Team Slack alerts"));
         assert_eq!(found.id, "alertes-slack-equipe");
     }
 
@@ -715,12 +715,12 @@ mod tests {
 
         // WHEN a label is added
         let mut updated = ch.clone();
-        updated.label = Some("Bureau de Nidal".into());
+        updated.label = Some("Operator desk".into());
         repo.update_channel("desktop", &updated).expect("update");
 
         // THEN the label is persisted
         let result = repo.get_channel("desktop").expect("get").expect("Some");
-        assert_eq!(result.label.as_deref(), Some("Bureau de Nidal"));
+        assert_eq!(result.label.as_deref(), Some("Operator desk"));
     }
 
     // Idempotent migration: open() on a v1 database adds the label column

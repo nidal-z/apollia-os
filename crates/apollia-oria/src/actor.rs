@@ -108,7 +108,7 @@ pub enum StepError {
     /// Returned by [`ActorLoop::suspend_for_approval`] when the `ResumeHandler`
     /// sends `approved=false`. Plan execution stops immediately, the following
     /// steps are not attempted.
-    #[error("step rejeté par l'utilisateur : {reason}")]
+    #[error("step rejected by the user: {reason}")]
     RejectedByUser {
         /// Reason provided by the operator on rejection.
         reason: String,
@@ -117,7 +117,7 @@ pub enum StepError {
     ///
     /// Indicates the runtime is shutting down. Plan execution is stopped cleanly
     /// without panicking.
-    #[error("channel d'approbation fermé - runtime en cours d'arrêt")]
+    #[error("approval channel closed - runtime shutting down")]
     ApprovalChannelClosed,
 }
 
@@ -457,8 +457,8 @@ pub(crate) fn budget_exhaustion_detail(budget: &StepBudget) -> String {
 /// # Example
 ///
 /// ```text
-/// "Analyser {{s1}} et {{s2}}" + {s1: "42 pages", s2: "3 images"}
-/// -> "Analyser 42 pages et 3 images"
+/// "Analyse {{s1}} and {{s2}}" + {s1: "42 pages", s2: "3 images"}
+/// -> "Analyse 42 pages and 3 images"
 /// ```
 pub fn interpolate_outputs(description: &str, outputs: &HashMap<String, String>) -> String {
     let mut result = description.to_string();
@@ -1550,16 +1550,16 @@ mod tests {
     #[test]
     fn test_interpolate_outputs() {
         // GIVEN
-        let desc = "Analyser {{s1}} et {{s2}}";
+        let desc = "Analyse {{s1}} and {{s2}}";
         let mut outputs = HashMap::new();
-        outputs.insert("s1".into(), "résultat 1".into());
-        outputs.insert("s2".into(), "résultat 2".into());
+        outputs.insert("s1".into(), "result 1".into());
+        outputs.insert("s2".into(), "result 2".into());
 
         // WHEN
         let result = interpolate_outputs(desc, &outputs);
 
         // THEN
-        assert_eq!(result, "Analyser résultat 1 et résultat 2");
+        assert_eq!(result, "Analyse result 1 and result 2");
     }
 
     // StepError::is_retryable
@@ -1844,7 +1844,7 @@ mod tests {
             task_id: "task-ac3".into(),
             steps: vec![
                 {
-                    let mut s = PlanStep::new("s1", "Lire fichier");
+                    let mut s = PlanStep::new("s1", "Read a file");
                     s.tool_hint = Some("file_io".into());
                     s
                 },
@@ -1898,7 +1898,7 @@ mod tests {
                     "task-ac3::s2",
                     apollia_core::result::InputResponseData {
                         approved: false,
-                        reason: Some("Email non approuvé".into()),
+                        reason: Some("Email not approved".into()),
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
                     },
@@ -1925,7 +1925,7 @@ mod tests {
         let err = result.error.expect("error must be set");
         assert_eq!(err.code, "REJECTED");
         assert!(
-            err.message.contains("Email non approuvé"),
+            err.message.contains("Email not approved"),
             "reason must be propagated: {}",
             err.message
         );

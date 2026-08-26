@@ -221,8 +221,8 @@ impl ToolInvoker for CompositeToolInvoker {
                 let count = failures.get(skill_id).copied().unwrap_or(0);
                 if count >= A2A_CIRCUIT_BREAKER_THRESHOLD {
                     return Err(format!(
-                        "[A2A CIRCUIT_OPEN] Le skill '{skill_id}' a échoué {count} fois consécutives. \
-                         Ne retente PAS cet appel. Informe l'utilisateur que l'agent worker n'est pas disponible."
+                        "[A2A CIRCUIT_OPEN] Skill '{skill_id}' failed {count} times in a row. \
+                         Do NOT retry this call. Tell the user the worker agent is unavailable."
                     ));
                 }
             }
@@ -325,17 +325,17 @@ impl ToolInvoker for CompositeToolInvoker {
                         if count >= A2A_PAYLOAD_RETRY_LIMIT {
                             return Err(format!(
                                 "[A2A PAYLOAD_ERROR] {e}\n\
-                                 Tu as échoué {count} fois à former une charge valide pour ce \
-                                 skill. Ne le retente plus avec la même approche : adopte une \
-                                 autre méthode ou informe l'utilisateur que ce skill n'a pas pu \
-                                 être appelé correctement."
+                                 You failed {count} times to build a valid payload for this \
+                                 skill. Do not retry it the same way: take another approach, \
+                                 or tell the user this skill could not be called \
+                                 correctly."
                             ));
                         }
                         return Err(format!(
                             "[A2A PAYLOAD_ERROR] {e}\n\
-                             Corrige les noms et valeurs des arguments pour respecter le schéma \
-                             attendu du skill (utilise EXACTEMENT les noms de champs attendus), \
-                             puis retente l'appel avec la charge corrigée."
+                             Fix the argument names and values to match the schema the skill \
+                             expects (use EXACTLY the expected field names), then retry the \
+                             call with the corrected payload."
                         ));
                     }
 
@@ -355,7 +355,7 @@ impl ToolInvoker for CompositeToolInvoker {
                     };
                     Err(format!(
                         "[A2A {classification}_ERROR] {e}\n\
-                         Ne retente PAS cet appel. Informe l'utilisateur de l'échec."
+                         Do NOT retry this call. Tell the user about the failure."
                     ))
                 }
             }
@@ -571,7 +571,7 @@ mod tests {
     fn test_apollia_input_schema_to_json_schema_conversion() {
         // GIVEN the custom Apollia format
         let schema = serde_json::json!({
-            "series": {"type": "array", "description": "Liste de series", "required": true},
+            "series": {"type": "array", "description": "List of series", "required": true},
             "orientation": {"type": "string", "description": "vertical|horizontal", "required": false},
         });
 
@@ -587,7 +587,7 @@ mod tests {
             "additionalProperties should not be emitted",
         );
         let props = &json_schema["properties"];
-        assert_eq!(props["series"]["description"], "Liste de series");
+        assert_eq!(props["series"]["description"], "List of series");
         assert!(
             props["series"].get("type").is_none(),
             "inner `type` should be stripped to avoid llama.cpp autoparser issues",

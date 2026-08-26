@@ -40,7 +40,7 @@ impl WorkspaceProvider for RulesProvider {
     }
 
     fn description(&self) -> &str {
-        "Fichier de règles projet (APOLLIA.md ou personnalisé)"
+        "Project rules file (APOLLIA.md or a custom one)"
     }
 
     fn priority(&self) -> u8 {
@@ -67,7 +67,7 @@ impl WorkspaceProvider for RulesProvider {
             Some((_, content)) => WorkspaceSlice {
                 source: "rules".to_owned(),
                 sections: vec![WorkspaceSection {
-                    title: "Règles du projet".to_owned(),
+                    title: "Project rules".to_owned(),
                     content,
                     source: "rules".to_owned(),
                 }],
@@ -110,18 +110,15 @@ mod tests {
     async fn rules_provider_finds_default_file() {
         // GIVEN a directory containing APOLLIA.md
         let dir = tempfile::tempdir().expect("tempdir");
-        tokio::fs::write(
-            dir.path().join("APOLLIA.md"),
-            "# Règles\nFaire du bon code.",
-        )
-        .await
-        .expect("write");
+        tokio::fs::write(dir.path().join("APOLLIA.md"), "# Rules\nWrite good code.")
+            .await
+            .expect("write");
         let provider = RulesProvider::default();
         // WHEN
         let slice = provider.collect(dir.path()).await;
         // THEN
         assert!(!slice.is_empty(), "should find APOLLIA.md");
-        assert!(slice.sections[0].content.contains("Règles"));
+        assert!(slice.sections[0].content.contains("Rules"));
     }
 
     #[tokio::test]

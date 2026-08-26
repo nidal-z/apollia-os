@@ -189,7 +189,7 @@ mod tests {
         let err = parse_value_for("web_search", &["brave", "timeout_secs"], "999").unwrap_err();
         // WHEN it is parsed
         // THEN the bounds are reported.
-        assert!(err.contains("hors bornes"));
+        assert!(err.contains("out of range"));
     }
 
     #[test]

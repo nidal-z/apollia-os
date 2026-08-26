@@ -224,7 +224,7 @@ mod tests {
         let s4_pos = result.iter().position(|s| s == "s4").unwrap();
         for s in ["s1", "s2", "s3"] {
             let pos = result.iter().position(|x| x == s).unwrap();
-            assert!(pos < s4_pos, "{s} doit précéder s4");
+            assert!(pos < s4_pos, "{s} must come before s4");
         }
     }
 

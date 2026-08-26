@@ -215,8 +215,8 @@ mod tests {
         let truncated = truncate_output(&long_output);
 
         // THEN
-        assert_eq!(truncated.len(), 123, "longueur attendue : 120 + 3 = 123");
-        assert!(truncated.ends_with("..."), "doit se terminer par '...'");
+        assert_eq!(truncated.len(), 123, "expected length: 120 + 3 = 123");
+        assert!(truncated.ends_with("..."), "must end with '...'");
     }
 
     // GIVEN an output of exactly 120 characters
@@ -316,14 +316,14 @@ mod tests {
                 "task_id": "t-0042",
                 "agent_id": "devis-agent",
                 "input_required_at": "2020-01-01T00:00:00Z",
-                "input_required_prompt": "Devis 12 500€ TTC - Dupont SA - confirmer ?",
+                "input_required_prompt": "Quote 12,500 EUR incl. VAT - Dupont SA - confirm?",
                 "step_id": "s1"
             }),
             serde_json::json!({
                 "task_id": "t-0043",
                 "agent_id": "contrats",
                 "input_required_at": "2020-01-01T00:00:00Z",
-                "input_required_prompt": "Envoyer email à dupont@acme.fr - confirmer ?",
+                "input_required_prompt": "Send an email to dupont@acme.example - confirm?",
                 "step_id": null
             }),
         ];
@@ -341,7 +341,7 @@ mod tests {
         );
         assert_eq!(
             output[0]["prompt"],
-            "Devis 12 500€ TTC - Dupont SA - confirmer ?"
+            "Quote 12,500 EUR incl. VAT - Dupont SA - confirm?"
         );
         assert_eq!(output[0]["step_id"], "s1");
         assert_eq!(output[1]["task_id"], "t-0043");
@@ -472,6 +472,6 @@ mod tests {
         assert_eq!(approval_decision(&approved, false), "approved");
         assert_eq!(approval_decision(&rejected, false), "rejected");
         assert_eq!(approval_decision(&undecided, false), "?");
-        assert_eq!(approval_decision(&approved, true), "en attente");
+        assert_eq!(approval_decision(&approved, true), "pending");
     }
 }

@@ -1,4 +1,4 @@
-//! Etat de rendu, controle de boucle et boucle de rendu du stream.
+//! Render state, loop control, and the stream render loop.
 
 use std::io::{self, Write};
 use std::time::Duration;
@@ -13,19 +13,19 @@ use super::markdown::{
     render_block, render_tool_completed, render_tool_started, stream_markdown_token, ToolResultView,
 };
 
-// ─── Etat et controle de boucle ──────────────────────────────────────────────
+// ─── State and loop control ─────────────────────────────────────────────────
 
-/// Etat de rendu maintenu au fil des evenements d'un tour.
+/// Render state kept across the events of one turn.
 pub(super) struct RenderState {
-    /// Au moins un token a ete streame (evite de reimprimer le contenu final).
+    /// At least one token was streamed (avoids reprinting the final content).
     pub(super) any_token: bool,
-    /// Le curseur est en debut de ligne (pour couper proprement avant un bloc).
+    /// The cursor is at the start of a line (to cut cleanly before a block).
     pub(super) at_line_start: bool,
     /// Coloration ANSI active.
     pub(super) use_color: bool,
-    /// Ligne en cours de construction, pour le rendu markdown en mode couleur:
-    /// on repeint cette ligne a chaque token pour appliquer le style une fois
-    /// les delimiteurs fermes. Vide en mode brut (`--no-color`).
+    /// Line being built, for markdown rendering in colour mode: this line is
+    /// repainted at every token so the style is applied once the delimiters
+    /// are closed. Empty in plain mode (`--no-color`).
     pub(super) line_buf: String,
 }
 
@@ -40,16 +40,16 @@ impl RenderState {
     }
 }
 
-/// Suite a donner apres traitement d'un evenement.
+/// What to do after handling an event.
 #[derive(Debug, PartialEq)]
 pub(super) enum LoopControl {
-    /// Continuer a lire le stream.
+    /// Keep reading the stream.
     Continue,
-    /// Tour termine avec succes.
+    /// Turn finished successfully.
     Done,
-    /// Tour termine en erreur (texte a signaler sur stderr).
+    /// Turn finished on an error (text to report on stderr).
     Failed(String),
-    /// Une approbation d'outil est requise avant de poursuivre.
+    /// A tool approval is required before going further.
     Approval {
         message_id: String,
         tool_name: String,
@@ -57,8 +57,8 @@ pub(super) enum LoopControl {
     },
 }
 
-/// Traite un evenement classifie: ecrit le rendu humain dans `out` et renvoie
-/// la suite a donner. Coeur synchrone et testable, sans I/O reseau ni stdin.
+/// Handles one classified event: writes the human rendering into `out` and
+/// returns what to do next. Synchronous, testable core, no network I/O, no stdin.
 pub(super) fn handle_action(
     action: ChatStreamAction,
     st: &mut RenderState,
@@ -68,12 +68,12 @@ pub(super) fn handle_action(
         ChatStreamAction::Token(tok) => {
             st.any_token = true;
             if st.use_color {
-                // Mode couleur (TTY): on repeint la ligne en cours a chaque
-                // token pour appliquer le style markdown une fois les
-                // delimiteurs fermes.
+                // Colour mode (TTY): the current line is repainted at every
+                // token so the markdown style applies once the delimiters
+                // are closed.
                 stream_markdown_token(&tok, st, out)?;
             } else {
-                // Mode brut (--no-color / pipe): flux verbatim, prouve et sur.
+                // Plain mode (--no-color / pipe): verbatim stream, proven and safe.
                 write!(out, "{tok}")?;
                 out.flush()?;
                 st.at_line_start = tok.ends_with('\n');
@@ -124,8 +124,8 @@ pub(super) fn handle_action(
             })
         }
         ChatStreamAction::Completed { content } => {
-            // Les tokens ont deja ete streames en direct. On ne reimprime le
-            // contenu complet qu'en secours, si aucun token n'est arrive.
+            // The tokens were already streamed live. The full content is only
+            // reprinted as a fallback, when no token arrived.
             if !st.any_token && !content.is_empty() {
                 render_block(&content, st.use_color, out)?;
                 st.at_line_start = content.ends_with('\n');
@@ -155,8 +155,8 @@ pub(super) fn handle_action(
     }
 }
 
-/// Resout une approbation d'outil. Abstrait pour rendre la boucle testable sans
-/// stdin ni reseau (la version de production lit stdin et POST la decision).
+/// Resolves a tool approval. Abstracted to make the loop testable without
+/// stdin and without network (production reads stdin and POSTs the decision).
 pub(super) trait ApprovalResolver {
     fn resolve(
         &self,
@@ -166,21 +166,21 @@ pub(super) trait ApprovalResolver {
     ) -> impl std::future::Future<Output = ()>;
 }
 
-/// Options de rendu de [`run_render_loop`].
+/// Render options of [`run_render_loop`].
 #[derive(Clone, Copy)]
 pub(super) struct LoopOpts {
-    /// Garde d'inactivite armee a chaque `next`.
+    /// Inactivity guard armed at every `next`.
     pub(super) idle: Duration,
     /// Coloration ANSI active.
     pub(super) use_color: bool,
 }
 
-/// Boucle de rendu humain sur un flux de lignes SSE. Generique sur le flux, la
-/// sortie et le resolveur d'approbation: c'est le point d'injection des tests.
+/// Human render loop over a stream of SSE lines. Generic over the stream, the
+/// output and the approval resolver: that is the injection point for the tests.
 ///
-/// La garde d'inactivite est armee a chaque `next`. Les keep-alives SSE d'axum
-/// (~15s) arrivent comme des lignes et la resettent, donc un chargement de
-/// modele lent ne declenche pas de faux timeout: la garde ne vise qu'une
+/// The inactivity guard is armed at every `next`. The axum SSE keep-alives
+/// (~15s) arrive as lines and reset it, so a slow model load does not trigger
+/// a false timeout: the guard only aims at a connection that is really dead.
 /// connexion reellement morte.
 pub(super) async fn run_render_loop<S, W, R>(
     mut lines: S,
@@ -207,7 +207,7 @@ where
                 eprintln!("[stream error: {e}]");
                 break;
             }
-            // Stream ferme par le serveur.
+            // Stream closed by the server.
             Ok(None) => break,
             Err(_) => {
                 if !st.at_line_start {
@@ -231,7 +231,7 @@ where
                 prompt,
             } => {
                 resolver.resolve(&message_id, &tool_name, &prompt).await;
-                // Le prompt a imprime des sauts de ligne: on repart au propre.
+                // The prompt printed line breaks: start again from a clean line.
                 st.at_line_start = true;
             }
         }

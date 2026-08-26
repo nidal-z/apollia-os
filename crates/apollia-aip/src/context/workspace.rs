@@ -60,10 +60,10 @@ impl WorkspaceContextPy {
 }
 #[pymethods]
 impl WorkspaceContextPy {
-    /// Project rules content (section "Règles du projet"), or `None` if absent.
+    /// Project rules content (section "Project rules"), or `None` if absent.
     #[getter]
     pub(crate) fn rules(&self) -> Option<&str> {
-        self.get_section_content("Règles du projet")
+        self.get_section_content("Project rules")
     }
 
     /// Alias for `rules`, for compatibility with existing agents.

@@ -790,7 +790,7 @@ mod tests {
     fn test_chat_message_helpers() {
         let sys = ChatMessage::system("tu es utile");
         let usr = ChatMessage::user("bonjour");
-        let ast = ChatMessage::assistant("réponse");
+        let ast = ChatMessage::assistant("answer");
 
         assert_eq!(sys.role, Role::System);
         assert_eq!(usr.role, Role::User);
@@ -811,12 +811,12 @@ mod tests {
     // THEN role is Tool and content is ToolResult
     #[test]
     fn test_chat_message_tool_result() {
-        let msg = ChatMessage::tool_result("call_01", "fichier créé");
+        let msg = ChatMessage::tool_result("call_01", "file created");
         assert_eq!(msg.role, Role::Tool);
         assert!(matches!(
             msg.content,
             MessageContent::ToolResult { ref tool_call_id, ref content }
-            if tool_call_id == "call_01" && content == "fichier créé"
+            if tool_call_id == "call_01" && content == "file created"
         ));
     }
 
@@ -830,12 +830,12 @@ mod tests {
             name: "file_io".into(),
             arguments: serde_json::json!({}),
         }];
-        let msg = ChatMessage::assistant_with_calls("je lis le fichier", &calls);
+        let msg = ChatMessage::assistant_with_calls("I am reading the file", &calls);
         assert_eq!(msg.role, Role::Assistant);
         assert!(matches!(
             msg.content,
             MessageContent::WithToolCalls { ref text, ref tool_calls }
-            if text == "je lis le fichier" && tool_calls.len() == 1
+            if text == "I am reading the file" && tool_calls.len() == 1
         ));
     }
 

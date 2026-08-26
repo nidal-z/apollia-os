@@ -310,7 +310,7 @@ mod tests {
         let s2 = WorkspaceSlice {
             source: "rules".into(),
             sections: vec![WorkspaceSection {
-                title: "Règles".into(),
+                title: "Rules".into(),
                 content: "no magic".into(),
                 source: "rules".into(),
             }],
@@ -320,9 +320,9 @@ mod tests {
         let snapshot = WorkspaceSnapshot::new(vec![s1, s2]);
         // WHEN
         let prompt = snapshot.format_for_prompt();
-        // THEN - "Git" appears before "Règles"
+        // THEN - "Git" appears before "Rules"
         let pos_git = prompt.find("Git").expect("Git not found");
-        let pos_rules = prompt.find("Règles").expect("Règles not found");
-        assert!(pos_git < pos_rules, "Git must appear before Règles");
+        let pos_rules = prompt.find("Rules").expect("Rules not found");
+        assert!(pos_git < pos_rules, "Git must appear before Rules");
     }
 }

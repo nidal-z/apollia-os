@@ -1,4 +1,4 @@
--- Migration 004 - execution_plans et plan_steps
+-- Migration 004 - execution_plans and plan_steps
 -- Idempotente : utilise CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS execution_plans (
@@ -17,11 +17,11 @@ CREATE TABLE IF NOT EXISTS plan_steps (
     plan_id      TEXT NOT NULL REFERENCES execution_plans(plan_id),
     description  TEXT NOT NULL,
     tool_hint    TEXT,
-    depends_on   TEXT NOT NULL DEFAULT '[]',  -- JSON array de step_ids
+    depends_on   TEXT NOT NULL DEFAULT '[]',  -- JSON array of step_ids
     status       TEXT NOT NULL DEFAULT 'pending',
                  -- pending | running | completed | failed | skipped
-    output       TEXT,         -- NULL si pas encore complété
-    error        TEXT,         -- NULL si succès
+    output       TEXT,         -- NULL while not yet completed
+    error        TEXT,         -- NULL on success
     started_at   TIMESTAMP,
     completed_at TIMESTAMP,
     PRIMARY KEY (step_id, plan_id)

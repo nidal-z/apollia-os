@@ -1,5 +1,5 @@
 -- Chat tables
--- Persistance locale des sessions de chat et messages.
+-- Local persistence of the chat sessions and messages.
 
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id         TEXT PRIMARY KEY,

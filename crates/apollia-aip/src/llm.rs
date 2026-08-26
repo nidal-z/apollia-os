@@ -743,14 +743,14 @@ mod tests {
         Python::with_gil(|py| {
             let dict = pyo3::types::PyDict::new(py);
             dict.set_item("name", "file_io").unwrap();
-            dict.set_item("description", "lit un fichier").unwrap();
+            dict.set_item("description", "reads a file").unwrap();
             dict.set_item("parameters", pyo3::types::PyDict::new(py))
                 .unwrap();
             // WHEN
             let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
             // THEN
             assert_eq!(spec.name, "file_io");
-            assert_eq!(spec.description, "lit un fichier");
+            assert_eq!(spec.description, "reads a file");
         });
     }
 

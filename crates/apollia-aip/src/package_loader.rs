@@ -17,22 +17,22 @@ use crate::loader::{load_agent_module, AIPLoaderError};
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PackageLoaderError {
-    #[error("agent.toml introuvable dans '{0}'")]
+    #[error("agent.toml not found in '{0}'")]
     ManifestNotFound(String),
 
-    #[error("lecture agent.toml : {0}")]
+    #[error("reading agent.toml: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("parsing agent.toml : {0}")]
     TomlParse(#[from] toml::de::Error),
 
-    #[error("sérialisation JSON : {0}")]
+    #[error("JSON serialisation: {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("agent '{name}' : entrée introuvable : {path}")]
+    #[error("agent '{name}': entry point not found: {path}")]
     EntryNotFound { name: String, path: String },
 
-    #[error("agent '{name}' : échec duck-typing AIP : {reason}")]
+    #[error("agent '{name}': AIP duck-typing failed: {reason}")]
     DuckTypingFailed { name: String, reason: String },
 
     #[error("agent.toml invalide : {0}")]
@@ -134,7 +134,7 @@ impl AgentRole {
             "worker" => Ok(AgentRole::Worker),
             "assistant" => Ok(AgentRole::Assistant),
             other => Err(PackageLoaderError::InvalidManifest(format!(
-                "rôle inconnu '{other}' - attendu : director | worker | assistant. \
+                "unknown role '{other}' - expected: director | worker | assistant. \
                  (Agents @agent+@skill ⇒ worker ; @agent+@orchestrated ⇒ director ; \
                  @agent+@on_message ⇒ assistant.)"
             ))),
@@ -306,17 +306,17 @@ pub fn duck_type_agent(path: &Path, extra_sys_paths: &[PathBuf]) -> Result<(), P
 pub fn validate_manifest(manifest: &PackageManifest) -> Result<(), PackageLoaderError> {
     if manifest.package.name.is_empty() {
         return Err(PackageLoaderError::InvalidManifest(
-            "[package].name est vide".into(),
+            "[package].name is empty".into(),
         ));
     }
     if manifest.package.version.is_empty() {
         return Err(PackageLoaderError::InvalidManifest(
-            "[package].version est vide".into(),
+            "[package].version is empty".into(),
         ));
     }
     if manifest.agents.is_empty() {
         return Err(PackageLoaderError::InvalidManifest(
-            "aucun agent déclaré dans [[agents]]".into(),
+            "no agent declared in [[agents]]".into(),
         ));
     }
 
@@ -325,7 +325,7 @@ pub fn validate_manifest(manifest: &PackageManifest) -> Result<(), PackageLoader
     for a in &manifest.agents {
         if !seen.insert(&a.name) {
             return Err(PackageLoaderError::InvalidManifest(format!(
-                "nom d'agent dupliqué : '{}'",
+                "duplicate agent name: '{}'",
                 a.name
             )));
         }
@@ -423,7 +423,7 @@ id             = "daily-veille-ia"
 agent          = "veille-ia-agent"
 enabled        = true
 on_busy        = "skip"
-input_template = "Génère la veille IA/LLM du jour"
+input_template = "Generate today's AI/LLM watch"
 
 [triggers.source]
 type     = "cron"
@@ -479,7 +479,7 @@ version = "1.0.0"
         let result = validate_manifest(&manifest);
         // THEN error
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("aucun agent"));
+        assert!(result.unwrap_err().to_string().contains("no agent"));
     }
 
     #[test]
@@ -505,7 +505,7 @@ role  = "worker"
         let result = validate_manifest(&manifest);
         // THEN duplication error
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("dupliqué"));
+        assert!(result.unwrap_err().to_string().contains("duplicate"));
     }
 
     #[test]

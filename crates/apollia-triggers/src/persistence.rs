@@ -756,7 +756,9 @@ mod tests {
         // WHEN
         let counters = persistence.load_counters().unwrap();
         // THEN fire_count = 3
-        let stats = counters.get("t-fires").expect("trigger absent de la map");
+        let stats = counters
+            .get("t-fires")
+            .expect("trigger absent from the map");
         assert_eq!(stats.fire_count, 3);
         assert_eq!(stats.skip_count, 0);
     }
@@ -781,7 +783,9 @@ mod tests {
         // WHEN
         let counters = persistence.load_counters().unwrap();
         // THEN skip_count = 2
-        let stats = counters.get("t-skips").expect("trigger absent de la map");
+        let stats = counters
+            .get("t-skips")
+            .expect("trigger absent from the map");
         assert_eq!(stats.skip_count, 2);
         assert_eq!(stats.fire_count, 0);
     }
@@ -820,8 +824,8 @@ mod tests {
         // WHEN
         let counters = persistence.load_counters().unwrap();
         // THEN last_fired = t1 (the most recent)
-        let stats = counters.get("t-last").expect("trigger absent de la map");
-        let last = stats.last_fired.expect("last_fired doit être Some");
+        let stats = counters.get("t-last").expect("trigger absent from the map");
+        let last = stats.last_fired.expect("last_fired must be Some");
         // Compare to the nearest second (RFC3339 does not preserve Utc::now sub-seconds)
         assert_eq!(last.timestamp(), t1.timestamp());
     }

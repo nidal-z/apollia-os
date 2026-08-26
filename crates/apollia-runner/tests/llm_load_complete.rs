@@ -1,14 +1,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Test d'intégration : spawn le runner, charge un modèle GGUF si disponible
-//! (`APOLLIA_TEST_GGUF`), envoie /llm/complete et vérifie la forme de la
-//! réponse. Vérifie aussi la validation BAD_REQUEST sur paramètre invalide.
+//! Integration test: spawn the runner, load a GGUF model when one is available
+//! (`APOLLIA_TEST_GGUF`), send /llm/complete and check the shape of the
+//! response. Also checks the BAD_REQUEST validation on an invalid parameter.
 //!
-//! Le test "réel" est skippé si la variable d'environnement n'est pas définie,
-//! conformément aux conventions des tests Apollia OS (zéro dépendance externe
-//! pour le pipeline CI par défaut).
+//! The "real" test is skipped when the environment variable is unset, as the
+//! Apollia OS test conventions require (zero external dependency for the
+//! default CI pipeline).
 //!
-//! Gate : la feature `local-cpu` est requise (sinon les endpoints `/llm/*`
-//! retournent 501 UnsupportedOperation et les assertions échouent).
+//! Gate: the `local-cpu` feature is required (otherwise the `/llm/*` endpoints
+//! return 501 UnsupportedOperation and the assertions fail).
 
 #![cfg(feature = "local-cpu")]
 
@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-/// Spawn le binaire compilé, parse `READY <port>\n`, retourne (child, port).
+/// Spawn the compiled binary, parse `READY <port>\n`, return (child, port).
 fn spawn_runner() -> (Child, u16) {
     let bin = env!("CARGO_BIN_EXE_apollia-runner");
     let mut child = Command::new(bin)
@@ -215,8 +215,8 @@ fn load_and_complete_real_model() {
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
-        // Le chargement d'un GGUF de plusieurs GiB + l'inférence peuvent prendre
-        // 30s+ sur CPU ; 120s reste large pour les modèles 7B-Q4.
+        // Loading a multi-GiB GGUF plus the inference can take 30s+ on CPU;
+        // 120s stays generous for the 7B-Q4 models.
         .timeout(Duration::from_secs(120))
         .build()
         .expect("client");

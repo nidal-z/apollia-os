@@ -273,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_existing_file_returns_content_with_line_numbers() {
-        // GIVEN: fichier "hello.txt" avec "line1\nline2\nline3" dans un sandbox temp
+        // GIVEN: a "hello.txt" file with "line1\nline2\nline3" in a temp sandbox
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         create_test_file(&temp_dir, "hello.txt", "line1\nline2\nline3").await;
 
@@ -300,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_with_offset_and_limit() {
-        // GIVEN: fichier de 100 lignes
+        // GIVEN: a 100-line file
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let mut content = String::new();
         for i in 1..=100 {
@@ -319,7 +319,7 @@ mod tests {
         };
         let result = file_read.run(input).await;
 
-        // THEN: 5 lignes retournees a partir de la ligne 10, truncated=true
+        // THEN: 5 lines returned starting at line 10, truncated=true
         assert!(result.is_ok());
         let output = result.expect("Read failed");
         assert_eq!(output.total_lines, 100);
@@ -331,7 +331,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_nonexistent_file_returns_not_found() {
-        // GIVEN: sandbox vide
+        // GIVEN: an empty sandbox
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_read =
             FileRead::new(temp_dir.path().to_path_buf()).expect("Failed to create FileRead");
@@ -356,7 +356,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_binary_file_returns_binary_error() {
-        // GIVEN: fichier avec des octets non UTF-8
+        // GIVEN: a file with non-UTF-8 bytes
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = temp_dir.path().join("binary.bin");
         let mut file = std::fs::File::create(&file_path).expect("Failed to create binary file");
@@ -366,7 +366,7 @@ mod tests {
         let file_read =
             FileRead::new(temp_dir.path().to_path_buf()).expect("Failed to create FileRead");
 
-        // WHEN: file_read sur ce fichier
+        // WHEN: file_read runs on that file
         let input = FileReadInput {
             path: "binary.bin".to_string(),
             offset: None,
@@ -479,7 +479,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_truncated_flag_is_correct() {
-        // GIVEN: fichier de 50 lignes lu sans limit
+        // GIVEN: a 50-line file read without a limit
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let mut content = String::new();
         for i in 1..=50 {

@@ -451,7 +451,7 @@ pub fn parse_automation(
 
     if schedule.is_none() {
         ambiguities.push(
-            "Aucune planification détectée - précisez une fréquence (ex. 'tous les jours à 8 h')."
+            "No schedule detected - state a frequency (for instance 'every day at 8am')."
                 .to_string(),
         );
     }
@@ -459,8 +459,7 @@ pub fn parse_automation(
     // ─── Agent ───────────────────────────────────────────────────────────
     let agent = match_agent(&folded, known_agents);
     if agent.is_none() && !known_agents.is_empty() {
-        ambiguities
-            .push("Assistant cible non reconnu - choisissez-le à l'étape suivante.".to_string());
+        ambiguities.push("Target assistant not recognised - pick it at the next step.".to_string());
     }
 
     // ─── Payload ─────────────────────────────────────────────────────────

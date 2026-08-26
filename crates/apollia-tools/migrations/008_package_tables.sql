@@ -1,19 +1,19 @@
 -- Migration 008 : Agent Package System
 --
--- Introduit deux tables pour lier les packages d'agents (agent.toml) aux agents
--- individuels déjà enregistrés dans installed_agents.
+-- Introduces two tables linking the agent packages (agent.toml) to the
+-- individual agents already registered in installed_agents.
 --
--- installed_packages : source de vérité des packages installés.
+-- installed_packages: the source of truth for the installed packages.
 -- package_agents     : lien package ↔ agent (ON DELETE CASCADE).
 --
--- Les agents restent dans installed_agents - source de vérité unique pour Phase 11.
+-- The agents stay in installed_agents, the single source of truth.
 
 CREATE TABLE IF NOT EXISTS installed_packages (
     name          TEXT PRIMARY KEY,
     version       TEXT NOT NULL,
-    -- Chemin absolu du dossier package installé (~/.apollia/agents/packages/<name>/)
+    -- Absolute path of the installed package directory (~/.apollia/agents/packages/<name>/)
     root_path     TEXT NOT NULL,
-    -- PackageManifest sérialisé en JSON (inclut tools, triggers déclarés, pip)
+    -- PackageManifest serialised as JSON (includes declared tools, triggers, pip)
     manifest_json TEXT NOT NULL,
     installed_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

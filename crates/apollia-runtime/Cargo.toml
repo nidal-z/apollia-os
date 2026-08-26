@@ -7,12 +7,12 @@ description = "Apollia OS - Runtime Core (Supervisor, AgentRegistry, TaskRouter,
 license.workspace = true
 
 [features]
-# Multi-runner : les backends locaux d'inférence (llama-cpp, whisper)
-# sont hébergés par le crate `apollia-runner` en tant que process enfant.
-# Aucune feature `local-*` n'est exposée par le daemon : la couche
-# d'inférence locale n'est plus directement compilée ici.
+# Multi-runner: the local inference backends (llama-cpp, whisper) are hosted
+# by the `apollia-runner` crate, as a child process. The daemon exposes no
+# `local-*` feature: the local inference layer is no longer compiled here
+# directly.
 default = ["cloud", "web-search", "brave-search", "web-read"]
-## Active les backends cloud (Anthropic, OpenAI-compatible, etc.).
+## Turns on the cloud backends (Anthropic, OpenAI-compatible, and so on).
 cloud = ["apollia-llm/cloud"]
 ## Native web search tool.
 web-search = ["apollia-tools/web-search"]
@@ -67,10 +67,10 @@ toml               = { workspace = true }
 hound              = { workspace = true }
 base64             = { workspace = true }
 dirs               = { workspace = true }
-# Client HTTP pour RunnerProxy.
+# HTTP client for RunnerProxy.
 reqwest            = { workspace = true, features = ["json", "stream"] }
-# WAV temporaire pour RunnerSttBackend (sérialise les buffers PCM avant
-# de les envoyer au runner via /stt/transcribe).
+# Temporary WAV for RunnerSttBackend (serialises the PCM buffers before
+# sending them to the runner through /stt/transcribe).
 tempfile           = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
