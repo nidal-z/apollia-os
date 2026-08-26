@@ -8,6 +8,7 @@
 #   SDK / ctx <- sdk/apollia/*.py        (stdlib ast introspection)
 #   Config    <- crates/**/config/*.rs   (field tables, spliced between markers)
 #   Eval      <- crates/apollia-eval/src/suite.rs (schema tables, same splice)
+#   Events    <- crates/apollia-core RuntimeEvent + the desktop bridge categories
 #
 # The API output under docs/reference/api is regenerated at build time and is
 # gitignored. The CLI and SDK pages are committed (they need cargo / python that
@@ -31,6 +32,9 @@ python3 "$HERE/scripts/gen_config_ref.py"
 
 echo "==> Evaluation suite schema (from the Rust parser types)"
 python3 "$HERE/scripts/gen_eval_ref.py"
+
+echo "==> EventBus catalogue (RuntimeEvent variants and their bridge categories)"
+python3 "$HERE/scripts/gen_events_ref.py"
 
 echo "==> CLI reference (apollia-os clap tree via the gen-docs feature)"
 CLI_OUT="$HERE/docs/reference/cli/index.md"

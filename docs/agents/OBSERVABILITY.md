@@ -285,10 +285,16 @@ double the noise without doubling the information.
 | Variants | Carry typed fields, no `String` blobs |
 | Sensitive data | Never. PII or secrets must not appear in EventBus payloads |
 | Capacity | Bounded broadcast channel, capacity [64, 65536] |
-| Lag handling | Subscriber receives `Lagged(n)` instead of an event; do not panic, log a `WARN` and resubscribe |
+| Lag handling | Subscribe through `apollia_core::events::subscribe_resilient`, which logs a `WARN`, resubscribes and continues. Do not restate the rule at a call site |
 
 EventBus is a wire format observed by the desktop UI and audit subscribers.
-Renaming a variant is a breaking change.
+Renaming a variant is a breaking change, and so is removing one. The catalogue
+is published at `docs/site/docs/reference/events.md`, generated from the enum
+and from the desktop bridge's categories by `docs/site/regen.sh`.
+
+The category the bridge attaches decides who reads the variant: the webview
+dispatches on the category, never on the variant name. A variant given a
+category no listener reads reaches the interface and is dropped in silence.
 
 ---
 

@@ -601,6 +601,8 @@ jobs:
         run: python3 docs/site/scripts/gen_config_ref.py
       - name: Regenerate the evaluation suite schema
         run: python3 docs/site/scripts/gen_eval_ref.py
+      - name: Regenerate the EventBus catalogue
+        run: python3 docs/site/scripts/gen_events_ref.py
       - name: Regenerate the CLI reference
         run: |
           {
