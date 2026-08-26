@@ -562,6 +562,7 @@ guards:
       "scripts/check_i18n_catalogue.py"
       "scripts/check_module_size.py"
       "scripts/check_instrument_verdicts.py"
+      "scripts/check_method_references.py"
       "scripts/check_no_font_cdn.py"
       "scripts/check_openapi_routes.py"
       "scripts/check_optional_builders.py --strict"
