@@ -110,7 +110,6 @@ crates/apollia-desktop/src/commands/onboarding/ai_setup.rs 5
 crates/apollia-desktop/src/commands/onboarding/companion.rs 1
 crates/apollia-desktop/src/commands/onboarding/state.rs 11
 crates/apollia-desktop/src/commands/permissions_proposals.rs 3
-crates/apollia-desktop/src/commands/projects.rs 3
 crates/apollia-desktop/src/commands/stt.rs 1
 crates/apollia-desktop/src/commands/tool_governance.rs 4
 crates/apollia-desktop/src/commands/user_memory.rs 3
@@ -232,7 +231,6 @@ crates/apollia-cli/src/commands/doctor.rs 1
 crates/apollia-core/src/paths.rs 1
 crates/apollia-desktop/src/commands/chat/export.rs 1
 crates/apollia-desktop/src/commands/config/system.rs 1
-crates/apollia-desktop/src/commands/projects.rs 3
 crates/apollia-desktop/tests/e2e/test_agents.rs 1
 crates/apollia-mcp/src/config.rs 2
 crates/apollia-runtime/src/chat/builtin_agent/tests.rs 1

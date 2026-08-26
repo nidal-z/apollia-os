@@ -107,17 +107,26 @@ pub async fn get_project(
 #[tauri::command]
 pub async fn suggest_workspace_path(project_name: String) -> Result<String, String> {
     let home = dirs::home_dir().ok_or_else(|| "$HOME not available".to_string())?;
-    let slug = slugify(&project_name);
+    Ok(suggest_workspace_path_in(&home, &project_name)
+        .to_string_lossy()
+        .into_owned())
+}
 
-    let suggestion = if home.join("Apollia").is_dir() {
+/// The priority strategy above, applied to an explicit home.
+///
+/// Split out of the command so a test drives the branch chain itself instead of
+/// substituting `$HOME` and restating the chain in its own body: the three tests
+/// that used to cover this compared a copy of these branches against their own
+/// expectation, and stayed green whatever the command did.
+fn suggest_workspace_path_in(home: &std::path::Path, project_name: &str) -> std::path::PathBuf {
+    let slug = slugify(project_name);
+    if home.join("Apollia").is_dir() {
         home.join("Apollia").join(&slug)
     } else if home.join("Documents").is_dir() {
         home.join("Documents").join("Apollia").join(&slug)
     } else {
         home.join(&slug)
-    };
-
-    Ok(suggestion.to_string_lossy().into_owned())
+    }
 }
 
 /// Produces a URL-safe slug from a project name.
@@ -470,101 +479,59 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    // Helper: creates a fake HOME via an environment variable.
-    //
-    // The variable is a process global, so the swap is serialised on
-    // `commands::home_env_lock()` and the previous value is restored before the
-    // guard drops. The earlier version left the fake home in place for whatever
-    // ran next, and the first test elsewhere that read the resolved home
-    // directory started failing depending on scheduling order.
-    #[cfg(unix)]
-    const HOME_VAR: &str = "HOME";
-    #[cfg(windows)]
-    const HOME_VAR: &str = "USERPROFILE";
-
-    fn with_fake_home<F: FnOnce(&std::path::Path)>(f: F) {
-        let _guard = crate::commands::home_env_lock();
-        let tmp = TempDir::new().expect("tempdir");
-        let previous = std::env::var_os(HOME_VAR);
-        // SAFETY: test-only mutation, serialised by the guard above, and undone
-        // before it drops.
-        unsafe { std::env::set_var(HOME_VAR, tmp.path()) };
-        f(tmp.path());
-        // SAFETY: same guard, restoring the value observed on entry.
-        unsafe {
-            match previous {
-                Some(value) => std::env::set_var(HOME_VAR, value),
-                None => std::env::remove_var(HOME_VAR),
-            }
-        }
-    }
-
     #[tokio::test]
     async fn suggest_prefers_home_apollia_when_exists() {
-        // GIVEN $HOME/Apollia/ exists
-        with_fake_home(|home| {
-            fs::create_dir_all(home.join("Apollia")).expect("mkdir");
+        // GIVEN a home holding both an Apollia directory and a Documents one
+        let home = TempDir::new().expect("tempdir");
+        fs::create_dir_all(home.path().join("Apollia")).expect("mkdir");
+        fs::create_dir_all(home.path().join("Documents")).expect("mkdir");
 
-            // Use `home` directly (it IS the HOME dir set by with_fake_home)
-            // to avoid racing with other tests that mutate HOME via dirs::home_dir().
-            let slug = slugify("demo");
+        // WHEN a workspace path is suggested for a new project
+        let suggestion = suggest_workspace_path_in(home.path(), "demo");
 
-            let suggestion = if home.join("Apollia").is_dir() {
-                home.join("Apollia").join(&slug)
-            } else if home.join("Documents").is_dir() {
-                home.join("Documents").join("Apollia").join(&slug)
-            } else {
-                home.join(&slug)
-            };
-
-            // THEN returns $HOME/Apollia/demo
-            assert_eq!(suggestion, home.join("Apollia").join("demo"));
-        });
+        // THEN Apollia wins over Documents
+        assert_eq!(suggestion, home.path().join("Apollia").join("demo"));
     }
 
     #[tokio::test]
     async fn suggest_falls_back_to_documents() {
-        // GIVEN $HOME/Apollia/ absent, $HOME/Documents/ present
-        with_fake_home(|home| {
-            fs::create_dir_all(home.join("Documents")).expect("mkdir");
+        // GIVEN a home with no Apollia directory but a Documents one
+        let home = TempDir::new().expect("tempdir");
+        fs::create_dir_all(home.path().join("Documents")).expect("mkdir");
 
-            let h = dirs::home_dir().expect("home_dir");
-            let slug = slugify("demo");
+        // WHEN a workspace path is suggested for a new project
+        let suggestion = suggest_workspace_path_in(home.path(), "demo");
 
-            let suggestion = if h.join("Apollia").is_dir() {
-                h.join("Apollia").join(&slug)
-            } else if h.join("Documents").is_dir() {
-                h.join("Documents").join("Apollia").join(&slug)
-            } else {
-                h.join(&slug)
-            };
-
-            // THEN returns $HOME/Documents/Apollia/demo
-            assert_eq!(
-                suggestion,
-                home.join("Documents").join("Apollia").join("demo")
-            );
-        });
+        // THEN the project lands under Documents/Apollia
+        assert_eq!(
+            suggestion,
+            home.path().join("Documents").join("Apollia").join("demo")
+        );
     }
 
     #[tokio::test]
     async fn suggest_final_fallback_to_home() {
-        // GIVEN $HOME/Apollia/ and $HOME/Documents/ absent
-        with_fake_home(|home| {
-            let h = dirs::home_dir().expect("home_dir");
-            let slug = slugify("demo");
+        // GIVEN a home with neither directory
+        let home = TempDir::new().expect("tempdir");
 
-            let suggestion = if h.join("Apollia").is_dir() {
-                h.join("Apollia").join(&slug)
-            } else if h.join("Documents").is_dir() {
-                h.join("Documents").join("Apollia").join(&slug)
-            } else {
-                h.join(&slug)
-            };
+        // WHEN a workspace path is suggested for a new project
+        let suggestion = suggest_workspace_path_in(home.path(), "demo");
 
-            // THEN returns $HOME/demo
-            assert_eq!(suggestion, home.join("demo"));
-        });
+        // THEN the project lands at the root of the home, named by its slug
+        assert_eq!(suggestion, home.path().join("demo"));
+    }
+
+    #[tokio::test]
+    async fn suggest_slugifies_the_project_name() {
+        // GIVEN a home with no Apollia and no Documents directory, and a project
+        // name carrying spaces and punctuation
+        let home = TempDir::new().expect("tempdir");
+
+        // WHEN a workspace path is suggested
+        let suggestion = suggest_workspace_path_in(home.path(), "Mon Super Projet !");
+
+        // THEN the last segment is the slug, not the raw name
+        assert_eq!(suggestion, home.path().join("mon-super-projet"));
     }
 
     #[test]
