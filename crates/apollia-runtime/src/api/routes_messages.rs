@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 use tokio_stream::StreamExt;
 
 use apollia_core::RuntimeEvent;
@@ -284,7 +284,15 @@ pub async fn stream_mailbox<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let rx = state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx).filter_map(|item| {
-        let event = item.ok()?;
+        // A `BroadcastStream` cannot resubscribe, so the lag rule is held here
+        // to its first half: the drop is named, never silent.
+        let event = match item {
+            Ok(event) => event,
+            Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                tracing::warn!(subscriber = "api.mailbox_sse", skipped, "eventbus.lagged");
+                return None;
+            }
+        };
         let sse = mailbox_event_to_sse(&event)?;
         Some(Ok(Event::default().json_data(&sse).unwrap_or_default()))
     });

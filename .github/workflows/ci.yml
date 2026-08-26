@@ -478,6 +478,18 @@ jobs:
       # install artefacts (node_modules, built binaries) and macOS codesign,
       # and both exit non-zero by design when a subject is absent, so a runner
       # without a development machine can only report their zero coverage.
+      # The event catalogue read from both sides. `RuntimeEvent` is relayed to
+      # the webview by one exhaustive match, which makes every variant look
+      # wired to the compiler and to a plain grep: twenty-one were orphaned on
+      # one side or the other, and nine of them named a subsystem that exists in
+      # no crate. The same file holds the lag rule of the EventBus contract,
+      # declared in two documents and held by none of the thirteen subscriber
+      # loops. Selftest first, so a rule that cannot fire is reported before its
+      # green on the real tree is believed.
+      - name: The event catalogue is read from both sides
+        run: |
+          python3 scripts/check_eventbus_variants.py --selftest
+          python3 scripts/check_eventbus_variants.py
       # Two buses, not one: the webview's DOM events with themselves, and the
       # Tauri channels between the shell and the webview. The second crossing
       # held three one-sided channels at once, so the selftest runs first and a

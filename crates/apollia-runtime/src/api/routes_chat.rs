@@ -17,7 +17,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 use tokio_stream::StreamExt;
 
 use apollia_core::todo::TodoItem;
@@ -523,8 +523,12 @@ pub async fn stream_session<B: ExecutionBackend + Clone>(
             let sid = session_id.clone();
             match result {
                 Ok(event) => chat_event_to_sse(&event, &sid),
-                // Lagged receiver: skip lost events silently.
-                Err(_) => None,
+                // A `BroadcastStream` cannot resubscribe, so the lag rule is
+                // held here to its first half: the drop is named, never silent.
+                Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                    tracing::warn!(subscriber = "api.chat_sse", skipped, "eventbus.lagged");
+                    None
+                }
             }
         })
         // Fermer le flux apres l'evenement terminal (`session_closed`).

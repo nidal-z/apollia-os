@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 
-use apollia_core::events::RuntimeEvent;
+use apollia_core::events::{resilient, ResilientReceiver, RuntimeEvent};
 
 use crate::audit_journal::entry::{
     JournalEntryDraft, JournalEntryKind, MessageSnapshot, PlanMutationSnapshot,
@@ -47,7 +47,7 @@ struct RunOrdinals {
 /// Background subscriber draining `RuntimeEvent`s into the audit journal.
 pub struct AuditJournalSubscriber {
     handle: AuditJournalHandle,
-    receiver: tokio::sync::broadcast::Receiver<RuntimeEvent>,
+    receiver: ResilientReceiver,
     /// Per-run capture ordinals, owned by this actor (no shared lock).
     ordinals: HashMap<String, RunOrdinals>,
     /// Resolution of a chat `session_id` to its currently open `run_id`.
@@ -62,14 +62,16 @@ impl AuditJournalSubscriber {
     /// Spawn the subscriber on the Tokio runtime.
     ///
     /// Runs until the EventBus broadcast channel is closed, then exits cleanly.
-    /// Lagged events (slow consumer) are logged and skipped rather than aborting.
+    /// Lag is handled by [`ResilientReceiver`], under the rule of the EventBus
+    /// contract: a `WARN` naming this subscriber, a resubscribe, and reception
+    /// continues.
     pub fn spawn(
         handle: AuditJournalHandle,
         receiver: tokio::sync::broadcast::Receiver<RuntimeEvent>,
     ) {
         let subscriber = Self {
             handle,
-            receiver,
+            receiver: resilient(receiver, "audit.journal"),
             ordinals: HashMap::new(),
             session_runs: HashMap::new(),
         };
@@ -78,34 +80,23 @@ impl AuditJournalSubscriber {
 
     /// Main receive loop.
     async fn run(mut self) {
-        loop {
-            match self.receiver.recv().await {
-                Ok(event) => {
-                    // Learn the session -> run binding before any plan event of
-                    // the turn can reference it.
-                    self.register_session_run(&event);
-                    // Capture events carry a per-run step ordinal (stateful);
-                    // everything else maps statelessly.
-                    if let Some(draft) = map_capture(&mut self.ordinals, &event) {
-                        self.handle.append(draft);
-                    } else if let Some(draft) = self.map_plan_updated(&event) {
-                        self.handle.append(draft);
-                    } else if let Some(draft) = map_event(&event) {
-                        self.handle.append(draft);
-                    }
-                    // Free the per-run counters once the run finishes.
-                    if let Some(run_id) = run_end_run_id(&event) {
-                        self.ordinals.remove(run_id);
-                        self.session_runs.retain(|_, rid| rid != run_id);
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(skipped = n, "audit.journal.subscriber_lagged");
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    tracing::debug!("audit.journal.subscriber_closed");
-                    break;
-                }
+        while let Some(event) = self.receiver.recv().await {
+            // Learn the session -> run binding before any plan event of the
+            // turn can reference it.
+            self.register_session_run(&event);
+            // Capture events carry a per-run step ordinal (stateful);
+            // everything else maps statelessly.
+            if let Some(draft) = map_capture(&mut self.ordinals, &event) {
+                self.handle.append(draft);
+            } else if let Some(draft) = self.map_plan_updated(&event) {
+                self.handle.append(draft);
+            } else if let Some(draft) = map_event(&event) {
+                self.handle.append(draft);
+            }
+            // Free the per-run counters once the run finishes.
+            if let Some(run_id) = run_end_run_id(&event) {
+                self.ordinals.remove(run_id);
+                self.session_runs.retain(|_, rid| rid != run_id);
             }
         }
     }

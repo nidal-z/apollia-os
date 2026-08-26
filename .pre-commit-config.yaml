@@ -184,6 +184,13 @@ repos:
         files: '^(crates/apollia-desktop/ui/src/.+|scripts/check_unimported_files\.py)$'
         pass_filenames: false
 
+      - id: check-eventbus-variants
+        name: every RuntimeEvent variant is emitted and read, and lag stays one rule
+        entry: python3 scripts/check_eventbus_variants.py
+        language: system
+        files: '^(crates/.+\.rs|crates/apollia-desktop/ui/src/.+|scripts/check_eventbus_variants\.py)$'
+        pass_filenames: false
+
       - id: check-custom-event-listeners
         name: every event channel has an emitter and a listener
         entry: python3 scripts/check_custom_event_listeners.py

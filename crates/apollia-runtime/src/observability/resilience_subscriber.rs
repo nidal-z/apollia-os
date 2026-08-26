@@ -18,7 +18,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use apollia_core::events::RuntimeEvent;
+use apollia_core::events::{subscribe_resilient, RuntimeEvent};
 use apollia_oria::{ErrorClass, ResilienceLayer};
 
 use crate::eventbus::EventBusSender;
@@ -28,22 +28,10 @@ pub fn spawn_resilience_subscriber(
     layer: Arc<Mutex<ResilienceLayer>>,
     event_bus: &EventBusSender,
 ) -> tokio::task::JoinHandle<()> {
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(event_bus, "observability.resilience");
     tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(event) => apply(&layer, event),
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(
-                        skipped = n,
-                        "resilience subscriber lagged - circuit snapshot may briefly diverge"
-                    );
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    tracing::info!("resilience subscriber: event bus closed, exiting");
-                    return;
-                }
-            }
+        while let Some(event) = rx.recv().await {
+            apply(&layer, event);
         }
     })
 }

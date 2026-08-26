@@ -16,7 +16,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast;
 use tracing::{info, warn};
 
 use apollia_core::{

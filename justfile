@@ -536,6 +536,7 @@ guards:
       "scripts/check_docs_lang.py"
       "scripts/check_docs_mirror.py"
       "scripts/check_docs_routes.py"
+      "scripts/check_eventbus_variants.py"
       "scripts/check_download_sums.py"
       "scripts/check_guard_verdicts.py"
       "scripts/check_http_clients.py"

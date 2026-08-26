@@ -5,7 +5,7 @@
 //! listens via `@tauri-apps/api/event::listen("runtime-event", …)`.
 
 use apollia_core::events::RuntimeEvent;
-use apollia_core::EventBusSender;
+use apollia_core::{subscribe_resilient, EventBusSender};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -157,7 +157,7 @@ pub(crate) fn coalesce_step(coalescer: &mut TokenCoalescer, event: &RuntimeEvent
 /// Streamed tokens are coalesced over [`TOKEN_FLUSH_INTERVAL`] instead of
 /// crossing the IPC boundary one by one.
 pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(&event_bus, "desktop.event_bridge");
     tauri::async_runtime::spawn(async move {
         let mut coalescer = TokenCoalescer::new();
         let mut ticker = tokio::time::interval(TOKEN_FLUSH_INTERVAL);
@@ -165,19 +165,15 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
         loop {
             tokio::select! {
                 received = rx.recv() => match received {
-                    Ok(event) => {
+                    Some(event) => {
                         let step = coalesce_step(&mut coalescer, &event);
                         emit_tokens(&app, step.tokens);
                         if step.forward {
                             bridge_one_event(&app, &event);
                         }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(skipped = n, "event bridge lagged, events dropped");
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    None => {
                         emit_tokens(&app, coalescer.drain());
-                        tracing::info!("EventBus closed, stopping event bridge");
                         break;
                     }
                 },

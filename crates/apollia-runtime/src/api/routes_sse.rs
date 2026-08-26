@@ -12,7 +12,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 use tokio_stream::StreamExt;
 
 use apollia_core::RuntimeEvent;
@@ -399,8 +399,12 @@ pub async fn stream_task<B: ExecutionBackend + Clone>(
         .filter_map(move |result| {
             match result {
                 Ok(event) => runtime_event_to_sse(&event, &task_id_owned),
-                // Lagged receiver: skip lost events silently
-                Err(_) => None,
+                // A `BroadcastStream` cannot resubscribe, so the lag rule is
+                // held here to its first half: the drop is named, never silent.
+                Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                    tracing::warn!(subscriber = "api.task_sse", skipped, "eventbus.lagged");
+                    None
+                }
             }
         })
         .map(|(sse_event, is_terminal)| (sse_event, is_terminal))

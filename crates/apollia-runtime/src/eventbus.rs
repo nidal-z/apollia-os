@@ -11,8 +11,10 @@ pub type EventBusSender = broadcast::Sender<RuntimeEvent>;
 /// Read handle on the EventBus, one per consumer actor.
 ///
 /// Obtained either via [`EventBus::new`] (first receiver) or via
-/// `sender.subscribe()` for subsequent receivers.
-/// On `RecvError::Lagged`, log a warning and continue, never panic.
+/// `sender.subscribe()` for subsequent receivers. A subscriber loop wraps it
+/// with `apollia_core::events::subscribe_resilient` (or `resilient`, when the
+/// receiver is handed in), which holds the lag rule of the contract: a `WARN`
+/// naming the subscriber, a `resubscribe()`, and reception continues.
 pub type EventBusReceiver = broadcast::Receiver<RuntimeEvent>;
 
 /// Single creation point for the runtime EventBus.

@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
 use tokio::time::interval;
 
-use apollia_core::{EventBusSender, RuntimeEvent};
+use apollia_core::{subscribe_resilient, EventBusSender, RuntimeEvent};
 
 use crate::{config::NotificationConfig, config::Severity, event_filter};
 
@@ -398,7 +398,7 @@ async fn run_engine_loop(state: EngineLoopState) {
         mut cmd_rx,
     } = state;
 
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(&event_bus, "notifications.engine");
     drop(event_bus);
 
     // Per-(channel_id, event_name) throttle state: local to this task,
@@ -452,7 +452,7 @@ async fn run_engine_loop(state: EngineLoopState) {
             }
             result = rx.recv() => {
                 match result {
-                    Ok(event) => {
+                    Some(event) => {
                         if let Some(notif) = map_event_with(&config, &channels, &api_base_url, &event) {
                             let channel_results = dispatch_with_throttle(
                                 &config,
@@ -486,14 +486,7 @@ async fn run_engine_loop(state: EngineLoopState) {
                         )
                         .await;
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(
-                            skipped = n,
-                            "NotificationEngine a raté des événements (bus saturé)"
-                        );
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("NotificationEngine : bus fermé - arrêt propre");
+                    None => {
                         break;
                     }
                 }

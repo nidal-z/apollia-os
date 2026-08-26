@@ -12,6 +12,7 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::events::subscribe_resilient;
 use apollia_core::events::RuntimeEvent;
 use apollia_core::ObservabilityConfig;
 use thiserror::Error;
@@ -312,25 +313,11 @@ pub fn spawn_runtime_events_subscriber(
     event_bus: &EventBusSender,
     obs_config: ObservabilityConfig,
 ) -> tokio::task::JoinHandle<()> {
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(event_bus, "observability.runtime_events");
     tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    if let Some(record) = event_to_record(event, &obs_config) {
-                        handle.append(record);
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(
-                        skipped = n,
-                        "runtime_events subscriber lagged - events dropped",
-                    );
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    tracing::info!("runtime_events subscriber: event bus closed, exiting");
-                    break;
-                }
+        while let Some(event) = rx.recv().await {
+            if let Some(record) = event_to_record(event, &obs_config) {
+                handle.append(record);
             }
         }
     })

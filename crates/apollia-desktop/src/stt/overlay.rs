@@ -8,7 +8,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use apollia_core::{EventBusSender, RuntimeEvent};
+use apollia_core::{subscribe_resilient, EventBusSender, RuntimeEvent};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -204,32 +204,24 @@ static OVERLAY_GENERATION: AtomicUsize = AtomicUsize::new(0);
 /// visibility accordingly. Runs until a later call supersedes it.
 pub fn spawn_overlay_listener(overlay: RecordingOverlay, event_bus: &EventBusSender) {
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(event_bus, "stt.overlay");
     tauri::async_runtime::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
-                        break;
-                    }
-                    match &event {
-                        RuntimeEvent::SttRecordingStarted => {
-                            if let Err(e) = overlay.show() {
-                                tracing::warn!(error = %e, "failed to show recording overlay");
-                            }
-                        }
-                        RuntimeEvent::SttRecordingStopped { .. } => {
-                            if let Err(e) = overlay.hide() {
-                                tracing::warn!(error = %e, "failed to hide recording overlay");
-                            }
-                        }
-                        _ => {}
+        while let Some(event) = rx.recv().await {
+            if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
+                break;
+            }
+            match &event {
+                RuntimeEvent::SttRecordingStarted => {
+                    if let Err(e) = overlay.show() {
+                        tracing::warn!(error = %e, "failed to show recording overlay");
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::debug!(skipped = n, "overlay listener lagged");
+                RuntimeEvent::SttRecordingStopped { .. } => {
+                    if let Err(e) = overlay.hide() {
+                        tracing::warn!(error = %e, "failed to hide recording overlay");
+                    }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                _ => {}
             }
         }
         tracing::debug!(generation, "overlay event listener stopped");

@@ -30,8 +30,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::info;
 
+use apollia_core::events::{subscribe_resilient, Received};
 use apollia_core::{AIPInput, AIPPart, AgentId, DataPart, ProcessState, RuntimeEvent};
 
 use crate::coordinator::ExecutionBackend;
@@ -355,7 +356,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     info!(skill_id = %skill_id, agent = %agent_name, "A2A delegation initiated");
 
     // 3. Subscribe to the EventBus before submitting (avoids a race condition).
-    let mut event_rx = event_bus.subscribe();
+    let mut event_rx = subscribe_resilient(event_bus, "a2a.delegation");
 
     // 4. Build the AIP input from the JSON payload. The `skill_id` is propagated
     //    separately via `AIPTask.skill_id` (see submit_with_chain below);
@@ -386,13 +387,13 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     // 6. Wait for TaskCompleted with a timeout via the EventBus.
     let wait_result = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         loop {
-            match event_rx.recv().await {
-                Ok(RuntimeEvent::TaskCompleted {
+            match event_rx.recv_reporting_lag().await {
+                Some(Received::Event(RuntimeEvent::TaskCompleted {
                     task_id: completed_id,
                     success,
                     output,
                     ..
-                }) if completed_id.to_string() == task_id_str => {
+                })) if completed_id.to_string() == task_id_str => {
                     return if success {
                         Ok(output.unwrap_or_default())
                     } else {
@@ -406,25 +407,23 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                         Err(A2aError::WorkerFailed { reason })
                     };
                 }
-                Ok(RuntimeEvent::TaskCanceled {
+                Some(Received::Event(RuntimeEvent::TaskCanceled {
                     task_id: canceled_id,
-                }) if canceled_id.to_string() == task_id_str => {
+                })) if canceled_id.to_string() == task_id_str => {
                     return Err(A2aError::WorkerFailed {
                         reason: "worker agent task was canceled".to_string(),
                     });
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    warn!(
-                        task_id = %task_id_str,
-                        lagged = n,
-                        "A2A EventBus lagged - checking router output directly"
-                    );
-                    // Fallback: query the router directly.
+                // The lag rule has already logged and resubscribed. This
+                // subscriber waits on one specific completion, which the drop
+                // may have carried away, so it asks the router directly rather
+                // than waiting out its timeout.
+                Some(Received::Lagged { .. }) => {
                     if let Ok(Some(out)) = router.get_output(&task_id_str).await {
                         return Ok(out);
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                None => {
                     return Err(A2aError::RouterDead);
                 }
                 _ => {

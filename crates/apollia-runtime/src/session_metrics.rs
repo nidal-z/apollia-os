@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use apollia_core::events::RuntimeEvent;
+use apollia_core::events::{resilient, ResilientReceiver};
 use apollia_core::session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
 };
@@ -51,7 +52,7 @@ impl SessionMetricsActor {
     ///
     /// The actor stops when the `EventBus` closes.
     pub fn spawn(
-        mut rx: EventBusReceiver,
+        rx: EventBusReceiver,
         bus: EventBusSender,
         thresholds: SessionThresholds,
         context_window_max: u64,
@@ -65,29 +66,19 @@ impl SessionMetricsActor {
             token_budget,
         };
 
+        let mut rx: ResilientReceiver = resilient(rx, "session_metrics");
         let handle = tokio::spawn(async move {
             // Map tool_call_id (message_id) -> in-flight call, for duration computation.
             let mut in_flight: HashMap<String, InFlightToolCall> = HashMap::new();
 
-            loop {
-                match rx.recv().await {
-                    Ok(event) => {
-                        let updates = process_event(&event, &store_task, &mut in_flight, budget);
-                        for (session_id, metrics, alert) in updates {
-                            let _ = bus.send(RuntimeEvent::SessionMetricsUpdated {
-                                session_id,
-                                metrics,
-                                alert,
-                            });
-                        }
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(skipped = n, "SessionMetricsActor lagged, events dropped");
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("EventBus closed, stopping SessionMetricsActor");
-                        break;
-                    }
+            while let Some(event) = rx.recv().await {
+                let updates = process_event(&event, &store_task, &mut in_flight, budget);
+                for (session_id, metrics, alert) in updates {
+                    let _ = bus.send(RuntimeEvent::SessionMetricsUpdated {
+                        session_id,
+                        metrics,
+                        alert,
+                    });
                 }
             }
         });

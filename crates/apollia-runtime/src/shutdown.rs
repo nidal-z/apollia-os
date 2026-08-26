@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use tracing::{info, warn};
 
+use apollia_core::events::subscribe_resilient;
 use apollia_core::{ProcessState, RuntimeEvent, TaskId};
 use apollia_mcp::manager::McpClientManagerHandle;
 
@@ -217,7 +218,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // subscription would be missed, leaving a finished task in `remaining`
         // until the drain timeout force-cancels it. Subscribing first closes that
         // window, matching the ordering already used on the delegation path.
-        let mut rx = self.event_sender.subscribe();
+        let mut rx = subscribe_resilient(&self.event_sender, "shutdown.drain");
 
         // Snapshot the current set of active tasks.
         let mut remaining: std::collections::HashSet<TaskId> = self
@@ -241,17 +242,14 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             tokio::select! {
                 result = rx.recv() => {
                     match result {
-                        Ok(RuntimeEvent::TaskCompleted { task_id, .. }) => {
+                        Some(RuntimeEvent::TaskCompleted { task_id, .. }) => {
                             remaining.remove(&task_id);
                         }
-                        Ok(RuntimeEvent::TaskCanceled { task_id }) => {
+                        Some(RuntimeEvent::TaskCanceled { task_id }) => {
                             remaining.remove(&task_id);
                         }
-                        Ok(_) => {}
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                            warn!(skipped = n, "Drain: lagged on EventBus");
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        Some(_) => {}
+                        None => {
                             break;
                         }
                     }

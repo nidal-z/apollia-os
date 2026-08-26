@@ -18,9 +18,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Connection};
-use tracing::{error, info};
+use tracing::error;
 
-use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::events::{subscribe_resilient, EventBusSender, RuntimeEvent};
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS llm_calls (
@@ -306,11 +306,11 @@ pub fn spawn_subscriber(
     repo: Arc<Mutex<LlmCallRepository>>,
     event_bus: &EventBusSender,
 ) -> tokio::task::JoinHandle<()> {
-    let mut rx = event_bus.subscribe();
+    let mut rx = subscribe_resilient(event_bus, "llm.call_repository");
     tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(RuntimeEvent::LlmCallCompleted {
+        while let Some(event) = rx.recv().await {
+            match event {
+                RuntimeEvent::LlmCallCompleted {
                     backend,
                     model,
                     task_id,
@@ -320,7 +320,7 @@ pub fn spawn_subscriber(
                     latency_ms,
                     cost_usd,
                     ..
-                }) => {
+                } => {
                     let record = LlmCallRecord {
                         id: uuid::Uuid::new_v4().to_string(),
                         task_id,
@@ -345,15 +345,8 @@ pub fn spawn_subscriber(
                         }
                     });
                 }
-                Ok(_) => {
+                _ => {
                     // Ignore other events.
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(lagged = n, "LlmCallRepository subscriber lagged");
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    info!("LlmCallRepository subscriber: EventBus closed, stopping");
-                    break;
                 }
             }
         }

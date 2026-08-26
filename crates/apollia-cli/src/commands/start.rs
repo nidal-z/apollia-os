@@ -15,7 +15,8 @@ use apollia_aip::context::{
 };
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
-    AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
+    subscribe_resilient, AIPResult, AIPTask, AgentManifest, PendingApprovals, ResilientReceiver,
+    RuntimeEvent, StepBudgetConfig, TaskStatus,
 };
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
@@ -1748,7 +1749,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     println!("  Press Ctrl+C or run `apollia-os stop` to shut down.");
 
     // Wait for shutdown signal (Ctrl+C, SIGTERM, or ShutdownRequested via API)
-    let mut shutdown_rx = handles.event_sender.subscribe();
+    let mut shutdown_rx = subscribe_resilient(&handles.event_sender, "cli.start.shutdown");
     let interrupted = tokio::select! {
         signal = apollia_runtime::shutdown::wait_for_shutdown_signal() => {
             println!();
@@ -1927,16 +1928,10 @@ async fn rewire_auto_loaded_agents(
 }
 
 /// Wait until a `RuntimeEvent::ShutdownRequested` event is received on the bus.
-async fn wait_for_shutdown_event(rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>) {
-    loop {
-        match rx.recv().await {
-            Ok(RuntimeEvent::ShutdownRequested) => return,
-            Ok(_) => continue,
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                tracing::warn!(lagged = n, "EventBus receiver lagged");
-                continue;
-            }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+async fn wait_for_shutdown_event(rx: &mut ResilientReceiver) {
+    while let Some(event) = rx.recv().await {
+        if matches!(event, RuntimeEvent::ShutdownRequested) {
+            return;
         }
     }
 }

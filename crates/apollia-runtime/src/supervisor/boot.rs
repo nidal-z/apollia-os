@@ -1,5 +1,7 @@
 use super::*;
 
+use apollia_core::events::resilient;
+
 use super::bootstrap::{
     drain_until_all_ready, emit_onboarding_if_needed, flatten_api_start, load_trigger_definitions,
     rollback_startup_actors, seed_default_desktop_channel_if_needed, spawn_runner_supervisor,
@@ -32,8 +34,9 @@ impl Supervisor {
 
         // Phase 1: EventBus
         info!("Supervisor: starting EventBus");
-        let (event_sender, mut startup_rx) =
+        let (event_sender, startup_rx) =
             EventBus::with_capacity(self.config.runtime_config.eventbus_capacity);
+        let mut startup_rx = resilient(startup_rx, "supervisor.startup");
         info!("Supervisor: EventBus ready");
 
         // Phase 2: AgentRegistry

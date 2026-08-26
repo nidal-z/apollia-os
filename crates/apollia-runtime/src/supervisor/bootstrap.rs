@@ -1,4 +1,5 @@
 use super::*;
+use apollia_core::events::{subscribe_resilient, ResilientReceiver};
 
 /// Detect the GPU and spawn the sidecar runner for the local LLM and STT
 /// backends. Returns `None` (logged) when the runner cannot start; cloud
@@ -199,31 +200,22 @@ pub(in crate::supervisor) async fn start_mcp_manager(
 /// restart actors: the runtime is fail-fast at startup then degrades on a
 /// post-startup crash (see the module docs).
 pub async fn watch(event_sender: &EventBusSender) -> Result<(), SupervisorError> {
-    let mut rx = event_sender.subscribe();
+    let mut rx = subscribe_resilient(event_sender, "supervisor.watch");
 
-    loop {
-        match rx.recv().await {
-            Ok(RuntimeEvent::ShutdownRequested) => {
-                info!("Supervisor watch: shutdown requested");
-                return Ok(());
-            }
-            Ok(_) => {
-                // Non-terminal events are not acted on: no restart-on-crash.
-            }
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                warn!(skipped = n, "Supervisor watch: lagged, skipped events");
-            }
-            Err(broadcast::error::RecvError::Closed) => {
-                info!("Supervisor watch: event bus closed");
-                return Ok(());
-            }
+    while let Some(event) = rx.recv().await {
+        // Non-terminal events are not acted on: no restart-on-crash.
+        if matches!(event, RuntimeEvent::ShutdownRequested) {
+            info!("Supervisor watch: shutdown requested");
+            return Ok(());
         }
     }
+    info!("Supervisor watch: event bus closed");
+    Ok(())
 }
 
 /// Drain events from a receiver until `AllReady` is seen or timeout expires.
 pub(in crate::supervisor) async fn drain_until_all_ready(
-    rx: &mut broadcast::Receiver<RuntimeEvent>,
+    rx: &mut ResilientReceiver,
     timeout: Duration,
 ) {
     let deadline = tokio::time::Instant::now() + timeout;
@@ -231,10 +223,9 @@ pub(in crate::supervisor) async fn drain_until_all_ready(
         tokio::select! {
             result = rx.recv() => {
                 match result {
-                    Ok(RuntimeEvent::AllReady) => return,
-                    Ok(_) => continue,
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(broadcast::error::RecvError::Closed) => return,
+                    Some(RuntimeEvent::AllReady) => return,
+                    Some(_) => continue,
+                    None => return,
                 }
             }
             _ = tokio::time::sleep_until(deadline) => return,
