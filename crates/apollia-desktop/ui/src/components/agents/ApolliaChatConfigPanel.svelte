@@ -194,6 +194,7 @@
     </header>
     <Textarea
       id="apollia-chat-system-prompt"
+      aria-label={$t("agents.chat_config.personality_title")}
       bind:value={systemPrompt}
       disabled={loading}
       rows={6}
@@ -341,6 +342,7 @@
 
     <Select
       id="apollia-chat-llm-backend"
+      aria-label={$t("agents.chat_config.model_title")}
       bind:value={llmBackend}
       disabled={loading || availableBackends.length === 0}
       data-testid="apollia-chat-llm-backend"

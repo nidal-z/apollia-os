@@ -98,6 +98,7 @@
           unstyled
           bind:value={query}
           placeholder={$t("agents.filter_placeholder")}
+          aria-label={$t("agents.filter_placeholder")}
           class="flex-1 text-caption text-foreground"
           data-testid="agents-search"
         />

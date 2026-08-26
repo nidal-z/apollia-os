@@ -105,12 +105,14 @@
         type="number"
         min={1}
         class="w-20 text-sm"
+        aria-label={$t("triggers.field_every")}
         bind:value={customNumber}
         oninput={onCustomChange}
       />
       <Select
         bind:value={customUnit}
         class="w-32 text-sm"
+        aria-label={$t("triggers.interval_unit_label")}
         onchange={onCustomChange}
       >
         {#each UNIT_OPTIONS as opt}

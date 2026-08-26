@@ -224,6 +224,7 @@
       {/snippet}
       <Input
         id="channel-id"
+        aria-label={$t("notifications.field_id")}
         class="font-mono {idError ? 'border-destructive' : ''}"
         placeholder={$t("notifications.field_id_placeholder")}
         value={channelId}

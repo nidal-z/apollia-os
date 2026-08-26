@@ -109,6 +109,7 @@
           type="search"
           bind:value={filterQuery}
           placeholder={$t("memory.namespaces.filter_placeholder")}
+          aria-label={$t("memory.namespaces.filter_placeholder")}
           class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-caption text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
           data-testid="namespace-sidebar-filter"
         />

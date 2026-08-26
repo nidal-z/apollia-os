@@ -285,6 +285,7 @@
               value={clientIdDraft}
               oninput={(e) => (clientIdDraft = (e.currentTarget as HTMLInputElement).value)}
               placeholder={oauthClientIdEnvVar ?? "Client ID"}
+              aria-label={$t("integrations.wizard.oauth_client_id_title")}
               autocomplete="off"
               class="flex-1 font-mono text-xs"
               disabled={oauthSavingClientId}

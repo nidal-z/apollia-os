@@ -29,6 +29,7 @@
       value={step.description}
       oninput={handleInput}
       placeholder={$t("plan_mode.edit_step_label_placeholder")}
+      aria-label={$t("plan_mode.edit_step_label_placeholder")}
       class="flex-1"
       aria-invalid={errorMessage ? "true" : undefined}
     />

@@ -58,6 +58,7 @@
       bind:value={searchQuery}
       onkeydown={(e) => e.key === "Enter" && onSearch()}
       placeholder={$t("settings.model_hub.search.placeholder")}
+      aria-label={$t("settings.model_hub.search.placeholder")}
       class="flex-1"
       data-testid="model-hub-search-input"
     />

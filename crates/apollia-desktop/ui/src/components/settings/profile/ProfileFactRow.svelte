@@ -179,6 +179,7 @@
         <div class="mt-1.5 flex items-center gap-2">
           <Input
             bind:value={editValue}
+            aria-label={$t("settings.profile.memory.value_placeholder")}
             size="sm"
             class="flex-1"
             onkeydown={(e: KeyboardEvent) => {

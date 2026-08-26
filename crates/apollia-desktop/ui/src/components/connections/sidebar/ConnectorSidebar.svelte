@@ -95,6 +95,7 @@
         unstyled
         bind:value={sidebarFilter}
         placeholder={$t("connections.sidebar_filter_placeholder")}
+        aria-label={$t("connections.sidebar_filter_placeholder")}
         class="flex-1 text-body-xs text-foreground"
       />
     </div>

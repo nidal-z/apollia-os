@@ -46,6 +46,7 @@
       size="sm"
       bind:value={token}
       placeholder="hf_••••••••••••••••"
+      aria-label={$t("settings.model_hub.token.label")}
       class="flex-1"
       data-testid="hf-token-input"
     />

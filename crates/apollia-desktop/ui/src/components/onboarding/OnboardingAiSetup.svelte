@@ -1159,6 +1159,7 @@
               class="search-input"
               type="text"
               placeholder={$t("onboarding.ai_setup.search_placeholder")}
+              aria-label={$t("onboarding.ai_setup.search_placeholder")}
               bind:value={searchQuery}
               onkeydown={(e) => e.key === "Enter" && searchHf()}
             />

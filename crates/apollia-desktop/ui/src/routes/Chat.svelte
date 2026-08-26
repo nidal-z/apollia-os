@@ -491,6 +491,7 @@
           type="search"
           bind:value={sessionSearchQuery}
           placeholder={$t("chat.search_placeholder")}
+          aria-label={$t("chat.search_placeholder")}
           data-testid="session-search-input"
           class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
          />

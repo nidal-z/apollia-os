@@ -95,12 +95,14 @@
       <Input
         bind:value={addKey}
         placeholder={$t("settings.profile.memory.key_placeholder")}
+        aria-label={$t("settings.profile.memory.key_placeholder")}
         class="sm:w-52"
         data-testid="profile-fact-add-key"
       />
       <Input
         bind:value={addValue}
         placeholder={$t("settings.profile.memory.value_placeholder")}
+        aria-label={$t("settings.profile.memory.value_placeholder")}
         class="flex-1"
         onkeydown={(e: KeyboardEvent) => {
           if (e.key === "Enter") void addFact();

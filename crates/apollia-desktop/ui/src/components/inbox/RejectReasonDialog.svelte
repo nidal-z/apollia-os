@@ -66,6 +66,7 @@
     bind:value={reason}
     rows={4}
     placeholder={$t("inbox.reject_placeholder", { values: { min: MIN_REASON } })}
+    aria-label={$t("inbox.reject_reason_label")}
     aria-describedby="inbox-reject-error"
     aria-invalid={!valid && length > 0}
     data-testid="inbox-reject-reason"

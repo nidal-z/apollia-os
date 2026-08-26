@@ -179,8 +179,12 @@
         </div>
 
         <div class="mb-3.5">
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">{$t("projects.field_name")}</div>
+          <label
+            for="new-project-name"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >{$t("projects.field_name")}</label>
           <Input
+            id="new-project-name"
             bind:value={name}
             class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-[13.5px] font-medium text-foreground outline-none"
             placeholder={$t("projects.dialog.name_placeholder")}
@@ -189,10 +193,14 @@
         </div>
 
         <div class="mb-3.5">
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <label
+            for="new-project-description"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >
             {$t("projects.field_description")}
-          </div>
+          </label>
           <Textarea
+            id="new-project-description"
             bind:value={description}
             rows={3}
             class="w-full px-3 py-2 rounded-lg border border-border bg-surface-1 text-[12.5px] text-muted-foreground min-h-[54px] leading-[1.55] outline-none resize-y"

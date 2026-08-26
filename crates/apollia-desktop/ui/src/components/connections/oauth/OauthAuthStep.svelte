@@ -70,6 +70,7 @@
           type="text"
           class="font-mono"
           placeholder={$t("connections.custom_mcp.code_placeholder")}
+          aria-label={$t("connections.custom_mcp.code_placeholder")}
           bind:value={pastedCode}
           disabled={busy}
           data-testid="oauth-paste-code-input"

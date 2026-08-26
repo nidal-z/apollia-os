@@ -217,28 +217,37 @@
       </div>
 
       <div>
-        <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+        <label
+          for="provider-field-name"
+          class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+        >
           {$t("projects.provider_field_name")}
-        </div>
-        <Input bind:value={name} placeholder={defaultNameFor(providerType)} />
+        </label>
+        <Input id="provider-field-name" bind:value={name} placeholder={defaultNameFor(providerType)} />
       </div>
 
       {#if providerType === "tree"}
         <div>
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <label
+            for="provider-field-max-lines"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >
             {$t("projects.provider_field_max_lines")}
-          </div>
-          <Input type="number" min="1" max="2000" bind:value={maxLines} />
+          </label>
+          <Input id="provider-field-max-lines" type="number" min="1" max="2000" bind:value={maxLines} />
         </div>
       {/if}
 
       {#if providerType === "script"}
         <div>
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <label
+            for="provider-field-script-path"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >
             {$t("projects.provider_field_script_path")}
-          </div>
+          </label>
           <div class="flex gap-2">
-            <Input bind:value={path} placeholder="/path/to/script.sh" class="flex-1" />
+            <Input id="provider-field-script-path" bind:value={path} placeholder="/path/to/script.sh" class="flex-1" />
             <Button variant="outline" size="sm" onclick={pickScriptPath}>
               {#snippet icon()}<Folder size={12} />{/snippet}
               {$t("projects.provider_pick_script")}
@@ -246,10 +255,13 @@
           </div>
         </div>
         <div>
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <label
+            for="provider-field-timeout-ms"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >
             {$t("projects.provider_field_timeout_ms")}
-          </div>
-          <Input type="number" min="50" max="60000" bind:value={timeoutMs} />
+          </label>
+          <Input id="provider-field-timeout-ms" type="number" min="50" max="60000" bind:value={timeoutMs} />
         </div>
       {/if}
 
@@ -261,11 +273,14 @@
 
       <div class="flex items-center gap-4">
         <div class="flex-1">
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+          <label
+            for="provider-field-priority"
+            class="block text-[11px] text-muted-foreground mb-1 font-semibold"
+          >
             {$t("projects.context_priority_label")}
             <span class="text-muted-foreground/70 font-normal"> · {$t("projects.provider_priority_hint")}</span>
-          </div>
-          <Input type="number" min="1" max="100" bind:value={priority} />
+          </label>
+          <Input id="provider-field-priority" type="number" min="1" max="100" bind:value={priority} />
         </div>
         <div>
           <div class="text-[11px] text-muted-foreground mb-1 font-semibold">

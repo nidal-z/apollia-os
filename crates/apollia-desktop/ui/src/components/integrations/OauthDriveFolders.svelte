@@ -102,6 +102,7 @@
             type="text"
             bind:value={drafts[folder.account_id]}
             placeholder={$t("settings.integrations.drive.placeholder")}
+            aria-label={$t("settings.integrations.drive.folder_path")}
             autocomplete="off"
             spellcheck={false}
             disabled={savingAccount === folder.account_id}

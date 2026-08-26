@@ -528,6 +528,7 @@
                 unstyled
                 bind:value={listFilter}
                 placeholder={$t("projects.search_placeholder")}
+                aria-label={$t("projects.search_placeholder")}
                 class="flex-1 text-body-xs text-foreground"
                 data-testid="projects-sidebar-search"
               />

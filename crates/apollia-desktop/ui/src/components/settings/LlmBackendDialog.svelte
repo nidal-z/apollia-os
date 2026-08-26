@@ -839,6 +839,7 @@
                 <Input
                   type="text"
                   placeholder="Qwen/Qwen3-30B-A3B-GGUF"
+                  aria-label={$t("settings.llm_dialog.hf_autofill_title")}
                   class="flex h-9 flex-1 min-w-0 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   bind:value={hfRepoId}
                   onkeydown={(e) => { if (e.key === "Enter") void fetchHfParams(); }}

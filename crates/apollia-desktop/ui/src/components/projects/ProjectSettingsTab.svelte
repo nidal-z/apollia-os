@@ -104,18 +104,19 @@
   </div>
 
   <div>
-    <div class="text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_name")}</div>
-    <Input bind:value={editName} placeholder={$t("projects.field_name")} class="bg-card" data-testid="settings-name-input" />
+    <label for="project-settings-name" class="block text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_name")}</label>
+    <Input id="project-settings-name" bind:value={editName} placeholder={$t("projects.field_name")} class="bg-card" data-testid="settings-name-input" />
   </div>
 
   <div>
-    <div class="text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_description")}</div>
-    <Textarea bind:value={editDescription} rows={3} class="bg-card" data-testid="settings-description-input" />
+    <label for="project-settings-description" class="block text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_description")}</label>
+    <Textarea id="project-settings-description" bind:value={editDescription} rows={3} class="bg-card" data-testid="settings-description-input" />
   </div>
 
   <div>
-    <div class="text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_instructions")}</div>
+    <label for="project-settings-instructions" class="block text-label-sm text-muted-foreground mb-1">{$t("projects.settings_field_instructions")}</label>
     <Textarea
+      id="project-settings-instructions"
       bind:value={editInstructions}
       rows={5}
       placeholder={$t("projects.settings_field_instructions_placeholder")}
@@ -125,9 +126,9 @@
   </div>
 
   <div>
-    <div class="text-label-sm text-muted-foreground mb-1">{$t("projects.field_workspace")}</div>
+    <label for="project-settings-workspace" class="block text-label-sm text-muted-foreground mb-1">{$t("projects.field_workspace")}</label>
     <div class="flex gap-2">
-      <Input bind:value={editWorkspacePath} placeholder={$t("projects.field_workspace_placeholder")} class="flex-1 bg-card" data-testid="settings-workspace-input" />
+      <Input id="project-settings-workspace" bind:value={editWorkspacePath} placeholder={$t("projects.field_workspace_placeholder")} class="flex-1 bg-card" data-testid="settings-workspace-input" />
       <Button variant="outline" size="sm" onclick={pickWorkspaceDir}>
         {#snippet icon()}<FolderOpen size={12} />{/snippet}
         {$t("projects.settings_field_workspace_pick")}

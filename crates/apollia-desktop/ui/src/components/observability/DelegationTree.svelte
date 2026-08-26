@@ -83,6 +83,7 @@
         class="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
         value={selectedTaskId}
         onchange={onSelectChange}
+        aria-label={$t("observability.delegation_select_task")}
         data-testid="delegation-task-select"
       >
         {#each tasks as task (task.id)}

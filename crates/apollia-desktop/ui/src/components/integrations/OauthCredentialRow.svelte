@@ -180,6 +180,7 @@
           type={mode === "secret" && !visible ? "password" : "text"}
           bind:value={draft}
           {placeholder}
+          aria-label={label}
           autocomplete="off"
           spellcheck={false}
           onkeydown={onKeydown}

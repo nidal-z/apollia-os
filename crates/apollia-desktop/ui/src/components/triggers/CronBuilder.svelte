@@ -208,6 +208,7 @@
     <Input
       class="font-mono text-xs"
       placeholder="0 8 * * MON-FRI"
+      aria-label={$t("triggers.cron_expression_label")}
       value={rawCron}
       oninput={(e) => onRawCronChange((e.target as HTMLInputElement).value)}
     />
