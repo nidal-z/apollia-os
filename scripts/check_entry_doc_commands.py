@@ -41,13 +41,27 @@ Two safeguards, both required and neither optional:
     command that writes state never reaches the real `~/.apollia`.
   * long-running and destructive verbs are resolved but never run.
 
+A third corpus needs no binary at all. The tooling documents, the automaton's
+three, the SDK's README and the CLI suite's, publish shell lines whose subject
+is a file rather than a verb: `bash tests/cli/seed/load.sh`, `python3
+scripts/automation/tools/validate.py`, `python -m apollia inspect <agent>`.
+A file the clone does not have is the same defect one layer out, and it stayed
+in place for sixteen days: the seed moved to `tests/cli/seed/` and eleven lines
+went on naming `scripts/automation/seed/`, next to four calls to a checker
+`.gitignore` excludes from every clone. Every path token those documents cite
+is therefore required to be tracked, and every Python script they invoke to
+answer `--help` with exit 0.
+
 Verdict by exit code, since the caller reads it rather than the text:
 
-  0  every documented invocation is accepted by the binary
+  0  every documented invocation is accepted by the binary, and every path the
+     tooling documents cite is a tracked file
   1  at least one is refused
   2  nothing was measured, so the run says nothing: the binary is absent, it
      was not produced by this working tree (`binary_freshness.py`, which
      prints the command that repairs it), or no document holds an invocation.
+     A tooling-document refusal outranks this: it is measured without a binary,
+     so it is reported as a defect rather than as a silence.
 """
 
 import argparse
@@ -67,6 +81,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import binary_freshness  # noqa: E402
 
 DOCUMENTS = ["README.md", "agents/examples/README.md"]
+
+# The documents an operator is sent to by `CLAUDE.md` and by the root README:
+# the automaton's three, the SDK's and the CLI suite's. They publish shell
+# lines that are not `apollia-os` invocations, so clap cannot judge them; what
+# they cite is a file, and a file the clone does not have is the same defect
+# one layer out. The seed moved to `tests/cli/seed/` on 2026-08-06 and these
+# documents kept sending the reader to `scripts/automation/seed/` for sixteen
+# days, next to four calls to a checker `.gitignore` excludes from every clone.
+TOOLING_DOCUMENTS = [
+    "scripts/automation/README.md",
+    "scripts/automation/SCREENSHOTS.md",
+    "scripts/automation/SHOOT-BY-HAND.md",
+    "sdk/README.md",
+    "tests/cli/README.md",
+]
+
+# A token is judged as a path when it is repo-relative, carries a directory
+# separator and one of these suffixes. Everything else on a published line is
+# a flag, an environment assignment, a redirection or a value.
+PATH_SUFFIXES = (".py", ".sh", ".json", ".md", ".toml", ".yml", ".yaml", ".rs", ".ts")
+PATH_TOKEN = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_.-]+)+$")
+PYTHON = ("python", "python3")
 KNOWLEDGE = ROOT / "agents/system/apollia-guide/knowledge"
 SITE = "docs/site"
 
@@ -211,13 +247,117 @@ def site_refusals(env: dict) -> tuple[int, list[tuple[str, str, str]]]:
     return count, refused
 
 
+def tracked_files() -> set[str]:
+    """Every path `git ls-files` reports, as posix strings."""
+    result = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        return set()
+    return {p for p in result.stdout.split("\0") if p}
+
+
+def shell_lines(path: Path):
+    """Yield every shell line a document publishes in a fenced block."""
+    for block in BLOCK.findall(path.read_text(encoding="utf-8", errors="replace")):
+        for line in CONTINUATION.sub(" ", block).splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                yield line
+
+
+def tooling_refusals(env: dict) -> tuple[int, list[tuple[str, str, str]]]:
+    """Judge the tooling documents: every path they cite, then every `--help`.
+
+    Two verdicts, both mechanical. A cited path that `git ls-files` does not
+    report is a line no clone can run, whatever the machine that wrote it
+    still holds. A cited Python script that refuses `--help` is a line whose
+    arguments the reader cannot even discover; `check_selftest.py` already
+    holds every tracked script to answering `--help` inertly, so running it
+    here changes nothing on disk.
+    """
+    tracked = tracked_files()
+    refused: list[tuple[str, str, str]] = []
+    helped: set[str] = set()
+    count = 0
+    for name in TOOLING_DOCUMENTS:
+        path = ROOT / name
+        if not path.exists():
+            refused.append((name, "", "the document itself is absent"))
+            continue
+        for line in shell_lines(path):
+            count += 1
+            try:
+                tokens = shlex.split(line, comments=True)
+            except ValueError:
+                continue
+            for index, token in enumerate(tokens):
+                if not PATH_TOKEN.match(token):
+                    continue
+                if not token.endswith(PATH_SUFFIXES):
+                    continue
+                if token not in tracked:
+                    refused.append(
+                        (name, line, f"`{token}` is not a tracked file of this tree")
+                    )
+                    continue
+                if (
+                    token.endswith(".py")
+                    and index > 0
+                    and tokens[index - 1] in PYTHON
+                    and token not in helped
+                ):
+                    helped.add(token)
+                    verdict = subprocess.run(
+                        [sys.executable, token, "--help"],
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        env=env,
+                    )
+                    if verdict.returncode != 0:
+                        first = (verdict.stderr or verdict.stdout).strip().splitlines()
+                        refused.append(
+                            (name, line, f"`{token} --help` exits "
+                             f"{verdict.returncode}: {first[0] if first else 'no output'}")
+                        )
+    return count, refused
+
+
+def report(refused: list[tuple[str, str, str]]) -> None:
+    """Print each refusal the way the reader meets it: document, line, reason."""
+    print()
+    for rel, line, detail in refused:
+        print(f"  REFUSED  {rel}")
+        if line:
+            print(f"           {line}")
+        print(f"           -> {detail}")
+    print()
+    print("A published command line the binary refuses, or that names a file no")
+    print("clone has, is the first thing a stranger runs and the first thing that")
+    print("tells them the tree is stale.")
+
+
 def main() -> int:
+    # The tooling documents need no binary: what they publish is judged against
+    # `git ls-files`, so their verdict is rendered before the gate below can
+    # turn the run into a "nothing measured".
+    with tempfile.TemporaryDirectory() as home:
+        tooling_count, tooling_refused = tooling_refusals(dict(os.environ, HOME=home))
+    print(f"tooling documents read: {len(TOOLING_DOCUMENTS)}")
+    print(f"tooling lines read    : {tooling_count}")
+    print(f"tooling lines refused : {len(tooling_refused)}")
+
     if not BINARY.exists():
         print(
             f"NOTHING MEASURED: {BINARY.relative_to(ROOT)} is absent, so no invocation\n"
             "                 was offered to anything. Run: cargo build -p apollia-cli",
             file=sys.stderr,
         )
+        if tooling_refused:
+            report(tooling_refused)
+            return 1
         return 2
 
     # Every refusal below is clap's, spoken by this artefact. A binary older
@@ -225,6 +365,9 @@ def main() -> int:
     # the documentation: the campaign refused 6 lines that way.
     stale = binary_freshness.require(BINARY, ROOT)
     if stale is not None:
+        if tooling_refused:
+            report(tooling_refused)
+            return 1
         return stale
 
     found = [(p, line) for p in documents() for line in invocations(p)]
@@ -276,20 +419,14 @@ def main() -> int:
     print(f"site invocations read : {site_count} (parse verdict only)")
     print(f"site lines refused    : {len(site_refused)}")
 
-    refused += site_refused
+    refused += site_refused + tooling_refused
     if refused:
-        print()
-        for rel, line, detail in refused:
-            print(f"  REFUSED  {rel}")
-            print(f"           {line}")
-            print(f"           -> {detail}")
-        print()
-        print("A published command line the binary refuses is the first thing a")
-        print("stranger runs, and the first thing that tells them the tree is stale.")
+        report(refused)
         return 1
 
     print()
-    print("OK: every invocation the entry documents and the site publish is accepted")
+    print("OK: every invocation the entry documents and the site publish is accepted,")
+    print("    and every path the tooling documents cite is a tracked file")
     return 0
 
 

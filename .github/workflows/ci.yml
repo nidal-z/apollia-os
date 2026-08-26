@@ -232,9 +232,11 @@ jobs:
         run: cargo build -p apollia-cli
       - name: Seed builder self-test
         run: bash tests/cli/seed/self-test.sh
-      # Lives here and not in prose-guard because its subject is the built
-      # binary: it replays every documented command line of the entry documents
-      # against target/debug/apollia-os, which the step above just produced.
+      # Lives here and not in prose-guard because its first subject is the
+      # built binary: it replays every documented command line of the entry
+      # documents against target/debug/apollia-os, which the step above just
+      # produced. Its second subject needs no binary: every path the tooling
+      # documents cite must be a file `git ls-files` reports.
       - name: Documented command lines are accepted by the binary
         run: python3 scripts/check_entry_doc_commands.py
       # Same placement rationale: the floor is measured against the built
