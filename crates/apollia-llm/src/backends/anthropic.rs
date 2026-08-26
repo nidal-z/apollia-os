@@ -465,7 +465,7 @@ impl AnthropicClient {
                     Some(input_cost + output_cost + cache_write_cost + cache_read_cost)
                 }
                 None => {
-                    tracing::warn!(model_id = %model, "unknown model for pricing");
+                    tracing::warn!(model_id = %model, "llm.pricing.model.unknown");
                     None
                 }
             };
@@ -478,7 +478,7 @@ impl AnthropicClient {
             cache_read_tokens = result.usage.cache_read_input_tokens,
             cache_write_tokens = result.usage.cache_write_input_tokens,
             latency_ms = result.latency_ms,
-            "Anthropic complete() done"
+            "llm.completion.done"
         );
 
         Ok(result)
@@ -713,9 +713,7 @@ fn mark_message_cache_control(msg: &mut AnthropicMessage) {
                     }
                     AnthropicBlock::ToolUse { .. } => {
                         // ToolUse does not support cache_control, breakpoint ignored
-                        tracing::debug!(
-                            "cache breakpoint on message ending with tool_use block - ignored"
-                        );
+                        tracing::debug!("llm.cache.breakpoint.skipped");
                     }
                 }
             }
@@ -827,7 +825,8 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
             tracing::warn!(
                 role = ?role,
                 content = ?content,
-                "AnthropicClient: combinaison rôle/contenu non supportée, message ignoré"
+                reason = "unsupported role and content combination",
+                "llm.message.skipped"
             );
             None
         }

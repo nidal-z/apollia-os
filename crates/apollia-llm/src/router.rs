@@ -360,7 +360,8 @@ fn insert_vertex_backend(
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "Vertex AI backend ignoré : ADC absent ou invalide"
+                reason = "Vertex AI credentials missing or invalid",
+                "llm.backend.skipped"
             );
         }
     }
@@ -410,7 +411,8 @@ fn load_backend_with_bus(
             tracing::warn!(
                 backend = %name,
                 error = %e,
-                "backend ignoré : chargement échoué"
+                reason = "loading failed",
+                "llm.backend.skipped"
             );
             // Emit LlmModelFailed: backend skipped, no crash.
             if let Some(b) = bus {
@@ -459,7 +461,8 @@ fn insert_vertex_backend_with_bus(
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "Vertex AI backend ignoré : ADC absent ou invalide"
+                reason = "Vertex AI credentials missing or invalid",
+                "llm.backend.skipped"
             );
             if let Some(b) = bus {
                 let _ = b.send(RuntimeEvent::LlmModelFailed {
@@ -553,7 +556,8 @@ impl LlmRouter {
                     tracing::warn!(
                         backend = %name,
                         error = %e,
-                        "backend ignoré : clé API absente"
+                        reason = "API key missing",
+                        "llm.backend.skipped"
                     );
                     continue;
                 }
@@ -679,7 +683,7 @@ impl LlmRouter {
 
         // Log the prompt at TRACE only, never at INFO.
         if obs.debug_log_prompt {
-            tracing::trace!(prompt = ?req.messages, "llm prompt");
+            tracing::trace!(prompt = ?req.messages, "llm.request.prompt");
         }
 
         let started = Instant::now();
@@ -728,7 +732,7 @@ impl LlmRouter {
                 backend = backend_key,
                 prompt_tokens = response.usage.prompt_tokens,
                 completion_tokens = response.usage.completion_tokens,
-                "llm token usage"
+                "llm.usage.tokens"
             );
         }
 
@@ -736,7 +740,7 @@ impl LlmRouter {
             tracing::info!(
                 backend = backend_key,
                 latency_ms = latency_ms,
-                "llm latency"
+                "llm.request.latency"
             );
         }
 
@@ -786,7 +790,8 @@ impl LlmRouter {
                 from = %primary,
                 to = %candidate,
                 reason = %last_err,
-                "LLM primary failed, attempting fallback"
+                reason = "the primary backend failed",
+                "llm.fallback.attempted"
             );
             match self
                 .complete_with_observability(Some(candidate), req.clone(), bus, obs)
@@ -834,7 +839,7 @@ impl LlmRouter {
                 })?;
 
         if obs.debug_log_prompt {
-            tracing::trace!(prompt = ?req.messages, "llm stream prompt");
+            tracing::trace!(prompt = ?req.messages, "llm.stream.prompt");
         }
 
         let stream = backend.stream(req).await?;
@@ -929,7 +934,8 @@ impl LlmRouter {
                     tracing::warn!(
                         backend = %name,
                         error = %e,
-                        "LLM backend skipped during config load"
+                        reason = "instantiation from the configuration failed",
+                        "llm.backend.skipped"
                     );
                 }
             }
@@ -1005,7 +1011,8 @@ impl LlmRouter {
             if let Some(overriden) = override_factory(&cfg) {
                 tracing::info!(
                     backend = %name,
-                    "LLM backend instantiated via override (runner proxy)"
+                    detail = "instantiated through the runner proxy override",
+                    "llm.backend.instantiated"
                 );
                 backends.insert(name, overriden);
                 continue;
@@ -1019,7 +1026,8 @@ impl LlmRouter {
                     tracing::warn!(
                         backend = %name,
                         error = %e,
-                        "LLM backend skipped during repository load"
+                        reason = "instantiation from the repository failed",
+                        "llm.backend.skipped"
                     );
                 }
             }
@@ -1053,7 +1061,8 @@ impl LlmRouter {
             tracing::warn!(
                 backend = %name,
                 fallback = %self.default,
-                "unknown LLM backend requested, falling back to default"
+                detail = "routing to the default backend",
+                "llm.backend.unknown"
             );
         }
         self.backends
@@ -1192,7 +1201,8 @@ impl LlmRouter {
                 tracing::debug!(
                     role = %role,
                     backend = %self.default,
-                    "no [llm.routing] configured - falling back to default backend"
+                    detail = "routing to the default backend",
+                    "llm.routing.missing"
                 );
                 Ok(backend)
             }
@@ -1251,7 +1261,8 @@ impl LlmRouter {
                 session_cost_usd = session_cost,
                 ceiling_usd = hybrid.cost_ceiling_usd,
                 signal = ?signal,
-                "hybrid escalation blocked: cost ceiling reached, staying local"
+                reason = "the session cost ceiling is reached",
+                "llm.hybrid.escalation.blocked"
             );
             return local();
         }
@@ -1264,7 +1275,7 @@ impl LlmRouter {
                     session_cost_usd = session_cost,
                     ceiling_usd = hybrid.cost_ceiling_usd,
                     signal = ?signal,
-                    "hybrid escalation: routing to frontier backend"
+                    "llm.hybrid.escalation.routed"
                 );
                 backend.clone()
             }
@@ -1272,7 +1283,8 @@ impl LlmRouter {
                 tracing::warn!(
                     frontier = %hybrid.frontier,
                     signal = ?signal,
-                    "hybrid escalation: frontier backend absent from router, staying local"
+                    reason = "the frontier backend is absent from the router",
+                    "llm.hybrid.escalation.blocked"
                 );
                 local()
             }

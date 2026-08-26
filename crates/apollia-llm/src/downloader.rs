@@ -157,7 +157,7 @@ impl DownloadManager {
             }
 
             if let Err(e) = result {
-                tracing::error!(id = %task_id, error = %e, "download failed");
+                tracing::error!(id = %task_id, error = %e, "model.download.failed");
             }
         });
 
@@ -253,7 +253,7 @@ async fn run_download(
                         id = %id,
                         path = %dest_path.display(),
                         error = %e,
-                        "failed to remove partial file after cancel"
+                        "model.download.partial.remove.failed"
                     );
                 }
                 on_progress(DownloadProgress {
@@ -304,7 +304,7 @@ async fn run_download(
         id = %id,
         path = %dest_path.display(),
         bytes = downloaded,
-        "model download completed"
+        "model.download.completed"
     );
 
     // Opportunistically persist the official HF sampling defaults. Never fail
@@ -317,7 +317,8 @@ async fn run_download(
                 repo = %repo,
                 file = %filename,
                 error = %e,
-                "sampling defaults non persistés (ignorable)"
+                detail = "the download itself is unaffected",
+                "model.sampling_defaults.persist.failed"
             );
         }
     }
@@ -357,7 +358,8 @@ async fn persist_sampling_defaults(
             tracing::info!(
                 repo = %repo_id,
                 base_model = %base,
-                "generation_config.json absent du repo dérivé, retry sur base_model"
+                detail = "retrying on the base model",
+                "model.generation_config.missing"
             );
             client.get_generation_config(&base).await.ok_or_else(|| {
                 format!("generation_config.json absent aussi sur base_model {base}")
@@ -388,7 +390,7 @@ async fn persist_sampling_defaults(
         repo = %repo_id,
         file = %model_filename,
         path = %path.display(),
-        "sampling defaults HF persistés"
+        "model.sampling_defaults.persisted"
     );
     Ok(())
 }

@@ -229,7 +229,8 @@ impl OpenAICompatibleClient {
                     tracing::warn!(
                         tool_id = %tc.id,
                         error = %e,
-                        "failed to parse tool call arguments as JSON, using null"
+                        detail = "the arguments read as null",
+                        "llm.tool_call.arguments.parse.failed"
                     );
                     serde_json::Value::Null
                 });

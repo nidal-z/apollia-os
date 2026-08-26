@@ -341,7 +341,7 @@ pub fn spawn_subscriber(
                     tokio::task::spawn_blocking(move || {
                         if let Ok(guard) = repo.lock() {
                             if let Err(e) = guard.save(&record) {
-                                error!(error = %e, "failed to persist LLM call");
+                                error!(error = %e, "llm.call.persist.failed");
                             }
                         }
                     });

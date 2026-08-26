@@ -180,7 +180,10 @@ impl ToolCallHelper {
         let grammar: Option<String> = if !tools.is_empty() && self.model.is_local() {
             let gbnf = crate::grammar::tool_specs_to_gbnf(&tools);
             if gbnf.is_empty() {
-                tracing::warn!("tool_specs_to_gbnf produced empty grammar, running unconstrained");
+                tracing::warn!(
+                    detail = "the call runs unconstrained",
+                    "llm.tool.grammar.empty"
+                );
                 None
             } else {
                 Some(gbnf)

@@ -109,7 +109,8 @@ impl RetryPolicy {
                     tracing::warn!(
                         attempt = attempt + 1,
                         delay_ms,
-                        "LLM rate limited or unavailable, retrying"
+                        reason = "rate limited or unavailable",
+                        "llm.request.retrying"
                     );
                     tokio::select! {
                         _ = tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)) => {}

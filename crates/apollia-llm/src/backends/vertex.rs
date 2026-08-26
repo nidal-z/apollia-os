@@ -386,7 +386,7 @@ impl VertexClient {
             prompt_tokens = result.usage.prompt_tokens,
             completion_tokens = result.usage.completion_tokens,
             latency_ms = result.latency_ms,
-            "Vertex AI complete() done"
+            "llm.completion.done"
         );
 
         Ok(result)

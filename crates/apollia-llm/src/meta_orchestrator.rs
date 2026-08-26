@@ -570,7 +570,7 @@ impl MetaLlmOrchestrator {
     ) -> Result<Option<String>, LlmError> {
         // Short-circuit: toggle off means no call and no consumption.
         if !self.settings.is_routine_enabled(routine) {
-            tracing::debug!(routine = ?routine, "meta routine disabled - short-circuit");
+            tracing::debug!(routine = ?routine, "meta.routine.disabled");
             return Ok(None);
         }
 
@@ -589,7 +589,7 @@ impl MetaLlmOrchestrator {
                 session_id = %session_id,
                 used,
                 budget = counter.budget,
-                "meta budget exceeded - short-circuit"
+                "meta.budget.exceeded"
             );
             return Ok(None);
         }
@@ -599,12 +599,12 @@ impl MetaLlmOrchestrator {
         if let Some(entry) = self.cache.get(&key) {
             if entry.inserted_at.elapsed() < CACHE_TTL {
                 let value = entry.value.clone();
-                tracing::info!(hit = true, routine = ?routine, "meta cache");
+                tracing::info!(hit = true, routine = ?routine, "meta.cache.lookup");
                 return Ok(Some(value));
             }
             // Expired, will be overwritten below.
         }
-        tracing::info!(hit = false, routine = ?routine, "meta cache");
+        tracing::info!(hit = false, routine = ?routine, "meta.cache.lookup");
 
         // Render prompt, call LLM with timeout.
         let prompt = render_prompt(routine.prompt_template(), &inputs);
@@ -626,11 +626,11 @@ impl MetaLlmOrchestrator {
         let response = match tokio::time::timeout(CALL_TIMEOUT, call).await {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
-                tracing::warn!(routine = ?routine, error = %e, "meta llm call failed - fallback None");
+                tracing::warn!(routine = ?routine, error = %e, "meta.llm.call.failed");
                 return Ok(None);
             }
             Err(_) => {
-                tracing::warn!(routine = ?routine, "meta llm timeout - fallback None");
+                tracing::warn!(routine = ?routine, "meta.llm.call.timeout");
                 return Ok(None);
             }
         };

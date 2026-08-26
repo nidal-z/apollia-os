@@ -59,7 +59,8 @@ pub fn build_llm_http_client(idle_timeout: Duration) -> reqwest::Client {
         .unwrap_or_else(|e| {
             tracing::warn!(
                 error = %e,
-                "llm.http_client.build_failed, falling back to an unbounded client"
+                detail = "falling back to an unbounded client",
+                "llm.http_client.build.failed"
             );
             // SAFETY: policy-equivalent fallback. `Client::new()` carries
             // reqwest's default `Policy::limited(10)`, which is exactly what
