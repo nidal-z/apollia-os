@@ -10,34 +10,31 @@
 //! and delegates to the appropriate mode. The lower-level [`ORIAEngine::execute_direct`]
 //! remains available for callers that already hold an [`AgentRunner`].
 
+mod builder;
+mod direct;
+mod orchestrated;
+mod plan_cache_ops;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use std::time::Instant;
 
 use apollia_core::{
-    AIPPart, AIPResult, AIPTask, AgentManifest, AutonomyLevel, AutonomyLevelConfig, DataPart,
-    EventBusSender, ORIAConfig, PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
+    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, ORIAConfig,
+    PendingApprovals, StepBudgetConfig,
 };
-use apollia_llm::{CompletionModel, LlmRouter};
+use apollia_llm::LlmRouter;
 use apollia_memory::manager::MemoryManager;
 
 use apollia_workspace::ProjectRuntime;
 
-use crate::actor::{ActorLoop, StepDeps, ToolProxyTrait};
-use crate::budget::StepBudget;
+use crate::actor::ToolProxyTrait;
 use crate::context_manager::ContextManager;
 use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
-use crate::plan::ExecutionPlan;
-use crate::plan_cache::{compute_cache_key, PlanCacheRepository};
-use crate::plan_gate::{PendingPlanGates, PlanGateDecision};
-use crate::plan_repository::{PlanRepository, PlanRepositoryError};
+use crate::plan_cache::PlanCacheRepository;
+use crate::plan_gate::PendingPlanGates;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
-use crate::verification::{
-    run_post_run_verification, verdict_feedback, CriticPass, VerificationLoop,
-};
 
 // Traits
 
@@ -148,7 +145,7 @@ pub enum ORIAError {
 // NoopToolProxy: fallback when no proxy configured
 
 /// Tool proxy that always returns an error, used when no tool proxy is configured.
-struct NoopToolProxy;
+pub(crate) struct NoopToolProxy;
 
 #[async_trait::async_trait]
 impl ToolProxyTrait for NoopToolProxy {
@@ -171,38 +168,38 @@ impl ToolProxyTrait for NoopToolProxy {
 /// All dependencies are optional: an engine without an LLM only supports
 /// Mode Direct.
 pub struct ORIAEngine {
-    reasoner: Option<Reasoner>,
-    tool_proxy: Option<Arc<dyn ToolProxyTrait>>,
-    llm_router: LlmRouter,
-    resilience: ResilienceLayer,
-    event_bus: EventBusSender,
-    runtime_config: StepBudgetConfig,
+    pub(crate) reasoner: Option<Reasoner>,
+    pub(crate) tool_proxy: Option<Arc<dyn ToolProxyTrait>>,
+    pub(crate) llm_router: LlmRouter,
+    pub(crate) resilience: ResilienceLayer,
+    pub(crate) event_bus: EventBusSender,
+    pub(crate) runtime_config: StepBudgetConfig,
     /// ORIA engine configuration injected from `apollia.toml`.
-    oria_config: ORIAConfig,
-    db_path: Option<String>,
+    pub(crate) oria_config: ORIAConfig,
+    pub(crate) db_path: Option<String>,
     /// HITL registry of pending approvals, shared with the `ResumeHandler`.
     ///
     /// Required for `execute_direct()` to suspend the task and wait for the
     /// human decision. When `None`, `InputRequired` results are returned
     /// as-is without suspension.
-    pending_approvals: Option<Arc<PendingApprovals>>,
+    pub(crate) pending_approvals: Option<Arc<PendingApprovals>>,
     /// Plan-gate registry, shared with the consumer that submits the decision.
     ///
     /// When `Some` and the gate is active, the engine suspends after plan
     /// generation, registers a oneshot here, and awaits an approve/reject
     /// decision before starting the `ActorLoop`. When `None`, the gate cannot
     /// suspend and execution proceeds directly.
-    pending_plan_gates: Option<Arc<PendingPlanGates>>,
+    pub(crate) pending_plan_gates: Option<Arc<PendingPlanGates>>,
     /// Per-run plan-gate override.
     ///
     /// `Some(true)` forces the gate active, `Some(false)` bypasses it, `None`
     /// defers to the autonomy tier. Set by the operator (CLI `run --plan`); other
     /// submission paths leave it `None` so the tier governs.
-    plan_gate_override: Option<bool>,
+    pub(crate) plan_gate_override: Option<bool>,
     /// HITL SQLite repository, persists the prompt and context on suspension.
     ///
     /// When `None`, persistence is skipped (logged warning) but execution continues.
-    task_repository: Option<Arc<apollia_tools::TaskRepository>>,
+    pub(crate) task_repository: Option<Arc<apollia_tools::TaskRepository>>,
     /// Memory manager for automatic episodic recording per step.
     ///
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
@@ -213,7 +210,7 @@ pub struct ORIAEngine {
     /// and the `ActorLoop` (per-step episodic writes). Mutations are rare (one write
     /// per step, fire-and-forget) and `MemoryManager` wraps a non-`Sync` SQLite
     /// connection.
-    memory_manager: Option<Arc<Mutex<MemoryManager>>>,
+    pub(crate) memory_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Execution plan cache.
     ///
     /// Wrapped in a `Mutex` because `rusqlite::Connection` is not `Sync`.
@@ -224,236 +221,25 @@ pub struct ORIAEngine {
     /// exposes the same repository over REST for stats and clearing. An owned
     /// repository here would cache into a second database that no operator
     /// command can see.
-    plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
+    pub(crate) plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
     /// Workspace context assembler with a TTL cache.
     ///
     /// Collects the git branch, file status, and `APOLLIA.md` content at the
     /// start of an orchestrated task, then injects the result into the system prompt.
-    workspace_assembler: ProjectRuntime,
+    pub(crate) workspace_assembler: ProjectRuntime,
     /// Working directory used as the root for workspace collection.
     ///
     /// Initialized to `"."` by default; overridable via [`with_cwd`](ORIAEngine::with_cwd).
-    cwd: PathBuf,
+    pub(crate) cwd: PathBuf,
     /// LLM context-window manager, compacts history when needed.
     ///
     /// Initialized from `ORIAConfig::context_compact_threshold` and
     /// `ORIAConfig::context_summary_max_chars`. Passed to the `ActorLoop` during
     /// orchestrated execution to protect long LLM steps.
-    context_manager: ContextManager,
+    pub(crate) context_manager: ContextManager,
 }
 
 impl ORIAEngine {
-    /// Create an `ORIAEngine` with default values (Mode Direct only).
-    ///
-    /// To enable Mode Orchestrated, chain with [`with_reasoner`].
-    /// To enable HITL, chain with [`with_pending_approvals`] and [`with_task_repository`].
-    ///
-    /// [`with_reasoner`]: ORIAEngine::with_reasoner
-    /// [`with_pending_approvals`]: ORIAEngine::with_pending_approvals
-    /// [`with_task_repository`]: ORIAEngine::with_task_repository
-    pub fn new() -> Self {
-        let (event_bus, _) = tokio::sync::broadcast::channel(64);
-        let oria_config = ORIAConfig::default();
-        let context_manager = ContextManager::from_config(&oria_config);
-        Self {
-            reasoner: None,
-            tool_proxy: None,
-            llm_router: LlmRouter::empty(),
-            resilience: ResilienceLayer::new(3, Duration::from_secs(30)),
-            event_bus,
-            runtime_config: StepBudgetConfig::default(),
-            oria_config,
-            db_path: None,
-            pending_approvals: None,
-            pending_plan_gates: None,
-            plan_gate_override: None,
-            task_repository: None,
-            memory_manager: None,
-            plan_cache: None,
-            workspace_assembler: ProjectRuntime::default_project(),
-            cwd: PathBuf::from("."),
-            context_manager,
-        }
-    }
-
-    /// Configure the `ORIAEngine` with an LLM to enable Mode Orchestrated.
-    ///
-    /// `max_steps` bounds the size of plans generated by the Reasoner
-    /// (non-negotiable safety guardrail).
-    pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
-        self.reasoner = Some(Reasoner::new(model, max_steps));
-        self
-    }
-
-    /// Returns `true` when a [`Reasoner`] has been wired via
-    /// [`with_reasoner`](Self::with_reasoner) or
-    /// [`with_llm_router_and_reasoner`](Self::with_llm_router_and_reasoner).
-    ///
-    /// The runtime relies on this to fail orchestrated tasks with a
-    /// stable `NO_LLM` code at `engine.execute()` time: without this check,
-    /// orchestrated agents would fall through to NO_HANDLER because the engine
-    /// was never wired with a Reasoner.
-    pub fn has_reasoner(&self) -> bool {
-        self.reasoner.is_some()
-    }
-
-    /// Configure the `ToolProxy` for executing orchestrated steps.
-    ///
-    /// Without a `ToolProxy`, steps with a `tool_hint` fail via `NoopToolProxy`.
-    pub fn with_tool_proxy(mut self, proxy: Arc<dyn ToolProxyTrait>) -> Self {
-        self.tool_proxy = Some(proxy);
-        self
-    }
-
-    /// Configure the `LlmRouter` for LLM synthesis in orchestrated steps.
-    pub fn with_llm_router(mut self, router: LlmRouter) -> Self {
-        self.llm_router = router;
-        self
-    }
-
-    /// Configure the LLM router and instantiate the Reasoner from the precise backend.
-    ///
-    /// Combines [`with_llm_router`](Self::with_llm_router) and [`with_reasoner`](Self::with_reasoner):
-    /// selects `route_precise()` for orchestrated planning, then stores the router
-    /// for step-level LLM calls.
-    ///
-    /// # Errors
-    ///
-    /// - [`apollia_llm::LlmError::RoutingConfigMissing`]: `[llm.routing]` missing from the config.
-    /// - [`apollia_llm::LlmError::BackendNotFound`]: `precise` backend not found in the router.
-    pub fn with_llm_router_and_reasoner(
-        mut self,
-        router: LlmRouter,
-        max_steps: u32,
-    ) -> Result<Self, apollia_llm::LlmError> {
-        let model = router.route_precise()?;
-        self.reasoner = Some(Reasoner::new(model, max_steps));
-        self.llm_router = router;
-        Ok(self)
-    }
-
-    /// Inject an `EventBusSender` to broadcast plan events on the bus.
-    pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
-        self.event_bus = bus;
-        self
-    }
-
-    /// Inject the ORIA configuration read from `apollia.toml`.
-    ///
-    /// If not called, [`ORIAConfig::default`] is used (`max_replans = 2`).
-    /// The `max_replans` value controls how many re-plans are allowed in
-    /// Orchestrated mode before failing permanently.
-    /// Also updates the `ContextManager` with the configured compaction thresholds.
-    pub fn with_oria_config(mut self, config: ORIAConfig) -> Self {
-        self.context_manager = ContextManager::from_config(&config);
-        self.oria_config = config;
-        self
-    }
-
-    /// Inject the HITL registry of pending approvals.
-    ///
-    /// Required for `execute_direct()` to suspend the task in `input_required` status
-    /// and wait for the human decision through a oneshot channel.
-    /// Shared between the `ORIAEngine` and the REST routes via `AppState`.
-    pub fn with_pending_approvals(mut self, pending: Arc<PendingApprovals>) -> Self {
-        self.pending_approvals = Some(pending);
-        self
-    }
-
-    /// Inject the plan-gate registry, shared with the decision consumer.
-    ///
-    /// Required for an active gate to suspend the run after plan generation and
-    /// await an approve/reject decision. Shared between the `ORIAEngine` and the
-    /// REST routes via `AppState`.
-    pub fn with_pending_plan_gates(mut self, gates: Arc<PendingPlanGates>) -> Self {
-        self.pending_plan_gates = Some(gates);
-        self
-    }
-
-    /// Force the plan gate active for every orchestrated run.
-    ///
-    /// Convenience for `with_plan_gate_override(Some(force))`: independent of the
-    /// autonomy tier, `true` always gates and `false` always bypasses.
-    pub fn with_force_plan_gate(mut self, force: bool) -> Self {
-        self.plan_gate_override = Some(force);
-        self
-    }
-
-    /// Set the per-run plan-gate override.
-    ///
-    /// `Some(true)` forces the gate, `Some(false)` bypasses it, `None` defers to
-    /// the autonomy tier.
-    pub fn with_plan_gate_override(mut self, override_: Option<bool>) -> Self {
-        self.plan_gate_override = override_;
-        self
-    }
-
-    /// Inject the HITL SQLite repository to persist the prompt and context.
-    ///
-    /// If absent, SQLite persistence is skipped but HITL execution continues
-    /// (logged warning: fail fast only for detectable errors).
-    pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
-        self.task_repository = Some(repo);
-        self
-    }
-
-    /// Inject a [`MemoryManager`] for per-step episodic recording.
-    ///
-    /// Passed to the [`ActorLoop`] during orchestrated execution. Each completed step
-    /// automatically records an episodic entry in the agent's namespace.
-    pub fn with_memory_manager(mut self, mm: Arc<Mutex<MemoryManager>>) -> Self {
-        self.memory_manager = Some(mm);
-        self
-    }
-
-    /// Add the plan cache to the engine, shared with the rest of the runtime.
-    ///
-    /// [`execute_orchestrated_plan`] then checks it before calling the Reasoner:
-    /// a hit avoids the LLM call, clones the plan with a new `plan_id`, and emits
-    /// [`RuntimeEvent::PlanCacheHit`]. Cache errors are logged at `warn` without
-    /// blocking execution.
-    ///
-    /// The repository is borrowed, not owned, because the supervisor opens it at
-    /// boot and hands the same handle to the REST stats and clear routes. The
-    /// builder this replaces took ownership, which no caller could satisfy, and
-    /// for want of that signature the engine ran with no cache at all: every
-    /// orchestrated run re-planned from scratch while `plan cache stats` reported
-    /// an empty cache, which was true and read as "nothing cached yet".
-    ///
-    /// [`execute_orchestrated_plan`]: ORIAEngine::execute_orchestrated_plan
-    pub fn with_shared_plan_cache(mut self, repo: Arc<Mutex<PlanCacheRepository>>) -> Self {
-        self.plan_cache = Some(repo);
-        self
-    }
-
-    /// Configure the working directory for workspace context collection.
-    ///
-    /// Used by `execute_orchestrated_plan` to collect the git branch, file status,
-    /// and `APOLLIA.md` content before each execution.
-    pub fn with_cwd(mut self, cwd: PathBuf) -> Self {
-        self.cwd = cwd;
-        self
-    }
-
-    /// Create an `ORIAEngine` with a specific working directory.
-    ///
-    /// Shorthand equivalent to `ORIAEngine::new().with_cwd(cwd)`.
-    /// Mainly used in unit tests.
-    pub fn new_with_cwd(cwd: PathBuf) -> Self {
-        Self::new().with_cwd(cwd)
-    }
-
-    /// Collect the workspace context and return the `<context name="...">` blocks.
-    ///
-    /// Uses [`ProjectRuntime`] with the configured TTL cache to avoid repeated I/O.
-    /// Returns an empty string when no context is available (directory outside a git
-    /// repo, no `APOLLIA.md`, or the collection timeout was exceeded).
-    /// Each section is wrapped in its own `<context name="...">` tag.
-    pub async fn build_system_prompt(&self) -> String {
-        let snapshot = self.workspace_assembler.collect(&self.cwd).await;
-        snapshot.format_for_prompt()
-    }
-
     // Binary Feedback
 
     /// Generate two alternative plans for a task and emit the event on the EventBus.
@@ -533,884 +319,7 @@ impl ORIAEngine {
 
     // Mode Orchestrated
 
-    /// Full orchestrated execution: plan, persist, ActorLoop, concat.
-    ///
-    /// Implements the pipeline:
-    /// 1. Validate `system_prompt` is present (fail fast)
-    /// 2. Generate the plan via `Reasoner` (internal retry x3)
-    /// 3. Persist plan + steps in SQLite (non-blocking on error)
-    /// 4. Emit `RuntimeEvent::PlanGenerated`
-    /// 5. Create `StepBudget::from_capped(manifest, runtime)`
-    /// 6. Execute via `ActorLoop`
-    /// 7. Concatenate outputs (or stub `on_plan_complete`)
-    ///
-    /// Whether the plan gate is active for the current run.
-    ///
-    /// A per-run override (`--plan`) wins when present: `Some(true)` gates,
-    /// `Some(false)` bypasses. Without an override the autonomy tier decides; the
-    /// tier defaults to `Assisted` (gate active) when unset, so the safe default
-    /// is to gate.
-    fn plan_gate_active(&self) -> bool {
-        if let Some(forced) = self.plan_gate_override {
-            return forced;
-        }
-        let tier = self
-            .oria_config
-            .autonomy_level
-            .unwrap_or(apollia_core::AutonomyLevel::Assisted);
-        tier.gate_policy() == apollia_core::GatePolicy::Active
-    }
-
-    /// Suspend after plan generation and await an approve/reject decision.
-    ///
-    /// Registers a oneshot in [`PendingPlanGates`], emits
-    /// [`RuntimeEvent::PlanApprovalRequired`], and waits up to
-    /// `oria_config.plan_gate_ttl_secs`. No `StepBudget` exists yet, so the
-    /// budget cannot progress during the wait.
-    ///
-    /// # Errors
-    ///
-    /// - [`ORIAError::PlanGateTimeout`] when no decision arrives within the TTL.
-    /// - [`ORIAError::PlanGateChannelClosed`] when the sender is dropped first.
-    async fn await_plan_gate(
-        &self,
-        run_id: &str,
-        plan: &ExecutionPlan,
-    ) -> Result<PlanGateDecision, ORIAError> {
-        let plan_id = &plan.plan_id;
-        let ttl_secs = self.oria_config.plan_gate_ttl_secs;
-        let gates = match self.pending_plan_gates.as_ref() {
-            Some(g) => g,
-            None => {
-                // No registry wired for this run: the gate cannot collect a
-                // decision, so execution proceeds (gate is effectively inactive).
-                tracing::debug!(run_id = %run_id, "plan.gate.no_registry");
-                return Ok(PlanGateDecision::Approved);
-            }
-        };
-
-        let rx = gates.register(run_id);
-        let _ = self.event_bus.send(RuntimeEvent::PlanApprovalRequired {
-            run_id: run_id.to_string(),
-            plan_id: plan_id.to_string(),
-            task_id: run_id.to_string(),
-            step_count: plan.steps.len(),
-            steps: plan.steps.clone(),
-            ttl_secs,
-        });
-
-        match tokio::time::timeout(Duration::from_secs(ttl_secs), rx).await {
-            Ok(Ok(decision)) => Ok(decision),
-            Ok(Err(_)) => Err(ORIAError::PlanGateChannelClosed {
-                run_id: run_id.to_string(),
-            }),
-            Err(_) => Err(ORIAError::PlanGateTimeout {
-                run_id: run_id.to_string(),
-                plan_id: plan_id.to_string(),
-                ttl_secs,
-            }),
-        }
-    }
-
-    async fn execute_orchestrated_plan(
-        &self,
-        task: AIPTask,
-        agent: &(dyn AIPAgent + Send + Sync),
-        manifest: AgentManifest,
-    ) -> AIPResult {
-        // validate system_prompt
-        if manifest.system_prompt.is_none() {
-            return AIPResult::failed(
-                "MISSING_SYSTEM_PROMPT",
-                "execution_mode=orchestrated requires system_prompt in the agent manifest",
-            );
-        }
-
-        // Collect workspace context and enrich system prompt
-        let workspace_block = self.build_system_prompt().await;
-        let enriched_system_prompt = if workspace_block.is_empty() {
-            manifest.system_prompt.clone()
-        } else {
-            manifest
-                .system_prompt
-                .as_ref()
-                .map(|sp| format!("{}\n\n{}", sp, workspace_block))
-        };
-
-        // Build ContextBundle
-        let available_tools: Vec<String> = manifest
-            .tools_required
-            .iter()
-            .chain(manifest.tools_optional.iter())
-            .cloned()
-            .collect();
-
-        let ctx = ContextBundle {
-            task: task.clone(),
-            memory_snapshot: None,
-            execution_mode: ExecutionMode::Orchestrated,
-            available_tools,
-            manifest_system_prompt: enriched_system_prompt,
-            llm_backend_names: vec![],
-        };
-
-        // get reasoner or fail
-        let reasoner = match self.reasoner.as_ref() {
-            Some(r) => r,
-            None => {
-                return AIPResult::failed(
-                    "NO_LLM",
-                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
-                )
-            }
-        };
-
-        // Plan cache lookup
-        let task_text = extract_task_text(&task);
-        let cache_key = compute_cache_key(
-            &manifest.name,
-            &manifest.version,
-            &ctx.available_tools,
-            &task_text,
-        );
-
-        if let Some(plan) = self.lookup_cached_plan(&cache_key, &task.task_id) {
-            let _ = self.event_bus.send(RuntimeEvent::PlanCacheHit {
-                task_id: task.task_id.clone().into(),
-                cache_key: cache_key.clone(),
-            });
-
-            return self
-                .execute_cached_plan(plan, task, agent, manifest, &ctx, &cache_key)
-                .await;
-        }
-
-        // Generate plan (Reasoner handles retries internally)
-        let mut plan = match reasoner.plan(&ctx).await {
-            Ok(p) => p,
-            Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
-        };
-
-        // Resolve each tool step's structured arguments so the persisted plan is
-        // fully specified before it is cached, audited and executed. Best-effort:
-        // unresolved steps are handled just in time.
-        self.enrich_plan_with_args(&mut plan).await;
-
-        self.store_plan_in_cache(&cache_key, &plan, &manifest);
-
-        let task_id_str = task.task_id.clone();
-        let db_path = self.db_path.as_deref().unwrap_or(":memory:");
-
-        // emit PlanGenerated for the initial plan
-        let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
-            task_id: task_id_str.clone().into(),
-            agent_name: manifest.name.clone(),
-            plan_id: plan.plan_id.clone(),
-            step_count: plan.steps.len(),
-            // The orchestrated engine path correlates via task_id, not a chat run.
-            run_id: None,
-        });
-
-        // Plan gate: when active, pause and await an operator decision before any
-        // budget is created or step executed. The wait holds no budget (principle
-        // #7). On rejection the engine replans with the feedback and re-opens the
-        // gate, bounded by plan_gate_max_replans; a timeout or closed channel ends
-        // the run cleanly.
-        if self.plan_gate_active() {
-            let max_replans = self.oria_config.plan_gate_max_replans;
-            let mut replans_count: u32 = 0;
-            loop {
-                let plan_id = plan.plan_id.clone();
-                match self.await_plan_gate(&task_id_str, &plan).await {
-                    Ok(PlanGateDecision::Approved) => {
-                        let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
-                            run_id: task_id_str.clone(),
-                            plan_id,
-                            task_id: task_id_str.clone(),
-                        });
-                        break;
-                    }
-                    Ok(PlanGateDecision::Rejected { feedback }) => {
-                        // Enforce the ceiling before any further LLM call (principle #7).
-                        if replans_count >= max_replans {
-                            tracing::warn!(
-                                run_id = %task_id_str,
-                                replans_count,
-                                "plan.gate.replan_limit"
-                            );
-                            let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
-                                run_id: task_id_str.clone(),
-                                task_id: task_id_str.clone(),
-                                reason: "replan_limit".into(),
-                            });
-                            return AIPResult::failed(
-                                "PLAN_REPLAN_LIMIT_EXCEEDED",
-                                "plan rejected more times than plan_gate_max_replans allows",
-                            );
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::PlanRejected {
-                            run_id: task_id_str.clone(),
-                            plan_id: plan_id.clone(),
-                            task_id: task_id_str.clone(),
-                            feedback: feedback.clone(),
-                            replans_so_far: replans_count,
-                        });
-                        replans_count += 1;
-                        match reasoner
-                            .plan_with_feedback(&ctx, &plan_id, feedback.as_deref())
-                            .await
-                        {
-                            Ok(new_plan) => {
-                                plan = new_plan;
-                                self.store_plan_in_cache(&cache_key, &plan, &manifest);
-                                let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
-                                    task_id: task_id_str.clone().into(),
-                                    agent_name: manifest.name.clone(),
-                                    plan_id: plan.plan_id.clone(),
-                                    step_count: plan.steps.len(),
-                                    run_id: None,
-                                });
-                                // Loop re-opens the gate for the new plan.
-                            }
-                            Err(e) => {
-                                tracing::error!(run_id = %task_id_str, error = %e, "plan.gate.replan_failed");
-                                let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
-                                    run_id: task_id_str.clone(),
-                                    task_id: task_id_str.clone(),
-                                    reason: "replan_failed".into(),
-                                });
-                                return AIPResult::failed("REPLAN_FAILED", &e.to_string());
-                            }
-                        }
-                    }
-                    Ok(PlanGateDecision::Edited { revised_steps }) => {
-                        // Execute the operator's revised plan directly. Re-validate
-                        // the edited steps (unique ids, resolvable deps, no cycle)
-                        // before committing: a malformed edit ends the run cleanly.
-                        let steps = revised_steps;
-
-                        if let Err(e) = crate::reasoner::validate_steps(&steps) {
-                            tracing::warn!(
-                                run_id = %task_id_str,
-                                error = %e,
-                                "plan.gate.edit_invalid"
-                            );
-                            let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
-                                run_id: task_id_str.clone(),
-                                task_id: task_id_str.clone(),
-                                reason: "edit_invalid".into(),
-                            });
-                            return AIPResult::failed("PLAN_EDIT_INVALID", &e.to_string());
-                        }
-
-                        plan = ExecutionPlan {
-                            plan_id: plan_id.clone(),
-                            task_id: task_id_str.clone(),
-                            steps,
-                        };
-                        self.store_plan_in_cache(&cache_key, &plan, &manifest);
-                        let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
-                            run_id: task_id_str.clone(),
-                            plan_id: plan.plan_id.clone(),
-                            task_id: task_id_str.clone(),
-                        });
-                        break;
-                    }
-                    Err(ORIAError::PlanGateTimeout {
-                        run_id, ttl_secs, ..
-                    }) => {
-                        tracing::warn!(run_id = %run_id, ttl_secs, "plan.gate.timeout");
-                        return AIPResult::failed(
-                            "PLAN_GATE_TIMEOUT",
-                            "plan gate timed out before a decision was received",
-                        );
-                    }
-                    Err(ORIAError::PlanGateChannelClosed { run_id }) => {
-                        tracing::warn!(run_id = %run_id, "plan.gate.channel_closed");
-                        return AIPResult::failed(
-                            "PLAN_GATE_CHANNEL_CLOSED",
-                            "plan gate channel closed before a decision",
-                        );
-                    }
-                    Err(e) => return AIPResult::failed("PLAN_GATE_ERROR", &e.to_string()),
-                }
-            }
-        }
-
-        // Execute the plan, verify the result, and replan on a failing verdict.
-        self.run_plan_with_verification(plan, &task, agent, &manifest, &ctx, &cache_key, db_path)
-            .await
-    }
-
-    /// Execute a plan via the `ActorLoop`, then run the post-run verification and,
-    /// on a failing verdict, replan and re-execute up to
-    /// `oria_config.verification_max_replans` times.
-    ///
-    /// The `StepBudget` is created once and shared across every replan iteration,
-    /// so it remains the non-bypassable ceiling for the whole run (principle #7).
-    /// The critic call is off-budget by construction (it routes directly); the
-    /// replan re-execution is on-budget (the `ActorLoop` increments), and the loop
-    /// stops once the budget is exhausted.
-    ///
-    /// Verification is gated by the autonomy tier, mirroring the chat path: the
-    /// tier's `run_verification` flag decides whether the pass runs at all. When it
-    /// does not, the completed result is returned unverified after a `PlanCompleted`.
-    ///
-    /// The final verdict is emitted as [`RuntimeEvent::VerificationCompleted`] so it
-    /// lands in the signed audit journal.
-    // REASON: threads the engine's borrowed state through the verification run; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    async fn run_plan_with_verification(
-        &self,
-        mut plan: ExecutionPlan,
-        task: &AIPTask,
-        agent: &(dyn AIPAgent + Send + Sync),
-        manifest: &AgentManifest,
-        ctx: &ContextBundle,
-        cache_key: &str,
-        db_path: &str,
-    ) -> AIPResult {
-        let reasoner = match self.reasoner.as_ref() {
-            Some(r) => r,
-            None => {
-                return AIPResult::failed(
-                    "NO_LLM",
-                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
-                )
-            }
-        };
-        let task_id_str = task.task_id.clone();
-
-        // StepBudget created once, shared across every verification replan.
-        let agent_budget = manifest.step_budget.clone().unwrap_or_default();
-        let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
-
-        // Resolve the verification gate from the autonomy tier (chat parity: the
-        // chat reads `AutonomyConfig::default().level_config(level).run_verification`).
-        let tier = self
-            .oria_config
-            .autonomy_level
-            .unwrap_or(AutonomyLevel::Assisted);
-        let run_verification = AutonomyLevelConfig::default_for(tier).run_verification;
-        let verifier = if run_verification {
-            Some((
-                VerificationLoop::new(manifest.check_commands.clone(), Vec::new()),
-                CriticPass::new(Arc::new(self.llm_router.clone())),
-            ))
-        } else {
-            None
-        };
-
-        let objective = extract_task_text(task);
-        let max_replans = self.oria_config.verification_max_replans;
-        let mut replans: u32 = 0;
-
-        loop {
-            let repo = match self.open_repo_with_plan(db_path, &plan, &manifest.name) {
-                Ok(repo) => repo,
-                Err(e) => {
-                    return AIPResult::failed(
-                        "PLAN_REPOSITORY",
-                        &format!("plan repository unavailable: {e}"),
-                    )
-                }
-            };
-            let plan_id = plan.plan_id.clone();
-            let step_count = plan.steps.len();
-
-            // Reset per-task token budget before each execution.
-            self.llm_router.reset_session_budget();
-
-            let noop_proxy = NoopToolProxy;
-            let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
-                Some(p) => p.as_ref(),
-                None => &noop_proxy,
-            };
-
-            let plan_start = Instant::now();
-            let mut actor = ActorLoop::new(
-                plan,
-                self.oria_config.max_replans,
-                repo,
-                self.event_bus.clone(),
-                manifest.clone(),
-            )
-            .with_pending_approvals(self.pending_approvals.clone())
-            .with_memory_manager(self.memory_manager.clone())
-            .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
-            .with_context_manager(self.context_manager.clone());
-            let step_result = actor
-                .execute(
-                    StepDeps {
-                        tool_proxy,
-                        llm_router: &self.llm_router,
-                        budget: &budget,
-                        reasoner,
-                    },
-                    &self.resilience,
-                )
-                .await;
-            let duration_ms = plan_start.elapsed().as_millis() as u64;
-
-            // Emit final session budget snapshot for this execution.
-            let token_budget = self.llm_router.session_budget();
-            let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
-                session_cost_usd: token_budget.cost_usd,
-                total_input_tokens: token_budget.input_tokens,
-                total_output_tokens: token_budget.output_tokens,
-                total_cache_read_tokens: token_budget.cache_read_tokens,
-                threshold_usd: f64::MAX,
-                threshold_exceeded: false,
-            });
-
-            // A non-completed run (budget exceeded, plan failure) carries its own
-            // failure and is not verified.
-            if step_result.status != TaskStatus::Completed {
-                return step_result;
-            }
-
-            let final_result = self.finalize_completed(agent, step_result).await;
-
-            // Verification disabled for this tier: return the completed result.
-            let Some((verification, critic)) = verifier.as_ref() else {
-                let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                    task_id: task_id_str.clone().into(),
-                    plan_id,
-                    step_count,
-                    duration_ms,
-                });
-                return final_result;
-            };
-
-            // Run the post-run verification. The critic is off-budget by design.
-            let output_text = result_text(&final_result);
-            let verdict =
-                run_post_run_verification(verification, critic, &objective, &output_text).await;
-            let _ = self.event_bus.send(RuntimeEvent::VerificationCompleted {
-                task_id: task_id_str.clone().into(),
-                passed: verdict.passed,
-                check_failures: verdict.check_failures.len() as u32,
-                corrections: verdict.corrections.len() as u32,
-                skipped: verdict.skipped,
-                replans,
-            });
-
-            // Accept the result when the verdict passes, the replan ceiling is
-            // reached, or the shared budget is spent.
-            if verdict.passed || replans >= max_replans || budget.is_exhausted() {
-                let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                    task_id: task_id_str.clone().into(),
-                    plan_id,
-                    step_count,
-                    duration_ms,
-                });
-                return final_result;
-            }
-
-            // Failing verdict with replan budget remaining: replan with feedback.
-            let feedback = verdict_feedback(&verdict);
-            match reasoner
-                .plan_with_feedback(ctx, &plan_id, Some(&feedback))
-                .await
-            {
-                Ok(mut new_plan) => {
-                    self.enrich_plan_with_args(&mut new_plan).await;
-                    self.store_plan_in_cache(cache_key, &new_plan, manifest);
-                    let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
-                        task_id: task_id_str.clone().into(),
-                        agent_name: manifest.name.clone(),
-                        plan_id: new_plan.plan_id.clone(),
-                        step_count: new_plan.steps.len(),
-                        run_id: None,
-                    });
-                    plan = new_plan;
-                    replans += 1;
-                }
-                Err(e) => {
-                    tracing::event!(
-                        tracing::Level::WARN,
-                        task_id = %task_id_str,
-                        error = %e,
-                        "oria.verification.replan_failed"
-                    );
-                    // The run has a valid result; only the hardening step failed.
-                    let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                        task_id: task_id_str.clone().into(),
-                        plan_id,
-                        step_count,
-                        duration_ms,
-                    });
-                    return final_result;
-                }
-            }
-        }
-    }
-
-    /// Assemble a completed orchestrated run into its user-facing result.
-    ///
-    /// Calls the agent's `on_plan_complete()` hook when present, otherwise
-    /// concatenates the per-step outputs.
-    async fn finalize_completed(
-        &self,
-        agent: &(dyn AIPAgent + Send + Sync),
-        step_result: AIPResult,
-    ) -> AIPResult {
-        let outputs = extract_step_outputs(&step_result);
-        if agent.has_on_plan_complete() {
-            agent.call_on_plan_complete(outputs).await
-        } else {
-            concat_outputs(&outputs)
-        }
-    }
-
-    /// Looks up a cached plan for `cache_key`, returning a ready-to-run
-    /// [`ExecutionPlan`] (fresh `plan_id`, the supplied `task_id`, cached steps)
-    /// on a hit, or `None` on a miss, an absent cache, or a recoverable error.
-    ///
-    /// Lock poisoning and lookup errors are logged and treated as a miss so the
-    /// caller falls back to the Reasoner.
-    fn lookup_cached_plan(&self, cache_key: &str, task_id: &str) -> Option<ExecutionPlan> {
-        let cache_mutex = self.plan_cache.as_ref()?;
-        let cache = match cache_mutex.lock() {
-            Ok(cache) => cache,
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    detail = "the lookup is skipped",
-                    "plan.cache.lock.poisoned"
-                );
-                return None;
-            }
-        };
-        let cached_plan = match cache.lookup(cache_key) {
-            Ok(Some(cached_plan)) => cached_plan,
-            Ok(None) => return None,
-            Err(e) => {
-                tracing::warn!(error = %e, "plan.cache.lookup.failed");
-                return None;
-            }
-        };
-        Some(ExecutionPlan {
-            plan_id: uuid::Uuid::new_v4().to_string(),
-            task_id: task_id.to_string(),
-            steps: cached_plan.steps,
-        })
-    }
-
-    /// Stores `plan` in the plan cache under `cache_key`.
-    ///
-    /// No-op when no cache is configured. Lock poisoning and store errors are
-    /// logged and otherwise ignored (caching is best-effort).
-    fn store_plan_in_cache(&self, cache_key: &str, plan: &ExecutionPlan, manifest: &AgentManifest) {
-        let Some(cache_mutex) = self.plan_cache.as_ref() else {
-            return;
-        };
-        match cache_mutex.lock() {
-            Ok(cache) => {
-                if let Err(e) = cache.store(cache_key, plan, &manifest.name, &manifest.version) {
-                    tracing::warn!(error = %e, "plan.cache.store.failed");
-                }
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    detail = "the store is skipped",
-                    "plan.cache.lock.poisoned"
-                );
-            }
-        }
-    }
-
-    /// Fills each tool step's structured arguments before the plan is cached,
-    /// persisted and executed.
-    ///
-    /// For every tool step whose `args` are absent or invalid against the
-    /// target tool's input schema, resolves them with a schema-guided model
-    /// call so the persisted plan is fully specified, auditable and replayable.
-    /// Best-effort: a step that cannot be resolved keeps `args = None`, and the
-    /// [`crate::actor::ActorLoop`] resolves it just in time at execution.
-    ///
-    /// No-op without an injected tool proxy (the schema source) or when the
-    /// router has no backend to answer the resolution call.
-    async fn enrich_plan_with_args(&self, plan: &mut ExecutionPlan) {
-        let Some(proxy) = self.tool_proxy.as_ref() else {
-            return;
-        };
-        for step in plan.steps.iter_mut() {
-            let Some(tool_name) = step.tool_hint.as_deref() else {
-                continue;
-            };
-            if tool_name == "llm" {
-                continue;
-            }
-            let Some(schema) = proxy.tool_schema(tool_name).await else {
-                continue;
-            };
-            // Keep already-valid plan-time args untouched.
-            if step
-                .args
-                .as_ref()
-                .is_some_and(|args| crate::arg_resolver::validate_args(args, &schema).is_ok())
-            {
-                continue;
-            }
-            let Some(model) = self.llm_router.get(step.model_hint.as_deref()) else {
-                continue;
-            };
-            match crate::arg_resolver::resolve_tool_args(
-                &model,
-                tool_name,
-                &schema,
-                &step.description,
-                0.0,
-            )
-            .await
-            {
-                Ok(args) => step.args = Some(args),
-                Err(e) => tracing::event!(
-                    tracing::Level::WARN,
-                    step_id = %step.step_id,
-                    tool = %tool_name,
-                    error = %e,
-                    "oria.plan.arg_enrichment_failed"
-                ),
-            }
-        }
-    }
-
-    /// Execute a plan retrieved from the cache.
-    ///
-    /// Mirrors the post-Reasoner path of [`execute_orchestrated_plan`]: emit
-    /// PlanGenerated for the cached plan, then delegate execution, verification,
-    /// and replan to [`run_plan_with_verification`](Self::run_plan_with_verification).
-    // Explicit dependency list for the cached-plan execution path; bundling
-    // these into a struct would only relocate the argument list.
-    // REASON: threads the engine's borrowed state through the cached-plan run; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    async fn execute_cached_plan(
-        &self,
-        plan: ExecutionPlan,
-        task: AIPTask,
-        agent: &(dyn AIPAgent + Send + Sync),
-        manifest: AgentManifest,
-        ctx: &ContextBundle,
-        cache_key: &str,
-    ) -> AIPResult {
-        let plan_id = plan.plan_id.clone();
-        let step_count = plan.steps.len();
-        let task_id_str = task.task_id.clone();
-
-        let db_path = self.db_path.as_deref().unwrap_or(":memory:");
-
-        let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
-            task_id: task_id_str.clone().into(),
-            agent_name: manifest.name.clone(),
-            plan_id: plan_id.clone(),
-            step_count,
-            // The orchestrated engine path correlates via task_id, not a chat run.
-            run_id: None,
-        });
-
-        self.run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache_key, db_path)
-            .await
-    }
-
-    /// Opens a `PlanRepository` at `db_path`, inserts the plan and its steps.
-    ///
-    /// Falls back to `:memory:` if `db_path` fails. Errors during `insert_plan`
-    /// or `insert_steps` are logged but do not abort execution (persistence is
-    /// non-blocking).
-    ///
-    /// # Errors
-    /// Returns [`PlanRepositoryError`] when neither `db_path` nor `:memory:`
-    /// opens. The in-memory fallback opens a database like any other, so its
-    /// failure is returned rather than asserted.
-    fn open_repo_with_plan(
-        &self,
-        db_path: &str,
-        plan: &ExecutionPlan,
-        agent_name: &str,
-    ) -> Result<PlanRepository, PlanRepositoryError> {
-        let repo = match PlanRepository::new(db_path) {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    detail = "falling back to an in-memory database",
-                    "plan.repository.open.failed"
-                );
-                PlanRepository::new(":memory:")?
-            }
-        };
-
-        if let Err(e) = repo.insert_plan(plan, agent_name) {
-            tracing::error!(error = %e, detail = "non-blocking", "plan.persist.failed");
-        }
-        if let Err(e) = repo.insert_steps(&plan.plan_id, &plan.steps) {
-            tracing::error!(error = %e, detail = "non-blocking", "plan.steps.persist.failed");
-        }
-
-        Ok(repo)
-    }
-
     // Mode Direct
-
-    /// Execute a task in Mode Direct with HITL support.
-    ///
-    /// 1. Check the budget is not already exhausted.
-    /// 2. Call `runner.call_run(task)` with `StepBudget` supervision.
-    /// 3. On `AIPResult::InputRequired`:
-    ///    - Persist prompt + context in SQLite via `task_repository` (when configured).
-    ///    - Emit `RuntimeEvent::TaskInputRequired` on the EventBus.
-    ///    - Register a oneshot in `pending_approvals` and **wait** for the human decision.
-    ///    - If `approved=true`: rebuild `AIPTask` with `is_resumed=true` and call `run()` again.
-    ///    - If `approved=false`: return `AIPResult::failed("REJECTED", reason)`.
-    /// 4. Otherwise return the result directly.
-    ///
-    /// **StepBudget paused during suspension**: waiting on the oneshot is a pure
-    /// `await`, budget polling does not run during suspension.
-    /// The budget does not advance until the human responds.
-    pub async fn execute_direct(
-        &self,
-        task: AIPTask,
-        runner: &dyn AgentRunner,
-        budget: Arc<StepBudget>,
-    ) -> Result<AIPResult, ORIAError> {
-        // Check budget before starting
-        if budget.is_exhausted() {
-            let reason = budget
-                .exhaustion_reason()
-                .unwrap_or_else(|| "budget already exhausted".into());
-            return Err(ORIAError::BudgetExceeded { reason });
-        }
-
-        // First run, with budget supervision
-        let result = Self::run_with_budget(runner, task.clone(), &budget).await?;
-
-        // Non-HITL path: return immediately
-        if result.status != TaskStatus::InputRequired {
-            return Ok(result);
-        }
-
-        // HITL Suspension
-        let (prompt, context) = match result.input_required_data {
-            Some(data) => (data.prompt, data.context),
-            None => ("Approbation requise".to_string(), serde_json::Value::Null),
-        };
-
-        // persist input_required in SQLite (non-blocking on error)
-        if let Some(repo) = self.task_repository.as_ref() {
-            if let Err(e) = repo
-                .save_input_required(&task.task_id, None, &prompt, &context)
-                .await
-            {
-                tracing::warn!(
-                    task_id = %task.task_id,
-                    error = %e,
-                    detail = "continuing without a database record",
-                    "task.input_required.persist.failed"
-                );
-            }
-
-            // record suspended_at timestamp for HITL timing
-            let suspended_at =
-                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-            if let Err(e) = repo
-                .save_suspended_at(&task.task_id, None, &suspended_at)
-                .await
-            {
-                tracing::warn!(
-                    task_id = %task.task_id,
-                    error = %e,
-                    detail = "continuing without a timing record",
-                    "task.suspended_at.persist.failed"
-                );
-            }
-        }
-
-        // broadcast TaskInputRequired on EventBus
-        // step_id=None in Mode Direct: the whole task is suspended (not a specific step).
-        let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
-            task_id: task.task_id.clone().into(),
-            prompt: prompt.clone(),
-            step_id: None,
-        });
-
-        tracing::info!(
-            task_id = %task.task_id,
-            %prompt,
-            "task.approval.suspended"
-        );
-
-        // register on PendingApprovals: if not configured, degrade gracefully
-        let pending = match self.pending_approvals.as_ref() {
-            Some(p) => p,
-            None => {
-                tracing::warn!(
-                    task_id = %task.task_id,
-                    detail = "returning input_required without suspending",
-                    "task.approval.unconfigured"
-                );
-                return Ok(AIPResult::input_required(&prompt, context));
-            }
-        };
-
-        let rx = pending.register(&task.task_id);
-
-        // plain await: StepBudget does NOT advance during suspension
-        let response = rx.await.map_err(|_| ORIAError::ApprovalChannelClosed)?;
-
-        tracing::info!(
-            task_id = %task.task_id,
-            approved = response.approved,
-            "task.approval.received"
-        );
-
-        // rejection: AIPResult::failed without calling run()
-        if !response.approved {
-            return Ok(AIPResult::failed(
-                "REJECTED",
-                response.reason.as_deref().unwrap_or("Refusé"),
-            ));
-        }
-
-        // approval: rebuild AIPTask with is_resumed=true and call run() again
-        let resumed_task = AIPTask {
-            is_resumed: true,
-            input_response: Some(response),
-            ..task
-        };
-
-        // Run resumed task with budget protection
-        Self::run_with_budget(runner, resumed_task, &budget).await
-    }
-
-    /// Execute `runner.call_run(task)` with concurrent `StepBudget` supervision.
-    ///
-    /// Returns immediately with `ORIAError::BudgetExceeded` if the budget expires
-    /// before execution completes. Used for the first call and for the resume
-    /// after HITL.
-    ///
-    /// Supervision uses a `oneshot` notified by `StepBudget::increment_steps` /
-    /// `increment_tool_calls`, combined with a sleep on the remaining wall-clock
-    /// duration. No periodic polling.
-    async fn run_with_budget(
-        runner: &dyn AgentRunner,
-        task: AIPTask,
-        budget: &Arc<StepBudget>,
-    ) -> Result<AIPResult, ORIAError> {
-        tokio::select! {
-            result = runner.call_run(task) => {
-                result.map_err(ORIAError::BridgeError)
-            }
-            _ = budget.wait_for_exhaustion() => {
-                let reason = budget
-                    .exhaustion_reason()
-                    .unwrap_or_else(|| "budget exhausted during execution".into());
-                Err(ORIAError::BudgetExceeded { reason })
-            }
-        }
-    }
 }
 
 impl Default for ORIAEngine {
@@ -1425,7 +334,7 @@ impl Default for ORIAEngine {
 ///
 /// Concatenates all `TextPart`s separated by a space. Returns an empty string
 /// when no text part is present.
-fn extract_task_text(task: &AIPTask) -> String {
+pub(crate) fn extract_task_text(task: &AIPTask) -> String {
     task.input
         .parts
         .iter()
@@ -1442,7 +351,7 @@ fn extract_task_text(task: &AIPTask) -> String {
 
 /// `AIPResult::completed_with_steps` stores the `HashMap<step_id, output>` as
 /// `AIPPart::Data`. Returns an empty map if the data cannot be parsed.
-fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
+pub(crate) fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
     if let Some(AIPPart::Data(DataPart { data })) = result.output.first() {
         if let Ok(map) = serde_json::from_value::<HashMap<String, String>>(data.clone()) {
             return map;
@@ -1455,7 +364,7 @@ fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
 ///
 /// Steps are sorted by `step_id` for a deterministic result.
 /// Separator: two newlines (`\n\n`), aligned with Markdown formatting.
-fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
+pub(crate) fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
     let mut sorted: Vec<(&String, &String)> = outputs.iter().collect();
     sorted.sort_by_key(|(k, _)| *k);
     let text = sorted
@@ -1470,7 +379,7 @@ fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
 ///
 /// Concatenates the text parts and JSON-serializes the data parts. File parts are
 /// skipped: the critic reasons over textual output only.
-fn result_text(result: &AIPResult) -> String {
+pub(crate) fn result_text(result: &AIPResult) -> String {
     result
         .output
         .iter()
@@ -1487,6 +396,9 @@ fn result_text(result: &AIPResult) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::budget::StepBudget;
+
     use super::*;
     use apollia_core::{AIPResult, PendingApprovals, StepBudgetConfig, TaskStatus};
 
@@ -1845,6 +757,7 @@ mod tests {
 
 #[cfg(test)]
 mod workspace_tests {
+
     use super::*;
 
     #[tokio::test]
@@ -1902,7 +815,15 @@ mod workspace_tests {
 
 #[cfg(test)]
 mod orchestrated_tests {
+    use apollia_llm::CompletionModel;
+    use std::time::Duration;
+
+    use apollia_core::{AutonomyLevel, RuntimeEvent};
+
     use super::*;
+    use crate::plan::ExecutionPlan;
+    use crate::plan_cache::compute_cache_key;
+    use crate::plan_gate::PlanGateDecision;
     use apollia_core::{AgentManifest, StepBudgetConfig, TaskStatus};
     use apollia_llm::{
         CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,

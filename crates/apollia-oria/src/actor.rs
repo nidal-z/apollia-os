@@ -27,27 +27,29 @@
 //! (SQLite connection via `RefCell`). It must be created and consumed on the same thread.
 //! The futures produced by `execute()` are therefore `!Send`.
 
+mod levels;
+mod persist;
+mod replan;
+mod steps;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
 use apollia_core::observability::ObservabilityConfig;
 use apollia_core::{AIPResult, ORIAConfig, PendingApprovals};
-use apollia_llm::{
-    router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter,
-};
+use apollia_llm::LlmRouter;
 use apollia_memory::manager::MemoryManager;
 
 use crate::budget::StepBudget;
-use crate::context_manager::{message_char_len, ContextManager};
+use crate::context_manager::ContextManager;
 use crate::observer::{ContextBundle, ExecutionMode};
 use crate::plan::{ExecutionPlan, PlanStep};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::Reasoner;
-use crate::resilience::{ErrorClass, ResilienceLayer, RetryContext, RetryPolicy};
-use crate::topo::{topological_levels, topological_sort};
+use crate::resilience::ResilienceLayer;
+use crate::topo::topological_levels;
 
 // ToolProxyTrait
 
@@ -138,13 +140,13 @@ impl StepError {
 ///
 /// Set to 0.6, above the default recall threshold (0.5) so that step outputs
 /// appear in standard memory queries, but below critical events (1.0).
-const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
+pub(crate) const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 
 /// Default maximum character length for step output stored in episodic memory.
 ///
 /// Used as the field default in [`ActorLoop`]. The configurable value is
 /// injected via [`ActorLoop::with_step_memory_max_chars`].
-const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
+pub(crate) const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 
 /// Maximum number of read-only tool steps driven concurrently by
 /// [`ActorLoop::execute_tool_steps`].
@@ -152,7 +154,7 @@ const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 /// Mirrors the same constant in `apollia-tools` to cap OS-level concurrency
 /// (file descriptors, process handles) without requiring a shared config at
 /// this layer.
-const MAX_CONCURRENT_ORIA_TOOLS: usize = 10;
+pub(crate) const MAX_CONCURRENT_ORIA_TOOLS: usize = 10;
 
 // StepContext
 
@@ -205,7 +207,7 @@ impl StepContext {
 /// driving loop so the next level can run. `Terminal` carries the final
 /// [`AIPResult`] the loop must return immediately (budget exhausted, replan
 /// outcome, or terminal step failure).
-enum LevelOutcome {
+pub(crate) enum LevelOutcome {
     /// The level completed; resume with the returned accumulated outputs.
     Continue(HashMap<String, String>),
     /// Plan execution must stop now with this result.
@@ -248,11 +250,11 @@ pub struct StepDeps<'a> {
 ///
 /// [`with_pending_approvals`]: ActorLoop::with_pending_approvals
 pub struct ActorLoop {
-    plan: ExecutionPlan,
-    replan_count: u32,
-    max_replans: u32,
-    db: PlanRepository,
-    event_bus: EventBusSender,
+    pub(crate) plan: ExecutionPlan,
+    pub(crate) replan_count: u32,
+    pub(crate) max_replans: u32,
+    pub(crate) db: PlanRepository,
+    pub(crate) event_bus: EventBusSender,
     /// Manifest of the agent that owns this plan.
     ///
     /// Stored read-only so `execute_step` can access `tools_requiring_approval`
@@ -263,20 +265,20 @@ pub struct ActorLoop {
     /// `Some`: steps whose tool is in `tools_requiring_approval` suspend execution
     /// and wait for the human decision via a oneshot channel.
     /// `None`: no HITL suspension (degraded mode, steps execute normally).
-    pending_approvals: Option<Arc<PendingApprovals>>,
+    pub(crate) pending_approvals: Option<Arc<PendingApprovals>>,
     /// Observability config for truncating persisted inputs/outputs.
-    obs_config: ObservabilityConfig,
+    pub(crate) obs_config: ObservabilityConfig,
     /// Memory manager for episodic recording after each step.
     ///
     /// When `Some`, step outputs are automatically recorded as episodic memories
     /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the same
     /// precedent for rare, operator-level writes.
-    memory_manager: Option<Arc<Mutex<MemoryManager>>>,
+    pub(crate) memory_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Maximum character length for step output stored in episodic memory.
     ///
     /// Injected from `ORIAConfig::step_memory_max_chars`. Defaults to
     /// [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] when not configured.
-    step_memory_max_chars: usize,
+    pub(crate) step_memory_max_chars: usize,
     /// LLM context-window manager for LLM-type steps.
     ///
     /// Injected from `ORIAEngine` via [`with_context_manager`].
@@ -284,7 +286,7 @@ pub struct ActorLoop {
     /// threshold configured in `[oria] context_compact_threshold`.
     ///
     /// [`with_context_manager`]: ActorLoop::with_context_manager
-    context_manager: ContextManager,
+    pub(crate) context_manager: ContextManager,
 }
 
 impl ActorLoop {
@@ -422,1187 +424,6 @@ impl ActorLoop {
 
         AIPResult::completed_with_steps(completed_outputs)
     }
-
-    /// Executes one topological level whose steps are all read-only tool calls,
-    /// running them concurrently (batch path).
-    ///
-    /// Owns `completed_outputs` for the duration of the level and returns it via
-    /// [`LevelOutcome::Continue`] when the whole level succeeds, or
-    /// [`LevelOutcome::Terminal`] carrying the final [`AIPResult`] when the plan
-    /// must stop (budget exhausted, replan, or terminal step failure).
-    async fn execute_level_batch<'a>(
-        &'a mut self,
-        level_steps: Vec<PlanStep>,
-        mut completed_outputs: HashMap<String, String>,
-        deps: StepDeps<'a>,
-        resilience: &'a ResilienceLayer,
-    ) -> LevelOutcome {
-        // Phase 1 (sequential): budget guard, events, DB pre-execution.
-        if deps.budget.is_exhausted() {
-            return LevelOutcome::Terminal(
-                self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
-            );
-        }
-
-        // Clamp the level to what the budget still allows. Every batch step is a
-        // read-only tool call that consumes one step and one tool-call unit, so
-        // the level cannot run wider than min(steps_left, tool_calls_left).
-        // Running the whole level unconditionally would let a batch overshoot the
-        // budget (principle #7, guardrails are non-bypassable). The guard above
-        // guarantees at least one unit remains here, so the head is never empty.
-        let allowed = deps.budget.steps_left().min(deps.budget.tool_calls_left()) as usize;
-        let budget_truncated = level_steps.len() > allowed;
-        let level_steps: Vec<PlanStep> = if budget_truncated {
-            level_steps.into_iter().take(allowed).collect()
-        } else {
-            level_steps
-        };
-
-        for step in &level_steps {
-            let step_num = completed_outputs.len() + 1;
-            self.persist_step_pre_execution(step, step_num, &completed_outputs);
-        }
-
-        // Phase 2: Concurrent invocations.
-        let started = Instant::now();
-        let batch_results = self
-            .execute_tool_steps(
-                &level_steps,
-                &completed_outputs,
-                deps.tool_proxy,
-                deps.llm_router,
-                resilience,
-            )
-            .await;
-        let duration_ms = started.elapsed().as_millis() as u64;
-
-        // Phase 3 (sequential): budget increment, DB post-execution, events, errors.
-        for (step, (step_id, result)) in level_steps.iter().zip(batch_results) {
-            deps.budget.increment_steps();
-            // Every batch step is a native tool call (batch eligibility requires
-            // a read-only tool_hint), so it consumes one tool-call budget unit.
-            if step_is_tool_call(step) {
-                deps.budget.increment_tool_calls();
-            }
-            if let Err(e) =
-                self.db
-                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-            {
-                tracing::warn!(
-                    error = %e,
-                    step_id = %step_id,
-                    detail = "ignored",
-                    "step.duration.persist.failed"
-                );
-            }
-            match result {
-                Ok(output) => {
-                    self.persist_step_success(&step_id, &output, duration_ms);
-                    self.record_step_memory(&step_id, &step.description, &output);
-                    completed_outputs.insert(step_id, output);
-                }
-                Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                    self.persist_step_failure(&step_id, &e.to_string());
-                    self.emit_step_failed(&step_id, &e.to_string(), true);
-                    return LevelOutcome::Terminal(
-                        self.replan_and_continue(
-                            step_id,
-                            e.to_string(),
-                            completed_outputs,
-                            deps,
-                            resilience,
-                        )
-                        .await,
-                    );
-                }
-                Err(e) => {
-                    return LevelOutcome::Terminal(
-                        self.finalize_terminal_failure(&step_id, &e, true),
-                    )
-                }
-            }
-        }
-
-        // The budget could not cover the whole level: stop cleanly after the
-        // allowed prefix rather than silently dropping the remaining steps.
-        if budget_truncated {
-            return LevelOutcome::Terminal(
-                self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
-            );
-        }
-
-        LevelOutcome::Continue(completed_outputs)
-    }
-
-    /// Executes one topological level sequentially, processing each step one at
-    /// a time (LLM steps, mutating tools, tools requiring approval, single-step
-    /// levels).
-    ///
-    /// Mirrors [`execute_level_batch`](Self::execute_level_batch) for ownership
-    /// of `completed_outputs` and the [`LevelOutcome`] return contract.
-    async fn execute_level_sequential<'a>(
-        &'a mut self,
-        level_ids: Vec<String>,
-        mut completed_outputs: HashMap<String, String>,
-        deps: StepDeps<'a>,
-        resilience: &'a ResilienceLayer,
-    ) -> LevelOutcome {
-        for step_id in level_ids {
-            let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
-                Some(s) => s.clone(),
-                None => continue,
-            };
-
-            // check the budget before each step (steps, tool_calls, wall_clock).
-            if deps.budget.is_exhausted() {
-                return LevelOutcome::Terminal(
-                    self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
-                );
-            }
-
-            // Emit StepStarted + persist rendered input + tool name before execution.
-            let step_num = completed_outputs.len() + 1;
-            self.persist_step_pre_execution(&step, step_num, &completed_outputs);
-
-            // build StepContext with accumulated outputs and budget snapshot.
-            let step_ctx = StepContext {
-                previous_outputs: completed_outputs.clone(),
-                step_index: completed_outputs.len(),
-                total_steps: self.plan.steps.len(),
-                remaining_budget: deps.budget.to_budget_view(),
-            };
-
-            let started = Instant::now();
-            let result = self
-                .execute_step(
-                    &step,
-                    &step_ctx,
-                    deps.tool_proxy,
-                    deps.llm_router,
-                    resilience,
-                )
-                .await;
-            let duration_ms = started.elapsed().as_millis() as u64;
-            deps.budget.increment_steps();
-            // A native tool step consumes one tool-call budget unit (the
-            // max_tool_calls guardrail). The next is_exhausted() check stops the
-            // plan cleanly once the ceiling is reached.
-            if step_is_tool_call(&step) {
-                deps.budget.increment_tool_calls();
-            }
-
-            // persist duration unconditionally.
-            if let Err(e) =
-                self.db
-                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-            {
-                tracing::warn!(
-                    error = %e,
-                    step_id = %step_id,
-                    detail = "ignored",
-                    "step.duration.persist.failed"
-                );
-            }
-
-            match result {
-                Ok(output) => {
-                    self.persist_step_success(&step_id, &output, duration_ms);
-
-                    // record episodic memory per step (fire-and-forget).
-                    self.record_step_memory(&step_id, &step.description, &output);
-
-                    completed_outputs.insert(step_id, output);
-                }
-
-                Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                    self.persist_step_failure(&step_id, &e.to_string());
-                    self.emit_step_failed(&step_id, &e.to_string(), true);
-                    return LevelOutcome::Terminal(
-                        self.replan_and_continue(
-                            step_id,
-                            e.to_string(),
-                            completed_outputs,
-                            deps,
-                            resilience,
-                        )
-                        .await,
-                    );
-                }
-
-                Err(e) => {
-                    return LevelOutcome::Terminal(
-                        self.finalize_terminal_failure(&step_id, &e, true),
-                    )
-                }
-            }
-        }
-
-        LevelOutcome::Continue(completed_outputs)
-    }
-
-    /// Executes a batch of tool-only steps, parallelising when all tools are read-only.
-    ///
-    /// **Parallel path**: when every step in `steps` targets a read-only tool
-    /// (as reported by [`ToolProxyTrait::is_tool_read_only`]) **and** no tool in the
-    /// batch requires human approval, all invocations are driven concurrently via
-    /// `futures::stream::StreamExt::buffered` with a cap of
-    /// `MAX_CONCURRENT_READ_TOOLS` simultaneous calls.
-    ///
-    /// **Serial path**: in all other cases (LLM steps, mutating tools, tools
-    /// requiring approval, or a batch of one): invocations run sequentially.
-    ///
-    /// Output order matches input order in both paths.
-    /// Inputs are interpolated from `completed_outputs` before invocation.
-    // REASON: batch execution dependencies (proxy, router, resilience) plus the
-    // step set and accumulated outputs; the router is needed to resolve each
-    // step's arguments before invocation.
-    // REASON: threads the actor's borrowed state through one execution pass; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    async fn execute_tool_steps(
-        &self,
-        steps: &[PlanStep],
-        completed_outputs: &HashMap<String, String>,
-        tool_proxy: &dyn ToolProxyTrait,
-        llm_router: &LlmRouter,
-        resilience: &ResilienceLayer,
-    ) -> Vec<(String, Result<String, StepError>)> {
-        use futures::stream::{self, StreamExt};
-
-        if steps.is_empty() {
-            return vec![];
-        }
-
-        let all_read_only = steps.len() > 1
-            && steps.iter().all(|s| {
-                s.tool_hint.as_deref().is_some_and(|t| {
-                    t != "llm"
-                        && tool_proxy.is_tool_read_only(t)
-                        && !self
-                            .manifest
-                            .tools_requiring_approval
-                            .iter()
-                            .any(|a| a == t)
-                })
-            });
-
-        // Pre-compute per-call data to avoid lifetime issues with the async stream.
-        let tool_names: Vec<String> = steps
-            .iter()
-            .map(|s| s.tool_hint.clone().unwrap_or_default())
-            .collect();
-        let mut inputs: Vec<serde_json::Value> = Vec::with_capacity(steps.len());
-        for s in steps {
-            let interpolated = interpolate_outputs(&s.description, completed_outputs);
-            let tool_name = s.tool_hint.clone().unwrap_or_default();
-            let payload = self
-                .resolve_step_payload(s, &interpolated, &tool_name, tool_proxy, llm_router)
-                .await;
-            inputs.push(payload);
-        }
-        let step_ids: Vec<String> = steps.iter().map(|s| s.step_id.clone()).collect();
-
-        // Register a breaker for every tool so the resilience pre_check never
-        // trips on an unknown tool.
-        for name in &tool_names {
-            resilience.ensure_tool(name);
-        }
-
-        // Runs one tool call wrapped by the ResilienceLayer. pre_check (which
-        // short-circuits an open breaker without invoking the tool), retry with
-        // backoff, and success/failure recording all happen inside the layer.
-        // Returns the original step id paired with the outcome so results can be
-        // collected in input order.
-        let run_one = |i: usize| {
-            let tool_name = tool_names[i].clone();
-            let input = inputs[i].clone();
-            let step_id = step_ids[i].clone();
-            async move {
-                let policy = RetryPolicy::default();
-                let (outcome, _attempts) = resilience
-                    .execute_with_observability(
-                        RetryContext {
-                            tool_name: &tool_name,
-                            tool_call_id: &step_id,
-                            retry_policy: &policy,
-                            bus: Some(&self.event_bus),
-                        },
-                        Self::classify_tool_error,
-                        || tool_proxy.invoke(&tool_name, &input),
-                    )
-                    .await;
-                (
-                    step_id.clone(),
-                    outcome.map_err(|e| StepError::ToolCallFailed(e.to_string())),
-                )
-            }
-        };
-
-        if all_read_only {
-            stream::iter((0..steps.len()).map(&run_one))
-                .buffered(MAX_CONCURRENT_ORIA_TOOLS)
-                .collect::<Vec<_>>()
-                .await
-        } else {
-            let mut results = Vec::with_capacity(steps.len());
-            for i in 0..steps.len() {
-                results.push(run_one(i).await);
-            }
-            results
-        }
-    }
-
-    /// Resolves the JSON payload passed to a tool step.
-    ///
-    /// Resolution order:
-    /// 1. **Plan-time args (path A)**: if the step carries `args` and they
-    ///    validate against the tool schema (or no schema is registered to check
-    ///    against), use them verbatim.
-    /// 2. **Just-in-time extraction (path B)**: if a schema is available, ask the
-    ///    model to generate valid arguments from the step description, constrained
-    ///    to that schema.
-    /// 3. **Legacy fallback**: wrap the interpolated description as
-    ///    `{"input": ...}`, preserving the historical behaviour for tools with a
-    ///    trivial input contract and for backends without an LLM.
-    ///
-    /// The JIT call is not counted as a tool call: it produces the tool's
-    /// arguments, it does not invoke the tool. The step's `is_exhausted()` guard
-    /// upstream still bounds the run.
-    // REASON: argument resolution needs the step, its interpolated description,
-    // the tool name, the schema source (proxy) and the model source (router).
-    // REASON: threads the actor's borrowed state through one step resolution; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    async fn resolve_step_payload(
-        &self,
-        step: &PlanStep,
-        interpolated_description: &str,
-        tool_name: &str,
-        tool_proxy: &dyn ToolProxyTrait,
-        llm_router: &LlmRouter,
-    ) -> serde_json::Value {
-        let schema = tool_proxy.tool_schema(tool_name).await;
-
-        // Path A: plan-time args, accepted when valid (or unverifiable).
-        if let Some(args) = step.args.as_ref() {
-            let acceptable = match schema.as_ref() {
-                Some(s) => crate::arg_resolver::validate_args(args, s).is_ok(),
-                None => true,
-            };
-            if acceptable {
-                return args.clone();
-            }
-            tracing::event!(
-                tracing::Level::WARN,
-                step_id = %step.step_id,
-                tool = %tool_name,
-                "oria.step.args_invalid_falling_back"
-            );
-        }
-
-        // Path B: just-in-time extraction against the tool schema.
-        if let Some(s) = schema.as_ref() {
-            if let Some(model) = llm_router.get(step.model_hint.as_deref()) {
-                match crate::arg_resolver::resolve_tool_args(
-                    &model,
-                    tool_name,
-                    s,
-                    interpolated_description,
-                    0.0,
-                )
-                .await
-                {
-                    Ok(args) => return args,
-                    Err(e) => tracing::event!(
-                        tracing::Level::WARN,
-                        step_id = %step.step_id,
-                        tool = %tool_name,
-                        error = %e,
-                        "oria.step.jit_extraction_failed"
-                    ),
-                }
-            }
-        }
-
-        // Legacy fallback.
-        serde_json::json!({ "input": interpolated_description })
-    }
-
-    /// Execute a single step, tool or LLM depending on `tool_hint`.
-    ///
-    /// Before the actual execution, checks whether the step's tool is in
-    /// `manifest.tools_requiring_approval`. If so and `pending_approvals` is
-    /// configured, calls [`suspend_for_approval`] and waits for the human decision.
-    ///
-    /// - `tool_hint = Some("llm")` or `None`: LLM call, routed via `model_hint`
-    ///   when present, otherwise the default backend. Previous outputs are
-    ///   injected into the system message.
-    /// - `tool_hint = Some(tool_name)`: call via `ToolProxyTrait::invoke`
-    ///   (`model_hint` ignored for tool steps).
-    ///
-    /// Previous step outputs are interpolated into the step description via
-    /// [`interpolate_outputs`] before being passed to the tool or the LLM.
-    ///
-    /// [`suspend_for_approval`]: ActorLoop::suspend_for_approval
-    // REASON: cohesive execution dependencies (proxy, router, resilience) plus
-    // the step context. A future consolidation may move the resilience layer
-    // into the StepDeps bundle once the batch path needs it too.
-    // REASON: threads the actor's borrowed state through one step execution; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    async fn execute_step(
-        &self,
-        step: &PlanStep,
-        step_ctx: &StepContext,
-        tool_proxy: &dyn ToolProxyTrait,
-        llm_router: &LlmRouter,
-        resilience: &ResilienceLayer,
-    ) -> Result<String, StepError> {
-        // Check whether the step's tool requires human approval.
-        let tool_needs_approval = step
-            .tool_hint
-            .as_deref()
-            .map(|t| {
-                self.manifest
-                    .tools_requiring_approval
-                    .iter()
-                    .any(|a| a == t)
-            })
-            .unwrap_or(false);
-
-        if tool_needs_approval {
-            if let Some(pending) = self.pending_approvals.as_ref() {
-                self.suspend_for_approval(step, pending).await?;
-            } else {
-                tracing::warn!(
-                    step_id = %step.step_id,
-                    tool = ?step.tool_hint,
-                    detail = "the sensitive step runs without approval",
-                    "step.approval.unconfigured"
-                );
-            }
-        }
-
-        // Normal step execution after approval (or for a non-sensitive tool).
-        let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
-
-        match step.tool_hint.as_deref() {
-            // LLM step: routed to the backend specified by model_hint.
-            // previous outputs injected into the system message.
-            Some("llm") | None => {
-                self.execute_llm_step(step, input, llm_router, step_ctx)
-                    .await
-            }
-            // Tool step: model_hint ignored. The invocation is wrapped by the
-            // ResilienceLayer so a flaky tool trips its circuit breaker and
-            // transient failures are retried with backoff before bubbling up.
-            Some(tool_name) => {
-                resilience.ensure_tool(tool_name);
-                let policy = RetryPolicy::default();
-                let payload = self
-                    .resolve_step_payload(step, &input, tool_name, tool_proxy, llm_router)
-                    .await;
-                let (outcome, _attempts) = resilience
-                    .execute_with_observability(
-                        RetryContext {
-                            tool_name,
-                            tool_call_id: step.step_id.as_str(),
-                            retry_policy: &policy,
-                            bus: Some(&self.event_bus),
-                        },
-                        Self::classify_tool_error,
-                        || tool_proxy.invoke(tool_name, &payload),
-                    )
-                    .await;
-                outcome.map_err(|e| StepError::ToolCallFailed(e.to_string()))
-            }
-        }
-    }
-
-    /// Maps a `ToolProxyTrait::invoke` error message to the [`ErrorClass`] that
-    /// drives circuit-breaker and retry decisions.
-    ///
-    /// Tool invocations return their error as a plain `String`, so the class is
-    /// inferred from the message. Unknown shapes default to `Transient` so a
-    /// genuine transient fault is retried rather than silently dropped; the
-    /// circuit breaker still bounds repeated transient failures.
-    fn classify_tool_error(err: &str) -> ErrorClass {
-        let lower = err.to_lowercase();
-        if lower.contains("budget") {
-            ErrorClass::BudgetExceeded
-        } else if lower.contains("sandbox")
-            || lower.contains("path traversal")
-            || lower.contains("unauthorized")
-        {
-            ErrorClass::SandboxViolation
-        } else if lower.contains("not found")
-            || lower.contains("invalid input")
-            || lower.contains("invalid argument")
-        {
-            ErrorClass::Permanent
-        } else {
-            ErrorClass::Transient
-        }
-    }
-
-    /// Execute an LLM call for a step, honoring `model_hint`.
-    ///
-    /// - If `model_hint = Some(hint)` and the backend exists in the `LlmRouter`,
-    ///   the call is routed to that backend.
-    /// - If `model_hint = Some(hint)` but the backend does not exist, a `tracing::warn!`
-    ///   is emitted and the default backend is used as fallback.
-    /// - If `model_hint = None`, the default backend is used.
-    /// - if previous steps completed, their outputs are formatted into a system
-    ///   message `"Previous step results:\n- s1: ..."`.
-    async fn execute_llm_step(
-        &self,
-        step: &PlanStep,
-        input: String,
-        llm_router: &LlmRouter,
-        step_ctx: &StepContext,
-    ) -> Result<String, StepError> {
-        // Build messages: combine manifest system prompt and previous step outputs into a single
-        // system message (preserved verbatim by ContextManager during compaction).
-        // Omit the system message entirely when neither the manifest nor previous outputs
-        // provide any content, preserving existing behaviour for simple steps.
-        let system_text_opt = match (
-            self.manifest.system_prompt.as_deref(),
-            step_ctx.format_previous_outputs(),
-        ) {
-            (Some(sp), Some(ctx)) => Some(format!("{sp}\n\n{ctx}")),
-            (Some(sp), None) => Some(sp.to_owned()),
-            (None, Some(ctx)) => Some(ctx),
-            (None, None) => None,
-        };
-        let mut messages: Vec<ChatMessage> = system_text_opt
-            .map(|text| vec![ChatMessage::system(text), ChatMessage::user(input.clone())])
-            .unwrap_or_else(|| vec![ChatMessage::user(input)]);
-
-        // Compact context if it approaches the model's context limit.
-        let (compacted, was_compacted) = self
-            .context_manager
-            .maybe_compact(&messages, llm_router)
-            .await;
-        if was_compacted {
-            let summary_chars = compacted.get(1).map(message_char_len).unwrap_or(0);
-            let original_messages = messages.len();
-            messages = compacted;
-            tracing::info!(
-                summary_chars,
-                original_messages,
-                step_id = %step.step_id,
-                "step.context.compacted"
-            );
-            let _ = self
-                .event_bus
-                .send(apollia_core::RuntimeEvent::ContextCompacted {
-                    summary_chars,
-                    original_messages,
-                });
-        }
-
-        let request = CompletionRequest {
-            messages,
-            ..Default::default()
-        };
-
-        let backend_name = match &step.model_hint {
-            Some(hint) => {
-                if llm_router.get(Some(hint)).is_some() {
-                    Some(hint.as_str())
-                } else {
-                    tracing::warn!(
-                        step_id = %step.step_id,
-                        model_hint = %hint,
-                        detail = "falling back to the default backend",
-                        "step.model_hint.unknown"
-                    );
-                    None
-                }
-            }
-            None => None,
-        };
-
-        let obs = LlmObsConfig::default();
-        let response = llm_router
-            .complete_with_observability(backend_name, request, Some(&self.event_bus), &obs)
-            .await
-            .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
-
-        Ok(response.content)
-    }
-
-    /// Suspend step execution and wait for the human decision (HITL Orchestrated mode).
-    ///
-    /// ## Sequence
-    ///
-    /// 1. Register a oneshot channel in `pending_approvals`, receiver `rx`.
-    /// 2. Emit [`RuntimeEvent::TaskInputRequired`] with `step_id: Some(step.step_id)`
-    ///    on the `EventBus` to notify the user.
-    /// 3. Await `rx.await`: the `ResumeHandler` sends on the sender.
-    /// 4. If `approved=true`: `Ok(())`, the step's tool runs normally.
-    /// 5. If `approved=false`: `Err(StepError::RejectedByUser { reason })`.
-    /// 6. If the channel is closed (runtime shutdown): `Err(StepError::ApprovalChannelClosed)`.
-    ///
-    /// **StepBudget paused during suspension**: the wait is a pure `await`,
-    /// the step counter does not advance during the human suspension.
-    async fn suspend_for_approval(
-        &self,
-        step: &PlanStep,
-        pending_approvals: &PendingApprovals,
-    ) -> Result<(), StepError> {
-        // Registration key: task_id + step_id to identify the suspension precisely.
-        let approval_key = format!("{}::{}", self.plan.task_id, step.step_id);
-
-        // 1. Register in PendingApprovals, get rx
-        let rx = pending_approvals.register(&approval_key);
-
-        // 2. Emit TaskInputRequired with step_id set (distinguishes Direct / Orchestrated mode)
-        let prompt = format!(
-            "Approbation requise avant d'exécuter '{}' (step: {})",
-            step.tool_hint.as_deref().unwrap_or("llm"),
-            step.step_id
-        );
-        let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
-            task_id: self.plan.task_id.clone().into(),
-            prompt,
-            step_id: Some(step.step_id.clone()),
-        });
-
-        tracing::info!(
-            task_id = %self.plan.task_id,
-            step_id = %step.step_id,
-            tool = ?step.tool_hint,
-            "step.approval.suspended"
-        );
-
-        // 3. Wait for the human decision (pure await: StepBudget does not advance)
-        let response = rx.await.map_err(|_| StepError::ApprovalChannelClosed)?;
-
-        tracing::info!(
-            task_id = %self.plan.task_id,
-            step_id = %step.step_id,
-            approved = response.approved,
-            "step.approval.decided"
-        );
-
-        // 4/5. Return based on the decision
-        if response.approved {
-            Ok(())
-        } else {
-            Err(StepError::RejectedByUser {
-                reason: response
-                    .reason
-                    .unwrap_or_else(|| "Rejeté par l'utilisateur".into()),
-            })
-        }
-    }
-
-    /// Records an episodic memory entry for a completed step.
-    ///
-    /// Fire-and-forget: errors are logged as warnings but never interrupt execution.
-    /// Skipped silently when `memory_manager` is `None` or when the agent manifest
-    /// has no `memory_namespace` configured.
-    ///
-    /// Output is truncated to [`STEP_MEMORY_OUTPUT_MAX_CHARS`] characters.
-    fn record_step_memory(&self, step_id: &str, description: &str, output: &str) {
-        // skip if no memory_manager or no namespace configured.
-        let mm = match self.memory_manager.as_ref() {
-            Some(mm) => mm,
-            None => return,
-        };
-        let namespace = match self.manifest.memory_namespace.as_deref() {
-            Some(ns) => ns,
-            None => return,
-        };
-
-        let truncated_output = truncate_chars(output, self.step_memory_max_chars);
-        let content = format!("step {step_id}: {description} -> {truncated_output}");
-        let task_id = self.plan.task_id.clone();
-        let agent_name = self.manifest.name.clone();
-        let namespace_owned = namespace.to_string();
-        let metadata = serde_json::json!({
-            "source": "oria_orchestrated",
-            "step_id": step_id,
-        });
-
-        let mm = Arc::clone(mm);
-        // Fire-and-forget: spawn_blocking for the sync SQLite write.
-        tokio::task::spawn_blocking(move || {
-            let mut guard = match mm.lock() {
-                Ok(g) => g,
-                Err(e) => {
-                    tracing::warn!(
-                        error = %e,
-                        step_id = %task_id,
-                        detail = "ignored",
-                        "step.memory.lock.failed"
-                    );
-                    return;
-                }
-            };
-            let store = match guard.store(&namespace_owned) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::warn!(
-                        error = %e,
-                        namespace = %namespace_owned,
-                        detail = "ignored",
-                        "step.memory.store.open.failed"
-                    );
-                    return;
-                }
-            };
-            let episodic = apollia_memory::episodic::EpisodicMemory::new(store);
-            if let Err(e) = episodic.record(
-                &namespace_owned,
-                &agent_name,
-                &content,
-                STEP_MEMORY_IMPORTANCE,
-                Some(task_id.as_str()),
-                None,
-                Some(&metadata),
-            ) {
-                // warn but don't interrupt execution.
-                tracing::warn!(
-                    error = %e,
-                    namespace = %namespace_owned,
-                    detail = "ignored",
-                    "step.memory.record.failed"
-                );
-            }
-        });
-    }
-
-    /// Trigger a replan after the retryable failure of a step.
-    ///
-    /// Increments `replan_count`, emits [`RuntimeEvent::PlanReplanning`],
-    /// calls `Reasoner::replan()`, updates the SQLite plan and internal state,
-    /// then delegates the rest to [`execute_remaining`](Self::execute_remaining).
-    ///
-    /// Returns `MAX_REPLAN_EXCEEDED` if the Reasoner fails.
-    ///
-    /// Returns a boxed `Future` to allow mutual recursion with
-    /// [`execute_remaining`](Self::execute_remaining).
-    // REASON: replanning needs the failed step, the error, accumulated outputs,
-    // the execution deps and the resilience layer; the set is cohesive. A future
-    // consolidation may move the resilience layer into the StepDeps bundle.
-    // REASON: threads the actor's borrowed state into the recursive replan future; a struct would borrow the same fields.
-    #[allow(clippy::too_many_arguments)]
-    fn replan_and_continue<'a>(
-        &'a mut self,
-        failed_step_id: String,
-        error_message: String,
-        completed_outputs: HashMap<String, String>,
-        deps: StepDeps<'a>,
-        resilience: &'a ResilienceLayer,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
-        Box::pin(async move {
-            self.replan_count += 1;
-            let attempt = self.replan_count;
-
-            let _ = self.event_bus.send(RuntimeEvent::PlanReplanning {
-                task_id: self.plan.task_id.clone().into(),
-                plan_id: self.plan.plan_id.clone(),
-                attempt,
-                failed_step: failed_step_id.clone(),
-                reason: error_message.clone(),
-            });
-
-            // Build a minimal context for the Reasoner.
-            let ctx = build_replan_context(&self.plan);
-
-            let new_plan = match deps
-                .reasoner
-                .replan(&ctx, &completed_outputs, &failed_step_id, &error_message)
-                .await
-            {
-                Ok(p) => p,
-                Err(e) => {
-                    if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, &e.to_string()) {
-                        tracing::warn!(
-                            error = %db_err,
-                            detail = "ignored",
-                            "plan.fail.persist.failed"
-                        );
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: e.to_string(),
-                    });
-                    return AIPResult::failed("REPLAN_FAILED", &e.to_string());
-                }
-            };
-
-            // Update SQLite: begin_replan removes pending steps, then we reinsert.
-            if let Err(e) = self.db.begin_replan(&self.plan.plan_id, self.replan_count) {
-                tracing::warn!(error = %e, detail = "ignored", "plan.replan.persist.failed");
-            }
-            if let Err(e) = self.db.insert_steps(&self.plan.plan_id, &new_plan.steps) {
-                tracing::warn!(error = %e, detail = "ignored", "plan.steps.persist.failed");
-            }
-
-            let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
-                task_id: self.plan.task_id.clone().into(),
-                agent_name: String::new(),
-                plan_id: self.plan.plan_id.clone(),
-                step_count: new_plan.steps.len(),
-                run_id: None,
-            });
-
-            // Update internal state: keep only completed steps plus the new ones.
-            self.plan
-                .steps
-                .retain(|s| completed_outputs.contains_key(&s.step_id));
-            self.plan.steps.extend(new_plan.steps);
-
-            self.execute_remaining(completed_outputs, deps, resilience)
-                .await
-        }) // end Box::pin
-    }
-
-    /// Execute the remaining (not yet completed) steps after a replan.
-    ///
-    /// Determines the remaining steps by filtering `self.plan.steps` to those absent
-    /// from `completed_outputs`, performs a topological sort, then runs each one.
-    ///
-    /// Returns a boxed `Future` to allow mutual recursion with
-    /// [`replan_and_continue`](Self::replan_and_continue).
-    fn execute_remaining<'a>(
-        &'a mut self,
-        mut completed_outputs: HashMap<String, String>,
-        deps: StepDeps<'a>,
-        resilience: &'a ResilienceLayer,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
-        Box::pin(async move {
-            let remaining: Vec<PlanStep> = self
-                .plan
-                .steps
-                .iter()
-                .filter(|s| !completed_outputs.contains_key(&s.step_id))
-                .cloned()
-                .collect();
-
-            let order = match topological_sort(&remaining) {
-                Ok(o) => o,
-                Err(_) => {
-                    if let Err(e) = self.db.fail_plan(&self.plan.plan_id, "INVALID_REPLAN") {
-                        tracing::warn!(error = %e, detail = "ignored", "plan.fail.persist.failed");
-                    }
-                    return AIPResult::failed("INVALID_REPLAN", "Circular dependency in replan");
-                }
-            };
-
-            for step_id in order {
-                let step = match remaining.iter().find(|s| s.step_id == step_id) {
-                    Some(s) => s.clone(),
-                    None => continue,
-                };
-
-                if deps.budget.is_exhausted() {
-                    return self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget));
-                }
-
-                let step_num = completed_outputs.len() + 1;
-                self.persist_step_pre_execution(&step, step_num, &completed_outputs);
-
-                // build StepContext for execute_remaining steps.
-                let step_ctx = StepContext {
-                    previous_outputs: completed_outputs.clone(),
-                    step_index: completed_outputs.len(),
-                    total_steps: self.plan.steps.len(),
-                    remaining_budget: deps.budget.to_budget_view(),
-                };
-
-                let started = Instant::now();
-                let result = self
-                    .execute_step(
-                        &step,
-                        &step_ctx,
-                        deps.tool_proxy,
-                        deps.llm_router,
-                        resilience,
-                    )
-                    .await;
-                let duration_ms = started.elapsed().as_millis() as u64;
-                deps.budget.increment_steps();
-                // A native tool step consumes one tool-call budget unit here too,
-                // so replanned tool steps stay under the max_tool_calls ceiling.
-                if step_is_tool_call(&step) {
-                    deps.budget.increment_tool_calls();
-                }
-
-                // persist duration unconditionally.
-                if let Err(e) =
-                    self.db
-                        .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-                {
-                    tracing::warn!(
-                        error = %e,
-                        step_id = %step_id,
-                        detail = "ignored",
-                        "step.duration.persist.failed"
-                    );
-                }
-
-                match result {
-                    Ok(output) => {
-                        self.persist_step_success(&step_id, &output, duration_ms);
-                        completed_outputs.insert(step_id, output);
-                    }
-
-                    Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                        self.persist_step_failure(&step_id, &e.to_string());
-                        self.emit_step_failed(&step_id, &e.to_string(), true);
-                        return self
-                            .replan_and_continue(
-                                step_id,
-                                e.to_string(),
-                                completed_outputs,
-                                deps,
-                                resilience,
-                            )
-                            .await;
-                    }
-
-                    Err(e) => return self.finalize_terminal_failure(&step_id, &e, false),
-                }
-            }
-
-            if let Err(e) = self.db.complete_plan(&self.plan.plan_id) {
-                tracing::warn!(error = %e, detail = "ignored", "plan.complete.persist.failed");
-            }
-            let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                task_id: self.plan.task_id.clone().into(),
-                plan_id: self.plan.plan_id.clone(),
-                step_count: completed_outputs.len(),
-                duration_ms: 0,
-            });
-
-            AIPResult::completed_with_steps(completed_outputs)
-        }) // end Box::pin
-    }
-
-    /// Persists the side effects of a successfully completed step.
-    ///
-    /// Saves the observability output, marks the step complete in SQLite, and
-    /// emits [`RuntimeEvent::StepCompleted`]. DB errors are logged and ignored
-    /// (fire-and-forget), matching the surrounding execution loops.
-    fn persist_step_success(&self, step_id: &str, output: &str, duration_ms: u64) {
-        if let Err(e) =
-            self.db
-                .save_step_output(step_id, &self.plan.plan_id, output, &self.obs_config)
-        {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.output.persist.failed"
-            );
-        }
-        if let Err(e) = self.db.complete_step(&self.plan.plan_id, step_id, output) {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.complete.persist.failed"
-            );
-        }
-        let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
-            task_id: self.plan.task_id.clone().into(),
-            plan_id: self.plan.plan_id.clone(),
-            step_id: step_id.to_string(),
-            duration_ms,
-        });
-    }
-
-    /// Persists the common failure prefix for a failed step: saves the error
-    /// detail and marks the step failed in SQLite.
-    ///
-    /// Shared by every error arm before more specific plan-level handling.
-    /// DB errors are logged and ignored (fire-and-forget).
-    fn persist_step_failure(&self, step_id: &str, error_msg: &str) {
-        if let Err(e) = self
-            .db
-            .save_step_error(step_id, &self.plan.plan_id, error_msg)
-        {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.error.persist.failed"
-            );
-        }
-        if let Err(e) = self.db.fail_step(&self.plan.plan_id, step_id, error_msg) {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.fail.persist.failed"
-            );
-        }
-    }
-
-    /// Emits a [`RuntimeEvent::StepFailed`] for `step_id`.
-    fn emit_step_failed(&self, step_id: &str, error: &str, retryable: bool) {
-        let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-            task_id: self.plan.task_id.clone().into(),
-            plan_id: self.plan.plan_id.clone(),
-            step_id: step_id.to_string(),
-            error: error.to_string(),
-            retryable,
-        });
-    }
-
-    /// Marks the plan failed in SQLite with `reason` and emits
-    /// [`RuntimeEvent::PlanFailed`]. DB errors are logged and ignored.
-    fn fail_plan(&self, reason: &str) {
-        if let Err(e) = self.db.fail_plan(&self.plan.plan_id, reason) {
-            tracing::warn!(error = %e, detail = "ignored", "plan.fail.persist.failed");
-        }
-        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-            task_id: self.plan.task_id.clone().into(),
-            plan_id: self.plan.plan_id.clone(),
-            reason: reason.to_string(),
-        });
-    }
-
-    /// Handles every terminal step failure (all error arms except the one that
-    /// triggers a replan), performing the step- and plan-level persistence and
-    /// events, then returning the matching terminal [`AIPResult`].
-    ///
-    /// Variants handled:
-    /// - retryable error with replans exhausted → `MAX_REPLAN_EXCEEDED`
-    /// - [`StepError::RejectedByUser`] → `REJECTED`
-    /// - [`StepError::ApprovalChannelClosed`] → `APPROVAL_CHANNEL_CLOSED`
-    /// - any other permanent error → `STEP_FAILED`
-    ///
-    /// `prefix_step_in_message` selects the `STEP_FAILED` detail wording: the
-    /// initial-pass loops report `"Step {id} failed: {e}"`, while the
-    /// post-replan loop reports the bare error string (preserving the original
-    /// per-loop messages verbatim).
-    fn finalize_terminal_failure(
-        &self,
-        step_id: &str,
-        err: &StepError,
-        prefix_step_in_message: bool,
-    ) -> AIPResult {
-        match err {
-            e if e.is_retryable() => {
-                // Retryable but replan budget exhausted.
-                self.persist_step_failure(step_id, &e.to_string());
-                self.emit_step_failed(step_id, &e.to_string(), true);
-                self.fail_plan("MAX_REPLAN_EXCEEDED");
-                AIPResult::failed(
-                    "MAX_REPLAN_EXCEEDED",
-                    &format!("{} replanifications dépassées", self.max_replans),
-                )
-            }
-            StepError::RejectedByUser { reason } => {
-                self.persist_step_failure(step_id, reason);
-                self.fail_plan("REJECTED");
-                AIPResult::failed("REJECTED", reason)
-            }
-            StepError::ApprovalChannelClosed => {
-                self.persist_step_failure(step_id, "approval_channel_closed");
-                self.fail_plan("APPROVAL_CHANNEL_CLOSED");
-                AIPResult::failed(
-                    "APPROVAL_CHANNEL_CLOSED",
-                    "Approval channel closed - runtime shutting down",
-                )
-            }
-            e => {
-                self.persist_step_failure(step_id, &e.to_string());
-                self.emit_step_failed(step_id, &e.to_string(), false);
-                self.fail_plan(&e.to_string());
-                let detail = if prefix_step_in_message {
-                    format!("Step {} failed: {}", step_id, e)
-                } else {
-                    e.to_string()
-                };
-                AIPResult::failed("STEP_FAILED", &detail)
-            }
-        }
-    }
-
-    /// Returns `true` when every step in `level_steps` is a read-only tool call
-    /// that does not require human approval, making the level eligible for
-    /// concurrent batch execution. A single-step level is never eligible.
-    fn is_batch_eligible(&self, level_steps: &[PlanStep], tool_proxy: &dyn ToolProxyTrait) -> bool {
-        level_steps.len() > 1
-            && level_steps.iter().all(|s| {
-                s.tool_hint.as_deref().is_some_and(|t| {
-                    t != "llm"
-                        && tool_proxy.is_tool_read_only(t)
-                        && !self
-                            .manifest
-                            .tools_requiring_approval
-                            .iter()
-                            .any(|a| a == t)
-                })
-            })
-    }
-
-    /// Persists the pre-execution bookkeeping for `step`: emits
-    /// [`RuntimeEvent::StepStarted`], marks the step started in SQLite, and
-    /// saves the interpolated input and resolved tool name.
-    ///
-    /// `step_num` is the 1-based ordinal used for the StepStarted event.
-    /// DB errors are logged and ignored (fire-and-forget).
-    fn persist_step_pre_execution(
-        &self,
-        step: &PlanStep,
-        step_num: usize,
-        completed_outputs: &HashMap<String, String>,
-    ) {
-        let step_id = &step.step_id;
-        let total = self.plan.steps.len();
-        let _ = self.event_bus.send(RuntimeEvent::StepStarted {
-            task_id: self.plan.task_id.clone().into(),
-            plan_id: self.plan.plan_id.clone(),
-            step_id: step_id.clone(),
-            step_num,
-            total,
-            desc: step.description.clone(),
-        });
-        if let Err(e) = self.db.start_step(&self.plan.plan_id, step_id) {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.start.persist.failed"
-            );
-        }
-        let rendered = interpolate_outputs(&step.description, completed_outputs);
-        if let Err(e) =
-            self.db
-                .save_step_input(step_id, &self.plan.plan_id, &rendered, &self.obs_config)
-        {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.input.persist.failed"
-            );
-        }
-        let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-        if let Err(e) = self
-            .db
-            .save_step_tool(step_id, &self.plan.plan_id, actual_tool)
-        {
-            tracing::warn!(
-                error = %e,
-                step_id = %step_id,
-                detail = "ignored",
-                "step.tool.persist.failed"
-            );
-        }
-    }
-
-    /// Marks the plan failed with `STEP_BUDGET_EXCEEDED` (DB + event) and
-    /// returns the corresponding terminal [`AIPResult`] carrying `detail`.
-    fn fail_plan_budget_exhausted(&self, detail: &str) -> AIPResult {
-        self.fail_plan("STEP_BUDGET_EXCEEDED");
-        AIPResult::failed("STEP_BUDGET_EXCEEDED", detail)
-    }
 }
 
 // Helpers
@@ -1613,7 +434,7 @@ impl ActorLoop {
 /// other `tool_hint` targets a tool invoked through the `ToolProxy`. Only tool
 /// steps consume the `max_tool_calls` dimension of the [`StepBudget`], so this
 /// predicate gates the `increment_tool_calls` calls in the execution loops.
-fn step_is_tool_call(step: &PlanStep) -> bool {
+pub(crate) fn step_is_tool_call(step: &PlanStep) -> bool {
     step.tool_hint.as_deref().is_some_and(|t| t != "llm")
 }
 
@@ -1622,7 +443,7 @@ fn step_is_tool_call(step: &PlanStep) -> bool {
 /// Prefers the precise dimension reported by [`StepBudget::exhaustion_reason`]
 /// (steps, tool calls, or wall clock) and falls back to a generic message when
 /// no single dimension can be attributed.
-fn budget_exhaustion_detail(budget: &StepBudget) -> String {
+pub(crate) fn budget_exhaustion_detail(budget: &StepBudget) -> String {
     budget
         .exhaustion_reason()
         .unwrap_or_else(|| "step budget exhausted".to_string())
@@ -1652,7 +473,7 @@ pub fn interpolate_outputs(description: &str, outputs: &HashMap<String, String>)
 /// The bundle carries only the plan's `task_id`; the other fields
 /// (`memory_snapshot`, `available_tools`, `manifest_system_prompt`) are empty.
 /// The Reasoner uses this context to build the replanner prompt.
-fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
+pub(crate) fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
     use apollia_core::task::AIPTask;
 
     ContextBundle {
@@ -1672,7 +493,7 @@ fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
 ///
 /// If the string exceeds `max_chars`, it is truncated and `"…"` is appended.
 /// UTF-8 safe: operates on `char` boundaries, not bytes.
-fn truncate_chars(s: &str, max_chars: usize) -> String {
+pub(crate) fn truncate_chars(s: &str, max_chars: usize) -> String {
     let char_count = s.chars().count();
     if char_count <= max_chars {
         s.to_string()
@@ -1689,6 +510,9 @@ fn truncate_chars(s: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_llm::ChatMessage;
+
+    use crate::resilience::{ErrorClass, RetryPolicy};
     use apollia_core::{AgentManifest, PendingApprovals, TaskStatus};
     use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
     use std::collections::VecDeque;
