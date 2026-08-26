@@ -393,12 +393,29 @@ pub async fn wait_for_shutdown_signal() -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    // No test in this module ever contacts the API over TCP: they check what
+    // the shutdown sequence does to the actors behind it. So every server
+    // here is started on the Unix socket alone, which `tcp_port: None`
+    // selects and which is the configuration an embedded host runs.
+    //
+    // Asking for a TCP port instead cost a verdict. The idiom was to reserve
+    // a port by probe-binding it, release the probe, then let the server bind
+    // the number; between the release and the bind the number belongs to
+    // nobody, and the guard replayed four times on one commit answered green,
+    // green, red, red. Reproduced deliberately by squatting the private pool
+    // and re-binding the four ports left free, the failure is
+    // `BindFailed { port, AddrInUse }` raised by `APIServer::start`. A window
+    // that small cannot be closed by making it smaller.
+    //
+    // A test that does need the port keeps the reservation and lives in
+    // `api::server`, where the assertion is about the listener itself.
+    //
+
     use super::*;
     use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
-    use crate::test_support::reserve_port;
     use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, TaskStatus};
     use std::future::Future;
     use std::path::PathBuf;
@@ -567,8 +584,6 @@ mod tests {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
 
         let socket_path = temp_socket_path();
-        let reserved_port = reserve_port();
-        let port = reserved_port.port();
 
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -611,14 +626,12 @@ mod tests {
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: Some(port),
+            tcp_port: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
         };
         let api_server = APIServer::new(config, state);
-        // Release the probe listener only now, right before the bind it protects.
-        reserved_port.release();
         let api_handle = api_server.start().await.unwrap();
 
         let shutdown_config = ShutdownConfig {
@@ -745,8 +758,6 @@ mod tests {
 
         // Build a minimal controller (no API server needed for drain test)
         let socket_path = temp_socket_path();
-        let reserved_port = reserve_port();
-        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -788,14 +799,12 @@ mod tests {
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: Some(port),
+            tcp_port: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
-        // Release the probe listener only now, right before the bind it protects.
-        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {
@@ -872,8 +881,6 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let reserved_port = reserve_port();
-        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -915,14 +922,12 @@ mod tests {
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: Some(port),
+            tcp_port: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
-        // Release the probe listener only now, right before the bind it protects.
-        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {
@@ -994,8 +999,6 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let reserved_port = reserve_port();
-        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1038,15 +1041,13 @@ mod tests {
             crate::api::APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: Some(port),
+                tcp_port: None,
                 api_token: None,
                 tls_cert_path: None,
                 tls_key_path: None,
             },
             state,
         );
-        // Release the probe listener only now, right before the bind it protects.
-        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         // WHEN drain(1s) is called (short timeout for the test)
@@ -1207,8 +1208,6 @@ mod tests {
             .unwrap();
 
         let socket_path = temp_socket_path();
-        let reserved_port = reserve_port();
-        let port = reserved_port.port();
         let state = crate::api::AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1251,15 +1250,13 @@ mod tests {
             crate::api::APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: Some(port),
+                tcp_port: None,
                 api_token: None,
                 tls_cert_path: None,
                 tls_key_path: None,
             },
             state,
         );
-        // Release the probe listener only now, right before the bind it protects.
-        reserved_port.release();
         let api_handle = api.start().await.unwrap();
 
         let config = ShutdownConfig {
