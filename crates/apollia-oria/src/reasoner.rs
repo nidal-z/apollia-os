@@ -137,16 +137,6 @@ impl Reasoner {
         self
     }
 
-    /// Attach a `MetaOrchestratorHandle` to enable extracting alternative branches
-    /// from the thinking trace. Opt-in: the `GenerateAlternativeBranches` routine
-    /// must be enabled in `MetaLlmSettings` (off by default). Without this handle,
-    /// no `DecisionPointRecorded` is emitted.
-    #[must_use]
-    pub fn with_meta_orchestrator(mut self, handle: MetaOrchestratorHandle) -> Self {
-        self.meta_orchestrator = Some(handle);
-        self
-    }
-
     /// Unix timestamp in milliseconds, used to time-stamp thinking events.
     fn now_ms() -> u64 {
         std::time::SystemTime::now()

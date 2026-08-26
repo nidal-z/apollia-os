@@ -53,18 +53,6 @@ pub struct VerificationReport {
     pub failures: Vec<CheckFailure>,
 }
 
-/// Errors produced by [`VerificationLoop`] setup itself (not by individual commands).
-///
-/// Individual command failures are reported as [`CheckFailure`] entries inside a
-/// [`VerificationReport`], never as this error.
-#[derive(Debug, thiserror::Error)]
-pub enum VerificationError {
-    /// The manifest provided check commands but the injected invoker could not
-    /// parse or dispatch a command string.
-    #[error("verification setup failed: {0}")]
-    SetupFailed(String),
-}
-
 /// Minimal invocation contract for a verification check command.
 ///
 /// Injected into [`VerificationLoop::run`]; the concrete implementation delegates

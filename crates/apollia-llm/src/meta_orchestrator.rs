@@ -390,13 +390,6 @@ enum MetaCmd {
         session_id: String,
         reply: oneshot::Sender<Result<Option<String>, LlmError>>,
     },
-    GetSettings {
-        reply: oneshot::Sender<MetaLlmSettings>,
-    },
-    SetSettings {
-        settings: MetaLlmSettings,
-        reply: oneshot::Sender<()>,
-    },
     GetBudget {
         session_id: String,
         reply: oneshot::Sender<MetaLlmBudget>,
@@ -483,26 +476,6 @@ impl MetaOrchestratorHandle {
         DecisionPoint::parse(&raw, turn_id, kind).ok()
     }
 
-    /// Return the current config.
-    pub async fn get_settings(&self) -> Result<MetaLlmSettings, LlmError> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(MetaCmd::GetSettings { reply })
-            .await
-            .map_err(|_| LlmError::Cancelled)?;
-        rx.await.map_err(|_| LlmError::Cancelled)
-    }
-
-    /// Update the config.
-    pub async fn set_settings(&self, settings: MetaLlmSettings) -> Result<(), LlmError> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(MetaCmd::SetSettings { settings, reply })
-            .await
-            .map_err(|_| LlmError::Cancelled)?;
-        rx.await.map_err(|_| LlmError::Cancelled)
-    }
-
     /// Return a snapshot of the session's budget.
     pub async fn get_budget(
         &self,
@@ -568,13 +541,6 @@ impl MetaLlmOrchestrator {
                 } => {
                     let result = self.handle_run(routine, inputs, &session_id).await;
                     let _ = reply.send(result);
-                }
-                MetaCmd::GetSettings { reply } => {
-                    let _ = reply.send(self.settings.clone());
-                }
-                MetaCmd::SetSettings { settings, reply } => {
-                    self.settings = settings;
-                    let _ = reply.send(());
                 }
                 MetaCmd::GetBudget { session_id, reply } => {
                     let snapshot = self

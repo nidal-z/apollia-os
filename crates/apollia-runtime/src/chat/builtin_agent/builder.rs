@@ -108,13 +108,6 @@ impl BuiltInChatAgent {
         self
     }
 
-    /// Attach a `MetaOrchestratorHandle` to generate `ToolCallRationale`s.
-    /// No-op when `None`.
-    pub fn with_meta_handle(mut self, handle: Option<MetaOrchestratorHandle>) -> Self {
-        self.meta_handle = handle;
-        self
-    }
-
     /// Attach the shared lifecycle hook executor. No-op when `None`: the loop
     /// runs without any hook interception.
     pub fn with_hook_executor(mut self, executor: Option<Arc<HookExecutor>>) -> Self {

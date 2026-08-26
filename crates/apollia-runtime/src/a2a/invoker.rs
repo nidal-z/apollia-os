@@ -312,12 +312,6 @@ impl A2AInvoker {
         self
     }
 
-    /// Attaches a [`TelemetryHandle`] to aggregate per-skill telemetry.
-    pub fn with_telemetry(mut self, telemetry: TelemetryHandle) -> Self {
-        self.telemetry = Some(telemetry);
-        self
-    }
-
     /// Returns the attached [`TelemetryHandle`], if any.
     pub fn telemetry(&self) -> Option<&TelemetryHandle> {
         self.telemetry.as_ref()
@@ -326,59 +320,6 @@ impl A2AInvoker {
     /// Returns the attached [`SidechainLogger`], if any.
     pub fn sidechain_logger(&self) -> Option<&crate::a2a::sidechain::SidechainLogger> {
         self.sidechain_logger.as_ref()
-    }
-
-    /// Delegates a task to a target agent with best-effort sidechain logging.
-    ///
-    /// Records the start of the delegation in `task_sidechains` before the
-    /// invocation, then updates the status (`"completed"` or `"failed"`) after.
-    /// If the [`SidechainLogger`] is absent or logging fails, the delegation
-    /// proceeds normally: logging is always best-effort.
-    ///
-    /// # Arguments
-    ///
-    /// - `parent_task_id`: identifier of the parent task that initiates the delegation.
-    /// - Other arguments: same as [`invoke`].
-    // REASON: flattened invocation context of one A2A call; every argument feeds the same log record.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn invoke_with_logging(
-        &self,
-        parent_task_id: &apollia_core::TaskId,
-        skill_id: &str,
-        input: serde_json::Value,
-        caller: &str,
-        a2a_depth: u32,
-        timeout: Option<Duration>,
-        chain_deadline: Option<Instant>,
-    ) -> Result<A2AInvocationResult, A2AError> {
-        let sidechain_n = if let Some(logger) = &self.sidechain_logger {
-            logger.start(parent_task_id, skill_id, &input).await
-        } else {
-            0
-        };
-
-        let result = self
-            .invoke(A2AInvokeRequest {
-                skill_id,
-                input,
-                caller,
-                a2a_depth,
-                timeout,
-                chain_deadline,
-            })
-            .await;
-
-        if let Some(logger) = &self.sidechain_logger {
-            let (output_summary, status) = match &result {
-                Ok(r) => (serde_json::to_string(r).unwrap_or_default(), "completed"),
-                Err(e) => (e.to_string(), "failed"),
-            };
-            logger
-                .complete(parent_task_id, sidechain_n, &output_summary, status)
-                .await;
-        }
-
-        result
     }
 
     /// Invokes a Worker Agent by its `skill_id`.

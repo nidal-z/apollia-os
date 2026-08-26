@@ -21,30 +21,6 @@ use std::path::Path;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::prelude::*;
 
-/// Internal errors of the datasources layer.
-#[derive(Debug, thiserror::Error)]
-pub enum DatasourcesError {
-    /// The YAML file is missing despite being declared in the manifest.
-    #[error("datasource file not found: {0}")]
-    FileNotFound(String),
-    /// The YAML content could not be parsed.
-    #[error("invalid YAML in datasource '{name}': {reason}")]
-    InvalidYaml {
-        /// Logical datasource name (manifest key).
-        name: String,
-        /// Error message from the YAML parser.
-        reason: String,
-    },
-    /// The JSON to Python conversion failed on the `json.loads` side.
-    #[error("python conversion failed for '{name}': {reason}")]
-    PythonConversion {
-        /// Name of the datasource involved.
-        name: String,
-        /// Python detail.
-        reason: String,
-    },
-}
-
 /// Read-only interface exposed to the agent via `ctx.datasources`.
 ///
 /// During bootstrap, the runtime calls [`Self::load_from_dir`] to fill the

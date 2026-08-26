@@ -1,15 +1,14 @@
-//! mDNS-based discovery and announcement of MCP servers on the local network.
+//! mDNS-based discovery of MCP servers on the local network.
 //!
 //! MCP servers advertise themselves under the `_apollia-mcp._tcp.local.`
-//! service type. Discovery is disabled by default (`mdns_discovery = false`
+//! service type; Apollia is a client and only scans, it never registers. Discovery is disabled by default (`mdns_discovery = false`
 //! in `mcp.toml`) and must be opted into explicitly; see [`McpConfig`].
 //!
 //! [`McpConfig`]: crate::config::McpConfig
 
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent, ServiceInfo};
+use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
 use thiserror::Error;
 
 /// mDNS service type under which Apollia MCP servers are registered.
@@ -18,7 +17,7 @@ pub const SERVICE_TYPE: &str = "_apollia-mcp._tcp.local.";
 /// How long [`discover_mcp_servers`] scans before returning results.
 const SCAN_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// Errors produced by mDNS discovery and announcement operations.
+/// Errors produced by mDNS discovery operations.
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
     /// The mDNS daemon could not be created, or service registration failed.
@@ -50,57 +49,6 @@ pub struct DiscoveredServer {
 
     /// Tools advertised in the `tools` TXT record (comma-separated in the wire format).
     pub tools: Vec<String>,
-}
-
-/// Announces this process as an MCP server on the local network via mDNS.
-///
-/// Registers a `_apollia-mcp._tcp.local.` service with the given `name`,
-/// `port`, and `tools` list. The tools are stored in the `tools` TXT property
-/// as a comma-separated string. A `version` property is also included.
-///
-/// The returned [`ServiceDaemon`] must be kept alive for the announcement to
-/// remain visible; dropping it unregisters the service.
-pub async fn announce_mcp_server(
-    name: &str,
-    port: u16,
-    tools: &[String],
-) -> Result<ServiceDaemon, DiscoveryError> {
-    let instance_name = name.to_string();
-    let tools_value = tools.join(",");
-
-    tokio::task::spawn_blocking(move || {
-        let daemon = ServiceDaemon::new().map_err(DiscoveryError::from)?;
-
-        let host_name = build_host_name();
-
-        let mut properties: HashMap<String, String> = HashMap::new();
-        properties.insert("tools".to_string(), tools_value);
-        properties.insert("version".to_string(), env!("CARGO_PKG_VERSION").to_string());
-
-        let service_info = ServiceInfo::new(
-            SERVICE_TYPE,
-            &instance_name,
-            &host_name,
-            (),
-            port,
-            properties,
-        )
-        .map_err(DiscoveryError::from)?;
-
-        daemon
-            .register(service_info)
-            .map_err(DiscoveryError::from)?;
-
-        tracing::info!(
-            service = %instance_name,
-            port = port,
-            "MCP server announced via mDNS"
-        );
-
-        Ok::<_, DiscoveryError>(daemon)
-    })
-    .await
-    .map_err(|e| DiscoveryError::TaskPanic(e.to_string()))?
 }
 
 /// Scans the local network for MCP servers advertised via mDNS.
@@ -142,21 +90,6 @@ pub async fn discover_mcp_servers() -> Result<Vec<DiscoveredServer>, DiscoveryEr
     })
     .await
     .map_err(|e| DiscoveryError::TaskPanic(e.to_string()))?
-}
-
-/// Builds an mDNS-compatible fully-qualified host name from the system hostname.
-fn build_host_name() -> String {
-    match hostname::get() {
-        Ok(raw) => {
-            let s = raw.to_string_lossy();
-            if s.contains('.') {
-                format!("{s}.")
-            } else {
-                format!("{s}.local.")
-            }
-        }
-        Err(_) => "apollia-host.local.".to_string(),
-    }
 }
 
 /// Converts a resolved mDNS [`ResolvedService`] into a [`DiscoveredServer`].
@@ -204,14 +137,6 @@ mod tests {
         // GIVEN the SERVICE_TYPE constant
         // THEN it matches the expected mDNS service type
         assert_eq!(SERVICE_TYPE, "_apollia-mcp._tcp.local.");
-    }
-
-    #[test]
-    fn test_build_host_name_returns_fqdn() {
-        // GIVEN the current system hostname
-        let name = build_host_name();
-        // THEN it ends with a dot (FQDN format required by mDNS)
-        assert!(name.ends_with('.'), "FQDN must end with '.', got: {name}");
     }
 
     #[test]

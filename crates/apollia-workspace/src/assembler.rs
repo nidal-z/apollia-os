@@ -63,13 +63,6 @@ impl ProjectRuntime {
         self
     }
 
-    /// Adds an extra provider (for example a [`ScriptProvider`]).
-    pub fn with_provider(mut self, provider: Box<dyn WorkspaceProvider>) -> Self {
-        self.providers.push(provider);
-        self.providers.sort_by_key(|p| p.priority());
-        self
-    }
-
     /// Builds a runtime from a JSON provider configuration
     /// (read from the `project_providers` table in SQLite).
     ///

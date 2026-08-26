@@ -438,21 +438,6 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
-    /// Removes all `scope = 'agent'` rules matching `agent_id`.
-    ///
-    /// Returns the number of rows deleted.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PermissionError::Database`] on SQLite error.
-    pub fn remove_rules_by_agent(&mut self, agent_id: &str) -> Result<u32, PermissionError> {
-        let affected = self.db.execute(
-            "DELETE FROM permission_rules WHERE scope = 'agent' AND agent_id = ?",
-            params![agent_id],
-        )?;
-        Ok(affected as u32)
-    }
-
     /// Removes all rules whose `created_by` field matches `created_by`.
     ///
     /// Used for audit or targeted reset operations (for example, clearing all

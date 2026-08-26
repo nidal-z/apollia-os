@@ -277,36 +277,12 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper for [`list_enabled`]: runs the SQLite I/O on a blocking thread.
-    ///
-    /// [`list_enabled`]: Self::list_enabled
-    pub async fn list_enabled_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list_enabled())
-            .await
-            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`delete`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`delete`]: Self::delete
     pub async fn delete_async(&self, name: String) -> Result<(), AgentRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.delete(&name))
-            .await
-            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`set_enabled`]: runs the SQLite I/O on a blocking thread.
-    ///
-    /// [`set_enabled`]: Self::set_enabled
-    pub async fn set_enabled_async(
-        &self,
-        name: String,
-        enabled: bool,
-    ) -> Result<(), AgentRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.set_enabled(&name, enabled))
             .await
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }

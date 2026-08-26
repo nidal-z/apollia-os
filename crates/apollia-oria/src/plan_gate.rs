@@ -76,12 +76,6 @@ impl PendingPlanGates {
             None => false,
         }
     }
-
-    /// Returns the run identifiers currently awaiting a decision.
-    pub fn pending_run_ids(&self) -> Vec<String> {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.keys().cloned().collect()
-    }
 }
 
 #[cfg(test)]

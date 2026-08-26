@@ -215,45 +215,6 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Updates `responded_at` and computes `wait_duration_ms` in SQL.
-    ///
-    /// The wait duration is computed atomically in SQL as the difference between
-    /// `responded_at` and `suspended_at` in milliseconds, via `julianday()`.
-    /// Targets the pending row (`approved IS NULL`).
-    ///
-    /// Called by the `ResumeHandler` when the human responds.
-    ///
-    /// # Errors
-    ///
-    /// - [`TaskRepoError::Sqlite`] on a SQLite error
-    pub async fn save_response_timing(
-        &self,
-        task_id: &str,
-        responded_at: &str,
-    ) -> Result<(), TaskRepoError> {
-        let path = self.db_path.clone();
-        let task_id = task_id.to_string();
-        let responded_at = responded_at.to_string();
-
-        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = open_conn(&path)?;
-            conn.execute(
-                "UPDATE task_approvals \
-                 SET responded_at = ?1, \
-                     wait_duration_ms = CAST( \
-                         (julianday(?1) - julianday(suspended_at)) * 86400000 AS INTEGER \
-                     ) \
-                 WHERE task_id = ?2 AND approved IS NULL",
-                params![&responded_at, &task_id],
-            )?;
-            Ok(())
-        })
-        .await
-        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
-
-        Ok(())
-    }
-
     /// Persists the human response and inserts a row into `task_approvals`.
     ///
     /// Updates `input_response_approved`, `input_response_reason`,

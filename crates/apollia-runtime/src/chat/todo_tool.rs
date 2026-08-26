@@ -83,35 +83,6 @@ pub async fn run_todo_write(
     }
 }
 
-/// JSON tool descriptor for `todo_write`.
-///
-/// Declared as a module-level constant so the schema has a single source of
-/// truth shared by the LLM spec and the tests.
-pub const TODO_WRITE_SCHEMA: &str = r#"{
-  "name": "todo_write",
-  "description": "Replace the full todo list for the current session. Use this tool to track tasks and their status. Constraint: at most one item may have status 'in_progress' at any time.",
-  "parameters": {
-    "type": "object",
-    "required": ["items"],
-    "properties": {
-      "items": {
-        "type": "array",
-        "description": "Complete replacement list of todo items.",
-        "items": {
-          "type": "object",
-          "required": ["id", "content", "status"],
-          "properties": {
-            "id":         { "type": "string" },
-            "content":    { "type": "string" },
-            "status":     { "type": "string", "enum": ["pending", "in_progress", "completed"] },
-            "depends_on": { "type": "array", "items": { "type": "string" } }
-          }
-        }
-      }
-    }
-  }
-}"#;
-
 /// Build the [`ToolSpec`] advertised to the LLM for `todo_write`.
 ///
 /// Available whenever the session has a todo store. The description states the
@@ -218,17 +189,6 @@ mod tests {
             .error
             .as_deref()
             .is_some_and(|e| e.starts_with("invalid payload")));
-    }
-
-    #[test]
-    fn test_todo_write_schema_is_valid_json() {
-        // GIVEN the declared schema constant
-        // WHEN parsing it as JSON
-        let value: serde_json::Value =
-            serde_json::from_str(TODO_WRITE_SCHEMA).expect("schema parses");
-
-        // THEN the tool name is todo_write
-        assert_eq!(value["name"], "todo_write");
     }
 
     #[test]

@@ -168,68 +168,6 @@ impl ChatSessionManagerHandle {
         })?
     }
 
-    /// Resume a paused session, restarting the ReAct loop from the persisted plan
-    /// state.
-    ///
-    /// A fresh cooperative token is attached and a continuation turn is dispatched.
-    /// The step budget is rebuilt per turn from the runtime ceiling, so the
-    /// safeguard is never disarmed.
-    ///
-    /// This is distinct from [`Self::resume_session`], which reloads a session
-    /// from SQLite. Here the session is already in memory and only the loop is
-    /// restarted.
-    ///
-    /// # Errors
-    ///
-    /// - [`PauseError::UnknownSession`] when no session matches `session_id`.
-    pub async fn resume_paused_session(&self, session_id: &str) -> Result<(), PauseError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::ResumePausedSession {
-                session_id: session_id.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| PauseError::UnknownSession {
-                session_id: session_id.to_string(),
-            })?;
-        reply_rx.await.map_err(|_| PauseError::UnknownSession {
-            session_id: session_id.to_string(),
-        })?
-    }
-
-    /// Inject a natural-language instruction into a paused session and resume it.
-    ///
-    /// The instruction is queued as the next user message; on resume the agent
-    /// adjusts the plan via the `plan_*` tools, with any created step stamped
-    /// [`StepOrigin::UserInject`](apollia_core::plan::StepOrigin::UserInject).
-    ///
-    /// # Errors
-    ///
-    /// - [`InjectError::UnknownSession`] when no session matches `session_id`.
-    /// - [`InjectError::EmptyInstruction`] when the text is empty or whitespace.
-    /// - [`InjectError::NotPaused`] when the session is not paused.
-    pub async fn inject_instruction(
-        &self,
-        session_id: &str,
-        text: &str,
-    ) -> Result<(), InjectError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::InjectInstruction {
-                session_id: session_id.to_string(),
-                text: text.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| InjectError::UnknownSession {
-                session_id: session_id.to_string(),
-            })?;
-        reply_rx.await.map_err(|_| InjectError::UnknownSession {
-            session_id: session_id.to_string(),
-        })?
-    }
-
     /// Read the cooperative pause state of a session.
     ///
     /// Returns `None` for an unknown session; a known session with no recorded
@@ -466,62 +404,6 @@ impl ChatSessionManagerHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
-    }
-
-    /// List aggregated A2A skill telemetry.
-    pub async fn list_a2a_skill_telemetry(&self) -> Vec<crate::a2a::A2ASkillTelemetry> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(ChatCommand::ListA2ASkillTelemetry { reply: reply_tx })
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// List A2A step provenance entries, optionally filtered by skill id.
-    pub async fn list_a2a_step_provenance(
-        &self,
-        skill_id: Option<String>,
-    ) -> Vec<crate::a2a::A2AStepProvenance> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(ChatCommand::ListA2AStepProvenance {
-                skill_id,
-                reply: reply_tx,
-            })
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// Check compatibility of a skill against a required semver version.
-    pub async fn check_a2a_compatibility(
-        &self,
-        skill_id: String,
-        required_version: String,
-    ) -> Option<crate::a2a::A2ACompatibilityWarning> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(ChatCommand::CheckA2ACompatibility {
-                skill_id,
-                required_version,
-                reply: reply_tx,
-            })
-            .await
-            .is_err()
-        {
-            return None;
-        }
-        reply_rx.await.unwrap_or(None)
     }
 
     /// List recently resolved chat tool approvals from the approval log.

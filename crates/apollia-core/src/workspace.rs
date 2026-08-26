@@ -176,16 +176,6 @@ impl WorkspaceSnapshot {
         blocks.join("\n\n")
     }
 
-    /// Returns the content of the first section whose title matches, or `None`
-    /// if no section matches.
-    pub fn get_section(&self, title: &str) -> Option<&str> {
-        self.slices
-            .iter()
-            .flat_map(|s| &s.sections)
-            .find(|s| s.title == title)
-            .map(|s| s.content.as_str())
-    }
-
     /// Returns `true` if the snapshot contains no section.
     pub fn is_empty(&self) -> bool {
         self.slices.iter().all(|s| s.sections.is_empty())

@@ -337,12 +337,6 @@ impl ORIAEngine {
         self
     }
 
-    /// Configure the global runtime budget (cap applied via `StepBudget::from_capped`).
-    pub fn with_runtime_config(mut self, config: StepBudgetConfig) -> Self {
-        self.runtime_config = config;
-        self
-    }
-
     /// Inject the ORIA configuration read from `apollia.toml`.
     ///
     /// If not called, [`ORIAConfig::default`] is used (`max_replans = 2`).
@@ -352,14 +346,6 @@ impl ORIAEngine {
     pub fn with_oria_config(mut self, config: ORIAConfig) -> Self {
         self.context_manager = ContextManager::from_config(&config);
         self.oria_config = config;
-        self
-    }
-
-    /// Configure the SQLite path for execution-plan persistence.
-    ///
-    /// If absent, a `:memory:` fallback is used (no persistence across restarts).
-    pub fn with_db_path(mut self, path: impl Into<String>) -> Self {
-        self.db_path = Some(path.into());
         self
     }
 

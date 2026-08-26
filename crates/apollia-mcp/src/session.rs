@@ -449,9 +449,9 @@ impl McpSession {
                 // and wait for an answer. Nothing here dispatches either, so
                 // announcing them turns a working server into a stalled one.
                 //
-                // The request and result types are kept in `protocol`, ready
-                // for the implementation. Restore these two fields in the same
-                // change that adds a handler, never before.
+                // `protocol` declares no request or result type for either:
+                // the types and the handler land in the same change that sets
+                // these two fields, never before.
                 sampling: None,
                 elicitation: None,
             },
@@ -926,74 +926,6 @@ impl McpSession {
             tool: "resources/read".into(),
             cause: e.to_string(),
         })
-    }
-
-    /// Subscribe to updates for a specific resource (`resources/subscribe`).
-    ///
-    /// The server will subsequently send `notifications/resources/updated` for
-    /// the matching URI. Apollia's dispatch loop currently drops notifications
-    /// (cf. dispatch_task); wiring them through is part of the next step.
-    pub async fn subscribe_resource(&self, uri: &str) -> Result<(), McpSessionError> {
-        let params = serde_json::json!({ "uri": uri });
-        self.send_request(
-            "resources/subscribe",
-            Some(params),
-            self.config.call_timeout_secs,
-        )
-        .await
-        .map(|_| ())
-    }
-
-    /// List the prompts exposed by the server (`prompts/list`).
-    pub async fn list_prompts(
-        &self,
-    ) -> Result<crate::protocol::PromptsListResult, McpSessionError> {
-        let response = self
-            .send_request("prompts/list", None, self.config.call_timeout_secs)
-            .await?;
-        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
-            server: self.config.name.clone(),
-            tool: "prompts/list".into(),
-            cause: e.to_string(),
-        })
-    }
-
-    /// Retrieve a server-side prompt template (`prompts/get`).
-    pub async fn get_prompt(
-        &self,
-        name: &str,
-        arguments: Option<serde_json::Value>,
-    ) -> Result<crate::protocol::PromptsGetResult, McpSessionError> {
-        let params = crate::protocol::PromptsGetParams {
-            name: name.to_owned(),
-            arguments,
-        };
-        let params_value = serde_json::to_value(&params)
-            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-        let response = self
-            .send_request(
-                "prompts/get",
-                Some(params_value),
-                self.config.call_timeout_secs,
-            )
-            .await?;
-        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
-            server: self.config.name.clone(),
-            tool: "prompts/get".into(),
-            cause: e.to_string(),
-        })
-    }
-
-    /// Set the server's log level (`logging/setLevel`).
-    pub async fn set_log_level(&self, level: &str) -> Result<(), McpSessionError> {
-        let params = serde_json::json!({ "level": level });
-        self.send_request(
-            "logging/setLevel",
-            Some(params),
-            self.config.call_timeout_secs,
-        )
-        .await
-        .map(|_| ())
     }
 
     /// Gracefully shut down the session.

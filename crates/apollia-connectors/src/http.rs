@@ -217,27 +217,6 @@ impl HttpClient {
         })
     }
 
-    /// Convenience overload for callers that already hold a valid bearer and
-    /// know a refresh won't be necessary (e.g. a fresh token just returned).
-    pub async fn json_request_no_refresh<B, T>(
-        &self,
-        method: Method,
-        url: &str,
-        body: &B,
-        bearer: &str,
-    ) -> Result<T, ConnectorError>
-    where
-        B: serde::Serialize + ?Sized,
-        T: DeserializeOwned,
-    {
-        self.json_request(JsonRequest { method, url, body }, bearer, || async move {
-            Err(ConnectorError::Unauthorized {
-                provider: self.provider_id,
-            })
-        })
-        .await
-    }
-
     /// Decide what to do after a request failed to even produce a response.
     ///
     /// Returns `None` when the caller should back off and retry the attempt,

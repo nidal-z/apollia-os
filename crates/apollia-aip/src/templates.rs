@@ -16,25 +16,6 @@ use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-/// Internal errors of the templates layer (mapped to `PyErr`).
-#[derive(Debug, thiserror::Error)]
-pub enum TemplatesError {
-    /// Template not declared in the manifest.
-    #[error("template '{0}' not declared in @agent(templates=...)")]
-    NotDeclared(String),
-    /// Template declared but not found / not compiled.
-    #[error("template '{0}' not loaded (file missing)")]
-    NotLoaded(String),
-    /// Jinja rendering failed.
-    #[error("render failed for '{name}': {reason}")]
-    RenderFailed {
-        /// Logical template name.
-        name: String,
-        /// Minijinja detail.
-        reason: String,
-    },
-}
-
 /// Read-only interface exposed to the agent via `ctx.templates`.
 ///
 /// Built with the declared list. [`Self::load_from_dir`] compiles and stores

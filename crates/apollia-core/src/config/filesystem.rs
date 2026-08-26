@@ -60,21 +60,6 @@ impl JournalConfig {
         )?;
         Ok(())
     }
-
-    /// Resolves `~` in `root` to the effective home directory.
-    ///
-    /// Returns the resolved path without modifying `self`.
-    pub fn resolved_root(&self) -> PathBuf {
-        let s = self.root.to_string_lossy();
-        if s.starts_with("~/") {
-            let home = crate::paths::home_dir_or_temp().display().to_string();
-            PathBuf::from(home).join(s.trim_start_matches("~/"))
-        } else if s == "~" {
-            PathBuf::from(crate::paths::home_dir_or_temp().display().to_string())
-        } else {
-            self.root.clone()
-        }
-    }
 }
 
 fn default_journal_enabled() -> bool {

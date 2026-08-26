@@ -38,11 +38,6 @@ use crate::{
 
 const DRIVE_BASE: &str = "https://www.googleapis.com/drive/v3";
 const UPLOAD_BASE: &str = "https://www.googleapis.com/upload/drive/v3";
-/// Fallback root folder name used when callers don't pass an explicit
-/// `root_path` (legacy + default-on-empty behaviour). End-user installs
-/// resolve their preferred path via [`apollia_auth::drive_prefs`] and
-/// pass it down explicitly; this constant is the safety net.
-pub const DEFAULT_ROOT_FOLDER_NAME: &str = "Apollia";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 
 /// Cap on a downloaded or echoed-back file body. The workspace pattern is meant

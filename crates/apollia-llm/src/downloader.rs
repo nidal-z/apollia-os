@@ -174,16 +174,6 @@ impl DownloadManager {
             None => Err(DownloadError::NotFound(id.to_string())),
         }
     }
-
-    /// Return the list of active download IDs.
-    pub fn active_ids(&self) -> Vec<DownloadId> {
-        self.active
-            .lock()
-            .expect("active lock")
-            .keys()
-            .cloned()
-            .collect()
-    }
 }
 
 impl Default for DownloadManager {

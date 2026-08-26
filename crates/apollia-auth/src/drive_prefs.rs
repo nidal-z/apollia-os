@@ -293,23 +293,12 @@ pub fn list_picked_folders_at(
         .unwrap_or_default()
 }
 
-/// Append a picked folder to the user's list, deduping by `id`. If the
-/// folder is already present, its `name` is refreshed.
-pub fn add_picked_folder(
-    provider_id: &str,
-    account_id: &str,
-    folder: PickedFolder,
-) -> Result<(), std::io::Error> {
-    let path = drive_prefs_path().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "cannot determine $HOME directory",
-        )
-    })?;
-    add_picked_folder_at(&path, provider_id, account_id, folder)
-}
-
-/// Append at an explicit `path`.
+/// Append at an explicit `path`, deduping by `id`. If the folder is already
+/// present, its `name` is refreshed.
+// TEST-ONLY: the only writer of the picked-folder list. Its read path
+// (`list_picked_folders`, `remove_picked_folder`) is live in the CLI and in the
+// connectors bridge, and the tests of that read path build their state with
+// this primitive; no production caller writes a picked folder today.
 pub fn add_picked_folder_at(
     path: &Path,
     provider_id: &str,

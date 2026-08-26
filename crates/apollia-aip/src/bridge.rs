@@ -56,18 +56,13 @@ const DEFAULT_WALL_CLOCK_SECS: u64 = 300;
 /// Bridge between the Tokio runtime and a Python asyncio agent.
 ///
 /// Wraps a validated Python agent and provides async Rust methods
-/// to call the decorator-installed dispatch hook, `on_start()`,
-/// `on_stop()`, and `on_plan_complete()`.
+/// to call the decorator-installed dispatch hook and `on_plan_complete()`.
 ///
 /// Uses `tokio::task::spawn_blocking` to move Python execution off
 /// Tokio worker threads.
 pub struct AIPBridge {
     /// The Python agent object.
     agent: Py<PyAny>,
-    /// Whether the agent has an `on_start` callback.
-    has_on_start: bool,
-    /// Whether the agent has an `on_stop` callback.
-    has_on_stop: bool,
     /// Whether the agent has an `on_plan_complete` hook.
     has_on_plan_complete: bool,
     /// Working directory for `APOLLIA.md` discovery; `None` if not configured.
@@ -105,8 +100,6 @@ impl AIPBridge {
 
         Ok(Self {
             agent: validated.object,
-            has_on_start: validated.has_on_start,
-            has_on_stop: validated.has_on_stop,
             has_on_plan_complete: validated.has_on_plan_complete,
             cwd: None,
             wall_clock_secs: None,
@@ -225,35 +218,6 @@ impl AIPBridge {
             .map_err(|e| AIPBridgeError::DeserializationError(e.to_string()))
     }
 
-    /// Calls `agent.on_start(ctx)` if the callback exists.
-    ///
-    /// Does nothing if `has_on_start` is `false`.
-    ///
-    /// # Errors
-    ///
-    /// - `PythonException` if the callback raises an exception
-    pub async fn call_on_start(&self, ctx: PyObject) -> Result<(), AIPBridgeError> {
-        if !self.has_on_start {
-            return Ok(());
-        }
-
-        let agent = Python::with_gil(|py| self.agent.clone_ref(py));
-
-        tokio::task::spawn_blocking(move || {
-            Python::with_gil(|py| -> Result<(), AIPBridgeError> {
-                let coroutine = agent
-                    .bind(py)
-                    .call_method1("on_start", (ctx,))
-                    .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?;
-
-                run_coroutine(py, &coroutine)?;
-                Ok(())
-            })
-        })
-        .await
-        .map_err(|e| AIPBridgeError::Internal(format!("spawn_blocking failed: {e}")))?
-    }
-
     /// Calls `agent.on_plan_complete(step_results, ctx)` asynchronously.
     ///
     /// Converts `step_results: HashMap<String, String>` into a Python `dict[str, str]`
@@ -301,35 +265,6 @@ impl AIPBridge {
                             "on_plan_complete must return str, got: {e}"
                         ))
                     })
-            })
-        })
-        .await
-        .map_err(|e| AIPBridgeError::Internal(format!("spawn_blocking failed: {e}")))?
-    }
-
-    /// Calls `agent.on_stop()` if the callback exists.
-    ///
-    /// Does nothing if `has_on_stop` is `false`.
-    ///
-    /// # Errors
-    ///
-    /// - `PythonException` if the callback raises an exception
-    pub async fn call_on_stop(&self) -> Result<(), AIPBridgeError> {
-        if !self.has_on_stop {
-            return Ok(());
-        }
-
-        let agent = Python::with_gil(|py| self.agent.clone_ref(py));
-
-        tokio::task::spawn_blocking(move || {
-            Python::with_gil(|py| -> Result<(), AIPBridgeError> {
-                let coroutine = agent
-                    .bind(py)
-                    .call_method0("on_stop")
-                    .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?;
-
-                run_coroutine(py, &coroutine)?;
-                Ok(())
             })
         })
         .await

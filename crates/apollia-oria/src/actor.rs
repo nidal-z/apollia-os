@@ -329,14 +329,6 @@ impl ActorLoop {
         self
     }
 
-    /// Configure observability for truncating persisted inputs/outputs.
-    ///
-    /// Defaults to [`ObservabilityConfig::default()`].
-    pub fn with_obs_config(mut self, config: ObservabilityConfig) -> Self {
-        self.obs_config = config;
-        self
-    }
-
     /// Inject a [`MemoryManager`] for per-step episodic recording.
     ///
     /// When configured, each successfully completed step automatically records an

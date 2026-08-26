@@ -642,23 +642,6 @@ impl ProjectRepository {
         Ok(agents)
     }
 
-    /// Lists the IDs of the projects an agent belongs to.
-    pub fn list_projects_for_agent(
-        &self,
-        agent_name: &str,
-    ) -> Result<Vec<String>, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let mut stmt =
-            conn.prepare("SELECT project_id FROM project_agents WHERE agent_name = ?1")?;
-        let ids = stmt
-            .query_map(params![agent_name], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(ids)
-    }
-
     // ─── Provider management ─────────────────────────────────────────────────
 
     /// Removes a context provider.
@@ -693,14 +676,6 @@ impl ProjectRepository {
 
     // ─── Async wrappers ───────────────────────────────────────────────────────
 
-    /// Async wrapper for [`list_projects`](Self::list_projects).
-    pub async fn list_projects_async(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list_projects())
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`get_project`](Self::get_project).
     pub async fn get_project_async(
         &self,
@@ -728,67 +703,10 @@ impl ProjectRepository {
         .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper for [`update_project`](Self::update_project).
-    pub async fn update_project_async(
-        &self,
-        id: String,
-        patch: ProjectPatch,
-    ) -> Result<bool, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.update_project(&id, patch))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`delete_project`](Self::delete_project).
     pub async fn delete_project_async(&self, id: String) -> Result<bool, ProjectRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.delete_project(&id))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`add_document`](Self::add_document).
-    pub async fn add_document_async(
-        &self,
-        project_id: String,
-        name: String,
-        file_path: String,
-        size_bytes: i64,
-    ) -> Result<String, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || {
-            repo.add_document(&project_id, name, file_path, size_bytes)
-        })
-        .await
-        .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`remove_document`](Self::remove_document).
-    pub async fn remove_document_async(
-        &self,
-        doc_id: String,
-    ) -> Result<bool, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.remove_document(&doc_id))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`list_templates`](Self::list_templates).
-    pub async fn list_templates_async(
-        &self,
-    ) -> Result<Vec<ProjectTemplate>, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list_templates())
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`seed_builtin_templates`](Self::seed_builtin_templates).
-    pub async fn seed_builtin_templates_async(&self) -> Result<(), ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.seed_builtin_templates())
             .await
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }

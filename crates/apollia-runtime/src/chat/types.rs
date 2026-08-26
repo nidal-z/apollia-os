@@ -909,17 +909,6 @@ impl PendingFilesystemApprovals {
             false
         }
     }
-
-    /// Deny all pending requests (used when session is closed).
-    pub fn deny_all_pending(&self) {
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingFilesystemApprovals lock poisoned");
-        for (_, tx) in map.drain() {
-            let _ = tx.send(FsHitlDecision::deny());
-        }
-    }
 }
 
 impl Clone for PendingFilesystemApprovals {

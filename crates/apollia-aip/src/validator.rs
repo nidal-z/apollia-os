@@ -21,10 +21,6 @@ pub struct ValidatedAgent {
     pub object: Py<PyAny>,
     /// The manifest deserialized from the Python dict.
     pub manifest: AgentManifest,
-    /// `true` if the agent implements `on_start()`.
-    pub has_on_start: bool,
-    /// `true` if the agent implements `on_stop()`.
-    pub has_on_stop: bool,
     /// `true` if the agent implements `health_check()`.
     pub has_health_check: bool,
     /// `true` if the agent implements `on_plan_complete()`.
@@ -170,7 +166,7 @@ fn validate_manifest_semantics(manifest: &AgentManifest) -> Result<(), AIPValida
 /// Checks for the presence of `__apollia_manifest__` and
 /// `__apollia_dispatch__` (both installed by the `@agent` decorator),
 /// deserialises the manifest into [`AgentManifest`], and detects optional
-/// callbacks (`on_start`, `on_stop`, `health_check`, `on_plan_complete`).
+/// callbacks (`health_check`, `on_plan_complete`).
 ///
 /// # Errors
 ///
@@ -246,12 +242,6 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
         manifest.agent_class = class_name;
 
         // Detect optional callbacks
-        let has_on_start = agent_ref
-            .hasattr("on_start")
-            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
-        let has_on_stop = agent_ref
-            .hasattr("on_stop")
-            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let has_health_check = agent_ref
             .hasattr("health_check")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
@@ -262,8 +252,6 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
         Ok(ValidatedAgent {
             object: agent.clone_ref(py),
             manifest,
-            has_on_start,
-            has_on_stop,
             has_health_check,
             has_on_plan_complete,
         })
@@ -327,8 +315,6 @@ agent = A()
         // THEN validation succeeds with correct manifest
         assert_eq!(validated.manifest.name, "test-agent");
         assert_eq!(validated.manifest.version, "0.1.0");
-        assert!(!validated.has_on_start);
-        assert!(!validated.has_on_stop);
         assert!(!validated.has_health_check);
     }
 
@@ -389,10 +375,8 @@ agent = A()
 
     #[test]
     fn test_validate_detects_optional_callbacks() {
-        // GIVEN an agent with on_start, on_stop and health_check
+        // GIVEN an agent with health_check
         let extra = r#"
-    async def on_start(self, ctx): pass
-    async def on_stop(self): pass
     def health_check(self): return True
 "#;
         let agent = build_agent(
@@ -409,8 +393,6 @@ agent = A()
         let validated = validate_agent(&agent).expect("validation should succeed");
 
         // THEN callbacks are detected
-        assert!(validated.has_on_start);
-        assert!(validated.has_on_stop);
         assert!(validated.has_health_check);
     }
 

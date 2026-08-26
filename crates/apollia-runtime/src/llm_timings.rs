@@ -20,9 +20,10 @@
 
 use serde::Deserialize;
 
-/// Failure to interpret a `timings` object that was present in a response.
+/// Failure to interpret a `timings` object lifted out of a response.
 ///
-/// Absence is not an error: it is `Ok(None)` from [`parse_timings`].
+/// Absence is not an error: the transport hands the object over only when the
+/// engine reported one, so there is no "absent" case to represent here.
 #[derive(Debug, thiserror::Error)]
 pub enum TimingsError {
     /// The `timings` value was not a JSON object.
@@ -150,21 +151,6 @@ impl TryFrom<RawTimings> for EngineTimings {
     }
 }
 
-/// Extract the engine timings from a chat completion response body.
-///
-/// Returns `Ok(None)` when the response carries no `timings` key, which is the
-/// normal case for any backend that is not `llama-server`. Returns an error only
-/// when a `timings` object is present and cannot be interpreted.
-pub fn parse_timings(body: &serde_json::Value) -> Result<Option<EngineTimings>, TimingsError> {
-    let Some(raw) = body.get("timings") else {
-        return Ok(None);
-    };
-    if raw.is_null() {
-        return Ok(None);
-    }
-    parse_timings_object(raw).map(Some)
-}
-
 /// Interpret a `timings` object that has already been lifted out of a response.
 ///
 /// The transport layer hands the object over on its own, so this is the entry
@@ -185,32 +171,6 @@ pub fn parse_timings_object(raw: &serde_json::Value) -> Result<EngineTimings, Ti
 pub fn observe_timings(backend: &str, model: &str, raw: &serde_json::Value) {
     match parse_timings_object(raw) {
         Ok(timings) => emit_completion_timings(backend, model, &timings),
-        Err(e) => {
-            tracing::debug!(
-                backend = %backend,
-                model = %model,
-                error = %e,
-                "llm.completion.timings.unreadable"
-            );
-        }
-    }
-}
-
-/// Parse and emit in one step, absorbing every failure.
-///
-/// This is the call site a completion path uses: it never returns anything to
-/// act on, because no timing problem is worth failing a completion over. A
-/// missing or unreadable object is logged at DEBUG and forgotten.
-pub fn observe_completion(backend: &str, model: &str, body: &serde_json::Value) {
-    match parse_timings(body) {
-        Ok(Some(timings)) => emit_completion_timings(backend, model, &timings),
-        Ok(None) => {
-            tracing::debug!(
-                backend = %backend,
-                model = %model,
-                "llm.completion.timings.absent"
-            );
-        }
         Err(e) => {
             tracing::debug!(
                 backend = %backend,
@@ -304,15 +264,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_timings_recorded_response_carries_expected_values() {
+    fn test_parse_timings_object_recorded_response_carries_expected_values() {
         // GIVEN a recorded llama-server response containing timings
         let body = recorded_cold_response();
 
         // WHEN it is parsed
-        let parsed = parse_timings(&body);
+        let parsed = parse_timings_object(&body["timings"]);
 
         // THEN the struct carries the engine's figures under the canonical names
-        let t = parsed.expect("parse succeeds").expect("timings present");
+        let t = parsed.expect("parse succeeds");
         assert_eq!(
             t,
             EngineTimings {
@@ -328,52 +288,26 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_timings_response_without_timings_is_none() {
-        // GIVEN a response body carrying no timings key, as any cloud backend returns
-        let body = serde_json::json!({
-            "choices": [], "model": "gpt-4o", "object": "chat.completion"
-        });
-
-        // WHEN it is parsed
-        let parsed = parse_timings(&body);
-
-        // THEN the result is None and no error surfaces to the caller
-        assert!(matches!(parsed, Ok(None)));
-    }
-
-    #[test]
-    fn test_parse_timings_null_timings_is_none() {
-        // GIVEN a response whose timings key is explicitly null
-        let body = serde_json::json!({ "timings": serde_json::Value::Null });
-
-        // WHEN it is parsed
-        let parsed = parse_timings(&body);
-
-        // THEN it is treated as absent, not as malformed
-        assert!(matches!(parsed, Ok(None)));
-    }
-
-    #[test]
-    fn test_parse_timings_non_object_timings_is_an_error() {
+    fn test_parse_timings_object_non_object_timings_is_an_error() {
         // GIVEN a response whose timings key is not an object
         let body = serde_json::json!({ "timings": "3815ms" });
 
         // WHEN it is parsed
-        let parsed = parse_timings(&body);
+        let parsed = parse_timings_object(&body["timings"]);
 
         // THEN the malformed object is reported rather than silently skipped
         assert!(matches!(parsed, Err(TimingsError::NotAnObject)));
     }
 
     #[test]
-    fn test_parse_timings_missing_required_field_is_an_error() {
+    fn test_parse_timings_object_missing_required_field_is_an_error() {
         // GIVEN a timings object with no prompt_ms
         let body = serde_json::json!({
             "timings": { "prompt_n": 10, "cache_n": 0, "predicted_n": 5, "predicted_ms": 50.0 }
         });
 
         // WHEN it is parsed
-        let parsed = parse_timings(&body);
+        let parsed = parse_timings_object(&body["timings"]);
 
         // THEN the offending field is named
         assert!(matches!(
@@ -383,16 +317,14 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_timings_absent_cache_n_defaults_to_zero() {
+    fn test_parse_timings_object_absent_cache_n_defaults_to_zero() {
         // GIVEN a build that predates prompt-cache reporting, so cache_n is absent
         let body = serde_json::json!({
             "timings": { "prompt_n": 10, "prompt_ms": 5.0, "predicted_n": 5, "predicted_ms": 50.0 }
         });
 
         // WHEN it is parsed
-        let t = parse_timings(&body)
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&body["timings"]).expect("parse succeeds");
 
         // THEN prefill and decode stay usable and nothing is reported as cached
         assert_eq!(t.prompt_tok_cached, 0);
@@ -402,9 +334,7 @@ mod tests {
     #[test]
     fn test_prompt_tok_total_sums_computed_and_cached() {
         // GIVEN the recorded warm response, whose prompt was nearly all cached
-        let t = parse_timings(&recorded_warm_response())
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&recorded_warm_response()["timings"]).expect("parse succeeds");
 
         // WHEN the submitted prompt size is derived
         let total = t.prompt_tok_total();
@@ -418,9 +348,7 @@ mod tests {
     #[test]
     fn test_derived_rates_match_the_engine_on_a_recorded_response() {
         // GIVEN the recorded cold response
-        let t = parse_timings(&recorded_cold_response())
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&recorded_cold_response()["timings"]).expect("parse succeeds");
 
         // WHEN the rates are derived from counts and durations
         let prefill = t.prefill_tps().expect("prefill rate defined");
@@ -434,9 +362,7 @@ mod tests {
     #[test]
     fn test_derived_rates_separate_prefill_from_decode_by_an_order_of_magnitude() {
         // GIVEN the recorded cold response from a GPU-resident model
-        let t = parse_timings(&recorded_cold_response())
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&recorded_cold_response()["timings"]).expect("parse succeeds");
 
         // WHEN prefill and decode rates are compared
         let ratio = t.prefill_tps().unwrap_or_default() / t.decode_tps().unwrap_or_default();
@@ -454,9 +380,7 @@ mod tests {
         });
 
         // WHEN the prefill rate is derived
-        let t = parse_timings(&body)
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&body["timings"]).expect("parse succeeds");
 
         // THEN it is undefined rather than zero, which would read as a stall
         assert_eq!(t.prefill_tps(), None);
@@ -466,9 +390,7 @@ mod tests {
     #[test]
     fn test_prompt_cache_hit_ratio_on_a_recorded_warm_response() {
         // GIVEN the recorded warm response
-        let t = parse_timings(&recorded_warm_response())
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&recorded_warm_response()["timings"]).expect("parse succeeds");
 
         // WHEN the hit ratio is derived
         let ratio = t.prompt_cache_hit_ratio().expect("ratio defined");
@@ -486,21 +408,19 @@ mod tests {
         });
 
         // WHEN the hit ratio is derived
-        let t = parse_timings(&body)
-            .expect("parse succeeds")
-            .expect("timings present");
+        let t = parse_timings_object(&body["timings"]).expect("parse succeeds");
 
         // THEN it is undefined rather than zero
         assert_eq!(t.prompt_cache_hit_ratio(), None);
     }
 
     #[test]
-    fn test_observe_completion_absorbs_a_malformed_object() {
-        // GIVEN a response whose timings cannot be interpreted
-        let body = serde_json::json!({ "timings": 42 });
+    fn test_observe_timings_absorbs_a_malformed_object() {
+        // GIVEN a lifted timings value that cannot be interpreted
+        let raw = serde_json::json!(42);
 
         // WHEN it is observed on the completion path
-        observe_completion("llama-local", "ministral-3-8b", &body);
+        observe_timings("llama-local", "ministral-3-8b", &raw);
 
         // THEN nothing propagates: reaching this line is the assertion
     }

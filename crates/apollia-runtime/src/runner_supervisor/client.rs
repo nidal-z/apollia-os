@@ -5,7 +5,6 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use uuid::Uuid;
 
 use super::error::RunnerError;
 
@@ -149,55 +148,5 @@ impl RunnerClient {
             )));
         }
         read_capped(resp).await
-    }
-
-    /// POST JSON and return the raw streaming response (SSE), without buffering
-    /// the body. The caller reads the `text/event-stream` incrementally. Uses the
-    /// data-plane timeout, which bounds the whole stream duration.
-    pub async fn post_stream<P: Serialize>(
-        &self,
-        path: &str,
-        body: &P,
-    ) -> Result<reqwest::Response, RunnerError> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .post(&url)
-            .timeout(DATA_TIMEOUT)
-            .json(body)
-            .send()
-            .await
-            .map_err(http_err)?;
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = apollia_core::net::read_capped_text(resp, MAX_RESPONSE_BYTES)
-                .await
-                .unwrap_or_default();
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
-                if let Some(err) = parsed.get("error") {
-                    let code = err
-                        .get("code")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("UNKNOWN")
-                        .to_string();
-                    let message = err
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    return Err(RunnerError::Ipc { code, message });
-                }
-            }
-            return Err(RunnerError::Http(format!(
-                "POST {} returned {}: {}",
-                path, status, text
-            )));
-        }
-        Ok(resp)
-    }
-
-    /// Generate a UUID v4 `request_id` for log correlation.
-    pub fn new_request_id() -> Uuid {
-        Uuid::new_v4()
     }
 }

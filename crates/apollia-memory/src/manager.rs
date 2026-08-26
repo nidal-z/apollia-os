@@ -347,16 +347,6 @@ impl MemoryManager {
         self.base_dir.join(format!("{namespace}.db"))
     }
 
-    /// Return the `.db` file path for a namespace, or `None` if the manager
-    /// does not know that namespace.
-    ///
-    /// Exposed so external components (notably
-    /// [`crate::user_memory::UserMemoryRepository`]) can open their own
-    /// connection on the same file.
-    pub fn db_path_for(&self, namespace: &str) -> Option<PathBuf> {
-        Some(self.db_path(namespace))
-    }
-
     /// Open a store for a namespace and insert it into the cache.
     fn open_store(&mut self, namespace: &str) -> Result<(), MemoryManagerError> {
         std::fs::create_dir_all(&self.base_dir)?;

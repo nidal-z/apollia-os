@@ -33,11 +33,11 @@ pub struct InitializeParams {
 /// All fields are optional; an absent field means "Apollia does not implement
 /// this capability". Apollia v0.1.0 advertises `roots` and nothing else.
 ///
-/// `sampling` and `elicitation` are deliberately absent. Their request and
-/// result types live below, but no handler dispatches an incoming
-/// `sampling/createMessage` or `elicitation/create`, so advertising them would
-/// leave a compliant server waiting on an answer that never comes. Set them
-/// only in the change that adds the handler.
+/// `sampling` and `elicitation` are deliberately absent: no handler dispatches
+/// an incoming `sampling/createMessage` or `elicitation/create`, so advertising
+/// them would leave a compliant server waiting on an answer that never comes.
+/// Their request and result types are not declared either; add both the types
+/// and the handler in the same change that sets these fields.
 #[derive(Debug, Default, Serialize)]
 pub struct ClientCapabilities {
     /// Filesystem / resource roots exposed to the server.
@@ -357,142 +357,6 @@ pub struct PromptMessage {
     pub content: serde_json::Value,
 }
 
-// ─── Sampling (server → client request) ──────────────────────────────────────
-
-/// Parameters for `sampling/createMessage` (server → client request).
-///
-/// Apollia routes this through `apollia_llm::LlmRouter` after HITL pre-approval.
-/// Rate-limiting and budget enforcement live in the handler.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct SamplingCreateMessageParams {
-    /// Conversation context the server wants the LLM to complete.
-    pub messages: Vec<serde_json::Value>,
-    /// Optional model preferences (priority hints).
-    #[serde(
-        rename = "modelPreferences",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub model_preferences: Option<serde_json::Value>,
-    /// Optional system prompt.
-    #[serde(
-        rename = "systemPrompt",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub system_prompt: Option<String>,
-    /// Optional context inclusion policy (`none`, `thisServer`, `allServers`).
-    #[serde(
-        rename = "includeContext",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub include_context: Option<String>,
-    /// Maximum tokens to generate.
-    #[serde(rename = "maxTokens", default, skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<u32>,
-    /// Temperature.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-}
-
-/// Result the client returns to the server for `sampling/createMessage`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct SamplingCreateMessageResult {
-    /// Role of the generated message (typically `"assistant"`).
-    pub role: String,
-    /// Generated content payload (text item per spec).
-    pub content: serde_json::Value,
-    /// Identifier of the model that produced the result.
-    pub model: String,
-    /// Optional reason the model stopped (`endTurn`, `stopSequence`, `maxTokens`, …).
-    #[serde(
-        rename = "stopReason",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub stop_reason: Option<String>,
-}
-
-// ─── Elicitation (server → client request) ───────────────────────────────────
-
-/// Parameters for `elicitation/create` (server → client request).
-///
-/// Apollia routes this through the existing `chat.user_input_required` inbox
-/// pipeline; `AskUserForm` consumes the JSON Schema directly. No new UI
-/// component required.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ElicitationCreateParams {
-    /// Human-readable message shown to the user above the form.
-    pub message: String,
-    /// JSON Schema (2020-12) describing the expected response shape.
-    #[serde(rename = "requestedSchema")]
-    pub requested_schema: serde_json::Value,
-}
-
-/// Result the client returns to the server for `elicitation/create`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "action", rename_all = "camelCase")]
-pub enum ElicitationCreateResult {
-    /// User submitted a response matching the schema.
-    Accept {
-        /// User-provided content matching `requested_schema`.
-        content: serde_json::Value,
-    },
-    /// User explicitly declined.
-    Decline,
-    /// User cancelled (closed the form, timeout, …).
-    Cancel,
-}
-
-// ─── Roots (server → client request) ─────────────────────────────────────────
-
-/// A filesystem / URI root the client exposes to the server.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct McpRoot {
-    /// Root URI (e.g. `"file:///home/user/projects/apollia"`).
-    pub uri: String,
-    /// Optional display name shown to the user.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-}
-
-/// Result returned for `roots/list` (server → client request).
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RootsListResult {
-    /// Roots the client authorises this server to traverse.
-    pub roots: Vec<McpRoot>,
-}
-
-// ─── Progress + cancellation notifications ───────────────────────────────────
-
-/// Payload of `notifications/progress`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ProgressNotification {
-    /// Progress token attached when the original request was sent.
-    #[serde(rename = "progressToken")]
-    pub progress_token: serde_json::Value,
-    /// Current progress value.
-    pub progress: f64,
-    /// Optional total against which `progress` should be interpreted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub total: Option<f64>,
-    /// Optional human-readable update.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
-}
-
-/// Payload of `notifications/cancelled`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CancelNotification {
-    /// JSON-RPC request id that should be cancelled.
-    #[serde(rename = "requestId")]
-    pub request_id: serde_json::Value,
-    /// Optional human-readable reason.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -749,57 +613,6 @@ mod tests {
         assert_eq!(result.prompts.len(), 1);
         assert_eq!(result.prompts[0].name, "summarize");
         assert!(result.prompts[0].arguments[0].required);
-    }
-
-    #[test]
-    fn test_elicitation_result_accept_serializes_with_action_tag() {
-        let r = ElicitationCreateResult::Accept {
-            content: serde_json::json!({ "answer": "yes" }),
-        };
-        let value = serde_json::to_value(&r).unwrap();
-        assert_eq!(value["action"], "accept");
-        assert_eq!(value["content"]["answer"], "yes");
-    }
-
-    #[test]
-    fn test_elicitation_result_decline_serializes_action_only() {
-        let r = ElicitationCreateResult::Decline;
-        let value = serde_json::to_value(&r).unwrap();
-        assert_eq!(value["action"], "decline");
-    }
-
-    #[test]
-    fn test_roots_list_result_round_trips() {
-        let roots = RootsListResult {
-            roots: vec![McpRoot {
-                uri: "file:///workspace".into(),
-                name: Some("workspace".into()),
-            }],
-        };
-        let value = serde_json::to_value(&roots).unwrap();
-        assert_eq!(value["roots"][0]["uri"], "file:///workspace");
-        let parsed: RootsListResult = serde_json::from_value(value).unwrap();
-        assert_eq!(parsed.roots.len(), 1);
-    }
-
-    #[test]
-    fn test_progress_notification_deserializes() {
-        let json_str = r#"{
-            "progressToken": "tok-1",
-            "progress": 0.5,
-            "total": 1.0,
-            "message": "halfway"
-        }"#;
-        let p: ProgressNotification = serde_json::from_str(json_str).unwrap();
-        assert_eq!(p.progress, 0.5);
-        assert_eq!(p.message.as_deref(), Some("halfway"));
-    }
-
-    #[test]
-    fn test_cancel_notification_deserializes() {
-        let json_str = r#"{ "requestId": 42, "reason": "user cancelled" }"#;
-        let c: CancelNotification = serde_json::from_str(json_str).unwrap();
-        assert_eq!(c.reason.as_deref(), Some("user cancelled"));
     }
 
     #[test]

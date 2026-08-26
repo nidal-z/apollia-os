@@ -210,33 +210,10 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper for [`list_agents_for_package`].
-    pub async fn list_agents_for_package_async(
-        &self,
-        package_name: String,
-    ) -> Result<Vec<String>, PackageRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list_agents_for_package(&package_name))
-            .await
-            .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`delete`].
     pub async fn delete_async(&self, name: String) -> Result<(), PackageRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.delete(&name))
-            .await
-            .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`link_agent`].
-    pub async fn link_agent_async(
-        &self,
-        package_name: String,
-        agent_name: String,
-    ) -> Result<(), PackageRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.link_agent(&package_name, &agent_name))
             .await
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }

@@ -31,11 +31,6 @@ pub fn ipc_error_response(error: ErrorBody) -> Response {
     (status, Json(body)).into_response()
 }
 
-/// Converts a generic error into an `Internal` `ErrorBody`.
-pub fn internal_error(message: impl Into<String>) -> ErrorBody {
-    ErrorBody::new(ErrorCode::Internal, message)
-}
-
 /// Converts a validation failure into a `BadRequest` `ErrorBody`.
 pub fn bad_request(message: impl Into<String>) -> ErrorBody {
     ErrorBody::new(ErrorCode::BadRequest, message)

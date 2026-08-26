@@ -87,21 +87,11 @@ BASELINE: dict[str, str] = {
     "is ever installed, so compaction is in-memory only. "
     "`architecture/05-building-blocks.md` now says so rather than listing disk "
     "offload as a capability. Wiring it is a v0.2 question.",
-    "with_db_path@apollia-oria": "closed by documentation, and deliberately not "
-    "wired: nothing sets it, so the engine runs on `:memory:`. Unlike the plan "
-    "cache and the rollback journal, no page ever claimed a plan run survives a "
-    "restart, so this is unstated behaviour rather than a dead capability. "
-    "`the-plan-model.md` now states it. Turning on SQLite persistence here would "
-    "change durability with no functional validation behind it, which is the "
-    "argument that decides an unwired builder either way.",
     "with_force_plan_gate@apollia-oria": "superseded: production calls "
     "`with_plan_gate_override`, which carries the same decision with a tri-state. "
     "Delete rather than wire.",
     "with_llm_router_and_reasoner@apollia-oria": "superseded: `wire_engine_with_llm` "
     "calls `with_llm_router` then `with_reasoner` separately. Delete rather than wire.",
-    "with_meta_orchestrator@apollia-oria": "superseded: the meta orchestrator is "
-    "reached through the runtime's builtin agent, not through the reasoner. The "
-    "capability is alive; this entry point is not.",
     "with_hitl@apollia-mcp": "dead second gate: approval is enforced by the ORIA "
     "actor loop for orchestrated runs and by the chat dispatcher for free chat, "
     "both of which are wired. Redundant defence nobody installs, not a hole.",
@@ -122,12 +112,6 @@ BASELINE: dict[str, str] = {
     "`thinking` field of a HITL request, so the approval surfaces render the reason "
     "without it. Filling it means deciding what of a model's reasoning may be shown to "
     "a user, which is a product question rather than a repair.",
-    "with_details@apollia-runner": "dead: an IPC `ErrorBody` is built by `new` at "
-    "every site and no caller ever attaches a details payload. Delete rather than "
-    "wire.",
-    "with_telemetry@apollia-runtime": "dead, and so is what it installs: nothing "
-    "calls the builder, and `invoke_with_logging`, the only method that reads the "
-    "telemetry handle, has no caller either. Delete rather than wire.",
     "with_wall_clock_secs@apollia-aip:bridge": "unwired, and the default is the whole "
     "policy: `call_run` falls back to `DEFAULT_WALL_CLOCK_SECS` (300 s) on every "
     "binary, so the per-agent budget this builder exists for is not configurable. "

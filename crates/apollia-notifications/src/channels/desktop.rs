@@ -343,9 +343,12 @@ fn severity_to_urgency(s: Severity) -> notify_rust::Urgency {
     }
 }
 
-/// Cross-platform version of `severity_to_urgency` for tests.
+/// Cross-platform version of `severity_to_urgency`.
 ///
 /// Returns a textual representation of the severity usable on all platforms.
+// TEST-ONLY: `severity_to_urgency` returns a `notify_rust::Urgency`, which does
+// not build on every platform the test matrix covers; this string mirror is the
+// only shape the shared assertions can compare. No production path emits it.
 pub fn severity_as_urgency_str(s: Severity) -> &'static str {
     match s {
         Severity::Critical | Severity::Error => "critical",

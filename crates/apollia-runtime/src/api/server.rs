@@ -53,7 +53,10 @@ use crate::router::TaskRouterHandle;
 /// every reader (ping/chat/complete/status).
 pub type SharedLlmRouter = Arc<RwLock<Option<Arc<LlmRouter>>>>;
 
-/// Build an empty [`SharedLlmRouter`] for tests and "no LLM" boot paths.
+/// Build an empty [`SharedLlmRouter`].
+// TEST-ONLY: every boot path resolves a router (or its absence) through
+// [`shared_llm_router_from`]; this constructor exists so a test can mount
+// `AppState` without a backend.
 pub fn empty_shared_llm_router() -> SharedLlmRouter {
     Arc::new(RwLock::new(None))
 }
@@ -79,7 +82,9 @@ pub type SharedSttEngine = Arc<RwLock<Option<crate::stt::SttEngineHandle>>>;
 pub type SharedSttRepository =
     Arc<RwLock<Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>>>;
 
-/// Build an empty [`SharedSttEngine`] for tests and "no STT" boot paths.
+/// Build an empty [`SharedSttEngine`].
+// TEST-ONLY: boot paths go through [`shared_stt_engine_from`]; this constructor
+// exists so a test can mount `AppState` without an STT engine.
 pub fn empty_shared_stt_engine() -> SharedSttEngine {
     Arc::new(RwLock::new(None))
 }
@@ -89,7 +94,9 @@ pub fn shared_stt_engine_from(initial: Option<crate::stt::SttEngineHandle>) -> S
     Arc::new(RwLock::new(initial))
 }
 
-/// Build an empty [`SharedSttRepository`] for tests and "no STT" boot paths.
+/// Build an empty [`SharedSttRepository`].
+// TEST-ONLY: boot paths go through [`shared_stt_repository_from`]; this
+// constructor exists so a test can mount `AppState` without a repository.
 pub fn empty_shared_stt_repository() -> SharedSttRepository {
     Arc::new(RwLock::new(None))
 }
