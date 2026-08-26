@@ -2,7 +2,7 @@
 
 > **Apollia AgentKit v0.1.0-preview** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
-The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **14 backend services** (LLM, memory, tools, A2A, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
+The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **15 backend services** (LLM, memory, tools, A2A, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
 **Design philosophy** :
 - Signature **is** the schema (type hints → JSON Schema → runtime validation)
@@ -144,7 +144,7 @@ The ORIA engine (Rust) generates and executes a plan from the system prompt. The
 
 ## The `Ctx` Protocol
 
-Every handler receives `ctx: Ctx`. The 14 services:
+Every handler receives `ctx: Ctx`. The 15 services:
 
 | Service | Type | Use |
 |---|---|---|
@@ -152,6 +152,7 @@ Every handler receives `ctx: Ctx`. The 14 services:
 | `ctx.memory` | `MemoryInterface` | episodic / semantic / procedural + `export` / `import_data` |
 | `ctx.tools` | `ToolProxy` | `call(name, input)`, `describe(name)`, `list_tools()` |
 | `ctx.a2a` | `A2AInterface` | `invoke(skill_id)`, `discover`, `list_skills`, `skill_as_tool` |
+| `ctx.mail` | `MailInterface` | `send`, `receive`, `poll`, `pending`, `list`, `ack`, `nack` - durable inbox, at-least-once |
 | `ctx.datasources` | `DatasourcesInterface` | `get(name)` - runtime YAML access |
 | `ctx.templates` | `TemplatesInterface` | `render(name, **vars)` - Jinja2 |
 | `ctx.secrets` | `SecretsInterface` | `get(key)` - read-only credentials, gated by manifest |
@@ -335,14 +336,14 @@ async def test_read_text_missing_file():
 
 `mock(AgentClass)` returns `(instance, ctx)` where:
 - `instance.invoke_skill(skill_id, **kwargs)` bypasses runtime dispatch
-- `ctx` is a `MockContext` implementing all 14 surfaces - pre-configure via `ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`, etc.
+- `ctx` is a `MockContext` implementing 14 of the 15 surfaces (`ctx.mail` has no mock yet) - pre-configure via `ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`, etc.
 
 ## CLI
 
 ```bash
 # Inspect an agent module before running it
-python -m apollia inspect agents/pdf-worker/pdf-worker.py
-python -m apollia inspect agents/pdf-worker/pdf-worker.py --json
+python -m apollia inspect agents/examples/hello/agent.py
+python -m apollia inspect agents/examples/hello/agent.py --json
 
 # Scaffold a new agent
 python -m apollia new my-agent --type worker
@@ -372,7 +373,7 @@ sdk/
     ├── react.py       # apollia.react(ctx, ...) utility
     ├── errors.py      # DomainError, NeedHumanInput, PayloadError, ...
     ├── types.py       # Ctx Protocol, vision types, helpers
-    ├── context/       # 14 Protocol surfaces (llm, memory, tools, a2a, ...)
+    ├── context/       # 15 Protocol surfaces (llm, memory, tools, a2a, mail, ...)
     ├── _internal/     # dispatch, inference, manifest, aip_result, logger_bridge
     ├── testing/       # mock(), MockContext, assertions
     ├── cli/           # apollia inspect, apollia new
